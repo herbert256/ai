@@ -325,7 +325,10 @@ fun AppNavHost(
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
-                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) })
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                onNavigateToAgentView = { id -> navController.navigate(NavRoutes.aiAgentView(id)) },
+                onNavigateToFlockView = { id -> navController.navigate(NavRoutes.aiFlockView(id)) },
+                onNavigateToSwarmView = { id -> navController.navigate(NavRoutes.aiSwarmView(id)) })
         }
         composable(NavRoutes.AI_SETUP) {
             SetupScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
@@ -757,6 +760,7 @@ fun AppNavHost(
                         }
                     },
                     onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                    onOpenView = { navController.navigate(NavRoutes.aiModelInfoView(provider.id, model)) },
                     onNavigateBack = safePopBack, onNavigateHome = navigateHome)
             }
         }
@@ -1603,6 +1607,14 @@ fun SettingsScreenNav(
      *  dialog's "Run Refresh all" branch can land the user on the
      *  Refresh sub-screen (where the progress overlay paints). */
     onNavigateToRefresh: () -> Unit = {},
+    /** Optional 👁 → View-route hooks for the Agent / Flock / Swarm
+     *  Edit sub-screens. Wired by the top-level SETTINGS route in
+     *  AppNavHost to navController.navigate(NavRoutes.aiXView(id));
+     *  default no-op leaves the icon hidden on call sites that don't
+     *  wire them. */
+    onNavigateToAgentView: ((String) -> Unit)? = null,
+    onNavigateToFlockView: ((String) -> Unit)? = null,
+    onNavigateToSwarmView: ((String) -> Unit)? = null,
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
     initialEditingAgentId: String? = null,
@@ -1641,6 +1653,9 @@ fun SettingsScreenNav(
         onTestSpecificModel = { s, k, m, p -> viewModel.testSpecificModel(s, k, m, p) },
         onNavigateToTrace = onNavigateToTrace,
         onNavigateToModelInfo = onNavigateToModelInfo,
+        onNavigateToAgentView = onNavigateToAgentView,
+        onNavigateToFlockView = onNavigateToFlockView,
+        onNavigateToSwarmView = onNavigateToSwarmView,
         initialSubScreen = initialSubScreen,
         initialProviderId = initialProviderId,
         initialEditingAgentId = initialEditingAgentId,

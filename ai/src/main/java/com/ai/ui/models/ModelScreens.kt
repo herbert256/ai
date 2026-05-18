@@ -171,6 +171,10 @@ fun ModelInfoScreen(
      *  Capabilities source labels, and the per-section "Source:"
      *  footer to make every info-provider name clickable. */
     onNavigateToHelpTopic: (String) -> Unit = {},
+    /** Optional 👁 view-screen hook. Wired by AppNavHost to
+     *  navController.navigate(NavRoutes.aiModelInfoView(...));
+     *  back returns here via Jetpack Nav. */
+    onOpenView: (() -> Unit)? = null,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -394,6 +398,7 @@ fun ModelInfoScreen(
             title = "Model Info",
             subject = modelName,
             onBackClick = onNavigateBack,
+            onOpenView = onOpenView,
             onTrace = if (ApiTracer.isTracingEnabled && traceCount > 0) {
                 { onNavigateToTracesForModel(provider, modelName) }
             } else null

@@ -259,12 +259,18 @@ fun ReportSingleResultScreen(
     }
     val agentIdx = orderedAgents.indexOfFirst { it.agentId == currentAgentId }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        // 👁 → matching View Reports at this agent.
+        val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
+            { holder.value = com.ai.ui.shared.ViewJump.Reports(currentAgentId) }
+        }
         TitleBar(
             helpTopic = "report_single_result",
             title = "Model response",
             reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = agentLabel,
             onBackClick = onBack,
+            onOpenView = onOpenViewJump,
             onTrace = traceFilename?.let { fn -> { onNavigateToTraceFile(fn) } },
             onDelete = {
                 // Multi-language agents get the 3-button popup so the

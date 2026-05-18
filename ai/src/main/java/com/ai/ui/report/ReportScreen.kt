@@ -324,6 +324,15 @@ fun ReportsScreenNav(
             hasNext = hasNextReport
         )
     }
+    // Manage → View 👁 jump holder. Lives HERE (one wrapper level
+    // above the bytecode-ceiling-hitting ReportsScreen) so the
+    // state declaration doesn't push ReportsScreen over its 64 KB
+    // method limit. ReportPrimaryOverlays' new top-of-chain block
+    // and the Manage screens' 👁 bottom-bar button both read this
+    // via [LocalPendingViewOverManage]. `remember` (not
+    // rememberSaveable) — transient enough to lose on rotation,
+    // and we avoid needing a Saver for the sealed type.
+    val pendingViewOverManage = remember { mutableStateOf<com.ai.ui.shared.ViewJump?>(null) }
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
             onOpenManage = onOpenReportManage,
@@ -335,7 +344,8 @@ fun ReportsScreenNav(
             // the underlying Manage screen.
             onExitToList = onNavigateBack
         ),
-        com.ai.ui.shared.LocalReportNeighborNav provides neighborNav
+        com.ai.ui.shared.LocalReportNeighborNav provides neighborNav,
+        com.ai.ui.shared.LocalPendingViewOverManage provides pendingViewOverManage
     ) {
     ReportsScreen(
         uiState = uiState,
@@ -3159,6 +3169,78 @@ private fun ReportPrimaryOverlays(
     onOpenFanOutView: (metaPromptName: String, language: String?) -> Unit,
     onCloseFanOutView: () -> Unit
 ): Boolean {
+    // Manage → View 👁 jump. This block runs BEFORE every other
+    // overlay so the requested View sub-screen renders on top of
+    // whatever Manage overlay is otherwise active. The Manage flag
+    // is intentionally NOT cleared by the dispatcher in
+    // [ReportsScreen] — back from the View sub-screen clears
+    // [pendingViewOverManage] alone, and on the next render the
+    // chain falls through to the still-set Manage flag, so the
+    // user lands back on the Manage screen they came from.
+    // See feedback_overlay_back_stack.md (bug shipped 3× already).
+    // State lives in [ReportsScreenNav] (one wrapper level above
+    // [ReportsScreen]) so the bytecode-heavy ReportsScreen body
+    // doesn't grow. Read via the [LocalPendingViewOverManage]
+    // CompositionLocal.
+    val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+    val jump = pendingHolder?.value
+    if (jump != null && currentReportId != null) {
+        val rid = currentReportId
+        val close: () -> Unit = { pendingHolder.value = null }
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides close
+        ) {
+            when (jump) {
+                is com.ai.ui.shared.ViewJump.Main -> ViewAiReportScreen(
+                    reportId = rid,
+                    promptTitle = uiState.genericPromptTitle,
+                    reportIcon = effectiveReportIcon,
+                    perModelIconGenEnabled = uiState.generalSettings.perModelIconGenEnabled,
+                    everyItems = emptyMap(),
+                    internalPrompts = aiSettings.internalPrompts,
+                    useInternalPromptsIcons = uiState.generalSettings.useInternalPromptsIcons,
+                    iconRefreshTick = uiState.iconRefreshTick,
+                    onMissingPromptIcon = promptIconCallbacks.onKickoff,
+                    onOpenHtmlPreview = { onHtmlPreviewDetailChange(ReportExportDetail.COMPLETE) },
+                    onViewIcons = { onShowIconsViewChange(true) },
+                    onBack = close
+                )
+                is com.ai.ui.shared.ViewJump.Rerank -> RerankViewScreen(
+                    reportId = rid, resultId = jump.id, onBack = close,
+                    onOpenReportForAgent = { close() }
+                )
+                is com.ai.ui.shared.ViewJump.Moderation -> ModerationViewScreen(
+                    reportId = rid, resultId = jump.id, onBack = close
+                )
+                is com.ai.ui.shared.ViewJump.Meta -> MetaViewScreen(
+                    reportId = rid, resultId = jump.id, language = null, onBack = close
+                )
+                is com.ai.ui.shared.ViewJump.FanIn -> FanInViewScreen(
+                    reportId = rid, resultId = jump.id, onBack = close
+                )
+                is com.ai.ui.shared.ViewJump.FanInModel -> FanInModelViewScreen(
+                    reportId = rid, resultId = jump.id, onBack = close
+                )
+                is com.ai.ui.shared.ViewJump.FanOut -> FanOutViewScreen(
+                    reportId = rid, metaPromptName = jump.metaPromptName,
+                    language = null, onBack = close
+                )
+                is com.ai.ui.shared.ViewJump.TranslationRun -> TranslateViewScreen(
+                    reportId = rid, translationRunId = jump.runId, onBack = close
+                )
+                is com.ai.ui.shared.ViewJump.Reports -> ReportsViewScreen(
+                    reportId = rid,
+                    availableLanguages = emptyList(),
+                    initialLanguage = null,
+                    initialAgentId = jump.agentId,
+                    onBack = { close() }
+                )
+            }
+        }
+        return true
+    }
     if (fanOutViewName != null && currentReportId != null) {
         val rid = currentReportId
         val name = fanOutViewName

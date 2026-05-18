@@ -116,9 +116,15 @@ internal fun ReportMetaScreen(
         value = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, reportId) }
     }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        // 👁 → Main View (Meta list is a picker; no per-meta View context).
+        val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewJump: (() -> Unit)? = pendingHolder?.let {
+            { it.value = com.ai.ui.shared.ViewJump.Main }
+        }
         TitleBar(helpTopic = "report_meta",
             title = "Meta",
             reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
+            onOpenView = onOpenViewJump,
             onBackClick = onBack)
 
         if (results.isEmpty()) {

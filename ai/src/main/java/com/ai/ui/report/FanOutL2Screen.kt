@@ -171,11 +171,21 @@ internal fun FanOutL2Screen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        // 👁 → matching View Fan-out for this metaPromptName.
+        val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
+            {
+                holder.value = run.metaPrompt.name.takeIf { it.isNotBlank() }
+                    ?.let { com.ai.ui.shared.ViewJump.FanOut(it) }
+                    ?: com.ai.ui.shared.ViewJump.Main
+            }
+        }
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
             title = if (isIconsMode) "Fan icons - model" else "Fan out - model",
             subject = subject,
             onBackClick = onBack,
+            onOpenView = onOpenViewJump,
             onDelete = { confirmModelDelete = true },
             onInfo = AppService.findById(activePid)?.let { svc -> { actions.onNavigateToModelInfo(svc, activeMdl) } },
             // 👯 takes over the in-page "Report" button — fires the
@@ -641,10 +651,20 @@ internal fun FanOutL2OnePageScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        // 👁 → matching View Fan-out for this metaPromptName.
+        val pendingOnePageHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewOnePageJump: (() -> Unit)? = pendingOnePageHolder?.let { holder ->
+            {
+                holder.value = run.metaPrompt.name.takeIf { it.isNotBlank() }
+                    ?.let { com.ai.ui.shared.ViewJump.FanOut(it) }
+                    ?: com.ai.ui.shared.ViewJump.Main
+            }
+        }
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
             title = "Fan out - one page",
             subject = subject,
+            onOpenView = onOpenViewOnePageJump,
             onBackClick = onBack
         )
         com.ai.ui.shared.HardcodedSubjectRow(subject)

@@ -82,7 +82,11 @@ fun AgentEditScreen(
      *  the parent should append it to aiSettings.endpoints. Without this
      *  the LiteLLM choices are still selectable but won't persist beyond
      *  this edit session. */
-    onAddEndpoint: (AppService, com.ai.model.Endpoint) -> Unit = { _, _ -> }
+    onAddEndpoint: (AppService, com.ai.model.Endpoint) -> Unit = { _, _ -> },
+    /** Optional 👁 view-screen hook. AppNavHost wires it to
+     *  navController.navigate(NavRoutes.aiAgentView(agentId)); back
+     *  pops back to this Edit screen via Jetpack Nav. */
+    onOpenView: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val scope = rememberCoroutineScope()
@@ -182,6 +186,9 @@ fun AgentEditScreen(
             title = if (isAddMode) "Add Agent" else "Edit Agent",
             subject = name,
             onBackClick = onBack,
+            // 👁 only visible on Edit (the View screen needs an
+            // existing agent id) — null in Add mode.
+            onOpenView = if (!isAddMode) onOpenView else null,
             onCopyReport = dup.copyTrigger
         )
         // Save / Create CTA hoisted to the top — the form below can

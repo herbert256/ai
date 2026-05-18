@@ -155,12 +155,18 @@ internal fun TranslationL1Screen(
     val maxDone = (modelRows.maxOfOrNull { it.done } ?: 0).coerceAtLeast(1)
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        // 👁 → matching View Translate screen for this run.
+        val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
+            { holder.value = com.ai.ui.shared.ViewJump.TranslationRun(run.runId) }
+        }
         TitleBar(
             helpTopic = "translation_run_l1",
             title = "Translation",
             reportIcon = com.ai.ui.shared.LocalReportIcon.current,
             subject = subject,
             onBackClick = onBack,
+            onOpenView = onOpenViewJump,
             onReload = { confirmReload = true },
             // Prefer the run-scoped 🐞 (filter the trace list to
             // exactly this translation run's runId); fall back to the

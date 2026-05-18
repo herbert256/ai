@@ -80,12 +80,18 @@ internal fun TranslationL2Screen(
     val allDone = total > 0 && done == total
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        // 👁 → matching View Translate screen for this run.
+        val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
+            { holder.value = com.ai.ui.shared.ViewJump.TranslationRun(run.runId) }
+        }
         TitleBar(
             helpTopic = "translation_run_l2",
             title = "Translation - model",
             reportIcon = com.ai.ui.shared.LocalReportIcon.current,
             subject = modelLabel,
             onBackClick = onBack,
+            onOpenView = onOpenViewJump,
             onInfo = if (providerService != null && modelName.isNotBlank()) {
                 { actions.onNavigateToModelInfo(providerService, modelName) }
             } else null

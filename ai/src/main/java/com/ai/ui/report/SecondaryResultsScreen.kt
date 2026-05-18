@@ -453,6 +453,11 @@ internal fun SecondaryResultsScreen(
         if (!isFanOutDrillIn) {
             val tfTop = pickerTraceFilename
             val pickerProviderService = pickerSelected?.providerId?.let { AppService.findById(it) }
+            // 👁 → Main View grid (the list view has no per-row context).
+            val pendingListHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+            val onOpenViewListJump: (() -> Unit)? = pendingListHolder?.let {
+                { it.value = com.ai.ui.shared.ViewJump.Main }
+            }
             TitleBar(
                 helpTopic = "secondary_list",
                 title = "Secondary results",
@@ -462,6 +467,7 @@ internal fun SecondaryResultsScreen(
                 onTrace = if (isMetaPickerMode && ApiTracer.isTracingEnabled && tfTop != null) {
                     { onNavigateToTraceFile(tfTop) }
                 } else null,
+                onOpenView = onOpenViewListJump,
                 onInfo = if (isMetaPickerMode && pickerSelected != null && pickerProviderService != null) {
                     { onNavigateToModelInfo(pickerProviderService, pickerSelected.model) }
                 } else null,
@@ -1142,12 +1148,23 @@ private fun ColumnScope.FanOutDrillInView(
         }
         val srcTrace = srcTraceState.value
         var confirmPairDelete by remember(pairResult?.id) { mutableStateOf(false) }
+        // 👁 → matching View Fan-out screen when we have a fan-out
+        // prompt name; otherwise fall back to Main View.
+        val pendingPairHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewPairJump: (() -> Unit)? = pendingPairHolder?.let { holder ->
+            {
+                holder.value = fanOutPrompt?.name?.takeIf { it.isNotBlank() }
+                    ?.let { com.ai.ui.shared.ViewJump.FanOut(it) }
+                    ?: com.ai.ui.shared.ViewJump.Main
+            }
+        }
         TitleBar(
             helpTopic = "secondary_fan_out_l3",
             title = "Fan out - pair",
             subject = sourceLabel,
             reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = { l3AnswererKey = null; l3SourceAgentId = null },
+            onOpenView = onOpenViewPairJump,
             onTrace = if (ApiTracer.isTracingEnabled && srcTrace != null) {
                 { onNavigateToTraceFile(srcTrace) }
             } else null,
@@ -1348,12 +1365,22 @@ private fun ColumnScope.FanOutDrillInView(
         // active model name surfaces as a green sub-header below.
         val l2Trace = activeModelTrace
         val l2Subject = com.ai.ui.shared.modelLabel(provName, activeMdl, separator = " / ")
+        // 👁 → matching View Fan-out screen.
+        val pendingL2Holder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewL2Jump: (() -> Unit)? = pendingL2Holder?.let { holder ->
+            {
+                holder.value = fanOutPrompt?.name?.takeIf { it.isNotBlank() }
+                    ?.let { com.ai.ui.shared.ViewJump.FanOut(it) }
+                    ?: com.ai.ui.shared.ViewJump.Main
+            }
+        }
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
             title = "Fan out - model",
             subject = l2Subject,
             reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = { selectedModelKey = null },
+            onOpenView = onOpenViewL2Jump,
             onInfo = if (activeProviderService != null) {
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
             } else null,
@@ -1760,12 +1787,22 @@ private fun ColumnScope.FanOutDrillInView(
         fanOutPrompt.title.isBlank() -> fanOutPrompt.name
         else -> "${fanOutPrompt.name} — ${fanOutPrompt.title}"
     }
+    // 👁 → matching View Fan-out screen.
+    val pendingL1Holder = com.ai.ui.shared.LocalPendingViewOverManage.current
+    val onOpenViewL1Jump: (() -> Unit)? = pendingL1Holder?.let { holder ->
+        {
+            holder.value = fanOutPrompt?.name?.takeIf { it.isNotBlank() }
+                ?.let { com.ai.ui.shared.ViewJump.FanOut(it) }
+                ?: com.ai.ui.shared.ViewJump.Main
+        }
+    }
     TitleBar(
         helpTopic = "secondary_fan_out_l1",
         title = "Fan out",
         subject = l1SubHeader.takeIf { it.isNotBlank() },
         reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
         onBackClick = onBack,
+        onOpenView = onOpenViewL1Jump,
         onReload = if (fanOutPrompt != null) ({ confirmRerunComplete = true }) else null,
         onDelete = { confirmFanOutDelete = true }
     )
@@ -2257,12 +2294,19 @@ private fun OnePageView(
         // Back arrow / system back closes the page (no separate
         // "Close" button needed). ℹ️ → Model Info for the active
         // model, mirroring the L2 page's TitleBar slot.
+        // 👁 → Main View (one-page is a roll-up view of fan-out;
+        // no per-page View counterpart).
+        val pendingOnePageHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewOnePageJump: (() -> Unit)? = pendingOnePageHolder?.let {
+            { it.value = com.ai.ui.shared.ViewJump.Main }
+        }
         TitleBar(
             helpTopic = "secondary_fan_out_onepage",
             title = "One page view",
             reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = modelLabel,
             onBackClick = onBack,
+            onOpenView = onOpenViewOnePageJump,
             onInfo = if (activeProviderService != null) {
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
             } else null
@@ -2673,6 +2717,24 @@ internal fun SecondaryResultDetailScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
+        // 👁 → matching View sub-screen, per-kind dispatch.
+        // RERANK → Rerank, MODERATION → Moderation, META → Meta /
+        // FanIn / FanInModel by flavour. State lives in
+        // ReportsScreenNav via LocalPendingViewOverManage; the
+        // top-of-chain block in ReportPrimaryOverlays consumes it.
+        val pendingViewHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewJump: (() -> Unit)? = pendingViewHolder?.let { holder ->
+            {
+                holder.value = when {
+                    result.kind == SecondaryKind.RERANK -> com.ai.ui.shared.ViewJump.Rerank(result.id)
+                    result.kind == SecondaryKind.MODERATION -> com.ai.ui.shared.ViewJump.Moderation(result.id)
+                    result.kind == SecondaryKind.META && result.fanInOf != null -> com.ai.ui.shared.ViewJump.FanIn(result.id)
+                    result.kind == SecondaryKind.META && (result.scopeProviderId != null || result.scopeModel != null) -> com.ai.ui.shared.ViewJump.FanInModel(result.id)
+                    result.kind == SecondaryKind.META -> com.ai.ui.shared.ViewJump.Meta(result.id)
+                    else -> com.ai.ui.shared.ViewJump.Main
+                }
+            }
+        }
         TitleBar(
             helpTopic = "secondary_detail",
             title = "Secondary detail",
@@ -2688,6 +2750,7 @@ internal fun SecondaryResultDetailScreen(
                 if (langTabs.size > 1) confirmLangChoice = true
                 else confirmDelete = true
             },
+            onOpenView = onOpenViewJump,
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
             onTranslationCompare = if (liveTranslateActive != null && !result.content.isNullOrBlank() && !liveTranslateActive.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }

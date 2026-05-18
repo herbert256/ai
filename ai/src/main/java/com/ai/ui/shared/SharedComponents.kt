@@ -261,6 +261,35 @@ sealed class ManageJump {
  *  directly from AppNavHost instead). */
 val LocalOpenManage = compositionLocalOf<((ManageJump) -> Unit)?> { null }
 
+/** Mirror of [ManageJump] — targets the Manage screens' 👁 button
+ *  can jump to. Each variant mounts the matching View sub-screen
+ *  on top of the currently-open Manage overlay; back returns to
+ *  the Manage overlay because its flag was left set (see
+ *  feedback_overlay_back_stack.md). */
+sealed class ViewJump {
+    object Main : ViewJump()
+    data class Rerank(val id: String) : ViewJump()
+    data class Moderation(val id: String) : ViewJump()
+    data class Meta(val id: String) : ViewJump()
+    data class FanIn(val id: String) : ViewJump()
+    data class FanInModel(val id: String) : ViewJump()
+    data class FanOut(val metaPromptName: String) : ViewJump()
+    data class TranslationRun(val runId: String) : ViewJump()
+    data class Reports(val agentId: String?) : ViewJump()
+}
+
+/** Mutable holder for the active Manage → View jump request.
+ *  Installed by `ReportsScreenNav` once per AI_REPORTS mount so
+ *  the state lives OUTSIDE `ReportsScreen` (which sits at the JVM
+ *  64 KB per-method bytecode ceiling). The new top-of-chain block
+ *  in `ReportPrimaryOverlays` reads `.value` to decide whether to
+ *  render a View sub-screen on top of whatever Manage overlay is
+ *  active; the Manage screens write `.value = ViewJump.X(...)`
+ *  from their bottom-bar 👁 button (via [TitleBar.onOpenView]).
+ *  Null on screens outside a report context (the Settings edit
+ *  routes hit `navController.navigate(...)` directly). */
+val LocalPendingViewOverManage = compositionLocalOf<MutableState<ViewJump?>?> { null }
+
 /** Set on every screen that's "deeper" than the AI Report Result
  *  page (overlay screens inside the result page — Edit Prompt /
  *  Title / Models / Parameters / Export / Translation Compare /

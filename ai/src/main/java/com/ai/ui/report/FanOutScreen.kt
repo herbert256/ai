@@ -234,9 +234,15 @@ fun FanOutScreen(
         // (run launched ms ago). Show a minimal title bar so back
         // works, then a "loading" sentinel.
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+            // 👁 → Main View (no run state yet → no metaPromptName).
+            val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+            val onOpenViewJump: (() -> Unit)? = pendingHolder?.let {
+                { it.value = com.ai.ui.shared.ViewJump.Main }
+            }
             TitleBar(
                 helpTopic = "secondary_fan_out_l1",
                 title = if (mode == FanOutMode.ICONS) "Fan icons" else "Fan out",
+                onOpenView = onOpenViewJump,
                 onBackClick = onBack
             )
             Text("Loading…", color = AppColors.TextTertiary)

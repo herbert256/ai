@@ -108,9 +108,18 @@ internal fun FanOutL3Screen(
 
     if (pair == null) {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+            val pendingHolderEmpty = com.ai.ui.shared.LocalPendingViewOverManage.current
+            val onOpenViewEmptyJump: (() -> Unit)? = pendingHolderEmpty?.let { holder ->
+                {
+                    holder.value = run.metaPrompt.name.takeIf { it.isNotBlank() }
+                        ?.let { com.ai.ui.shared.ViewJump.FanOut(it) }
+                        ?: com.ai.ui.shared.ViewJump.Main
+                }
+            }
             TitleBar(
                 helpTopic = "secondary_fan_out_l3",
                 title = if (mode == FanOutMode.ICONS) "Fan icons - pair" else "Fan out - pair",
+                onOpenView = onOpenViewEmptyJump,
                 onBackClick = onBack
             )
             Text("Pair no longer exists.", color = AppColors.TextTertiary)
@@ -176,11 +185,21 @@ internal fun FanOutL3Screen(
     BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         val halfMax = maxHeight / 2
         Column(Modifier.fillMaxSize().padding(16.dp)) {
+            // 👁 → matching View Fan-out for this metaPromptName.
+            val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+            val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
+                {
+                    holder.value = run.metaPrompt.name.takeIf { it.isNotBlank() }
+                        ?.let { com.ai.ui.shared.ViewJump.FanOut(it) }
+                        ?: com.ai.ui.shared.ViewJump.Main
+                }
+            }
             TitleBar(
                 helpTopic = "secondary_fan_out_l3",
                 title = if (mode == FanOutMode.ICONS) "Fan icons - pair" else "Fan out - pair",
                 subject = answererLabel,
                 onBackClick = onBack,
+                onOpenView = onOpenViewJump,
                 onInfo = answererProviderService?.let { svc ->
                     { actions.onNavigateToModelInfo(svc, pair.model) }
                 },

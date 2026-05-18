@@ -68,7 +68,8 @@ fun FlockEditScreen(
     existingNames: Set<String>,
     onSave: (Flock) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onOpenView: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -125,6 +126,7 @@ fun FlockEditScreen(
             title = if (isAddMode) "Add Flock" else "Edit Flock",
             subject = name,
             onBackClick = onBack,
+            onOpenView = if (!isAddMode) onOpenView else null,
             onCopyReport = dup.copyTrigger
         )
         Spacer(modifier = Modifier.height(8.dp))

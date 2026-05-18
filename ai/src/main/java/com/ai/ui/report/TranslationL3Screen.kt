@@ -161,12 +161,18 @@ internal fun TranslationL3Screen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
+        // 👁 → matching View Translate screen for this run.
+        val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
+            { holder.value = com.ai.ui.shared.ViewJump.TranslationRun(run.runId) }
+        }
         TitleBar(
             helpTopic = "translation_run_l3",
             title = "Translation call",
             reportIcon = com.ai.ui.shared.LocalReportIcon.current,
             subject = titleLang,
             onBackClick = onBack,
+            onOpenView = onOpenViewJump,
             onTrace = if (traceEnabled) { { actions.onNavigateToTraceFile(traceFilename!!) } } else null,
             onInfo = if (translationProviderService != null && !item.model.isNullOrBlank()) {
                 { actions.onNavigateToModelInfo(translationProviderService, item.model!!) }

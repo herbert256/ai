@@ -65,7 +65,8 @@ fun SwarmEditScreen(
     existingNames: Set<String>,
     onSave: (Swarm) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onOpenView: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val isEditing = swarm != null
@@ -143,6 +144,7 @@ fun SwarmEditScreen(
             title = if (isAddMode) "Add Swarm" else "Edit Swarm",
             subject = name,
             onBackClick = onBack,
+            onOpenView = if (!isAddMode) onOpenView else null,
             onCopyReport = dup.copyTrigger
         )
         Spacer(modifier = Modifier.height(8.dp))

@@ -91,6 +91,14 @@ fun SettingsScreen(
      *  user on the progress overlay it just kicked off. */
     onNavigateToRefresh: () -> Unit = {},
     onNavigateToHelpTopic: (String) -> Unit = {},
+    /** Optional 👁-bar hooks wired from AppNavHost to the matching
+     *  View screen route. When set, the Agent / Flock / Swarm Edit
+     *  screens render a 👁 in their bottom bar; tap navigates to the
+     *  read-only View sibling and back returns here via Jetpack Nav.
+     *  Default no-op keeps the icon hidden on legacy call sites. */
+    onNavigateToAgentView: ((String) -> Unit)? = null,
+    onNavigateToFlockView: ((String) -> Unit)? = null,
+    onNavigateToSwarmView: ((String) -> Unit)? = null,
     initialSubScreen: SettingsSubScreen = SettingsSubScreen.MAIN,
     initialProviderId: String? = null,
     initialEditingAgentId: String? = null,
@@ -476,7 +484,10 @@ fun SettingsScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 loadingModelsFor = loadingModelsFor,
                 fetchModelsErrors = fetchModelsErrors,
-                onNavigateToTrace = onNavigateToTrace
+                onNavigateToTrace = onNavigateToTrace,
+                onOpenView = agent?.id?.let { aid ->
+                    onNavigateToAgentView?.let { { it(aid) } }
+                }
             )
         }
         SettingsSubScreen.AI_FLOCKS -> {
@@ -496,7 +507,10 @@ fun SettingsScreen(
                     else aiSettings.copy(flocks = aiSettings.flocks + saved)
                     onSaveAi(updated); goBack()
                 },
-                onBack = goBack, onNavigateHome = onNavigateHome
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                onOpenView = flock?.id?.let { fid ->
+                    onNavigateToFlockView?.let { { it(fid) } }
+                }
             )
         }
         SettingsSubScreen.AI_SWARMS -> {
@@ -516,7 +530,10 @@ fun SettingsScreen(
                     else aiSettings.copy(swarms = aiSettings.swarms + saved)
                     onSaveAi(updated); goBack()
                 },
-                onBack = goBack, onNavigateHome = onNavigateHome
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                onOpenView = swarm?.id?.let { sid ->
+                    onNavigateToSwarmView?.let { { it(sid) } }
+                }
             )
         }
         SettingsSubScreen.AI_PARAMETERS -> {

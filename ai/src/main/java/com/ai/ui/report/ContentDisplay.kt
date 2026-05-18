@@ -378,10 +378,17 @@ private fun ReportsViewerScreenLoaded(
             val promptTraceFile = if (initialSection == "prompt") {
                 translationRowByTarget["PROMPT:prompt"]?.traceFile?.takeIf { it.isNotBlank() }
             } else null
+            // 👁 → Main View (prompt/costs section views fall back to
+            // the tile grid; no per-section View jump in ViewJump today).
+            val pendingSectionHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+            val onOpenViewSectionJump: (() -> Unit)? = pendingSectionHolder?.let {
+                { it.value = com.ai.ui.shared.ViewJump.Main }
+            }
             TitleBar(helpTopic = sectionHelpTopic,
                 title = title,
                 reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
                 onBackClick = onDismiss,
+                onOpenView = onOpenViewSectionJump,
                 onTrace = promptTraceFile?.let { tf -> { onNavigateToTraceFile(tf) } },
                 onTranslationCompare = if (initialSection == "prompt" && promptTranslateRow != null && !report.prompt.isNullOrBlank() && !promptTranslateRow.content.isNullOrBlank()) {
                     { showPromptCompare = true }
@@ -536,11 +543,17 @@ private fun ReportsViewerScreenLoaded(
         // Static page title; the agent picker dropdown below shows
         // the active model. ℹ️ on the title bar opens Model Info for
         // the selected agent's model.
+        // 👁 → matching View Reports screen at the active agent.
+        val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
+            { holder.value = com.ai.ui.shared.ViewJump.Reports(selectedAgentId) }
+        }
         TitleBar(
             helpTopic = "content_model_response",
             title = "Model response",
             reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = onDismiss,
+            onOpenView = onOpenViewJump,
             onTrace = headerTraceFilename?.let { fn -> { onNavigateToTraceFile(fn) } },
             onInfo = if (selectedReportAgent != null && selectedProviderService != null) {
                 { navToModelInfo(selectedProviderService, selectedReportAgent.model) }
