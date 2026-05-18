@@ -901,30 +901,24 @@ internal fun ViewAiReportScreen(
     // pulls from [InternalPromptIconCache] so each fan-out prompt
     // can carry its own dynamic glyph; falls back to the static
     // 🌀 when no cached icon exists yet.
-    val fanOutTiles = remember(everyItems, useInternalPromptsIcons, iconRefreshTick, currentLang) {
+    val fanOutTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang) {
         everyItems["fan_out"].orEmpty().map { item ->
             val fanOutEnabled = item.availableLanguages?.contains(currentLang) ?: true
-            val prompt = item.prompt
             // Fan-out items synthesised from fanOutSummaries carry no
             // [prompt] object — just item.label = the metaPromptName.
-            // Use the precise (name, title) cache lookup when [prompt]
-            // is present; otherwise fall back to the looser getByName
-            // lookup keyed on item.label so the dynamic icon still
-            // surfaces. Without this branch the synthesised entries
-            // always showed the static 🌀 fallback.
-            val promptEmoji = if (useInternalPromptsIcons) {
-                when {
-                    prompt != null && prompt.name.isNotBlank() -> {
-                        val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
-                        if (e == null) onMissingPromptIcon(prompt)
-                        e
-                    }
-                    item.label.isNotBlank() -> {
-                        com.ai.data.InternalPromptIconCache.getByName(item.label)
-                            ?.takeIf { it.isNotBlank() }
-                    }
-                    else -> null
-                }
+            // Resolve the matching InternalPrompt from the internalPrompts
+            // list so we can do the precise (name, title) cache lookup
+            // AND fire onMissingPromptIcon to kick off generation when
+            // the cache is cold (same path Meta / Fan-in use).
+            val resolvedPrompt = item.prompt ?: internalPrompts.firstOrNull {
+                it.category == "fan_out" && it.name == item.label
+            }
+            val promptEmoji = if (
+                useInternalPromptsIcons && resolvedPrompt != null && resolvedPrompt.name.isNotBlank()
+            ) {
+                val e = com.ai.data.InternalPromptIconCache.get(resolvedPrompt.name, resolvedPrompt.title)
+                if (e == null) onMissingPromptIcon(resolvedPrompt)
+                e
             } else null
             IdentifiedTile(
                 id = "fan_out:${item.label}",
