@@ -17,6 +17,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -70,87 +71,78 @@ fun MetaViewScreen(
     reportId: String,
     resultId: String,
     language: String?,
-    onBack: () -> Unit
+    /** Receives the active language ("" = Original, non-blank =
+     *  displayName) at navigate-back time so the parent View screen
+     *  can adopt it on return. */
+    onBack: (activeLanguage: String?) -> Unit
 ) {
-    androidx.activity.compose.BackHandler { onBack() }
     val context = LocalContext.current
 
     data class Loaded(
-        // Every META row on this report (sorted by timestamp) so the
-        // pager can swipe across them. The initially-tapped row sets
-        // the starting page.
-        val allMetaRows: List<SecondaryResult>,
-        // resultId → translated body for the active language. Null
-        // map means no translations / Original.
-        val translatedByRowId: Map<String, String>,
+        /** The single META row this screen is anchored on — looked up
+         *  by [resultId]. Null while produceState is cold or if the
+         *  row has been deleted. */
+        val row: SecondaryResult?,
+        /** language displayName → translated body for this row. ""
+         *  is reserved for Original (which uses [row].content). */
+        val translatedByLanguage: Map<String, String>,
         val report: Report?
     )
 
     val loadedState = produceState<Loaded>(
-        initialValue = Loaded(emptyList(), emptyMap(), null),
-        reportId, language
+        initialValue = Loaded(null, emptyMap(), null),
+        reportId, resultId
     ) {
         value = withContext(Dispatchers.IO) {
-            // Drop fan-out and fan-in flavoured META rows from the
-            // swipe set — they get their own dedicated cards on the
-            // View tile grid (Fan-out / Fan-in / Fan-in-model), and
-            // surfacing them again when paging here only confused
-            // the user. The remaining rows are "regular" meta runs
-            // (Summarize, Compare, etc.).
-            val metas = SecondaryResultStorage
-                .listForReport(context, reportId, SecondaryKind.META)
-                .filter {
-                    !it.content.isNullOrBlank() &&
-                        it.fanInOf == null &&
-                        it.fanOutSourceAgentId == null &&
-                        it.scopeProviderId == null &&
-                        it.scopeModel == null
-                }
-                .sortedBy { it.timestamp }
+            val r = SecondaryResultStorage.get(context, reportId, resultId)
+                ?.takeIf { !it.content.isNullOrBlank() }
             val translates = SecondaryResultStorage
                 .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                .filter {
+                    it.translateSourceKind == "META" &&
+                        it.translateSourceTargetId == resultId &&
+                        !it.content.isNullOrBlank() &&
+                        !it.targetLanguage.isNullOrBlank()
+                }
+                .associate { it.targetLanguage!! to it.content!! }
             val rep = ReportStorage.getReport(context, reportId)
-            val translatedMap: Map<String, String> = if (!language.isNullOrEmpty()) {
-                translates
-                    .filter {
-                        it.translateSourceKind == "META" &&
-                            it.targetLanguage == language &&
-                            !it.content.isNullOrBlank() &&
-                            !it.translateSourceTargetId.isNullOrBlank()
-                    }
-                    .associate { it.translateSourceTargetId!! to it.content!! }
-            } else emptyMap()
-            Loaded(metas, translatedMap, rep)
+            Loaded(r, translates, rep)
         }
     }
     val loaded = loadedState.value
     val report = loaded.report
-    val rows = loaded.allMetaRows
+    val row = loaded.row
 
-    // Pager — one page per META row. `produceState` starts with an
-    // empty rows list and the real list arrives async, so
-    // `rememberPagerState(initialPage = …)` would settle on page 0
-    // (wrong meta if the user tapped a non-first one). Land on
-    // page 0 initially, then jump to the tapped row's index via a
-    // LaunchedEffect once the data lands. Keyed on (rows, resultId)
-    // so the jump only re-runs when either changes.
-    val pagerState = rememberPagerState(initialPage = 0) {
-        rows.size.coerceAtLeast(1)
+    // Available languages for this row: Original ("") first, then
+    // every targetLanguage with a non-blank META TRANSLATE row.
+    // Order is the insertion order of the translates map (which
+    // reflects disk order for this report).
+    val languages = remember(loaded) {
+        val seen = linkedSetOf<String>()
+        seen += ""
+        loaded.translatedByLanguage.keys.forEach { seen += it }
+        seen.toList()
     }
-    LaunchedEffect(rows, resultId) {
-        if (rows.isNotEmpty()) {
-            val idx = rows.indexOfFirst { it.id == resultId }
-            if (idx >= 0 && idx != pagerState.currentPage) {
-                pagerState.scrollToPage(idx)
-            }
-        }
+    val initialIndex = remember(languages, language) {
+        val target = language ?: ""
+        languages.indexOf(target).coerceAtLeast(0)
     }
-    val activeRow = rows.getOrNull(pagerState.currentPage)
-    val title = activeRow?.metaPromptName?.takeIf { it.isNotBlank() }
-        ?: activeRow?.let { com.ai.data.legacyKindDisplayName(it.kind) }
+    val pageCount = languages.size.coerceAtLeast(1)
+    val pagerState = rememberPagerState(
+        initialPage = initialIndex.coerceIn(0, pageCount - 1)
+    ) { pageCount }
+    val activeLanguage = if (languages.isEmpty()) ""
+        else languages[pagerState.currentPage.coerceIn(0, languages.size - 1)]
+    val activeLangState = rememberUpdatedState(activeLanguage)
+    androidx.activity.compose.BackHandler {
+        onBack(activeLangState.value.ifBlank { null })
+    }
+
+    val title = row?.metaPromptName?.takeIf { it.isNotBlank() }
+        ?: row?.let { com.ai.data.legacyKindDisplayName(it.kind) }
         ?: "Meta"
-    val rowIcon = activeRow?.icon?.takeIf { it.isNotBlank() }
-    val cachedIcon = activeRow?.metaPromptName?.let { InternalPromptIconCache.get(it, title) }
+    val rowIcon = row?.icon?.takeIf { it.isNotBlank() }
+    val cachedIcon = row?.metaPromptName?.let { InternalPromptIconCache.get(it, title) }
     val displayedEmoji = rowIcon ?: cachedIcon ?: "🧠"
 
     Column(
@@ -158,23 +150,22 @@ fun MetaViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        // 🔧 → Manage's SecondaryResultDetail for the active META row.
+        // 🔧 → Manage's SecondaryResultDetail for this META row.
         val openManage = com.ai.ui.shared.LocalOpenManage.current
         val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
-            val targetId = activeRow?.id ?: resultId
-            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(targetId)) }
+            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
         } ?: navToManageMain
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Meta",
             // Green metaPromptName subject dropped per the user's
-            // spec — the purple title row below already shows the
-            // active row's prompt name.
+            // spec — the purple title row below already shows this
+            // row's prompt name.
             subject = null,
             helpTopic = "meta_view",
             onOpenManage = onOpenManageJump,
-            onBack = onBack
+            onBack = { onBack(activeLangState.value.ifBlank { null }) }
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
@@ -194,19 +185,8 @@ fun MetaViewScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
-            if (!language.isNullOrEmpty()) {
-                Text(
-                    text = "🌍 $language",
-                    fontSize = 12.sp,
-                    color = AppColors.Orange,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(AppColors.SurfaceDark)
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
         }
-        if (rows.isEmpty()) {
+        if (row == null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(top = 32.dp),
                 contentAlignment = Alignment.TopCenter
@@ -219,51 +199,74 @@ fun MetaViewScreen(
             return@Column
         }
 
-        // One page per META row — swipe → previous / next meta.
-        // The Question card and the per-card header (emoji + title +
-        // provider) are gone per the user's spec: the top row above
-        // already shows the active meta's emoji + name, so each page
-        // renders just the body card.
+        // Language pager — one page per language for this single
+        // META row. With only Original (no translations) the pager
+        // degenerates to a single page. The previous meta-row pager
+        // is gone per the user's spec: to navigate between meta
+        // runs the user goes back to the View tile grid and taps
+        // another meta tile.
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
         ) { page ->
-            val row = rows[page]
-            val body = loaded.translatedByRowId[row.id]?.takeIf { it.isNotBlank() }
-                ?: row.content.orEmpty()
-            // LazyColumn for orientation-locked vertical scroll —
-            // plays cleanly with the parent HorizontalPager's drag
-            // detection so a swipe across long body text still flips
-            // the page.
+            val lang = if (languages.isEmpty()) ""
+                else languages[page.coerceIn(0, languages.size - 1)]
+            val body = if (lang.isBlank()) row.content.orEmpty()
+                else loaded.translatedByLanguage[lang]?.takeIf { it.isNotBlank() }
+                    ?: row.content.orEmpty()
+            // Per-page language flag — re-derived inside the lambda
+            // so off-screen pre-rendered pages bind to their own
+            // page's flag, not the active page's.
+            val pageFlag = when {
+                languages.size <= 1 -> null
+                lang.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() } ?: "🌐"
+                else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
+                    ?: "🌍"
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
                 contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
             ) {
-                item { AnswerCard(body = body) }
+                item { AnswerCard(body = body, languageIcon = pageFlag) }
             }
         }
     }
 }
 
 @Composable
-private fun AnswerCard(body: String) {
-    Column(
+private fun AnswerCard(body: String, languageIcon: String?) {
+    Box(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, AppColors.Purple.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp)
     ) {
-        if (body.isBlank()) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp)
+        ) {
+            if (body.isBlank()) {
+                Text(
+                    text = "(no content)",
+                    color = AppColors.TextTertiary, fontSize = 13.sp
+                )
+            } else {
+                // Reuse the shared markdown + <think> pipeline so tables,
+                // headings, code blocks render the same as everywhere else.
+                ContentWithThinkSections(analysis = body)
+            }
+        }
+        // Per-language flag overlay in the top-right corner.
+        // Only shown when the row carries multiple languages.
+        if (!languageIcon.isNullOrBlank()) {
             Text(
-                text = "(no content)",
-                color = AppColors.TextTertiary, fontSize = 13.sp
+                text = languageIcon,
+                fontSize = 24.sp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 6.dp, end = 10.dp)
             )
-        } else {
-            // Reuse the shared markdown + <think> pipeline so tables,
-            // headings, code blocks render the same as everywhere else.
-            ContentWithThinkSections(analysis = body)
         }
     }
 }

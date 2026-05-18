@@ -3252,10 +3252,12 @@ private fun ReportPrimaryOverlays(
                     reportId = rid, resultId = jump.id, onBack = close
                 )
                 is com.ai.ui.shared.ViewJump.Meta -> MetaViewScreen(
-                    reportId = rid, resultId = jump.id, language = null, onBack = close
+                    reportId = rid, resultId = jump.id, language = null,
+                    onBack = { _ -> close() }
                 )
                 is com.ai.ui.shared.ViewJump.FanIn -> FanInViewScreen(
-                    reportId = rid, resultId = jump.id, onBack = close
+                    reportId = rid, resultId = jump.id, language = null,
+                    onBack = { _ -> close() }
                 )
                 is com.ai.ui.shared.ViewJump.FanInModel -> FanInModelViewScreen(
                     reportId = rid, resultId = jump.id, onBack = close

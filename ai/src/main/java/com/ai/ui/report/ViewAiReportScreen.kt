@@ -173,6 +173,14 @@ internal fun ViewAiReportScreen(
         }
         return
     }
+    // Side-channel populated by sub-View overlays whose own back
+    // callback bubbles a freshly-picked language (Meta / Fan-in /
+    // PromptViewScreen / etc.). [selectedViewLangKey] lives much
+    // later in the function so the back lambda can't touch it
+    // directly; we stash the displayName here and a LaunchedEffect
+    // below the picker setup consumes it. "" sentinel = adopt
+    // Original.
+    var pendingLangFromSubView by remember { mutableStateOf<String?>(null) }
     // Meta "View" overlay — keyed by the META row id so two tiles
     // that share a metaPromptName open the correct row. Language is
     // captured at tap time so the opened MetaViewScreen renders the
@@ -189,7 +197,16 @@ internal fun ViewAiReportScreen(
                 reportId = reportId,
                 resultId = activeMetaViewRowId,
                 language = metaViewLanguage?.takeIf { it.isNotEmpty() },
-                onBack = backToMain
+                // Bubble the language the user finished on so the
+                // parent View screen's picker adopts it. "" means
+                // adopt Original; null is impossible here because
+                // we never pass null on back, but we coerce
+                // defensively to "".
+                onBack = { activeLang ->
+                    pendingLangFromSubView = activeLang ?: ""
+                    metaViewRowId = null
+                    metaViewLanguage = null
+                }
             )
         }
         return
@@ -260,17 +277,25 @@ internal fun ViewAiReportScreen(
         return
     }
     // Fan-in "View" overlay — keyed by the fan-in META row id.
+    // Language is captured at tap time so the opened FanInViewScreen
+    // initial-pages onto the active picker language.
     var fanInViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    var fanInViewLanguage by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     val activeFanInViewRowId = fanInViewRowId
     if (activeFanInViewRowId != null) {
-        val backToMain: () -> Unit = { fanInViewRowId = null }
+        val backToMain: () -> Unit = { fanInViewRowId = null; fanInViewLanguage = null }
         androidx.compose.runtime.CompositionLocalProvider(
             com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
         ) {
             FanInViewScreen(
                 reportId = reportId,
                 resultId = activeFanInViewRowId,
-                onBack = backToMain
+                language = fanInViewLanguage?.takeIf { it.isNotEmpty() },
+                onBack = { activeLang ->
+                    pendingLangFromSubView = activeLang ?: ""
+                    fanInViewRowId = null
+                    fanInViewLanguage = null
+                }
             )
         }
         return
@@ -467,6 +492,19 @@ internal fun ViewAiReportScreen(
         if (viewLangTabs.none { it.key == selectedViewLangKey }) {
             selectedViewLangKey = LangTab.ORIGINAL_KEY
         }
+    }
+    // Consume the side-channel populated by sub-View screens' back
+    // lambdas (Meta / Fan-in / etc.). Resolve the displayName they
+    // bubbled to a LangTab key and adopt it on the picker. Cleared
+    // after consume so repeated returns to the same sub-View don't
+    // re-fire.
+    androidx.compose.runtime.LaunchedEffect(pendingLangFromSubView, viewLangTabs) {
+        val pending = pendingLangFromSubView ?: return@LaunchedEffect
+        val newKey = if (pending.isBlank()) LangTab.ORIGINAL_KEY
+            else viewLangTabs.firstOrNull { it.displayName == pending }?.key
+                ?: selectedViewLangKey
+        if (newKey != selectedViewLangKey) selectedViewLangKey = newKey
+        pendingLangFromSubView = null
     }
     // Derived from the selected tab; a State holder so the cached
     // tile onClick lambdas read the latest value at click time
@@ -909,8 +947,12 @@ internal fun ViewAiReportScreen(
                     accent = AppColors.Green,
                     enabled = fanInEnabled,
                     onClick = {
-                        if (sourceRow != null) fanInViewRowId = sourceRow.id
-                        else item.open(currentLanguageState.value)
+                        if (sourceRow != null) {
+                            // Forward the active picker language so
+                            // FanInViewScreen initial-pages onto it.
+                            fanInViewLanguage = currentLanguageState.value
+                            fanInViewRowId = sourceRow.id
+                        } else item.open(currentLanguageState.value)
                     }
                 )
             )
@@ -955,7 +997,10 @@ internal fun ViewAiReportScreen(
                             1 -> openComputedItem(s.key, items[0], currentLanguageState.value,
                                 openRerank = { id -> rerankViewRowId = id },
                                 openModeration = { id -> moderationViewRowId = id },
-                                openFanIn = { id -> fanInViewRowId = id },
+                                openFanIn = { id ->
+                                    fanInViewLanguage = currentLanguageState.value
+                                    fanInViewRowId = id
+                                },
                                 openFanInModel = { id -> fanInModelViewRowId = id },
                                 openTranslate = { runId -> translateViewRunId = runId })
                             else -> { expandedKind = if (expandedKind == s.key) null else s.key }
@@ -1146,7 +1191,10 @@ internal fun ViewAiReportScreen(
                             openComputedItem(active.key, item, currentLanguageState.value,
                                 openRerank = { id -> rerankViewRowId = id },
                                 openModeration = { id -> moderationViewRowId = id },
-                                openFanIn = { id -> fanInViewRowId = id },
+                                openFanIn = { id ->
+                                    fanInViewLanguage = currentLanguageState.value
+                                    fanInViewRowId = id
+                                },
                                 openFanInModel = { id -> fanInModelViewRowId = id },
                                 openTranslate = { runId -> translateViewRunId = runId })
                         }
