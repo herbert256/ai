@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
                     // Pad the status bar only when it's visible — when
                     // hidden the inset shrinks to 0 so there's no slot
                     // to reserve. Both system bars share the app's
-                    // #0A0A0A background so drawing under the gesture
+                    // #000000 background so drawing under the gesture
                     // pill stays visually consistent.
                     modifier = if (hideStatusBar) Modifier.fillMaxSize()
                                else Modifier.fillMaxSize().statusBarsPadding()
