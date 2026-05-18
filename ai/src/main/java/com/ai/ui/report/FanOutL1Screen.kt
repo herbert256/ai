@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -285,18 +286,27 @@ internal fun FanOutL1Screen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Three buttons share the row width via weight(1f).
+                // The Material 3 default ContentPadding of 24 dp
+                // horizontal eats too much room — on narrow phones
+                // the inner Text was clipped mid-word. Drop to 6 dp
+                // so the labels always render in full.
+                val tightPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
                 Button(
                     onClick = { actions.onClearFanIconErrors(run.key) },
                     modifier = Modifier.weight(1f),
+                    contentPadding = tightPadding,
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
                 ) { Text("Remove errors", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { actions.onRestartFanIconErrors(run.key) },
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    contentPadding = tightPadding
                 ) { Text("Restart errors", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 OutlinedButton(
                     onClick = { showIconErrorsDialog = true },
                     modifier = Modifier.weight(1f),
+                    contentPadding = tightPadding,
                     colors = AppColors.outlinedButtonColors()
                 ) { Text("View errors", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
