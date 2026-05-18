@@ -14,10 +14,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -186,17 +185,26 @@ fun ModerationViewScreen(
             modifier = Modifier.fillMaxSize()
         ) { page ->
             val r = rows[page]
-            Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+            // LazyColumn (not verticalScroll Column) so the inner
+            // vertical scroll cooperates with HorizontalPager's
+            // horizontal drag detection — a swipe across the
+            // Response card flips the page, same as a swipe across
+            // the moderation card above it.
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                contentPadding = PaddingValues(bottom = 16.dp)
             ) {
-                AgentModerationCard(
-                    row = r,
-                    label = agentLabels[r.id] ?: "[${r.id}] (unknown)",
-                    categories = allCategories
-                )
-                ResponseCard(body = agentResponses[r.id].orEmpty())
-                Spacer(modifier = Modifier.height(16.dp))
+                item {
+                    AgentModerationCard(
+                        row = r,
+                        label = agentLabels[r.id] ?: "[${r.id}] (unknown)",
+                        categories = allCategories
+                    )
+                }
+                item {
+                    ResponseCard(body = agentResponses[r.id].orEmpty())
+                }
             }
         }
     }
