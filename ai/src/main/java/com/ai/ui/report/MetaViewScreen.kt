@@ -135,12 +135,12 @@ fun MetaViewScreen(
         onBack(activeLangState.value.ifBlank { null })
     }
 
-    val title = row?.metaPromptName?.takeIf { it.isNotBlank() }
-        ?: row?.let { com.ai.data.legacyKindDisplayName(it.kind) }
-        ?: "Meta"
+    val metaPromptName = row?.metaPromptName?.takeIf { it.isNotBlank() }
     val rowIcon = row?.icon?.takeIf { it.isNotBlank() }
-    val cachedIcon = row?.metaPromptName?.let { InternalPromptIconCache.get(it, title) }
-    val displayedEmoji = rowIcon ?: cachedIcon ?: "🧠"
+    val cachedIcon = metaPromptName?.let { InternalPromptIconCache.getByName(it) }
+        ?.takeIf { it.isNotBlank() }
+    val displayedEmoji = cachedIcon ?: rowIcon ?: "🧠"
+    val modelLabel = row?.model?.let { shortModelName(it) }.orEmpty()
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -153,17 +153,17 @@ fun MetaViewScreen(
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
             { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
         } ?: navToManageMain
+        val screenTitleLabel = if (metaPromptName != null) "Meta - $metaPromptName" else "Meta"
         ViewScreenTitleBar(
             reportTitle = report?.title,
-            screenTitle = "Meta",
-            // Green metaPromptName subject dropped per the user's
-            // spec — the purple title row below already shows this
-            // row's prompt name.
+            screenTitle = screenTitleLabel,
             subject = null,
             helpTopic = "meta_view",
             onOpenManage = onOpenManageJump,
             onBack = { onBack(activeLangState.value.ifBlank { null }) }
         )
+        // Header row: dynamic per-prompt icon + the model name that
+        // produced this META row. Matches the Fan-in View screen.
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
@@ -174,13 +174,17 @@ fun MetaViewScreen(
                 modifier = Modifier.padding(end = 8.dp)
             )
             Text(
-                text = title,
-                fontSize = 28.sp,
+                text = modelLabel,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = AppColors.Purple,
-                maxLines = 2,
+                color = AppColors.Green,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
+                    .modelInfoViewClickable(
+                        row?.let { AppService.findById(it.providerId) },
+                        row?.model.orEmpty()
+                    )
             )
         }
         if (row == null) {
