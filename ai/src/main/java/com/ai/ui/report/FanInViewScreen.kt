@@ -96,14 +96,16 @@ fun FanInViewScreen(
 
     val metaPromptName = result?.metaPromptName?.takeIf { it.isNotBlank() }
     // Dynamic per-prompt icon for this fan-in (matches the View
-    // tile grid's Fan-in cards). Per-row override wins; falls back
-    // to the cached emoji for this metaPromptName; final fallback
-    // is the static 🪢 used elsewhere.
-    val rowIcon = result?.icon?.takeIf { it.isNotBlank() }
+    // tile grid's Fan-in cards). The cache lookup wins; the per-
+    // row stored icon and the static 🪢 are backups. `getByName`
+    // is the right lookup for SecondaryResult rows that only carry
+    // metaPromptName (no title) — same pattern used in
+    // SecondaryResultsScreen and ExportIcons.
     val cachedIcon = metaPromptName?.let {
-        com.ai.data.InternalPromptIconCache.get(it, it)
-    }
-    val headerIcon = rowIcon ?: cachedIcon ?: "🪢"
+        com.ai.data.InternalPromptIconCache.getByName(it)
+    }?.takeIf { it.isNotBlank() }
+    val rowIcon = result?.icon?.takeIf { it.isNotBlank() }
+    val headerIcon = cachedIcon ?: rowIcon ?: "🪢"
     // Model name that did the fan-in synthesis — shown next to
     // the icon. Provider name dropped per the user's spec.
     val modelLabel = result?.model?.let { shortModelName(it) }.orEmpty()
