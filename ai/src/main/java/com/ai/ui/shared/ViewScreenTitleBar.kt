@@ -166,9 +166,13 @@ fun ViewScreenTitleBar(
                 // y = -7 dp matches the offset on the AI logo in the
                 // standard TitleBar (SharedComponents.kt), so both
                 // bars place the logo at the same screen y.
+                // The View bar's logo is bigger than the standard
+                // TitleBar's because the View family suppresses the
+                // bottom action icons — the logo grows into the
+                // vertical space the orange screen title occupies.
                 modifier = Modifier
                     .offset(y = (-7).dp)
-                    .size(52.dp)
+                    .size(76.dp)
                     .clickable(
                         interactionSource = logoInteractionSource,
                         indication = null,
@@ -214,7 +218,7 @@ fun ViewScreenTitleBar(
             )
             Text(
                 text = "❓",
-                fontSize = 28.sp,
+                fontSize = 40.sp,
                 color = AppColors.Blue,
                 modifier = Modifier
                     .offset(y = (-7).dp)
@@ -222,13 +226,15 @@ fun ViewScreenTitleBar(
             )
         }
         if (!screenTitle.isNullOrBlank()) {
-            // Pull the orange screen title up tight against the AI-logo
-            // row. The 52 dp logo already anchors the bar visually;
-            // the previous 8 dp leading spacer made it feel top-heavy
-            // and the user asked for the orange title to sit higher.
-            // Negative offset shifts the orange title (and the green
-            // subject + bottom spacer below) up by the same amount.
-            val viewTitleLift = (-12).dp
+            // Pull the orange screen title up so it sits inside the
+            // vertical span of the (now bigger) AI logo + help icon
+            // row. The icons are at the left / right edges and the
+            // orange title is centred — they share vertical space
+            // without overlapping horizontally. -32 dp = -12 dp
+            // baseline + the extra 24 dp the bigger logo added to
+            // Row 1's height (so the title's screen position is
+            // roughly unchanged from the 52 dp-logo era).
+            val viewTitleLift = (-32).dp
             Text(
                 text = screenTitle,
                 color = AppColors.Orange,
