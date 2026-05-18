@@ -870,6 +870,13 @@ internal fun ColumnScope.GenerationPhase(
     // row without invoking @Composable functions.
     val iconGenEnabledForRow = com.ai.ui.shared.LocalIconGenEnabled.current
     LazyColumn(state = resultListState, modifier = Modifier.weight(1f)) {
+        // Top-of-list divider — same 1 dp TextDisabled rule the
+        // inter-row dividers use, so the first row in the list
+        // (Regenerate when present, otherwise the first agent /
+        // secondary) gets a consistent visual cap.
+        item(key = "top-divider") {
+            HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+        }
         // Regenerate batch — top of body when a RegenerateJob is
         // active for this report. Hoisted into its own composable
         // (RegenerateBatchManageRow) to keep this LazyColumn body
