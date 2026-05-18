@@ -583,6 +583,16 @@ fun AppNavHost(
                 initialView = initialView,
                 initialReportsAgentId = initialReportsAgentId,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                // After a delete-report the user always lands on
+                // the AI Reports hub. popUpTo clears the deleted
+                // report's Manage screen off the back stack so
+                // hitting Back from the hub doesn't return to a
+                // now-stale Manage view.
+                onNavigateToReportsHub = {
+                    navController.navigate(NavRoutes.AI_REPORTS_HUB) {
+                        popUpTo(NavRoutes.AI_REPORTS_HUB) { inclusive = true }
+                    }
+                },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceListForReport(it)) },
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToTraceListFiltered = { rid, cat ->

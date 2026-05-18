@@ -180,6 +180,12 @@ fun ReportsScreenNav(
     initialReportsAgentId: String? = null,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
+    /** Explicit navigation to the AI Reports hub. Used after a
+     *  delete-report so the user always lands on the hub instead
+     *  of being popped back to wherever they came from (which is
+     *  often the pre-Generate model selection screen — confusing
+     *  context for "the report you were just on is gone"). */
+    onNavigateToReportsHub: () -> Unit = onNavigateBack,
     onNavigateToTrace: (String) -> Unit = {},
     onNavigateToTraceFile: (String) -> Unit = {},
     /** Open the App Log Viewer for `filename`, pre-filtered to
@@ -566,7 +572,12 @@ fun ReportsScreenNav(
         onAttachKnowledgeBases = { ids -> viewModel.updateUiState { it.copy(attachedKnowledgeBaseIds = ids) } },
         onDeleteReport = { rid ->
             reportViewModel.deleteReport(context, rid)
-            onNavigateBack()
+            // Always land on the AI Reports hub after a delete —
+            // popping the back stack would drop the user on the
+            // pre-Generate model selection / wherever they came
+            // from, which is confusing context for "the report
+            // you were just on is gone".
+            onNavigateToReportsHub()
         },
         onCopyReport = { rid -> reportViewModel.copyReport(context, rid, scope) },
         onTogglePinReport = { rid -> reportViewModel.toggleReportPinned(context, rid, scope) },
