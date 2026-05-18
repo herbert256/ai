@@ -107,28 +107,39 @@ fun ReportsViewScreen(
         val report: Report?,
         // Per-language → per-agent body override. Original ("") not
         // included — the agent's own responseBody is used there.
-        val translatedByLang: Map<String, Map<String, String>>
+        val translatedByLang: Map<String, Map<String, String>>,
+        // Per-language → translated PROMPT body. Used by the prompt
+        // card's language pager so the user sees the translated
+        // prompt text on every non-Original page, not the original
+        // prompt repeated.
+        val translatedPromptByLang: Map<String, String>
     )
 
     val loadedState = produceState<Loaded>(
-        initialValue = Loaded(null, emptyMap()),
+        initialValue = Loaded(null, emptyMap(), emptyMap()),
         reportId
     ) {
         value = withContext(Dispatchers.IO) {
             val rep = ReportStorage.getReport(context, reportId)
-            val byLang = SecondaryResultStorage
+            val translateRows = SecondaryResultStorage
                 .listForReport(context, reportId, SecondaryKind.TRANSLATE)
                 .filter {
-                    it.translateSourceKind == "AGENT" &&
-                        !it.content.isNullOrBlank() &&
-                        !it.translateSourceTargetId.isNullOrBlank() &&
+                    !it.content.isNullOrBlank() &&
                         !it.targetLanguage.isNullOrBlank()
+                }
+            val byLang = translateRows
+                .filter {
+                    it.translateSourceKind == "AGENT" &&
+                        !it.translateSourceTargetId.isNullOrBlank()
                 }
                 .groupBy { it.targetLanguage!! }
                 .mapValues { (_, list) ->
                     list.associate { it.translateSourceTargetId!! to it.content!! }
                 }
-            Loaded(rep, byLang)
+            val promptByLang = translateRows
+                .filter { it.translateSourceKind == "PROMPT" }
+                .associate { it.targetLanguage!! to it.content!! }
+            Loaded(rep, byLang, promptByLang)
         }
     }
     val loaded = loadedState.value
@@ -221,7 +232,7 @@ fun ReportsViewScreen(
         // next language. The agent pager below stays for swiping
         // between models on the active language.
         if (languages.size <= 1) {
-            PromptCard(report = report, languageIcon = null)
+            PromptCard(report = report, languageIcon = null, promptOverride = null)
         } else {
             HorizontalPager(
                 state = langPagerState,
@@ -232,7 +243,15 @@ fun ReportsViewScreen(
                     lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
                     else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
                 }
-                PromptCard(report = report, languageIcon = flag)
+                // Per-page prompt text. Non-Original pages prefer the
+                // matching TRANSLATE row (translateSourceKind=PROMPT,
+                // targetLanguage=lang); fall back to report.prompt if
+                // no translation row exists yet. Re-derived inside the
+                // lambda so off-screen pre-rendered pages bind to the
+                // correct page's content, not the active page's.
+                val promptOverride = if (lang.isBlank()) null
+                    else loaded.translatedPromptByLang[lang]?.takeIf { it.isNotBlank() }
+                PromptCard(report = report, languageIcon = flag, promptOverride = promptOverride)
             }
         }
         // Counter "X / Y" — sits between the prompt card and the
@@ -283,13 +302,18 @@ fun ReportsViewScreen(
  *  small overlay in the card's top-right corner so the user can
  *  see which language is active. */
 @Composable
-private fun PromptCard(report: Report, languageIcon: String?) {
+private fun PromptCard(report: Report, languageIcon: String?, promptOverride: String?) {
     // Prefer the live LocalReportIcon (refreshed via iconRefreshTick
     // by the report-overlay parent) so an in-flight icon-gen
     // completion updates this card without waiting for the screen to
     // remount. Falls back to the report's persisted icon, then "📄".
     val liveIcon = com.ai.ui.shared.LocalReportIcon.current?.takeIf { it.isNotBlank() }
     val displayedIcon = liveIcon ?: report.icon?.takeIf { it.isNotBlank() } ?: "📄"
+    // Per-page prompt body — caller passes a non-null override on
+    // non-Original language pages (the matching TRANSLATE/PROMPT
+    // row's content). Original / single-language renders fall back
+    // to the report's own prompt.
+    val bodyText = promptOverride ?: report.prompt
     Box(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
@@ -306,11 +330,11 @@ private fun PromptCard(report: Report, languageIcon: String?) {
                     .align(Alignment.CenterHorizontally)
                     .padding(top = 0.dp, bottom = 2.dp)
             )
-            if (report.prompt.isBlank()) {
+            if (bodyText.isBlank()) {
                 Text(text = "(no prompt recorded)", color = AppColors.TextTertiary, fontSize = 13.sp)
             } else {
                 Text(
-                    text = report.prompt,
+                    text = bodyText,
                     color = AppColors.TextPrimary,
                     fontSize = 14.sp,
                     lineHeight = 19.sp
