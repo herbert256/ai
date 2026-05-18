@@ -238,7 +238,7 @@ fun ViewScreenTitleBar(
             // so the lift doesn't change the bar's height).
             Text(
                 text = "❓",
-                fontSize = 48.sp,
+                fontSize = 56.sp,
                 color = AppColors.Blue,
                 modifier = Modifier
                     .offset(y = (-8).dp)
