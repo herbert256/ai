@@ -7,12 +7,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
@@ -36,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.data.Report
-import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
@@ -54,11 +49,7 @@ import kotlinx.coroutines.withContext
  * [SecondaryResultDetailScreen] is still served from Report - manage.
  *
  * Layout: hero "🪢 synthesis" card at the top showing the synthesised
- * output rendered through the shared markdown pipeline, then a
- * "Synthesised from" credits strip below as a FlowRow of compact
- * agent pills — one per source agent that fed into the run. Each pill
- * uses a small Green accent so the eye groups the contributors as a
- * unit distinct from the synthesis itself.
+ * output rendered through the shared markdown pipeline.
  */
 @Composable
 fun FanInViewScreen(
@@ -195,8 +186,6 @@ fun FanInViewScreen(
         }
         // Language pager — one page per available language. With
         // only Original the pager degenerates to a single page.
-        // The CreditsStrip stays outside the pager so it's shared
-        // across languages.
         com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
             pagerState = pagerState,
             noMoreLabel = "No more translations",
@@ -229,10 +218,6 @@ fun FanInViewScreen(
                 }
             }
         }
-        // Credits strip sits below the language pager — same set
-        // of contributing agents regardless of which translation
-        // the user is reading.
-        CreditsStrip(report)
     }
 }
 
@@ -279,56 +264,3 @@ private fun SynthesisBodyCard(body: String, languageIcon: String?) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun CreditsStrip(report: Report?) {
-    val agents = report?.agents
-        ?.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-        .orEmpty()
-    Column(
-        modifier = Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(AppColors.CardBackground)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = "Synthesised from",
-            color = AppColors.Green,
-            fontSize = 12.sp, fontWeight = FontWeight.SemiBold
-        )
-        if (agents.isEmpty()) {
-            Text(
-                text = "(no source agents)",
-                color = AppColors.TextTertiary, fontSize = 12.sp
-            )
-        } else {
-            FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                agents.forEach { a ->
-                    val prov = AppService.findById(a.provider)?.id ?: a.provider
-                    val icon = a.icon?.takeIf { it.isNotBlank() } ?: "🤖"
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(AppColors.Green.copy(alpha = 0.18f))
-                            .border(1.dp, AppColors.Green.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(text = icon, fontSize = 14.sp, modifier = Modifier.padding(end = 6.dp))
-                        Text(
-                            text = "$prov / ${shortModelName(a.model)}",
-                            color = AppColors.TextPrimary,
-                            fontSize = 11.sp,
-                            maxLines = 1, softWrap = false
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
