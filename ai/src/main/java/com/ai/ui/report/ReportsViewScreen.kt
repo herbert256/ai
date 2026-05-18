@@ -24,6 +24,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,47 +55,84 @@ import kotlinx.coroutines.withContext
  * a large circular emoji on the left (the agent's own report icon
  * when present, 🤖 fallback) and a header carrying provider + short
  * model. Body below is the agent's response (or the matching AGENT
- * TRANSLATE row when [language] is non-blank) rendered through the
- * shared markdown pipeline.
+ * TRANSLATE row when a non-Original language is active) rendered
+ * through the shared markdown pipeline.
+ *
+ * When the report carries translations the prompt card lives inside
+ * its own HorizontalPager: swipe → previous / next language. The
+ * active language is reflected in a small flag overlay on the card's
+ * top-right and propagated back to [onBack] so the parent's
+ * language picker adopts it.
  */
 @Composable
 fun ReportsViewScreen(
     reportId: String,
-    language: String?,
+    /** Languages the report carries (Original = ""; non-empty entries
+     *  are AGENT/PROMPT translate targetLanguages). The prompt-card
+     *  pager renders one page per entry. Single-entry list means no
+     *  language switching UI (the picker collapses to nothing). */
+    availableLanguages: List<String> = listOf(""),
+    /** Which language to land on. null / "" = Original. */
+    initialLanguage: String? = null,
     initialAgentId: String? = null,
-    onBack: () -> Unit
+    /** Bubbled the currently-active language (null = Original) so
+     *  the parent's picker can adopt it. Mirrors PromptViewScreen. */
+    onBack: (activeLanguage: String?) -> Unit
 ) {
-    androidx.activity.compose.BackHandler { onBack() }
     val context = LocalContext.current
+
+    // Normalise / dedupe — Original ("") is always present so the
+    // pager has at least one page to render.
+    val languages = remember(availableLanguages) {
+        val seen = linkedSetOf<String>()
+        seen += ""
+        availableLanguages.forEach { seen += (it ?: "") }
+        seen.toList()
+    }
+    val initialLangIdx = remember(languages, initialLanguage) {
+        languages.indexOf(initialLanguage ?: "").coerceAtLeast(0)
+    }
+    val langPagerState = rememberPagerState(
+        initialPage = initialLangIdx.coerceIn(0, languages.size - 1)
+    ) { languages.size.coerceAtLeast(1) }
+    val activeLanguage = if (languages.isEmpty()) ""
+        else languages[langPagerState.currentPage.coerceIn(0, languages.size - 1)]
+    val activeLangState = androidx.compose.runtime.rememberUpdatedState(activeLanguage)
+    androidx.activity.compose.BackHandler {
+        onBack(activeLangState.value.ifBlank { null })
+    }
 
     data class Loaded(
         val report: Report?,
-        val translatedByAgentId: Map<String, String>
+        // Per-language → per-agent body override. Original ("") not
+        // included — the agent's own responseBody is used there.
+        val translatedByLang: Map<String, Map<String, String>>
     )
 
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap()),
-        reportId, language
+        reportId
     ) {
         value = withContext(Dispatchers.IO) {
             val rep = ReportStorage.getReport(context, reportId)
-            val translatedMap = if (!language.isNullOrEmpty()) {
-                SecondaryResultStorage
-                    .listForReport(context, reportId, SecondaryKind.TRANSLATE)
-                    .filter {
-                        it.translateSourceKind == "AGENT" &&
-                            it.targetLanguage == language &&
-                            !it.content.isNullOrBlank() &&
-                            !it.translateSourceTargetId.isNullOrBlank()
-                    }
-                    .associate { it.translateSourceTargetId!! to it.content!! }
-            } else emptyMap()
-            Loaded(rep, translatedMap)
+            val byLang = SecondaryResultStorage
+                .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                .filter {
+                    it.translateSourceKind == "AGENT" &&
+                        !it.content.isNullOrBlank() &&
+                        !it.translateSourceTargetId.isNullOrBlank() &&
+                        !it.targetLanguage.isNullOrBlank()
+                }
+                .groupBy { it.targetLanguage!! }
+                .mapValues { (_, list) ->
+                    list.associate { it.translateSourceTargetId!! to it.content!! }
+                }
+            Loaded(rep, byLang)
         }
     }
     val loaded = loadedState.value
     val report = loaded.report
-    val translatedByAgentId = loaded.translatedByAgentId
+    val translatedByAgentId = loaded.translatedByLang[activeLanguage].orEmpty()
 
     val agents = report?.agents?.filter {
         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
@@ -128,8 +166,8 @@ fun ReportsViewScreen(
             screenTitle = "Model reports",
             subject = null,
             helpTopic = "reports_view",
-            onBack = onBack,
-            onLogoClick = onBack
+            onBack = { onBack(activeLangState.value.ifBlank { null }) },
+            onLogoClick = { onBack(activeLangState.value.ifBlank { null }) }
         )
         if (report == null) {
             Box(
@@ -168,10 +206,26 @@ fun ReportsViewScreen(
             }
             return@Column
         }
-        // Prompt card: centered report icon + the report's prompt
-        // text — gives the user the question while they read each
-        // model's answer below.
-        PromptCard(report = report)
+        // Prompt card lives in its own HorizontalPager — one page per
+        // language. Swipe the card to flip the whole screen (prompt
+        // text + agent-response translation set) to the previous /
+        // next language. The agent pager below stays for swiping
+        // between models on the active language.
+        if (languages.size <= 1) {
+            PromptCard(report = report, languageIcon = null)
+        } else {
+            HorizontalPager(
+                state = langPagerState,
+                modifier = Modifier.fillMaxWidth()
+            ) { page ->
+                val lang = languages[page.coerceIn(0, languages.size - 1)]
+                val flag = when {
+                    lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
+                    else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
+                }
+                PromptCard(report = report, languageIcon = flag)
+            }
+        }
         // Counter "X / Y" — sits between the prompt card and the
         // green model-name subject so the page index reads as the
         // header for the response below. Generous top padding gives
@@ -212,33 +266,46 @@ fun ReportsViewScreen(
 
 /** Compact prompt card shown above the per-agent response. The
  *  report icon sits centred at the top; the prompt text below
- *  reminds the user what every model was asked. */
+ *  reminds the user what every model was asked. When the report
+ *  carries multiple languages, [languageIcon] is rendered as a
+ *  small overlay in the card's top-right corner so the user can
+ *  see which language is active. */
 @Composable
-private fun PromptCard(report: Report) {
-    Column(
+private fun PromptCard(report: Report, languageIcon: String?) {
+    Box(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, AppColors.Purple.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp, vertical = 6.dp)
     ) {
-        // Transparent oversized glyph — no background tint, no Box
-        // wrapper, just the emoji centred above the prompt text.
-        Text(
-            text = report.icon?.takeIf { it.isNotBlank() } ?: "📄",
-            fontSize = 44.sp,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(top = 0.dp, bottom = 2.dp)
-        )
-        if (report.prompt.isBlank()) {
-            Text(text = "(no prompt recorded)", color = AppColors.TextTertiary, fontSize = 13.sp)
-        } else {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)) {
+            // Transparent oversized glyph — no background tint, no Box
+            // wrapper, just the emoji centred above the prompt text.
             Text(
-                text = report.prompt,
-                color = AppColors.TextPrimary,
-                fontSize = 14.sp,
-                lineHeight = 19.sp
+                text = report.icon?.takeIf { it.isNotBlank() } ?: "📄",
+                fontSize = 44.sp,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 0.dp, bottom = 2.dp)
+            )
+            if (report.prompt.isBlank()) {
+                Text(text = "(no prompt recorded)", color = AppColors.TextTertiary, fontSize = 13.sp)
+            } else {
+                Text(
+                    text = report.prompt,
+                    color = AppColors.TextPrimary,
+                    fontSize = 14.sp,
+                    lineHeight = 19.sp
+                )
+            }
+        }
+        if (!languageIcon.isNullOrBlank()) {
+            Text(
+                text = languageIcon,
+                fontSize = 24.sp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 4.dp, end = 8.dp)
             )
         }
     }

@@ -102,7 +102,6 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
     if (openedReportsAgentId != null) {
         ReportsViewScreen(
             reportId = reportId,
-            language = null,
             initialAgentId = openedReportsAgentId,
             onBack = { openedReportsAgentId = null }
         )

@@ -245,17 +245,12 @@ internal fun ViewAiReportScreen(
     var promptViewOpen by rememberSaveable { mutableStateOf(false) }
     // Reports "View" overlay — per-agent response stack. Language
     // captured at tap time so AGENT TRANSLATE rows render in place of
-    // the original responseBody when locked.
+    // the original responseBody when locked. The mount + early-return
+    // block lives further down (after the [viewLangTabs] +
+    // [selectedViewLangKey] picker setup) because its onBack needs
+    // those values to bubble the user's swiped-to language back up.
     var reportsViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
     var reportsViewOpen by rememberSaveable { mutableStateOf(false) }
-    if (reportsViewOpen) {
-        ReportsViewScreen(
-            reportId = reportId,
-            language = reportsViewLanguage?.takeIf { it.isNotEmpty() },
-            onBack = { reportsViewOpen = false; reportsViewLanguage = null }
-        )
-        return
-    }
 
     // Inline expansion target — which Computed kind's items list is
     // open below the grid. Null = nothing expanded. rememberSaveable
@@ -393,6 +388,35 @@ internal fun ViewAiReportScreen(
                 selectedViewLangKey = newKey
                 promptViewOpen = false
                 promptViewLanguage = null
+            }
+        )
+        return
+    }
+    // Same shape as the PromptView language plumbing above. The block
+    // lives here (not next to the var declarations) because
+    // [viewLangTabs] + [selectedViewLangKey] are only in scope after
+    // the language-picker setup further up.
+    if (reportsViewOpen) {
+        val reportsLanguages = remember(viewLangTabs) {
+            buildList {
+                add("")
+                viewLangTabs.forEach { tab ->
+                    if (tab.key != LangTab.ORIGINAL_KEY) add(tab.displayName)
+                }
+            }
+        }
+        ReportsViewScreen(
+            reportId = reportId,
+            availableLanguages = reportsLanguages,
+            initialLanguage = reportsViewLanguage,
+            onBack = { activeLang ->
+                val target = activeLang ?: ""
+                val newKey = if (target.isBlank()) LangTab.ORIGINAL_KEY
+                    else viewLangTabs.firstOrNull { it.displayName == target }?.key
+                        ?: selectedViewLangKey
+                selectedViewLangKey = newKey
+                reportsViewOpen = false
+                reportsViewLanguage = null
             }
         )
         return
