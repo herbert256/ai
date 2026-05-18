@@ -94,12 +94,19 @@ class RegenerateBatchEngine internal constructor(
             orchestratorJobs[reportId]?.cancel()
             val tasks = buildTaskList(context, reportId)
             val now = System.currentTimeMillis()
+            // Start at the FIRST phase the enum declares — not a
+            // hardcoded one. Otherwise prepending a new phase
+            // (ICON / LANGUAGE) silently skips it because the
+            // orchestrator's advanceToNextPhase walks forward
+            // from currentPhase.ordinal.
+            val firstPhase = RegeneratePhase.values().firstOrNull()
+                ?: return@launch
             val job = RegenerateJob(
                 reportId = reportId,
                 createdAt = now,
                 updatedAt = now,
                 status = RegenerateJobStatus.RUNNING,
-                currentPhase = RegeneratePhase.AGENTS,
+                currentPhase = firstPhase,
                 tasks = tasks
             )
             persist(context, job)
