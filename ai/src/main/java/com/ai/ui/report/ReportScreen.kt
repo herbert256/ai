@@ -2545,6 +2545,23 @@ fun ReportsScreen(
     // Render only if no later step in the fan-out flow is active —
     // forward navigation now layers state instead of clearing it, so
     // back from Scope / Run unwinds one screen at a time.
+    // Click handler for the Manage screen's 👁 icon. Always lands on
+    // the View tile grid ("View an AI report"). The render gate at
+    // ReportScreen.kt:3321 only shows ViewAiReportScreen when *every*
+    // competing overlay flag is cleared, so clear them all here —
+    // a leftover showViewer / openMetaResultId / listKind / … from
+    // a previous flow would otherwise win and the user would land
+    // on Model responses / a sub-list / etc.
+    val openViewReportFromManage: () -> Unit = {
+        showViewer = false
+        showIconsView = false
+        htmlPreviewDetail = null
+        openMetaResultId = null
+        openTranslationRunId = null
+        listKind = null
+        singleResultAgentId = null
+        showViewReportScreen = true
+    }
     if (showFanOutPicker && secondaryScopeMetaPrompt == null && fanOutConfirmMetaPrompt == null) {
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showFanOutPicker = false }) {
             ReportSelectInternalPromptScreen(
@@ -2729,7 +2746,7 @@ fun ReportsScreen(
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
             onDismiss = onDismiss,
-            onOpenViewReport = { showViewReportScreen = true },
+            onOpenViewReport = openViewReportFromManage,
             onRequestRegenerate = { showRegenerateConfirm = true },
             onDismissRegenerateConfirm = { showRegenerateConfirm = false },
             onRegenerate = onRegenerate,
