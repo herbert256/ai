@@ -2,14 +2,18 @@ package com.ai.ui.report
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -20,8 +24,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -157,11 +164,15 @@ fun FanOutViewScreen(
         // Manage's fan-out lives behind a multi-step picker chain
         // with no clean single-step entry — 🔧 falls back to the
         // main Report - manage screen here.
+        // Orange screen-title row dropped per the user — the green
+        // subject "Fan-out - <metaPromptName>" carries the same
+        // information.
         val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+        val subjectText = "Fan-out" + metaPromptName.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty()
         ViewScreenTitleBar(
             reportTitle = report?.title,
-            screenTitle = "Fan-out",
-            subject = metaPromptName.takeIf { it.isNotBlank() },
+            screenTitle = null,
+            subject = subjectText,
             helpTopic = "fan_out_view",
             onOpenManage = navToManageMain,
             onBack = onBack
@@ -180,37 +191,61 @@ fun FanOutViewScreen(
             return@Column
         }
 
-        // ───── Top section: Initiator counter / name / pager ─────
-        Spacer(modifier = Modifier.height(8.dp))
-        CounterAndName(
-            counter = "${initiatorPagerState.currentPage + 1} / ${initiatorIds.size}",
-            modelLabel = activeInitiator?.let { shortModelName(it.model) }.orEmpty(),
-            providerService = activeInitiator?.let { com.ai.data.AppService.findById(it.provider) },
-            modelId = activeInitiator?.model.orEmpty()
-        )
         // Per-card icon = the specific agent's icon. Initiator pages
         // use the initiator's agent.icon; responder pages further
         // down use the responder's matching report-agent.icon.
         // Falls back to 🤖 while the per-agent icon-gen is pending.
-        HorizontalPager(
-            state = initiatorPagerState,
-            modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
-        ) { page ->
-            val agentId = initiatorIds[page]
-            val agent = report.agents.firstOrNull { it.agentId == agentId }
-            val body = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
+
+        // Initiator collapse toggle. When false, the Initiator
+        // section shrinks to a compact one-row preview (icon +
+        // first line of the response) and the Responder pager
+        // expands to fill the freed space. Default expanded; user
+        // can collapse to focus on the responses they're reading.
+        var initiatorExpanded by rememberSaveable(activeInitiatorId) { mutableStateOf(true) }
+
+        // ───── Top section: Initiator ─────
+        Spacer(modifier = Modifier.height(8.dp))
+        if (initiatorExpanded) {
+            CounterRow(
+                counter = "${initiatorPagerState.currentPage + 1} / ${initiatorIds.size}",
+                modelLabel = activeInitiator?.let { shortModelName(it.model) }.orEmpty(),
+                providerService = activeInitiator?.let { com.ai.data.AppService.findById(it.provider) },
+                modelId = activeInitiator?.model.orEmpty(),
+                onToggle = { initiatorExpanded = false },
+                toggleGlyph = "▲"
+            )
+            HorizontalPager(
+                state = initiatorPagerState,
+                modifier = Modifier.fillMaxWidth().weight(1f)
+            ) { page ->
+                val agentId = initiatorIds[page]
+                val agent = report.agents.firstOrNull { it.agentId == agentId }
+                val body = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
+                    ?.responseBody?.takeIf { !it.isNullOrBlank() }
+                    ?: "(initiator response no longer available)"
+                FanOutBodyCard(
+                    reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
+                    body = body,
+                    borderColor = AppColors.Purple.copy(alpha = 0.35f)
+                )
+            }
+        } else {
+            // Compact one-row preview of the active initiator.
+            val agent = activeInitiatorId?.let { aid -> report.agents.firstOrNull { it.agentId == aid } }
+            val previewBody = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
                 ?.responseBody?.takeIf { !it.isNullOrBlank() }
+                ?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim()
                 ?: "(initiator response no longer available)"
-            FanOutBodyCard(
-                reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
-                body = body,
-                borderColor = AppColors.Purple.copy(alpha = 0.35f)
+            CollapsedInitiatorRow(
+                icon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
+                preview = previewBody,
+                onToggle = { initiatorExpanded = true }
             )
         }
 
-        // ───── Bottom section: Responder counter / name / pager ─────
+        // ───── Bottom section: Responder ─────
         Spacer(modifier = Modifier.height(16.dp))
-        CounterAndName(
+        CounterRow(
             counter = if (responders.isEmpty()) "0 / 0"
                 else "${responderPagerState.currentPage + 1} / ${responders.size}",
             modelLabel = activeResponder?.let { shortModelName(it.model) }.orEmpty(),
@@ -219,7 +254,11 @@ fun FanOutViewScreen(
         )
         if (responders.isEmpty()) {
             Box(
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                // When the Initiator is collapsed the Responder
+                // section uses the full remaining vertical space
+                // even on the empty path so the "no responders"
+                // sentinel sits where the card would be.
+                modifier = Modifier.fillMaxWidth().weight(1f),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -228,9 +267,15 @@ fun FanOutViewScreen(
                 )
             }
         } else {
+            // Weights split the remaining vertical real-estate so
+            // the Responder pager occupies 2/3 of the area
+            // available below the title bar when Initiator is
+            // expanded (Initiator pager carries weight 1f above);
+            // when Initiator is collapsed its single-row preview
+            // has no weight, so the Responder gets ~all of it.
             HorizontalPager(
                 state = responderPagerState,
-                modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
+                modifier = Modifier.fillMaxWidth().weight(2f)
             ) { page ->
                 val pair = responders[page]
                 val translated = if (!language.isNullOrEmpty()) {
@@ -256,35 +301,84 @@ fun FanOutViewScreen(
     }
 }
 
-/** Counter + green model name pair shown above each card. Same
- *  vertical rhythm as Model reports (counter = tight against the
- *  green name; subject sits close to the card below). The green
- *  model name is clickable → View Model Info when
- *  [providerService] is non-null. */
+/** Single-row header above each fan-out card: the green model name
+ *  is left-aligned; the X / Y pager counter is right-aligned on
+ *  the same row. The green model name is tappable → View Model Info
+ *  when [providerService] is non-null. When [onToggle] is non-null
+ *  an extra glyph (▲ / ▼) sits to the right of the counter and
+ *  toggles the section's collapsed state — used by the Initiator
+ *  section here; the Responder section omits it. */
 @Composable
-private fun CounterAndName(
+private fun CounterRow(
     counter: String,
     modelLabel: String,
     providerService: com.ai.data.AppService? = null,
-    modelId: String = ""
+    modelId: String = "",
+    onToggle: (() -> Unit)? = null,
+    toggleGlyph: String = ""
 ) {
-    Text(
-        text = counter,
-        color = AppColors.TextTertiary, fontSize = 13.sp,
-        fontWeight = FontWeight.SemiBold,
-        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
-    )
-    Text(
-        text = modelLabel,
-        color = AppColors.Green,
-        fontSize = 22.sp,
-        fontWeight = FontWeight.SemiBold,
-        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-        maxLines = 1, overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 8.dp)
-            .modelInfoViewClickable(providerService, modelId)
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = modelLabel,
+            color = AppColors.Green,
+            fontSize = 22.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+                .modelInfoViewClickable(providerService, modelId)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = counter,
+            color = AppColors.TextTertiary, fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        if (onToggle != null && toggleGlyph.isNotBlank()) {
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = toggleGlyph,
+                color = AppColors.TextSecondary, fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { onToggle() }
+                    .padding(start = 6.dp, end = 2.dp, top = 2.dp, bottom = 2.dp)
+            )
+        }
+    }
+}
+
+/** Compact one-row preview shown in place of the Initiator card
+ *  when the user collapses it. The icon shrinks; the first non-
+ *  blank line of the initiator's body fills the available width
+ *  ellipsised; the ▼ glyph on the right re-expands the card. */
+@Composable
+private fun CollapsedInitiatorRow(icon: String, preview: String, onToggle: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(AppColors.CardBackground)
+            .border(1.dp, AppColors.Purple.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .clickable { onToggle() }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = icon, fontSize = 20.sp)
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = preview,
+            color = AppColors.TextSecondary, fontSize = 13.sp,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "▼",
+            color = AppColors.TextSecondary, fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
 }
 
 /** Shared body card for both initiator and responder pages. Report
