@@ -197,30 +197,36 @@ fun FanInViewScreen(
         // only Original the pager degenerates to a single page.
         // The CreditsStrip stays outside the pager so it's shared
         // across languages.
-        HorizontalPager(
-            state = pagerState,
+        com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+            pagerState = pagerState,
+            noMoreLabel = "No more translations",
             modifier = Modifier.fillMaxWidth().weight(1f)
-        ) { page ->
-            val lang = if (languages.isEmpty()) ""
-                else languages[page.coerceIn(0, languages.size - 1)]
-            val body = if (lang.isBlank()) result.content.orEmpty()
-                else loaded.translatedByLanguage[lang]?.takeIf { it.isNotBlank() }
-                    ?: result.content.orEmpty()
-            // Per-page language flag — re-derived inside the
-            // lambda so off-screen pre-rendered pages bind to
-            // their own page's flag, not the active page's.
-            val pageFlag = when {
-                languages.size <= 1 -> null
-                lang.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() } ?: "🌐"
-                else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
-                    ?: "🌍"
-            }
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
-            ) {
-                item { SynthesisBodyCard(body = body, languageIcon = pageFlag) }
+        ) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                val lang = if (languages.isEmpty()) ""
+                    else languages[page.coerceIn(0, languages.size - 1)]
+                val body = if (lang.isBlank()) result.content.orEmpty()
+                    else loaded.translatedByLanguage[lang]?.takeIf { it.isNotBlank() }
+                        ?: result.content.orEmpty()
+                // Per-page language flag — re-derived inside the
+                // lambda so off-screen pre-rendered pages bind to
+                // their own page's flag, not the active page's.
+                val pageFlag = when {
+                    languages.size <= 1 -> null
+                    lang.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() } ?: "🌐"
+                    else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
+                        ?: "🌍"
+                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
+                ) {
+                    item { SynthesisBodyCard(body = body, languageIcon = pageFlag) }
+                }
             }
         }
         // Credits strip sits below the language pager — same set

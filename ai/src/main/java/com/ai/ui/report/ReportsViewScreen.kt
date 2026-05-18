@@ -253,28 +253,34 @@ fun ReportsViewScreen(
                     modifier = Modifier.fillMaxWidth().weight(1f)
                 )
             } else {
-                HorizontalPager(
-                    state = langPagerState,
+                com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+                    pagerState = langPagerState,
+                    noMoreLabel = "No more translations",
                     modifier = Modifier.fillMaxWidth().weight(1f)
-                ) { page ->
-                    val lang = languages[page.coerceIn(0, languages.size - 1)]
-                    val flag = when {
-                        lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
-                        else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
-                    }
-                    // Per-page prompt text. Non-Original pages prefer the
-                    // matching TRANSLATE row (translateSourceKind=PROMPT,
-                    // targetLanguage=lang); fall back to report.prompt if
-                    // no translation row exists yet. Re-derived inside the
-                    // lambda so off-screen pre-rendered pages bind to the
-                    // correct page's content, not the active page's.
-                    val promptOverride = if (lang.isBlank()) null
-                        else loaded.translatedPromptByLang[lang]?.takeIf { it.isNotBlank() }
-                    PromptCard(
-                        report = report, languageIcon = flag, promptOverride = promptOverride,
-                        onCollapse = { promptExpanded = false },
+                ) {
+                    HorizontalPager(
+                        state = langPagerState,
                         modifier = Modifier.fillMaxSize()
-                    )
+                    ) { page ->
+                        val lang = languages[page.coerceIn(0, languages.size - 1)]
+                        val flag = when {
+                            lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
+                            else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
+                        }
+                        // Per-page prompt text. Non-Original pages prefer the
+                        // matching TRANSLATE row (translateSourceKind=PROMPT,
+                        // targetLanguage=lang); fall back to report.prompt if
+                        // no translation row exists yet. Re-derived inside the
+                        // lambda so off-screen pre-rendered pages bind to the
+                        // correct page's content, not the active page's.
+                        val promptOverride = if (lang.isBlank()) null
+                            else loaded.translatedPromptByLang[lang]?.takeIf { it.isNotBlank() }
+                        PromptCard(
+                            report = report, languageIcon = flag, promptOverride = promptOverride,
+                            onCollapse = { promptExpanded = false },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
         } else {
@@ -310,20 +316,26 @@ fun ReportsViewScreen(
                 fontWeight = FontWeight.SemiBold
             )
         }
-        HorizontalPager(
-            state = pagerState,
+        com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+            pagerState = pagerState,
+            noMoreLabel = "No more models",
             // When the prompt card is expanded the prompt pager
             // claims weight 1f above — give the response pager
             // weight 2f for the 1/3 / 2/3 split. When the prompt is
             // collapsed only this pager has a weight, so it fills
             // the freed space automatically.
             modifier = Modifier.fillMaxWidth().weight(2f)
-        ) { page ->
-            val agent = agents[page]
-            AgentResponseCard(
-                agent = agent,
-                overrideBody = translatedByAgentId[agent.agentId]
-            )
+        ) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                val agent = agents[page]
+                AgentResponseCard(
+                    agent = agent,
+                    overrideBody = translatedByAgentId[agent.agentId]
+                )
+            }
         }
     }
 }

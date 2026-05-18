@@ -159,41 +159,47 @@ fun FanOutPairViewScreen(
             modifier = Modifier.fillMaxWidth().padding(top = 2.dp, bottom = 10.dp)
         )
 
-        HorizontalPager(
-            state = pagerState,
+        com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+            pagerState = pagerState,
+            noMoreLabel = "No more pairs",
             modifier = Modifier.fillMaxSize()
-        ) { page ->
-            val pair = pairs[page]
-            val initiator = report?.agents?.firstOrNull { it.agentId == pair.fanOutSourceAgentId }
-            val initiatorLabel = initiator?.let {
-                val prov = AppService.findById(it.provider)?.id ?: it.provider
-                "$prov / ${shortModelName(it.model)}"
-            } ?: "Initiator"
-            val initiatorBody = initiator?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
-                ?.responseBody
-                ?.takeIf { !it.isNullOrBlank() }
-                ?: "(initiator response no longer available)"
-            val answererProvDisplay =
-                AppService.findById(pair.providerId)?.id ?: pair.providerId
-            val answererLabel = "$answererProvDisplay / ${shortModelName(pair.model)}"
+        ) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                val pair = pairs[page]
+                val initiator = report?.agents?.firstOrNull { it.agentId == pair.fanOutSourceAgentId }
+                val initiatorLabel = initiator?.let {
+                    val prov = AppService.findById(it.provider)?.id ?: it.provider
+                    "$prov / ${shortModelName(it.model)}"
+                } ?: "Initiator"
+                val initiatorBody = initiator?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
+                    ?.responseBody
+                    ?.takeIf { !it.isNullOrBlank() }
+                    ?: "(initiator response no longer available)"
+                val answererProvDisplay =
+                    AppService.findById(pair.providerId)?.id ?: pair.providerId
+                val answererLabel = "$answererProvDisplay / ${shortModelName(pair.model)}"
 
-            Column(
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                PairBubble(
-                    label = initiatorLabel,
-                    body = initiatorBody,
-                    color = AppColors.SurfaceDark,
-                    borderColor = AppColors.BorderUnfocused
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                PairBubble(
-                    label = answererLabel,
-                    body = pair.content.orEmpty(),
-                    color = AppColors.IndigoHighlight,
-                    borderColor = AppColors.Indigo
-                )
+                Column(
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    PairBubble(
+                        label = initiatorLabel,
+                        body = initiatorBody,
+                        color = AppColors.SurfaceDark,
+                        borderColor = AppColors.BorderUnfocused
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    PairBubble(
+                        label = answererLabel,
+                        body = pair.content.orEmpty(),
+                        color = AppColors.IndigoHighlight,
+                        borderColor = AppColors.Indigo
+                    )
+                }
             }
         }
     }

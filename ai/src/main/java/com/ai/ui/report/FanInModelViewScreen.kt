@@ -180,29 +180,35 @@ fun FanInModelViewScreen(
             }
         )
 
-        HorizontalPager(
-            state = pagerState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 4.dp)
-        ) { page ->
-            val row = rows[page]
-            val provider = AppService.findById(row.providerId)?.id ?: row.providerId
-            val scopedProvider = row.scopeProviderId?.let { AppService.findById(it)?.id ?: it }
-            val scopedModel = row.scopeModel
-            LazyColumn(
+        com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+            pagerState = pagerState,
+            noMoreLabel = "No more models",
+            modifier = Modifier.fillMaxSize()
+        ) {
+            HorizontalPager(
+                state = pagerState,
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
-            ) {
-                item {
-                    ModelSynthesisCard(
-                        provider = provider, model = row.model,
-                        scopedProvider = scopedProvider, scopedModel = scopedModel,
-                        body = row.content.orEmpty()
-                    )
-                }
-                item {
-                    ModelCreditsStrip(report)
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) { page ->
+                val row = rows[page]
+                val provider = AppService.findById(row.providerId)?.id ?: row.providerId
+                val scopedProvider = row.scopeProviderId?.let { AppService.findById(it)?.id ?: it }
+                val scopedModel = row.scopeModel
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
+                ) {
+                    item {
+                        ModelSynthesisCard(
+                            provider = provider, model = row.model,
+                            scopedProvider = scopedProvider, scopedModel = scopedModel,
+                            body = row.content.orEmpty()
+                        )
+                    }
+                    item {
+                        ModelCreditsStrip(report)
+                    }
                 }
             }
         }

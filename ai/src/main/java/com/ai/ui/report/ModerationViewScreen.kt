@@ -187,30 +187,36 @@ fun ModerationViewScreen(
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)
         )
-        HorizontalPager(
-            state = pagerState,
+        com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+            pagerState = pagerState,
+            noMoreLabel = "No more models",
             modifier = Modifier.fillMaxSize()
-        ) { page ->
-            val r = rows[page]
-            // LazyColumn (not verticalScroll Column) so the inner
-            // vertical scroll cooperates with HorizontalPager's
-            // horizontal drag detection — a swipe across the
-            // Response card flips the page, same as a swipe across
-            // the moderation card above it.
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                item {
-                    AgentModerationCard(
-                        row = r,
-                        label = agentLabels[r.id] ?: "[${r.id}] (unknown)",
-                        categories = allCategories
-                    )
-                }
-                item {
-                    ResponseCard(body = agentResponses[r.id].orEmpty())
+        ) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                val r = rows[page]
+                // LazyColumn (not verticalScroll Column) so the inner
+                // vertical scroll cooperates with HorizontalPager's
+                // horizontal drag detection — a swipe across the
+                // Response card flips the page, same as a swipe across
+                // the moderation card above it.
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    contentPadding = PaddingValues(bottom = 16.dp)
+                ) {
+                    item {
+                        AgentModerationCard(
+                            row = r,
+                            label = agentLabels[r.id] ?: "[${r.id}] (unknown)",
+                            categories = allCategories
+                        )
+                    }
+                    item {
+                        ResponseCard(body = agentResponses[r.id].orEmpty())
+                    }
                 }
             }
         }

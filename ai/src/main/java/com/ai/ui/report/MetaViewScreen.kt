@@ -205,30 +205,36 @@ fun MetaViewScreen(
         // is gone per the user's spec: to navigate between meta
         // runs the user goes back to the View tile grid and taps
         // another meta tile.
-        HorizontalPager(
-            state = pagerState,
+        com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+            pagerState = pagerState,
+            noMoreLabel = "No more translations",
             modifier = Modifier.fillMaxSize()
-        ) { page ->
-            val lang = if (languages.isEmpty()) ""
-                else languages[page.coerceIn(0, languages.size - 1)]
-            val body = if (lang.isBlank()) row.content.orEmpty()
-                else loaded.translatedByLanguage[lang]?.takeIf { it.isNotBlank() }
-                    ?: row.content.orEmpty()
-            // Per-page language flag — re-derived inside the lambda
-            // so off-screen pre-rendered pages bind to their own
-            // page's flag, not the active page's.
-            val pageFlag = when {
-                languages.size <= 1 -> null
-                lang.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() } ?: "🌐"
-                else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
-                    ?: "🌍"
-            }
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-                contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
-            ) {
-                item { AnswerCard(body = body, languageIcon = pageFlag) }
+        ) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                val lang = if (languages.isEmpty()) ""
+                    else languages[page.coerceIn(0, languages.size - 1)]
+                val body = if (lang.isBlank()) row.content.orEmpty()
+                    else loaded.translatedByLanguage[lang]?.takeIf { it.isNotBlank() }
+                        ?: row.content.orEmpty()
+                // Per-page language flag — re-derived inside the lambda
+                // so off-screen pre-rendered pages bind to their own
+                // page's flag, not the active page's.
+                val pageFlag = when {
+                    languages.size <= 1 -> null
+                    lang.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() } ?: "🌐"
+                    else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
+                        ?: "🌍"
+                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
+                ) {
+                    item { AnswerCard(body = body, languageIcon = pageFlag) }
+                }
             }
         }
     }

@@ -147,33 +147,39 @@ fun PromptViewScreen(
             }
             return@Column
         }
-        HorizontalPager(
-            state = pagerState,
+        com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+            pagerState = pagerState,
+            noMoreLabel = "No more translations",
             modifier = Modifier.fillMaxSize()
-        ) { page ->
-            val lang = if (languages.isEmpty()) ""
-                else languages[page.coerceIn(0, languages.size - 1)]
-            val body = if (lang.isBlank()) report.prompt.orEmpty()
-                else loaded.translatedByLang[lang].orEmpty().ifBlank { report.prompt.orEmpty() }
-            // Pass the per-page language icon so each card carries its
-            // own indicator — re-derived inside the lambda so the
-            // off-screen pre-rendered pages show the right flag too,
-            // not the currently-active page's flag.
-            val perPageIcon = when {
-                languages.size <= 1 -> null
-                lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
-                else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
+        ) {
+            HorizontalPager(
+                state = pagerState,
+                modifier = Modifier.fillMaxSize()
+            ) { page ->
+                val lang = if (languages.isEmpty()) ""
+                    else languages[page.coerceIn(0, languages.size - 1)]
+                val body = if (lang.isBlank()) report.prompt.orEmpty()
+                    else loaded.translatedByLang[lang].orEmpty().ifBlank { report.prompt.orEmpty() }
+                // Pass the per-page language icon so each card carries its
+                // own indicator — re-derived inside the lambda so the
+                // off-screen pre-rendered pages show the right flag too,
+                // not the currently-active page's flag.
+                val perPageIcon = when {
+                    languages.size <= 1 -> null
+                    lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
+                    else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
+                }
+                // Prefer the live LocalReportIcon (refreshed via
+                // iconRefreshTick by the report-overlay parent) so a
+                // fresh icon-gen result lands without remount; fall
+                // back to the persisted icon on the loaded report.
+                val liveReportIcon = com.ai.ui.shared.LocalReportIcon.current?.takeIf { it.isNotBlank() }
+                PromptPageCard(
+                    body = body,
+                    reportIcon = liveReportIcon ?: report.icon,
+                    languageIcon = perPageIcon
+                )
             }
-            // Prefer the live LocalReportIcon (refreshed via
-            // iconRefreshTick by the report-overlay parent) so a
-            // fresh icon-gen result lands without remount; fall
-            // back to the persisted icon on the loaded report.
-            val liveReportIcon = com.ai.ui.shared.LocalReportIcon.current?.takeIf { it.isNotBlank() }
-            PromptPageCard(
-                body = body,
-                reportIcon = liveReportIcon ?: report.icon,
-                languageIcon = perPageIcon
-            )
         }
     }
 }

@@ -214,20 +214,26 @@ fun FanOutViewScreen(
                 onToggle = { initiatorExpanded = false },
                 toggleGlyph = "▲"
             )
-            HorizontalPager(
-                state = initiatorPagerState,
+            com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+                pagerState = initiatorPagerState,
+                noMoreLabel = "No more initiators",
                 modifier = Modifier.fillMaxWidth().weight(1f)
-            ) { page ->
-                val agentId = initiatorIds[page]
-                val agent = report.agents.firstOrNull { it.agentId == agentId }
-                val body = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
-                    ?.responseBody?.takeIf { !it.isNullOrBlank() }
-                    ?: "(initiator response no longer available)"
-                FanOutBodyCard(
-                    reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
-                    body = body,
-                    borderColor = AppColors.Purple.copy(alpha = 0.35f)
-                )
+            ) {
+                HorizontalPager(
+                    state = initiatorPagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    val agentId = initiatorIds[page]
+                    val agent = report.agents.firstOrNull { it.agentId == agentId }
+                    val body = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
+                        ?.responseBody?.takeIf { !it.isNullOrBlank() }
+                        ?: "(initiator response no longer available)"
+                    FanOutBodyCard(
+                        reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
+                        body = body,
+                        borderColor = AppColors.Purple.copy(alpha = 0.35f)
+                    )
+                }
             }
         } else {
             // Compact one-row preview of the active initiator.
@@ -273,29 +279,35 @@ fun FanOutViewScreen(
             // expanded (Initiator pager carries weight 1f above);
             // when Initiator is collapsed its single-row preview
             // has no weight, so the Responder gets ~all of it.
-            HorizontalPager(
-                state = responderPagerState,
+            com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+                pagerState = responderPagerState,
+                noMoreLabel = "No more responders",
                 modifier = Modifier.fillMaxWidth().weight(2f)
-            ) { page ->
-                val pair = responders[page]
-                val translated = if (!language.isNullOrEmpty()) {
-                    translates.firstOrNull {
-                        it.translateSourceTargetId == pair.id &&
-                            it.targetLanguage == language
-                    }?.content?.takeIf { it.isNotBlank() }
-                } else null
-                val body = translated ?: pair.content.orEmpty()
-                // Responder icon = the matching report-agent's icon
-                // (lookup by provider + model). Falls back to 🤖
-                // when no report-agent matches (e.g. cross-fan-out).
-                val responderAgent = report.agents.firstOrNull {
-                    it.provider == pair.providerId && it.model == pair.model
+            ) {
+                HorizontalPager(
+                    state = responderPagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    val pair = responders[page]
+                    val translated = if (!language.isNullOrEmpty()) {
+                        translates.firstOrNull {
+                            it.translateSourceTargetId == pair.id &&
+                                it.targetLanguage == language
+                        }?.content?.takeIf { it.isNotBlank() }
+                    } else null
+                    val body = translated ?: pair.content.orEmpty()
+                    // Responder icon = the matching report-agent's icon
+                    // (lookup by provider + model). Falls back to 🤖
+                    // when no report-agent matches (e.g. cross-fan-out).
+                    val responderAgent = report.agents.firstOrNull {
+                        it.provider == pair.providerId && it.model == pair.model
+                    }
+                    FanOutBodyCard(
+                        reportIcon = responderAgent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
+                        body = body,
+                        borderColor = AppColors.Blue.copy(alpha = 0.35f)
+                    )
                 }
-                FanOutBodyCard(
-                    reportIcon = responderAgent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
-                    body = body,
-                    borderColor = AppColors.Blue.copy(alpha = 0.35f)
-                )
             }
         }
     }
