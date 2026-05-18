@@ -241,7 +241,7 @@ fun ViewScreenTitleBar(
                 fontSize = 52.sp,
                 color = AppColors.Blue,
                 modifier = Modifier
-                    .offset(y = (-8).dp)
+                    .offset(y = (-4).dp)
                     .clickable { navigateHelp(helpTopic) }
             )
         }
