@@ -68,49 +68,65 @@ fun IconLookupScreen(ctx: IconLookupContext) {
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
 
-            // Model card — provider / model / pricing tier / cumulative cost.
-            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
-                modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
-                        fontWeight = FontWeight.Bold)
-                    val label = if (ctx.model.isNotBlank())
-                        modelLabel(ctx.provider.id, ctx.model)
-                    else "(pending)"
-                    Text(label, fontSize = 14.sp, color = Color.White)
-                    if (ctx.pricingTier.isNotBlank()) {
-                        Text(
-                            "Pricing tier: ${ctx.pricingTier}",
-                            fontSize = 11.sp, color = AppColors.TextTertiary,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                    }
-                    if (ctx.cost > 0.0) {
-                        Text(
-                            "Cost: ${formatCents(ctx.cost)} ¢",
-                            fontSize = 11.sp, color = AppColors.TextTertiary,
-                            fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
+            // When no dynamic icon has been generated yet — no model
+            // recorded AND no API interaction captured — the Model
+            // and API interaction cards would both render empty
+            // placeholders. Replace them with a single explanatory
+            // line so the screen stays useful (Find alternative icons
+            // button still works to kick off a generation).
+            val noDynamicIconYet = ctx.model.isBlank() && ctx.apiInteraction.isBlank()
+            if (noDynamicIconYet) {
+                Text(
+                    text = "No dynamic icon returned yet",
+                    fontSize = 14.sp,
+                    color = AppColors.TextTertiary,
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                )
+            } else {
+                // Model card — provider / model / pricing tier / cumulative cost.
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                    modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Model", fontSize = 11.sp, color = AppColors.TextTertiary,
+                            fontWeight = FontWeight.Bold)
+                        val label = if (ctx.model.isNotBlank())
+                            modelLabel(ctx.provider.id, ctx.model)
+                        else "(pending)"
+                        Text(label, fontSize = 14.sp, color = Color.White)
+                        if (ctx.pricingTier.isNotBlank()) {
+                            Text(
+                                "Pricing tier: ${ctx.pricingTier}",
+                                fontSize = 11.sp, color = AppColors.TextTertiary,
+                                modifier = Modifier.padding(top = 2.dp)
+                            )
+                        }
+                        if (ctx.cost > 0.0) {
+                            Text(
+                                "Cost: ${formatCents(ctx.cost)} ¢",
+                                fontSize = 11.sp, color = AppColors.TextTertiary,
+                                fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
                     }
                 }
-            }
 
-            // API interaction card — plain monospace text, NO markdown.
-            // The returned emoji appears small + inline as part of
-            // the `[assistant]` turn so the user sees exactly what
-            // came back, byte for byte.
-            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
-                modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text("API interaction", fontSize = 11.sp, color = AppColors.TextTertiary,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 6.dp))
-                    Text(
-                        ctx.apiInteraction.ifBlank { "(no interaction recorded)" },
-                        fontSize = 13.sp, color = Color.White, lineHeight = 18.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
+                // API interaction card — plain monospace text, NO markdown.
+                // The returned emoji appears small + inline as part of
+                // the `[assistant]` turn so the user sees exactly what
+                // came back, byte for byte.
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                    modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("API interaction", fontSize = 11.sp, color = AppColors.TextTertiary,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(bottom = 6.dp))
+                        Text(
+                            ctx.apiInteraction.ifBlank { "(no interaction recorded)" },
+                            fontSize = 13.sp, color = Color.White, lineHeight = 18.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
                 }
             }
 
