@@ -6,10 +6,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -186,60 +184,63 @@ fun PromptViewScreen(
 
 @Composable
 private fun PromptPageCard(body: String, reportIcon: String?, languageIcon: String?) {
-    Column(
-        modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
-    ) {
-        Spacer(modifier = Modifier.height(4.dp))
-        Box(
-            modifier = Modifier.fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            AppColors.Purple.copy(alpha = 0.32f),
-                            AppColors.Indigo.copy(alpha = 0.08f)
-                        )
+    // Card is a single Box that wraps content (capped by the
+    // pager's max height). The body Column scrolls INSIDE the
+    // Box via verticalScroll — so the language flag pinned to
+    // Box.TopEnd stays at the card's top-right while the user
+    // scrolls long content. Same pattern as ReportsViewScreen.
+    Box(
+        modifier = Modifier.fillMaxWidth()
+            .padding(top = 4.dp, bottom = 24.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        AppColors.Purple.copy(alpha = 0.32f),
+                        AppColors.Indigo.copy(alpha = 0.08f)
                     )
                 )
-                .border(1.dp, AppColors.Purple.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+            )
+            .border(1.dp, AppColors.Purple.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Report icon strip — bigger now so the page reads as
-                // its report at a glance instead of needing a squint.
-                if (!reportIcon.isNullOrBlank()) {
-                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Text(text = reportIcon, fontSize = 56.sp)
-                    }
-                }
-                if (body.isBlank()) {
-                    Text(
-                        text = "(no prompt recorded)",
-                        color = AppColors.TextTertiary, fontSize = 14.sp
-                    )
-                } else {
-                    // Body via the shared markdown pipeline so the
-                    // prompt's own formatting (fences, tables, lists)
-                    // renders properly.
-                    ContentWithThinkSections(analysis = body)
+            // Report icon strip — bigger now so the page reads as
+            // its report at a glance instead of needing a squint.
+            if (!reportIcon.isNullOrBlank()) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    Text(text = reportIcon, fontSize = 56.sp)
                 }
             }
-            // Language flag overlay in the top-right corner of the
-            // card — replaces the old title-bar subject. Only shown
-            // when the report carries multiple languages (otherwise
-            // there's nothing meaningful to indicate).
-            if (!languageIcon.isNullOrBlank()) {
+            if (body.isBlank()) {
                 Text(
-                    text = languageIcon,
-                    fontSize = 28.sp,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 6.dp, end = 10.dp)
+                    text = "(no prompt recorded)",
+                    color = AppColors.TextTertiary, fontSize = 14.sp
                 )
+            } else {
+                // Body via the shared markdown pipeline so the
+                // prompt's own formatting (fences, tables, lists)
+                // renders properly.
+                ContentWithThinkSections(analysis = body)
             }
         }
-        Spacer(modifier = Modifier.height(24.dp))
+        // Language flag overlay in the top-right corner of the
+        // card — replaces the old title-bar subject. Only shown
+        // when the report carries multiple languages. Lives
+        // OUTSIDE the verticalScroll Column so it stays pinned
+        // to the card's top-right while the body scrolls.
+        if (!languageIcon.isNullOrBlank()) {
+            Text(
+                text = languageIcon,
+                fontSize = 28.sp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 6.dp, end = 10.dp)
+            )
+        }
     }
 }

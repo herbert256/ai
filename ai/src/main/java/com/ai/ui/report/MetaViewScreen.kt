@@ -2,19 +2,16 @@ package com.ai.ui.report
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -228,28 +225,36 @@ fun MetaViewScreen(
                     else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
                         ?: "🌍"
                 }
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
-                ) {
-                    item { AnswerCard(body = body, languageIcon = pageFlag) }
-                }
+                AnswerCard(
+                    body = body,
+                    languageIcon = pageFlag,
+                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 24.dp)
+                )
             }
         }
     }
 }
 
 @Composable
-private fun AnswerCard(body: String, languageIcon: String?) {
+private fun AnswerCard(
+    body: String,
+    languageIcon: String?,
+    modifier: Modifier = Modifier.fillMaxWidth()
+) {
+    // Card is a single Box that wraps content (capped by the
+    // pager's max height). The body Column scrolls INSIDE the
+    // Box via verticalScroll — so the language flag pinned to
+    // Box.TopEnd stays at the card's top-right while the user
+    // scrolls long content.
     Box(
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, AppColors.Purple.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             if (body.isBlank()) {
@@ -265,6 +270,8 @@ private fun AnswerCard(body: String, languageIcon: String?) {
         }
         // Per-language flag overlay in the top-right corner.
         // Only shown when the row carries multiple languages.
+        // Lives OUTSIDE the verticalScroll Column so it stays
+        // pinned to the card's top-right while the body scrolls.
         if (!languageIcon.isNullOrBlank()) {
             Text(
                 text = languageIcon,
