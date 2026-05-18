@@ -387,10 +387,11 @@ fun RegenerateBatchManageRow() {
             // Type cell — matches the other rows' "compare" / "rerank"
             // / "fan-in" chip in the same column.
             RowTypeCell("regenerate")
-            // Row text — counter + current phase.
+            // Row text — counter + current phase. White like the
+            // model-name text on every other row in this LazyColumn.
             Text(
                 text = rowText,
-                color = AppColors.TextSecondary,
+                color = Color.White,
                 fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
