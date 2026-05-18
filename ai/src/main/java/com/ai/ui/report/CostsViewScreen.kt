@@ -18,10 +18,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -29,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -36,9 +41,9 @@ import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ViewScreenTitleBar
-import com.ai.ui.shared.formatUsd
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 /**
  * Content-focused "View" variant of the report cost breakdown. Reached
@@ -93,25 +98,15 @@ fun CostsViewScreen(
             onOpenManage = onOpenManageJump,
             onBack = onBack
         )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "💰",
-                fontSize = 28.sp,
-                modifier = Modifier.padding(end = 8.dp)
-            )
-            Text(
-                text = "Costs",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = AppColors.Yellow,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-        }
+        // (The "💰 Costs" duplicate-label row that used to sit
+        // here was removed per the user — the orange "Costs"
+        // screen-title in the bar above already names the page.)
+        // Mode toggle — fancy pill that flips the bar block below
+        // between bucket-roll-ups (the original behaviour) and
+        // per-(provider, model) rows.
+        var mode by rememberSaveable { mutableStateOf(CostsMode.Buckets) }
+        CostsModeToggle(mode = mode, onPick = { mode = it })
+        Spacer(modifier = Modifier.height(12.dp))
         if (report == null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(top = 32.dp),
@@ -179,8 +174,31 @@ fun CostsViewScreen(
                 .filter { it.cents > 0.0001 }
                 .sortedByDescending { it.cents }
         }
+        // Per-(provider, model) roll-up. Same shape as `bucketed`
+        // above so the same BucketBar renderer paints both modes.
+        val modeled = remember(data) {
+            val byModel = LinkedHashMap<String, BucketTotal>()
+            data.rows.forEach { row ->
+                val key = if (row.providerDisplay.isNotBlank() && row.model.isNotBlank())
+                    "${row.providerDisplay} / ${row.model}"
+                else row.providerDisplay.ifBlank { row.model.ifBlank { row.type } }
+                val total = row.inputCents + row.outputCents
+                val cur = byModel[key]
+                byModel[key] = if (cur == null) BucketTotal(key, total, 1)
+                               else cur.copy(cents = cur.cents + total, calls = cur.calls + 1)
+            }
+            byModel.values
+                .filter { it.cents > 0.0001 }
+                .sortedByDescending { it.cents }
+        }
 
-        // Hero total card — big USD readout in Yellow, with a subtle
+        // Pick the active roll-up by mode. The hero card + the bar
+        // list both bind to the same `active` list so flipping the
+        // toggle just swaps datasets — no second composable tree.
+        val active = if (mode == CostsMode.Buckets) bucketed else modeled
+        val unitLabel = if (mode == CostsMode.Buckets) "bucket" else "model"
+
+        // Hero total card — big cent readout in Yellow, with a subtle
         // gradient so it visually dominates without competing with the
         // bar block below.
         Column(
@@ -205,9 +223,12 @@ fun CostsViewScreen(
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
-            // Cents to dollars for the hero — formatUsd takes dollars.
+            // Cents directly — the row-level cost halves already
+            // live in this unit. ¢ suffix replaces the USD prefix
+            // per the user's "show in cents, with the cent char"
+            // request.
             Text(
-                text = formatUsd(totalCents / 100.0, decimals = 6),
+                text = formatCentsValue(totalCents, decimals = 4),
                 color = AppColors.Yellow,
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
@@ -215,12 +236,12 @@ fun CostsViewScreen(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "${data.rows.size} call${if (data.rows.size == 1) "" else "s"} across ${bucketed.size} bucket${if (bucketed.size == 1) "" else "s"}",
+                text = "${data.rows.size} call${if (data.rows.size == 1) "" else "s"} across ${active.size} $unitLabel${if (active.size == 1) "" else "s"}",
                 color = AppColors.TextTertiary, fontSize = 12.sp
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
-        if (bucketed.isEmpty()) {
+        if (active.isEmpty()) {
             Text(
                 "No billable calls recorded.",
                 color = AppColors.TextTertiary, fontSize = 13.sp
@@ -232,12 +253,70 @@ fun CostsViewScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
             contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
         ) {
-            items(bucketed) { b ->
+            items(active) { b ->
                 BucketBar(bucket = b, totalCents = totalCents)
             }
         }
     }
 }
+
+/** Two roll-up modes — by cost-type bucket vs by (provider, model). */
+private enum class CostsMode { Buckets, Models }
+
+/** Fancy pill toggle between [CostsMode.Buckets] and [CostsMode.Models].
+ *  Mirrors the per-row pill aesthetic used elsewhere in the View
+ *  family — soft surface track, the active half fills with the
+ *  Costs yellow, the inactive half stays ghosted. */
+@Composable
+private fun CostsModeToggle(mode: CostsMode, onPick: (CostsMode) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(AppColors.CardBackground)
+            .border(1.dp, AppColors.Yellow.copy(alpha = 0.35f), RoundedCornerShape(22.dp))
+            .padding(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        CostsModeChip(label = "Buckets", selected = mode == CostsMode.Buckets,
+            modifier = Modifier.weight(1f)) { onPick(CostsMode.Buckets) }
+        CostsModeChip(label = "Models", selected = mode == CostsMode.Models,
+            modifier = Modifier.weight(1f)) { onPick(CostsMode.Models) }
+    }
+}
+
+@Composable
+private fun CostsModeChip(
+    label: String, selected: Boolean,
+    modifier: Modifier = Modifier, onClick: () -> Unit
+) {
+    val bg = if (selected) Brush.horizontalGradient(
+        listOf(AppColors.Yellow.copy(alpha = 0.95f), AppColors.Orange.copy(alpha = 0.65f))
+    ) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent))
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(bg)
+            .clickable { onClick() }
+            .padding(vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            color = if (selected) Color.Black else AppColors.TextSecondary,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+/** Cents-as-a-value formatter — the row-level cost halves are stored
+ *  in cents (Double), so this just rounds and appends the cent
+ *  character. Mirrors the [com.ai.ui.shared.formatUsd] shape used
+ *  elsewhere; lives here because no other screen uses the cent
+ *  display today. */
+private fun formatCentsValue(cents: Double, decimals: Int = 4): String =
+    String.format(Locale.US, "%.${decimals}f ¢", cents)
 
 /** Roll-up label for one cost bucket on the Costs view screen. */
 private data class BucketTotal(val key: String, val cents: Double, val calls: Int)
@@ -284,7 +363,7 @@ private fun BucketBar(bucket: BucketTotal, totalCents: Double) {
                 modifier = Modifier.padding(end = 8.dp)
             )
             Text(
-                text = formatUsd(bucket.cents / 100.0, decimals = 6),
+                text = formatCentsValue(bucket.cents, decimals = 4),
                 color = AppColors.TextSecondary, fontSize = 13.sp
             )
         }
