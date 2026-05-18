@@ -660,12 +660,18 @@ internal fun ViewAiReportScreen(
     // Re-keyed on currentLanguageState.value so the per-tile
     // `enabled` flag re-evaluates when the View picker changes.
     val currentLang = currentLanguageState.value
-    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, onOpenHtmlPreview, onViewIcons) {
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, onOpenHtmlPreview, onViewIcons) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
+            // Prompt tile shows the report's own dynamic icon when one
+            // is available — falls back to 📝 while icon-gen is still
+            // pending. The prop [reportIcon] is the live value
+            // refreshed by the report-overlay parent via
+            // iconRefreshTick, so the tile picks up a fresh icon
+            // without remount.
             add(IdentifiedTile("doc:Prompt", ViewTile(
-                "Prompt", "📝", AppColors.Purple,
+                "Prompt", reportIcon?.takeIf { it.isNotBlank() } ?: "📝", AppColors.Purple,
                 enabled = promptEnabled,
                 onMissingClick = if (!promptEnabled) ({ openPromptMissing() }) else null
             ) {
