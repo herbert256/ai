@@ -277,8 +277,8 @@ private fun AnswerCard(
         // Lives OUTSIDE the verticalScroll Column so it stays
         // pinned to the card's top-right while the body scrolls.
         if (!languageIcon.isNullOrBlank()) {
-            Text(
-                text = languageIcon,
+            com.ai.ui.shared.LanguageFlagBadge(
+                flag = languageIcon,
                 fontSize = 24.sp,
                 modifier = Modifier
                     .align(Alignment.TopEnd)

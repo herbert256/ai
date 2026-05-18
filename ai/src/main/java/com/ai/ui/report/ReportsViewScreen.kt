@@ -457,7 +457,7 @@ private fun PromptCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (!languageIcon.isNullOrBlank()) {
-                    Text(text = languageIcon, fontSize = 24.sp)
+                    com.ai.ui.shared.LanguageFlagBadge(flag = languageIcon, fontSize = 24.sp)
                 }
                 if (onCollapse != null) {
                     if (!languageIcon.isNullOrBlank()) Spacer(modifier = Modifier.width(8.dp))
