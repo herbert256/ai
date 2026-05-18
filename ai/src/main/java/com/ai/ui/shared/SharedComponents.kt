@@ -988,8 +988,12 @@ private fun TitleBarActionStrip(
         // 🔧 manage — same glyph the per-row 🔧 uses on every reports
         // list. Wired by every View screen so the bottom-bar lets
         // the user jump back to Report - manage (or a specific
-        // Manage sub-overlay) without re-opening a list.
-        if (onOpenManage != null) TitleBarIcon("🔧", Color.Unspecified, onOpenManage, width = 32.dp, scale = scale, fontSize = 18.sp)
+        // Manage sub-overlay) without re-opening a list. Sized a
+        // touch smaller than the 👁 view icon (15 sp vs 18 sp)
+        // per the user — the wrench is secondary to "view the
+        // content again" on every View screen, so the eye should
+        // visually lead.
+        if (onOpenManage != null) TitleBarIcon("🔧", Color.Unspecified, onOpenManage, width = 28.dp, scale = scale, fontSize = 15.sp)
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = 28.dp, scale = scale)
         if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = 28.dp, scale = scale)
         if (onPin != null) TitleBarIcon("📌", Color.Unspecified, onPin, width = 28.dp, scale = scale, alpha = if (isPinned) 1f else 0.35f)
@@ -1080,9 +1084,10 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     // the per-row eye on every reports list) doesn't collide with
     // its neighbours.
     if (onOpenView != null) slot(32)
-    // 🔧 manage — same width budget as 👁 since both glyphs render
-    // at the per-row size on the View bottom bar.
-    if (onOpenManage != null) slot(32)
+    // 🔧 manage uses the standard 28 dp slot — the glyph itself
+    // is rendered a couple of points smaller than 👁 so the eye
+    // visually leads on every View screen.
+    if (onOpenManage != null) slot(28)
     if (onInfo != null) slot(28)
     if (onCopy != null) slot(28)
     if (onPin != null) slot(28)
