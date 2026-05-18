@@ -1104,7 +1104,12 @@ internal fun ViewAiReportScreen(
             subject = null,
             helpTopic = "view_ai_report",
             onOpenManage = navToManageMain,
-            onBack = onBack
+            onBack = onBack,
+            // Explicit override: the main View grid's centre title
+            // rows must always land on the main Manage screen, even
+            // when [onBack] would normally pop to a report list
+            // (initialView=true case).
+            onTitleClick = navToManageMain
         )
 
         // One picker for the whole View screen; tile clicks below

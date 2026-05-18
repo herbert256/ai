@@ -72,7 +72,17 @@ fun ViewScreenTitleBar(
      *  parent's published icons on every recomposition" behaviour
      *  so help pages and other context-less View screens stay
      *  icon-free. */
-    onOpenManage: (() -> Unit)? = null
+    onOpenManage: (() -> Unit)? = null,
+    /** Optional override for what the centre title rows (white
+     *  screen title + orange report title) navigate to on tap.
+     *  When null both rows call [onBack] — which on a child View
+     *  screen pops back to the main View tile grid (the desired
+     *  behaviour). The main View tile grid passes an explicit
+     *  "go to Manage report" lambda here so the title-tap lands
+     *  on Manage even when [onBack] would normally pop somewhere
+     *  else (e.g. back to a report list when the user arrived
+     *  via a per-row 👁 with `initialView=true`). */
+    onTitleClick: (() -> Unit)? = null
 ) {
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
@@ -189,11 +199,11 @@ fun ViewScreenTitleBar(
             //      slides up into the white slot so the bar always
             //      shows *something*.
             //
-            // Both lines route through [onBack] on tap. That pops one
-            // layer up, which on the main View grid lands on Manage
-            // and on a child View screen lands back on the grid — the
-            // user-requested "Manage report" / "View an AI report"
-            // navigation respectively.
+            // Both lines route through [onTitleClick] when the caller
+            // provides one (the main View grid does — explicit "go
+            // to Manage report") and otherwise fall back to [onBack]
+            // (child View screens — pops to the View grid).
+            val titleClick: () -> Unit = onTitleClick ?: onBack
             var bigSizeFits by remember(screenTitle, reportTitle) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else reportTitle.orEmpty()
@@ -217,7 +227,7 @@ fun ViewScreenTitleBar(
                     },
                     modifier = Modifier.fillMaxWidth()
                         .offset(y = (-4).dp)
-                        .clickable { onBack() }
+                        .clickable { titleClick() }
                 )
                 if (hasScreenTitle && !reportTitle.isNullOrBlank()) {
                     // Breathing room between the white top line and
@@ -231,7 +241,7 @@ fun ViewScreenTitleBar(
                         maxLines = 1,
                         overflow = TextOverflow.Clip,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().clickable { onBack() }
+                        modifier = Modifier.fillMaxWidth().clickable { titleClick() }
                     )
                 }
                 if (!subject.isNullOrBlank()) {
