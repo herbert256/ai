@@ -22,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -34,6 +35,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -110,6 +112,16 @@ fun ModelInfoViewScreen(
     aiSettings: Settings,
     repository: AnalysisRepository,
     onOpenReport: (String) -> Unit,
+    /** Per-row Last-Usage tap → that report's View Reports screen,
+     *  pre-scrolled to the agent matching this provider/model. Wired
+     *  from AppNavHost via the AI_REPORTS route's new
+     *  `initialReportsAgentId` query-param. Default delegates to
+     *  [onOpenReport] for back-compat. */
+    onOpenReportAtAgent: (reportId: String, agentId: String) -> Unit = { rid, _ -> onOpenReport(rid) },
+    /** HeroCard provider-name tap → the View Provider screen.
+     *  Wired from AppNavHost via NavRoutes.aiProviderView. Default
+     *  no-op leaves the name un-clickable on legacy call sites. */
+    onOpenProvider: ((AppService) -> Unit)? = null,
     onOpenManage: (() -> Unit)? = null,
     onBack: () -> Unit
 ) {
@@ -167,10 +179,28 @@ fun ModelInfoViewScreen(
             found
         }
     }
+    // Usage stats live under the 3-part key "${provider.id}::$model::$kind"
+    // (kind defaults to "report"). An older single-key lookup
+    // "${provider.id}::$modelName" returned nothing, leaving this
+    // card permanently empty. Aggregate across every kind for the
+    // (provider, model) pair so the card reflects total spend
+    // including rerank / summarize / meta / moderation / translate
+    // calls — what users intuitively expect from "AI Usage".
     val usageEntry by produceState<com.ai.model.UsageStats?>(initialValue = null, provider, modelName) {
         value = withContext(Dispatchers.IO) {
             val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-            SettingsPreferences(prefs, context.filesDir).loadUsageStats()["${provider.id}::$modelName"]
+            val all = SettingsPreferences(prefs, context.filesDir).loadUsageStats()
+            val prefix = "${provider.id}::$modelName::"
+            val matching = all.filterKeys { it.startsWith(prefix) }.values
+            if (matching.isEmpty()) null
+            else com.ai.model.UsageStats(
+                provider = provider, model = modelName,
+                callCount = matching.sumOf { it.callCount },
+                inputTokens = matching.sumOf { it.inputTokens },
+                outputTokens = matching.sumOf { it.outputTokens },
+                kind = "all",
+                searchUnits = matching.sumOf { it.searchUnits }
+            )
         }
     }
     val usageCost by produceState<Double?>(initialValue = null, usageEntry) {
@@ -182,17 +212,20 @@ fun ModelInfoViewScreen(
     }
     val recentUsages by produceState<List<ViewUsageEntry>>(initialValue = emptyList(), provider, modelName) {
         value = withContext(Dispatchers.IO) {
-            computeUsages(context, provider, modelName, onOpenReport)
+            computeUsages(context, provider, modelName, onOpenReportAtAgent)
         }
     }
 
-    // AI introduction — on-demand fetch + PromptCache lookup. Same
-    // shape as the Manage screen so the cached body shows on screen
-    // open and a tap forces a fresh call.
+    // AI introduction — self-loading card. Uses the new
+    // `model_intro_view` internal prompt (separate from the legacy
+    // `model_info` one the Manage screen reads). On mount we
+    // SHOW the cached body immediately via [PromptCache.getRaw]
+    // (no spinner) and fire a fresh call only when the cache is
+    // missing OR older than 1 week.
     var aiIntro by remember(provider, modelName) { mutableStateOf<String?>(null) }
     var aiLoading by remember(provider, modelName) { mutableStateOf(false) }
     val introTemplate = remember(aiSettings) {
-        aiSettings.getInternalPromptByName("Model info")?.text.orEmpty()
+        aiSettings.getInternalPromptByName("model_intro_view")?.text.orEmpty()
     }
     val pageApiKey = aiSettings.getApiKey(provider)
     val introResolvedPrompt = remember(introTemplate, provider, modelName) {
@@ -204,10 +237,7 @@ fun ModelInfoViewScreen(
     val introCacheKey = remember(introResolvedPrompt, provider, modelName) {
         PromptCache.keyFor(introResolvedPrompt, "${provider.id}:$modelName")
     }
-    val canRequestIntro = pageApiKey.isNotBlank()
-    LaunchedEffect(introCacheKey) {
-        PromptCache.get(introCacheKey)?.let { aiIntro = it }
-    }
+    val canRequestIntro = pageApiKey.isNotBlank() && introTemplate.isNotBlank()
     val requestIntroduction: () -> Unit = req@{
         if (!canRequestIntro || aiLoading) return@req
         val selfAgent = Agent(
@@ -233,6 +263,16 @@ fun ModelInfoViewScreen(
             }
         }
     }
+    // Auto-load cached body + auto-refresh when stale. 1-week TTL
+    // is window-specific — PromptCache's hardcoded 48 h destructive
+    // TTL doesn't apply here because we read via getRaw.
+    LaunchedEffect(introCacheKey) {
+        val raw = withContext(Dispatchers.IO) { PromptCache.getRaw(introCacheKey) }
+        if (raw != null) aiIntro = raw.response
+        val oneWeekMs = 7L * 24 * 60 * 60 * 1000
+        val needsRefresh = raw == null || (System.currentTimeMillis() - raw.timestamp) > oneWeekMs
+        if (needsRefresh && canRequestIntro) requestIntroduction()
+    }
 
     // When a source overlay is open we mount it as a full-screen
     // replacement (same convention every other View overlay uses).
@@ -252,8 +292,16 @@ fun ModelInfoViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // Title bar shows the AI Report Title when this screen is
+        // opened from a report context (the
+        // [com.ai.ui.shared.LocalReportTitle] CompositionLocal is
+        // provided by ReportScreen). When opened from a non-report
+        // route (settings, model browse, …) the local is null and
+        // the title bar stays blank — provider / model name still
+        // shows in the HeroCard below.
+        val reportTitleFromContext = com.ai.ui.shared.LocalReportTitle.current
         ViewScreenTitleBar(
-            reportTitle = "${provider.id} / ${shortModelName(modelName)}",
+            reportTitle = reportTitleFromContext,
             screenTitle = "Model Info",
             subject = null,
             helpTopic = "model_info_view",
@@ -301,12 +349,14 @@ fun ModelInfoViewScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // 1) Hero card — purple gradient + 56 sp glyph + name.
-            item { HeroCard(provider = provider, modelName = modelName) }
+            //    The provider name inside is clickable → View Provider
+            //    screen (see HeroCard).
+            item { HeroCard(provider = provider, modelName = modelName, onOpenProvider = onOpenProvider) }
 
             // 2) Capabilities — read-only chips.
             item { CapabilitiesCard(aiSettings = aiSettings, provider = provider, modelName = modelName) }
 
-            // 3) Sources buttons — tap opens ParsedSourceOverlay.
+            // 3) Sources — vertical list of tappable rows.
             item {
                 SourcesCard(
                     hfRaw = hfInfo?.let { gson.toJson(it) },
@@ -325,15 +375,15 @@ fun ModelInfoViewScreen(
             // 4) Costs — per-tier rows; NO Add manual cost override.
             item { CostsCard(provider = provider, modelName = modelName) }
 
-            // 5) Provider row — read-only.
-            item { ProviderCard(provider = provider) }
+            // (Provider card removed — provider name in HeroCard is
+            // the clickable entry point to the View Provider screen.)
 
-            // 6) Description (OpenRouter, conditional).
+            // 5) Description (OpenRouter, conditional).
             orInfo?.description?.let { desc ->
                 item { SectionCard(title = "Description") { Text(desc, fontSize = 13.sp, color = AppColors.TextSecondary) } }
             }
 
-            // 7) Technical specs.
+            // 6) Technical specs.
             orInfo?.let { or ->
                 item {
                     SectionCard(title = "Technical Specifications") {
@@ -349,7 +399,7 @@ fun ModelInfoViewScreen(
                 }
             }
 
-            // 8) HuggingFace.
+            // 7) HuggingFace.
             hfInfo?.let { hf ->
                 item {
                     SectionCard(title = "HuggingFace") {
@@ -365,7 +415,7 @@ fun ModelInfoViewScreen(
                 }
             }
 
-            // 9) Tags.
+            // 8) Tags.
             hfInfo?.tags?.takeIf { it.isNotEmpty() }?.let { tags ->
                 item {
                     SectionCard(title = "Tags") {
@@ -374,40 +424,8 @@ fun ModelInfoViewScreen(
                 }
             }
 
-            // 10) AI Introduction — on-demand fetch + cache.
-            if (canRequestIntro || aiIntro != null) {
-                item {
-                    SectionCard(title = "AI Introduction") {
-                        when {
-                            aiLoading -> Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                Text("Generating…", fontSize = 13.sp, color = AppColors.TextTertiary)
-                            }
-                            aiIntro != null -> {
-                                ContentWithThinkSections(aiIntro ?: "")
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "Ask again",
-                                    fontSize = 12.sp,
-                                    color = AppColors.Blue,
-                                    fontWeight = FontWeight.SemiBold,
-                                    modifier = Modifier.clickable { requestIntroduction() }
-                                )
-                            }
-                            else -> Button(
-                                onClick = requestIntroduction,
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                            ) { Text("Ask the model to introduce itself", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-                        }
-                    }
-                }
-            }
-
-            // 11) AI Usage — cumulative counter.
+            // 9) AI Usage — cumulative counter (now aggregating
+            //    across every UsageStats kind for this (provider, model)).
             item {
                 SectionCard(title = "AI Usage") {
                     val ue = usageEntry
@@ -430,14 +448,58 @@ fun ModelInfoViewScreen(
                 }
             }
 
-            // 12) Last usage — recent chats / reports / secondaries.
+            // 10) Last usage — recent reports using this model as a
+            //     main report agent. Per-row tap → View Reports for
+            //     that report, pre-scrolled to the matching agent.
             if (recentUsages.isNotEmpty()) {
                 item { LastUsageCard(entries = recentUsages) }
             }
 
-            // 13) Workers — MOVED to the bottom per the user's spec.
+            // 11) Workers — agents / flocks / swarms matching this model.
             if (hasWorkers) {
                 item { WorkersCard(matchedAgents, matchedFlocks, matchedSwarms) }
+            }
+
+            // 12) AI Introduction — LAST card. Self-loading: cached
+            //     body shows immediately; a fresh call fires only on
+            //     missing cache or > 1 week age.
+            if (canRequestIntro || aiIntro != null) {
+                item {
+                    SectionCard(title = "AI Introduction") {
+                        when {
+                            aiLoading && aiIntro == null -> Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                Text("Generating…", fontSize = 13.sp, color = AppColors.TextTertiary)
+                            }
+                            aiIntro != null -> {
+                                ContentWithThinkSections(aiIntro ?: "")
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (aiLoading) {
+                                        CircularProgressIndicator(modifier = Modifier.size(12.dp), strokeWidth = 2.dp)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Refreshing…", fontSize = 12.sp, color = AppColors.TextTertiary)
+                                    } else {
+                                        Text(
+                                            text = "Ask again",
+                                            fontSize = 12.sp,
+                                            color = AppColors.Blue,
+                                            fontWeight = FontWeight.SemiBold,
+                                            modifier = Modifier.clickable { requestIntroduction() }
+                                        )
+                                    }
+                                }
+                            }
+                            else -> Text(
+                                text = "(no introduction yet — the model couldn't be reached)",
+                                fontSize = 12.sp, color = AppColors.TextTertiary
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -446,7 +508,7 @@ fun ModelInfoViewScreen(
 // ───── Card helpers ─────
 
 @Composable
-private fun HeroCard(provider: AppService, modelName: String) {
+private fun HeroCard(provider: AppService, modelName: String, onOpenProvider: ((AppService) -> Unit)? = null) {
     Box(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
@@ -473,11 +535,20 @@ private fun HeroCard(provider: AppService, modelName: String) {
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
+            // Provider name: blue + tappable → View Provider screen.
+            // Trailing › hint signals navigability; falls back to a
+            // plain grey label when no onOpenProvider callback was
+            // wired (legacy callers).
+            val providerModifier = if (onOpenProvider != null) {
+                Modifier.clickable { onOpenProvider(provider) }
+            } else Modifier
             Text(
-                text = provider.id,
+                text = if (onOpenProvider != null) "${provider.id}  ›" else provider.id,
                 fontSize = 13.sp,
-                color = AppColors.TextSecondary,
-                maxLines = 1, overflow = TextOverflow.Ellipsis
+                color = if (onOpenProvider != null) AppColors.Blue else AppColors.TextSecondary,
+                fontWeight = if (onOpenProvider != null) FontWeight.SemiBold else FontWeight.Normal,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = providerModifier
             )
         }
     }
@@ -502,13 +573,6 @@ private fun KeyValueRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, fontSize = 13.sp, color = AppColors.TextTertiary)
         Text(value, fontSize = 13.sp, color = Color.White)
-    }
-}
-
-@Composable
-private fun ProviderCard(provider: AppService) {
-    SectionCard(title = "Provider") {
-        Text(provider.id, fontSize = 14.sp, color = Color.White)
     }
 }
 
@@ -550,46 +614,63 @@ private fun SourcesCard(
     aaRaw: String?,
     onOpen: (sourceName: String, body: String, calledUrl: String?) -> Unit
 ) {
+    // Vertical list of clickable source rows. Each row carries an
+    // icon + label + present/absent indicator. Tapping a present
+    // source opens [ParsedSourceOverlay]; tapping an absent row is
+    // a no-op (the row is faded so the user reads it as inactive).
     SectionCard(title = "Sources") {
-        // Two rows of four / three buttons — same layout as the
-        // management screen, minus the "Show all" button below.
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SourceButton("HuggingFace", hfRaw, modifier = Modifier.weight(1f)) {
-                onOpen("HuggingFace", hfRaw ?: "{}", "https://huggingface.co/api/models")
-            }
-            SourceButton("OpenRouter", orRaw, modifier = Modifier.weight(1f)) {
-                onOpen("OpenRouter", orRaw ?: "{}", "https://openrouter.ai/api/v1/models")
-            }
-            SourceButton("LiteLLM", liteLLMRaw, modifier = Modifier.weight(1f)) {
-                onOpen("LiteLLM", liteLLMRaw ?: "{}", "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
-            }
-            SourceButton("models.dev", modelsDevRaw, modifier = Modifier.weight(1f)) {
-                onOpen("models.dev", modelsDevRaw ?: "{}", "https://models.dev/api.json")
-            }
+        SourceRow("🤗", "HuggingFace", hfRaw) {
+            onOpen("HuggingFace", hfRaw ?: "{}", "https://huggingface.co/api/models")
         }
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            SourceButton("Helicone", heliconeRaw, modifier = Modifier.weight(1f)) {
-                onOpen("Helicone", heliconeRaw ?: "{}", "https://www.helicone.ai/api/llm-costs")
-            }
-            SourceButton("llm-prices", llmPricesRaw, modifier = Modifier.weight(1f)) {
-                onOpen("llm-prices", llmPricesRaw ?: "{}", "https://raw.githubusercontent.com/simonw/llm-prices/main/data/")
-            }
-            SourceButton("AA", aaRaw, modifier = Modifier.weight(1f)) {
-                onOpen("Artificial Analysis", aaRaw ?: "{}", "https://artificialanalysis.ai/api/v2/data/llms/models")
-            }
+        SourceRow("🌐", "OpenRouter", orRaw) {
+            onOpen("OpenRouter", orRaw ?: "{}", "https://openrouter.ai/api/v1/models")
+        }
+        SourceRow("🔖", "LiteLLM", liteLLMRaw) {
+            onOpen("LiteLLM", liteLLMRaw ?: "{}", "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
+        }
+        SourceRow("📦", "models.dev", modelsDevRaw) {
+            onOpen("models.dev", modelsDevRaw ?: "{}", "https://models.dev/api.json")
+        }
+        SourceRow("🔥", "Helicone", heliconeRaw) {
+            onOpen("Helicone", heliconeRaw ?: "{}", "https://www.helicone.ai/api/llm-costs")
+        }
+        SourceRow("💰", "llm-prices", llmPricesRaw) {
+            onOpen("llm-prices", llmPricesRaw ?: "{}", "https://raw.githubusercontent.com/simonw/llm-prices/main/data/")
+        }
+        SourceRow("📊", "Artificial Analysis", aaRaw, isLast = true) {
+            onOpen("Artificial Analysis", aaRaw ?: "{}", "https://artificialanalysis.ai/api/v2/data/llms/models")
         }
     }
 }
 
 @Composable
-private fun SourceButton(label: String, raw: String?, modifier: Modifier, onClick: () -> Unit) {
-    val has = raw != null
-    Button(
-        onClick = onClick,
-        modifier = modifier,
-        colors = ButtonDefaults.buttonColors(containerColor = if (has) AppColors.Green else AppColors.Red),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 4.dp)
-    ) { Text(label, fontSize = 11.sp, maxLines = 1, softWrap = false) }
+private fun SourceRow(icon: String, label: String, raw: String?, isLast: Boolean = false, onClick: () -> Unit) {
+    val hasData = raw != null
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .clickable(enabled = hasData) { if (hasData) onClick() }
+            .padding(vertical = 10.dp, horizontal = 4.dp)
+            .alpha(if (hasData) 1f else 0.45f),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(icon, fontSize = 18.sp)
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 14.sp,
+            modifier = Modifier.weight(1f),
+            maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = if (hasData) "✓" else "·",
+            color = if (hasData) AppColors.Green else AppColors.TextTertiary,
+            fontSize = 14.sp, fontWeight = FontWeight.SemiBold
+        )
+    }
+    if (!isLast) {
+        HorizontalDivider(color = AppColors.DividerDark.copy(alpha = 0.6f), thickness = 1.dp)
+    }
 }
 
 @Composable
@@ -859,48 +940,27 @@ private fun computeUsages(
     context: android.content.Context,
     provider: AppService,
     model: String,
-    onOpenReport: (String) -> Unit
+    onOpenReportAtAgent: (reportId: String, agentId: String) -> Unit
 ): List<ViewUsageEntry> {
+    // Per the user spec: only "main report model" usage — drop
+    // chats and secondaries (rerank / meta / moderation / translate
+    // calls live under their own model paths anyway and would
+    // double-count here). One row per matching report; the tap
+    // opens View Reports for that report, pre-scrolled to the
+    // agent that actually used this provider/model.
     val out = mutableListOf<ViewUsageEntry>()
-    fun chatTitle(s: ChatSession): String {
-        val firstLine = s.messages.firstOrNull { it.role == "user" }?.content?.lineSequence()
-            ?.firstOrNull { it.isNotBlank() }?.trim() ?: return "Chat session"
-        return if (firstLine.length > 80) firstLine.take(80) + "…" else firstLine
-    }
-    ChatHistoryManager.init(context)
-    ChatHistoryManager.getAllSessions().forEach { s ->
-        if (s.provider.id == provider.id && s.model == model) {
-            out += ViewUsageEntry(s.updatedAt, "Chat", chatTitle(s)) {}
-        }
-    }
     val reports = ReportStorage.getAllReports(context).sortedByDescending { it.timestamp }
-    val cap = 30
     for (report in reports) {
-        if (out.size >= cap) break
-        report.agents.forEach { agent ->
-            if (agent.provider == provider.id && agent.model == model) {
-                out += ViewUsageEntry(
-                    report.timestamp, "Report",
-                    report.title.ifBlank { report.prompt.take(80) }
-                ) { onOpenReport(report.id) }
-            }
-        }
-        SecondaryResultStorage.listForReport(context, report.id).forEach { sec ->
-            if (sec.providerId == provider.id && sec.model == model) {
-                val typeLabel = when (sec.kind) {
-                    SecondaryKind.RERANK -> "Rerank"
-                    SecondaryKind.META -> sec.metaPromptName?.takeIf { it.isNotBlank() } ?: "Meta"
-                    SecondaryKind.MODERATION -> "Moderate"
-                    SecondaryKind.TRANSLATE -> "Translate"
-                }
-                out += ViewUsageEntry(
-                    sec.timestamp, typeLabel,
-                    "from ${report.title.ifBlank { report.prompt.take(60) }}"
-                ) { onOpenReport(report.id) }
-            }
-        }
+        if (out.size >= 5) break
+        val matchingAgent = report.agents.firstOrNull { it.provider == provider.id && it.model == model }
+            ?: continue
+        out += ViewUsageEntry(
+            timestamp = report.timestamp,
+            typeLabel = "Report",
+            title = report.title.ifBlank { report.prompt.take(80) }
+        ) { onOpenReportAtAgent(report.id, matchingAgent.agentId) }
     }
-    return out.sortedByDescending { it.timestamp }.take(10)
+    return out
 }
 
 /** Tiny per-process cache for the OpenRouter models list — same

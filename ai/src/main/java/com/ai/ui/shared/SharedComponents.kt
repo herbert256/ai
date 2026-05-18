@@ -357,6 +357,13 @@ data class ReportListIconBundle(
      *  saveable flag on first composition so the user lands on the
      *  View tile grid instead of Manage. */
     val initialView: Boolean = false,
+    /** When non-null AND [initialView] is true, the View tile grid's
+     *  Reports sub-overlay is also seeded — opens directly to that
+     *  agent's per-model Reports page. Used by Model Info View's
+     *  Last-Usage rows to jump straight from a row tap to the
+     *  matching agent's response without the user manually clicking
+     *  the Reports tile and swiping. */
+    val initialReportsAgentId: String? = null,
     /** Route-pop callback used by the View overlay's onBack when the
      *  user arrived directly on View via the per-row 👁 icon
      *  ([initialView] == true). Without this, back from the View

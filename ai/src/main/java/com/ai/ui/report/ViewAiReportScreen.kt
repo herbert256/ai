@@ -194,6 +194,26 @@ internal fun ViewAiReportScreen(
     var reportsViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
     var reportsViewOpen by rememberSaveable { mutableStateOf(false) }
     var reportsViewInitialAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+    // First-composition seed for the Reports sub-overlay. Wired by
+    // [NavRoutes.aiReportViewAtAgent] (used by Model Info View's
+    // Last-Usage rows) → AppNavHost reads the
+    // `initialReportsAgentId` query-param → ReportsScreenNav drops
+    // it into [LocalReportListIconBundle]. We pick it up here once
+    // and flip the inner state so the Reports sub-overlay mounts
+    // straight away at that agent's page. `var seedConsumed`
+    // ensures we only seed on the first frame even though the
+    // bundle is read every recomposition.
+    val seedBundle = com.ai.ui.shared.LocalReportListIconBundle.current
+    var seedConsumed by rememberSaveable { mutableStateOf(false) }
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        if (!seedConsumed) {
+            seedBundle.initialReportsAgentId?.takeIf { it.isNotBlank() }?.let { aid ->
+                reportsViewInitialAgentId = aid
+                reportsViewOpen = true
+            }
+            seedConsumed = true
+        }
+    }
     // Rerank "View" overlay — keyed by the RERANK row id.
     var rerankViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
     val activeRerankViewRowId = rerankViewRowId
@@ -501,10 +521,21 @@ internal fun ViewAiReportScreen(
                 }
             }
         }
+        // When the Reports sub-overlay was seeded externally (Model
+        // Info View's Last-Usage row → NavRoutes.aiReportViewAtAgent),
+        // back should pop the AI_REPORTS route entirely so the user
+        // returns to the Model Info View they came from — not via
+        // the intermediate View tile grid that they never asked for.
+        // Detect the external-seed case by checking the bundle's
+        // initialReportsAgentId at this moment.
+        val seededFromOutside = remember(seedBundle.initialReportsAgentId) {
+            seedBundle.initialReportsAgentId?.isNotBlank() == true
+        }
         val backToMain: () -> Unit = {
             reportsViewOpen = false
             reportsViewLanguage = null
             reportsViewInitialAgentId = null
+            if (seededFromOutside) seedBundle.onExitToList?.invoke()
         }
         androidx.compose.runtime.CompositionLocalProvider(
             com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
@@ -523,6 +554,10 @@ internal fun ViewAiReportScreen(
                     reportsViewOpen = false
                     reportsViewLanguage = null
                     reportsViewInitialAgentId = null
+                    // External-seed exit: pop back to the source
+                    // route (Model Info View) instead of falling
+                    // through to the View tile grid.
+                    if (seededFromOutside) seedBundle.onExitToList?.invoke()
                 }
             )
         }

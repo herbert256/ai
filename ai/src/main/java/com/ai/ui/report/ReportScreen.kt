@@ -173,6 +173,11 @@ fun ReportsScreenNav(
      *  appends. Default false preserves the historical Manage entry
      *  behaviour every other callsite already depends on. */
     initialView: Boolean = false,
+    /** Optional further seed paired with [initialView] — when set,
+     *  the View tile grid's Reports sub-overlay opens immediately
+     *  at this agent's page. Used by Model Info View's Last-Usage
+     *  rows ([NavRoutes.aiReportViewAtAgent]). */
+    initialReportsAgentId: String? = null,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
     onNavigateToTrace: (String) -> Unit = {},
@@ -338,6 +343,7 @@ fun ReportsScreenNav(
             onOpenManage = onOpenReportManage,
             onOpenView = onOpenReportView,
             initialView = initialView,
+            initialReportsAgentId = initialReportsAgentId,
             // Route-pop hook used by the View overlay's onBack when the
             // user arrived here via the per-row 👁 icon — pops AI_REPORTS
             // so back returns to the list instead of falling through to

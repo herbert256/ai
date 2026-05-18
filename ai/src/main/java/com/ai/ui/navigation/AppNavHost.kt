@@ -531,6 +531,9 @@ fun AppNavHost(
             arguments = listOf(
                 navArgument("initialView") {
                     type = NavType.StringType; defaultValue = "false"; nullable = true
+                },
+                navArgument("initialReportsAgentId") {
+                    type = NavType.StringType; defaultValue = ""; nullable = true
                 }
             )
         ) { entry ->
@@ -545,6 +548,13 @@ fun AppNavHost(
             // Manage screen. Bare navigation ("ai_reports") leaves it
             // false — Manage as before.
             val initialView = entry.arguments?.getString("initialView") == "true"
+            // Additional seed for the View tile grid's Reports
+            // sub-overlay, used by Model Info View's Last-Usage rows
+            // ([NavRoutes.aiReportViewAtAgent]). Non-blank → seeds
+            // ViewAiReportScreen's reportsViewInitialAgentId and
+            // flips reportsViewOpen on first composition.
+            val initialReportsAgentId = entry.arguments?.getString("initialReportsAgentId")
+                ?.takeIf { it.isNotBlank() }
             // Real-time tracker updates live inside ReportScreen,
             // which watches the local showViewReportScreen flag and
             // updates LastReportTracker on every Manage ↔ View
@@ -571,6 +581,7 @@ fun AppNavHost(
             ) {
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
                 initialView = initialView,
+                initialReportsAgentId = initialReportsAgentId,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceListForReport(it)) },
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
@@ -793,6 +804,15 @@ fun AppNavHost(
                                 navController.navigate(NavRoutes.AI_REPORTS)
                             }
                         },
+                        onOpenReportAtAgent = { rid, aid ->
+                            scope.launch {
+                                reportViewModel.restoreCompletedReport(context, rid)
+                                navController.navigate(NavRoutes.aiReportViewAtAgent(aid))
+                            }
+                        },
+                        onOpenProvider = { p ->
+                            navController.navigate(NavRoutes.aiProviderView(p.id))
+                        },
                         onOpenManage = { navController.navigate(NavRoutes.aiModelInfo(provider.id, model)) },
                         onBack = safePopBack
                     )
@@ -842,6 +862,22 @@ fun AppNavHost(
                     onOpenManage = { navController.navigate(NavRoutes.settingsSwarmEdit(swarmId)) },
                     onBack = safePopBack
                 )
+            }
+        }
+        composable(NavRoutes.AI_PROVIDER_VIEW) { entry ->
+            val provider = AppService.findById(entry.arguments?.getString("provider") ?: "")
+            val uiState by appViewModel.uiState.collectAsState()
+            if (provider != null) {
+                ViewSubScreenWithTitleNav(
+                    navController = navController,
+                    currentReportId = uiState.currentReportId
+                ) {
+                    com.ai.ui.settings.ProviderViewScreen(
+                        provider = provider,
+                        onOpenManage = { navController.navigate(NavRoutes.settingsProviderEdit(provider.id)) },
+                        onBack = safePopBack
+                    )
+                }
             }
         }
         composable(NavRoutes.AI_MANUAL_OVERRIDE_ADD) { entry ->

@@ -39,6 +39,29 @@ object PromptCache {
         return md.digest().joinToString("") { "%02x".format(it) }
     }
 
+    /** Cached response paired with the wall-clock timestamp at which
+     *  it was written. Returned by [getRaw] so callers that want a
+     *  custom TTL (e.g. the View Model-Info screen, which uses a
+     *  1-week refresh window) can age-check themselves without
+     *  triggering the destructive 48 h TTL in [get]. */
+    data class TimestampedResponse(val response: String, val timestamp: Long)
+
+    /** Non-destructive read — returns whatever's on disk regardless
+     *  of age. Distinct from [get] (which honours the 48 h TTL and
+     *  deletes stale entries). Callers handle the age check
+     *  themselves. */
+    fun getRaw(key: String): TimestampedResponse? = lock.withLock {
+        val file = File(cacheDir ?: return@withLock null, "$key.json")
+        if (!file.exists()) return@withLock null
+        try {
+            @Suppress("DEPRECATION")
+            val obj = JsonParser().parse(file.readText()).asJsonObject
+            val response = obj.get("response")?.asString ?: return@withLock null
+            val ts = obj.get("timestamp")?.asLong ?: 0L
+            TimestampedResponse(response, ts)
+        } catch (_: Exception) { null }
+    }
+
     fun get(key: String): String? = lock.withLock {
         val file = File(cacheDir ?: return@withLock null, "$key.json")
         if (!file.exists()) return@withLock null

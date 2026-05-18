@@ -278,5 +278,13 @@
     "category": "icons",
     "agent": "DeepSeek",
     "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
+  },
+  {
+    "name": "model_intro_view",
+    "title": "Model introduction in the View sub-system",
+    "reference": false,
+    "category": "intra",
+    "agent": "*N.A",
+    "text": "Good day !\n\nPlease introduce yourself, give information like:\n- your name and version\n- your cut-off date of the knowledge you have\n- your owner and a short introduction about your owner.\n- your cabilities, like websearch, images support and so on.\n\nUse MD markup in your answer, keep in mind that your response will be viewed on a phone screen."
   }
 ]

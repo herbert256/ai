@@ -50,14 +50,22 @@ object NavRoutes {
      *  the bare string ("ai_reports"); the per-row 👁 View icon uses
      *  [aiReportView] which appends `?initialView=true` so the
      *  destination seeds [ReportsScreenNav]'s View tile-grid overlay
-     *  on first composition. */
-    const val AI_REPORTS = "ai_reports?initialView={initialView}"
+     *  on first composition. A second optional
+     *  `initialReportsAgentId` further seeds the View tile grid's
+     *  per-agent Reports sub-overlay (used by Model Info View's
+     *  Last-Usage rows). */
+    const val AI_REPORTS = "ai_reports?initialView={initialView}&initialReportsAgentId={initialReportsAgentId}"
     /** Helper for the row-level 🔧 Manage icon — same destination
      *  the existing navigation uses. */
     fun aiReportManage() = "ai_reports"
     /** Helper for the row-level 👁 View icon — seeds the View
      *  tile grid (`showViewReportScreen`) on first composition only. */
     fun aiReportView() = "ai_reports?initialView=true"
+    /** Helper for Model Info View's Last-Usage rows. Seeds the
+     *  View tile grid AND the Reports sub-overlay scrolled to
+     *  the supplied agent id. */
+    fun aiReportViewAtAgent(agentId: String) =
+        "ai_reports?initialView=true&initialReportsAgentId=$agentId"
     const val AI_SEARCH = "ai_search"
     const val AI_LOCAL_SEARCH = "ai_local_search"
     const val AI_QUICK_LOCAL_SEARCH = "ai_quick_local_search"
@@ -101,6 +109,7 @@ object NavRoutes {
     const val AI_AGENT_VIEW = "ai_agent_view/{agentId}"
     const val AI_FLOCK_VIEW = "ai_flock_view/{flockId}"
     const val AI_SWARM_VIEW = "ai_swarm_view/{swarmId}"
+    const val AI_PROVIDER_VIEW = "ai_provider_view/{provider}"
     const val AI_MANUAL_OVERRIDE_ADD = "ai_manual_override_add/{provider}/{model}"
     const val AI_MANUAL_COST_OVERRIDE_ADD = "ai_manual_cost_override_add/{provider}/{model}"
     const val AI_API_TEST = "ai_api_test"
@@ -130,6 +139,7 @@ object NavRoutes {
     fun aiAgentView(agentId: String) = "ai_agent_view/$agentId"
     fun aiFlockView(flockId: String) = "ai_flock_view/$flockId"
     fun aiSwarmView(swarmId: String) = "ai_swarm_view/$swarmId"
+    fun aiProviderView(providerId: String) = "ai_provider_view/$providerId"
     fun aiManualOverrideAdd(provider: String, model: String) = "ai_manual_override_add/$provider/${encode(model)}"
     fun aiManualCostOverrideAdd(provider: String, model: String) = "ai_manual_cost_override_add/$provider/${encode(model)}"
     fun aiChatContinue(sessionId: String) = "ai_chat_continue/$sessionId"
