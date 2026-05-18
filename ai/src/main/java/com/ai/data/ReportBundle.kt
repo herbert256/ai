@@ -34,7 +34,10 @@ import java.util.zip.ZipOutputStream
  * Importing KBs is a separate flow.
  */
 
-/** Summary returned by [readReportZip] for the caller's toast. */
+/** Summary returned by [readReportZip] for the caller's toast.
+ *  The caller computes per-install "missing entity" counts
+ *  separately (it has [com.ai.model.Settings] in scope) so this
+ *  helper stays free of UI-layer dependencies. */
 internal data class ReportImportSummary(
     val title: String,
     val newReportId: String,
@@ -56,9 +59,18 @@ internal fun writeReportZip(context: Context, reportId: String, out: OutputStrea
     val secondaries = SecondaryResultStorage.listForReport(context, reportId)
     val traceInfos = ApiTracer.getTraceFilesForReport(reportId)
 
+    // Strip per-install references that can't travel cleanly inside
+    // the bundle:
+    //   • knowledgeBaseIds — KB blobs aren't packed, and a later
+    //     regenerate on the target install would silently feed
+    //     zero context to the model, producing different output
+    //     with no error. Better to land an imported report with
+    //     no KB attachment than to misleadingly suggest one.
+    val sanitized = report.copy(knowledgeBaseIds = emptyList())
+
     ZipOutputStream(out).use { zip ->
-        // 1) report.json — verbatim serialised Report.
-        zip.writeEntry("report.json", gson.toJson(report).toByteArray(Charsets.UTF_8))
+        // 1) report.json — sanitised serialised Report.
+        zip.writeEntry("report.json", gson.toJson(sanitized).toByteArray(Charsets.UTF_8))
 
         // 2) secondary/<resultId>.json — one entry per persisted row.
         for (sec in secondaries) {

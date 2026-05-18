@@ -3263,6 +3263,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             //  - nothing changed → no-op.
             val cascadeAll = state.hasPendingPromptChange || state.hasPendingParametersChange
             val tasksToRun = if (cascadeAll) tasks else newTasks
+            // Silent-drop guard: if the user (or an imported example
+            // report) gave us a non-empty model list but every entry
+            // was filtered out — orphaned agent ids that don't match
+            // any configured Agent, or provider ids that aren't in
+            // the local ProviderRegistry — surface a toast so the
+            // regenerate doesn't appear to do nothing. Without this
+            // the user taps Regenerate and the screen just sits.
+            if (rebuilt.isNotEmpty() && tasks.isEmpty()) {
+                withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(context,
+                        "Regenerate had nothing to run — none of the report's agents or providers are configured on this device.",
+                        android.widget.Toast.LENGTH_LONG).show()
+                }
+                return@launch
+            }
             if (tasksToRun.isEmpty() && removedIds.isEmpty() && !cascadeAll) return@launch
 
             withTracerTags(reportId = reportId, category = "Report regenerate") {

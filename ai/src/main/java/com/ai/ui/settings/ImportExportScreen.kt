@@ -935,20 +935,42 @@ fun ImportExportScreen(
                 // UUID + fresh trace filenames so re-importing the
                 // same zip never clobbers existing data. Off-thread
                 // via scope.launch (zip read + multiple disk
-                // writes for secondaries / traces).
+                // writes for secondaries / traces). After persist,
+                // we count entities the imported report references
+                // that aren't configured locally — providers and
+                // worker (Agent) ids — and surface that in the
+                // toast so the user understands why a later
+                // Regenerate / "Run a new …" might silently skip
+                // rows.
+                val currentAgentIds = aiSettings.agents.map { it.id }.toSet()
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
                         runCatching {
-                            context.contentResolver.openInputStream(uri)?.use { input ->
+                            val summary = context.contentResolver.openInputStream(uri)?.use { input ->
                                 com.ai.data.readReportZip(context, input)
                             } ?: error("Could not open input stream")
+                            // Re-read the freshly-imported Report
+                            // off disk so the missing-entity counts
+                            // reflect what's actually persisted.
+                            val saved = com.ai.data.ReportStorage.getReport(context, summary.newReportId)
+                            val agents = saved?.agents.orEmpty()
+                            val missingProviders = agents.map { it.provider }.distinct()
+                                .count { com.ai.data.AppService.findById(it) == null }
+                            val missingAgents = agents.count { it.agentId !in currentAgentIds }
+                            Triple(summary, missingProviders, missingAgents)
                         }
                     }
                     result.fold(
-                        onSuccess = { s ->
-                            Toast.makeText(context,
-                                "Imported AI Report \"${s.title}\" (${s.secondaryCount} secondaries, ${s.traceCount} traces)",
-                                Toast.LENGTH_LONG).show()
+                        onSuccess = { (s, missingProviders, missingAgents) ->
+                            val base = "Imported AI Report \"${s.title}\" (${s.secondaryCount} secondaries, ${s.traceCount} traces)"
+                            val warn = buildString {
+                                if (missingProviders > 0) append(" · $missingProviders providers missing")
+                                if (missingAgents > 0) append(" · $missingAgents agents missing")
+                                if (missingProviders > 0 || missingAgents > 0) {
+                                    append(" — Regenerate / new sub-runs against them will be skipped")
+                                }
+                            }
+                            Toast.makeText(context, base + warn, Toast.LENGTH_LONG).show()
                         },
                         onFailure = {
                             AppLog.e("ImportExport", "AI Report import error", it)
