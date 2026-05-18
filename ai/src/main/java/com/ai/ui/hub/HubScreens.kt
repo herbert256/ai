@@ -408,7 +408,8 @@ fun ReportsHubScreen(
         Spacer(modifier = Modifier.height(10.dp))
         ReportsHubListCard(
             accentEmoji = "📌", accentColor = AppColors.Yellow,
-            label = "Pinned AI Reports", reports = pinnedReports
+            label = "Pinned AI Reports", reports = pinnedReports,
+            showEmptyHint = false
         )
         Spacer(modifier = Modifier.height(10.dp))
         ReportsHubListCard(
@@ -453,7 +454,6 @@ private fun ReportsHubListCard(
                     color = accentColor,
                     modifier = Modifier.weight(1f)
                 )
-                Text(text = reports.size.toString(), fontSize = 12.sp, color = AppColors.TextTertiary)
             }
             if (empty) {
                 if (showEmptyHint) {
