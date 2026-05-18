@@ -234,8 +234,8 @@ private fun PromptPageCard(body: String, reportIcon: String?, languageIcon: Stri
         // OUTSIDE the verticalScroll Column so it stays pinned
         // to the card's top-right while the body scrolls.
         if (!languageIcon.isNullOrBlank()) {
-            com.ai.ui.shared.LanguageFlagBadge(
-                flag = languageIcon,
+            Text(
+                text = languageIcon,
                 fontSize = 28.sp,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
