@@ -70,7 +70,17 @@ fun ViewScreenTitleBar(
      *  where extra vertical space matters). The Main View tile grid
      *  passes false so the system clock stays visible on the screen
      *  the user dwells on. */
-    hideStatusBar: Boolean = true
+    hideStatusBar: Boolean = true,
+    /** Optional 🔧 manage hook for the bottom-bar. When non-null the
+     *  View title bar publishes a [com.ai.ui.shared.TitleBarIcons]
+     *  with this slot filled (every other slot null) into
+     *  [com.ai.ui.shared.LocalBottomIconState], so the global
+     *  [com.ai.ui.shared.BottomIconBar] renders the wrench glyph.
+     *  When null the title bar keeps its long-standing "nuke any
+     *  parent's published icons on every recomposition" behaviour
+     *  so help pages and other context-less View screens stay
+     *  icon-free. */
+    onOpenManage: (() -> Unit)? = null
 ) {
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
@@ -82,17 +92,38 @@ fun ViewScreenTitleBar(
     // to their own onBack is gone; Android back / gesture still
     // routes through each screen's BackHandler.
     val effectiveLogoClick: () -> Unit = { navigateHome() }
-    // Proactively clear the global BottomIconBar state. A parent
-    // screen's TitleBar (Manage flow, Single-result, etc.) may have
-    // SideEffect-published its icons just before this View overlay
-    // mounted; if its DisposableEffect cleanup raced with the View
-    // overlay swap, those icons would otherwise linger at the bottom
-    // of every View screen. View screens are deliberately icon-free
-    // so we nuke any stale state on every recomposition of the bar.
+    // Publish — or clear — the global BottomIconBar state.
+    //
+    // When [onOpenManage] is provided we build a [TitleBarIcons]
+    // with only the wrench slot filled (every other slot null) and
+    // mount it via the same SideEffect / DisposableEffect pattern
+    // the standard TitleBar uses (SharedComponents.kt). The
+    // DisposableEffect's onDispose runs an identity check before
+    // clearing so a race against the next screen's publication
+    // doesn't wipe its just-published state.
+    //
+    // When [onOpenManage] is null we keep the long-standing
+    // proactive-null behaviour — without it any parent screen's
+    // TitleBar icons would linger at the bottom of an icon-free
+    // View screen (help pages, etc.).
     val bottomIconState = com.ai.ui.shared.LocalBottomIconState.current
     if (bottomIconState != null) {
-        androidx.compose.runtime.SideEffect {
-            if (bottomIconState.value != null) bottomIconState.value = null
+        if (onOpenManage != null) {
+            val capturedIcons = com.ai.ui.shared.TitleBarIcons(
+                helpTopic = helpTopic, onBack = null, onChat = null, onInfo = null,
+                onOpenView = null, onOpenManage = onOpenManage, onCopy = null,
+                onShare = null, onReload = null, onDelete = null, onTrace = null,
+                onTranslationCompare = null, onMemo = null,
+                onCopyReport = null, onPin = null, isPinned = false
+            )
+            androidx.compose.runtime.SideEffect { bottomIconState.value = capturedIcons }
+            androidx.compose.runtime.DisposableEffect(Unit) {
+                onDispose { if (bottomIconState.value === capturedIcons) bottomIconState.value = null }
+            }
+        } else {
+            androidx.compose.runtime.SideEffect {
+                if (bottomIconState.value != null) bottomIconState.value = null
+            }
         }
     }
     // Request the Android status bar hidden while this View screen

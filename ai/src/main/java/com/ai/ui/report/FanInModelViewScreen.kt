@@ -106,11 +106,21 @@ fun FanInModelViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // 🔧 → Manage's SecondaryResultDetail for the seed row. The
+        // visible pager (defined further down) can swipe to siblings,
+        // but the seed id is a stable jump target — Manage's detail
+        // screen renders the same metaPromptName group.
+        val openManage = com.ai.ui.shared.LocalOpenManage.current
+        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
+            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
+        } ?: navToManageMain
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Fan-in-model",
             subject = rows.firstOrNull()?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "fan_in_model_view",
+            onOpenManage = onOpenManageJump,
             onBack = onBack
         )
         Row(

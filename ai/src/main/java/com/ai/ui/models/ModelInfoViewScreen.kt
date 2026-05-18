@@ -110,6 +110,7 @@ fun ModelInfoViewScreen(
     aiSettings: Settings,
     repository: AnalysisRepository,
     onOpenReport: (String) -> Unit,
+    onOpenManage: (() -> Unit)? = null,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -256,6 +257,7 @@ fun ModelInfoViewScreen(
             screenTitle = "Model Info",
             subject = null,
             helpTopic = "model_info_view",
+            onOpenManage = onOpenManage,
             onBack = onBack
         )
 

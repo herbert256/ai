@@ -43,6 +43,7 @@ import com.ai.ui.shared.shortModelName
 fun FlockViewScreen(
     flockId: String,
     aiSettings: Settings,
+    onOpenManage: (() -> Unit)? = null,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -59,6 +60,7 @@ fun FlockViewScreen(
             screenTitle = "Flock",
             subject = null,
             helpTopic = "flock_view",
+            onOpenManage = onOpenManage,
             onBack = onBack
         )
         if (flock == null) {

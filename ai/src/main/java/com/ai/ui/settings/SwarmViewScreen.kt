@@ -40,6 +40,7 @@ import com.ai.ui.shared.shortModelName
 fun SwarmViewScreen(
     swarmId: String,
     aiSettings: Settings,
+    onOpenManage: (() -> Unit)? = null,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -55,6 +56,7 @@ fun SwarmViewScreen(
             screenTitle = "Swarm",
             subject = null,
             helpTopic = "swarm_view",
+            onOpenManage = onOpenManage,
             onBack = onBack
         )
         if (swarm == null) {

@@ -3253,10 +3253,27 @@ private fun ReportPrimaryOverlays(
         } else {
             { onShowViewReportScreenChange(false) }
         }
+        val openManageJump: (com.ai.ui.shared.ManageJump) -> Unit = { jump ->
+            // Close the View overlay first; the Manage sub-overlay
+            // state-flip below then lands on the appropriate Manage
+            // screen on the next recomposition.
+            onShowViewReportScreenChange(false)
+            when (jump) {
+                is com.ai.ui.shared.ManageJump.Main -> Unit
+                is com.ai.ui.shared.ManageJump.MetaResult -> onOpenMetaResultIdChange(jump.id)
+                is com.ai.ui.shared.ManageJump.TranslationRun -> onOpenTranslationRunIdChange(jump.id)
+                is com.ai.ui.shared.ManageJump.ReportsViewer -> {
+                    onSelectedAgentForViewerChange(jump.initialAgentId)
+                    onViewerSectionChange(jump.section)
+                    onShowViewerChange(true)
+                }
+            }
+        }
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides { onShowViewReportScreenChange(false) }
+            LocalNavigateToCurrentReport provides { onShowViewReportScreenChange(false) },
+            com.ai.ui.shared.LocalOpenManage provides openManageJump
         ) {
             ViewAiReportScreen(
                 reportId = currentReportId,

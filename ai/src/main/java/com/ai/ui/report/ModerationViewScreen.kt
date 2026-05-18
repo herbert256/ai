@@ -111,6 +111,12 @@ fun ModerationViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // 🔧 → Manage's SecondaryResultDetail for this moderation row.
+        val openManage = com.ai.ui.shared.LocalOpenManage.current
+        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
+            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
+        } ?: navToManageMain
         ViewScreenTitleBar(
             reportTitle = loaded.reportTitle,
             screenTitle = "Moderation",
@@ -120,6 +126,7 @@ fun ModerationViewScreen(
             // cleanly enough on their own.
             subject = null,
             helpTopic = "moderation_view",
+            onOpenManage = onOpenManageJump,
             onBack = onBack
         )
         if (result == null) {

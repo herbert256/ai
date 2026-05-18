@@ -91,11 +91,18 @@ fun FanInViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // 🔧 → Manage's SecondaryResultDetail for this fan-in row.
+        val openManage = com.ai.ui.shared.LocalOpenManage.current
+        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
+            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
+        } ?: navToManageMain
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Fan-in",
             subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "fan_in_view",
+            onOpenManage = onOpenManageJump,
             onBack = onBack
         )
         Row(

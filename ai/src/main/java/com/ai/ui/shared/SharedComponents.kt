@@ -236,6 +236,31 @@ val LocalStatusBarHideCount = compositionLocalOf<MutableState<Int>?> { null }
  *  the StateFlow themselves. Default empty (no-op). */
 val LocalActiveTranslationReportIds = compositionLocalOf<Set<String>> { emptySet() }
 
+/** Targets the View screens' new bottom-bar 🔧 manage icon can jump
+ *  to. [Main] lands on the Report - Manage tile screen; the other
+ *  variants land on a specific Manage sub-overlay (Meta-result
+ *  detail, Translation-run detail, the per-agent ReportsViewer
+ *  scrolled to a section). Sealed so a future Manage target is a
+ *  one-line addition here + one branch in the dispatcher. */
+sealed class ManageJump {
+    object Main : ManageJump()
+    data class MetaResult(val id: String) : ManageJump()
+    data class TranslationRun(val id: String) : ManageJump()
+    data class ReportsViewer(
+        val initialAgentId: String?,
+        val section: String?
+    ) : ManageJump()
+}
+
+/** Dispatcher installed by `ReportScreen` around the View overlay
+ *  block — bridges a sub-View screen's 🔧 tap to the corresponding
+ *  Manage state-var flip (showViewReportScreen, openMetaResultId,
+ *  openTranslationRunId, showViewer + viewerSection +
+ *  selectedAgentForViewer). Null on screens outside a report
+ *  context (standalone View routes get their `onOpenManage` wired
+ *  directly from AppNavHost instead). */
+val LocalOpenManage = compositionLocalOf<((ManageJump) -> Unit)?> { null }
+
 /** Set on every screen that's "deeper" than the AI Report Result
  *  page (overlay screens inside the result page — Edit Prompt /
  *  Title / Models / Parameters / Export / Translation Compare /
@@ -396,6 +421,13 @@ data class TitleBarIcons(
      *  carries the same glyph as the per-row eye icon on every
      *  reports list. Null → glyph hidden. */
     val onOpenView: (() -> Unit)? = null,
+    /** Optional 🔧 open-manage hook. Renders the same wrench glyph
+     *  every reports-list row uses for "open Report - manage". Used
+     *  by every View screen so the bottom-bar carries the per-row
+     *  manage icon, with each sub-View jumping to the matching
+     *  Manage sub-overlay (via [LocalOpenManage]). Null → glyph
+     *  hidden. */
+    val onOpenManage: (() -> Unit)? = null,
     val onCopy: (() -> Unit)?,
     val onShare: (() -> Unit)?,
     val onReload: (() -> Unit)?,
@@ -638,6 +670,12 @@ fun TitleBar(
      *  there so the bottom bar carries the same glyph as the per-row
      *  eye icon on every reports list. Null → glyph hidden. */
     onOpenView: (() -> Unit)? = null,
+    /** Optional 🔧 open-manage hook. Wired by every View screen so
+     *  the bottom-bar carries the same wrench glyph the per-row 🔧
+     *  uses on every reports list. Each sub-View typically passes a
+     *  closure that fires [LocalOpenManage] with the matching
+     *  [ManageJump] target. Null → glyph hidden. */
+    onOpenManage: (() -> Unit)? = null,
     onReload: (() -> Unit)? = null,
     onChat: (() -> Unit)? = null,
     /** Optional 📋 copy-to-clipboard hook. Wire it from screens that
@@ -713,6 +751,7 @@ fun TitleBar(
         onChat = onChat,
         onInfo = onInfo,
         onOpenView = onOpenView,
+        onOpenManage = onOpenManage,
         onCopy = onCopy,
         onShare = onShare,
         onReload = onReload,
@@ -874,6 +913,7 @@ private fun TitleBarActionStrip(
     onChat: (() -> Unit)?,
     onInfo: (() -> Unit)?,
     onOpenView: (() -> Unit)?,
+    onOpenManage: (() -> Unit)?,
     onCopy: (() -> Unit)?,
     onShare: (() -> Unit)?,
     onTranslationCompare: (() -> Unit)?,
@@ -900,6 +940,11 @@ private fun TitleBarActionStrip(
         // both. Larger glyph (18 sp vs the standard 16 sp) mirrors
         // the slightly-bigger eye on every per-row report list.
         if (onOpenView != null) TitleBarIcon("👁", Color.Unspecified, onOpenView, width = 32.dp, scale = scale, fontSize = 18.sp)
+        // 🔧 manage — same glyph the per-row 🔧 uses on every reports
+        // list. Wired by every View screen so the bottom-bar lets
+        // the user jump back to Report - manage (or a specific
+        // Manage sub-overlay) without re-opening a list.
+        if (onOpenManage != null) TitleBarIcon("🔧", Color.Unspecified, onOpenManage, width = 32.dp, scale = scale, fontSize = 18.sp)
         if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = 28.dp, scale = scale)
         if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = 28.dp, scale = scale)
         if (onPin != null) TitleBarIcon("📌", Color.Unspecified, onPin, width = 28.dp, scale = scale, alpha = if (isPinned) 1f else 0.35f)
@@ -970,6 +1015,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val onChat = icons?.onChat
     val onInfo = icons?.onInfo
     val onOpenView = icons?.onOpenView
+    val onOpenManage = icons?.onOpenManage
     val onCopy = icons?.onCopy
     val onShare = icons?.onShare
     val onReload = icons?.onReload
@@ -989,6 +1035,9 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     // the per-row eye on every reports list) doesn't collide with
     // its neighbours.
     if (onOpenView != null) slot(32)
+    // 🔧 manage — same width budget as 👁 since both glyphs render
+    // at the per-row size on the View bottom bar.
+    if (onOpenManage != null) slot(32)
     if (onInfo != null) slot(28)
     if (onCopy != null) slot(28)
     if (onPin != null) slot(28)
@@ -1050,6 +1099,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 onChat = onChat,
                 onInfo = onInfo,
                 onOpenView = onOpenView,
+                onOpenManage = onOpenManage,
                 onCopy = onCopy,
                 onShare = onShare,
                 onTranslationCompare = onTranslationCompare,

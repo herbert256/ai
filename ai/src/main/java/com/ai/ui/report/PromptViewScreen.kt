@@ -124,6 +124,9 @@ fun PromptViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // No per-prompt Manage screen — 🔧 lands on main Manage via
+        // the existing report-context local.
+        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Prompt",
@@ -132,6 +135,7 @@ fun PromptViewScreen(
             // slot null keeps the bar uncluttered.
             subject = null,
             helpTopic = "prompt_view_screen",
+            onOpenManage = navToManageMain,
             onBack = { onBack(activeLangState.value.ifBlank { null }) }
         )
         if (report == null) {

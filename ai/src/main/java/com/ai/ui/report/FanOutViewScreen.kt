@@ -154,11 +154,16 @@ fun FanOutViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // Manage's fan-out lives behind a multi-step picker chain
+        // with no clean single-step entry — 🔧 falls back to the
+        // main Report - manage screen here.
+        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Fan-out",
             subject = metaPromptName.takeIf { it.isNotBlank() },
             helpTopic = "fan_out_view",
+            onOpenManage = navToManageMain,
             onBack = onBack
         )
         if (report == null) {

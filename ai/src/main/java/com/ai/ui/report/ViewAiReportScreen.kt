@@ -930,6 +930,10 @@ internal fun ViewAiReportScreen(
         modifier = Modifier.fillMaxSize()
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // Main View grid's 🔧 jumps to the main Report - Manage screen.
+        // [LocalNavigateToCurrentReport] already does exactly that —
+        // it's the same lambda the title-tap uses.
+        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
         ViewScreenTitleBar(
             reportTitle = loadedReport?.title ?: promptTitle,
             // Orange screen-title row is suppressed on the View tile
@@ -942,6 +946,7 @@ internal fun ViewAiReportScreen(
             // visible — the user dwells here longer than any sub-View
             // and asked for the system clock to stay on screen.
             hideStatusBar = false,
+            onOpenManage = navToManageMain,
             onBack = onBack
         )
 

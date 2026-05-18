@@ -162,11 +162,20 @@ fun ReportsViewScreen(
         // model name moves below the prompt card as the green subject
         // line, so the user reads top-to-bottom:
         //   title bar → counter → prompt card → model → response.
+        // 🔧 → Manage's per-agent ReportsViewer at the active agent.
+        // Falls back to main Manage when no dispatcher is provided
+        // (shouldn't happen inside a report context, but safe).
+        val openManage = com.ai.ui.shared.LocalOpenManage.current
+        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
+            { dispatch(com.ai.ui.shared.ManageJump.ReportsViewer(activeAgent?.agentId, null)) }
+        } ?: navToManageMain
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Model reports",
             subject = null,
             helpTopic = "reports_view",
+            onOpenManage = onOpenManageJump,
             onBack = { onBack(activeLangState.value.ifBlank { null }) }
         )
         if (report == null) {

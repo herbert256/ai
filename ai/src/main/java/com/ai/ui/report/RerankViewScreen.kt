@@ -107,6 +107,12 @@ fun RerankViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // 🔧 → Manage's SecondaryResultDetail for this rerank row.
+        val openManage = com.ai.ui.shared.LocalOpenManage.current
+        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
+            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
+        } ?: navToManageMain
         ViewScreenTitleBar(
             reportTitle = loaded.reportTitle,
             screenTitle = "Rerank",
@@ -114,6 +120,7 @@ fun RerankViewScreen(
             // user's spec — the orange "Rerank" line alone is enough.
             subject = null,
             helpTopic = "rerank_view",
+            onOpenManage = onOpenManageJump,
             onBack = onBack
         )
         if (result == null) {

@@ -105,11 +105,18 @@ fun TranslateViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // 🔧 → Manage's TranslationRun detail for this run id.
+        val openManage = com.ai.ui.shared.LocalOpenManage.current
+        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
+            { dispatch(com.ai.ui.shared.ManageJump.TranslationRun(translationRunId)) }
+        } ?: navToManageMain
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Translate",
             subject = rows.firstOrNull()?.let { it.targetLanguageNative ?: it.targetLanguage }?.takeIf { it.isNotBlank() },
             helpTopic = "translate_view",
+            onOpenManage = onOpenManageJump,
             onBack = onBack
         )
         Row(

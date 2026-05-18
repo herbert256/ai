@@ -146,6 +146,13 @@ fun MetaViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // 🔧 → Manage's SecondaryResultDetail for the active META row.
+        val openManage = com.ai.ui.shared.LocalOpenManage.current
+        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
+            val targetId = activeRow?.id ?: resultId
+            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(targetId)) }
+        } ?: navToManageMain
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Meta",
@@ -154,6 +161,7 @@ fun MetaViewScreen(
             // active row's prompt name.
             subject = null,
             helpTopic = "meta_view",
+            onOpenManage = onOpenManageJump,
             onBack = onBack
         )
         Row(

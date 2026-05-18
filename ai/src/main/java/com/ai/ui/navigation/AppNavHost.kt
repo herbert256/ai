@@ -789,6 +789,7 @@ fun AppNavHost(
                                 navController.navigate(NavRoutes.AI_REPORTS)
                             }
                         },
+                        onOpenManage = { navController.navigate(NavRoutes.aiModelInfo(provider.id, model)) },
                         onBack = safePopBack
                     )
                 }
@@ -804,6 +805,7 @@ fun AppNavHost(
                 com.ai.ui.settings.AgentViewScreen(
                     agentId = agentId,
                     aiSettings = uiState.aiSettings,
+                    onOpenManage = { navController.navigate(NavRoutes.settingsAgentEdit(agentId)) },
                     onBack = safePopBack
                 )
             }
@@ -818,6 +820,7 @@ fun AppNavHost(
                 com.ai.ui.settings.FlockViewScreen(
                     flockId = flockId,
                     aiSettings = uiState.aiSettings,
+                    onOpenManage = { navController.navigate(NavRoutes.settingsFlockEdit(flockId)) },
                     onBack = safePopBack
                 )
             }
@@ -832,6 +835,7 @@ fun AppNavHost(
                 com.ai.ui.settings.SwarmViewScreen(
                     swarmId = swarmId,
                     aiSettings = uiState.aiSettings,
+                    onOpenManage = { navController.navigate(NavRoutes.settingsSwarmEdit(swarmId)) },
                     onBack = safePopBack
                 )
             }

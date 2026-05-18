@@ -45,6 +45,7 @@ import com.ai.ui.shared.shortModelName
 fun AgentViewScreen(
     agentId: String,
     aiSettings: Settings,
+    onOpenManage: (() -> Unit)? = null,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -60,6 +61,7 @@ fun AgentViewScreen(
             screenTitle = "Agent",
             subject = null,
             helpTopic = "agent_view",
+            onOpenManage = onOpenManage,
             onBack = onBack
         )
         if (agent == null) {

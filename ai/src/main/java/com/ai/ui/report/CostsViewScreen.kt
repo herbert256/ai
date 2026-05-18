@@ -77,11 +77,20 @@ fun CostsViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // 🔧 → Manage's per-agent ReportsViewer scrolled to its
+        // Costs section. Falls back to main Manage when the
+        // dispatcher local is missing.
+        val openManage = com.ai.ui.shared.LocalOpenManage.current
+        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
+            { dispatch(com.ai.ui.shared.ManageJump.ReportsViewer(null, "costs")) }
+        } ?: navToManageMain
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Costs",
             subject = null,
             helpTopic = "costs_view",
+            onOpenManage = onOpenManageJump,
             onBack = onBack
         )
         Row(
