@@ -844,11 +844,16 @@ internal fun ViewAiReportScreen(
             // both render the cache entry the last alt pick wrote.
             val sourceRow = item.sourceRows?.firstOrNull()
             val rowIcon = sourceRow?.icon?.takeIf { it.isNotBlank() }
-            val promptEmoji = rowIcon ?: if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
+            // Dynamic generated emoji (cached per-prompt) wins over
+            // the per-row override and the static fallback — the
+            // dynamic icon is what the user wants to see; the row
+            // override and "🧠" default are backups.
+            val cachedEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
                 val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
                 if (e == null) onMissingPromptIcon(prompt)
                 e
             } else null
+            val promptEmoji = cachedEmoji ?: rowIcon
             val metaEnabled = item.availableLanguages?.contains(currentLang) ?: true
             // sourceRows is now single-element per META item — its id
             // disambiguates two tiles that share a metaPromptName so
@@ -871,12 +876,11 @@ internal fun ViewAiReportScreen(
             IdentifiedTile(
                 id = "meta:${item.label}:$rowId",
                 tile = ViewTile(
-                    // Two-line tile matches the Fan-out / Fan-in
-                    // pattern: literal "meta" on the main line,
-                    // internal-prompt name on the smaller second
-                    // line.
-                    label = "meta",
-                    sublabel = item.label,
+                    // Two-line tile: internal-prompt name on the
+                    // big main line, literal "meta" on the smaller
+                    // second line.
+                    label = item.label,
+                    sublabel = "meta",
                     emoji = promptEmoji ?: "🧠",
                     accent = AppColors.Purple,
                     enabled = metaEnabled,
@@ -909,8 +913,10 @@ internal fun ViewAiReportScreen(
             IdentifiedTile(
                 id = "fan_out:${item.label}",
                 tile = ViewTile(
-                    label = "fan-out",
-                    sublabel = item.label,
+                    // Big line = internal-prompt name, small line =
+                    // literal "fan-out".
+                    label = item.label,
+                    sublabel = "fan-out",
                     emoji = promptEmoji ?: "🌀",
                     accent = AppColors.Indigo,
                     enabled = fanOutEnabled,
@@ -932,17 +938,23 @@ internal fun ViewAiReportScreen(
             val prompt = item.prompt
             val sourceRow = item.sourceRows?.firstOrNull()
             val rowIcon = sourceRow?.icon?.takeIf { it.isNotBlank() }
-            val promptEmoji = rowIcon ?: if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
+            // Dynamic generated emoji wins over the per-row override
+            // and the static 🪢 fallback — same pattern as the Meta
+            // tiles above.
+            val cachedEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
                 val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
                 if (e == null) onMissingPromptIcon(prompt)
                 e
             } else null
+            val promptEmoji = cachedEmoji ?: rowIcon
             val rowId = sourceRow?.id ?: item.label
             IdentifiedTile(
                 id = "fan_in:${item.label}:$rowId",
                 tile = ViewTile(
-                    label = "fan-in",
-                    sublabel = item.label,
+                    // Big line = internal-prompt name, small line =
+                    // literal "fan-in".
+                    label = item.label,
+                    sublabel = "fan-in",
                     emoji = promptEmoji ?: "🪢",
                     accent = AppColors.Green,
                     enabled = fanInEnabled,
