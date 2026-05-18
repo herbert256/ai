@@ -229,11 +229,30 @@ fun MetaViewScreen(
                     else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
                         ?: "🌍"
                 }
-                AnswerCard(
-                    body = body,
-                    languageIcon = pageFlag,
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 24.dp)
-                )
+                // Box-anchored layout: the card wraps its content
+                // (short rows sit at the top), and the language flag
+                // is pinned to the page Box's TopEnd so it stays put
+                // when long rows scroll under it.
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        AnswerCard(
+                            body = body,
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 24.dp)
+                        )
+                    }
+                    if (!pageFlag.isNullOrBlank()) {
+                        Text(
+                            text = pageFlag,
+                            fontSize = 24.sp,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 10.dp, end = 10.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -242,14 +261,11 @@ fun MetaViewScreen(
 @Composable
 private fun AnswerCard(
     body: String,
-    languageIcon: String?,
     modifier: Modifier = Modifier.fillMaxWidth()
 ) {
-    // Card is a single Box that wraps content (capped by the
-    // pager's max height). The body Column scrolls INSIDE the
-    // Box via verticalScroll — so the language flag pinned to
-    // Box.TopEnd stays at the card's top-right while the user
-    // scrolls long content.
+    // Card wraps its own content — short rows sit at the top of
+    // the pager instead of inflating to fill the page. Caller
+    // wraps this in a verticalScroll Column + anchored-flag Box.
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
@@ -258,7 +274,6 @@ private fun AnswerCard(
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             if (body.isBlank()) {
@@ -271,19 +286,6 @@ private fun AnswerCard(
                 // headings, code blocks render the same as everywhere else.
                 ContentWithThinkSections(analysis = body)
             }
-        }
-        // Per-language flag overlay in the top-right corner.
-        // Only shown when the row carries multiple languages.
-        // Lives OUTSIDE the verticalScroll Column so it stays
-        // pinned to the card's top-right while the body scrolls.
-        if (!languageIcon.isNullOrBlank()) {
-            Text(
-                text = languageIcon,
-                fontSize = 24.sp,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 6.dp, end = 10.dp)
-            )
         }
     }
 }

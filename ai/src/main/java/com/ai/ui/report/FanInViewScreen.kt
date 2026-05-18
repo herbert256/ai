@@ -210,11 +210,30 @@ fun FanInViewScreen(
                     else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
                         ?: "🌍"
                 }
-                SynthesisBodyCard(
-                    body = body,
-                    languageIcon = pageFlag,
-                    modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 24.dp)
-                )
+                // Box-anchored layout: the card wraps its content
+                // (short bodies sit at the top), and the language
+                // flag is pinned to the page Box's TopEnd so it
+                // stays put when long bodies scroll under it.
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        SynthesisBodyCard(
+                            body = body,
+                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 24.dp)
+                        )
+                    }
+                    if (!pageFlag.isNullOrBlank()) {
+                        Text(
+                            text = pageFlag,
+                            fontSize = 24.sp,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 10.dp, end = 10.dp)
+                        )
+                    }
+                }
             }
         }
     }
@@ -223,14 +242,11 @@ fun FanInViewScreen(
 @Composable
 private fun SynthesisBodyCard(
     body: String,
-    languageIcon: String?,
     modifier: Modifier = Modifier.fillMaxWidth()
 ) {
-    // Card is a single Box that wraps content (capped by the
-    // pager's max height). The body Column scrolls INSIDE the
-    // Box via verticalScroll — so the language flag pinned to
-    // Box.TopEnd stays at the card's top-right while the user
-    // scrolls long content.
+    // Card wraps its own content — short bodies sit at the top of
+    // the pager instead of inflating to fill the page. Caller
+    // wraps this in a verticalScroll Column + anchored-flag Box.
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(16.dp))
@@ -243,7 +259,6 @@ private fun SynthesisBodyCard(
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 14.dp)
         ) {
             if (body.isBlank()) {
@@ -254,19 +269,6 @@ private fun SynthesisBodyCard(
             } else {
                 ContentWithThinkSections(analysis = body)
             }
-        }
-        // Per-language flag overlay in the top-right corner.
-        // Only shown when the row carries multiple languages.
-        // Lives OUTSIDE the verticalScroll Column so it stays
-        // pinned to the card's top-right while the body scrolls.
-        if (!languageIcon.isNullOrBlank()) {
-            Text(
-                text = languageIcon,
-                fontSize = 24.sp,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 6.dp, end = 10.dp)
-            )
         }
     }
 }

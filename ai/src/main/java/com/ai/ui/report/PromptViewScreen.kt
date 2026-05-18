@@ -172,23 +172,45 @@ fun PromptViewScreen(
                 // fresh icon-gen result lands without remount; fall
                 // back to the persisted icon on the loaded report.
                 val liveReportIcon = com.ai.ui.shared.LocalReportIcon.current?.takeIf { it.isNotBlank() }
-                PromptPageCard(
-                    body = body,
-                    reportIcon = liveReportIcon ?: report.icon,
-                    languageIcon = perPageIcon
-                )
+                // Pager page = a Box that fills the page slot. Inside:
+                //   1) a verticalScroll Column with the card — the card
+                //      wraps its content so short prompts sit at the
+                //      TOP instead of inflating to fill the page.
+                //   2) the language flag pinned to the Box's TopEnd —
+                //      anchored to the page (not the card), so it
+                //      stays put while the inner Column scrolls long
+                //      prompts under it.
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Column(
+                        modifier = Modifier.fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        PromptPageCard(
+                            body = body,
+                            reportIcon = liveReportIcon ?: report.icon
+                        )
+                    }
+                    if (!perPageIcon.isNullOrBlank()) {
+                        Text(
+                            text = perPageIcon,
+                            fontSize = 28.sp,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 10.dp, end = 10.dp)
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun PromptPageCard(body: String, reportIcon: String?, languageIcon: String?) {
-    // Card is a single Box that wraps content (capped by the
-    // pager's max height). The body Column scrolls INSIDE the
-    // Box via verticalScroll — so the language flag pinned to
-    // Box.TopEnd stays at the card's top-right while the user
-    // scrolls long content. Same pattern as ReportsViewScreen.
+private fun PromptPageCard(body: String, reportIcon: String?) {
+    // Card wraps its own content — small prompts sit at the top of
+    // the pager instead of the card inflating to fill the page.
+    // The language flag is handled by the caller as a Box-anchored
+    // overlay so it stays put when long prompts scroll under it.
     Box(
         modifier = Modifier.fillMaxWidth()
             .padding(top = 4.dp, bottom = 24.dp)
@@ -205,7 +227,6 @@ private fun PromptPageCard(body: String, reportIcon: String?, languageIcon: Stri
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()
-                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -227,20 +248,6 @@ private fun PromptPageCard(body: String, reportIcon: String?, languageIcon: Stri
                 // renders properly.
                 ContentWithThinkSections(analysis = body)
             }
-        }
-        // Language flag overlay in the top-right corner of the
-        // card — replaces the old title-bar subject. Only shown
-        // when the report carries multiple languages. Lives
-        // OUTSIDE the verticalScroll Column so it stays pinned
-        // to the card's top-right while the body scrolls.
-        if (!languageIcon.isNullOrBlank()) {
-            Text(
-                text = languageIcon,
-                fontSize = 28.sp,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 6.dp, end = 10.dp)
-            )
         }
     }
 }
