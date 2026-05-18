@@ -135,7 +135,7 @@ internal fun ReportRunScreen(
         ) {
             TitleBar(
                 helpTopic = "report_run",
-                title = "Report - manage",
+                title = "Manage report",
                 onTitleClick = if (currentReportId != null) onOpenViewReport else null,
                 subject = promptTitle,
                 reportIcon = if (iconGenEnabled) reportIcon?.takeIf { it.isNotEmpty() } ?: "📝" else null,
