@@ -168,6 +168,7 @@ internal fun buildEveryItems(
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_in" }
         .map { row -> EveryItem(
             label = row.metaPromptName ?: "Fan-in",
+            prompt = row.metaPromptName?.let { promptByName[it] },
             sourceRows = listOf(row),
             open = { lang -> onOpenSecondaryRun(row.id, lang) }
         ) }
@@ -185,7 +186,13 @@ internal fun buildEveryItems(
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_out" }
         .mapNotNull { it.metaPromptName }
         .distinct()
-        .map { name -> EveryItem(name) { lang -> onViewSecondaryName(name, SecondaryKind.META, lang) } }
+        .map { name ->
+            EveryItem(
+                label = name,
+                prompt = promptByName[name],
+                open = { lang -> onViewSecondaryName(name, SecondaryKind.META, lang) }
+            )
+        }
     // Translate: one item per translationRunId. The locked-language
     // parameter is ignored — a translation run is inherently
     // single-language; there's no picker to suppress downstream.

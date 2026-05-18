@@ -841,18 +841,64 @@ internal fun ViewAiReportScreen(
     // the user can jump straight into a specific run instead of
     // going through an aggregated "Fan-out (N)" tile and a
     // follow-up picker. (Fan_out is excluded from computedTiles
-    // below.)
-    val fanOutTiles = remember(everyItems, currentLang) {
+    // below.) Label is the literal "fan-out"; the underlying
+    // internal-prompt name shows on the second line. The icon
+    // pulls from [InternalPromptIconCache] so each fan-out prompt
+    // can carry its own dynamic glyph; falls back to the static
+    // 🌀 when no cached icon exists yet.
+    val fanOutTiles = remember(everyItems, useInternalPromptsIcons, iconRefreshTick, currentLang) {
         everyItems["fan_out"].orEmpty().map { item ->
             val fanOutEnabled = item.availableLanguages?.contains(currentLang) ?: true
+            val prompt = item.prompt
+            val promptEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
+                val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
+                if (e == null) onMissingPromptIcon(prompt)
+                e
+            } else null
             IdentifiedTile(
                 id = "fan_out:${item.label}",
                 tile = ViewTile(
-                    label = item.label,
-                    emoji = "🌀",
+                    label = "fan-out",
+                    sublabel = item.label,
+                    emoji = promptEmoji ?: "🌀",
                     accent = AppColors.Indigo,
                     enabled = fanOutEnabled,
                     onClick = { item.open(currentLanguageState.value) }
+                )
+            )
+        }
+    }
+
+    // Fan-in tiles — one per persisted fan-in run, mirroring
+    // [fanOutTiles]. Each tile carries the literal "fan-in" as
+    // the main label and the internal-prompt name underneath.
+    // Dynamic per-prompt icon via [InternalPromptIconCache];
+    // 🪢 fallback matches the previous aggregated tile glyph.
+    // (fan_in is excluded from [computedTiles] below.)
+    val fanInTiles = remember(everyItems, useInternalPromptsIcons, iconRefreshTick, currentLang) {
+        everyItems["fan_in"].orEmpty().map { item ->
+            val fanInEnabled = item.availableLanguages?.contains(currentLang) ?: true
+            val prompt = item.prompt
+            val sourceRow = item.sourceRows?.firstOrNull()
+            val rowIcon = sourceRow?.icon?.takeIf { it.isNotBlank() }
+            val promptEmoji = rowIcon ?: if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
+                val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
+                if (e == null) onMissingPromptIcon(prompt)
+                e
+            } else null
+            val rowId = sourceRow?.id ?: item.label
+            IdentifiedTile(
+                id = "fan_in:${item.label}:$rowId",
+                tile = ViewTile(
+                    label = "fan-in",
+                    sublabel = item.label,
+                    emoji = promptEmoji ?: "🪢",
+                    accent = AppColors.Green,
+                    enabled = fanInEnabled,
+                    onClick = {
+                        if (sourceRow != null) fanInViewRowId = sourceRow.id
+                        else item.open(currentLanguageState.value)
+                    }
                 )
             )
         }
@@ -872,7 +918,9 @@ internal fun ViewAiReportScreen(
         val specs = listOf(
             ComputedSpec("rerank", "Rerank", "🏆", AppColors.Yellow),
             ComputedSpec("moderation", "Moderation", "🚩", moderationColor),
-            ComputedSpec("fan_in", "Fan-in", "🪢", AppColors.Green),
+            // fan_in is no longer in computedTiles — it has its own
+            // per-run tile set ([fanInTiles]) with dynamic icons,
+            // mirroring the fan_out pattern.
             ComputedSpec("fan-in-model", "Fan-in-model", "🧩", AppColors.Blue),
             ComputedSpec("translate", "Translate", "🌍", AppColors.Orange)
         )
@@ -1026,7 +1074,7 @@ internal fun ViewAiReportScreen(
             // with their count badge. Each carries a stable
             // identifier so the persisted tile order survives
             // per-report variability.
-            val combinedTiles = docTiles + metaTiles + fanOutTiles +
+            val combinedTiles = docTiles + metaTiles + fanOutTiles + fanInTiles +
                 computedTiles.map { IdentifiedTile("computed:${it.key}", it.tile) }
             val sortedTiles = remember(combinedTiles, savedOrder) {
                 val rankOf = savedOrder.withIndex().associate { it.value to it.index }
@@ -1231,6 +1279,11 @@ private data class ViewTile(
     val emoji: String,
     val accent: Color,
     val count: Int = 0,
+    /** Optional second line rendered beneath the main label in a
+     *  smaller font. Used by Fan-out / Fan-in tiles to surface the
+     *  underlying internal-prompt name under the literal "fan-out"
+     *  / "fan-in" header. Null → single-line label as before. */
+    val sublabel: String? = null,
     /** False → the tile renders at low alpha and (unless
      *  [onMissingClick] is set) ignores taps. Set by the View
      *  screen when the active picker language has no content
@@ -1541,6 +1594,13 @@ private fun TileCard(tile: ViewTile) {
                     fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
+                tile.sublabel?.takeIf { it.isNotBlank() }?.let { sub ->
+                    Text(
+                        sub, color = AppColors.TextTertiary, fontSize = 11.sp,
+                        fontWeight = FontWeight.Normal, textAlign = TextAlign.Center,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
     }
