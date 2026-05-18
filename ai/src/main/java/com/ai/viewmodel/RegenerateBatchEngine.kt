@@ -457,9 +457,18 @@ class RegenerateBatchEngine internal constructor(
                 }
             }
             RegeneratePhase.AGENTS -> {
-                // Agents are reset by forceRegenerateAllAgents
-                // itself via ReportStorage.resetAgentToPending —
-                // we don't need to touch disk here.
+                // Reset every agent SYNCHRONOUSLY before the
+                // orchestrator starts polling. forceRegenerateAllAgents
+                // also resets each agent, but inside an async
+                // viewModelScope.launch — so without this
+                // synchronous pass the first poll iteration sees
+                // the previous run's SUCCESS state and marks every
+                // task done in ~2 ms, before the real LLM call has
+                // even fired. resetAgentToPending is idempotent so
+                // the redundant inner reset is harmless.
+                phaseTasks.forEach {
+                    ReportStorage.resetAgentToPending(context, reportId, it.rowId)
+                }
             }
             RegeneratePhase.FAN_ICONS -> {
                 // Per-pair icon state, not main row state.
