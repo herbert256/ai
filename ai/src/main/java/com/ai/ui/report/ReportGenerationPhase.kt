@@ -873,7 +873,9 @@ internal fun ColumnScope.GenerationPhase(
         // Regenerate batch — top of body when a RegenerateJob is
         // active for this report. Hoisted into its own composable
         // (RegenerateBatchManageRow) to keep this LazyColumn body
-        // under the JVM 64 KB per-method ceiling.
+        // under the JVM 64 KB per-method ceiling. The row composable
+        // also paints its own trailing HorizontalDivider so it
+        // visually separates from the next row.
         item(key = "regen-batch-row") {
             RegenerateBatchManageRow()
         }

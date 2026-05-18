@@ -329,36 +329,44 @@ fun RegenerateBatchManageRow() {
         com.ai.data.RegenerateJobStatus.CANCELLED ->
             "$done / $total · cancelled"
     }
-    Row(
-        modifier = Modifier.fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clickable { openState?.value = job.reportId },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Leftmost status cell — same 24 dp width as every other
-        // row on this screen (✅ / ❌ / ⏳ live in this column).
-        when (job.status) {
-            com.ai.data.RegenerateJobStatus.RUNNING -> Box(
-                modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center
-            ) { AnimatedHourglass(fontSize = 16.sp) }
-            com.ai.data.RegenerateJobStatus.PAUSED_ON_ERROR ->
-                Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
-            com.ai.data.RegenerateJobStatus.DONE ->
-                Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
-            com.ai.data.RegenerateJobStatus.CANCELLED ->
-                Text("⏸", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .clickable { openState?.value = job.reportId },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Leftmost status cell — same 24 dp width as every other
+            // row on this screen (✅ / ❌ / ⏳ live in this column).
+            when (job.status) {
+                com.ai.data.RegenerateJobStatus.RUNNING -> Box(
+                    modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center
+                ) { AnimatedHourglass(fontSize = 16.sp) }
+                com.ai.data.RegenerateJobStatus.PAUSED_ON_ERROR ->
+                    Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                com.ai.data.RegenerateJobStatus.DONE ->
+                    Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                com.ai.data.RegenerateJobStatus.CANCELLED ->
+                    Text("⏸", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+            }
+            // Type cell — matches the other rows' "compare" / "rerank"
+            // / "fan-in" chip in the same column.
+            RowTypeCell("regenerate")
+            // Row text — counter + current phase.
+            Text(
+                text = rowText,
+                color = AppColors.TextSecondary,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
         }
-        // Type cell — matches the other rows' "compare" / "rerank"
-        // / "fan-in" chip in the same column.
-        RowTypeCell("regenerate")
-        // Row text — counter + current phase.
-        Text(
-            text = rowText,
-            color = AppColors.TextSecondary,
-            fontSize = 13.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
+        // Visual separator between this top-of-list row and the
+        // first agent / meta row underneath — matches the other
+        // dividers used inside this LazyColumn.
+        androidx.compose.material3.HorizontalDivider(
+            color = AppColors.TextDisabled, thickness = 1.dp
         )
     }
 }
