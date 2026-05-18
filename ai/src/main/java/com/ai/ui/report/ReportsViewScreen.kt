@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,9 +13,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -232,12 +235,12 @@ fun ReportsViewScreen(
             return@Column
         }
         // Prompt-card collapse toggle. When expanded, the prompt
-        // pager occupies 1/3 of the area below the title bar
-        // (weight 1f) and the response pager below it gets the
-        // other 2/3 (weight 2f). Collapsed → the prompt shrinks to
-        // a compact one-row preview (small icon + first non-blank
-        // line of the prompt) and the response pager fills the
-        // freed space. Mirrors the fan-out View screen pattern.
+        // section is capped at 1/3 of the available area and the
+        // response section at 2/3. Both cards wrap content within
+        // their caps — short content sits at natural height with
+        // a normal gap between cards; only long content stretches
+        // to the cap and scrolls inside. Mirrors the fan-out View
+        // screen pattern.
         var promptExpanded by rememberSaveable { mutableStateOf(true) }
         val resolvedActivePrompt: String = run {
             val lang = if (languages.isEmpty()) "" else
@@ -245,96 +248,105 @@ fun ReportsViewScreen(
             if (lang.isBlank()) report.prompt
             else loaded.translatedPromptByLang[lang]?.takeIf { it.isNotBlank() } ?: report.prompt
         }
-        if (promptExpanded) {
-            if (languages.size <= 1) {
-                PromptCard(
-                    report = report, languageIcon = null, promptOverride = null,
-                    onCollapse = { promptExpanded = false },
-                    modifier = Modifier.fillMaxWidth().weight(1f)
-                )
-            } else {
+
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().weight(1f)
+        ) {
+            val totalH = maxHeight
+            // Reserve approximate chrome — the response header row
+            // and the spacer between sections — so per-section caps
+            // don't push the bottom of the response off-screen when
+            // both sections sit at cap.
+            val chrome = 64.dp
+            val available = (totalH - chrome).coerceAtLeast(0.dp)
+            val promptCap = if (promptExpanded) available / 3 else 0.dp
+            val responseCap = if (promptExpanded) available * 2 / 3 else available
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (promptExpanded) {
+                    if (languages.size <= 1) {
+                        PromptCard(
+                            report = report, languageIcon = null, promptOverride = null,
+                            onCollapse = { promptExpanded = false },
+                            modifier = Modifier.fillMaxWidth()
+                                .heightIn(max = promptCap)
+                                .wrapContentHeight()
+                        )
+                    } else {
+                        com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+                            pagerState = langPagerState,
+                            noMoreLabel = "No more translations",
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            HorizontalPager(
+                                state = langPagerState,
+                                modifier = Modifier.fillMaxWidth()
+                                    .heightIn(max = promptCap)
+                                    .wrapContentHeight()
+                            ) { page ->
+                                val lang = languages[page.coerceIn(0, languages.size - 1)]
+                                val flag = when {
+                                    lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
+                                    else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
+                                }
+                                val promptOverride = if (lang.isBlank()) null
+                                    else loaded.translatedPromptByLang[lang]?.takeIf { it.isNotBlank() }
+                                PromptCard(
+                                    report = report, languageIcon = flag, promptOverride = promptOverride,
+                                    onCollapse = { promptExpanded = false },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    CollapsedPromptRow(
+                        report = report,
+                        preview = resolvedActivePrompt,
+                        onExpand = { promptExpanded = true }
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                val activeProvider = activeAgent?.let { com.ai.data.AppService.findById(it.provider) }
+                val activeModelId = activeAgent?.model.orEmpty()
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = activeAgent?.let { shortModelName(it.model) }.orEmpty(),
+                        color = AppColors.Green,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                            .modelInfoViewClickable(activeProvider, activeModelId)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "${pagerState.currentPage + 1} / ${agents.size}",
+                        color = AppColors.TextTertiary, fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
                 com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
-                    pagerState = langPagerState,
-                    noMoreLabel = "No more translations",
-                    modifier = Modifier.fillMaxWidth().weight(1f)
+                    pagerState = pagerState,
+                    noMoreLabel = "No more models",
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     HorizontalPager(
-                        state = langPagerState,
-                        modifier = Modifier.fillMaxSize()
+                        state = pagerState,
+                        modifier = Modifier.fillMaxWidth()
+                            .heightIn(max = responseCap)
+                            .wrapContentHeight()
                     ) { page ->
-                        val lang = languages[page.coerceIn(0, languages.size - 1)]
-                        val flag = when {
-                            lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
-                            else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
-                        }
-                        // Per-page prompt text. Non-Original pages prefer the
-                        // matching TRANSLATE row (translateSourceKind=PROMPT,
-                        // targetLanguage=lang); fall back to report.prompt if
-                        // no translation row exists yet. Re-derived inside the
-                        // lambda so off-screen pre-rendered pages bind to the
-                        // correct page's content, not the active page's.
-                        val promptOverride = if (lang.isBlank()) null
-                            else loaded.translatedPromptByLang[lang]?.takeIf { it.isNotBlank() }
-                        PromptCard(
-                            report = report, languageIcon = flag, promptOverride = promptOverride,
-                            onCollapse = { promptExpanded = false },
-                            modifier = Modifier.fillMaxSize()
+                        val agent = agents[page]
+                        AgentResponseCard(
+                            agent = agent,
+                            overrideBody = translatedByAgentId[agent.agentId]
                         )
                     }
                 }
-            }
-        } else {
-            CollapsedPromptRow(
-                report = report,
-                preview = resolvedActivePrompt,
-                onExpand = { promptExpanded = true }
-            )
-        }
-        // Combined response header — green model name left, X / Y
-        // counter right, both on the same row. Tap on the model
-        // name → View Model Info for this (provider, model).
-        Spacer(modifier = Modifier.height(12.dp))
-        val activeProvider = activeAgent?.let { com.ai.data.AppService.findById(it.provider) }
-        val activeModelId = activeAgent?.model.orEmpty()
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = activeAgent?.let { shortModelName(it.model) }.orEmpty(),
-                color = AppColors.Green,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-                    .modelInfoViewClickable(activeProvider, activeModelId)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "${pagerState.currentPage + 1} / ${agents.size}",
-                color = AppColors.TextTertiary, fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-        com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
-            pagerState = pagerState,
-            noMoreLabel = "No more models",
-            // When the prompt card is expanded the prompt pager
-            // claims weight 1f above — give the response pager
-            // weight 2f for the 1/3 / 2/3 split. When the prompt is
-            // collapsed only this pager has a weight, so it fills
-            // the freed space automatically.
-            modifier = Modifier.fillMaxWidth().weight(2f)
-        ) {
-            HorizontalPager(
-                state = pagerState,
-                modifier = Modifier.fillMaxSize()
-            ) { page ->
-                val agent = agents[page]
-                AgentResponseCard(
-                    agent = agent,
-                    overrideBody = translatedByAgentId[agent.agentId]
-                )
             }
         }
     }
@@ -400,15 +412,16 @@ private fun PromptCard(
     val bodyText = promptOverride ?: report.prompt
     Box(
         modifier = modifier
+            .wrapContentHeight()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, AppColors.Purple.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
     ) {
         // verticalScroll on the body so a long prompt scrolls
-        // inside the card's weight(1f) allocation instead of
-        // pushing the response section off the bottom.
+        // inside the card's height cap instead of pushing the
+        // response section off the bottom.
         Column(
-            modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 6.dp)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 6.dp)
                 .verticalScroll(rememberScrollState())
         ) {
             // Transparent oversized glyph — no background tint, no Box
@@ -472,6 +485,7 @@ private fun AgentResponseCard(
     // overflows the pager's remaining slot.
     Column(
         modifier = Modifier.fillMaxWidth()
+            .wrapContentHeight()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, AppColors.Blue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
