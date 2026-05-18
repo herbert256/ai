@@ -825,7 +825,12 @@ internal fun ViewAiReportScreen(
             IdentifiedTile(
                 id = "meta:${item.label}:$rowId",
                 tile = ViewTile(
-                    label = item.label,
+                    // Two-line tile matches the Fan-out / Fan-in
+                    // pattern: literal "meta" on the main line,
+                    // internal-prompt name on the smaller second
+                    // line.
+                    label = "meta",
+                    sublabel = item.label,
                     emoji = promptEmoji ?: "🧠",
                     accent = AppColors.Purple,
                     enabled = metaEnabled,
