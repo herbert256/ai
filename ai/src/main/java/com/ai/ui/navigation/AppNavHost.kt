@@ -764,49 +764,69 @@ fun AppNavHost(
                 val orKey = uiState.generalSettings.openRouterApiKey.ifBlank {
                     AppService.entries.firstOrNull { it.crossProviderModelList }?.let { uiState.aiSettings.getApiKey(it) } ?: ""
                 }
-                com.ai.ui.models.ModelInfoViewScreen(
-                    provider = provider,
-                    modelName = model,
-                    openRouterApiKey = orKey,
-                    huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
-                    aiSettings = uiState.aiSettings,
-                    repository = appViewModel.repository,
-                    onOpenReport = { rid ->
-                        scope.launch {
-                            reportViewModel.restoreCompletedReport(context, rid)
-                            navController.navigate(NavRoutes.AI_REPORTS)
-                        }
-                    },
-                    onBack = safePopBack
-                )
+                ViewSubScreenWithTitleNav(
+                    navController = navController,
+                    currentReportId = uiState.currentReportId
+                ) {
+                    com.ai.ui.models.ModelInfoViewScreen(
+                        provider = provider,
+                        modelName = model,
+                        openRouterApiKey = orKey,
+                        huggingFaceApiKey = uiState.generalSettings.huggingFaceApiKey,
+                        aiSettings = uiState.aiSettings,
+                        repository = appViewModel.repository,
+                        onOpenReport = { rid ->
+                            scope.launch {
+                                reportViewModel.restoreCompletedReport(context, rid)
+                                navController.navigate(NavRoutes.AI_REPORTS)
+                            }
+                        },
+                        onBack = safePopBack
+                    )
+                }
             }
         }
         composable(NavRoutes.AI_AGENT_VIEW) { entry ->
             val agentId = entry.arguments?.getString("agentId") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
-            com.ai.ui.settings.AgentViewScreen(
-                agentId = agentId,
-                aiSettings = uiState.aiSettings,
-                onBack = safePopBack
-            )
+            ViewSubScreenWithTitleNav(
+                navController = navController,
+                currentReportId = uiState.currentReportId
+            ) {
+                com.ai.ui.settings.AgentViewScreen(
+                    agentId = agentId,
+                    aiSettings = uiState.aiSettings,
+                    onBack = safePopBack
+                )
+            }
         }
         composable(NavRoutes.AI_FLOCK_VIEW) { entry ->
             val flockId = entry.arguments?.getString("flockId") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
-            com.ai.ui.settings.FlockViewScreen(
-                flockId = flockId,
-                aiSettings = uiState.aiSettings,
-                onBack = safePopBack
-            )
+            ViewSubScreenWithTitleNav(
+                navController = navController,
+                currentReportId = uiState.currentReportId
+            ) {
+                com.ai.ui.settings.FlockViewScreen(
+                    flockId = flockId,
+                    aiSettings = uiState.aiSettings,
+                    onBack = safePopBack
+                )
+            }
         }
         composable(NavRoutes.AI_SWARM_VIEW) { entry ->
             val swarmId = entry.arguments?.getString("swarmId") ?: ""
             val uiState by appViewModel.uiState.collectAsState()
-            com.ai.ui.settings.SwarmViewScreen(
-                swarmId = swarmId,
-                aiSettings = uiState.aiSettings,
-                onBack = safePopBack
-            )
+            ViewSubScreenWithTitleNav(
+                navController = navController,
+                currentReportId = uiState.currentReportId
+            ) {
+                com.ai.ui.settings.SwarmViewScreen(
+                    swarmId = swarmId,
+                    aiSettings = uiState.aiSettings,
+                    onBack = safePopBack
+                )
+            }
         }
         composable(NavRoutes.AI_MANUAL_OVERRIDE_ADD) { entry ->
             val providerId = entry.arguments?.getString("provider") ?: ""
@@ -1756,4 +1776,38 @@ private suspend fun readReportAgentResponse(
     val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return@withContext null
     val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withContext null
     agent.responseBody?.takeIf { it.isNotBlank() }
+}
+
+/** Wraps the four standalone Jetpack-Nav View screens
+ *  (ModelInfoView / AgentView / FlockView / SwarmView) in a
+ *  CompositionLocalProvider that exposes a "navigate to main View
+ *  of the active report" callback via [LocalNavigateToCurrentReport].
+ *  ViewScreenTitleBar reads that local to decide whether the report
+ *  title is clickable + where it goes. When there's no active
+ *  report ([currentReportId] is null) the local resolves to null
+ *  and the title stays inert — matching the existing rule on Help
+ *  pages and other no-report-context screens. */
+@androidx.compose.runtime.Composable
+private fun ViewSubScreenWithTitleNav(
+    navController: androidx.navigation.NavHostController,
+    currentReportId: String?,
+    content: @androidx.compose.runtime.Composable () -> Unit
+) {
+    val navToActiveView: (() -> Unit)? = currentReportId?.let {
+        {
+            // Pop back to the existing AI_REPORTS route if it's
+            // already on the stack — preserves the user's mode +
+            // overlay state. Otherwise navigate fresh with
+            // initialView=true so ReportsScreenNav seeds the View
+            // tile-grid overlay on first composition.
+            if (!navController.popBackStack(NavRoutes.AI_REPORTS, false)) {
+                navController.navigate(NavRoutes.aiReportView())
+            }
+        }
+    }
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.ai.ui.shared.LocalNavigateToCurrentReport provides navToActiveView
+    ) {
+        content()
+    }
 }
