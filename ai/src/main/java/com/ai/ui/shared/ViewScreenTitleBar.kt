@@ -63,7 +63,14 @@ fun ViewScreenTitleBar(
     screenTitle: String?,
     subject: String?,
     helpTopic: String,
-    @Suppress("UNUSED_PARAMETER") onBack: () -> Unit
+    @Suppress("UNUSED_PARAMETER") onBack: () -> Unit,
+    /** Whether this title bar should request the Android status bar
+     *  be hidden while mounted. Default true for the sub-View
+     *  family (Costs / Meta / Rerank / etc. — content-only screens
+     *  where extra vertical space matters). The Main View tile grid
+     *  passes false so the system clock stays visible on the screen
+     *  the user dwells on. */
+    hideStatusBar: Boolean = true
 ) {
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
@@ -96,7 +103,7 @@ fun ViewScreenTitleBar(
     // screen leaves. MainActivity reads the counter (combined with
     // the user's Full screen setting) to drive the actual hide.
     val statusBarHideCount = com.ai.ui.shared.LocalStatusBarHideCount.current
-    if (statusBarHideCount != null) {
+    if (hideStatusBar && statusBarHideCount != null) {
         androidx.compose.runtime.DisposableEffect(Unit) {
             statusBarHideCount.value = statusBarHideCount.value + 1
             onDispose { statusBarHideCount.value = statusBarHideCount.value - 1 }

@@ -553,10 +553,18 @@ fun AppNavHost(
             // Local so [ReportRunScreen]'s Edit Row 2 "System prompt"
             // dialog can fire it without adding another arg to
             // [ReportsScreen]'s 60+ param signature.
+            val translationRunsForLocal by reportViewModel.translationRuns.collectAsState()
+            val activeTranslationReportIds = remember(translationRunsForLocal) {
+                translationRunsForLocal.values
+                    .filter { !it.isFinished && !it.cancelled }
+                    .map { it.sourceReportId }
+                    .toSet()
+            }
             CompositionLocalProvider(
                 com.ai.ui.shared.LocalSystemPromptChange provides { id ->
                     appViewModel.setReportSystemPromptId(id)
-                }
+                },
+                com.ai.ui.shared.LocalActiveTranslationReportIds provides activeTranslationReportIds
             ) {
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
                 initialView = initialView,

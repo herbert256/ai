@@ -278,12 +278,7 @@ internal fun computeHomeReportLists(
         .filter { !it.isFinished && !it.cancelled }
         .map { it.sourceReportId }
         .toSet()
-    val running = all.filter { r ->
-        (r.completedAt == null && r.agents.any {
-            it.reportStatus == ReportStatus.PENDING ||
-                it.reportStatus == ReportStatus.RUNNING
-        }) || r.id in activeTranslationReportIds
-    }
+    val running = all.filter { reportIsRunning(it, activeTranslationReportIds) }
     val runningIds = running.map { it.id }.toSet()
     val problems = all.filter { r ->
         // Skip reports that are already showing in the Running card
@@ -292,18 +287,42 @@ internal fun computeHomeReportLists(
         // "problems". When the running state clears, any persistent
         // red cross resurfaces here on the next 5 s tick.
         if (r.id in runningIds) return@filter false
-        if (r.agents.any { it.reportStatus == ReportStatus.ERROR }) return@filter true
-        val secs = SecondaryResultStorage.listForReport(context, r.id)
-        secs.any { sec ->
-            val hasError = sec.errorMessage != null &&
-                !(sec.kind == SecondaryKind.TRANSLATE &&
-                    ModelCooldownStore.isUnavailable(sec.providerId, sec.model))
-            val stuckPlaceholder = sec.content.isNullOrBlank() &&
-                sec.errorMessage == null && sec.durationMs == null
-            hasError || stuckPlaceholder
-        }
+        reportHasProblems(r, SecondaryResultStorage.listForReport(context, r.id))
     }
     return HomeReportLists(running, problems)
+}
+
+/** True when [report] is still actively producing output — at
+ *  least one PENDING / RUNNING agent on a not-yet-completed report,
+ *  OR an in-flight translation run targeting this report id. Shared
+ *  by the AI Reports hub's "Running" card and the Main View screen's
+ *  bottom-of-screen "Report still running" notice. */
+fun reportIsRunning(
+    report: Report,
+    activeTranslationReportIds: Set<String>
+): Boolean = (report.completedAt == null && report.agents.any {
+    it.reportStatus == ReportStatus.PENDING ||
+        it.reportStatus == ReportStatus.RUNNING
+}) || report.id in activeTranslationReportIds
+
+/** True when [report] has at least one persisted problem — an
+ *  ERROR agent, an errored secondary (excluding TRANSLATE rows
+ *  whose model is cooled down), or a stuck-placeholder secondary
+ *  (no content, no error, no duration). Mirrors the predicate the
+ *  AI Reports hub's "Problems" card uses. */
+fun reportHasProblems(
+    report: Report,
+    secondaries: List<com.ai.data.SecondaryResult>
+): Boolean {
+    if (report.agents.any { it.reportStatus == ReportStatus.ERROR }) return true
+    return secondaries.any { sec ->
+        val hasError = sec.errorMessage != null &&
+            !(sec.kind == SecondaryKind.TRANSLATE &&
+                ModelCooldownStore.isUnavailable(sec.providerId, sec.model))
+        val stuckPlaceholder = sec.content.isNullOrBlank() &&
+            sec.errorMessage == null && sec.durationMs == null
+        hasError || stuckPlaceholder
+    }
 }
 
 @Composable

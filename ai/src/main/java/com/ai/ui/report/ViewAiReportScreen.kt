@@ -339,6 +339,50 @@ internal fun ViewAiReportScreen(
     val translates = translatesState.value.list
     val loadedReport = translatesState.value.report
     val originalLanguageIcon = loadedReport?.languageIcon
+
+    // All secondaries on this report — separate from [translatesState]
+    // because the "Report has problems" notice at the bottom of the
+    // screen needs to scan every kind for stuck placeholders /
+    // non-cooldown errors, not just TRANSLATE rows. Refreshed every
+    // 5 s on the same cadence the AI Reports hub's Problems card uses
+    // so a fresh disk-side red cross surfaces without leaving the
+    // screen.
+    val problemsTick by androidx.compose.runtime.produceState(initialValue = 0) {
+        while (true) {
+            kotlinx.coroutines.delay(5_000L)
+            value = value + 1
+        }
+    }
+    val allSecondaries by androidx.compose.runtime.produceState(
+        initialValue = emptyList<com.ai.data.SecondaryResult>(),
+        reportId, problemsTick
+    ) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.ai.data.SecondaryResultStorage.listForReport(viewPrefsCtx, reportId)
+        }
+    }
+    // Re-load the Report itself on the same tick so PENDING / RUNNING
+    // → SUCCESS transitions land while the user is still on the View
+    // screen. translatesState only re-loads on [reportId] which
+    // doesn't change while the report runs.
+    val tickedReport by androidx.compose.runtime.produceState<com.ai.data.Report?>(
+        initialValue = null, reportId, problemsTick
+    ) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.ai.data.ReportStorage.getReport(viewPrefsCtx, reportId)
+        }
+    }
+    val statusReport = tickedReport ?: loadedReport
+    val activeTranslationIds = com.ai.ui.shared.LocalActiveTranslationReportIds.current
+    val isReportRunning = statusReport?.let {
+        com.ai.ui.hub.reportIsRunning(it, activeTranslationIds)
+    } == true
+    val reportHasProblemsNow = statusReport?.let {
+        // Mirror the hub's rule: Problems is hidden while Running is
+        // showing for the same report. Avoids a doubled-up notice
+        // when a retry is in flight against a stale red cross.
+        !isReportRunning && com.ai.ui.hub.reportHasProblems(it, allSecondaries)
+    } == true
     // The report's detected source-language display name (e.g.
     // "English"). TRANSLATE rows tagged with this language are
     // back-translations TO Original — they fold into the Original
@@ -849,7 +893,13 @@ internal fun ViewAiReportScreen(
             swipeStatus = null
         }
     }
-    Column(
+    // Box wraps the whole screen so the transient swipe pill (top)
+    // AND the persistent "still running" / "has problems" notices
+    // (bottom) can float on top of the tile grid without taking
+    // layout space from it. Previously the swipe pill was inline
+    // inside the Column and shifted every tile down 30 dp the moment
+    // it appeared — the user reported "the cards are moving".
+    Box(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             .pointerInput(swipeNav) {
                 detectHorizontalDragGestures(
@@ -875,6 +925,9 @@ internal fun ViewAiReportScreen(
                     onHorizontalDrag = { _, dx -> swipeDragX += dx }
                 )
             }
+    ) {
+    Column(
+        modifier = Modifier.fillMaxSize()
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewScreenTitleBar(
@@ -885,34 +938,12 @@ internal fun ViewAiReportScreen(
             screenTitle = null,
             subject = null,
             helpTopic = "view_ai_report",
+            // Main View tile grid keeps the Android status bar
+            // visible — the user dwells here longer than any sub-View
+            // and asked for the system clock to stay on screen.
+            hideStatusBar = false,
             onBack = onBack
         )
-
-        // Transient swipe status — shows "Loading report" when the
-        // user swipes onto a real neighbour and "No more reports"
-        // when they swipe past an edge. Auto-dismissed after ~1 s
-        // by the LaunchedEffect above. Renders an empty Spacer when
-        // null so the rest of the layout doesn't jump as the
-        // message appears / disappears.
-        val currentStatus = swipeStatus
-        if (currentStatus != null) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = currentStatus,
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
-                        .border(1.dp, AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                )
-            }
-        }
 
         // One picker for the whole View screen; tile clicks below
         // forward the active language to the opened sub-screen.
@@ -1022,6 +1053,59 @@ internal fun ViewAiReportScreen(
             Spacer(modifier = Modifier.height(12.dp))
         }
     }
+
+    // Floating top-center pill — transient swipe status. Anchored
+    // to the Box's TopCenter so the tile grid below it never
+    // shifts when the pill appears / disappears (the previous
+    // inline placement bumped every tile down ~30 dp). Cleared
+    // automatically by the LaunchedEffect(statusTick) above.
+    val currentStatus = swipeStatus
+    if (currentStatus != null) {
+        Text(
+            text = currentStatus,
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 8.dp)
+                .clip(RoundedCornerShape(20.dp))
+                .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
+                .border(1.dp, AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+                .padding(horizontal = 16.dp, vertical = 6.dp)
+        )
+    }
+
+    // Floating bottom-center notices — persistent indicator that
+    // the report is still running and / or has at least one
+    // recorded problem. Predicates reuse the AI Reports hub's
+    // [com.ai.ui.hub.reportIsRunning] / [reportHasProblems] so
+    // the View screen and the hub's top two cards stay in sync.
+    if (isReportRunning || reportHasProblemsNow) {
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (isReportRunning) {
+                ViewStatusNotice(
+                    icon = "⏳",
+                    text = "Report is still running",
+                    accent = AppColors.Blue
+                )
+            }
+            if (reportHasProblemsNow) {
+                ViewStatusNotice(
+                    icon = "⚠️",
+                    text = "Report has problems",
+                    accent = AppColors.Red
+                )
+            }
+        }
+    }
+    } // close outer Box (pointerInput / overlay container)
 
     // "Language missing" popup — listed sources are languages this
     // tile DOES have content in. Picking one fires the translation
@@ -1455,6 +1539,32 @@ private fun ExpandedKindCard(
                 }
             }
         }
+    }
+}
+
+/** Persistent bottom-of-screen badge used on the Main View screen
+ *  to mirror the AI Reports hub's "Running" / "Problems" top cards
+ *  for the currently-viewed report. Rendered inside the Main View
+ *  Box so it floats over the tile grid without consuming layout
+ *  space. */
+@Composable
+private fun ViewStatusNotice(icon: String, text: String, accent: Color) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
+            .border(1.dp, accent.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+            .padding(horizontal = 14.dp, vertical = 6.dp)
+    ) {
+        Text(text = icon, fontSize = 14.sp)
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = text,
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold
+        )
     }
 }
 

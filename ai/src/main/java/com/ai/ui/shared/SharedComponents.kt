@@ -228,6 +228,14 @@ val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
  *  default — call sites guard against unprovided. */
 val LocalStatusBarHideCount = compositionLocalOf<MutableState<Int>?> { null }
 
+/** Ids of reports whose translation runs are currently in-flight
+ *  (not yet finished and not cancelled). Provided at the AI_REPORTS
+ *  composable root so descendants — currently the Main View screen's
+ *  bottom-anchored "still running" notice — can match the same
+ *  in-flight criterion the AI Reports hub uses without re-collecting
+ *  the StateFlow themselves. Default empty (no-op). */
+val LocalActiveTranslationReportIds = compositionLocalOf<Set<String>> { emptySet() }
+
 /** Set on every screen that's "deeper" than the AI Report Result
  *  page (overlay screens inside the result page — Edit Prompt /
  *  Title / Models / Parameters / Export / Translation Compare /
