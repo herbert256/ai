@@ -102,25 +102,16 @@ fun PromptViewScreen(
     val loaded = loadedState.value
     val report = loaded.report
 
-    // Wrap-around: virtual large page count, modular index against
-    // [languages]. Start mid-way so swiping back from page 0 still
-    // works.
-    val virtualCount = if (languages.isEmpty()) 1 else Int.MAX_VALUE
+    // Non-wrapping pager — one page per language, swipe past the
+    // first / last stops dead. Earlier shape used Int.MAX_VALUE +
+    // modular wrap so swipes ticker-tape forever; the user found
+    // that disorienting on a small set of languages.
+    val pageCount = languages.size.coerceAtLeast(1)
     val pagerState = rememberPagerState(
-        initialPage = if (languages.size <= 1) 0
-                      else (virtualCount / 2) - ((virtualCount / 2) % languages.size) + initialIndex
-    ) { virtualCount }
+        initialPage = initialIndex.coerceIn(0, pageCount - 1)
+    ) { pageCount }
     val currentLanguage = if (languages.isEmpty()) ""
-        else languages[((pagerState.currentPage % languages.size) + languages.size) % languages.size]
-    // Subject = the language's emoji icon (source-language icon for
-    // Original, cached translation icon for translated pages). Hidden
-    // entirely (null) when the report has no translations — a single-
-    // language report doesn't need a per-page indicator.
-    val subject = when {
-        languages.size <= 1 -> null
-        currentLanguage.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() }
-        else -> com.ai.data.InternalPromptIconCache.get("translation_icon", currentLanguage)
-    }
+        else languages[pagerState.currentPage.coerceIn(0, languages.size - 1)]
 
     // Android back returns to the parent View screen AND tells it
     // which language ended up active here, so the parent's picker
@@ -136,7 +127,10 @@ fun PromptViewScreen(
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Prompt",
-            subject = subject,
+            // Language flag moved to the top-right of the prompt card
+            // (see PromptPageCard). Leaving the title bar's subject
+            // slot null keeps the bar uncluttered.
+            subject = null,
             helpTopic = "prompt_view_screen",
             onBack = { onBack(activeLangState.value.ifBlank { null }) },
             onLogoClick = { onBack(activeLangState.value.ifBlank { null }) }
@@ -153,23 +147,36 @@ fun PromptViewScreen(
         HorizontalPager(
             state = pagerState,
             modifier = Modifier.fillMaxSize()
-        ) { virtualPage ->
+        ) { page ->
             val lang = if (languages.isEmpty()) ""
-                else languages[((virtualPage % languages.size) + languages.size) % languages.size]
+                else languages[page.coerceIn(0, languages.size - 1)]
             val body = if (lang.isBlank()) report.prompt.orEmpty()
                 else loaded.translatedByLang[lang].orEmpty().ifBlank { report.prompt.orEmpty() }
-            PromptPageCard(body = body, reportIcon = report.icon)
+            // Pass the per-page language icon so each card carries its
+            // own indicator — re-derived inside the lambda so the
+            // off-screen pre-rendered pages show the right flag too,
+            // not the currently-active page's flag.
+            val perPageIcon = when {
+                languages.size <= 1 -> null
+                lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
+                else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
+            }
+            PromptPageCard(
+                body = body,
+                reportIcon = report.icon,
+                languageIcon = perPageIcon
+            )
         }
     }
 }
 
 @Composable
-private fun PromptPageCard(body: String, reportIcon: String?) {
+private fun PromptPageCard(body: String, reportIcon: String?, languageIcon: String?) {
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())
     ) {
         Spacer(modifier = Modifier.height(4.dp))
-        Column(
+        Box(
             modifier = Modifier.fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
                 .background(
@@ -181,27 +188,42 @@ private fun PromptPageCard(body: String, reportIcon: String?) {
                     )
                 )
                 .border(1.dp, AppColors.Purple.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
-                .padding(horizontal = 18.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // The icon strip above the body keeps the report's own
-            // emoji so the page still feels anchored to its report
-            // even after the previous header row was removed.
-            if (!reportIcon.isNullOrBlank()) {
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text(text = reportIcon, fontSize = 26.sp)
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Report icon strip — bigger now so the page reads as
+                // its report at a glance instead of needing a squint.
+                if (!reportIcon.isNullOrBlank()) {
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(text = reportIcon, fontSize = 56.sp)
+                    }
+                }
+                if (body.isBlank()) {
+                    Text(
+                        text = "(no prompt recorded)",
+                        color = AppColors.TextTertiary, fontSize = 14.sp
+                    )
+                } else {
+                    // Body via the shared markdown pipeline so the
+                    // prompt's own formatting (fences, tables, lists)
+                    // renders properly.
+                    ContentWithThinkSections(analysis = body)
                 }
             }
-            if (body.isBlank()) {
+            // Language flag overlay in the top-right corner of the
+            // card — replaces the old title-bar subject. Only shown
+            // when the report carries multiple languages (otherwise
+            // there's nothing meaningful to indicate).
+            if (!languageIcon.isNullOrBlank()) {
                 Text(
-                    text = "(no prompt recorded)",
-                    color = AppColors.TextTertiary, fontSize = 14.sp
+                    text = languageIcon,
+                    fontSize = 28.sp,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 6.dp, end = 10.dp)
                 )
-            } else {
-                // Body via the shared markdown pipeline so the
-                // prompt's own formatting (fences, tables, lists)
-                // renders properly.
-                ContentWithThinkSections(analysis = body)
             }
         }
         Spacer(modifier = Modifier.height(24.dp))
