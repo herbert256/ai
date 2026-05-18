@@ -183,10 +183,10 @@ fun FanOutViewScreen(
             providerService = activeInitiator?.let { com.ai.data.AppService.findById(it.provider) },
             modelId = activeInitiator?.model.orEmpty()
         )
-        // Live icon from the report-overlay parent — picks up a
-        // fresh icon-gen completion without waiting for a remount.
-        val liveReportIcon = com.ai.ui.shared.LocalReportIcon.current?.takeIf { it.isNotBlank() }
-            ?: report.icon
+        // Per-card icon = the specific agent's icon. Initiator pages
+        // use the initiator's agent.icon; responder pages further
+        // down use the responder's matching report-agent.icon.
+        // Falls back to 🤖 while the per-agent icon-gen is pending.
         HorizontalPager(
             state = initiatorPagerState,
             modifier = Modifier.fillMaxWidth().weight(1f, fill = false)
@@ -197,7 +197,7 @@ fun FanOutViewScreen(
                 ?.responseBody?.takeIf { !it.isNullOrBlank() }
                 ?: "(initiator response no longer available)"
             FanOutBodyCard(
-                reportIcon = liveReportIcon,
+                reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
                 body = body,
                 borderColor = AppColors.Purple.copy(alpha = 0.35f)
             )
@@ -235,8 +235,14 @@ fun FanOutViewScreen(
                     }?.content?.takeIf { it.isNotBlank() }
                 } else null
                 val body = translated ?: pair.content.orEmpty()
+                // Responder icon = the matching report-agent's icon
+                // (lookup by provider + model). Falls back to 🤖
+                // when no report-agent matches (e.g. cross-fan-out).
+                val responderAgent = report.agents.firstOrNull {
+                    it.provider == pair.providerId && it.model == pair.model
+                }
                 FanOutBodyCard(
-                    reportIcon = liveReportIcon,
+                    reportIcon = responderAgent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
                     body = body,
                     borderColor = AppColors.Blue.copy(alpha = 0.35f)
                 )
