@@ -39,6 +39,7 @@ import com.ai.ui.shared.restartApp
 import com.ai.ui.shared.csvField
 import com.ai.ui.shared.exportTimestamp
 import com.ai.ui.shared.parseCsvRow
+import com.ai.ui.shared.shareExport
 import com.ai.ui.shared.shareExportText
 import com.ai.viewmodel.GeneralSettings
 import com.ai.viewmodel.ModelNameLayout
@@ -46,6 +47,9 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.gson.JsonSyntaxException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 // Drop-in shape for assets/prompts.json — no id field (the seed
 // loader assigns fresh UUIDs on read). Used by both the standalone
@@ -612,6 +616,10 @@ fun ImportExportScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    // Scope for the AI Reports zip flows (export staging + import
+    // re-key). Other import branches are tiny sync JSON reads;
+    // these zip paths do enough disk work to deserve Dispatchers.IO.
+    val scope = rememberCoroutineScope()
 
     var importType by remember { mutableStateOf("keys") }
     // Set once an "Import all" finishes successfully — the in-memory
@@ -653,6 +661,35 @@ fun ImportExportScreen(
         val count = JsonParser.parseString(json).asJsonObject.size()
         shareExportText(context, "ai_keys-${exportTimestamp()}.json", "application/json", "Share API keys", json)
         Toast.makeText(context, "$count API keys ready to share", Toast.LENGTH_SHORT).show()
+    }
+
+    fun exportAiReport(reportId: String) {
+        // Off-thread: ReportStorage.getReport + the whole zip
+        // (report JSON + every secondary + every trace) is enough
+        // disk work to warrant Dispatchers.IO. shareExport itself
+        // stages atomically into cacheDir/exports and fires the
+        // share-chooser intent — same path BackupRestore uses.
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    val report = ReportStorage.getReport(context, reportId)
+                        ?: error("Report not found")
+                    val tsLabel = exportTimestamp()
+                    val safeTitle = report.title.replace(Regex("[^A-Za-z0-9._-]+"), "_")
+                        .take(40).ifBlank { "report" }
+                    com.ai.ui.shared.shareExport(
+                        context = context,
+                        fileName = "ai_report_${safeTitle}_$tsLabel.zip",
+                        mimeType = "application/zip",
+                        chooserTitle = "Share AI Report"
+                    ) { out -> com.ai.data.writeReportZip(context, reportId, out) }
+                }
+            }
+            result.fold(
+                onSuccess = { Toast.makeText(context, "AI Report ready to share", Toast.LENGTH_SHORT).show() },
+                onFailure = { Toast.makeText(context, "Export failed: ${it.message}", Toast.LENGTH_LONG).show() }
+            )
+        }
     }
 
     fun exportProvidersJson() {
@@ -893,6 +930,33 @@ fun ImportExportScreen(
     val importFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
         when (importType) {
+            "ai_report" -> {
+                // Per-report zip: re-key everything onto a fresh
+                // UUID + fresh trace filenames so re-importing the
+                // same zip never clobbers existing data. Off-thread
+                // via scope.launch (zip read + multiple disk
+                // writes for secondaries / traces).
+                scope.launch {
+                    val result = withContext(Dispatchers.IO) {
+                        runCatching {
+                            context.contentResolver.openInputStream(uri)?.use { input ->
+                                com.ai.data.readReportZip(context, input)
+                            } ?: error("Could not open input stream")
+                        }
+                    }
+                    result.fold(
+                        onSuccess = { s ->
+                            Toast.makeText(context,
+                                "Imported AI Report \"${s.title}\" (${s.secondaryCount} secondaries, ${s.traceCount} traces)",
+                                Toast.LENGTH_LONG).show()
+                        },
+                        onFailure = {
+                            AppLog.e("ImportExport", "AI Report import error", it)
+                            Toast.makeText(context, "Import failed: ${it.message}", Toast.LENGTH_LONG).show()
+                        }
+                    )
+                }
+            }
             "keys" -> {
                 val json = readFromUri(uri)
                 if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
@@ -1424,6 +1488,77 @@ fun ImportExportScreen(
                     OutlinedButton(onClick = {
                         importType = "keys"; importFileLauncher.launch(arrayOf("application/json", "text/*"))
                     }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) { Text("Import", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                }
+            }
+
+            // AI Reports: ship a single report between installs as a
+            // zip carrying report.json + every linked SecondaryResult
+            // + every linked trace. Import always lands as a new
+            // report (fresh UUID, re-keyed secondaries + trace
+            // filenames) so re-importing the same zip never clobbers.
+            ControlledCollapsibleCard(
+                title = "AI Reports",
+                expanded = openCard == "ai_reports",
+                onToggle = { toggle("ai_reports") }
+            ) {
+                val allReports by produceState(initialValue = emptyList<Report>()) {
+                    value = withContext(Dispatchers.IO) { ReportStorage.getAllReports(context) }
+                }
+                var selectedReportId by rememberSaveable { mutableStateOf<String?>(null) }
+                var pickerOpen by remember { mutableStateOf(false) }
+                Column {
+                    // Full-width OutlinedButton acts as a dropdown
+                    // trigger; tapping opens a DropdownMenu listing
+                    // every persisted report by title. Selected
+                    // title shows in the button label.
+                    Box {
+                        OutlinedButton(
+                            onClick = { pickerOpen = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = AppColors.outlinedButtonColors()
+                        ) {
+                            val selected = allReports.firstOrNull { it.id == selectedReportId }
+                            Text(
+                                text = selected?.title?.ifBlank { "(untitled)" } ?: "Pick a report…",
+                                fontSize = 12.sp, maxLines = 1, softWrap = false
+                            )
+                        }
+                        DropdownMenu(expanded = pickerOpen, onDismissRequest = { pickerOpen = false }) {
+                            if (allReports.isEmpty()) {
+                                DropdownMenuItem(
+                                    text = { Text("(no reports on this device)", fontSize = 12.sp) },
+                                    onClick = { pickerOpen = false },
+                                    enabled = false
+                                )
+                            } else {
+                                allReports.forEach { r ->
+                                    DropdownMenuItem(
+                                        text = { Text(r.title.ifBlank { "(untitled)" }, fontSize = 12.sp, maxLines = 1) },
+                                        onClick = { selectedReportId = r.id; pickerOpen = false }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (!importOnly) {
+                            OutlinedButton(
+                                onClick = { selectedReportId?.let { exportAiReport(it) } },
+                                enabled = selectedReportId != null,
+                                modifier = Modifier.weight(1f),
+                                colors = AppColors.outlinedButtonColors()
+                            ) { Text("Export", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                        }
+                        OutlinedButton(
+                            onClick = {
+                                importType = "ai_report"
+                                importFileLauncher.launch(arrayOf("application/zip", "application/octet-stream"))
+                            },
+                            modifier = Modifier.weight(1f),
+                            colors = AppColors.outlinedButtonColors()
+                        ) { Text("Import", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    }
                 }
             }
 
