@@ -215,6 +215,25 @@ val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
  *  surface the function to nested screens. Default no-op. */
 val LocalSystemPromptChange = compositionLocalOf<(String?) -> Unit> { {} }
 
+/** Prev / next callbacks for the chronologically surrounding reports
+ *  on disk. Provided by [ReportsScreenNav] (it builds the lambdas
+ *  alongside the same callbacks ReportsScreen uses for its < / >
+ *  chevrons) so descendants — currently the View tile grid's
+ *  horizontal-swipe handler — can fire them without threading two
+ *  more args through ReportsScreen → ReportPrimaryOverlays →
+ *  ViewAiReportScreen. Null when there's no surrounding context
+ *  (default), or when the caller doesn't supply the lambdas. */
+data class ReportNeighborNav(
+    /** Chronologically previous = older report. No-op when there
+     *  isn't one. */
+    val onPrev: () -> Unit,
+    /** Chronologically next = newer report. No-op when there
+     *  isn't one. */
+    val onNext: () -> Unit
+)
+
+val LocalReportNeighborNav = compositionLocalOf<ReportNeighborNav?> { null }
+
 /** Per-row 🔧 / 👁 callbacks surfaced to nested report-list
  *  pickers (the +Report previous-report picker on the report
  *  screen) and the first-composition seed for the View tile-grid

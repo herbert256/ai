@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import android.content.Context
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -128,6 +129,13 @@ internal fun ViewAiReportScreen(
                               targetLanguageNative: String) -> Unit = { _, _, _ -> },
     onBack: () -> Unit
 ) {
+    // Horizontal swipe → prev / next report uses the
+    // [LocalReportNeighborNav] CompositionLocal set in
+    // [ReportsScreenNav] rather than threading two more lambdas
+    // through ReportsScreen → ReportPrimaryOverlays → here
+    // (ReportsScreen sits at the JVM 64 KB per-method bytecode
+    // ceiling so each new arg pushes it over).
+    val swipeNav = com.ai.ui.shared.LocalReportNeighborNav.current
     // Android back returns to Report - manage. Without this handler
     // the back press would fall through to ReportScreen's own handler,
     // which pops the route — wrong layer. See plan
@@ -725,8 +733,32 @@ internal fun ViewAiReportScreen(
         }
     }
 
+    // Horizontal swipe → prev / next report. Same axis convention as
+    // Report - manage's < / > chevrons: swipe RIGHT (drag→) reveals the
+    // older neighbour, swipe LEFT (drag←) reveals the newer one. Touch
+    // slop on detectHorizontalDragGestures locks the gesture to the
+    // horizontal axis once it claims, so vertical scrolls aren't
+    // hijacked. The tile reorder uses a long-press to initiate, so a
+    // quick horizontal flick goes here, not into a tile drag.
+    val swipeDensity = androidx.compose.ui.platform.LocalDensity.current
+    val swipeThresholdPx = with(swipeDensity) { 80.dp.toPx() }
+    var swipeDragX by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .pointerInput(swipeNav) {
+                detectHorizontalDragGestures(
+                    onDragStart = { swipeDragX = 0f },
+                    onDragEnd = {
+                        when {
+                            swipeDragX > swipeThresholdPx -> swipeNav?.onPrev?.invoke()
+                            swipeDragX < -swipeThresholdPx -> swipeNav?.onNext?.invoke()
+                        }
+                        swipeDragX = 0f
+                    },
+                    onDragCancel = { swipeDragX = 0f },
+                    onHorizontalDrag = { _, dx -> swipeDragX += dx }
+                )
+            }
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewScreenTitleBar(

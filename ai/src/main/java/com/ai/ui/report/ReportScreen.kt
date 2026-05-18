@@ -301,12 +301,34 @@ fun ReportsScreenNav(
     // per-method bytecode ceiling, so we can't add three more
     // function/boolean slots there. The picker / first-composition
     // seed read straight from the local.
+    // Build the neighbour-nav callbacks once here so both ReportsScreen
+    // (chevrons) and the swipe handler inside ViewAiReportScreen (via
+    // the [LocalReportNeighborNav] CompositionLocal) share one source.
+    // Threading the same lambdas through ReportsScreen as args would
+    // push that function past the JVM 64 KB per-method ceiling.
+    val neighborNav = remember(hasPrevReport, hasNextReport, currentIdx, reportIdsNewestFirst) {
+        com.ai.ui.shared.ReportNeighborNav(
+            onPrev = {
+                if (hasPrevReport) {
+                    val targetId = reportIdsNewestFirst[currentIdx + 1]
+                    scope.launch { reportViewModel.restoreCompletedReport(context, targetId) }
+                }
+            },
+            onNext = {
+                if (hasNextReport) {
+                    val targetId = reportIdsNewestFirst[currentIdx - 1]
+                    scope.launch { reportViewModel.restoreCompletedReport(context, targetId) }
+                }
+            }
+        )
+    }
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
             onOpenManage = onOpenReportManage,
             onOpenView = onOpenReportView,
             initialView = initialView
-        )
+        ),
+        com.ai.ui.shared.LocalReportNeighborNav provides neighborNav
     ) {
     ReportsScreen(
         uiState = uiState,
