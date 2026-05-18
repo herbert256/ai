@@ -828,12 +828,11 @@ fun TitleBar(
             onClick = navigateHome,
             modifier = Modifier.offset(x = (-14).dp, y = (-7).dp)
         )
-        HelpButton(
-            onClick = { navigateHelp(helpTopic) },
-            modifier = Modifier.offset(x = (-20).dp, y = (-10).dp)
-        )
+        // Spacer 1 — pushes the report icon to the midpoint
+        // between the AI logo and the right-side title group.
+        Spacer(modifier = Modifier.weight(1f))
         if (resolvedReportIcon != null) {
-            Box(modifier = Modifier.offset(x = (-24).dp, y = (-10).dp)) {
+            Box(modifier = Modifier.offset(y = (-10).dp)) {
                 TitleBarIcon(
                     resolvedReportIcon, Color.Unspecified,
                     onClick = reportIconTap ?: {},
@@ -841,6 +840,9 @@ fun TitleBar(
                 )
             }
         }
+        // Spacer 2 — equal weight to spacer 1 so the report icon
+        // sits centred between the AI logo (left) and the title
+        // text (right). User-requested layout: AI ─── 📝 ─── Title ❓.
         Spacer(modifier = Modifier.weight(1f))
         if (title != null) {
             // Long titles shrink rather than truncate: start at the
@@ -866,6 +868,14 @@ fun TitleBar(
                 modifier = titleMod
             )
         }
+        // ❓ help button moved to the rightmost slot of the bar
+        // (was second-from-left, after the AI logo). Same callback
+        // and topic — only the position changes.
+        Spacer(modifier = Modifier.width(8.dp))
+        HelpButton(
+            onClick = { navigateHelp(helpTopic) },
+            modifier = Modifier.offset(y = (-10).dp)
+        )
     }
 }
 
