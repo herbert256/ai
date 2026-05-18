@@ -1077,10 +1077,7 @@ internal fun ViewAiReportScreen(
         val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
         ViewScreenTitleBar(
             reportTitle = loadedReport?.title ?: promptTitle,
-            // Orange screen-title row is suppressed on the View tile
-            // grid — the title bar's white report title already
-            // makes clear which report this is.
-            screenTitle = null,
+            screenTitle = "View an AI report",
             subject = null,
             helpTopic = "view_ai_report",
             onOpenManage = navToManageMain,
