@@ -91,9 +91,21 @@ fun MetaViewScreen(
         reportId, language
     ) {
         value = withContext(Dispatchers.IO) {
+            // Drop fan-out and fan-in flavoured META rows from the
+            // swipe set — they get their own dedicated cards on the
+            // View tile grid (Fan-out / Fan-in / Fan-in-model), and
+            // surfacing them again when paging here only confused
+            // the user. The remaining rows are "regular" meta runs
+            // (Summarize, Compare, etc.).
             val metas = SecondaryResultStorage
                 .listForReport(context, reportId, SecondaryKind.META)
-                .filter { !it.content.isNullOrBlank() }
+                .filter {
+                    !it.content.isNullOrBlank() &&
+                        it.fanInOf == null &&
+                        it.fanOutSourceAgentId == null &&
+                        it.scopeProviderId == null &&
+                        it.scopeModel == null
+                }
                 .sortedBy { it.timestamp }
             val translates = SecondaryResultStorage
                 .listForReport(context, reportId, SecondaryKind.TRANSLATE)
