@@ -181,18 +181,33 @@ fun ViewScreenTitleBar(
             // horizontal centre. The column is vertically centred
             // inside the Row (verticalAlignment Center) so it sits
             // inside the 76 dp logo's vertical span.
-            var bigSizeFits by remember(reportTitle) { mutableStateOf(true) }
+            //
+            // Line order (per the user's spec):
+            //   1. White — the screen title (Costs / Meta - … / etc).
+            //   2. Orange — the report title (also the back-to-Manage
+            //      tap target). Hidden when there's no screen title
+            //      above, in which case the report title slides up
+            //      into the white slot so the bar always shows
+            //      *something*.
+            var bigSizeFits by remember(screenTitle, reportTitle) { mutableStateOf(true) }
             val navigateToManage = LocalNavigateToCurrentReport.current
-            val titleClickable = navigateToManage != null && !reportTitle.isNullOrBlank()
+            val reportTitleClickable = navigateToManage != null && !reportTitle.isNullOrBlank()
+            val hasScreenTitle = !screenTitle.isNullOrBlank()
+            val topText = if (hasScreenTitle) screenTitle!! else reportTitle.orEmpty()
+            // The report title is the click target. When there's a
+            // screen title above, the report title is the orange
+            // bottom line and owns the click. When there's no screen
+            // title, the report title IS the white top line.
+            val topClickable = !hasScreenTitle && reportTitleClickable
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                val reportTitleMod = Modifier.fillMaxWidth().let {
-                    if (titleClickable) it.clickable { navigateToManage!!.invoke() } else it
+                val topMod = Modifier.fillMaxWidth().offset(y = (-4).dp).let {
+                    if (topClickable) it.clickable { navigateToManage!!.invoke() } else it
                 }
                 Text(
-                    text = reportTitle.orEmpty(),
+                    text = topText,
                     color = Color.White,
                     fontSize = if (bigSizeFits) 24.sp else 18.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -205,17 +220,24 @@ fun ViewScreenTitleBar(
                             bigSizeFits = false
                         }
                     },
-                    modifier = reportTitleMod
+                    modifier = topMod
                 )
-                if (!screenTitle.isNullOrBlank()) {
+                if (hasScreenTitle && !reportTitle.isNullOrBlank()) {
+                    // Breathing room between the white top line and
+                    // the orange report title below.
+                    Spacer(modifier = Modifier.height(6.dp))
+                    val bottomMod = Modifier.fillMaxWidth().let {
+                        if (reportTitleClickable) it.clickable { navigateToManage!!.invoke() } else it
+                    }
                     Text(
-                        text = screenTitle,
+                        text = reportTitle.orEmpty(),
                         color = AppColors.Orange,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
                         maxLines = 1,
+                        overflow = TextOverflow.Clip,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = bottomMod
                     )
                 }
                 if (!subject.isNullOrBlank()) {
