@@ -278,7 +278,13 @@ data class ReportListIconBundle(
     /** When true, the report screen flips its [showViewReportScreen]
      *  saveable flag on first composition so the user lands on the
      *  View tile grid instead of Manage. */
-    val initialView: Boolean = false
+    val initialView: Boolean = false,
+    /** Route-pop callback used by the View overlay's onBack when the
+     *  user arrived directly on View via the per-row 👁 icon
+     *  ([initialView] == true). Without this, back from the View
+     *  overlay would fall through to the underlying Manage screen
+     *  instead of returning to the list the user tapped from. */
+    val onExitToList: (() -> Unit)? = null
 )
 val LocalReportListIconBundle = compositionLocalOf { ReportListIconBundle() }
 

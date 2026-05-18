@@ -326,7 +326,12 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
             onOpenManage = onOpenReportManage,
             onOpenView = onOpenReportView,
-            initialView = initialView
+            initialView = initialView,
+            // Route-pop hook used by the View overlay's onBack when the
+            // user arrived here via the per-row 👁 icon — pops AI_REPORTS
+            // so back returns to the list instead of falling through to
+            // the underlying Manage screen.
+            onExitToList = onNavigateBack
         ),
         com.ai.ui.shared.LocalReportNeighborNav provides neighborNav
     ) {
@@ -3234,6 +3239,18 @@ private fun ReportPrimaryOverlays(
         val moderationFlagged = remember(secondaryRuns) {
             anyModerationFlagged(secondaryRuns)
         }
+        // When the user arrived directly on View via the per-row 👁
+        // icon on a hub list (initialView == true), back from the
+        // main View overlay should pop the AI_REPORTS route entirely
+        // — returning to the list. Otherwise (View opened from
+        // Manage's ℹ️ / title-click) back just closes the overlay so
+        // the user lands back on Manage.
+        val reportListBundle = com.ai.ui.shared.LocalReportListIconBundle.current
+        val backFromView: () -> Unit = if (reportListBundle.initialView && reportListBundle.onExitToList != null) {
+            reportListBundle.onExitToList!!
+        } else {
+            { onShowViewReportScreenChange(false) }
+        }
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
@@ -3255,7 +3272,7 @@ private fun ReportPrimaryOverlays(
                 onTranslateMissingItems = { items, target, targetNative ->
                     onTranslateMissingItems(currentReportId, items, target, targetNative)
                 },
-                onBack = { onShowViewReportScreenChange(false) }
+                onBack = backFromView
             )
         }
         return true
