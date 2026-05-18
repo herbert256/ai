@@ -62,7 +62,7 @@ fun ViewScreenTitleBar(
     screenTitle: String?,
     subject: String?,
     helpTopic: String,
-    @Suppress("UNUSED_PARAMETER") onBack: () -> Unit,
+    onBack: () -> Unit,
     /** Optional 🔧 manage hook for the bottom-bar. When non-null the
      *  View title bar publishes a [com.ai.ui.shared.TitleBarIcons]
      *  with this slot filled (every other slot null) into
@@ -184,28 +184,23 @@ fun ViewScreenTitleBar(
             //
             // Line order (per the user's spec):
             //   1. White — the screen title (Costs / Meta - … / etc).
-            //   2. Orange — the report title (also the back-to-Manage
-            //      tap target). Hidden when there's no screen title
-            //      above, in which case the report title slides up
-            //      into the white slot so the bar always shows
-            //      *something*.
+            //   2. Orange — the report title. Hidden when there's no
+            //      screen title above, in which case the report title
+            //      slides up into the white slot so the bar always
+            //      shows *something*.
+            //
+            // Both lines route through [onBack] on tap. That pops one
+            // layer up, which on the main View grid lands on Manage
+            // and on a child View screen lands back on the grid — the
+            // user-requested "Manage report" / "View an AI report"
+            // navigation respectively.
             var bigSizeFits by remember(screenTitle, reportTitle) { mutableStateOf(true) }
-            val navigateToManage = LocalNavigateToCurrentReport.current
-            val reportTitleClickable = navigateToManage != null && !reportTitle.isNullOrBlank()
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else reportTitle.orEmpty()
-            // The report title is the click target. When there's a
-            // screen title above, the report title is the orange
-            // bottom line and owns the click. When there's no screen
-            // title, the report title IS the white top line.
-            val topClickable = !hasScreenTitle && reportTitleClickable
             Column(
                 modifier = Modifier.weight(1f),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                val topMod = Modifier.fillMaxWidth().offset(y = (-4).dp).let {
-                    if (topClickable) it.clickable { navigateToManage!!.invoke() } else it
-                }
                 Text(
                     text = topText,
                     color = Color.White,
@@ -220,15 +215,14 @@ fun ViewScreenTitleBar(
                             bigSizeFits = false
                         }
                     },
-                    modifier = topMod
+                    modifier = Modifier.fillMaxWidth()
+                        .offset(y = (-4).dp)
+                        .clickable { onBack() }
                 )
                 if (hasScreenTitle && !reportTitle.isNullOrBlank()) {
                     // Breathing room between the white top line and
                     // the orange report title below.
                     Spacer(modifier = Modifier.height(6.dp))
-                    val bottomMod = Modifier.fillMaxWidth().let {
-                        if (reportTitleClickable) it.clickable { navigateToManage!!.invoke() } else it
-                    }
                     Text(
                         text = reportTitle.orEmpty(),
                         color = AppColors.Orange,
@@ -237,7 +231,7 @@ fun ViewScreenTitleBar(
                         maxLines = 1,
                         overflow = TextOverflow.Clip,
                         textAlign = TextAlign.Center,
-                        modifier = bottomMod
+                        modifier = Modifier.fillMaxWidth().clickable { onBack() }
                     )
                 }
                 if (!subject.isNullOrBlank()) {
