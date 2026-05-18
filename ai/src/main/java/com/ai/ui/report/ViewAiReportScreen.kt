@@ -175,6 +175,14 @@ internal fun ViewAiReportScreen(
         )
         return
     }
+    // Reports overlay var declarations hoisted here so the rerank
+    // mount block below can flip them — the rerank podium card tap
+    // closes Rerank and opens Reports scrolled to that agent's page.
+    // The actual ReportsViewScreen mount lives further down (after
+    // the language-picker setup) — these vars are shared.
+    var reportsViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
+    var reportsViewOpen by rememberSaveable { mutableStateOf(false) }
+    var reportsViewInitialAgentId by rememberSaveable { mutableStateOf<String?>(null) }
     // Rerank "View" overlay — keyed by the RERANK row id.
     var rerankViewRowId by rememberSaveable { mutableStateOf<String?>(null) }
     val activeRerankViewRowId = rerankViewRowId
@@ -182,7 +190,12 @@ internal fun ViewAiReportScreen(
         RerankViewScreen(
             reportId = reportId,
             resultId = activeRerankViewRowId,
-            onBack = { rerankViewRowId = null }
+            onBack = { rerankViewRowId = null },
+            onOpenReportForAgent = { agentId ->
+                rerankViewRowId = null
+                reportsViewInitialAgentId = agentId
+                reportsViewOpen = true
+            }
         )
         return
     }
@@ -243,14 +256,9 @@ internal fun ViewAiReportScreen(
     // language back up.
     var promptViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
     var promptViewOpen by rememberSaveable { mutableStateOf(false) }
-    // Reports "View" overlay — per-agent response stack. Language
-    // captured at tap time so AGENT TRANSLATE rows render in place of
-    // the original responseBody when locked. The mount + early-return
-    // block lives further down (after the [viewLangTabs] +
-    // [selectedViewLangKey] picker setup) because its onBack needs
-    // those values to bubble the user's swiped-to language back up.
-    var reportsViewLanguage by rememberSaveable { mutableStateOf<String?>(null) }
-    var reportsViewOpen by rememberSaveable { mutableStateOf(false) }
+    // Reports overlay vars are declared higher up (hoisted so the
+    // rerank mount can flip them) — re-using the same identifiers
+    // here.
 
     // Inline expansion target — which Computed kind's items list is
     // open below the grid. Null = nothing expanded. rememberSaveable
@@ -409,6 +417,7 @@ internal fun ViewAiReportScreen(
             reportId = reportId,
             availableLanguages = reportsLanguages,
             initialLanguage = reportsViewLanguage,
+            initialAgentId = reportsViewInitialAgentId,
             onBack = { activeLang ->
                 val target = activeLang ?: ""
                 val newKey = if (target.isBlank()) LangTab.ORIGINAL_KEY
@@ -417,6 +426,7 @@ internal fun ViewAiReportScreen(
                 selectedViewLangKey = newKey
                 reportsViewOpen = false
                 reportsViewLanguage = null
+                reportsViewInitialAgentId = null
             }
         )
         return

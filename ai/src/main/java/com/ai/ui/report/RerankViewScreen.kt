@@ -2,6 +2,7 @@ package com.ai.ui.report
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -61,7 +62,13 @@ import kotlinx.coroutines.withContext
 fun RerankViewScreen(
     reportId: String,
     resultId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** Tap on a podium card jumps to ReportsViewScreen pre-scrolled
+     *  to that agent. Caller is responsible for closing this rerank
+     *  overlay and mounting the Reports overlay with the supplied
+     *  agentId. Default no-op preserves the prior shape (cards are
+     *  inert when the caller doesn't wire it). */
+    onOpenReportForAgent: (String) -> Unit = {}
 ) {
     androidx.activity.compose.BackHandler { onBack() }
     val context = LocalContext.current
@@ -82,8 +89,7 @@ fun RerankViewScreen(
             val labels = report?.agents
                 ?.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                 ?.mapIndexed { idx, agent ->
-                    val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
-                    (idx + 1) to AgentLabel(provDisplay, shortModelName(agent.model))
+                    (idx + 1) to AgentLabel(shortModelName(agent.model), agent.agentId)
                 }?.toMap()
                 ?: emptyMap()
             Loaded(r, labels, report?.title)
@@ -96,8 +102,6 @@ fun RerankViewScreen(
     val rows = remember(result) {
         result?.content?.let { parseRerankRows(it) } ?: emptyList()
     }
-    val title = result?.metaPromptName?.takeIf { it.isNotBlank() } ?: "Rerank"
-
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -105,26 +109,14 @@ fun RerankViewScreen(
     ) {
         ViewScreenTitleBar(
             reportTitle = loaded.reportTitle,
-            screenTitle = "Rerank",
-            subject = result?.metaPromptName?.takeIf { it.isNotBlank() },
+            // Per the user's spec: no "Rerank" screen-title (the user
+            // already knows which screen they're on from the tile they
+            // tapped) and no green metaPromptName subject either.
+            screenTitle = null,
+            subject = null,
             helpTopic = "rerank_view",
             onBack = onBack
         )
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(text = "🏆", fontSize = 28.sp, modifier = Modifier.padding(end = 8.dp))
-            Text(
-                text = title,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = AppColors.Yellow,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-        }
         if (result == null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(top = 32.dp),
@@ -169,10 +161,11 @@ fun RerankViewScreen(
         ) {
             items(rows) { row ->
                 val label = agentLabels[row.id]
+                val onCardClick: (() -> Unit)? = label?.agentId?.let { aid -> { onOpenReportForAgent(aid) } }
                 when (row.rank) {
-                    1 -> PodiumCard(row, label, MedalSpec("🥇", Color(0xFFFFD54F), "Gold"))
-                    2 -> PodiumCard(row, label, MedalSpec("🥈", Color(0xFFB0BEC5), "Silver"))
-                    3 -> PodiumCard(row, label, MedalSpec("🥉", Color(0xFFCD7F32), "Bronze"))
+                    1 -> PodiumCard(row, label, MedalSpec("🥇", Color(0xFFFFD54F), "Gold"), onCardClick)
+                    2 -> PodiumCard(row, label, MedalSpec("🥈", Color(0xFFB0BEC5), "Silver"), onCardClick)
+                    3 -> PodiumCard(row, label, MedalSpec("🥉", Color(0xFFCD7F32), "Bronze"), onCardClick)
                     else -> RankRow(row, label)
                 }
             }
@@ -180,14 +173,17 @@ fun RerankViewScreen(
     }
 }
 
-/** Provider + short-model pair for the agent at row id. */
-private data class AgentLabel(val provider: String, val shortModel: String)
+/** Short-model label + agent id for the per-rank row. The provider
+ *  name is intentionally not surfaced on the View variant (kept off
+ *  per the user's spec). agentId backs the card-tap → Reports
+ *  navigation. */
+private data class AgentLabel(val shortModel: String, val agentId: String)
 
 /** Medal styling for the top-3 podium cards. */
 private data class MedalSpec(val emoji: String, val accent: Color, val name: String)
 
 @Composable
-private fun PodiumCard(row: RerankRow, label: AgentLabel?, spec: MedalSpec) {
+private fun PodiumCard(row: RerankRow, label: AgentLabel?, spec: MedalSpec, onClick: (() -> Unit)?) {
     Column(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
@@ -197,38 +193,40 @@ private fun PodiumCard(row: RerankRow, label: AgentLabel?, spec: MedalSpec) {
                 )
             )
             .border(1.dp, spec.accent.copy(alpha = 0.6f), RoundedCornerShape(16.dp))
+            .let { base -> if (onClick != null) base.clickable(onClick = onClick) else base }
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(text = spec.emoji, fontSize = 36.sp, modifier = Modifier.padding(end = 10.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = label?.let { "${it.provider} / ${it.shortModel}" } ?: "[${row.id}] (unknown)",
-                    color = AppColors.TextPrimary,
-                    fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
+                // Top line: model name on the left, score on the right
+                // — score in the same 12sp TextTertiary font as the
+                // "Rank N - Medal" line below so it reads as a quiet
+                // pair, not a heavy chip. Provider name omitted on
+                // the View variant.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = label?.shortModel ?: "[${row.id}] (unknown)",
+                        color = AppColors.TextPrimary,
+                        fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (row.score != null) {
+                        Text(
+                            text = "Relevance score ${row.score}",
+                            color = AppColors.TextTertiary,
+                            fontSize = 12.sp,
+                            maxLines = 1, softWrap = false
+                        )
+                    }
+                }
                 Text(
                     text = "Rank ${row.rank} · ${spec.name}",
                     color = AppColors.TextTertiary,
                     fontSize = 12.sp
                 )
-            }
-            if (row.score != null) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0x55000000))
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                    Text(
-                        text = "${row.score}/100",
-                        color = spec.accent,
-                        fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                        maxLines = 1, softWrap = false
-                    )
-                }
             }
         }
         if (!row.reason.isNullOrBlank()) {
@@ -263,7 +261,7 @@ private fun RankRow(row: RerankRow, label: AgentLabel?) {
         Spacer(modifier = Modifier.width(10.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = label?.let { "${it.provider} / ${it.shortModel}" } ?: "[${row.id}] (unknown)",
+                text = label?.shortModel ?: "[${row.id}] (unknown)",
                 color = AppColors.TextPrimary,
                 fontSize = 14.sp, fontWeight = FontWeight.Medium,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
