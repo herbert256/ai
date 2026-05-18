@@ -489,7 +489,18 @@ internal fun ViewAiReportScreen(
     }
     var selectedViewLangKey by rememberSaveable(reportId) { mutableStateOf(LangTab.ORIGINAL_KEY) }
     androidx.compose.runtime.LaunchedEffect(viewLangTabs) {
-        if (viewLangTabs.none { it.key == selectedViewLangKey }) {
+        // Only reset when we know the tabs reflect loaded data —
+        // i.e. there's at least one translation tab beyond
+        // Original. After the user opens a sub-View overlay (Costs
+        // / Meta / Fan-out / …) the parent composable returns
+        // early; its state below the return is disposed, so on the
+        // way back translatesState restarts with initialValue =
+        // emptyList() and viewLangTabs recomputes to just
+        // [Original] for one composition. Without the size > 1
+        // guard, a previously-picked translation key (restored
+        // from rememberSaveable) would be wrongly reset to
+        // Original before the IO load finishes.
+        if (viewLangTabs.size > 1 && viewLangTabs.none { it.key == selectedViewLangKey }) {
             selectedViewLangKey = LangTab.ORIGINAL_KEY
         }
     }
