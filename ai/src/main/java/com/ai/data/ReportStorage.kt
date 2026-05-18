@@ -856,6 +856,37 @@ object ReportStorage {
         }
     }
 
+    /** Reset every language-flow field on [reportId] — both the
+     *  detection call (languageName + cost fields) and the icon
+     *  call (languageIcon + cost / error / trace fields). Used by
+     *  [com.ai.viewmodel.RegenerateBatchEngine] when the LANGUAGE
+     *  phase starts so the row shows ⏳ before the dispatcher fires. */
+    fun clearReportLanguage(context: Context, reportId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(
+                languageName = null,
+                languageIcon = null,
+                languageIconModel = null,
+                languageIconPromptUsed = null,
+                languageIconErrorMessage = null,
+                languageIconInputTokens = 0,
+                languageIconOutputTokens = 0,
+                languageIconInputCost = 0.0,
+                languageIconOutputCost = 0.0,
+                languageIconTraceFile = null,
+                languageIconRawResponse = null,
+                languageInputTokens = 0,
+                languageOutputTokens = 0,
+                languageInputCost = 0.0,
+                languageOutputCost = 0.0,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
     /** Per-agent icon success path. Used by Create → Report icons:
      *  for each agent whose primary call succeeded, fires the
      *  internal/icon prompt against that agent's own (provider, model)

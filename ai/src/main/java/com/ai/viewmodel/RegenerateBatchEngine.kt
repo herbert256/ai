@@ -8,6 +8,8 @@ import com.ai.data.RegeneratePhase
 import com.ai.data.RegenerateTask
 import com.ai.data.RegenerateTaskState
 import com.ai.data.RegenerateBatchStorage
+import com.ai.data.REPORT_ICON_ROW_ID
+import com.ai.data.REPORT_LANGUAGE_ROW_ID
 import com.ai.data.ReportStorage
 import com.ai.data.ReportStatus
 import com.ai.data.SecondaryKind
@@ -338,9 +340,42 @@ class RegenerateBatchEngine internal constructor(
     ): Map<String, RowStatus> {
         if (rowIds.isEmpty()) return emptyMap()
         return when (phase) {
+            RegeneratePhase.ICON -> readReportIconStatus(context, reportId, rowIds)
+            RegeneratePhase.LANGUAGE -> readReportLanguageStatus(context, reportId, rowIds)
             RegeneratePhase.AGENTS -> readAgentStatuses(context, reportId, rowIds)
             RegeneratePhase.FAN_ICONS -> readFanIconsStatuses(context, reportId, rowIds)
             else -> readSecondaryStatuses(context, reportId, rowIds)
+        }
+    }
+
+    private fun readReportIconStatus(
+        context: Context, reportId: String, rowIds: Set<String>
+    ): Map<String, RowStatus> {
+        val report = ReportStorage.getReport(context, reportId) ?: return emptyMap()
+        return rowIds.associateWith { _ ->
+            when {
+                !report.iconErrorMessage.isNullOrBlank() -> RowStatus.Error(report.iconErrorMessage)
+                !report.icon.isNullOrBlank() -> RowStatus.Success
+                else -> RowStatus.Pending
+            }
+        }
+    }
+
+    private fun readReportLanguageStatus(
+        context: Context, reportId: String, rowIds: Set<String>
+    ): Map<String, RowStatus> {
+        val report = ReportStorage.getReport(context, reportId) ?: return emptyMap()
+        // Language flow is a 2-call chain — the second call sets
+        // languageIcon. Treat the row as SUCCESS only after the
+        // language-icon call lands (so the user's "everything in
+        // this phase is done" reads correctly).
+        return rowIds.associateWith { _ ->
+            when {
+                !report.languageIconErrorMessage.isNullOrBlank() ->
+                    RowStatus.Error(report.languageIconErrorMessage)
+                !report.languageIcon.isNullOrBlank() -> RowStatus.Success
+                else -> RowStatus.Pending
+            }
         }
     }
 
@@ -402,6 +437,18 @@ class RegenerateBatchEngine internal constructor(
         phaseTasks: List<RegenerateTask>, phase: RegeneratePhase
     ) {
         when (phase) {
+            RegeneratePhase.ICON -> {
+                ReportStorage.clearReportIcon(context, reportId)
+                appViewModel.updateUiState {
+                    it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                }
+            }
+            RegeneratePhase.LANGUAGE -> {
+                ReportStorage.clearReportLanguage(context, reportId)
+                appViewModel.updateUiState {
+                    it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                }
+            }
             RegeneratePhase.AGENTS -> {
                 // Agents are reset by forceRegenerateAllAgents
                 // itself via ReportStorage.resetAgentToPending —
@@ -426,6 +473,16 @@ class RegenerateBatchEngine internal constructor(
         phase: RegeneratePhase, phaseTasks: List<RegenerateTask>
     ) {
         when (phase) {
+            RegeneratePhase.ICON -> {
+                val report = ReportStorage.getReport(context, reportId) ?: return
+                val ai = appViewModel.uiState.value.aiSettings
+                reportViewModel.kickOffIconGeneration(context, reportId, report.prompt, ai)
+            }
+            RegeneratePhase.LANGUAGE -> {
+                val report = ReportStorage.getReport(context, reportId) ?: return
+                val ai = appViewModel.uiState.value.aiSettings
+                reportViewModel.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
+            }
             RegeneratePhase.AGENTS -> {
                 reportViewModel.forceRegenerateAllAgents(context, reportId)
             }
@@ -526,6 +583,14 @@ class RegenerateBatchEngine internal constructor(
     ): Boolean {
         val task = job.tasks.firstOrNull { it.rowId == rowId } ?: return false
         return when (task.phase) {
+            RegeneratePhase.ICON -> {
+                val report = ReportStorage.getReport(context, reportId) ?: return false
+                !report.iconErrorMessage.isNullOrBlank()
+            }
+            RegeneratePhase.LANGUAGE -> {
+                val report = ReportStorage.getReport(context, reportId) ?: return false
+                !report.languageIconErrorMessage.isNullOrBlank()
+            }
             RegeneratePhase.AGENTS -> {
                 val agent = ReportStorage.getReport(context, reportId)
                     ?.agents?.firstOrNull { it.agentId == rowId }
@@ -552,6 +617,35 @@ class RegenerateBatchEngine internal constructor(
         val report = ReportStorage.getReport(context, reportId) ?: return@withContext emptyList()
         val all = SecondaryResultStorage.listForReport(context, reportId)
         val tasks = mutableListOf<RegenerateTask>()
+
+        // ICON — main report icon (only when iconGenEnabled is on
+        // AND the report has a prompt — same prerequisite the
+        // existing kickOffIconGeneration call has). Skipped
+        // otherwise so the engine doesn't spin on a row that's
+        // never going to land.
+        if (appViewModel.uiState.value.generalSettings.iconGenEnabled &&
+            !report.prompt.isNullOrBlank()
+        ) {
+            tasks += RegenerateTask(
+                rowId = REPORT_ICON_ROW_ID,
+                phase = RegeneratePhase.ICON,
+                label = "Report icon",
+                state = RegenerateTaskState.WAITING
+            )
+        }
+
+        // LANGUAGE — language detection + language-icon flow.
+        // Same gate as ICON; both are driven by iconGenEnabled.
+        if (appViewModel.uiState.value.generalSettings.iconGenEnabled &&
+            !report.prompt.isNullOrBlank()
+        ) {
+            tasks += RegenerateTask(
+                rowId = REPORT_LANGUAGE_ROW_ID,
+                phase = RegeneratePhase.LANGUAGE,
+                label = "Language detection",
+                state = RegenerateTaskState.WAITING
+            )
+        }
 
         // AGENTS — one task per ReportAgent.
         for (agent in report.agents) {

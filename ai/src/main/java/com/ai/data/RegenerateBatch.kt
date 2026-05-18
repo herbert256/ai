@@ -18,6 +18,16 @@ package com.ai.data
  * <filesDir>/regenerate/<reportId>.json via [RegenerateBatchStorage].
  */
 enum class RegeneratePhase {
+    /** Re-runs the report's main 🎯 icon-gen call
+     *  ([com.ai.viewmodel.ReportViewModel.kickOffIconGeneration]).
+     *  Single synthetic task — rowId == [REPORT_ICON_ROW_ID]. */
+    ICON,
+
+    /** Re-runs the report's language-detection + language-icon
+     *  flow ([com.ai.viewmodel.ReportViewModel.kickOffLanguageGeneration]).
+     *  Single synthetic task — rowId == [REPORT_LANGUAGE_ROW_ID]. */
+    LANGUAGE,
+
     /** report.agents — one task per ReportAgent. */
     AGENTS,
 
@@ -71,6 +81,18 @@ enum class RegenerateJobStatus {
     /** User clicked Cancel. Restart re-enters from currentPhase. */
     CANCELLED
 }
+
+/** Synthetic rowId for the report-level icon task — there's no
+ *  persistent row to match against, so the engine reads
+ *  [com.ai.data.Report.icon] / [com.ai.data.Report.iconErrorMessage]
+ *  off disk directly. */
+const val REPORT_ICON_ROW_ID = "__report_icon__"
+
+/** Synthetic rowId for the report-level language task. The engine
+ *  reads [com.ai.data.Report.languageName] /
+ *  [com.ai.data.Report.languageIcon] /
+ *  [com.ai.data.Report.languageIconErrorMessage] off disk directly. */
+const val REPORT_LANGUAGE_ROW_ID = "__report_language__"
 
 data class RegenerateTask(
     /** Stable id of the underlying row — agent.agentId for AGENTS,

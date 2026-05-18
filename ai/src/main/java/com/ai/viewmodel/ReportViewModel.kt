@@ -430,7 +430,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  and survives the user navigating away from the result screen.
      *  Failures are persisted to [Report.iconErrorMessage] so the
      *  result-page row can render ❌. */
-    private fun kickOffIconGeneration(
+    internal fun kickOffIconGeneration(
         context: Context,
         reportId: String,
         promptText: String,
@@ -515,7 +515,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  rows in the cost table — type `"language"` for detection,
      *  `"language-icon"` for the emoji. Same gate / agent-resolution
      *  / recompose-tick pattern as [kickOffIconGeneration]. */
-    private fun kickOffLanguageGeneration(
+    internal fun kickOffLanguageGeneration(
         context: Context,
         reportId: String,
         promptText: String,
