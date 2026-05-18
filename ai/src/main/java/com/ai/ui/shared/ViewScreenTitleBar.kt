@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -230,12 +231,17 @@ fun ViewScreenTitleBar(
                     )
                 }
             }
-            // Right column — help icon.
+            // Right column — help icon. Sized a touch larger than
+            // the previous 40 sp and lifted a few dp so it visually
+            // hangs near the top of the bar rather than dead-centre
+            // (the 76 dp logo dominates the Row's measured height,
+            // so the lift doesn't change the bar's height).
             Text(
                 text = "❓",
-                fontSize = 40.sp,
+                fontSize = 48.sp,
                 color = AppColors.Blue,
                 modifier = Modifier
+                    .offset(y = (-8).dp)
                     .clickable { navigateHelp(helpTopic) }
             )
         }
