@@ -48,6 +48,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import com.ai.ui.shared.LocalReportIcon
 import com.ai.ui.shared.LocalReportTitle
 import com.ai.viewmodel.RegenerateBatchEngine
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -80,6 +81,18 @@ fun RegenerateBatchScreen(
         androidx.compose.runtime.mutableStateOf(false)
     }
 
+    // Read the report's icon off disk so the title bar shows it
+    // next to the AI logo — the overlay mounts at ReportsScreenNav
+    // level, before LocalReportIcon is provided, so we can't rely
+    // on the CompositionLocal here.
+    val reportIcon by androidx.compose.runtime.produceState<String?>(
+        initialValue = null, reportId
+    ) {
+        value = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.ai.data.ReportStorage.getReport(context, reportId)?.icon
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -88,6 +101,7 @@ fun RegenerateBatchScreen(
         TitleBar(
             helpTopic = "regenerate_batch",
             title = "Regenerate report",
+            reportIcon = reportIcon ?: "📝",
             onBackClick = onBack,
             // Bottom-bar 🗑 — confirms then drops the persisted
             // RegenerateJob + clears the Regenerate row from the
