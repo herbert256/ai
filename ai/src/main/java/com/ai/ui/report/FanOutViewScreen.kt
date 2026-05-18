@@ -5,14 +5,17 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -164,15 +167,12 @@ fun FanOutViewScreen(
         // Manage's fan-out lives behind a multi-step picker chain
         // with no clean single-step entry — 🔧 falls back to the
         // main Report - manage screen here.
-        // Orange screen-title row dropped per the user — the green
-        // subject "Fan-out - <metaPromptName>" carries the same
-        // information.
         val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
-        val subjectText = "Fan-out" + metaPromptName.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty()
+        val titleText = "Fan-out" + metaPromptName.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty()
         ViewScreenTitleBar(
             reportTitle = report?.title,
-            screenTitle = null,
-            subject = subjectText,
+            screenTitle = titleText,
+            subject = null,
             helpTopic = "fan_out_view",
             onOpenManage = navToManageMain,
             onBack = onBack
@@ -203,110 +203,119 @@ fun FanOutViewScreen(
         // can collapse to focus on the responses they're reading.
         var initiatorExpanded by rememberSaveable(activeInitiatorId) { mutableStateOf(true) }
 
-        // ───── Top section: Initiator ─────
-        Spacer(modifier = Modifier.height(8.dp))
-        if (initiatorExpanded) {
-            CounterRow(
-                counter = "${initiatorPagerState.currentPage + 1} / ${initiatorIds.size}",
-                modelLabel = activeInitiator?.let { shortModelName(it.model) }.orEmpty(),
-                providerService = activeInitiator?.let { com.ai.data.AppService.findById(it.provider) },
-                modelId = activeInitiator?.model.orEmpty(),
-                onToggle = { initiatorExpanded = false },
-                toggleGlyph = "▲"
-            )
-            com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
-                pagerState = initiatorPagerState,
-                noMoreLabel = "No more initiators",
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            ) {
-                HorizontalPager(
-                    state = initiatorPagerState,
-                    modifier = Modifier.fillMaxSize()
-                ) { page ->
-                    val agentId = initiatorIds[page]
-                    val agent = report.agents.firstOrNull { it.agentId == agentId }
-                    val body = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
+        // ───── Both sections wrapped in BoxWithConstraints ─────
+        // The 1/3 vs 2/3 split only applies when content is large;
+        // small content makes the body card wrap to its actual
+        // height and the sections sit close together at the top.
+        // heightIn(max = cap) on each pager caps the body at the
+        // fractional split for that section.
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().weight(1f)
+        ) {
+            val totalH = maxHeight
+            // Reserve approximate chrome (counter rows + spacers +
+            // padding) so the per-pager caps don't push the second
+            // section off-screen when both sections are at cap.
+            val chrome = 96.dp
+            val available = (totalH - chrome).coerceAtLeast(0.dp)
+            val initCap = if (initiatorExpanded) available / 3 else 0.dp
+            val respCap = if (initiatorExpanded) available * 2 / 3 else available
+
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Spacer(modifier = Modifier.height(8.dp))
+                if (initiatorExpanded) {
+                    CounterRow(
+                        counter = "${initiatorPagerState.currentPage + 1} / ${initiatorIds.size}",
+                        modelLabel = activeInitiator?.let { shortModelName(it.model) }.orEmpty(),
+                        providerService = activeInitiator?.let { com.ai.data.AppService.findById(it.provider) },
+                        modelId = activeInitiator?.model.orEmpty(),
+                        onToggle = { initiatorExpanded = false },
+                        toggleGlyph = "▲"
+                    )
+                    com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+                        pagerState = initiatorPagerState,
+                        noMoreLabel = "No more initiators",
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        HorizontalPager(
+                            state = initiatorPagerState,
+                            modifier = Modifier.fillMaxWidth()
+                                .heightIn(max = initCap)
+                                .wrapContentHeight()
+                        ) { page ->
+                            val agentId = initiatorIds[page]
+                            val agent = report.agents.firstOrNull { it.agentId == agentId }
+                            val body = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
+                                ?.responseBody?.takeIf { !it.isNullOrBlank() }
+                                ?: "(initiator response no longer available)"
+                            FanOutBodyCard(
+                                reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
+                                body = body,
+                                borderColor = AppColors.Purple.copy(alpha = 0.35f)
+                            )
+                        }
+                    }
+                } else {
+                    val agent = activeInitiatorId?.let { aid -> report.agents.firstOrNull { it.agentId == aid } }
+                    val previewBody = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
                         ?.responseBody?.takeIf { !it.isNullOrBlank() }
+                        ?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim()
                         ?: "(initiator response no longer available)"
-                    FanOutBodyCard(
-                        reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
-                        body = body,
-                        borderColor = AppColors.Purple.copy(alpha = 0.35f)
+                    CollapsedInitiatorRow(
+                        icon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
+                        preview = previewBody,
+                        onToggle = { initiatorExpanded = true }
                     )
                 }
-            }
-        } else {
-            // Compact one-row preview of the active initiator.
-            val agent = activeInitiatorId?.let { aid -> report.agents.firstOrNull { it.agentId == aid } }
-            val previewBody = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
-                ?.responseBody?.takeIf { !it.isNullOrBlank() }
-                ?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim()
-                ?: "(initiator response no longer available)"
-            CollapsedInitiatorRow(
-                icon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
-                preview = previewBody,
-                onToggle = { initiatorExpanded = true }
-            )
-        }
 
-        // ───── Bottom section: Responder ─────
-        Spacer(modifier = Modifier.height(16.dp))
-        CounterRow(
-            counter = if (responders.isEmpty()) "0 / 0"
-                else "${responderPagerState.currentPage + 1} / ${responders.size}",
-            modelLabel = activeResponder?.let { shortModelName(it.model) }.orEmpty(),
-            providerService = activeResponder?.let { com.ai.data.AppService.findById(it.providerId) },
-            modelId = activeResponder?.model.orEmpty()
-        )
-        if (responders.isEmpty()) {
-            Box(
-                // When the Initiator is collapsed the Responder
-                // section uses the full remaining vertical space
-                // even on the empty path so the "no responders"
-                // sentinel sits where the card would be.
-                modifier = Modifier.fillMaxWidth().weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "No responders for this initiator yet",
-                    color = AppColors.TextTertiary, fontSize = 13.sp
+                Spacer(modifier = Modifier.height(16.dp))
+                CounterRow(
+                    counter = if (responders.isEmpty()) "0 / 0"
+                        else "${responderPagerState.currentPage + 1} / ${responders.size}",
+                    modelLabel = activeResponder?.let { shortModelName(it.model) }.orEmpty(),
+                    providerService = activeResponder?.let { com.ai.data.AppService.findById(it.providerId) },
+                    modelId = activeResponder?.model.orEmpty()
                 )
-            }
-        } else {
-            // Weights split the remaining vertical real-estate so
-            // the Responder pager occupies 2/3 of the area
-            // available below the title bar when Initiator is
-            // expanded (Initiator pager carries weight 1f above);
-            // when Initiator is collapsed its single-row preview
-            // has no weight, so the Responder gets ~all of it.
-            com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
-                pagerState = responderPagerState,
-                noMoreLabel = "No more responders",
-                modifier = Modifier.fillMaxWidth().weight(2f)
-            ) {
-                HorizontalPager(
-                    state = responderPagerState,
-                    modifier = Modifier.fillMaxSize()
-                ) { page ->
-                    val pair = responders[page]
-                    val translated = if (!language.isNullOrEmpty()) {
-                        translates.firstOrNull {
-                            it.translateSourceTargetId == pair.id &&
-                                it.targetLanguage == language
-                        }?.content?.takeIf { it.isNotBlank() }
-                    } else null
-                    val body = translated ?: pair.content.orEmpty()
-                    // Responder icon = the matching report-agent's icon
-                    // (lookup by provider + model). Falls back to 🤖
-                    // when no report-agent matches (e.g. cross-fan-out).
-                    val responderAgent = report.agents.firstOrNull {
-                        it.provider == pair.providerId && it.model == pair.model
+                if (responders.isEmpty()) {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No responders for this initiator yet",
+                            color = AppColors.TextTertiary, fontSize = 13.sp
+                        )
                     }
-                    FanOutBodyCard(
-                        reportIcon = responderAgent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
-                        body = body,
-                        borderColor = AppColors.Blue.copy(alpha = 0.35f)
-                    )
+                } else {
+                    com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+                        pagerState = responderPagerState,
+                        noMoreLabel = "No more responders",
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        HorizontalPager(
+                            state = responderPagerState,
+                            modifier = Modifier.fillMaxWidth()
+                                .heightIn(max = respCap)
+                                .wrapContentHeight()
+                        ) { page ->
+                            val pair = responders[page]
+                            val translated = if (!language.isNullOrEmpty()) {
+                                translates.firstOrNull {
+                                    it.translateSourceTargetId == pair.id &&
+                                        it.targetLanguage == language
+                                }?.content?.takeIf { it.isNotBlank() }
+                            } else null
+                            val body = translated ?: pair.content.orEmpty()
+                            val responderAgent = report.agents.firstOrNull {
+                                it.provider == pair.providerId && it.model == pair.model
+                            }
+                            FanOutBodyCard(
+                                reportIcon = responderAgent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
+                                body = body,
+                                borderColor = AppColors.Blue.copy(alpha = 0.35f)
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -406,6 +415,7 @@ private fun FanOutBodyCard(
 ) {
     Column(
         modifier = Modifier.fillMaxWidth()
+            .wrapContentHeight()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, borderColor, RoundedCornerShape(14.dp))
