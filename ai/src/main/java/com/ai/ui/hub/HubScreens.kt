@@ -333,18 +333,6 @@ fun ReportsHubScreen(
     }
     val latestReports = remember(allReports) { allReports.take(5) }
     val homeReportLists by rememberHomeReportLists(refreshTick, reportViewModel)
-    // A report is "in flight" when it hasn't been marked completed AND
-    // at least one of its agents is still PENDING / RUNNING. Reports
-    // that were cancelled or errored on every agent have completedAt
-    // null too but no live agent — those don't count.
-    val inFlightReports = remember(allReports) {
-        allReports.filter { r ->
-            r.completedAt == null && r.agents.any { a ->
-                a.reportStatus == com.ai.data.ReportStatus.PENDING ||
-                    a.reportStatus == com.ai.data.ReportStatus.RUNNING
-            }
-        }
-    }
     val scope = rememberCoroutineScope()
     val bumpDelete: (String) -> Unit = { rid ->
         scope.launch(Dispatchers.IO) {
@@ -369,13 +357,6 @@ fun ReportsHubScreen(
         .verticalScroll(rememberScrollState())
         .padding(16.dp)) {
         TitleBar(helpTopic = "reports_hub", title = "AI Reports", onBackClick = onNavigateBack)
-        if (inFlightReports.isNotEmpty()) {
-            InFlightPill(
-                count = inFlightReports.size,
-                onResume = { onOpenReportManage(inFlightReports.first().id) }
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -466,31 +447,6 @@ private fun ReportsHubListCard(
                     )
                 }
             }
-        }
-    }
-}
-
-/** Surfaces a small pill at the top of the hub when at least one
- *  report is mid-flight (not completed AND has at least one agent
- *  still PENDING / RUNNING). Tap resumes the most recent in-flight
- *  report. Lets the user jump back to a backgrounded run without
- *  having to detour through History. */
-@Composable
-private fun InFlightPill(count: Int, onResume: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable { onResume() },
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1F3340))
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            com.ai.ui.shared.AnimatedHourglass(fontSize = 18.sp)
-            Spacer(modifier = Modifier.width(10.dp))
-            val label = if (count == 1) "1 report running" else "$count reports running"
-            Text(label, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f))
-            Text("Resume", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold)
         }
     }
 }
