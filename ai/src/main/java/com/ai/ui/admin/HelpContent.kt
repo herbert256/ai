@@ -213,7 +213,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Help - Manual",
         cards = listOf(
             HelpCard("Overview", "End-user walkthrough of every screen and feature, bundled in the APK at `assets/docs/manual/`. Mirrors what a printed quick-start would cover: how to send a report, what each screen does, where the controls live. Sibling hub to the Technical documentation for developer-oriented reference. No network — every page is read from disk."),
-            HelpCard("Index", "The first page is a card-style table of contents grouped by use case (Getting started, Reports, Chat, Knowledge / RAG, Translation, Settings, etc.). Pages target users, not developers; concrete control names and label quotes match what's on-screen."),
+            HelpCard("Index", "The first page is a card-style table of contents grouped by use case (Getting started, Reports, Chat, Translation, Settings, etc.). Pages target users, not developers; concrete control names and label quotes match what's on-screen."),
             HelpCard("Navigation", "Tap a card on the index to open that page. The top \"Jump to\" panel anchor-links to each section inside a long page. The system back button walks the browser history first, then exits."),
             HelpCard("Authoritative source", "Hand-written; the code is the ultimate source of truth. When a screen and the manual disagree, the screen wins — open the page's underlying `.md` in the repo to file a fix."),
             HelpCard("Pitfalls", "Pages still marked \"Pass 1 stub\" are placeholders pending a rewrite pass — they link back to the original `doc/<name>.md`. JavaScript is disabled in this WebView; only static HTML + CSS renders.")
@@ -223,7 +223,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Help - Technical documentation",
         cards = listOf(
             HelpCard("Overview", "Developer-oriented hub over the project's technical documentation, bundled in the APK at `assets/docs/technical/`. Mobile-friendly rewrite of the `doc/` markdown tree: collapsible cards instead of wide tables, nested HTML trees instead of ASCII diagrams, dark theme matching the app. Sibling hub to the end-user Manual. No network — every page is read from disk."),
-            HelpCard("Index", "The first page is a card-style table of contents. Sections: For developers (Architecture, Development, API formats, Data structures, Secondary results, Model test, Cooldowns, Help system, AppLog, Report icons, Throttle), Subsystem deep dives (Knowledge / RAG, Local runtime, Translation, Share target, Backup & restore), Reference data (Providers, Repositories, Persistent state), Backlog (TODO)."),
+            HelpCard("Index", "The first page is a card-style table of contents. Sections: For developers (Architecture, Development, API formats, Data structures, Secondary results, Model test, Cooldowns, Help system, AppLog, Report icons, Throttle), Subsystem deep dives (Translation, Share target, Backup & restore), Reference data (Providers, Repositories, Persistent state), Backlog (TODO)."),
             HelpCard("Navigation", "Tap a card on the index to open that doc. Inside a page, the top \"Jump to\" panel anchor-links to each section. Long reference sections (per data class, per provider) are collapsed by default — tap to expand. The system back button walks the browser history first, then exits the screen."),
             HelpCard("Authoritative source", "Documentation is hand-written; the code is the ultimate source of truth. The bundled HTML is a snapshot — when in doubt, the file pointers at the bottom of `index` lead back to the live source files."),
             HelpCard("Pitfalls", "Pages still marked \"Pass 1 stub\" are placeholders pending the second rewrite pass — they link back to the original `doc/<name>.md` in the repo. JavaScript is disabled in this WebView; only static HTML + CSS renders.")
@@ -261,15 +261,13 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "help_about" to HelpContent(
         title = "Help - About the app",
         cards = listOf(
-            HelpCard("What this app is", "A multi-provider AI client for Android. The headline feature is the Report flow: one prompt fired at many models in parallel, every response rendered side-by-side, with token/cost stats per row and post-hoc operations (rerank, compare, translate, moderate, fan-out) you can run over the completed results. There's also a one-model Chat flow and a knowledge-base / RAG flow for prompts that need document grounding."),
-            HelpCard("Who it's for", "Power users who want to compare what different models do with the same prompt, work offline or privately for sensitive prompts, batch-process prompts at scale, or build their own meta-workflows on top of multi-model output. The app is opinionated towards the Report flow — it's the centre of gravity. If you only want a single-model ChatGPT-style conversation, this app is over-spec'd for that."),
+            HelpCard("What this app is", "A multi-provider AI client for Android. The headline feature is the Report flow: one prompt fired at many models in parallel, every response rendered side-by-side, with token/cost stats per row and post-hoc operations (rerank, compare, translate, moderate, fan-out) you can run over the completed results. There's also a one-model Chat flow for follow-up exchanges."),
+            HelpCard("Who it's for", "Power users who want to compare what different models do with the same prompt, batch-process prompts at scale, or build their own meta-workflows on top of multi-model output. The app is opinionated towards the Report flow — it's the centre of gravity. If you only want a single-model ChatGPT-style conversation, this app is over-spec'd for that."),
             HelpCard("Multi-model Reports", "Pick a Flock, Swarm, or ad-hoc set of agents, paste a prompt, fire. Each agent's call runs in parallel up to the per-host throttle gates; results stream into the result page as they arrive. The completed Report is one JSON file on disk that survives app restarts, can be exported (HTML / PDF / DOCX / ODT / JSON traces), and is the input to every Meta operation."),
             HelpCard("Meta operations", "After a Report finishes, you can chain operations over its results: Rerank (order by relevance / quality), Compare / Summarize / Critique (any user-defined chat-type meta prompt; cross-result synthesis), Moderate (per-row safety scoring), Translate (multi-language render), and Fan-out (run a chat meta against every pair of source results). Outputs persist alongside the Report so you can revisit them later."),
-            HelpCard("Knowledge bases (RAG)", "Build a Knowledge base from uploaded files (PDF / DOCX / TXT / MD / HTML), share-target ingest, or web URLs. The app chunks, embeds, and indexes locally. Attach a KB to a Report and the prompt is embedded at run time — the top-K most similar chunks are injected into every dispatched call so the models see the relevant context without you copy-pasting it."),
-            HelpCard("Local AI", "Both an on-device LLM runtime (LiteRT via MediaPipe GenAI) and an on-device embedder. Useful for privacy-sensitive prompts, offline use, or zero-cost experiments. Appears as a normal \"Local\" provider in every picker. Performance is bounded by phone hardware — pick local for the right tasks, cloud for everything else."),
             HelpCard("Architecture at a glance", "Single Activity, Jetpack Compose UI, Kotlin coroutines for concurrency, Retrofit + OkHttp + custom interceptors for the network, plain JSON files on disk for persistence (no SQLite, no Room). Every cloud provider is hit through one of three API formats (OpenAI-compatible, Anthropic, Google) so adding a provider is mostly registration, not code. The app log + per-call API tracer help you debug behaviour."),
             HelpCard("Privacy stance", "Local-first by default. Your data lives on this device under the app's private storage; uninstalling removes it. The only network traffic is the API calls you explicitly trigger to the providers you configured. No telemetry, no analytics, no \"phone home\". See Help - Privacy & data for the full inventory."),
-            HelpCard("Open source + cost", "Source on GitHub (link from the About screen on Home). Licensed GPLv2. The app itself is free; you pay only for the API calls your configured providers bill you for. Local-only flows cost nothing after the initial weights download."),
+            HelpCard("Open source + cost", "Source on GitHub (link from the About screen on Home). Licensed GPLv2. The app itself is free; you pay only for the API calls your configured providers bill you for."),
             HelpCard("Where to start", "Help - Getting started has the step-by-step. Short version: Settings → AI Setup → Providers (paste at least one API key) → Housekeeping → Refresh → Refresh all (verify keys + fetch model lists) → Hub → AI Reports → New report.")
         )
     ),
@@ -281,24 +279,23 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Step 3 — Create an Agent (optional but recommended)", "Settings → Agents → + Agent → name it, pick a provider + model, optionally a parameter set + system prompt. An Agent is the saved combination the rest of the app composes — Reports / Chats / Flocks all dispatch named Agents rather than raw (provider, model) pairs. Quick agents for the providers you just added let you stop picking from scratch every time."),
             HelpCard("Step 4 — Fire your first Report", "Hub → AI Reports → +Agent / +Flock / +Swarm / +Model picks the model set; type a prompt below; Generate. The result page populates as each model returns. Subject row shows the running cost in cents. Once every row has settled, the action row exposes View / Edit / Regenerate / Export / Translate / Meta / Fan out."),
             HelpCard("Step 5 — Try a Meta operation", "On a finished Report, Action row → Meta → pick a meta prompt (Rerank / Summarize / Compare / your own). The meta call runs over the Report's results and lands as a new card on the result page. Rerank produces a sorted table, chat metas produce a single synthesis card. Same Report can carry multiple meta runs side by side."),
-            HelpCard("Step 6 — Knowledge base (optional)", "Hub → AI Knowledge → +KB → pick an embedder (cloud or local) → add documents (Upload, paste a URL, or share-target a file from another app). Documents are chunked and embedded once. On the New Report screen there's an Attach KBs row — attach a KB and every dispatched call gets the top-K matching chunks injected from the prompt."),
-            HelpCard("Step 7 — Translate the Report", "Action row → Translate → pick target languages and the model(s) to use. Multi-model translations parallelise the work and use the Speed / Mixed / Cost mode toggle to bias which model picks up what. See Help - Translations & multi-language for the workflow's specifics."),
-            HelpCard("Common first-week pitfalls", "(1) Forgetting Refresh after adding a key → model lists empty. (2) Picking a tiny model for a long prompt → output truncates. (3) Building a KB with embedder A then trying to attach to a Report run by embedder B → the app refuses (different vector spaces). (4) Hitting a 429 burst with a slow retry budget → bump Settings → Network → Max calls / minute for that provider. (5) Big translation runs feeling slow → the Cost mode hesitation is biasing toward cheaper models; flip the L1 toggle to Speed."),
+            HelpCard("Step 6 — Translate the Report", "Action row → Translate → pick target languages and the model(s) to use. Multi-model translations parallelise the work and use the Speed / Mixed / Cost mode toggle to bias which model picks up what. See Help - Translations & multi-language for the workflow's specifics."),
+            HelpCard("Common first-week pitfalls", "(1) Forgetting Refresh after adding a key → model lists empty. (2) Picking a tiny model for a long prompt → output truncates. (3) Hitting a 429 burst with a slow retry budget → bump Settings → Network → Max calls / minute for that provider. (4) Big translation runs feeling slow → the Cost mode hesitation is biasing toward cheaper models; flip the L1 toggle to Speed."),
             HelpCard("Help anywhere", "Every screen has its own ❓ icon in the title bar — opens the help page for that screen specifically. The Help home (this section's parent) collects cross-cutting topics; the search box at the top searches across everything.")
         )
     ),
     "help_glossary" to HelpContent(
         title = "Help - Concepts & glossary",
         cards = listOf(
-            HelpCard("Overview", "The app's domain vocabulary, grouped into four buckets. Tap a category below; each lists the terms it covers with a one-paragraph explainer for each."),
-            HelpCard("How the four buckets relate", "Building blocks are the atoms — Provider, Model, Agent. Groupings (Flock, Swarm) bundle Agents for one launch. Operations (Report, Chat, Meta, Fan-out, …) are the things you fire those agents at. Retrieval (Knowledge base, Embedder, Reranker) feeds context into the prompts before any of the above sees them."),
+            HelpCard("Overview", "The app's domain vocabulary, grouped into three buckets. Tap a category below; each lists the terms it covers with a one-paragraph explainer for each."),
+            HelpCard("How the three buckets relate", "Building blocks are the atoms — Provider, Model, Agent. Groupings (Flock, Swarm) bundle Agents for one launch. Operations (Report, Chat, Meta, Fan-out, …) are the things you fire those agents at."),
             HelpCard("Why these names matter", "The UI uses the vocabulary literally. Settings → Agents edits Agents; Settings → Flocks bundles them; the Report result page lists Agent rows; the Meta picker chooses meta prompts. If a term feels alien, finding its glossary entry usually clears up whatever screen confused you.")
         )
     ),
     "help_glossary_blocks" to HelpContent(
         title = "Help - Concepts: Building blocks",
         cards = listOf(
-            HelpCard("Provider", "A vendor with an endpoint the app can talk to — OpenAI, Anthropic, Google, Mistral, Cohere, OpenRouter, … plus on-device runtimes (Local LLM, Local embedder). 40+ cloud providers ship with the app; you can also add custom providers via Settings → AI Setup → Providers → +Provider. Each Provider carries its API key, base URL, throttle caps (requests/min + concurrent), retry policy (429/529 budget + backoff), and the discovered model catalog."),
+            HelpCard("Provider", "A vendor with an endpoint the app can talk to — OpenAI, Anthropic, Google, Mistral, Cohere, OpenRouter, …. 39+ cloud providers ship with the app; you can also add custom providers via Settings → AI Setup → Providers → +Provider. Each Provider carries its API key, base URL, throttle caps (requests/min + concurrent), retry policy (429/529 budget + backoff), and the discovered model catalog."),
             HelpCard("Model", "A specific weight / size at one provider — gpt-5-mini, claude-haiku-4-5, gemini-2.5-flash, qwen-2.5-7b-instruct, etc. Reachable by id under one Provider. Pricing per million input/output tokens, capability flags (vision, web search, reasoning), and context-length attach to the Model, not the Provider. The same model id at two different providers (OpenAI gpt-4o-mini vs OpenRouter openai/gpt-4o-mini) is two separate Models."),
             HelpCard("Agent", "A saved combination of (provider, model, parameter set, optional system prompt). The atomic unit the rest of the app composes — Reports / Chats / Flocks / Swarms all dispatch Agents, never raw (provider, model) pairs. Settings → Agents edits the list. Naming Agents (\"Fast Sonnet\", \"Cheap o4-mini\") lets you pick a row by purpose rather than re-configuring each time."),
             HelpCard("Why Agent over raw pair", "Two reasons. (1) Parameter sets matter — a model called with temperature 0.2 + a strict system prompt behaves very differently from the same model with temperature 1.4 + no system prompt. The Agent freezes both. (2) When you change a model's parameters in one Agent, every Report that referenced it picks up the new behaviour on the next run — central knob, not a hundred per-Report tweaks.")
@@ -326,17 +323,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Operation composition", "Operations chain. A Report's results feed Meta operations; a Translation's per-language renders include any Meta results too; Fan-out can target the products of an earlier Meta. The Report is the root; everything else hangs off it.")
         )
     ),
-    "help_glossary_retrieval" to HelpContent(
-        title = "Help - Concepts: Retrieval",
-        cards = listOf(
-            HelpCard("Knowledge base", "A collection of indexed documents you can attach to a Report. Sources include uploaded files (PDF / DOCX / TXT / MD / HTML / CSV / JSON), share-target ingest from other apps, and web URLs (the app fetches + extracts). Each document is chunked, embedded, and stored under <filesDir>/knowledge/<kb-id>/. At Report time, the prompt is embedded and the top-K most similar chunks are injected into every dispatched call — every Agent sees the same context."),
-            HelpCard("Embedder", "The model that turns text into vectors. Cloud (OpenAI text-embedding-3-*, Cohere embed-v3, Voyage, Mistral, Google) or on-device (gecko / nomic-embed-text via LiteRT). The embedder you pick at KB creation is what every later retrieval uses — switching it invalidates the KB's vectors because each embedder produces vectors in its own incompatible vector space. The KB records its embedder; the app refuses to query with a different one."),
-            HelpCard("Reranker", "Optional second-stage filter between embedding-retrieval and prompt-injection. Top-K embedding retrieval is fast but coarse (it can surface chunks that share vocabulary without being relevant); a reranker re-scores the candidate chunks with a more accurate (and slower) model so only the truly relevant chunks end up in the prompt. Cohere rerank-3, Voyage rerank-2, Jina, etc. Optional — a KB without a reranker still works, just less precisely."),
-            HelpCard("Chunking", "Documents are split into overlapping windows (~500 tokens with ~50-token overlap by default) before embedding. The overlap means a fact straddling a chunk boundary still surfaces from either chunk. Smaller chunks → more precise retrieval but more entries; larger chunks → less noise from random co-occurrence but coarser hits."),
-            HelpCard("Why RAG at all", "Two reasons. (1) Context length isn't free — pasting 100 pages into every prompt is slow and expensive, and most models degrade past a few tens of thousands of tokens. RAG sends only the relevant slice. (2) The same KB feeds N Reports; the embedding work is done once. The retrieved chunks change per prompt but the index doesn't have to be rebuilt."),
-            HelpCard("Local vs cloud retrieval", "Both work end-to-end. Local embedders (gecko / nomic) keep document content fully on-device — useful when the documents are confidential. Cloud embedders are typically higher-quality and faster but the document content reaches the embedder provider during indexing.")
-        )
-    ),
     "help_costs" to HelpContent(
         title = "Help - Costs & pricing",
         cards = listOf(
@@ -353,14 +339,14 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "help_privacy" to HelpContent(
         title = "Help - Privacy & data",
         cards = listOf(
-            HelpCard("Local-first principle", "Everything the app generates — Reports, Chats, Knowledge bases, traces, logs, settings, agent definitions — lives on this device only, under the app's private storage (<filesDir>/). No cloud sync, no account, no \"login with Google\". The only way data leaves the device is via API calls you trigger or a Backup zip you explicitly export."),
+            HelpCard("Local-first principle", "Everything the app generates — Reports, Chats, traces, logs, settings, agent definitions — lives on this device only, under the app's private storage (<filesDir>/). No cloud sync, no account, no \"login with Google\". The only way data leaves the device is via API calls you trigger or a Backup zip you explicitly export."),
             HelpCard("What leaves the device", "API requests to the providers you've configured. They see your prompts and produce your responses; their privacy policy applies to that data. The info-providers (HuggingFace / models.dev / llm-prices / etc.) see model id queries when you refresh model lists or fetch pricing — no prompts, no responses, just \"what does gpt-5-mini cost\". That's the complete network surface."),
             HelpCard("API key handling", "Your API keys are stored under SharedPreferences on this device. They're sent only in the Authorization header (or query param for Google) to the matching provider. They never go anywhere else — not to the developer, not to a backend, not even to other configured providers. Switching apps doesn't expose them; uninstalling deletes them."),
             HelpCard("Telemetry — none", "No crash reporting, no analytics SDK, no \"phone home\". The app does no network beyond what you explicitly trigger. You can verify this by capturing traffic from the device or by leaving it offline and watching nothing happen."),
             HelpCard("Logs and traces", "App log + per-call API traces are stored on disk under <filesDir>/logs/ and <filesDir>/traces/. Useful for debugging — \"why did that call fail\" usually has an answer in the trace bundle. They never leave the device unless you explicitly share / export a trace (the 🐞 icon on any cell). Logs are recycled when they outgrow size limits; you can wipe them from Housekeeping."),
-            HelpCard("Data wipe paths", "(1) Per-Report — long-press a row in History or use the Delete action on the result page. (2) Per-Chat — long-press in the Chats list. (3) Per-KB — Knowledge → tap KB → menu → Delete. (4) Per-API-key — Settings → AI Setup → Providers → tap Provider → clear the key. (5) Everything — Housekeeping → Reset → \"Wipe app data\" (irreversible, recreates a fresh install state). (6) Uninstall the app — Android's sandbox guarantees <filesDir>/ is removed."),
+            HelpCard("Data wipe paths", "(1) Per-Report — long-press a row in History or use the Delete action on the result page. (2) Per-Chat — long-press in the Chats list. (3) Per-API-key — Settings → AI Setup → Providers → tap Provider → clear the key. (4) Everything — Housekeeping → Reset → \"Wipe app data\" (irreversible, recreates a fresh install state). (5) Uninstall the app — Android's sandbox guarantees <filesDir>/ is removed."),
             HelpCard("Backup file = the only off-device copy", "A Backup zip you create (Housekeeping → Backup) is the only artefact that exists outside this device — and only if you choose to share / save it. Treat the file as you'd treat your API keys: it contains them. If you upload it to a cloud you don't control, you've moved trust to that cloud."),
-            HelpCard("Sandbox guarantees", "Android's per-app sandbox means no other app on this device can read <filesDir>/. The app uses MODE_PRIVATE for every SharedPreferences file. Knowledge base documents are stored inside the same sandbox; even on a rooted device they require root + a UID match to read."),
+            HelpCard("Sandbox guarantees", "Android's per-app sandbox means no other app on this device can read <filesDir>/. The app uses MODE_PRIVATE for every SharedPreferences file. Even on a rooted device the app's files require root + a UID match to read."),
             HelpCard("Pitfalls", "Sharing a Backup zip via a non-private channel (public Drive folder, email forwarded) exposes API keys + every Report. If you do need to share data with someone, export the specific Report's HTML / PDF instead — those don't include keys.")
         )
     ),
@@ -368,28 +354,12 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Help - Backup & restore",
         cards = listOf(
             HelpCard("What's in a backup", "Every saved Report (the JSON files under reports/) + every SecondaryResult row (under secondary/) + every captured API trace (under traces/) + every prompt / agent / system prompt / parameter set / flock / swarm / cost override (the AI settings file) + general app settings + the ModelCooldownStore (rate-limit-bench state) + the PromptCache (recently used prompts) + the InternalPromptIconCache (rendered emoji icons). One zip; fixed layout."),
-            HelpCard("What's NOT in a backup", "On-device LLM weights (<filesDir>/local_llms/) and local embedder models (<filesDir>/local_models/). They're re-downloadable from the curated catalogs in Housekeeping → Local LiteRT models / Local embedders, and including multi-GB weights in a Backup zip would make it unshareable. The Backup excludes them explicitly via the FILES_DIR_BACKUP_EXCLUDES set; the same set is preserved through Restore so a Restore on a device with local weights doesn't wipe them."),
             HelpCard("Backup flow", "Housekeeping → Backup → Backup all. The app composes the zip in <filesDir>/backups/ (atomic temp-file + rename so a mid-write crash doesn't leave a half-zip), then hands the resulting file URI to the Android share sheet. From the share sheet pick where it goes — Drive, email, Files, local storage, your call. The zip survives between sessions in <filesDir>/backups/ until you delete it; the app doesn't auto-clean."),
-            HelpCard("Restore flow", "Housekeeping → Backup → Restore from file → pick the zip via the system file picker. The app first validates the zip's contents end-to-end before touching disk — wrong layout / unknown version / corrupt entries refuse the restore with an inline error and nothing changes. On successful validation it clears the relevant <filesDir>/ subtrees (preserving the excluded local_llms / local_models), writes every entry back atomically, and then asks you to restart the app so the in-memory caches re-read from disk."),
+            HelpCard("Restore flow", "Housekeeping → Backup → Restore from file → pick the zip via the system file picker. The app first validates the zip's contents end-to-end before touching disk — wrong layout / unknown version / corrupt entries refuse the restore with an inline error and nothing changes. On successful validation it clears the relevant <filesDir>/ subtrees, writes every entry back atomically, and then asks you to restart the app so the in-memory caches re-read from disk."),
             HelpCard("Version compatibility", "Backups carry an export version stamped in the zip's manifest. The app currently writes version 24 and accepts restore from versions 11..24. Restoring a newer-version zip into an older app is refused (we don't know what fields a newer schema introduced). Restoring an older zip into a newer app applies any migrations the app knows about — typically adding default values for fields that didn't exist when the zip was written."),
-            HelpCard("Local-weights exclusion rationale", "If we backed up the local LLM and embedder weights, a single Backup zip could be 10–20 GB. That's a fairly hostile object to drop into Drive or email yourself. The exclusion keeps the backup zip in the single-megabyte range for most users (Reports + traces dominate the size). The curated catalogs cover re-downloading the local models in one tap each, so the exclusion is cheap."),
             HelpCard("Pitfalls", "(1) Don't restore while a translation / fan-out is in flight — the running coroutines will write to disk under the about-to-be-cleared subtree. Force-stop first, then restore. (2) Restoring resets the cooldown store — any benched models become \"available\" again until they get a fresh 429. (3) The cost overrides come along with the backup; if you restore on a different device, your custom prices follow."),
             HelpCard("Migration semantics", "When the restore picks up an older zip the migration runs once during the unpack. Fields the new code added but the zip lacks get defaulted. Fields the new code removed are dropped silently. Fields renamed across versions are mapped explicitly in the migration table. doc/backup-restore.md has the version-by-version notes."),
             HelpCard("Verifying a backup", "Quick smoke test: after a backup, install a fresh copy of the app on a second device, restore the zip there, confirm the History list looks identical. The export version field at the bottom of the Backup dialog also tells you which schema you just wrote.")
-        )
-    ),
-    "help_local_ai" to HelpContent(
-        title = "Help - Local AI (on-device)",
-        cards = listOf(
-            HelpCard("What runs on-device", "Two distinct runtimes. (1) Local LLM — text generation, via Google's MediaPipe LiteRT GenAI runtime. Models are .task files downloaded once from a curated catalog or pasted-URL. (2) Local embedder — text → vector for KB retrieval; also via LiteRT or a small native model. Both appear in pickers as a normal \"Local\" provider entry that you compose into Agents like any other (provider, model)."),
-            HelpCard("How to add a local LLM", "Housekeeping → Local LiteRT models → +Model. Either pick from the curated list (one tap downloads and installs) or paste a HuggingFace URL pointing at a .task file. Download progress is shown inline; the model is usable the moment the download finishes. Storage lives under <filesDir>/local_llms/ — these files are large (1–5 GB typical) and aren't included in Backup zips by design."),
-            HelpCard("How to add a local embedder", "Housekeeping → Local embedders → +Embedder. Same flow as LLMs: curated list or paste a URL. Storage lives under <filesDir>/local_models/. Once installed the embedder is selectable when creating a Knowledge base."),
-            HelpCard("When local is the right pick", "(1) Privacy-sensitive prompts you don't want to send to a cloud provider. (2) Offline use — flying, no cell coverage, network outage. (3) No API key required (some users want zero-config). (4) Cost-zero after the initial weights download (you pay battery, not dollars). (5) Practical for short prompts on modern phones — first-page reads, quick rewrites, single-turn questions."),
-            HelpCard("Performance expectations", "First call after launch warms the model (~5–15 s on a modern phone); subsequent calls run at ~5–30 tokens/sec for a small (3–7B parameter) quantised model. A small Q4 model on a phone will never match a frontier cloud model on output quality — they're complementary, not substitutes. Long contexts (>4K tokens) strain the KV cache; expect slower decode."),
-            HelpCard("KB + embedder coupling", "Each embedder produces vectors in its own incompatible vector space. A KB embedded with the local Gecko embedder isn't readable by an OpenAI embedder — switching the embedder for an existing KB requires re-indexing every chunk. The KB stores which embedder produced it; using the wrong one at retrieval time is refused with a clear error. So pick the embedder you'll commit to before bulk-loading documents."),
-            HelpCard("Storage budget", "LLM weights are large — 1–5 GB each. The phone tells you free space; the app doesn't enforce a budget but a low-storage situation degrades the whole device. If you're tight, delete unused models from Housekeeping → Local LiteRT models. Backup zips don't include local weights so cleanup doesn't lose anything that can't be re-downloaded."),
-            HelpCard("Troubleshooting", "Slow first call → expected (warmup). Hangs for >60 s → the LiteRT init failed; check Settings → Logs for the stack trace, then long-press the model in Housekeeping to delete and re-download. Out-of-memory on generate → the prompt or context is too large; truncate or switch to a smaller model. KB retrieval returns nothing → the KB was indexed with a different embedder; check the KB's recorded embedder and re-index if needed."),
-            HelpCard("Why MediaPipe LiteRT", "It's Google's actively-maintained on-device GenAI runtime, ships with Android, handles the LiteRT (TFLite) model format, and supports the .task bundles that wrap LLM weights + tokenizer + run config. The alternative would be GGML/llama.cpp via JNI which is heavier to maintain and has worse Android integration.")
         )
     ),
     "help_translations" to HelpContent(
@@ -412,7 +382,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Dashboard for everything to do with reports. Two top buttons jump into the creation and search wrappers; four list cards summarise what's already on disk; one bottom button opens the paginated browser."),
             HelpCard("In-flight pill", "When at least one report has unfinished agents (PENDING / RUNNING and no completedAt), an orange ⏳ pill appears at the top — tap it to resume the most recent in-flight run without going through History."),
-            HelpCard("Top buttons", "New AI report opens the three creation entry points (blank, previous prompt, example prompt). Search AI reports opens the four search modes (Quick local, Extended local, Remote semantic, Local semantic)."),
+            HelpCard("Top buttons", "New AI report opens the three creation entry points (blank, previous prompt, example prompt). Search AI reports opens the three search modes (Quick local, Extended local, Remote semantic)."),
             HelpCard("Problems / Running / Pinned / Latest", "Four list cards, each showing up to five rows. ⚠️ Problems collects reports with an errored agent or a stuck/failed secondary; ⏳ Running collects reports with at least one PENDING / RUNNING agent or an active translation run; 📌 Pinned mirrors every report flagged on Manage; 🕘 Latest shows the five newest. An empty card stays on screen at reduced opacity with an italic '(none)' line so the layout doesn't shift."),
             HelpCard("Per-row icons", "Tap a row to open at Manage. 🔧 jumps to Manage explicitly, 👁 jumps to the View tile grid, 🗑 prompts a delete confirmation that removes the report from disk."),
             HelpCard("All AI reports", "Bottom button opens the paginated swipe-through of every saved report — same per-row icons as the dashboard cards.")
@@ -428,8 +398,8 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "search_ai_reports_screen" to HelpContent(
         title = "Help - Search AI reports",
         cards = listOf(
-            HelpCard("What you see", "Four search modes in escalating-cost order: 🔍 Quick local search (substring), 📂 Extended local search (tokenised), 🌐 Remote semantic search (cloud embeddings), 📱 Local semantic search (on-device embedder)."),
-            HelpCard("How to use it", "Pick the mode that suits the question — local-quick is fast and free; local-semantic stays on-device; remote-semantic uses an embedding provider and bills accordingly. Each mode shows matching reports with the same per-row 🔧 / 👁 icons as the dashboard.")
+            HelpCard("What you see", "Three search modes in escalating-cost order: 🔍 Quick local search (substring), 📂 Extended local search (tokenised), 🌐 Remote semantic search (cloud embeddings)."),
+            HelpCard("How to use it", "Pick the mode that suits the question — local-quick is fast and free; remote-semantic uses an embedding provider and bills accordingly. Each mode shows matching reports with the same per-row 🔧 / 👁 icons as the dashboard.")
         )
     ),
     "all_ai_reports_screen" to HelpContent(
@@ -448,7 +418,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Web search chip", "🌐 tags every dispatched call with the web-search tool flag. Providers and models that don't support web search drop the flag silently."),
             HelpCard("Thinking chip", "🧠 None / Low / Medium / High. Applied to every agent at dispatch; non-thinking models drop the field automatically."),
             HelpCard("Validate prompt chip", "🛡 picks a moderation model and runs the prompt through it before any agent fires. If the model flags the prompt, you get a Proceed-anyway / Cancel dialog with a 🐞 link to the moderation trace; tap when on to clear the model."),
-            HelpCard("Shared KB banner", "When files were routed in via the share-target, a green banner offers a one-tap KB build from those files (using the local default embedder when installed, otherwise the first remote embedding model). Indexing runs on Dispatchers.IO with progress messages; the new KB id auto-attaches to the report."),
             HelpCard("Next", "Saves title + prompt to last-prompt prefs and prompt history, then routes to the model-selection screen. While moderation is running the button shows a spinner.")
         )
     ),
@@ -457,7 +426,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "The pre-Generate page in the report flow. Empty model list at first; +Agent / +Flock / +Swarm / +Model / +Report fill it, Params lets you tweak the per-call parameter set, Generate fires the dispatch and moves the report into the post-Generate manage page (Report - manage)."),
             HelpCard("Add buttons", "+Agent picks one saved agent, +Flock adds every member of a flock, +Swarm adds every (provider, model) pair in a swarm, +Model is the single-select all-providers picker, +Report copies the model list from a previous report. Repeated taps stack — you can mix sources."),
-            HelpCard("Knowledge attach", "When you have at least one saved KB, a 📚 row shows the current attachment count and opens a multi-select. Attached KB ids ride with the report and inject the top-K most similar chunks into every dispatched call."),
             HelpCard("Params", "Opens Advanced Parameters — temperature, max tokens, system prompt, etc. The button reads Params ✓ when an override is active. Clear all wipes the override and the dispatched call uses each agent's default parameter set."),
             HelpCard("Generate", "Fires the dispatch for every model in the list. The screen flips to Report - manage as soon as the first row starts streaming. While running, that page exposes STOP / Background; once complete it exposes the full Action row."),
             HelpCard("Update model list (edit mode)", "When you reach this page via Edit → Models on a finished report, the bottom button switches to Update model list. It stages the new list and pops back without re-running — you re-fire later from Report - manage → Action row → Regenerate."),
@@ -614,7 +582,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Model picker that fans the bundled internal/icon prompt across whatever (provider, model) pairs you choose. Reached from the Icon detail screen's 'Find alternative icons' button."),
             HelpCard("+Add chips", "Same five chips as the New-Report flow: Agent (saved Agents), Flock (named groups of agents), Swarm (named groups of provider/model pairs), Report (copy the model list from a finished report), Model (free-form (provider, model) picker)."),
             HelpCard("Selected list", "Rows are sorted alphabetically by model id. Each row shows model id + capability badges + provider id + pricing per million tokens. The ✕ on the right drops a single row; the Clear button at the bottom wipes the whole list."),
-            HelpCard("Stripped affordances", "Params, Sys prompt, and Knowledge attach are intentionally absent — an icon is a one-shot @PROMPT@ → emoji round-trip; parameter presets and RAG don't apply."),
+            HelpCard("Stripped affordances", "Params and Sys prompt are intentionally absent — an icon is a one-shot @PROMPT@ → emoji round-trip; parameter presets don't apply."),
             HelpCard("Find Icons", "Kicks off one analyzeWithAgent call per (provider, model) pair against the bundled internal/icon prompt with @PROMPT@ replaced by the report's prompt text. Per-provider throttle (ProviderThrottle) caps concurrency. Pops you straight to the Alternative icons live list."),
             HelpCard("Cost note", "Each call's tokens × pricing tier is added to the Report's icon cost as soon as the response lands — regardless of whether you later pick that result."),
             HelpCard("Pitfalls", "Models with no API key set won't run — the call lands as ❌ on the Alternative icons screen. Pricing tiers stuck on DEFAULT show a Red bracket on the picker row.")
@@ -1007,8 +975,8 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Help - Pick model",
         cards = listOf(
             HelpCard("Overview", "Full-screen single-select model picker reached by +Model on the New AI Report selection phase, and by the secondary-result launchers (Meta / Fan-out / Fan-in / Fan-in-model / Translate / Rerank) when they need a model."),
-            HelpCard("List", "Joins every active provider's catalog plus, when a model-type filter is set, on-device LiteRT models exposed under the synthetic Local provider."),
-            HelpCard("Provider filter", "Dropdown above the list — All Providers or one specific provider (count shown next to each name). LOCAL appears here only when the type filter has matching local models."),
+            HelpCard("List", "Joins every active provider's catalog."),
+            HelpCard("Provider filter", "Dropdown above the list — All Providers or one specific provider (count shown next to each name)."),
             HelpCard("Type filter", "When opened with a modelTypeFilter (RERANK / MODERATION / EMBEDDING / etc.), a checkbox '<Type> models only' is shown ON by default — untick to widen to the full catalog."),
             HelpCard("Search field", "Matches against provider id and model id. The count line above the list reads '<filtered> of <total> models'."),
             HelpCard("Recent section", "When the user has picked from any Report-section model picker before, the last 3 picks surface as a 'Recent' section above the main alphabetical list. Filters and search don't trim it — recents are a quick-access shortcut. Tapping a recent row also re-records it so the bump-to-front keeps ordering stable."),
@@ -1130,17 +1098,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Costs use CURRENT pricing — if the provider changed prices since the run, the displayed cost is the today-rate, not the as-billed rate."),
         )
     ),
-    "knowledge_new" to HelpContent(
-        title = "Help - New knowledge base",
-        cards = listOf(
-            HelpCard("Overview", "Form to create a new knowledge base. The KB binds an embedder model + a chunk strategy at creation time; both are immutable for the KB's lifetime once chunks land."),
-            HelpCard("Name field", "Free-form display name. Used as the KB title in pickers and in the chat-attach dialog. Required — Create is disabled until non-blank."),
-            HelpCard("Embedder picker", "Pick one provider/model for embeddings. Local embedder (LiteRT MediaPipe) is also offered when a TextEmbedder model is installed. The chosen embedder's output dimension becomes a hard invariant for every chunk in this KB."),
-            HelpCard("Chunk strategy", "How source documents get split before embedding. Defaults pick token / character thresholds tuned to the chosen model's input limit; advanced fields let you override."),
-            HelpCard("Create", "Creates the manifest under <filesDir>/knowledge/<id>/manifest.json. No sources yet — drill into the new KB and add documents from there."),
-            HelpCard("Pitfalls", "Picking an embedder you don't actively use here means the cosine retrieval at chat-attach time has to load the embedder runtime — which can be slow and memory-heavy. Prefer your default embedder unless you have a reason."),
-        )
-    ),
     "chat_search" to HelpContent(
         title = "Help - Search chats",
         cards = listOf(
@@ -1214,7 +1171,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Unfinished pill", "When at least one chat ended on a user turn with no assistant reply (you navigated away mid-stream), an envelope pill appears at the very top with a Resume link to the most recent such session."),
             HelpCard("Start card", "Four entry points stacked in one card: New Chat with Agent (greyed when no agent has a key + active provider), New Chat – Configure On The Fly (pick provider/model/parameters at start), Dual AI Chat (two models trade turns), and Start with photo (camera capture, image rides into the first user turn)."),
             HelpCard("Continue Existing Chat", "Opens the full chat-history list. Disabled and dimmed when no sessions exist yet. Pinned + Recent below give you a faster jump for the top sessions."),
-            HelpCard("Chat with a local LLM", "Only shown when at least one .task model is installed in filesDir/local_llms/. Tapping with one model installed jumps straight to the session; with two or more, a dropdown appears so you pick which to load."),
             HelpCard("Pinned and Recent cards", "Pinned holds every session you marked with the pin chip; Recent shows the next three by updated time. Each row is the first user-message preview; tap to resume."),
             HelpCard("Search Chats", "Free-text search across every saved message — opens the dedicated search screen."),
             HelpCard("Manage", "Bulk-prune by age and zip-export of every chat-history JSON. Disabled when no chats exist."),
@@ -1226,8 +1182,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Help - Chat",
         cards = listOf(
             HelpCard("Overview", "Live single-model conversation. Messages stream chunk-by-chunk; the input box clears the moment Send fires; the assistant bubble bottom-anchors so short conversations sit just above the input row instead of pinned at the top."),
-            HelpCard("Header row", "Provider / model label is clickable and opens Model Info. To its right: a Knowledge chip (only when at least one KB exists) and a Pin chip. The pin state is written to the session record immediately, so the hub reflects it without waiting for the next message save."),
-            HelpCard("Knowledge chip", "Multi-select dialog over saved KBs. Once one KB is checked, every other KB whose embedder differs becomes greyed out — the retriever embeds the query with the first attached KB's embedder and would silently drop the rest. Clearing the selection re-enables every row."),
+            HelpCard("Header row", "Provider / model label is clickable and opens Model Info. To its right: a Pin chip. The pin state is written to the session record immediately, so the hub reflects it without waiting for the next message save."),
             HelpCard("Web search chip", "Per-turn 🌐 toggle. When on, an OR with the Parameters preset's searchEnabled drives the request, and the LiteLLM tool-use overhead (~3-4k extra system tokens for Claude with web_search) is folded into the cost estimate."),
             HelpCard("Reasoning chip", "Only shown when LiteLLM, models.dev, or the model id family (o1/o3/o4/gpt-5, anything with thinking/reasoning in the name) marks the model as supporting it. Levels come from the provider's self-reported capabilities when available, otherwise the legacy low/medium/high set."),
             HelpCard("Validate input chip", "Tap once to pick a moderation model; while set, every Send first runs the input through callModerationApi. A clean classification proceeds silently. A flagged result pops a Proceed-anyway / Cancel dialog with the fired categories. API errors fail-open: the message is still sent and the orange Moderation: error line is shown."),
@@ -1267,8 +1222,8 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "chat_continue" to HelpContent(
         title = "Help - Chat",
         cards = listOf(
-            HelpCard("Overview", "Same screen as Chat session, but seeded with the stored messages, parameters, knowledge attachments, pinned flag, and persisted web-search / reasoning effort from the saved session record."),
-            HelpCard("State you keep", "ChatHistoryManager.loadSession brings back: every message (system prompt repinned in place if Parameters changed), the original ChatParameters, the per-session knowledgeBaseIds, and the pinned flag."),
+            HelpCard("Overview", "Same screen as Chat session, but seeded with the stored messages, parameters, pinned flag, and persisted web-search / reasoning effort from the saved session record."),
+            HelpCard("State you keep", "ChatHistoryManager.loadSession brings back: every message (system prompt repinned in place if Parameters changed), the original ChatParameters, and the pinned flag."),
             HelpCard("Toggles you can flip", "Web search and reasoning effort chips are read from the persisted ChatParameters and are saved back on every turn — the next save uses your current chip state, not the original preset."),
             HelpCard("System prompt update", "If the underlying Settings system-prompt template changed since you last opened the session, the system message is rewritten in-place on the next turn so the new prompt takes effect."),
             HelpCard("Session id", "AI_CHAT_CONTINUE/{sessionId} carries the id; the screen treats it as the current session id so saves overwrite the same record. New messages append to the existing JSON."),
@@ -1319,34 +1274,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "If either provider has no API key configured the call will error and the loop stops. Errors render in red below the message list and the run flips to the stopped state.")
         )
     ),
-    "knowledge_list" to HelpContent(
-        title = "Help - AI Knowledge",
-        cards = listOf(
-            HelpCard("Overview", "Lists every saved knowledge base. KBs are RAG corpora that can be attached to a Report or Chat session to inject relevant excerpts before each call. The header line is the one-paragraph reminder of what KBs are for."),
-            HelpCard("Shared-content banner", "When you arrive here from the share-target chooser with files / URLs queued, a green sticky banner counts the pending items and explains: pick an existing KB to ingest there, or create a new one. \"Discard share\" abandons the queue."),
-            HelpCard("+ New knowledge base", "Green button opens the wizard — name + embedder picker. Embedder choices fold local TextEmbedder .tflite files in filesDir/local_models/ together with every (provider, model) marked EMBEDDING from active providers."),
-            HelpCard("KB cards", "Each card shows the KB name, embedder line (\"Local · model\" or \"Provider · model\"), and \"N sources · M chunks\". Tap to drill into the detail screen."),
-            HelpCard("Empty state", "When KnowledgeStore lists nothing: \"No knowledge bases yet.\" Tap + New knowledge base to create one."),
-            HelpCard("Title-bar icons", "Help and Home only on the list and on the new-KB wizard. Per-KB delete is on the detail screen."),
-            HelpCard("Tips", "List re-keys on each ON_RESUME tick — re-indexing or deleting a KB elsewhere shows up when you return. The wizard's empty embedder list points you at Housekeeping → Local LiteRT models or AI Setup → Manual model types overrides."),
-            HelpCard("Pitfalls", "Embedder is fixed for the lifetime of the KB — there is no migration path. If you change your mind, create a new KB and re-ingest."),
-        )
-    ),
-    "knowledge_detail" to HelpContent(
-        title = "Help - Knowledge base",
-        cards = listOf(
-            HelpCard("Overview", "Per-KB workspace. Add file or URL sources, see the chunk count, re-index a single source, or delete the whole KB. Indexing runs in the screen's coroutine scope so the status line updates live as the import happens."),
-            HelpCard("Header", "Title is the KB name. Below: embedder line (provider · model, monospace) and \"N sources · M chunks\". The trash icon in the title bar deletes the entire KB after a confirm dialog."),
-            HelpCard("+ File", "Opens the SAF picker scoped to PDF, plain/markdown text, DOCX, ODT, XLSX, ODS, CSV/TSV, and JPG/PNG. File type is detected by extension first, MIME second, defaulting to TEXT."),
-            HelpCard("+ Web page", "URL input field below the file row. Trim + non-blank gates the button. KnowledgeService.indexUrl runs in IO, posts progress to status, and disables the buttons while it works."),
-            HelpCard("Status line", "Reflects the current step: \"Reading X…\" / \"Fetching X…\" / \"Indexed name (N chunks)\" / \"Failed: …\" — and per-batch progress messages from the embedder for chunked sources."),
-            HelpCard("Sources list", "Each row shows source name, type, chunk count, and any error (red). Per-row Re-index re-runs the same extractor; per-row Delete drops the source via KnowledgeStore.deleteSource and refreshes the list."),
-            HelpCard("Auto-ingest from share", "When pendingUris arrives from the share-target queue, the screen auto-imports each item once the KB has loaded — http(s) URLs go through indexUrl, content:// URIs go through pickTypeForUri + indexFile. The queue is cleared via onConsumePending so a back-and-forward doesn't re-import."),
-            HelpCard("Title-bar icons", "🗑 deletes the whole KB (confirm dialog: \"Removes the manifest, every source, and every chunk. Cannot be undone.\"). Help and Home are always present."),
-            HelpCard("Tips", "URL input clears itself on a successful indexUrl. Buttons disable while a working flag is set so you can't queue parallel imports."),
-            HelpCard("Pitfalls", "Re-index hits the same upstream — for a flaky URL it may fail again. The error message is preserved on the source row in red until you re-index successfully or delete it.")
-        )
-    ),
     "models_search" to HelpContent(
         title = "Help - Models",
         cards = listOf(
@@ -1395,8 +1322,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Default option", "When showDefaultOption is on (per-provider settings reuse), the list starts with a \"Default (use provider setting)\" row that selects the empty-string sentinel."),
             HelpCard("Open Models button", "Visible when onNavigateToProviderModels was wired (typically inside provider edit). Jumps into the rich Models browser with this provider preselected."),
             HelpCard("Fetch error row", "When the provider's last fetch failed, a red error line appears under the search box with a 🐞 link to the captured trace (when API tracing is on)."),
-            HelpCard("Title-bar icons", "Help and Home only. Refresh is automatic; manual refresh is on the per-provider settings screen."),
-            HelpCard("Tips", "Local LLM models come from filesDir/local_llms/ via LocalLlm.availableLlms — the synthetic LOCAL provider's model list isn't stored in ProviderConfig.models.")
+            HelpCard("Title-bar icons", "Help and Home only. Refresh is automatic; manual refresh is on the per-provider settings screen.")
         )
     ),
     "model_pick_agent" to HelpContent(
@@ -1424,12 +1350,12 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "search_local" to HelpContent(
         title = "Help - Extended local search",
         cards = listOf(
-            HelpCard("Overview", "On-device keyword search across saved reports. The query is split on whitespace; each token is matched case-insensitively against title + prompt + every successful agent's response body. Score = total token occurrences."),
+            HelpCard("Overview", "Local keyword search across saved reports. The query is split on whitespace; each token is matched case-insensitively against title + prompt + every successful agent's response body. Score = total token occurrences."),
             HelpCard("Query field", "Multi-line, up to 3 lines. Whitespace-tokenised — multi-word queries become AND-of-substrings with score summed. No regex."),
             HelpCard("Search button", "Purple. Disabled until the query is non-blank and no run is in flight. Label flips to \"Searching…\" while running."),
             HelpCard("Status line", "Single line under the button: \"Searching…\", \"No matches.\", or \"N results\"."),
             HelpCard("Result rows", "Title (white, bold), date (yyyy-MM-dd HH:mm), and the integer score on the right in blue. Tap to open the report. Top 25 only — sorted by score desc, then timestamp desc."),
-            HelpCard("Title-bar icons", "Help and Home only. No trace icon — every byte stays on-device, there's nothing to record."),
+            HelpCard("Title-bar icons", "Help and Home only. No trace icon — the search runs locally on the phone, there's nothing to record."),
             HelpCard("Tips", "Search runs entirely on the device — no API calls, no key required. Useful even when offline."),
             HelpCard("Pitfalls", "Tokens are matched as substrings, so very short tokens (\"ai\", \"the\") will inflate scores via incidental matches. Use longer or more distinctive terms when you need precision."),
         )
@@ -1462,33 +1388,17 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Title is not searched (only prompt + responses). For a title query, use Extended local search instead."),
         )
     ),
-    "search_local_semantic" to HelpContent(
-        title = "Help - Local semantic search",
-        cards = listOf(
-            HelpCard("Overview", "Semantic search using an on-device LiteRT (MediaPipe Tasks Text Embedder) model. Same workflow as the cloud Semantic search but every embedding stays on the phone."),
-            HelpCard("Empty state", "When no .tflite is installed in filesDir/local_models/, the inline panel points you at AI Housekeeping → Local LiteRT models — that screen handles download / import / remove."),
-            HelpCard("Model picker", "Dropdown over availableModels — whatever .tflite files live in filesDir/local_models/. Pre-selected to the first one on entry."),
-            HelpCard("Query + Search", "Multi-line query, purple Search button, same disabled gating as the other search screens. The button label flips to \"Searching…\" during a run."),
-            HelpCard("Status line + 🐞", "Live status: \"Indexing reports… i / N\" then \"Embedding batch X / Y (Z reports)\". After a run completes, a 🐞 next to the status line opens the most recent \"Local semantic search\" trace (synthetic, hostname \"local\")."),
-            HelpCard("Caching", "Embeddings persist via EmbeddingsStore keyed on report id + provider \"LOCAL\" + model name + content hash. Re-runs hit the cache; edited reports re-embed automatically."),
-            HelpCard("Result rows", "Title, timestamp, cosine score (3 decimals) in blue. Top 10, scores > 0, sorted desc."),
-            HelpCard("Title-bar icons", "Help and Home only — the 🐞 lives next to the status line, not in the title bar."),
-            HelpCard("Tips", "ApiTracer writes a synthetic trace entry tagged \"Local semantic search\" so the Trace screen lights up the same way it does for HTTP-backed embedders. The MediaPipe TextEmbedder embeds one string per call internally — \"batch of 50\" is just to reduce the trace count."),
-            HelpCard("Pitfalls", "Switching to a different .tflite invalidates the cache for that model — first run after a switch re-embeds every report."),
-        )
-    ),
     "share_target" to HelpContent(
         title = "Help - Send to AI",
         cards = listOf(
             HelpCard("Overview", "Lightweight chooser shown when another app shares content into this app via ACTION_SEND. Lives between the receiving Activity and the standard nav graph; a card tap clears the share state and routes the payload."),
             HelpCard("Preview card", "Top of the screen: shared subject (when present and non-blank), first 300 characters of shared text (with ellipsis when truncated), \"N attachments\" line for any URIs, and the raw mime type. Lets you double-check the payload before picking a destination."),
-            HelpCard("New Report card", "📝. Routes to the New Report flow — text becomes the prompt, the first image attaches for vision, non-image files queue for one-tap auto-attach as a knowledge base. Greyed when there's neither text nor URIs."),
+            HelpCard("New Report card", "📝. Routes to the New Report flow — text becomes the prompt, the first image attaches for vision. Greyed when there's neither text nor URIs."),
             HelpCard("New Chat card", "💬. Opens a fresh chat session with the shared text staged as the first user turn. Greyed when no text was shared."),
-            HelpCard("Add to Knowledge card", "📚. Routes to the Knowledge list with the URIs / URL pre-staged in the share-target queue; the queue is consumed by either picking an existing KB or creating a new one. Greyed when there's no URI and the shared text isn't a URL."),
             HelpCard("Cancel", "Back / system back fires onCancel which discards the share without routing. The chooser doesn't add itself to the regular back stack."),
             HelpCard("Title-bar icons", "Help and Home only. Help points to this entry; Home aborts the chooser."),
-            HelpCard("Tips", "Cards stay tappable even when the payload is \"weak\" for that route — only-image-shared can still go to Report (vision attach), only-text-shared can still go to Knowledge (paste-in URL or note). The receiving callbacks do the heavier validation."),
-            HelpCard("Pitfalls", "Multiple shared images: only the first attaches to a chat or report; the rest are dropped on those routes. Use Add to Knowledge if you want to ingest several files at once.")
+            HelpCard("Tips", "Cards stay tappable even when the payload is \"weak\" for that route — only-image-shared can still go to Report (vision attach). The receiving callbacks do the heavier validation."),
+            HelpCard("Pitfalls", "Multiple shared images: only the first attaches to a chat or report; the rest are dropped.")
         )
     )
 ,
@@ -1497,7 +1407,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Settings is a pure table of contents. Every editable preference lives one tap deeper inside one of the four sub-screens. Edits autosave on each sub-screen with a 400 ms debounce, so you don't need a Save button — just type and back out."),
             HelpCard("Network settings", "Read timeouts, per-provider throttling, and 429 / 529 retry policies. Tap the row to open the dedicated sub-screen."),
-            HelpCard("UI tweaks", "Experimental features master toggle, model name layout, full-screen, back-arrow visibility, AI Knowledge card on the Hub. Tap the row to open the dedicated sub-screen."),
+            HelpCard("UI tweaks", "Experimental features master toggle, model name layout, full-screen, back-arrow visibility. Tap the row to open the dedicated sub-screen."),
             HelpCard("Logging and tracing", "API tracing master switch and application log level. Tap the row to open the dedicated sub-screen."),
             HelpCard("Other settings", "Identity (Name + Email) used for outbound prompts and email exports, plus the master switch for per-report icon generation."),
             HelpCard("Tips", "Each sub-screen has no Save button on purpose — every keystroke restarts a 400 ms debounce timer. If you tap Back fast, the latest values still flush to disk via a DisposableEffect."),
@@ -1542,8 +1452,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Visual / layout preferences that don't affect how the app talks to providers. Pick what's most legible for you — every option autosaves with a 400 ms debounce."),
             HelpCard("Experimental features", "Master gate for on-device Local LLMs, LiteRT embedders, the synthetic Local provider, AI Knowledge / RAG, and Local Semantic Search. Off (default) hides every UI surface for those features — Local Models setup, Knowledge attach buttons in Chat and Report, the share-target Add to Knowledge card, the Local LLM chat card on the Chat hub, and the Local semantic search entry under Search AI reports. Installed model files on disk are left alone, and KBs already attached to existing chats or reports keep sending context at API time even when the UI is hidden."),
-            HelpCard("Model name layout", "Two radios. Model name only is the dense default — useful when you mostly run different models. Provider and model name joins the provider's display name and the model id with \" · \" — useful when you run the same model id on multiple providers."),
-            HelpCard("Show AI Knowledge card on home page", "Only visible when Experimental features is on. RAG / Knowledge is hidden on the Hub by default — turn this on to surface the AI Knowledge card alongside Reports / Chat / Models. The Knowledge subsystem stays fully functional whether or not the card is visible — KBs attached to a chat / report still work, share-target Knowledge still works.")
+            HelpCard("Model name layout", "Two radios. Model name only is the dense default — useful when you mostly run different models. Provider and model name joins the provider's display name and the model id with \" · \" — useful when you run the same model id on multiple providers.")
         )
     ),
     "settings_logging" to HelpContent(
@@ -1566,7 +1475,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Parameters", "Direct CRUD for parameter presets (temperature, max tokens, system prompt, web-search flags, reasoning effort)."),
             HelpCard("Costs", "Opens the manual cost-override list. Count = number of manual override entries currently saved."),
             HelpCard("External Services", "HuggingFace, OpenRouter, Artificial Analysis API keys. Count = number of those keys that are non-blank."),
-            HelpCard("Local Models", "Sub-hub for on-device .task LLMs and .tflite LiteRT embedders. Count = installed total across both runtimes."),
         )
     ),
     "agents" to HelpContent(
@@ -1789,7 +1697,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("State emojis", "🔑 = ok (key tested + working). ❌ = error (key set but tests fail). 💤 = inactive (manually disabled). ⭕ = not-used (no key set yet)."),
             HelpCard("Sort order", "Working providers (🔑) come first, then errored (❌), then inactive (💤), then never-configured (⭕). Within each bucket, sorted by id case-insensitively. The buckets put what you actually use one tap away."),
             HelpCard("Item rows", "Provider id in white plus the configured default model in dim text (only shown when state == ok). Tap a row to open the Provider edit screen. The 🛠️ icon on the right opens the provider's external admin / signup console in the browser (dimmed when no adminUrl is configured)."),
-            HelpCard("Add provider", "The green \"+ Add provider\" button at the bottom opens a single-field name dialog. The name becomes the provider id (spaces stripped; \"Local\" reserved). Confirming registers an empty stub via ProviderRegistry.add and jumps straight to the same Provider edit screen used for the bundled providers — fill in the base URL / default model / API format there."),
+            HelpCard("Add provider", "The green \"+ Add provider\" button at the bottom opens a single-field name dialog. The name becomes the provider id (spaces stripped). Confirming registers an empty stub via ProviderRegistry.add and jumps straight to the same Provider edit screen used for the bundled providers — fill in the base URL / default model / API format there."),
         )
     ),
     "provider_edit" to HelpContent(
@@ -1977,39 +1885,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Feeding a legacy full-config bundle to API Keys import throws ConfigBundleMistakenForKeysException — the toast clarifies the file shape isn't a keys file. Costs CSV importer skips malformed rows silently. Settings import leaves missing fields untouched (partial files are fine)."),
         )
     ),
-    "local_runtime" to HelpContent(
-        title = "Help - Local models",
-        cards = listOf(
-            HelpCard("Overview", "Sub-hub for the two on-device runtimes. Each card shows installed count and drills into a dedicated screen."),
-            HelpCard("Local LLMs", "On-device .task chat models (MediaPipe Tasks GenAI). Drives the synthetic Local provider that surfaces in every chat / report flow alongside cloud providers."),
-            HelpCard("Local LiteRT models", "On-device .tflite text embedders (MediaPipe Tasks). Drives Local Semantic Search and Knowledge bases whose embedderProviderId == \"LOCAL\"."),
-            HelpCard("Tips", "Counts are read once on screen entry — switch back to AI Setup and forward again if you just installed something via the deeper screens."),
-            HelpCard("Pitfalls", "Backup explicitly excludes local_llms/ and local_models/ (FILES_DIR_BACKUP_EXCLUDES) — these are big, easily re-downloadable, and personal. Same set is preserved through clearFilesDirForRestore."),
-        )
-    ),
-    "local_litert_models" to HelpContent(
-        title = "Help - Local LiteRT models",
-        cards = listOf(
-            HelpCard("Overview", "On-device .tflite text embedders. Models live in <filesDir>/local_models/ — nothing leaves the device once installed. Only models with MediaPipe Tasks metadata baked into the .tflite can load — the curated list is the verified set."),
-            HelpCard("Curated downloads", "One indigo button per spec in LocalEmbedder.downloadable. Shows displayName plus approximate MB. Already-installed entries display \"<name> ✓\" and become non-clickable."),
-            HelpCard("Download progress", "Live status text below the buttons updates with byte percentage as the download streams (\"Downloading <name>… NN%\")."),
-            HelpCard("Add model from file", "Blue button opens an SAF picker (application/octet-stream + */*) — for users who've stamped MediaPipe Tasks metadata onto their own .tflite via Model Maker. Imported under a sanitized filename in local_models/."),
-            HelpCard("Installed list", "Below the buttons. One row per installed model with a red \"Remove\" — releases the embedder and deletes <name>.tflite from disk."),
-            HelpCard("Tips", "MediaPipe Tasks metadata is mandatory; arbitrary .tflite files won't load even though the picker accepts them."),
-            HelpCard("Pitfalls", "Backup excludes this directory — restoring a backup leaves your installed embedders untouched, but a fresh device starts empty."),
-        )
-    ),
-    "local_llms" to HelpContent(
-        title = "Help - Local LLMs",
-        cards = listOf(
-            HelpCard("Overview", "On-device LLMs via MediaPipe Tasks GenAI. Most useful models (Gemma, Phi, Llama) are licence-gated — open one of the recommended links in your browser, accept the terms, download the .task file (typically 0.5–2.5 GB), then return and Add LLM from file."),
-            HelpCard("Download links", "One indigo button per LocalLlm.recommendedLinks entry. Each opens the model's web page in the system browser — they don't download into the app, they just hand off."),
-            HelpCard("Add LLM from file", "Blue button opens an SAF picker. Accepts .task, .zip, .tar.gz, .tgz, .tar — the first .task entry in an archive is extracted automatically (Apache Commons Compress for tar; built-in for zip)."),
-            HelpCard("Installed list", "One row per installed model with a red Remove — releases the runtime and deletes <name>.task from <filesDir>/local_llms/."),
-            HelpCard("Tips", "AppService.LOCAL is synthetic — not in ProviderRegistry, only reachable via findById(\"LOCAL\"). Once you have at least one .task installed, Local appears as a normal provider in every picker."),
-            HelpCard("Pitfalls", "Empty / corrupt extractions are detected (target.length() == 0L) and the partial file is deleted; the toast says \"Could not import model\". Backup excludes local_llms/."),
-        )
-    ),
     "setup_models" to HelpContent(
         title = "Help - AI Models setup",
         cards = listOf(
@@ -2043,16 +1918,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Example prompts", "Two-field CRUD (title, text). Pure data the user curates; no placeholder substitution, no agent dispatch, no app feature consumes them automatically."),
             HelpCard("Tips", "System Prompts are referenced by id from Agents/Flocks/Swarms/Providers; Internal Prompts are referenced by name + category by app features. Example prompts are referenced by nothing — they're just a personal library."),
             HelpCard("Pitfalls", "System and Internal prompts are NOT interchangeable — Internal use placeholder substitution that System does not.")
-        )
-    ),
-    "setup_local_models" to HelpContent(
-        title = "Help - Local models (setup)",
-        cards = listOf(
-            HelpCard("Overview", "Sub-hub under AI Setup. Two cards: Local LLMs (.task chat / completion bundles driving the Local provider) and Local LiteRT models (.tflite text embedders driving Local Semantic Search and Local-embedder Knowledge)."),
-            HelpCard("Local LLMs", "Counts installed .task files in <filesDir>/local_llms/."),
-            HelpCard("Local LiteRT models", "Counts installed .tflite files in <filesDir>/local_models/."),
-            HelpCard("Tips", "Both card counts are read with remember{} on entry — they don't auto-refresh on changes inside the deeper screens."),
-            HelpCard("Pitfalls", "Backup excludes both directories. Clear all configuration removes both, as does Reset application; Clear runtime data leaves them alone."),
         )
     ),
     "housekeeping" to HelpContent(
@@ -2109,16 +1974,16 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Help - Backup & Restore",
         cards = listOf(
             HelpCard("Overview", "Single-zip whole-app backup and restore. Uses Android's Storage Access Framework so the destination/source picker shows Google Drive, Dropbox, OneDrive, local files — whichever cloud apps you have installed. The app never sees the underlying location."),
-            HelpCard("Backup", "Green button. Default filename `ai-backup-<yyyymmdd>.zip`. Includes configuration, API keys, reports, chats, API traces, prompt cache, knowledge bases, embeddings. Excluded: `local_llms/` and `local_models/` (FILES_DIR_BACKUP_EXCLUDES) — they're large and re-downloadable."),
+            HelpCard("Backup", "Green button. Default filename `ai-backup-<yyyymmdd>.zip`. Includes configuration, API keys, reports, chats, API traces, prompt cache."),
             HelpCard("Restore", "Blue button. Picker is restricted to .zip plus application/octet-stream (some providers report .zip with the latter mime). Confirmation dialog appears first. The restore is validate-then-write: the zip is parsed before any current file is touched."),
             HelpCard("Auto-restart", "On successful restore the app shows a toast, waits ~800ms, then relaunches itself with FLAG_ACTIVITY_NEW_TASK + CLEAR_TASK and kills the current process. The next launch reads the restored data fresh."),
-            HelpCard("Pitfalls", "A failed restore leaves the device in a partial state (validate-then-write reduces the window but cannot eliminate it). Local LLM and LiteRT model files have to be re-installed by hand on a new device — they're never in the zip."),
+            HelpCard("Pitfalls", "A failed restore leaves the device in a partial state (validate-then-write reduces the window but cannot eliminate it)."),
         )
     ),
     "trim_by_age" to HelpContent(
         title = "Help - Trim by age",
         cards = listOf(
-            HelpCard("Overview", "Bulk-deletes reports, chat sessions, and API trace files older than a cutoff. Configuration, API keys, knowledge bases, prompt history, usage statistics — all kept."),
+            HelpCard("Overview", "Bulk-deletes reports, chat sessions, and API trace files older than a cutoff. Configuration, API keys, prompt history, usage statistics — all kept."),
             HelpCard("Days-to-keep field", "Digits-only, max four. Defaults to 30. Clear button is disabled until the value is a positive integer."),
             HelpCard("Confirmation", "Tapping the orange button opens a dialog that shows the exact per-kind count (\"Permanently deletes everything older than N days: X reports, Y chat sessions, Z trace files\"). Confirm fires the deletes."),
             HelpCard("Pitfalls", "Cannot be undone. Counts are computed once when the dialog opens — if a chat updates between dialog open and Confirm tap, the actual delete may differ slightly."),
@@ -2155,9 +2020,9 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Help - Reset",
         cards = listOf(
             HelpCard("Overview", "Hub of five destructive operations, each drilling into its own full screen with its own help topic. Order is roughly safe → destructive: runtime data → Info provider caches → all configuration → asset restores → full app reset."),
-            HelpCard("Clear runtime data", "Wipes app logs, chats, API traces, AI reports (incl. their secondary rows), prompt history, and usage stats. Configuration, knowledge bases, and all caches survive. Tap the row for the full description and the wipe button."),
+            HelpCard("Clear runtime data", "Wipes app logs, chats, API traces, AI reports (incl. their secondary rows), prompt history, and usage stats. Configuration and all caches survive. Tap the row for the full description and the wipe button."),
             HelpCard("Clear Info providers", "Drops the per-provider pricing tier blobs from the six Info providers plus the OpenRouter model-specs cache. Manual overrides and Together's native pricing survive."),
-            HelpCard("Clear all configuration", "Wipes every provider's API key, models, endpoints; every agent / flock / swarm; every prompt and parameter preset; External Services keys; every Local LLM and LiteRT model. Reports, chats, traces, and usage stats are kept."),
+            HelpCard("Clear all configuration", "Wipes every provider's API key, models, endpoints; every agent / flock / swarm; every prompt and parameter preset; External Services keys. Reports, chats, traces, and usage stats are kept."),
             HelpCard("assets/*.json", "Three per-file restore buttons (providers / prompts / examples). Each drops the targeted list and reloads it from the bundled JSON; nothing outside that list is touched."),
             HelpCard("Reset application", "Factory-style — keeps API keys but wipes everything else, reloads providers + internal prompts from assets, then runs the Refresh-all chain. Gated by a type-RESET dialog and force-restarts the app on success."),
             HelpCard("Pitfalls", "Each leaf screen has its own confirmation dialog. Reset application's confirmation is CASE-sensitive (literally \"RESET\", trimmed). The other four are immediate after the dialog."),
@@ -2168,7 +2033,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Wipes the activity + personal-history surface that accumulates while the app is in use. The wipe completes immediately after confirmation; a Toast reports the per-bucket counts."),
             HelpCard("What it wipes", "Rolling app logs under <filesDir>/applog/, every chat session, every API trace file, every AI report (the report JSON + its cascaded SecondaryResult rows for rerank / summary / fan-out etc.), the prompt-history file, and the usage-statistics ledger."),
-            HelpCard("What it keeps", "Knowledge bases (KB definitions + chunks + embeddings), the six Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys, External Services keys) is fully preserved."),
+            HelpCard("What it keeps", "The six Info-provider pricing caches and the per-provider model-list cache. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys, External Services keys) is fully preserved."),
             HelpCard("When to use", "Privacy-driven cleanup — chats, traces, reports and prompt history contain copies of your prompts and the model responses. Also useful when you want to start a clean activity baseline without losing any setup."),
             HelpCard("Pitfalls", "Reports go through SecondaryResultStorage.deleteAllForReport on the way out, so all the fan-out / rerank / summary rows for each report disappear too. The wipe is destructive — Backup & Restore is the only undo path. The Application log viewer goes empty until the app writes new entries."),
         )
@@ -2186,11 +2051,11 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "reset_configuration" to HelpContent(
         title = "Help - Clear all configuration",
         cards = listOf(
-            HelpCard("Overview", "Wipes every piece of the app's configuration surface — keys, providers, workers, prompts, on-device runtimes — in one shot. Reports, chats, traces, and usage stats are preserved."),
-            HelpCard("What it wipes", "Every provider's API key, model list, endpoints; every agent, flock, swarm; every parameter preset; every system prompt, internal prompt, example prompt; HuggingFace / OpenRouter / Artificial Analysis keys; user name + default email; every installed Local LLM (.task) and LiteRT embedder (.tflite)."),
-            HelpCard("What it keeps", "Reports, chats, traces, knowledge bases, usage statistics, the six Info-provider pricing caches, the OpenRouter model-specs cache, the per-provider model-list cache, and the semantic-search embedding cache."),
+            HelpCard("Overview", "Wipes every piece of the app's configuration surface — keys, providers, workers, prompts — in one shot. Reports, chats, traces, and usage stats are preserved."),
+            HelpCard("What it wipes", "Every provider's API key, model list, endpoints; every agent, flock, swarm; every parameter preset; every system prompt, internal prompt, example prompt; HuggingFace / OpenRouter / Artificial Analysis keys; user name + default email."),
+            HelpCard("What it keeps", "Reports, chats, traces, usage statistics, the six Info-provider pricing caches, the OpenRouter model-specs cache, and the per-provider model-list cache."),
             HelpCard("When to use", "Starting over with a fresh provider/agent setup while keeping your accumulated reports and chats. Less surgical than the asset-restore options; less destructive than Reset application."),
-            HelpCard("Pitfalls", "Local LLMs and LiteRT models are deleted on disk — re-installing them takes the file copy + extract time again. There is no undo apart from Backup & Restore."),
+            HelpCard("Pitfalls", "There is no undo apart from Backup & Restore."),
         )
     ),
     "reset_assets" to HelpContent(
@@ -2210,7 +2075,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Factory-style reset. API keys (per-provider plus HuggingFace / OpenRouter / Artificial Analysis) are preserved; everything else is wiped; providers + internal prompts reload from assets."),
             HelpCard("Confirmation gate", "A plain Reset / Cancel dialog gates the action — no type-to-confirm. Tap Reset to run."),
             HelpCard("What survives", "API keys (per-provider + 3 external). That's it."),
-            HelpCard("What dies", "Agents, flocks, swarms, parameter presets, system prompts, custom-added providers, per-agent API key overrides, custom endpoints, all reports / chats / traces / knowledge bases / embeddings / prompt history / usage statistics, pricing and model-list caches, every Local LLM and LiteRT model."),
+            HelpCard("What dies", "Agents, flocks, swarms, parameter presets, system prompts, custom-added providers, per-agent API key overrides, custom endpoints, all reports / chats / traces / prompt history / usage statistics, pricing and model-list caches."),
             HelpCard("After it runs", "A four-button banner appears at the top of the page: Refresh all, Refresh providers/models/default agents, Restart application, or Import API keys. Pick one — the in-memory state isn't fresh until you restart (directly or via one of the Refresh paths)."),
         )
     ),
@@ -2469,7 +2334,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
     "provider_cohere" to HelpContent(
         title = "Help - Cohere",
         cards = listOf(
-            HelpCard("Overview", "Cohere — Toronto-based foundation model lab, founded 2019 by ex-Google Brain researchers including Aidan Gomez (one of the Transformer paper's authors). Enterprise-focused with strong RAG and tool-use tuning; the Command-R / Command-A family is their flagship chat line, plus an industry-leading Rerank API."),
+            HelpCard("Overview", "Cohere — Toronto-based foundation model lab, founded 2019 by ex-Google Brain researchers including Aidan Gomez (one of the Transformer paper's authors). Enterprise-focused with strong tool-use tuning; the Command-R / Command-A family is their flagship chat line, plus an industry-leading Rerank API."),
             HelpCard("Setup", "dashboard.cohere.com → API keys. Free \"Trial\" key with limited per-minute / per-month quotas; production keys are paid. No phone verification required on most accounts."),
             HelpCard("Models", "4 hardcoded fallback models: `command-a-03-2025` (default), `command-r-plus-08-2024`, `command-r-08-2024`, `command-r7b-12-2024`. Plus rerank models (`rerank-v3.5`, `rerank-multilingual-v3`) and the Embed family (`embed-english-v3`, `embed-multilingual-v3`). Default model source is the bundled fallback list."),
             HelpCard("Pricing & quirks", "OpenAI-compatible chat at `compatibility/` base URL. **Native rerank endpoint wired** — `callCohereRerank` in `SecondaryResult.kt` routes Cohere-typed Rerank prompts to `/v2/rerank` and converts the response into the same `[{id, rank, score, reason}, ...]` shape the chat-model rerank flow uses. `openRouterName=cohere`."),
@@ -2926,11 +2791,6 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "dual_chat_setup" to listOf("help_glossary_operations", "help_glossary_blocks"),
     "dual_chat_session" to listOf("help_glossary_operations"),
 
-    // ===== Knowledge base / RAG =====
-    "knowledge_new" to listOf("help_glossary_retrieval", "help_privacy", "help_local_ai"),
-    "knowledge_list" to listOf("help_glossary_retrieval", "help_privacy"),
-    "knowledge_detail" to listOf("help_glossary_retrieval", "help_privacy", "help_local_ai"),
-
     // ===== Provider settings (per-card) =====
     "provider_card_state" to listOf("help_home_ai_providers", "concepts"),
     "provider_card_apikey" to listOf("help_home_ai_providers", "help_privacy"),
@@ -2999,12 +2859,6 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "internal_prompts_list" to listOf("help_glossary_operations"),
     "internal_prompt_edit" to listOf("help_glossary_operations"),
 
-    // ===== Local AI =====
-    "local_runtime" to listOf("help_local_ai", "help_privacy", "help_glossary_retrieval"),
-    "local_litert_models" to listOf("help_local_ai", "help_privacy"),
-    "local_llms" to listOf("help_local_ai", "help_privacy"),
-    "setup_local_models" to listOf("help_local_ai", "help_glossary_retrieval"),
-
     // ===== Costs / Usage / Statistics =====
     "statistics" to listOf("help_costs", "help_privacy"),
     "cost_config" to listOf("help_costs", "help_home_info_providers"),
@@ -3033,7 +2887,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "settings_setup" to listOf("help_about", "help_getting_started"),
 
     // ===== Housekeeping / Backup / Reset =====
-    "housekeeping" to listOf("help_backup", "help_privacy", "help_local_ai"),
+    "housekeeping" to listOf("help_backup", "help_privacy"),
     "backup_restore" to listOf("help_backup", "help_privacy"),
     "trim_by_age" to listOf("help_backup", "help_privacy"),
     "reset" to listOf("help_backup", "help_privacy"),
@@ -3058,12 +2912,6 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "test_all_models_l3" to listOf("help_home_ai_providers", "concepts"),
     "test_all_models_select" to listOf("help_home_ai_providers"),
 
-    // ===== Search =====
-    "search_local" to listOf("help_glossary_retrieval"),
-    "search_semantic" to listOf("help_glossary_retrieval", "help_local_ai"),
-    "search_quick" to listOf("help_glossary_retrieval"),
-    "search_local_semantic" to listOf("help_glossary_retrieval", "help_local_ai"),
-
     // ===== Setup hubs =====
     "setup_models" to listOf("help_home_ai_providers", "help_getting_started"),
     "setup_workers" to listOf("help_glossary_blocks", "help_glossary_groupings"),
@@ -3078,7 +2926,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "history" to listOf("help_glossary_operations", "help_about"),
 
     // ===== Share / external content =====
-    "share_target" to listOf("help_glossary_operations", "help_glossary_retrieval", "help_privacy"),
+    "share_target" to listOf("help_glossary_operations", "help_privacy"),
 
     // ===== App log =====
     "applog_list" to listOf("help_privacy", "concepts"),
@@ -3104,11 +2952,9 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "help_glossary_blocks" to listOf("help_glossary", "help_glossary_groupings"),
     "help_glossary_groupings" to listOf("help_glossary", "help_glossary_blocks"),
     "help_glossary_operations" to listOf("help_glossary", "concepts"),
-    "help_glossary_retrieval" to listOf("help_glossary", "help_local_ai", "help_privacy"),
     "help_costs" to listOf("concepts", "help_home_info_providers"),
-    "help_privacy" to listOf("help_backup", "help_local_ai"),
+    "help_privacy" to listOf("help_backup"),
     "help_backup" to listOf("help_privacy"),
-    "help_local_ai" to listOf("help_glossary_retrieval", "help_privacy"),
     "help_translations" to listOf("concepts", "help_glossary_operations", "help_costs")
 )
 

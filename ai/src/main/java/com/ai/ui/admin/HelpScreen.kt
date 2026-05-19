@@ -63,7 +63,6 @@ private val HELP_HOME_SUBPAGES = setOf(
     "help_costs",
     "help_privacy",
     "help_backup",
-    "help_local_ai",
     "help_translations",
     // Sub-subpages of help_glossary. Reached from the glossary
     // subpage's own tap-throughs (rendered by the table-style
@@ -72,8 +71,7 @@ private val HELP_HOME_SUBPAGES = setOf(
     // via Android back / title-bar back arrow.
     "help_glossary_blocks",
     "help_glossary_groupings",
-    "help_glossary_operations",
-    "help_glossary_retrieval"
+    "help_glossary_operations"
 )
 
 
@@ -177,11 +175,6 @@ fun HelpScreen(
                             "⚙️", "Operations",
                             "Report · Chat · Meta prompt · Fan-out · Rerank · Moderation · Translation — the things you actually run.",
                             onClick = { onNavigateToTopic("help_glossary_operations") }
-                        )
-                        HomeSubpageLink(
-                            "📚", "Retrieval",
-                            "Knowledge base · Embedder · Reranker — how RAG works in this app.",
-                            onClick = { onNavigateToTopic("help_glossary_retrieval") }
                         )
                     }
                 }
@@ -315,7 +308,7 @@ private fun CompactOverview(
     }
     HelpSection(
         "Welcome",
-        "This app runs AI reports, chats, and dual chats against ${AppService.entries.size} cloud providers plus on-device models. Configure providers with API keys, then build reports, chats, or knowledge bases from the Hub."
+        "This app runs AI reports, chats, and dual chats against ${AppService.entries.size} cloud providers. Configure providers with API keys, then build reports and chats from the Hub."
     )
     HelpSection(
         "Per-screen help",
@@ -325,8 +318,8 @@ private fun CompactOverview(
     // prefixed "Help - …". Order is curated: About + Getting
     // started first (orientation), then the cross-cutting
     // behaviour topics, then the references (Costs / Privacy /
-    // Backup / Local AI / Translations), then the table-style
-    // reference subpages (Icons / Info providers / AI providers).
+    // Backup / Translations), then the table-style reference
+    // subpages (Icons / Info providers / AI providers).
     // Each subpage's ❓ icon routes back to Help home.
     HomeSubpageLink(
         "🧭", "About the app",
@@ -335,7 +328,7 @@ private fun CompactOverview(
     )
     HomeSubpageLink(
         "🚀", "Getting started",
-        "Step-by-step: add an API key → refresh model lists → first Agent → first Report → optional Knowledge base. Plus common first-week pitfalls.",
+        "Step-by-step: add an API key → refresh model lists → first Agent → first Report. Plus common first-week pitfalls.",
         onClick = { onNavigateToTopic("help_getting_started") }
     )
     HomeSubpageLink(
@@ -345,7 +338,7 @@ private fun CompactOverview(
     )
     HomeSubpageLink(
         "📖", "Concepts & glossary",
-        "Provider · Agent · Report · Meta · Fan-out · Knowledge base · … — the app's vocabulary, grouped into four categories with a one-paragraph explainer each.",
+        "Provider · Agent · Report · Meta · Fan-out · … — the app's vocabulary, grouped into three categories with a one-paragraph explainer each.",
         onClick = { onNavigateToTopic("help_glossary") }
     )
     HomeSubpageLink(
@@ -362,11 +355,6 @@ private fun CompactOverview(
         "💾", "Backup & restore",
         "What a backup zip contains, how to make one, restore semantics, version compatibility.",
         onClick = { onNavigateToTopic("help_backup") }
-    )
-    HomeSubpageLink(
-        "📱", "Local AI (on-device)",
-        "The LiteRT LLM + embedder that run on the phone. How to add a model, when to pick local, perf expectations.",
-        onClick = { onNavigateToTopic("help_local_ai") }
     )
     HomeSubpageLink(
         "🌐", "Translations & multi-language",
@@ -695,7 +683,7 @@ private val CLOUD_PROVIDER_TAGLINES: Map<String, String> = mapOf(
     "provider_siliconflow" to "SiliconCloud — Qwen / DeepSeek mirror (China)",
     "provider_zai" to "Zhipu AI — GLM family (China)",
     "provider_moonshot" to "Moonshot AI — Kimi long-context (China)",
-    "provider_cohere" to "Command-R/A — RAG-tuned + native rerank endpoint",
+    "provider_cohere" to "Command-R/A — enterprise chat + native rerank endpoint",
     "provider_ai21" to "Jamba — hybrid SSM/Transformer family",
     "provider_dashscope" to "Alibaba Qwen — international mirror of DashScope",
     "provider_fireworks" to "Open-weight inference — DeepSeek / Llama / Qwen",
