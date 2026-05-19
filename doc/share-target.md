@@ -2,7 +2,7 @@
 
 The app receives `ACTION_SEND` and `ACTION_SEND_MULTIPLE` intents
 from any other app's share sheet, lets the user pick a destination
-(Report, Chat, or Knowledge), and routes the payload accordingly.
+(Report or Chat), and routes the payload accordingly.
 Code lives in `MainActivity`, `data/SharedContent.kt`,
 `ui/share/ShareChooserScreen.kt`, and `ui/navigation/AppNavHost.kt`.
 
@@ -34,8 +34,7 @@ Code lives in `MainActivity`, `data/SharedContent.kt`,
 ```
 
 `text/*` covers selected text and shared URLs; `image/*` covers
-vision-capable image shares; the explicit Office MIME types cover
-the file-types the Knowledge ingest pipeline understands.
+vision-capable image shares.
 
 ## Snapshot
 
@@ -70,24 +69,21 @@ if (sharedContent != null && !sharedContent.isEmpty) {
         shared = sharedContent,
         onCancel = onSharedContentHandled,
         onSendToReport = { … },
-        onSendToChat = { … },
-        onSendToKnowledge = { … }
+        onSendToChat = { … }
     )
     return
 }
 ```
 
-The chooser is a three-card screen showing a payload preview
-(subject, text excerpt, attachment count, mime) plus three
-destination cards. Cards disable themselves when the payload doesn't
-fit (e.g. "New Chat" needs text; "Add to Knowledge" needs a file or
-a URL).
+The chooser shows a payload preview (subject, text excerpt,
+attachment count, mime) plus two destination cards. Cards disable
+themselves when the payload doesn't fit (e.g. "New Chat" needs text).
 
 The overlay's open / closed state is preserved across nav so a
 back-press from a deep destination (e.g. a captured trace's detail)
 returns to the chooser, not to the bare home screen.
 
-## Three landing routes
+## Two landing routes
 
 ### Report
 
@@ -100,11 +96,7 @@ sharedContent)`:
    main thread), downscale + JPEG-encode, and base64 the result
    into `reportImageBase64` / `reportImageMime` so the Generate
    path treats it as a vision attachment.
-3. If non-image files were attached too, queue them on
-   `UiState.pendingReportKnowledgeUris` so the New Report screen
-   can offer a one-tap "create a one-shot KB from these files"
-   banner.
-4. Navigate to `AI_NEW_REPORT`.
+3. Navigate to `AI_NEW_REPORT`.
 
 ### Chat
 
@@ -116,32 +108,6 @@ consumes the staged text on first composition and clears it via
 `onConsumeStarter()` so back-and-forward navigation doesn't
 re-stuff the input box. Staged image / text persist across process
 recreation.
-
-### Knowledge
-
-Queue the URIs in `UiState.pendingKnowledgeUris` (URLs as strings,
-file URIs as content:// strings); if the share was a single URL with
-no file attached, queue the URL string instead. Navigate to
-`AI_KNOWLEDGE`.
-
-The Knowledge **list** screen (`KnowledgeListScreen`) shows a
-sticky banner — "N shared items ready to import" — with a "Discard
-share" button that clears the queue. The user picks an existing KB
-or creates a new one; in either case the **detail** screen
-(`KnowledgeDetailScreen`) auto-consumes the queue on first
-composition:
-
-- `http://` / `https://` URI → `KnowledgeService.indexUrl(...)`
-- `content://` / `file://` URI → `pickTypeForUri` +
-  `displayNameForUri` + `KnowledgeService.indexFile(...)`
-- The auto-ingest `LaunchedEffect` re-keys on the KB's full
-  selection contents so a late-arriving share intent still drains.
-- Status line cycles through "Reading…" / "Embedding…" / "Indexed"
-  exactly the same as the manual + File / + Web page buttons.
-- After the queue drains, `onConsumePending()` clears it so a
-  back-and-forward doesn't re-import. A shared URL alongside file
-  attachments stays in the queue separately so it gets indexed
-  too.
 
 ## Custom external intent — separate codepath
 
@@ -165,7 +131,5 @@ standard `ACTION_SEND` / `ACTION_SEND_MULTIPLE`.
 - `ai/src/main/java/com/ai/ui/share/ShareChooserScreen.kt` — picker
 - `ai/src/main/java/com/ai/ui/navigation/AppNavHost.kt` — overlay
   and routing helpers (`routeShareToReport`, etc.)
-- `ai/src/main/java/com/ai/ui/knowledge/KnowledgeScreens.kt` —
-  `pendingUris` banner + auto-ingest
 - `ai/src/main/java/com/ai/ui/chat/ChatScreens.kt` —
   `initialUserInput` consumption

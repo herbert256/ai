@@ -164,6 +164,11 @@ fun FanOutViewScreen(
     // that model.
     val responderKeyOf: (SecondaryResult) -> String = { "${it.providerId}|${it.model}" }
     var preferredResponderKey by rememberSaveable { mutableStateOf<String?>(null) }
+    // Guards the latch effect below from clobbering the preferred key
+    // mid-auto-scroll. Set before [scrollToPage] suspends, cleared
+    // after it returns — the suspend covers the whole animation, so
+    // every intermediate settledPage emission is skipped.
+    val isAutoScrolling = remember { mutableStateOf(false) }
     // On initiator change: jump to the matching responder for the
     // new initiator (or 0 if the preferred model isn't paired with
     // this initiator).
@@ -173,15 +178,25 @@ fun FanOutViewScreen(
             responders.indexOfFirst { responderKeyOf(it) == key }.takeIf { it >= 0 }
         } ?: 0
         if (responderPagerState.currentPage != targetIdx) {
-            responderPagerState.scrollToPage(targetIdx)
+            isAutoScrolling.value = true
+            try {
+                responderPagerState.scrollToPage(targetIdx)
+            } finally {
+                isAutoScrolling.value = false
+            }
         }
     }
-    // Whenever the bottom pager settles on a responder, latch its
-    // (provider, model) key so subsequent initiator swipes can find
-    // it again.
-    LaunchedEffect(responderPagerState) {
+    // Whenever the bottom pager settles on a responder via a real
+    // USER swipe, latch its (provider, model) key. Keyed on
+    // [responders] so the lambda's closure always reads the current
+    // initiator's responder list (avoids the stale-capture bug
+    // where the latch would write the wrong key after an initiator
+    // swipe). The [isAutoScrolling] guard suppresses programmatic
+    // scrollToPage updates from the effect above.
+    LaunchedEffect(responderPagerState, responders) {
         snapshotFlow { responderPagerState.settledPage }
             .collect { idx ->
+                if (isAutoScrolling.value) return@collect
                 responders.getOrNull(idx)?.let { r ->
                     preferredResponderKey = responderKeyOf(r)
                 }

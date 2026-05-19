@@ -14,9 +14,8 @@
 
 <p>A multi-provider AI app for Android. Run the same prompt against
 many models at once, compare what they say, fan one model's response
-into another's prompt, ground the run in your own documents, save the
-result, share it, and keep an audit trail of every API call you made
-— cloud or on-device.</p>
+into another's prompt, save the result, share it, and keep an audit
+trail of every API call you made.</p>
 
 <nav class="toc">
 <strong>Jump to</strong>
@@ -26,8 +25,6 @@ result, share it, and keep an audit trail of every API call you made
 <li><a href="#reports">Reports</a></li>
 <li><a href="#chat">Chat</a></li>
 <li><a href="#dual-chat">Dual Chat</a></li>
-<li><a href="#knowledge">Knowledge (RAG)</a></li>
-<li><a href="#local">Local Runtime</a></li>
 <li><a href="#models">Models</a></li>
 <li><a href="#usage">AI Usage</a></li>
 <li><a href="#traces">API Traces</a></li>
@@ -42,7 +39,7 @@ result, share it, and keep an audit trail of every API call you made
 
 <ol>
 <li>Install the APK and open it. The app imports a default catalog
-of 42 cloud providers from a bundled <code>providers.json</code> and
+of cloud providers from a bundled <code>providers.json</code> and
 seeds Internal Prompts (Meta / Fan-out / Fan-in / fixed templates)
 from <code>prompts.json</code> so you don't have to type any URLs or
 prompt templates yourself.</li>
@@ -60,11 +57,6 @@ only enable model metadata, pricing, and intelligence / speed
 scores.</li>
 </ol>
 
-<p>The on-device LLM and on-device embedder paths require <strong>no
-API key</strong> — they run a <code>.task</code> or
-<code>.tflite</code> model file you supply. See the
-<a href="#local">Local Runtime</a> section below.</p>
-
 <h2 id="hub">The Hub</h2>
 
 <p>The home screen has these big cards:</p>
@@ -77,18 +69,13 @@ API key</strong> — they run a <code>.task</code> or
 <dd>Single-model conversation. Chat titles are AI-generated (the
 bundled <code>chat_title</code> prompt fires after the first assistant
 response); a first-10-words fallback fills the row instantly.</dd></div>
-<div><dt>AI Knowledge</dt>
-<dd>Knowledge bases for retrieval-augmented generation. Attach to
-Reports / Chats. (Hidden by default on fresh installs — flip
-<strong>Settings → Show AI Knowledge card on home page</strong> to
-surface it.)</dd></div>
 <div><dt>AI Models</dt>
 <dd>Search every model across all your providers.</dd></div>
 <div><dt>AI Usage</dt>
 <dd>Running token / cost statistics.</dd></div>
 <div><dt>AI API Traces</dt>
-<dd>Every recent API call (cloud or local) as a JSON file. Hidden
-when API tracing is disabled in Settings.</dd></div>
+<dd>Every recent API call as a JSON file. Hidden when API tracing is
+disabled in Settings.</dd></div>
 <div><dt>AI App log</dt>
 <dd>Daily-rotating in-app log file with a searchable / filterable
 viewer (<a href="applog.html">applog</a>). Useful for handing a clean
@@ -120,18 +107,12 @@ prompt</code>.</li>
 Recent, and a <code>View previous reports</code> row in one place.
 Every row's leading icon is the report's generated emoji (or 🕘 /
 📌 when icon-gen is off or the call failed).</li>
-<li><strong>Search</strong> — four modes:
+<li><strong>Search</strong> — two modes:
   <ul>
     <li><strong>Quick local search</strong> — fast keyword scan
     across saved report prompts and bodies.</li>
     <li><strong>Extended local search</strong> — slower, broader
     scan (also into secondaries / translations).</li>
-    <li><strong>Remote semantic search</strong> — embed your query
-    against any chat provider and rank reports by cosine
-    similarity.</li>
-    <li><strong>Local semantic search</strong> — same idea, but the
-    embedder is the on-device <code>LocalEmbedder</code> — no
-    network.</li>
   </ul>
 </li>
 <li><strong>Manage</strong> — bulk housekeeping (pin / unpin, delete,
@@ -153,9 +134,7 @@ selection screen.</li>
     Edit + One-time entry points.</li>
     <li><strong>+Swarm</strong> — full-screen Swarm picker with
     Edit + One-time.</li>
-    <li><strong>+Provider</strong> — pick any provider (including
-    the synthetic <strong>Local</strong> provider for on-device
-    <code>.task</code> models).</li>
+    <li><strong>+Provider</strong> — pick any active provider.</li>
     <li><strong>+Model</strong> — full-screen multi-select picker
     across every active provider's catalog. The
     <strong>+Report</strong> entry only appears once an existing
@@ -165,8 +144,6 @@ selection screen.</li>
 <li>Optionally tap <strong>Params</strong> to apply a parameter
 preset (temperature, max_tokens, system prompt, reasoning effort,
 etc.).</li>
-<li>Optionally tap <strong>📚 Knowledge</strong> to attach one or
-more knowledge bases.</li>
 <li>Optionally attach a vision image (📎), toggle web-search 🌐, or
 pick a reasoning level 🧠.</li>
 <li>Type your prompt and tap <strong>Generate</strong>.</li>
@@ -389,8 +366,7 @@ auto-saved.</p>
 <ul>
 <li><strong>Start</strong> — <code>New AI Chat</code>,
 <code>Configure on the fly</code> (<code>ModelSearchScreen</code>),
-<code>Chat with a local LLM</code> (when at least one
-<code>.task</code> file is installed), <code>Dual AI Chat</code>.</li>
+<code>Dual AI Chat</code>.</li>
 <li><strong>Pinned chats</strong> (when present).</li>
 <li><strong>Recent</strong> — last few chats with the 🕐 icon.</li>
 <li><strong>Unfinished</strong> pill — when a chat from a previous
@@ -407,9 +383,6 @@ JPEG-encoded before base64.</li>
 <li>The 🌐 web-search tool toggled per provider.</li>
 <li>The 🧠 reasoning-effort selector per turn (clamped to the active
 model's supported range on session resume).</li>
-<li>One or more knowledge bases attached (📚) — every user turn the
-retriever pulls top-K chunks across the attached KBs and prepends a
-context block to the system message.</li>
 </ul>
 
 <p>A mid-session system-prompt change takes effect on the next turn,
@@ -425,93 +398,6 @@ first; they take turns until they hit the count. Useful for
 adversarial cross-examination, devil's-advocate setups, or multi-step
 pipelines. Conversations persist across rotation and process
 recreation.</p>
-
-<h2 id="knowledge">Knowledge (RAG)</h2>
-
-<p>The <strong>AI Knowledge</strong> card on the Hub manages knowledge
-bases. A knowledge base is a named collection of source documents
-that have been chunked + embedded so that report and chat calls can
-prepend the most-relevant excerpts to the prompt.</p>
-
-<h3>Creating a KB</h3>
-<ol>
-<li><strong>AI Knowledge → + New knowledge base</strong>.</li>
-<li>Give it a name and pick an embedder. Embedders fall in two
-categories:
-  <ul>
-    <li><strong>Local (LiteRT)</strong> — on-device MediaPipe
-    TextEmbedder (universal-sentence-encoder-lite by default).</li>
-    <li><strong>Provider</strong> (e.g. OpenAI /
-    <code>text-embedding-3-small</code>) — any active provider with
-    an embedding model.</li>
-  </ul>
-</li>
-<li>Tap Create.</li>
-</ol>
-
-<h3>Adding sources</h3>
-<ul>
-<li><strong>+ File</strong> opens a SAF picker that accepts:
-  <ul>
-    <li>PDFs (with OCR fallback for image-only PDFs).</li>
-    <li>Word documents (<code>.docx</code>, <code>.odt</code>).</li>
-    <li>Spreadsheets (<code>.xlsx</code>, <code>.ods</code>,
-    <code>.csv</code>, <code>.tsv</code>).</li>
-    <li>Images (<code>.jpg</code>, <code>.jpeg</code>,
-    <code>.png</code>) — Latin OCR via ML Kit.</li>
-    <li>Plain text and Markdown (<code>.md</code>).</li>
-  </ul>
-</li>
-<li><strong>+ Web page</strong> fetches a URL with Jsoup and ingests
-the visible text.</li>
-</ul>
-
-<p>Every source goes through a per-type extractor → paragraph chunker
-(2 KB target, 200-char overlap) → embedder. Status reports
-"Extracting…" → "Embedding batch N / M…" → "Indexed (chunks=K)".</p>
-
-<h3>Attaching a KB to a Report or Chat</h3>
-<ul>
-<li><strong>Reports</strong>: on the New AI Report screen, tap
-<strong>📚 Knowledge</strong> to multi-select KBs.</li>
-<li><strong>Chats</strong>: on the Chat parameters screen (or via the
-chat session's own 📚 button), pick KBs the same way.</li>
-</ul>
-
-<h3>Share-target</h3>
-<p>Other apps can share documents into AI. From any app's share
-sheet, pick "AI"; you'll get a chooser screen with three destinations:
-<strong>New Report</strong>, <strong>New Chat</strong>, <strong>Add
-to Knowledge</strong>. See <a href="share-target.html">share-target</a>.</p>
-
-<p>See <a href="knowledge.html">knowledge</a> for the full RAG
-pipeline.</p>
-
-<h2 id="local">Local Runtime</h2>
-
-<p>Two on-device subsystems live alongside the cloud providers:</p>
-
-<dl class="kv">
-<div><dt>Local LLM</dt>
-<dd><code>LocalLlm</code>, MediaPipe Tasks GenAI — runs a
-<code>.task</code> bundle (Gemma, Phi, Llama …) for chat or report
-generation. The Local provider appears in every model picker as a
-normal provider; the Hub's "Chat with a local LLM" card is a
-shortcut.</dd></div>
-<div><dt>Local Embedder</dt>
-<dd><code>LocalEmbedder</code>, MediaPipe Tasks TextEmbedder — runs
-a <code>.tflite</code> text embedder for Local Semantic Search and
-as an embedder option when creating a Knowledge base. A default
-Universal Sentence Encoder is downloaded on first use.</dd></div>
-</dl>
-
-<p>Both record synthetic API trace entries (hostname
-<code>local</code>, url <code>local://generate/&lt;model&gt;</code>
-or <code>local://embed/&lt;model&gt;</code>) so on-device traffic
-shows up on the Trace screen.</p>
-
-<p>Maintenance lives under <strong>AI Setup → Local Models</strong>.
-See <a href="local-runtime.html">local-runtime</a>.</p>
 
 <h2 id="models">Models</h2>
 
@@ -569,9 +455,8 @@ coloured by which tier supplied the price.</p>
 <p>Every API call (request + response) is dumped as a JSON file under
 <code class="path">&lt;filesDir&gt;/trace/</code>. The Trace screen
 lets you browse them by hostname, status code, model, or the report
-they belonged to. Local LLM and local embedder calls are traced too
-with hostname <code>local</code>. The Trace list <strong>auto-collapses
-to detail when filters yield a single entry</strong>.</p>
+they belonged to. The Trace list <strong>auto-collapses to detail when
+filters yield a single entry</strong>.</p>
 
 <p>The Trace detail's TitleBar carries 🗑 (delete) and 🔄 (refresh)
 icons. The detail page surfaces the request body's first line in a
@@ -626,8 +511,6 @@ per-report emoji. Default on. See
 <a href="report-icons.html">report-icons</a>.</li>
 <li><strong>Generate per model icons</strong> — master switch for
 the per-agent 3-tier icon chain. Default on.</li>
-<li><strong>Show AI Knowledge card on home page</strong> — default
-off.</li>
 </ul>
 </div>
 </details>
@@ -720,7 +603,7 @@ per-provider rate-limit / concurrency / 429-retry overrides.</dd></div>
 <div><dt>Models (sub-hub)</dt>
 <dd>Models / Model Types / Manual model types overrides.</dd></div>
 <div><dt>AI Models setup (sub-hub)</dt>
-<dd>Local Models / <strong>Model cooldowns</strong> /
+<dd><strong>Model cooldowns</strong> /
 <strong>Blocked models</strong> /
 <strong>Test-excluded models</strong> /
 <strong>Inaccessible models</strong>. Cooldowns + Blocked are
@@ -807,15 +690,15 @@ collapsible card, all collapsed by default):</p>
 <dl class="kv">
 <div><dt>Clear all runtime data</dt>
 <dd>Narrower than before: wipes app log, traces, chats, reports,
-prompt history, and usage stats. Knowledge / pricing / model-list
-caches stay put.</dd></div>
+prompt history, and usage stats. Pricing / model-list caches stay
+put.</dd></div>
 <div><dt>Clear Info providers</dt>
 <dd>Wipes the seven external-info caches (LiteLLM, OpenRouter,
 models.dev, Helicone, llm-prices, Artificial Analysis, HuggingFace)
 and their timestamps.</dd></div>
 <div><dt>Clear all configuration</dt>
-<dd>Wipes provider config, prompts, Local LLMs, LiteRT models. Asks
-before destructive actions.</dd></div>
+<dd>Wipes provider config and prompts. Asks before destructive
+actions.</dd></div>
 <div><dt>Restore bundled assets</dt>
 <dd>Re-merges <code>providers.json</code> / <code>prompts.json</code>
 / <code>examples.json</code> from the APK. User edits to existing

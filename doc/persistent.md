@@ -36,7 +36,6 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `max_retries_on_529` | Int (default 3) | in-line 529 (server overloaded) retries; 0 disables |
 | `retry_backoff_ms_529` | Long (default 1000) | wait between 529 retry attempts in milliseconds |
 | `log_level` | String (default `INFO`) | threshold for the in-app file logger (`com.ai.data.AppLog`). One of `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Read directly by `AppLog.init` from `eval_prefs` so DEBUG calls inside bootstrap are admitted on cold start |
-| `show_knowledge_card` | Boolean (default false) | gates the AI Knowledge card on the home Hub. The Knowledge subsystem itself stays fully functional whether the card is visible or not |
 | `first_run_bootstrapped` | Boolean | gates the first-run providers + prompts seed (the every-start delta-merge still runs on subsequent starts — see [architecture.md](architecture.md)) |
 
 > The intro / model_info / translate / rerank / moderation prompt
@@ -161,11 +160,8 @@ is serialised so two simultaneous misses don't tear the JSON blob.
 ## Files (under `<filesDir>`)
 
 The app's `filesDir` is `/data/data/com.ai/files/`. The tree is
-captured by the backup zip with two top-level exceptions —
-`local_llms/` and `local_models/`, which hold user-supplied
-multi-GB on-device model bundles. See
-[backup-restore.md](backup-restore.md) for the exclude-and-preserve
-contract.
+captured by the backup zip in full. See
+[backup-restore.md](backup-restore.md) for the contract.
 
 Almost every JSON write goes through `AtomicFileWrite.writeTextAtomic`
 — a `Files.move(ATOMIC_MOVE)` of an fsync'd temp file, with
@@ -199,7 +195,7 @@ prefs key as a belt-and-braces guard.
 ### `reports/<reportId>.json`
 One file per generated report. Holds the prompt, every agent's
 request/response/headers/usage/citations/cost, status, durations,
-plus `knowledgeBaseIds`, `imageBase64/Mime` (vision), `webSearchTool`
+plus `imageBase64/Mime` (vision), `webSearchTool`
 / `reasoningEffort` (regen state), `sourceReportId` (translated
 copies), and `pinned`. Written atomically; protected by
 `ReportStorage`'s `ReentrantLock`. Save failures log a warning
@@ -258,11 +254,6 @@ caps at 8 MiB so a runaway streaming response doesn't blow up.
 Hostnames are sanitised before being used as filename components
 (no path-traversal injection from a malicious URL).
 
-On-device LLM (`LocalLlm.generate`) and on-device embedder
-(`LocalEmbedder.embed`) calls write traces too, with
-`hostname = "local"` and url like `local://generate/<modelFile>` or
-`local://embed/<modelFile>`.
-
 `ApiTracer` keeps an in-memory `cachedTraceFiles` list, prewarmed
 off the main thread on `init`, so the Trace list / detail
 prev-next nav is O(1) once the cache is populated.
@@ -270,7 +261,7 @@ prev-next nav is O(1) once the cache is populated.
 ### `chat-history.json`
 Single JSON file with every persisted chat session. Managed by
 `ChatHistoryManager`. Sessions are auto-saved as messages arrive.
-Holds `pinned` and `knowledgeBaseIds` per session. Atomic writes;
+Holds `pinned` per session. Atomic writes;
 delete + cache invalidation are taken under a single lock.
 
 ### `prompt-history.json`
@@ -310,53 +301,11 @@ sanitised before use as a filename.
 ### `model_pricing.json`, `model_supported_parameters.json`
 Supplementary catalogs (atomic writes).
 
-### `knowledge/<kbId>/`
-Knowledge base data. Per-KB layout:
-
-```
-knowledge/<kbId>/
-  manifest.json     — KnowledgeBase + KnowledgeSource[] list
-  chunks/
-    <sourceId>.json — JSON array of KnowledgeChunk for that source
-  files/
-    <localCopy>     — locally-persisted source file
-```
-
-One JSON file per source keeps add / remove / re-index cheap (no
-full-KB rewrite for a single-source change), while loading a whole
-KB for retrieval still scans only one directory. Chunk + manifest
-writes are taken under a single lock so a crash mid-write can't
-leave the manifest pointing at half a chunk file. `clearAll` and
-`deleteKnowledgeBase` also take the store lock so a full-reset
-and an in-flight ingest can't race. See [knowledge.md](knowledge.md).
-
 ### `embeddings/<sha256>.json`
 Per-document embedding cache, keyed by SHA-256 of `(providerId, model,
-docId, contentHash)`. Used by the layered Local / Remote semantic
-search screens to short-circuit re-embedding. Dim mismatches log a
-warning instead of silently zeroing.
-
-### `local_models/<name>.tflite`
-On-device text-embedder models for `LocalEmbedder`. The default
-Universal Sentence Encoder is downloaded on first use of the Local
-Semantic Search screen. Custom user-supplied `.tflite` files (with
-proper MediaPipe Tasks metadata) can be added via the SAF picker on
-**AI Setup → Local Models → Local LiteRT models**.
-
-**Backup behaviour:** this directory is in
-`BackupManager.FILES_DIR_BACKUP_EXCLUDES` — its contents are
-skipped by the backup zip and preserved through the restore wipe.
-See [backup-restore.md](backup-restore.md).
-
-### `local_llms/<name>.task`
-On-device LLM bundles for `LocalLlm`. User-supplied — most models
-require accepting model-card terms in a browser before download. The
-**AI Setup → Local Models → Local LLMs** card carries hand-off
-links and a SAF picker that accepts `.task`, `.zip`, `.tar.gz`,
-`.tgz`, and `.tar` archives.
-
-**Backup behaviour:** same as `local_models/` above — excluded
-from the backup zip, preserved through the restore wipe.
+docId, contentHash)`. Used by the remote semantic search screen to
+short-circuit re-embedding. Dim mismatches log a warning instead of
+silently zeroing.
 
 ## What's NOT persisted
 
@@ -373,11 +322,6 @@ from the backup zip, preserved through the restore wipe.
 
 ## What's NOT in the backup zip
 
-- `local_llms/<name>.task` and `local_models/<name>.tflite` —
-  user-supplied multi-GB on-device model bundles. Listed in
-  `BackupManager.FILES_DIR_BACKUP_EXCLUDES`; skipped on backup,
-  preserved through the restore wipe so a settings/data restore
-  doesn't destroy them.
 - In-flight cacheDir temp files matching
   `CACHE_TOPLEVEL_SKIP_PREFIXES` (`ai-restore-`, `reset_keys_`,
   `ai-backup-`) — these would self-contain the in-flight backup,
@@ -405,14 +349,13 @@ format and restore semantics.
 
 - **Clear all runtime data** — wipes logs, chats, traces, usage
   stats, plus AI reports and prompt history. Narrower than the
-  legacy single button: knowledge / pricing / model-list caches
-  stay put.
+  legacy single button: pricing / model-list caches stay put.
 - **Clear Info providers** — wipes the seven external-info
   repository caches (LiteLLM, OpenRouter, models.dev, Helicone,
   llm-prices, Artificial Analysis, HuggingFace) and their
   per-tier timestamps in `pricing_cache`.
-- **Clear all configuration** — wipes provider config, prompts,
-  Local LLMs, LiteRT models. Asks before destructive actions.
+- **Clear all configuration** — wipes provider config and prompts.
+  Asks before destructive actions.
 - **Restore bundled assets** — re-merges `providers.json` /
   `prompts.json` / `examples.json` from the APK. User edits
   on existing rows are preserved.
@@ -425,8 +368,3 @@ format and restore semantics.
 After any wholesale-state-replace op, the **Restart-app dialog**
 prompts the user to relaunch so the in-memory state matches the
 freshly written on-disk state.
-
-None of these touch the on-device `.task` / `.tflite` files unless
-the "Clear all configuration" path is taken — those persist across
-runtime resets and have their own per-row Remove on the matching
-Local LLMs / Local Models cards.

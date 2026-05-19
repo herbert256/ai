@@ -39,8 +39,7 @@ the chat-type Meta runs use:
   </ul>
 </li>
 <li><strong>Model picker</strong> — pick the chat model(s) to do the
-translating (any provider; the synthetic Local provider works too if
-a <code>.task</code> LLM is installed).</li>
+translating.</li>
 <li><strong>Run</strong> — fans out one batch per (language,
 model-pick) and one API call per (source × language) within that
 batch. Each <code>executeSecondaryTask</code> call writes a

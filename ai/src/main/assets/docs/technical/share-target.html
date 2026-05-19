@@ -14,9 +14,9 @@
 
 <p>The app receives <code>ACTION_SEND</code> and
 <code>ACTION_SEND_MULTIPLE</code> intents from any other app's share
-sheet, lets the user pick a destination (Report, Chat, or Knowledge),
-and routes the payload accordingly. Code lives in
-<code>MainActivity</code>, <code>data/SharedContent.kt</code>,
+sheet, lets the user pick a destination (Report or Chat), and routes
+the payload accordingly. Code lives in <code>MainActivity</code>,
+<code>data/SharedContent.kt</code>,
 <code>ui/share/ShareChooserScreen.kt</code>, and
 <code>ui/navigation/AppNavHost.kt</code>.</p>
 
@@ -34,21 +34,10 @@ and routes the payload accordingly. Code lives in
     &lt;category android:name="android.intent.category.DEFAULT" /&gt;
     &lt;data android:mimeType="image/*" /&gt;
 &lt;/intent-filter&gt;
-&lt;intent-filter&gt;
-    &lt;action android:name="android.intent.action.SEND" /&gt;
-    &lt;category android:name="android.intent.category.DEFAULT" /&gt;
-    &lt;data android:mimeType="application/pdf" /&gt;
-    &lt;data android:mimeType="application/vnd.openxmlformats-officedocument.wordprocessingml.document" /&gt;
-    &lt;data android:mimeType="application/vnd.oasis.opendocument.text" /&gt;
-    &lt;data android:mimeType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" /&gt;
-    &lt;data android:mimeType="application/vnd.oasis.opendocument.spreadsheet" /&gt;
-&lt;/intent-filter&gt;
 &lt;!-- + matching SEND_MULTIPLE filters --&gt;</code></pre>
 
 <p><code>text/*</code> covers selected text and shared URLs;
-<code>image/*</code> covers vision-capable image shares; the explicit
-Office MIME types cover the file-types the Knowledge ingest pipeline
-understands.</p>
+<code>image/*</code> covers vision-capable image shares.</p>
 
 <h2>Snapshot</h2>
 
@@ -82,22 +71,21 @@ an <strong>overlay before the NavHost</strong> when
         shared = sharedContent,
         onCancel = onSharedContentHandled,
         onSendToReport = { … },
-        onSendToChat = { … },
-        onSendToKnowledge = { … }
+        onSendToChat = { … }
     )
     return
 }</code></pre>
 
-<p>The chooser is a three-card screen showing a payload preview
-(subject, text excerpt, attachment count, mime) plus three destination
+<p>The chooser is a two-card screen showing a payload preview
+(subject, text excerpt, attachment count, mime) plus two destination
 cards. Cards disable themselves when the payload doesn't fit (e.g.
-"New Chat" needs text; "Add to Knowledge" needs a file or a URL).</p>
+"New Chat" needs text).</p>
 
 <p>The overlay's open / closed state is preserved across nav so a
 back-press from a deep destination (e.g. a captured trace's detail)
 returns to the chooser, not to the bare home screen.</p>
 
-<h2>Three landing routes</h2>
+<h2>Two landing routes</h2>
 
 <h3>Report</h3>
 
@@ -111,10 +99,6 @@ sharedContent)</code>:</p>
 thread), downscale + JPEG-encode, and base64 the result into
 <code>reportImageBase64</code> / <code>reportImageMime</code> so the
 Generate path treats it as a vision attachment.</li>
-<li>If non-image files were attached too, queue them on
-<code>UiState.pendingReportKnowledgeUris</code> so the New Report
-screen can offer a one-tap "create a one-shot KB from these files"
-banner.</li>
 <li>Navigate to <code>AI_NEW_REPORT</code>.</li>
 </ol>
 
@@ -129,38 +113,6 @@ so the user picks model / params before chatting).
 composition and clears it via <code>onConsumeStarter()</code> so
 back-and-forward navigation doesn't re-stuff the input box. Staged
 image / text persist across process recreation.</p>
-
-<h3>Knowledge</h3>
-
-<p>Queue the URIs in <code>UiState.pendingKnowledgeUris</code> (URLs
-as strings, file URIs as <code>content://</code> strings); if the
-share was a single URL with no file attached, queue the URL string
-instead. Navigate to <code>AI_KNOWLEDGE</code>.</p>
-
-<p>The Knowledge <strong>list</strong> screen
-(<code>KnowledgeListScreen</code>) shows a sticky banner — "N shared
-items ready to import" — with a "Discard share" button that clears
-the queue. The user picks an existing KB or creates a new one; in
-either case the <strong>detail</strong> screen
-(<code>KnowledgeDetailScreen</code>) auto-consumes the queue on first
-composition:</p>
-
-<ul>
-<li><code>http://</code> / <code>https://</code> URI →
-<code>KnowledgeService.indexUrl(...)</code></li>
-<li><code>content://</code> / <code>file://</code> URI →
-<code>pickTypeForUri</code> + <code>displayNameForUri</code> +
-<code>KnowledgeService.indexFile(...)</code></li>
-<li>The auto-ingest <code>LaunchedEffect</code> re-keys on the KB's
-full selection contents so a late-arriving share intent still
-drains.</li>
-<li>Status line cycles through "Reading…" / "Embedding…" / "Indexed"
-exactly the same as the manual <code>+ File</code> /
-<code>+ Web page</code> buttons.</li>
-<li>After the queue drains, <code>onConsumePending()</code> clears it
-so a back-and-forward doesn't re-import. A shared URL alongside file
-attachments stays in the queue separately so it gets indexed too.</li>
-</ul>
 
 <h2>Custom external intent — separate codepath</h2>
 
@@ -191,8 +143,6 @@ filters</li>
 <li><code class="path">ai/src/main/java/com/ai/ui/navigation/AppNavHost.kt</code>
 — overlay and routing helpers
 (<code>routeShareToReport</code>, etc.)</li>
-<li><code class="path">ai/src/main/java/com/ai/ui/knowledge/KnowledgeScreens.kt</code>
-— <code>pendingUris</code> banner + auto-ingest</li>
 <li><code class="path">ai/src/main/java/com/ai/ui/chat/ChatScreens.kt</code>
 — <code>initialUserInput</code> consumption</li>
 </ul>

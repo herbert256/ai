@@ -7,8 +7,8 @@ with three view models on top of `StateFlow`. Networking goes through
 Retrofit + OkHttp (with custom interceptors for tracing and rate-limit
 retry). Persistence is split between `SharedPreferences` (user-curated
 config, caches) and JSON files under `filesDir` (reports, secondary
-results, traces, chat history, knowledge bases, embeddings, usage
-stats, pricing tier blobs).
+results, traces, chat history, embeddings, usage stats, pricing
+tier blobs).
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -17,10 +17,8 @@ stats, pricing tier blobs).
 │       ├── HubScreen                                                 │
 │       ├── ReportsHubScreen / ReportScreen / ReportSingleResultScreen│
 │       ├── ChatsHubScreen / ChatScreens / DualChatScreen             │
-│       ├── KnowledgeListScreen / KnowledgeDetailScreen               │
 │       ├── ModelInfoScreen / ModelListScreen                         │
-│       ├── SearchScreens (Quick / Extended local + Local / Remote    │
-│       │                  semantic)                                  │
+│       ├── SearchScreens (Quick / Extended local + Remote semantic)  │
 │       ├── ShareChooserScreen   (overlay before NavHost)             │
 │       ├── SettingsScreen (two-tier: enum-driven sub-screens)        │
 │       ├── HousekeepingScreen   (six NavCard rows, each its own      │
@@ -32,8 +30,8 @@ stats, pricing tier blobs).
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │  ViewModels                                                         │
-│  ├── AppViewModel       — settings, prefs, model fetching, RAG attach│
-│  ├── ChatViewModel      — chat state and streaming, KB injection    │
+│  ├── AppViewModel       — settings, prefs, model fetching          │
+│  ├── ChatViewModel      — chat state and streaming                  │
 │  └── ReportViewModel    — report + secondary-result generation,     │
 │                           multi-language fan-out, translation runs, │
 │                           Fan-out (per-pair) + Fan-in (combine)     │
@@ -42,7 +40,7 @@ stats, pricing tier blobs).
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Data layer (com.ai.data)                                           │
-│  ├── AnalysisRepository  — façade with retry / fallback / RAG inject│
+│  ├── AnalysisRepository  — façade with retry / fallback            │
 │  ├── ApiDispatch         — selects ApiFormat-specific code path     │
 │  ├── ApiStreaming        — SSE parser + Flow emission               │
 │  ├── ApiClient           — Retrofit interfaces, ApiFactory          │
@@ -69,17 +67,7 @@ stats, pricing tier blobs).
 │  ├── InternalPromptSeed  — assets/prompts.json loader               │
 │  ├── ExamplePromptSeed   — assets/examples.json loader              │
 │  ├── ImageAttach         — vision-image downscale + JPEG-encode     │
-│  │                                                                  │
-│  │ — RAG —                                                          │
-│  ├── Knowledge           — KnowledgeBase, KnowledgeSource,          │
-│  │                         KnowledgeChunk, KnowledgeStore           │
-│  ├── KnowledgeExtractors — 10 source-type extractors                │
-│  ├── KnowledgeService    — index + retrieve pipeline                │
 │  ├── EmbeddingsStore     — content-hashed per-doc embedding cache   │
-│  │                                                                  │
-│  │ — On-device runtime (data/local/) —                              │
-│  ├── LocalLlm            — MediaPipe Tasks GenAI .task runtime      │
-│  ├── LocalEmbedder       — MediaPipe Tasks TextEmbedder runtime     │
 │  │                                                                  │
 │  │ — Share-target —                                                 │
 │  └── SharedContent       — snapshot of an ACTION_SEND payload       │
@@ -89,7 +77,6 @@ stats, pricing tier blobs).
             ┌──────────────────────────────────────────┐
             │  External APIs (42 cloud providers)      │
             │  + 7 metadata repositories               │
-            │  + on-device MediaPipe Tasks (no network)│
             └──────────────────────────────────────────┘
 ```
 
@@ -97,14 +84,13 @@ stats, pricing tier blobs).
 
 ~60,300 LOC across 123 Kotlin files:
 - `data/` — 34 files (HTTP, dispatch, streaming, tracer, rate
-  limit / throttle, registry, pricing, storage, RAG, in-app file
-  logger, atomic-write helpers, bundled-asset seeds), including
-  the `data/local/` subpackage (`LocalLlm`, `LocalEmbedder`).
+  limit / throttle, registry, pricing, storage, in-app file
+  logger, atomic-write helpers, bundled-asset seeds).
 - `model/` — 2 files (`SettingsModels.kt`, `SettingsHolder.kt`)
 - `viewmodel/` — 4 files (`AppViewModel`, `ChatViewModel`,
   `ReportViewModel`, `ReportViewModelHelpers`)
-- `ui/` — 82 files across 13 sub-domains (`hub`, `report` × 26,
-  `chat` × 5, `knowledge`, `models`, `search` × 4, `history` × 3,
+- `ui/` — 82 files across sub-domains (`hub`, `report` × 26,
+  `chat` × 5, `models`, `search` × 4, `history` × 3,
   `settings` × 17, `admin` × 10, `share` × 2, `shared` × 9,
   `theme`, `navigation` × 2)
 - `MainActivity.kt`
@@ -147,16 +133,6 @@ SharedPreferences key prefixes use `id` directly (e.g.
 which loads `providers.json` on first run via `importFromAsset` and
 then merges any custom provider definitions the user imports.
 
-In addition there is a **synthetic `Local` `AppService`** —
-`AppService.LOCAL`, id `"Local"` — that is **not** registered in
-`ProviderRegistry`. It surfaces only via `findById("Local")` (which
-also accepts the legacy uppercase `"LOCAL"` case-insensitively for
-compat with persisted ChatSessions) and is the routing sentinel for
-the on-device runtime: if `agent.provider == LOCAL` the dispatch
-layer skips Retrofit entirely and calls `LocalLlm.generate` (or
-`LocalEmbedder.embed` for embeddings). It appears in every model
-picker as a normal "Local" provider.
-
 ### Three ViewModels
 
 - **`AppViewModel`** — owns `UiState` (a single bag of every
@@ -171,8 +147,7 @@ picker as a normal "Local" provider.
   consumes, and the `iconRefreshTick` counter on `UiState` that
   forces icon-dependent recompositions when a background icon
   call settles.
-- **`ChatViewModel`** — chat session state and streaming, including
-  per-turn KB retrieval and context-block injection. Also fires
+- **`ChatViewModel`** — chat session state and streaming. Also fires
   the bundled `internal/chat_title` prompt asynchronously after
   the first assistant response and stamps `ChatSession.title`
   with the returned label.
@@ -203,8 +178,8 @@ Top-level navigation uses Jetpack Navigation. Inside `SettingsScreen`,
 sub-screens are routed via the `SettingsSubScreen` enum (~32 entries
 covering AI Setup hubs, providers, models, model-types, agents,
 flocks, swarms, parameters, system prompts, internal-prompt hubs by
-category, example prompts, external services, local LiteRT models,
-local LLMs, import/export, refresh) and a `when` block — this keeps
+category, example prompts, external services, import/export, refresh)
+and a `when` block — this keeps
 deep links into a single Settings overlay simple and lets
 back-navigation be a single state mutation. The top-level Settings
 screen itself is split into three sub-pages (Preferences, Privacy
@@ -283,36 +258,6 @@ Both are precomputed into `ProviderConfig.visionCapableComputed`,
 screens is a `Set` membership check rather than the full layered
 scan.
 
-### RAG layer
-
-`com.ai.data.Knowledge*` implements the retrieval-augmented
-generation pipeline:
-
-- **Knowledge bases** live under `<filesDir>/knowledge/<kbId>/` with
-  a `manifest.json` (the `KnowledgeBase` + `KnowledgeSource[]` list)
-  and a `chunks/<sourceId>.json` per source.
-- **Sources** are extracted by `KnowledgeExtractors` — ten types:
-  TEXT, MARKDOWN, PDF (with OCR fallback for image-only PDFs), DOCX,
-  ODT, XLSX (sheets spooled — no full-zip slurp), ODS (content.xml
-  streamed), CSV, IMAGE, URL.
-- **Chunking** is paragraph-greedy with overlap (`KnowledgeChunker`).
-- **Embeddings** go through either `LocalEmbedder` (when
-  `embedderProviderId == "Local"`) or `AnalysisRepository.embed`
-  (any provider's `/v1/embeddings`). Per-content cache lives in
-  `EmbeddingsStore`. Chunks with empty / mismatched-dim embeddings
-  are refused at save time rather than scored as 0 at retrieval.
-- **Retrieval** is cosine-similarity top-K across every chunk in
-  every attached KB. The query is embedded once and converted to
-  `FloatArray`; chunks are streamed per source via
-  `KnowledgeStore.forEachChunk` into a bounded
-  `PriorityQueue<Scored>` of size `topK*2`, so peak heap is the
-  heap itself plus one chunk in flight, regardless of total KB
-  size. Survivors are sorted descending and walked under the
-  `maxContextChars` budget. The prompt or user message gets a
-  `<context>…</context>` block prepended at dispatch time.
-
-See [knowledge.md](knowledge.md) for the full pipeline.
-
 ### Trace storage
 
 `ApiTracer` writes one JSON file per outbound API call under
@@ -342,38 +287,15 @@ Hardening / perf measures:
   thread-locals through OkHttp's dispatcher so retries and
   cancellations preserve the originating call's identity.
 
-### On-device runtime
-
-Two singletons wrap MediaPipe Tasks:
-
-- **`LocalLlm`** holds an `LlmInference` cache keyed by `.task` file
-  name. `availableLlms()` lists `<filesDir>/local_llms/*.task`.
-  `generate()` runs synchronously and writes a synthetic
-  `ApiTrace` (hostname `local`, url
-  `local://generate/<modelFile>`).
-- **`LocalEmbedder`** holds a `TextEmbedder` cache keyed by
-  `.tflite` file name. `availableModels()` lists
-  `<filesDir>/local_models/*.tflite` plus the curated
-  `downloadable` list. `embed()` writes a similar synthetic trace.
-
-Both are reachable from any provider-agnostic code path because
-they share the `AppService.LOCAL` sentinel (id `"Local"`) — chat,
-report, RAG, and Fan-out flows route to them when the provider id
-matches. Per-native-handle calls are serialised with a per-handle
-mutex so two concurrent users of the same `.task` don't race the
-shared MediaPipe context. See [local-runtime.md](local-runtime.md).
-
 ### Share-target
 
 `MainActivity` extracts incoming `ACTION_SEND` /
 `ACTION_SEND_MULTIPLE` intents into a `SharedContent` snapshot
 (text + subject + URI list + mime). `AppNavHost` renders
 `ShareChooserScreen` as an **overlay before the NavHost** and
-routes the user's pick to one of three destinations: Report
+routes the user's pick to one of two destinations: Report
 (routeShareToReport pre-fills title/prompt + base64s a single
-image), Chat (stages `chatStarterText` in `UiState`), or Knowledge
-(queues URIs in `UiState.pendingKnowledgeUris` and the Knowledge
-list / detail screens drain the queue). See
+image) or Chat (stages `chatStarterText` in `UiState`). See
 [share-target.md](share-target.md).
 
 ### Generic CRUD list
@@ -455,16 +377,13 @@ separate from `UiState`.
   `ProviderThrottle.permitPreAcquired` so the OkHttp
   interceptor doesn't double-count.
 - `ApiTracer` and `ReportStorage` use `ReentrantLock` for thread-safe
-  file writes; `KnowledgeStore` does the same for KB manifest +
-  chunk files (chunks + manifest are also written atomically as a
-  batch so a crash mid-write doesn't leave the manifest pointing
-  at half a chunk file).
+  file writes.
 - `AtomicFileWrite.writeTextAtomic` uses `Files.move(ATOMIC_MOVE)`
   with an `fsync` of the temp file before the rename, and creates
   the parent dir on demand so call sites don't have to. The
   same stage-as-`.part` + atomic-rename pattern is used by the
-  export-share writer, the local-model import path, and several
-  other "write a complete artifact" call sites.
+  export-share writer and several other "write a complete artifact"
+  call sites.
 - `usageStatsCache` is a `ConcurrentHashMap` with a 2-second debounced
   flush, so heavy concurrent updates don't serialize on disk I/O.
   The flush is forced from `ViewModel.onCleared` (off the main
@@ -485,10 +404,7 @@ separate from `UiState`.
   results land in their own rows.
 - Storage write APIs validate flat ids (`isSafeFlatId`: non-blank,
   not `.` / `..`, no `/` or `\`) on `saveReport`, `deleteReport`,
-  `saveChatSession`, `saveSecondaryResult`, KB
-  `saveSource` / `deleteSource`. Knowledge writes also enforce a
-  canonical-containment guard around `kbId` path joins — a
-  symlink or `..` segment can't escape `<filesDir>/knowledge/`.
+  `saveChatSession`, `saveSecondaryResult`.
 - Backup restore caps per-entry and total bytes (large
   attachments truncated) before writing into `filesDir` /
   `cacheDir` from the zip.
@@ -501,10 +417,7 @@ Server-Sent Events flow through `ApiStreaming`, parsed into
 are buffered before the blank-line dispatch; Anthropic's `event:` +
 `data:` pairs; Gemini's chunked-JSON format). Error responses on
 streaming endpoints have their body drained and surfaced with the
-HTTP status, instead of leaving the stream half-consumed. The
-`Local` provider doesn't stream — `LocalLlm.generate` returns the
-full text in one go (the MediaPipe API doesn't expose a partial-
-token callback this version plumbs through).
+HTTP status, instead of leaving the stream half-consumed.
 
 ## State recovery
 

@@ -223,7 +223,6 @@ Result of a single provider model-list fetch.
 | webSearchTool | `Boolean` (per-report 🌐 toggle) |
 | reasoningEffort | `String?` (per-report 🧠 hint) |
 | sourceReportId | `String?` (set when this report is a translated copy of another) |
-| knowledgeBaseIds | `List<String>` (KBs attached to this report) |
 | pinned | `Boolean` (user-pinned, surfaces on the Reports hub above Recent) |
 | costsFromDeletedItems | `Double` (sum of input+output cost of every deleted row — agent / secondary / fan-out / fan-in / translation. Surfaced as its own line above Total when non-zero so the user sees what the API actually billed even after trimming visible rows) |
 | icon | `String?` (per-report emoji, set by `kickOffIconGeneration` on report start. Null while running, on call failure, or on legacy reports created before the feature shipped. See [report-icons.md](report-icons.md)) |
@@ -380,78 +379,6 @@ Lower-level twin of `Parameters` used in dispatch. Same fields as
 
 ---
 
-## Knowledge / RAG (`com.ai.data.Knowledge`)
-
-### `KnowledgeBase`
-A named collection of indexed documents.
-
-| Field | Type |
-|---|---|
-| id | `String` (UUID) |
-| name | `String` |
-| embedderProviderId | `String` (`"Local"` for on-device, otherwise `AppService.id`) |
-| embedderModel | `String` |
-| embeddingDim | `Int` |
-| createdAt | `Long` |
-| sources | `List<KnowledgeSource>` |
-
-Computed:
-- `totalChunks: Int` — `sources.sumOf { it.chunkCount }`
-- `totalChars: Long` — `sources.sumOf { it.charCount.toLong() }`
-
-### `KnowledgeSource`
-A single ingested document inside a KB.
-
-| Field | Type |
-|---|---|
-| id | `String` (UUID) |
-| type | `KnowledgeSourceType` |
-| name | `String` (display label — file name without extension or URL host) |
-| origin | `String` (SAF Uri for files; URL for web pages — used to re-index) |
-| addedAt | `Long` |
-| chunkCount | `Int` |
-| charCount | `Int` |
-| errorMessage | `String?` (set when the most recent index attempt failed) |
-
-### `KnowledgeChunk`
-| id | `String` (UUID) |
-| sourceId | `String` |
-| ordinal | `Int` |
-| text | `String` |
-| embedding | `FloatArray` (primitive — boxed `List<Double>` was ~6× heavier per dim; JSON storage on disk is unchanged because Gson serialises both to the same array of numbers, so existing chunk files keep working) |
-
-`equals` / `hashCode` are overridden so the `FloatArray` field
-compares by content, not identity — required for chunk-list
-deduplication and assertion equality.
-
-### `KnowledgeSourceType` (enum)
-`TEXT`, `MARKDOWN`, `PDF`, `DOCX`, `ODT`, `XLSX`, `ODS`, `CSV`,
-`IMAGE`, `URL`.
-
----
-
-## Local Runtime (`com.ai.data.LocalLlm`, `com.ai.data.LocalEmbedder`)
-
-### `LocalLlm.RecommendedLlm`
-Hand-off link shown on the AI Setup → Local Models → Local LLMs card.
-
-| name | `String` |
-| url | `String` |
-| sizeHint | `String` |
-| description | `String` |
-
-### `LocalEmbedder.DownloadableModel`
-A `.tflite` text embedder the app can download directly into
-`<filesDir>/local_models/`.
-
-| name | `String` (filename stem) |
-| displayName | `String` |
-| url | `String` |
-| sizeMbHint | `Int` |
-| description | `String` |
-
----
-
 ## Provider routing (`com.ai.data`)
 
 ### `AppService`
@@ -497,13 +424,6 @@ per-provider table.
 | maxRetriesOn529 | `Int?` | per-provider override for the 529 retry cap (0 = disable in-line retries). Null → inherit |
 | retryBackoffMs529 | `Long?` | per-provider override for the wait between 529 retries. Null → inherit. Seeded to 5000 ms for Anthropic |
 
-There is also a synthetic singleton `AppService.LOCAL` (`id =
-"Local"`, `baseUrl = "local://"`) **not** in `ProviderRegistry`.
-It surfaces only via `findById("Local")` (case-insensitive — the
-legacy `"LOCAL"` string in persisted data still resolves) and routes
-chat / report / RAG / Fan-out calls through `LocalLlm` /
-`LocalEmbedder`.
-
 #### `ModelPattern`
 Shared by every `*Patterns` field on `AppService`. Wire format is a
 JSON object with one or more of three string fields (matched against
@@ -524,8 +444,7 @@ instead of created by the user.
 
 ### `ApiFormat` (enum)
 `OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`. All cloud dispatch keys
-off this — provider identity is never used for routing. The on-device
-runtime dispatches off `provider.id == "Local"` instead.
+off this — provider identity is never used for routing.
 
 ### `ModelType` (constants)
 `CHAT`, `RESPONSES`, `EMBEDDING`, `RERANK`, `IMAGE`, `TTS`, `STT`,
@@ -576,7 +495,6 @@ Costs page and the layered-costs CSV export.
 | parameters | `ChatParameters` |
 | createdAt, updatedAt | `Long` |
 | pinned | `Boolean` (surfaces above Recent on the AI Chat hub) |
-| knowledgeBaseIds | `List<String>` (KBs attached to this chat) |
 | title | `String` (default empty) | Display title. Seeded with the first 10 words of the first user message on send; replaced asynchronously by the bundled `internal/chat_title` prompt against DeepSeek after the first assistant response. Blank for sessions saved before this field existed — display sites fall back to `preview` (first user message, first 50 chars) |
 
 Computed:
@@ -606,7 +524,7 @@ Two-models-talk-to-each-other configuration. Persisted to
 ## Tracing (`com.ai.data.ApiTracer`)
 
 ### `ApiTrace`
-| timestamp, hostname | `Long`, `String` (`"local"` for on-device LLM / embedder traces) |
+| timestamp, hostname | `Long`, `String` |
 | reportId | `String?` |
 | model | `String?` |
 | request | `TraceRequest` |
@@ -763,7 +681,6 @@ Computed:
 | maxRetriesOn529 | `Int` (default 3) | maximum number of in-line retries the OkHttp client performs on a 529 (server overloaded). 0 disables in-line retries entirely. Independent of the 429 budget |
 | retryBackoffMs529 | `Long` (default 1000) | wait between 529 retry attempts in milliseconds |
 | logLevel | `LogLevel` (default `INFO`) | threshold for the in-app file logger ([applog.md](applog.md)). `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Persisted in main prefs; `AppLog.init` reads it directly so DEBUG calls inside bootstrap are admitted on cold start |
-| showKnowledgeCard | `Boolean` (default false) | gates the AI Knowledge card on the home Hub. Default off keeps the Hub approachable on a fresh install; the Knowledge subsystem itself stays fully functional whether or not the card is visible |
 
 > The intro / model_info / translate / rerank / moderation prompt
 > templates that used to live as `GeneralSettings` fields now live
@@ -799,13 +716,10 @@ The single immutable bag the entire UI subscribes to. See
   `pendingReportModels`, `editModeReportId`, `stagedReportModels`,
   `hasPendingPromptChange`, `hasPendingParametersChange`,
   `reportImageBase64`, `reportImageMime`, `reportWebSearchTool`,
-  `reportReasoningEffort`, `reportAdvancedParameters`,
-  `attachedKnowledgeBaseIds`
+  `reportReasoningEffort`, `reportAdvancedParameters`
 - Share-target staging: `chatStarterText: String?`,
   `chatStarterImageBase64/Mime: String?` (also fed by the AI Chat
-  hub's "📸 Start with photo" entry),
-  `pendingKnowledgeUris: List<String>`,
-  `pendingReportKnowledgeUris: List<String>`
+  hub's "📸 Start with photo" entry)
 - `activeSecondaryBatches: Int` — count of in-flight secondary
   batches; the Meta button's hourglass / poll loop key off this
 - `iconRefreshTick: Int` — incremented every time the icon-gen

@@ -23,8 +23,6 @@ directly.</p>
 <ul>
 <li><a href="#settings-config">Settings &amp; Configuration</a></li>
 <li><a href="#reports">Reports</a></li>
-<li><a href="#knowledge">Knowledge / RAG</a></li>
-<li><a href="#local-runtime">Local runtime</a></li>
 <li><a href="#provider-routing">Provider routing</a></li>
 <li><a href="#pricing">Pricing</a></li>
 <li><a href="#chat">Chat</a></li>
@@ -327,8 +325,6 @@ storage.</dd></div>
 <dd>Per-report 🧠 hint.</dd></div>
 <div><dt>sourceReportId</dt><div class="meta"><code>String?</code></div>
 <dd>Set when this report is a translated copy of another.</dd></div>
-<div><dt>knowledgeBaseIds</dt><div class="meta"><code>List&lt;String&gt;</code></div>
-<dd>KBs attached to this report.</dd></div>
 <div><dt>pinned</dt><div class="meta"><code>Boolean</code></div>
 <dd>User-pinned, surfaces on the Reports hub above Recent.</dd></div>
 <div><dt>costsFromDeletedItems</dt><div class="meta"><code>Double</code></div>
@@ -640,70 +636,6 @@ reasoning hint for models that support it (gpt-5.x / o-series via
 Responses API; Gemini thinking models). Non-reasoning models silently
 drop the field at dispatch.</p>
 
-<h2 id="knowledge">Knowledge / RAG</h2>
-<p class="muted"><code>com.ai.data.Knowledge</code></p>
-
-<h3 id="knowledgebase">KnowledgeBase</h3>
-<dl class="kv">
-<div><dt>id</dt><div class="meta"><code>String (UUID)</code></div></div>
-<div><dt>name</dt><div class="meta"><code>String</code></div></div>
-<div><dt>embedderProviderId</dt><div class="meta"><code>String</code></div>
-<dd><code>"Local"</code> for on-device, otherwise
-<code>AppService.id</code>.</dd></div>
-<div><dt>embedderModel</dt><div class="meta"><code>String</code></div></div>
-<div><dt>embeddingDim</dt><div class="meta"><code>Int</code></div></div>
-<div><dt>createdAt</dt><div class="meta"><code>Long</code></div></div>
-<div><dt>sources</dt><div class="meta"><code>List&lt;KnowledgeSource&gt;</code></div></div>
-</dl>
-<p>Computed: <code>totalChunks</code>, <code>totalChars</code>.</p>
-
-<h3 id="knowledgesource">KnowledgeSource</h3>
-<dl class="kv">
-<div><dt>id</dt><div class="meta"><code>String (UUID)</code></div></div>
-<div><dt>type</dt><div class="meta"><code>KnowledgeSourceType</code></div></div>
-<div><dt>name</dt><div class="meta"><code>String</code></div>
-<dd>Display label.</dd></div>
-<div><dt>origin</dt><div class="meta"><code>String</code></div>
-<dd>SAF Uri for files; URL for web pages — used to re-index.</dd></div>
-<div><dt>addedAt</dt><div class="meta"><code>Long</code></div></div>
-<div><dt>chunkCount, charCount</dt><div class="meta"><code>Int</code></div></div>
-<div><dt>errorMessage</dt><div class="meta"><code>String?</code></div></div>
-</dl>
-
-<h3 id="knowledgechunk">KnowledgeChunk</h3>
-<dl class="kv">
-<div><dt>id, sourceId</dt><div class="meta"><code>String</code></div></div>
-<div><dt>ordinal</dt><div class="meta"><code>Int</code></div></div>
-<div><dt>text</dt><div class="meta"><code>String</code></div></div>
-<div><dt>embedding</dt><div class="meta"><code>FloatArray</code></div>
-<dd>Primitive — boxed <code>List&lt;Double&gt;</code> was ~6× heavier
-per dim. <code>equals</code> / <code>hashCode</code> overridden so
-<code>FloatArray</code> compares by content.</dd></div>
-</dl>
-
-<h3 id="knowledgesourcetype">KnowledgeSourceType (enum)</h3>
-<p><code>TEXT</code>, <code>MARKDOWN</code>, <code>PDF</code>,
-<code>DOCX</code>, <code>ODT</code>, <code>XLSX</code>,
-<code>ODS</code>, <code>CSV</code>, <code>IMAGE</code>,
-<code>URL</code>.</p>
-
-<h2 id="local-runtime">Local runtime</h2>
-<p class="muted"><code>com.ai.data.LocalLlm</code>,
-<code>com.ai.data.LocalEmbedder</code></p>
-
-<h3 id="recommendedllm">LocalLlm.RecommendedLlm</h3>
-<dl class="kv">
-<div><dt>name, url, sizeHint, description</dt><div class="meta"><code>String</code></div></div>
-</dl>
-
-<h3 id="downloadablemodel">LocalEmbedder.DownloadableModel</h3>
-<dl class="kv">
-<div><dt>name</dt><div class="meta"><code>String</code></div>
-<dd>Filename stem.</dd></div>
-<div><dt>displayName, url, description</dt><div class="meta"><code>String</code></div></div>
-<div><dt>sizeMbHint</dt><div class="meta"><code>Int</code></div></div>
-</dl>
-
 <h2 id="provider-routing">Provider routing</h2>
 <p class="muted"><code>com.ai.data</code></p>
 
@@ -770,14 +702,6 @@ match wins, default 4096.</dd></div>
 <div><dt>maxRetriesOn429, maxRetriesOn529</dt><div class="meta"><code>Int?</code></div></div>
 <div><dt>retryBackoffMs429, retryBackoffMs529</dt><div class="meta"><code>Long?</code></div></div>
 </dl>
-<p>There is also a synthetic singleton <code>AppService.LOCAL</code>
-(<code>id = "Local"</code>) <strong>not</strong> in
-<code>ProviderRegistry</code>. It surfaces only via
-<code>findById("Local")</code> (case-insensitive — the legacy
-<code>"LOCAL"</code> string still resolves) and routes chat / report
-/ RAG / Fan-out calls through <code>LocalLlm</code> /
-<code>LocalEmbedder</code>.</p>
-
 <h4>ModelPattern</h4>
 <p>Shared by every <code>*Patterns</code> field on
 <code>AppService</code>. Wire format is a JSON object with one or
@@ -795,9 +719,8 @@ on the agent's parameters.</p>
 
 <h3 id="apiformat">ApiFormat (enum)</h3>
 <p><code>OPENAI_COMPATIBLE</code>, <code>ANTHROPIC</code>,
-<code>GOOGLE</code>. All cloud dispatch keys off this — provider
-identity is never used for routing. The on-device runtime dispatches
-off <code>provider.id == "Local"</code> instead.</p>
+<code>GOOGLE</code>. All dispatch keys off this — provider identity
+is never used for routing.</p>
 
 <h3 id="modeltype">ModelType (constants)</h3>
 <p><code>CHAT</code>, <code>RESPONSES</code>, <code>EMBEDDING</code>,
@@ -861,7 +784,6 @@ the Costs page and the layered-costs CSV export.</p>
 <div><dt>parameters</dt><div class="meta"><code>ChatParameters</code></div></div>
 <div><dt>createdAt, updatedAt</dt><div class="meta"><code>Long</code></div></div>
 <div><dt>pinned</dt><div class="meta"><code>Boolean</code></div></div>
-<div><dt>knowledgeBaseIds</dt><div class="meta"><code>List&lt;String&gt;</code></div></div>
 <div><dt>title</dt><div class="meta"><code>String</code></div>
 <dd>Display title. Seeded with the first 10 words of the first user
 message; replaced asynchronously by the bundled
@@ -897,8 +819,7 @@ supported range on session resume).</p>
 
 <h3 id="apitrace">ApiTrace</h3>
 <dl class="kv">
-<div><dt>timestamp, hostname</dt><div class="meta"><code>Long</code>, <code>String</code></div>
-<dd><code>"local"</code> for on-device LLM / embedder traces.</dd></div>
+<div><dt>timestamp, hostname</dt><div class="meta"><code>Long</code>, <code>String</code></div></div>
 <div><dt>reportId, model</dt><div class="meta"><code>String?</code></div></div>
 <div><dt>request</dt><div class="meta"><code>TraceRequest</code></div></div>
 <div><dt>response</dt><div class="meta"><code>TraceResponse</code></div></div>
@@ -1075,8 +996,6 @@ model pickers, most-recent first.</dd></div>
 <div><dt>retryBackoffMs529</dt><div class="meta">default 1000</div></div>
 <div><dt>logLevel</dt><div class="meta"><code>LogLevel (default INFO)</code></div>
 <dd>See <a href="applog.html">applog</a>.</dd></div>
-<div><dt>showKnowledgeCard</dt><div class="meta"><code>Boolean (default false)</code></div>
-<dd>Gates the AI Knowledge card on the home Hub.</dd></div>
 </dl>
 
 <h3 id="modelnamelayout">ModelNameLayout (enum)</h3>
@@ -1115,13 +1034,10 @@ Provided via <code>LocalSubjectToTitleBarMode</code>.</p>
 <code>hasPendingParametersChange</code>,
 <code>reportImageBase64</code>, <code>reportImageMime</code>,
 <code>reportWebSearchTool</code>, <code>reportReasoningEffort</code>,
-<code>reportAdvancedParameters</code>,
-<code>attachedKnowledgeBaseIds</code>.</li>
+<code>reportAdvancedParameters</code>.</li>
 <li><strong>Share-target staging</strong>:
 <code>chatStarterText: String?</code>,
-<code>chatStarterImageBase64 / Mime: String?</code>,
-<code>pendingKnowledgeUris: List&lt;String&gt;</code>,
-<code>pendingReportKnowledgeUris: List&lt;String&gt;</code>.</li>
+<code>chatStarterImageBase64 / Mime: String?</code>.</li>
 <li><code>activeSecondaryBatches: Int</code> — count of in-flight
 secondary batches; the Meta button's hourglass / poll loop key off
 this.</li>

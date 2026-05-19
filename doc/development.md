@@ -36,26 +36,7 @@ The `versionName` is computed at build time as `YY.DDD.MIN` (year
 share a version.
 
 A few notable runtime dependencies (full list in `ai/build.gradle.kts`):
-- **MediaPipe Tasks GenAI 0.10.35** — on-device LLM (`LocalLlm`).
-  Pinned at 0.10.35 for 16 KB page-size compliance on Android 15+.
-- **MediaPipe Tasks Text 0.10.35** — on-device text embedder
-  (`LocalEmbedder`). Wraps a LiteRT runtime so the app can run
-  `.tflite` text-embedder models for on-device semantic search.
-- **ML Kit Text Recognition 16.0.1** — Latin model bundled, so OCR
-  works offline without Google Play Services. Used as the fallback
-  in the Knowledge ingestion path for image-only PDFs / standalone
-  images. (Was MediaPipe Text Recognition; switched for offline +
-  bundled-model guarantees.)
 - **PDFBox-Android 2.0.27.0** — PDF text extraction
-- **Jsoup 1.18.1** — HTML extraction for URL-type Knowledge sources
-- **Apache Commons Compress 1.27.1** — `.zip` / `.tar` / `.tar.gz` /
-  `.tgz` extraction in the Local LLM archive importer (Kaggle ships
-  some Gemma bundles as `.tgz`)
-
-A `constraints { implementation("com.google.guava:guava:33.4.3-android") }`
-override pins Guava away from MediaPipe's transitive 27.0.1, which
-otherwise breaks Truth at instrumented-test runtime via AGP's
-consistent-resolution.
 
 ## Deploy
 
@@ -72,15 +53,14 @@ after explicit-commit prompts.
 ## Logs
 
 ```bash
-adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppLifecycle|AppLog|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|ImportExport|KnowledgeService|LocalEmbedder|LocalLlm|LocalRuntime|ModelListCache|PricingCache|ProviderRegistry|ProviderFieldTimestamps|RateLimit|ReportExport|ReportIcons|ReportStorage|SettingsExport|Throttle"
+adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppLifecycle|AppLog|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|ImportExport|ModelListCache|PricingCache|ProviderRegistry|ProviderFieldTimestamps|RateLimit|ReportExport|ReportIcons|ReportStorage|SettingsExport|Throttle"
 ```
 
 The in-app **API Traces** screen (Hub → AI API Traces) is usually a
 faster way to inspect what was sent / received during a report run —
 each call gets a JSON file under `<filesDir>/trace/` while
 `ApiTracer.isTracingEnabled` is on (it's on by default but can be
-toggled in Settings). On-device LLM and on-device embedder calls
-trace too with hostname `local`.
+toggled in Settings).
 
 There's also the **AI App log** in-app viewer (Hub → AI App log)
 — a log4j-style file appender (`com.ai.data.AppLog`) that
@@ -99,7 +79,7 @@ Complete** options. See [applog.md](applog.md).
 ```
 ai/src/main/java/com/ai/
 ├── MainActivity.kt
-├── data/                              # 34 files (incl. data/local/)
+├── data/                              # core data layer
 │   ├── (HTTP, dispatch, streaming, tracer, throttle, registry, …)
 │   ├── AnalysisRepository.kt   ApiClient.kt     ApiDispatch.kt
 │   ├── ApiFormat.kt            ApiModels.kt     ApiStreaming.kt
@@ -109,13 +89,10 @@ ai/src/main/java/com/ai/
 │   ├── EmbeddingsStore.kt      EmojiExtract.kt  ExamplePromptSeed.kt
 │   ├── HuggingFaceCache.kt     ImageAttach.kt
 │   ├── InternalPromptSeed.kt
-│   ├── Knowledge.kt + KnowledgeService.kt + KnowledgeExtractors.kt
 │   ├── ModelListCache.kt       ModelType.kt     PricingCache.kt
 │   ├── PricingParsers.kt       PromptCache.kt
 │   ├── ProviderFieldTimestamps.kt    ProviderRegistry.kt
 │   ├── ReportStorage.kt        SecondaryResult.kt   SharedContent.kt
-│   └── local/                         # 2 files
-│       ├── LocalEmbedder.kt + LocalLlm.kt
 ├── model/                             # 2 files
 │   ├── SettingsModels.kt + SettingsHolder.kt
 ├── viewmodel/                         # 4 files
@@ -133,8 +110,7 @@ ai/src/main/java/com/ai/
     │                                  # split SelectionPhase /
     │                                  # GenerationPhase / Dialogs files
     ├── chat/        (5)               # chat + chat history + dual chat
-    ├── knowledge/   (1)               # KB list + detail
-    ├── search/      (4)               # Quick / Extended local + Local /
+    ├── search/      (4)               # Quick / Extended local +
     │                                  # Remote semantic search screens
     ├── share/       (2)               # ShareChooserScreen + helpers
     ├── models/      (1)               # model search + Model Info
@@ -272,40 +248,6 @@ The same pattern documents itself; lean on the compiler.
 > `@RESPONDER_PAIRS@`. Adding a new SecondaryKind that needs a
 > similar model-scoped flavour means walking those sites too.
 
-### A new Knowledge source type
-
-1. Add an enum value to `KnowledgeSourceType` in
-   `data/Knowledge.kt`.
-2. Add an extractor function in `KnowledgeExtractors.kt` and a
-   dispatch arm in the `extract()` `when`.
-3. Update `pickTypeForUri` in `ui/knowledge/KnowledgeScreens.kt` so
-   the SAF picker recognises the extension.
-4. Add the matching MIME types to the SAF picker's filter array in
-   `KnowledgeDetailScreen` and to the share-target filters in
-   `AndroidManifest.xml`.
-5. (Optional) Add the type to the Source-type icon mapping if you
-   want a distinct emoji/icon on the source row.
-
-The chunker, embedder, and retriever are type-agnostic — once an
-extractor returns a string, every downstream stage works unchanged.
-
-### A new local model (downloadable embedder)
-
-`LocalEmbedder.downloadable` is a hardcoded list of
-`DownloadableModel` entries. Append a new one with `name`,
-`displayName`, `url`, `sizeMbHint`, `description`. The model file
-must have proper MediaPipe Tasks metadata baked in or the runtime
-will refuse to load it — that's why the curated list is short. SAF
-"Add model from file" handles user-supplied `.tflite` with stamped
-metadata.
-
-`LocalLlm.recommendedLinks` is the equivalent for `.task` LLMs but
-ships **hand-off links only** (no in-app downloads) because most
-worthwhile models require accepting model-card terms in a browser
-first. The user accepts on Kaggle / HuggingFace, downloads, then
-imports via the SAF picker (which handles `.task`, `.zip`, `.tar.gz`,
-`.tgz`, `.tar`).
-
 ### A new Internal Prompt category
 
 Internal prompts have a free-form `category` string —
@@ -358,7 +300,7 @@ covering the Compose UI (`ChatsHubScreenTest`,
 `ReportsHubScreenTest`, `ContentDisplayTest`,
 `SharedComponentsTest`, `TitleBarTest`, `HelpScreenTest`,
 `HousekeepingScreenTest`, `ReportExportScreenTest`,
-`TranslationCompareScreenTest`) and on-device data plumbing
+`TranslationCompareScreenTest`) and device-side data plumbing
 (`ChatHistoryManagerInstrumentedTest`,
 `ProviderRegistryInstrumentedTest`,
 `ReportStorageInstrumentedTest`,
@@ -376,10 +318,9 @@ plus the export builders `ZippedHtmlBuildInstrumentedTest`,
 > and push it back after the test run + reinstall. This is the
 > "extended cycle" referenced in `CLAUDE.md`.
 
-When changing a flow (especially generation, retry, persistence, or
-RAG injection), **run an actual report** before declaring success.
-Type-checking and unit tests verify code correctness, not feature
-correctness here.
+When changing a flow (especially generation, retry, or persistence),
+**run an actual report** before declaring success. Type-checking and
+unit tests verify code correctness, not feature correctness here.
 
 ## Common gotchas
 
@@ -430,10 +371,7 @@ correctness here.
   not `.` / `..`, no `/` or `\`) gates the write side of
   `ReportStorage.saveReport / deleteReport`,
   `ChatHistoryManager.saveChatSession`,
-  `SecondaryResultStorage.save…`, `KnowledgeStore.saveSource /
-  deleteSource`. Knowledge paths additionally enforce
-  canonical-containment around `kbId` joins so a symlink or
-  `..` segment can't escape `<filesDir>/knowledge/`.
+  `SecondaryResultStorage.save…`.
 - **ProviderFieldTimestamps**. Per-provider per-field
   user-edit timestamps live in a separate prefs file
   (`provider_field_timestamps`). `ProviderRegistry.update`
@@ -441,15 +379,9 @@ correctness here.
   asset-sync paths skip fields with a non-null timestamp so a
   bundled-asset refresh never overwrites a user edit. Backup
   / restore mirrors this prefs file.
-- **Backup zip** mirrors `filesDir` (incl. `knowledge/`,
-  `embeddings/`, `secondary/`, `trace/`, `pricing/`, `model_lists/`,
-  `prompt_cache/`) and 5 SharedPreferences files. Two top-level
-  subdirs are explicitly excluded via
-  `BackupManager.FILES_DIR_BACKUP_EXCLUDES` — `local_llms/` and
-  `local_models/`, holding user-supplied multi-GB on-device model
-  bundles. The same set is **also** preserved through
-  `clearFilesDirForRestore`, so a settings restore on a device with
-  local models installed doesn't destroy them. New prefs files
+- **Backup zip** mirrors `filesDir` (incl. `embeddings/`,
+  `secondary/`, `trace/`, `pricing/`, `model_lists/`,
+  `prompt_cache/`) and 5 SharedPreferences files. New prefs files
   won't survive a restore unless added to
   `BackupManager.PREFS_TO_BACKUP`. The backup zip also mirrors
   `cacheDir` (exports, shared traces) but skips in-flight temp
@@ -481,28 +413,13 @@ correctness here.
   id-unification refactor; backwards-compat migrations were
   stripped. Existing installs upgraded transparently because the
   registry already carried the unified ids.
-- **`AppService.LOCAL` isn't in `ProviderRegistry`.** It's a
-  sentinel singleton found via `findById("Local")` (case-insensitive
-  for compat with persisted `"LOCAL"` strings). Persisted
-  ChatSessions whose provider was Local can be reloaded across
-  launches because the deserializer routes the id to the sentinel.
-- **`LocalLlm.generate` is synchronous and not streaming.** The
-  MediaPipe API in this version doesn't expose a partial-token
-  callback through the Kotlin binding; the chat session shows the
-  full reply when the call returns. Per-native-handle calls are
-  serialised so two consumers of the same `.task` don't race.
-- **Truth + MediaPipe** ship incompatible Guava transitive
-  dependencies. The `ai/build.gradle.kts` constraint pinning Guava
-  to `33.4.3-android` is required — without it the instrumented
-  test suite VerifyError-s on every Truth assertion.
-- **Atomic writes are required for prefs / KB / pricing /
-  secondary writes.** Use `AtomicFileWrite.writeTextAtomic`
+- **Atomic writes are required for prefs / pricing / secondary
+  writes.** Use `AtomicFileWrite.writeTextAtomic`
   (`Files.move ATOMIC_MOVE` + tmp file fsync + parent-dir auto-
   mkdir). Bare `File.writeText` leaves a half-written file on
   crash — the sweep across the codebase fixed this in dozens of
   call sites. The same stage-as-`.part` + atomic-rename pattern
-  is used by `ExportShare` (Copy / Share writes) and the
-  local-model import path (`.task` / `.tflite` files) so a
+  is used by `ExportShare` (Copy / Share writes) so a
   process kill mid-write can't surface a half-written artifact
   to the user.
 - **Icons come in two flavours.** Per-report icon

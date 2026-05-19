@@ -13,10 +13,9 @@
 <h1>Backup &amp; restore</h1>
 
 <p><code>BackupManager</code> round-trips the entire app — settings,
-chat history, reports, knowledge bases, traces, pricing snapshots, and
-all the bookkeeping that makes a restored install pick up exactly
-where the source install left off — into a single <code>.zip</code>
-file.</p>
+chat history, reports, traces, pricing snapshots, and all the
+bookkeeping that makes a restored install pick up exactly where the
+source install left off — into a single <code>.zip</code> file.</p>
 
 <p>The user opens it from <strong>Settings → Housekeeping → Backup
 &amp; Restore → Backup</strong> (write to a SAF-picked location) and
@@ -47,10 +46,6 @@ Activity, one <code>BackupManager</code> object, no service.</p>
         <li>chat-history.json</li>
         <li>trace/&lt;hostname&gt;_&lt;ts&gt;_&lt;seq&gt;.json</li>
         <li>applog/applog_&lt;yyyyMMdd&gt;.log</li>
-        <li>knowledge/&lt;kbId&gt;/manifest.json</li>
-        <li>knowledge/&lt;kbId&gt;/files/&lt;localCopy&gt;</li>
-        <li>knowledge/&lt;kbId&gt;/chunks/&lt;sourceId&gt;.json</li>
-        <li>embeddings/&lt;sha256&gt;.json</li>
         <li>model_lists/&lt;providerId&gt;.json</li>
         <li>pricing/&lt;key&gt;.json</li>
         <li>prompt-history.json</li>
@@ -143,9 +138,7 @@ filename of the originating 429. See
 
 <h3>Files (under &lt;filesDir&gt;)</h3>
 
-<p>Everything in <code>&lt;filesDir&gt;</code> except the two
-top-level entries listed in <code>FILES_DIR_BACKUP_EXCLUDES</code>
-(see next section). Notable contents:</p>
+<p>Everything in <code>&lt;filesDir&gt;</code>. Notable contents:</p>
 
 <ul>
 <li><code>reports/</code>, <code>secondary/</code>,
@@ -157,11 +150,6 @@ cutoff the user set). Auth headers redacted at write time.</li>
 daily-rotating app log produced by <code>com.ai.data.AppLog</code>.
 Sensitive headers + raw API keys are redacted inline before write so
 the backed-up logs never carry plain secrets.</li>
-<li><code>knowledge/&lt;kbId&gt;/</code> — KB manifests, chunk JSONs
-(with <code>FloatArray</code> embeddings serialised as numeric
-arrays), and the locally-persisted source files.</li>
-<li><code>embeddings/</code> — the per-document embedding cache that
-backs Local / Remote semantic search.</li>
 <li><code>pricing/</code> — the LiteLLM, models.dev, OpenRouter,
 Together, Helicone, llm-prices and Artificial Analysis tier
 blobs.</li>
@@ -198,31 +186,6 @@ stage a temp file, exclude it.</li>
 
 <h2>What's excluded</h2>
 
-<h3>FILES_DIR_BACKUP_EXCLUDES</h3>
-
-<pre><code>internal val FILES_DIR_BACKUP_EXCLUDES = setOf("local_llms", "local_models")</code></pre>
-
-<p>Both directories hold user-supplied on-device model bundles:</p>
-
-<ul>
-<li><code class="path">local_llms/&lt;name&gt;.task</code> — Gemma /
-Phi / Llama and similar bundles for <code>LocalLlm</code>. Hundreds
-of MB to several GB each. Sourced via SAF after the user accepts the
-model card terms in a browser — see
-<a href="local-runtime.html">local-runtime</a>.</li>
-<li><code class="path">local_models/&lt;name&gt;.tflite</code> —
-MediaPipe Tasks TextEmbedder models for <code>LocalEmbedder</code>.
-Tens to hundreds of MB each.</li>
-</ul>
-
-<p>Excluding them from backup keeps the zip small (a settings backup
-measured in MB instead of GB) and avoids redistributing weights the
-user provisioned through the original hand-off flow. They're also
-<strong>preserved</strong> on restore (see below) so the user doesn't
-lose them when restoring a backup that didn't ship with them.</p>
-
-<h3>Other things deliberately not in the zip</h3>
-
 <ul>
 <li><code>WebViewChromiumPrefs</code> — Chromium cookies and
 web-process state. Doesn't make sense across devices.</li>
@@ -252,10 +215,9 @@ leaves prefs valid + filesDir empty (re-restorable), rather than the
 inverse where filesDir is partially written and prefs still point at
 the pre-restore state.</li>
 <li><strong>Apply files</strong> —
-<code>clearFilesDirForRestore</code> wipes filesDir (preserving
-<code>FILES_DIR_BACKUP_EXCLUDES</code>) plus the staged cache
-entries, then writes the staged map to disk. Each restored file is
-<strong>fsync'd</strong> before the caller is allowed to kill the
+<code>clearFilesDirForRestore</code> wipes filesDir plus the staged
+cache entries, then writes the staged map to disk. Each restored file
+is <strong>fsync'd</strong> before the caller is allowed to kill the
 process.</li>
 <li><strong>Merge providers</strong> —
 <code>mergeMissingProvidersFromSetup</code> reads
@@ -274,27 +236,6 @@ the running build's <code>MANIFEST_VERSION</code> (currently
 <p>Memory cost: full uncompressed payload during the staging pass.
 Acceptable because backups are typically 10–50 MB, and the SAF copy
 already held that much in cacheDir.</p>
-
-<h2>Preservation across the restore wipe</h2>
-
-<p><code>clearFilesDirForRestore</code> skips the same
-<code>FILES_DIR_BACKUP_EXCLUDES</code> set when wiping:</p>
-
-<pre><code>filesDir.listFiles()?.forEach {
-    if (it.name !in FILES_DIR_BACKUP_EXCLUDES) it.deleteRecursively()
-}</code></pre>
-
-<p>Effect: a backup taken on Device A (with no local LLMs) restored
-to Device B (with a multi-GB Gemma 3 install in
-<code>local_llms/</code>) keeps Device B's local models in place.
-Without this guard the restore would silently destroy them — the
-backup didn't include them, the wipe took them out, and the user
-would have to re-import the multi-GB bundle.</p>
-
-<p>A unit test
-(<code>BackupManagerRestoreTest.clearFilesDirForRestore_preserves_local_model_dirs</code>)
-seeds both directories, runs the wipe, and asserts both are still
-there.</p>
 
 <h2>Provider catalog merge</h2>
 
@@ -373,9 +314,7 @@ buttons.</p>
 
 <ul>
 <li><code class="path">ai/src/test/java/com/ai/data/BackupManagerRestoreTest.kt</code>
-— unit tests for <code>clearFilesDirForRestore</code> (wipes content,
-creates missing dir, <strong>preserves</strong>
-<code>local_llms/</code> and <code>local_models/</code>).</li>
+— unit tests for <code>clearFilesDirForRestore</code>.</li>
 <li><code class="path">ai/src/androidTest/java/com/ai/data/ApiTracerInstrumentedTest.kt</code>
 — full-cycle <code>saveTrace</code> / <code>getTraceFiles</code> /
 <code>clearTraces</code> / <code>deleteTracesOlderThan</code>

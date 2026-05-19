@@ -23,14 +23,6 @@ provider is usually a single JSON entry in
 <p>Dispatch lives in <code>com.ai.data.ApiDispatch</code>; streaming
 in <code>com.ai.data.ApiStreaming</code>.</p>
 
-<p>In addition there is a <strong>synthetic on-device path</strong>
-routed via <code>AppService.LOCAL</code> (<code>id = "Local"</code>).
-It does not use <code>ApiFormat</code> at all — when an agent's
-provider is <code>Local</code>, the dispatch layer skips Retrofit
-entirely and calls <code>LocalLlm.generate()</code> (chat / report /
-fan-out) or <code>LocalEmbedder.embed()</code> (embeddings). See
-<a href="local-runtime.html">Local runtime</a>.</p>
-
 <h2>OPENAI_COMPATIBLE (default — 40 of 42)</h2>
 
 <p>The familiar OpenAI Chat Completions wire format. Bearer-token

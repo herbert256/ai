@@ -96,8 +96,6 @@ Each entry has:
 [ Model picker (multi-select) ]
    • Rerank picker has a "rerank models only" toggle
    • Pre-checks the previous run's selection (per-(reportId, prompt))
-   • Includes the synthetic Local provider when at least one .task
-     LLM is installed
         │
         ▼
 [ Run — N independent calls in parallel,                    ]

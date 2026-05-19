@@ -12,13 +12,6 @@ enum class ApiFormat { OPENAI_COMPATIBLE, ANTHROPIC, GOOGLE }
 Dispatch lives in `com.ai.data.ApiDispatch`; streaming in
 `com.ai.data.ApiStreaming`.
 
-In addition there is a **synthetic on-device path** routed via
-`AppService.LOCAL` (`id = "Local"`). It does not use `ApiFormat` at
-all — when an agent's provider is `Local`, the dispatch layer skips
-Retrofit entirely and calls `LocalLlm.generate()` (chat / report /
-fan-out) or `LocalEmbedder.embed()` (embeddings). See
-[local-runtime.md](local-runtime.md).
-
 ## OPENAI_COMPATIBLE (default — 40 of 42 providers)
 
 The familiar OpenAI Chat Completions wire format. Bearer-token auth.

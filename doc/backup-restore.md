@@ -1,9 +1,9 @@
 # Backup & Restore
 
 `BackupManager` round-trips the entire app — settings, chat
-history, reports, knowledge bases, traces, pricing snapshots, and
-all the bookkeeping that makes a restored install pick up exactly
-where the source install left off — into a single `.zip` file.
+history, reports, traces, pricing snapshots, and all the
+bookkeeping that makes a restored install pick up exactly where
+the source install left off — into a single `.zip` file.
 
 The user opens it from **Settings → Housekeeping → Backup & Restore
 → Backup** (write to a SAF-picked location) and **Restore** (read
@@ -28,9 +28,6 @@ ai-backup-YYYYMMDD-HHMMSS.zip
 │   ├── chat-history.json
 │   ├── trace/<hostname>_<ts>_<seq>.json
 │   ├── applog/applog_<yyyyMMdd>.log
-│   ├── knowledge/<kbId>/manifest.json
-│   ├── knowledge/<kbId>/files/<localCopy>
-│   ├── knowledge/<kbId>/chunks/<sourceId>.json
 │   ├── embeddings/<sha256>.json
 │   ├── model_lists/<providerId>.json
 │   ├── pricing/<key>.json
@@ -75,8 +72,7 @@ a 200 GB entry.
 
 ### Files (under `<filesDir>`)
 
-Everything in `<filesDir>` except the two top-level entries listed
-in `FILES_DIR_BACKUP_EXCLUDES` (see next section). Notable contents:
+Everything in `<filesDir>` is included. Notable contents:
 
 - `reports/`, `secondary/`, `chat-history.json`,
   `prompt-history.json` — the user's content
@@ -86,11 +82,8 @@ in `FILES_DIR_BACKUP_EXCLUDES` (see next section). Notable contents:
   produced by `com.ai.data.AppLog`. Sensitive headers + raw API
   keys are redacted inline before write so the backed-up logs
   never carry plain secrets
-- `knowledge/<kbId>/` — KB manifests, chunk JSONs (with
-  `FloatArray` embeddings serialised as numeric arrays), and
-  the locally-persisted source files
 - `embeddings/` — the per-document embedding cache that backs
-  Local / Remote semantic search
+  remote semantic search
 - `pricing/` — the LiteLLM, models.dev, OpenRouter, Together,
   Helicone, llm-prices and Artificial Analysis tier blobs
 - `model_lists/` — the most recent `/models` raw JSON per
@@ -117,28 +110,6 @@ files whose names match `CACHE_TOPLEVEL_SKIP_PREFIXES`:
   temp file, exclude it.
 
 ## What's excluded
-
-### `FILES_DIR_BACKUP_EXCLUDES`
-
-```kotlin
-internal val FILES_DIR_BACKUP_EXCLUDES = setOf("local_llms", "local_models")
-```
-
-Both directories hold user-supplied on-device model bundles:
-
-- `local_llms/<name>.task` — Gemma / Phi / Llama and similar
-  bundles for `LocalLlm`. Hundreds of MB to several GB each.
-  Sourced via SAF after the user accepts the model card terms in
-  a browser — see [local-runtime.md](local-runtime.md).
-- `local_models/<name>.tflite` — MediaPipe Tasks TextEmbedder
-  models for `LocalEmbedder`. Tens to hundreds of MB each.
-
-Excluding them from backup keeps the zip small (a settings
-backup measured in MB instead of GB) and avoids redistributing
-weights the user provisioned through the original hand-off
-flow. They're also **preserved** on restore (see below) so the
-user doesn't lose them when restoring a backup that didn't
-ship with them.
 
 ### Other things deliberately not in the zip
 
@@ -167,10 +138,9 @@ ship with them.
    filesDir is partially written and prefs still point at the
    pre-restore state.
 3. **Apply files** — `clearFilesDirForRestore` wipes filesDir
-   (preserving `FILES_DIR_BACKUP_EXCLUDES`) plus the staged cache
-   entries, then writes the staged map to disk. Each restored
-   file is **fsync'd** before the caller is allowed to kill the
-   process.
+   plus the staged cache entries, then writes the staged map to
+   disk. Each restored file is **fsync'd** before the caller is
+   allowed to kill the process.
 4. **Merge providers** — `mergeMissingProvidersFromSetup` reads
    `assets/providers.json` and grafts in any provider id the
    running build has but the restored prefs don't (handles "old
@@ -185,24 +155,6 @@ if the manifest version exceeds the running build's
 Memory cost: full uncompressed payload during the staging
 pass. Acceptable because backups are typically 10–50 MB, and
 the SAF copy already held that much in cacheDir.
-
-## Preservation across the restore wipe
-
-`clearFilesDirForRestore` skips the same `FILES_DIR_BACKUP_EXCLUDES`
-set when wiping:
-
-```kotlin
-filesDir.listFiles()?.forEach {
-    if (it.name !in FILES_DIR_BACKUP_EXCLUDES) it.deleteRecursively()
-}
-```
-
-Effect: a backup taken on Device A (with no local LLMs) restored
-to Device B (with a multi-GB Gemma 3 install in `local_llms/`)
-keeps Device B's local models in place. Without this guard the
-restore would silently destroy them — the backup didn't include
-them, the wipe took them out, and the user would have to re-import
-the multi-GB bundle.
 
 A unit test
 (`BackupManagerRestoreTest.clearFilesDirForRestore_preserves_local_model_dirs`)
@@ -281,8 +233,7 @@ Tests:
 
 - `ai/src/test/java/com/ai/data/BackupManagerRestoreTest.kt` —
   unit tests for `clearFilesDirForRestore` (wipes content,
-  creates missing dir, **preserves** `local_llms/` and
-  `local_models/`).
+  creates missing dir).
 - `ai/src/androidTest/java/com/ai/data/ApiTracerInstrumentedTest.kt`
   — full-cycle `saveTrace` / `getTraceFiles` /
   `clearTraces` / `deleteTracesOlderThan` (relevant because

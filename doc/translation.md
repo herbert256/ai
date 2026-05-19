@@ -20,9 +20,7 @@ From the result-phase Actions row on a finished report, tap
    - All model reports
    - Top-N from a chosen rerank
    - Manual selection
-3. **Model picker** — pick the chat model(s) to do the translating
-   (any provider; the synthetic Local provider works too if a
-   `.task` LLM is installed).
+3. **Model picker** — pick the chat model(s) to do the translating.
 4. **Run** — fans out one batch per (language, model-pick) and one
    API call per (source × language) within that batch. Each
    `executeSecondaryTask` call writes a `SecondaryResult` with

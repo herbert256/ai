@@ -6,9 +6,9 @@ and a daily-rotating plain-text file under
 `<filesDir>/applog/applog_<yyyyMMdd>.log` (when the call's
 level is at or above the user-configured threshold).
 
-Designed so a user can hand the app a clean, durable on-device
-log when something misbehaves — independent of `adb logcat`,
-shareable from inside the app.
+Designed so a user can hand the app a clean, durable log when
+something misbehaves — independent of `adb logcat`, shareable from
+inside the app.
 
 ## Levels
 
@@ -106,8 +106,7 @@ canonical set):
 - `AppLifecycle`, `AppViewModel`, `AiAnalysis`, `ApiDispatch`,
   `ApiStreaming`, `ApiTracer`, `AtomicFileWrite`
 - `BackupManager`, `ChatHistoryManager`, `ChatViewModel`
-- `ImportExport`, `KnowledgeService`
-- `LocalEmbedder`, `LocalLlm`, `LocalRuntime`
+- `ImportExport`
 - `ModelListCache`, `PricingCache`, `ProviderRegistry`,
   `ProviderFieldTimestamps`
 - `ReportExport`, `ReportStorage`, `ReportViewModel`

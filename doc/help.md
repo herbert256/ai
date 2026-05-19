@@ -21,10 +21,9 @@ Topics group into:
 - **Reports flow** — New AI Report, the model selection screen, the
   result screen, the secondary-result flows, exports.
 - **Chat flow** — Chat hub, configure-on-the-fly, chat session,
-  Dual Chat, RAG attachment.
-- **Knowledge** — KB list, KB detail, source types, retrieval.
+  Dual Chat.
 - **Settings → AI Setup** — every sub-card has a topic. Sub-hubs
-  (Models, Workers, Prompt management, Local Models) have their own
+  (Models, Workers, Prompt management) have their own
   overview topic plus per-card detail topics.
 - **Housekeeping** — Backup & Restore, Export & Import, Refresh,
   Trim by age, Usage statistics, Reset.

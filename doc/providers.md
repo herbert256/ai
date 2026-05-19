@@ -1,9 +1,8 @@
 # Providers
 
-Every provider shipped in `assets/providers.json`, plus the synthetic
-`Local` provider added at runtime. The full schema is in
-[datastructures.md](datastructures.md) under `AppService`; this table
-shows only the fields that differ from the default.
+Every provider shipped in `assets/providers.json`. The full schema is
+in [datastructures.md](datastructures.md) under `AppService`; this
+table shows only the fields that differ from the default.
 
 The bundled JSON is a flat `{"providers": [...]}` array — no top-level
 `version`. Custom providers added by the user persist as
@@ -157,11 +156,3 @@ mis-configured provider stays `not-used` until it can prove it
 actually works. Refresh-all surfaces failed providers with a one-tap
 nav-to-edit so the user can fix bad configurations without hunting.
 
-## The synthetic Local provider
-
-In addition to the table above, the app exposes a runtime-only
-`AppService` for the on-device path:
-
-| Provider id | Base URL | Admin URL | Default model | Notes |
-|---|---|---|---|---|
-| **Local** (`id = Local`) | `local://` | (none) | (empty) | Routes chat / report / Fan-out / RAG / embedding calls through `LocalLlm.generate` (for `.task` LLMs) and `LocalEmbedder.embed` (for `.tflite` text embedders). Not registered in `ProviderRegistry`; surfaces only via `AppService.findById("Local")` (case-insensitive — accepts the legacy uppercase `"LOCAL"` from persisted ChatSessions). The model list comes from whatever `.task` files live under `<filesDir>/local_llms/`; the embedder list from `<filesDir>/local_models/`. No `apiFormat` — dispatch is by `provider.id == "Local"`. See [local-runtime.md](local-runtime.md). |

@@ -2,9 +2,8 @@
 
 A multi-provider AI app for Android. Run the same prompt against many
 models at once, compare what they say, fan one model's response into
-another's prompt, ground the run in your own documents, save the
-result, share it, and keep an audit trail of every API call you made
-— cloud or on-device.
+another's prompt, save the result, share it, and keep an audit trail
+of every API call you made.
 
 ## First run
 
@@ -24,10 +23,6 @@ result, share it, and keep an audit trail of every API call you made
    None of these are required to use the app — they only enable model
    metadata, pricing, and intelligence/speed scores.
 
-The on-device LLM and on-device embedder paths require **no API key**
-— they run a `.task` or `.tflite` model file you supply. See the
-"Local Runtime" section below.
-
 ## The Hub
 
 The home screen has these big cards:
@@ -38,15 +33,10 @@ The home screen has these big cards:
   AI-generated (the bundled `chat_title` prompt fires after the
   first assistant response); a first-10-words fallback fills the
   row instantly so nothing is ever blank.
-- **AI Knowledge** — knowledge bases for retrieval-augmented
-  generation. Attach to Reports / Chats. (Hidden by default on
-  fresh installs — flip **Settings → Show AI Knowledge card on
-  home page** to surface it. The Knowledge flows themselves stay
-  fully functional whether the card is visible or not.)
 - **AI Models** — search every model across all your providers.
 - **AI Usage** — running token / cost statistics.
-- **AI API Traces** — every recent API call (cloud or local) as a
-  JSON file. (Hidden when API tracing is disabled in Settings.)
+- **AI API Traces** — every recent API call as a JSON file. (Hidden
+  when API tracing is disabled in Settings.)
 - **AI App log** — daily-rotating in-app log file with a
   searchable / filterable viewer ([applog.md](applog.md)). Useful
   when you want to hand a clean log to support without
@@ -83,8 +73,6 @@ Tapping **AI Reports** lands on a hub screen with several cards:
     secondaries / translations).
   - **Remote semantic search** — embed your query against any chat
     provider and rank reports by cosine similarity.
-  - **Local semantic search** — same idea, but the embedder is the
-    on-device `LocalEmbedder` — no network.
 - **Manage** — bulk housekeeping (pin/unpin, delete, export many).
 
 ### Selection phase
@@ -95,20 +83,15 @@ Tapping **AI Reports** lands on a hub screen with several cards:
    - **+Flock** — full-screen Flock picker (with Edit + One-time
      entry points right on the picker).
    - **+Swarm** — full-screen Swarm picker (with Edit + One-time).
-   - **+Provider** — pick any provider (including the synthetic
-     **Local** provider for on-device `.task` models), then any of its
-     models.
+   - **+Provider** — pick any provider, then any of its models.
    - **+Model** — full-screen multi-select picker across every active
      provider's catalog. The **+Report** entry only appears once an
      existing report is selectable.
 3. Optionally tap **Params** to apply a parameter preset (temperature,
    max_tokens, system prompt, reasoning effort, etc.).
-4. Optionally tap **📚 Knowledge** to attach one or more knowledge
-   bases — every agent call gets a context block prepended for the
-   prompt.
-5. Optionally attach a vision image (📎), toggle web-search 🌐, or
+4. Optionally attach a vision image (📎), toggle web-search 🌐, or
    pick a reasoning level 🧠.
-6. Type your prompt and tap **Generate**.
+5. Type your prompt and tap **Generate**.
 
 ### Generation phase
 
@@ -339,9 +322,7 @@ auto-saved.
 Like the Reports hub, the Chat hub is rich:
 
 - **Start** — `New AI Chat`, `Configure on the fly`
-  (`ModelSearchScreen` for fast picking), `Chat with a local LLM`
-  (only when at least one `.task` file is installed),
-  `Dual AI Chat`.
+  (`ModelSearchScreen` for fast picking), `Dual AI Chat`.
 - **Pinned chats** (when present).
 - **Recent** — last few chats with the 🕐 icon.
 - **Unfinished** pill — when a chat from a previous session was left
@@ -355,9 +336,6 @@ A chat session can have:
 - The 🌐 web-search tool toggled per provider.
 - The 🧠 reasoning-effort selector per turn (clamped to the active
   model's supported range on session resume).
-- One or more knowledge bases attached (📚) — every user turn the
-  retriever pulls top-K chunks across the attached KBs and prepends a
-  context block to the system message.
 
 A mid-session system-prompt change takes effect on the next turn,
 not just on a fresh session.
@@ -372,90 +350,12 @@ they take turns until they hit the count. Useful for adversarial
 cross-examination, devil's-advocate setups, or multi-step pipelines.
 Conversations persist across rotation and process recreation.
 
-## Knowledge (RAG)
-
-The **AI Knowledge** card on the Hub manages knowledge bases. A
-knowledge base is a named collection of source documents that have
-been chunked + embedded so that report and chat calls can prepend
-the most-relevant excerpts to the prompt.
-
-### Creating a KB
-
-1. **AI Knowledge → + New knowledge base**.
-2. Give it a name and pick an embedder. Embedders fall in two
-   categories:
-   - **Local (LiteRT)** — on-device MediaPipe TextEmbedder
-     (universal-sentence-encoder-lite by default; you can add other
-     `.tflite` models).
-   - **Provider (e.g. OpenAI / text-embedding-3-small)** — any active
-     provider with an embedding model.
-3. Tap Create.
-
-### Adding sources
-
-Inside a KB:
-- **+ File** opens a SAF picker that accepts:
-  - PDFs (with OCR fallback for image-only PDFs)
-  - Word documents (`.docx`, `.odt`)
-  - Spreadsheets (`.xlsx`, `.ods`, `.csv`, `.tsv`)
-  - Images (`.jpg`, `.jpeg`, `.png`) — Latin OCR via ML Kit
-  - Plain text and Markdown (`.md`)
-- **+ Web page** fetches a URL with Jsoup and ingests the visible
-  text.
-
-Every source goes through a per-type extractor → paragraph chunker
-(2 KB target, 200-char overlap) → embedder. Status reports
-"Extracting…" → "Embedding batch N/M…" → "Indexed (chunks=K)".
-KB stores the source file locally with an atomic temp + fsync +
-rename so a crash mid-ingest can't leave a half-written copy.
-
-### Attaching a KB to a Report or Chat
-
-- **Reports**: on the New AI Report screen, tap **📚 Knowledge** to
-  multi-select KBs. Every agent call gets a context block prepended
-  to the prompt with the top-K most-relevant chunks (cosine similarity
-  against the prompt's embedding).
-- **Chats**: on the Chat parameters screen (or via the chat session's
-  own 📚 button), pick KBs the same way. Every user turn gets a
-  fresh top-K retrieval and the context block goes in front of the
-  system message.
-
 ### Share-target
 
 Other apps can share documents into AI. From any app's share sheet,
-pick "AI"; you'll get a chooser screen with three destinations:
-**New Report**, **New Chat**, **Add to Knowledge**. The Knowledge
-path drops the shared file(s) or URL(s) into the next KB you tap.
-See [share-target.md](share-target.md).
-
-### Deeper
-
-See [knowledge.md](knowledge.md) for the full RAG pipeline: data
-model, ten extractors, chunker, retriever, on-disk layout, and the
-embedding cache.
-
-## Local Runtime
-
-Two on-device subsystems live alongside the cloud providers:
-
-- **Local LLM** (`LocalLlm`, MediaPipe Tasks GenAI) — runs a `.task`
-  bundle (Gemma, Phi, Llama …) for chat or report generation. The
-  Local provider appears in every model picker as a normal provider;
-  the Hub's "Chat with a local LLM" card is a shortcut.
-- **Local Embedder** (`LocalEmbedder`, MediaPipe Tasks TextEmbedder)
-  — runs a `.tflite` text embedder for Local Semantic Search and as
-  an embedder option when creating a Knowledge base. A default
-  Universal Sentence Encoder is downloaded on first use.
-
-Both record synthetic API trace entries (hostname `local`,
-url `local://generate/<model>` or `local://embed/<model>`) so
-on-device traffic shows up on the Trace screen alongside HTTP
-calls.
-
-Maintenance lives under **AI Setup → Local Models** (broken into
-"Local LiteRT models" + "Local LLMs" cards) — they're configuration
-of on-device runtimes, not housekeeping. See
-[local-runtime.md](local-runtime.md) for the full story.
+pick "AI"; you'll get a chooser screen with two destinations:
+**New Report** and **New Chat**. See
+[share-target.md](share-target.md).
 
 ## Models
 
@@ -509,8 +409,7 @@ is coloured by which tier supplied the price.
 Every API call (request + response) is dumped as a JSON file under
 `<filesDir>/trace/`. The Trace screen lets you browse them by
 hostname, status code, model, or the report they belonged to.
-Local LLM and local embedder calls are traced too with hostname
-`local`. The Trace list **auto-collapses to detail when filters
+The Trace list **auto-collapses to detail when filters
 yield a single entry**. When the trace was captured inside a
 specific report, the icons-grid render appears in the trace
 detail so you can recognise the run at a glance.
@@ -562,7 +461,6 @@ only the title; tapping expands it.
   emoji. Default on. See [report-icons.md](report-icons.md).
 - **Generate per model icons** — master switch for the per-agent
   3-tier icon chain. Default on.
-- **Show AI Knowledge card on home page** — default off.
 
 ### Privacy & backup
 
@@ -608,7 +506,6 @@ doesn't lose typed changes.
 | Parameters | Reusable parameter presets (incl. reasoning effort) |
 | Costs | Manual price overrides + Cleanup + Layered costs (collapsed at the bottom) |
 | External Services | HuggingFace / OpenRouter / Artificial Analysis keys (debounced keystroke saves; flush on dispose) |
-| Local Models | Local LiteRT models (.tflite) and Local LLMs (.task) |
 | Refresh | Per-tier refresh + Refresh all chain |
 
 > **Note:** Anything user-driven that runs on a report's outputs
@@ -648,12 +545,12 @@ card, all collapsed by default):
 
 - **Clear all runtime data** — narrower than before: wipes app
   log, traces, chats, reports, prompt history, and usage stats.
-  Knowledge / pricing / model-list caches stay put.
+  Pricing / model-list caches stay put.
 - **Clear Info providers** — wipes the seven external-info
   caches (LiteLLM, OpenRouter, models.dev, Helicone, llm-prices,
   Artificial Analysis, HuggingFace) and their timestamps.
-- **Clear all configuration** — wipes provider config, prompts,
-  Local LLMs, LiteRT models. Asks before destructive actions.
+- **Clear all configuration** — wipes provider config and prompts.
+  Asks before destructive actions.
 - **Restore bundled assets** — re-merges `providers.json` /
   `prompts.json` / `examples.json` from the APK. User edits to
   existing rows are preserved.

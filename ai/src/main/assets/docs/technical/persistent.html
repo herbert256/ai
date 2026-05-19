@@ -113,10 +113,6 @@ to <code>ApiCallCaps.global</code>.</dd></div>
 <code>ERROR</code> / <code>OFF</code>. Read directly by
 <code>AppLog.init</code> from <code>eval_prefs</code> so DEBUG calls
 inside bootstrap are admitted on cold start.</dd></div>
-<div><dt>show_knowledge_card</dt><div class="meta">Boolean (default false)</div>
-<dd>Gates the AI Knowledge card on the home Hub. The Knowledge
-subsystem itself stays fully functional whether the card is visible
-or not.</dd></div>
 <div><dt>first_run_bootstrapped</dt><div class="meta">Boolean</div>
 <dd>Gates the first-run providers + prompts seed (the every-start
 delta-merge still runs on subsequent starts — see
@@ -342,11 +338,8 @@ whose 429 produced the cooldown.</dd></div>
 
 <p>The app's <code>filesDir</code> is
 <code class="path">/data/data/com.ai/files/</code>. The tree is
-captured by the backup zip with two top-level exceptions —
-<code>local_llms/</code> and <code>local_models/</code>, which hold
-user-supplied multi-GB on-device model bundles. See
-<a href="backup-restore.html">backup-restore</a> for the
-exclude-and-preserve contract.</p>
+captured by the backup zip. See
+<a href="backup-restore.html">backup-restore</a>.</p>
 
 <p>Almost every JSON write goes through
 <code>AtomicFileWrite.writeTextAtomic</code> — a
@@ -388,8 +381,7 @@ and clear the legacy prefs key as a belt-and-braces guard.</p>
 <div class="body">
 <p>One file per generated report. Holds the prompt, every agent's
 request / response / headers / usage / citations / cost, status,
-durations, plus <code>knowledgeBaseIds</code>,
-<code>imageBase64 / Mime</code> (vision),
+durations, plus <code>imageBase64 / Mime</code> (vision),
 <code>webSearchTool</code> / <code>reasoningEffort</code> (regen
 state), <code>sourceReportId</code> (translated copies), and
 <code>pinned</code>. Written atomically; protected by
@@ -457,11 +449,6 @@ and <code>model</code> of the originating call where applicable.</p>
 caps at 8 MiB so a runaway streaming response doesn't blow up.
 Hostnames are sanitised before being used as filename components (no
 path-traversal injection from a malicious URL).</p>
-<p>On-device LLM (<code>LocalLlm.generate</code>) and on-device
-embedder (<code>LocalEmbedder.embed</code>) calls write traces too,
-with <code>hostname = "local"</code> and url like
-<code>local://generate/&lt;modelFile&gt;</code> or
-<code>local://embed/&lt;modelFile&gt;</code>.</p>
 <p><code>ApiTracer</code> keeps an in-memory
 <code>cachedTraceFiles</code> list, prewarmed off the main thread on
 <code>init</code>, so the Trace list / detail prev-next nav is O(1)
@@ -474,9 +461,8 @@ once the cache is populated.</p>
 <div class="body">
 <p>Single JSON file with every persisted chat session. Managed by
 <code>ChatHistoryManager</code>. Sessions are auto-saved as messages
-arrive. Holds <code>pinned</code> and <code>knowledgeBaseIds</code>
-per session. Atomic writes; delete + cache invalidation are taken
-under a single lock.</p>
+arrive. Holds <code>pinned</code> per session. Atomic writes;
+delete + cache invalidation are taken under a single lock.</p>
 </div>
 </details>
 
@@ -511,8 +497,7 @@ map. Managed by <code>ModelTestRunStore</code>: the
 <code>ModelTestEngine</code> flushes it on each item completion
 (crash-safe partial results) and once on run end. A fresh run
 overwrites it; Housekeeping → Reset → Clear runtime data drops it.
-Atomic writes under a <code>ReentrantLock</code>. Not in
-<code>FILES_DIR_BACKUP_EXCLUDES</code>, so it round-trips through
+Atomic writes under a <code>ReentrantLock</code>. Round-trips through
 backup / restore.</p>
 </div>
 </details>
@@ -544,84 +529,6 @@ provider id is sanitised before use as a filename.</p>
 </div>
 </details>
 
-<details>
-<summary>knowledge/&lt;kbId&gt;/</summary>
-<div class="body">
-<p>Knowledge base data. Per-KB layout:</p>
-<ul class="tree">
-<li>knowledge/&lt;kbId&gt;/
-  <ul>
-    <li>manifest.json <span class="note">— KnowledgeBase + KnowledgeSource[] list</span></li>
-    <li>chunks/
-      <ul>
-        <li>&lt;sourceId&gt;.json <span class="note">— JSON array of KnowledgeChunk</span></li>
-      </ul>
-    </li>
-    <li>files/
-      <ul>
-        <li>&lt;localCopy&gt; <span class="note">— locally-persisted source file</span></li>
-      </ul>
-    </li>
-  </ul>
-</li>
-</ul>
-<p>One JSON file per source keeps add / remove / re-index cheap (no
-full-KB rewrite for a single-source change), while loading a whole
-KB for retrieval still scans only one directory. Chunk + manifest
-writes are taken under a single lock so a crash mid-write can't leave
-the manifest pointing at half a chunk file. <code>clearAll</code> and
-<code>deleteKnowledgeBase</code> also take the store lock so a
-full-reset and an in-flight ingest can't race. See
-<a href="knowledge.html">knowledge</a>.</p>
-</div>
-</details>
-
-<details>
-<summary>embeddings/&lt;sha256&gt;.json</summary>
-<div class="body">
-<p>Per-document embedding cache, keyed by SHA-256 of
-<code>(providerId, model, docId, contentHash)</code>. Used by the
-layered Local / Remote semantic search screens to short-circuit
-re-embedding. Dim mismatches log a warning instead of silently
-zeroing.</p>
-</div>
-</details>
-
-<details>
-<summary>local_models/&lt;name&gt;.tflite</summary>
-<div class="body">
-<p>On-device text-embedder models for <code>LocalEmbedder</code>.
-The default Universal Sentence Encoder is downloaded on first use of
-the Local Semantic Search screen. Custom user-supplied
-<code>.tflite</code> files (with proper MediaPipe Tasks metadata) can
-be added via the SAF picker on <strong>AI Setup → Local Models →
-Local LiteRT models</strong>.</p>
-<div class="callout warn">
-<p><strong>Backup behaviour:</strong> this directory is in
-<code>BackupManager.FILES_DIR_BACKUP_EXCLUDES</code> — its contents
-are skipped by the backup zip and preserved through the restore
-wipe. See <a href="backup-restore.html">backup-restore</a>.</p>
-</div>
-</div>
-</details>
-
-<details>
-<summary>local_llms/&lt;name&gt;.task</summary>
-<div class="body">
-<p>On-device LLM bundles for <code>LocalLlm</code>. User-supplied —
-most models require accepting model-card terms in a browser before
-download. The <strong>AI Setup → Local Models → Local LLMs</strong>
-card carries hand-off links and a SAF picker that accepts
-<code>.task</code>, <code>.zip</code>, <code>.tar.gz</code>,
-<code>.tgz</code>, and <code>.tar</code> archives.</p>
-<div class="callout warn">
-<p><strong>Backup behaviour:</strong> same as
-<code>local_models/</code> above — excluded from the backup zip,
-preserved through the restore wipe.</p>
-</div>
-</div>
-</details>
-
 <h2 id="not-persisted">What's NOT persisted</h2>
 
 <ul>
@@ -641,12 +548,6 @@ provider").</li>
 <h2 id="not-backed-up">What's NOT in the backup zip</h2>
 
 <ul>
-<li><code class="path">local_llms/&lt;name&gt;.task</code> and
-<code class="path">local_models/&lt;name&gt;.tflite</code> —
-user-supplied multi-GB on-device model bundles. Listed in
-<code>BackupManager.FILES_DIR_BACKUP_EXCLUDES</code>; skipped on
-backup, preserved through the restore wipe so a settings / data
-restore doesn't destroy them.</li>
 <li>In-flight cacheDir temp files matching
 <code>CACHE_TOPLEVEL_SKIP_PREFIXES</code> (<code>ai-restore-</code>,
 <code>reset_keys_</code>, <code>ai-backup-</code>) — these would
@@ -685,16 +586,16 @@ by default):</p>
 <dl class="kv">
 <div><dt>Clear all runtime data</dt>
 <dd>Wipes logs, chats, traces, usage stats, plus AI reports and
-prompt history. Narrower than the legacy single button: knowledge /
-pricing / model-list caches stay put.</dd></div>
+prompt history. Narrower than the legacy single button: pricing /
+model-list caches stay put.</dd></div>
 <div><dt>Clear Info providers</dt>
 <dd>Wipes the seven external-info repository caches (LiteLLM,
 OpenRouter, models.dev, Helicone, llm-prices, Artificial Analysis,
 HuggingFace) and their per-tier timestamps in
 <code>pricing_cache</code>.</dd></div>
 <div><dt>Clear all configuration</dt>
-<dd>Wipes provider config, prompts, Local LLMs, LiteRT models. Asks
-before destructive actions.</dd></div>
+<dd>Wipes provider config and prompts. Asks before destructive
+actions.</dd></div>
 <div><dt>Restore bundled assets</dt>
 <dd>Re-merges <code>providers.json</code> / <code>prompts.json</code>
 / <code>examples.json</code> from the APK. User edits on existing
@@ -709,11 +610,6 @@ it from the Refresh screen if they want it.</dd></div>
 <p>After any wholesale-state-replace op, the <strong>Restart-app
 dialog</strong> prompts the user to relaunch so the in-memory state
 matches the freshly written on-disk state.</p>
-
-<p>None of these touch the on-device <code>.task</code> /
-<code>.tflite</code> files unless the "Clear all configuration" path
-is taken — those persist across runtime resets and have their own
-per-row Remove on the matching Local LLMs / Local Models cards.</p>
 
 <p class="backtop"><a href="#">↑ Top</a></p>
 

@@ -74,31 +74,10 @@ so two builds the same minute share a version.</p>
 <code>ai/build.gradle.kts</code>):</p>
 
 <ul>
-<li><strong>MediaPipe Tasks GenAI 0.10.35</strong> — on-device LLM
-(<code>LocalLlm</code>). Pinned at 0.10.35 for 16 KB page-size
-compliance on Android 15+.</li>
-<li><strong>MediaPipe Tasks Text 0.10.35</strong> — on-device text
-embedder (<code>LocalEmbedder</code>). Wraps a LiteRT runtime so the
-app can run <code>.tflite</code> text-embedder models for on-device
-semantic search.</li>
-<li><strong>ML Kit Text Recognition 16.0.1</strong> — Latin model
-bundled, so OCR works offline without Google Play Services. Used as
-the fallback in the Knowledge ingestion path for image-only PDFs /
-standalone images.</li>
-<li><strong>PDFBox-Android 2.0.27.0</strong> — PDF text
-extraction.</li>
-<li><strong>Jsoup 1.18.1</strong> — HTML extraction for URL-type
-Knowledge sources.</li>
-<li><strong>Apache Commons Compress 1.27.1</strong> —
-<code>.zip</code> / <code>.tar</code> / <code>.tar.gz</code> /
-<code>.tgz</code> extraction in the Local LLM archive importer (Kaggle
-ships some Gemma bundles as <code>.tgz</code>).</li>
+<li><strong>Retrofit + OkHttp</strong> — every cloud API call.</li>
+<li><strong>Gson</strong> — JSON serialisation for persisted models
+and trace files.</li>
 </ul>
-
-<p>A <code>constraints { implementation("com.google.guava:guava:33.4.3-android") }</code>
-override pins Guava away from MediaPipe's transitive 27.0.1, which
-otherwise breaks Truth at instrumented-test runtime via AGP's
-consistent-resolution.</p>
 
 <h2 id="deploy">Deploy</h2>
 
@@ -112,15 +91,14 @@ build, not only after explicit-commit prompts.</p>
 
 <h2 id="logs">Logs</h2>
 
-<pre><code>adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppLifecycle|AppLog|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|FanOutEngine|ImportExport|KnowledgeService|LocalEmbedder|LocalLlm|LocalRuntime|ModelCooldown|ModelListCache|ModelTestEngine|PricingCache|ProviderRegistry|ProviderFieldTimestamps|RateLimit|ReportExport|ReportIcons|ReportStorage|SettingsExport|Throttle"</code></pre>
+<pre><code>adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppLifecycle|AppLog|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|FanOutEngine|ImportExport|ModelCooldown|ModelListCache|ModelTestEngine|PricingCache|ProviderRegistry|ProviderFieldTimestamps|RateLimit|ReportExport|ReportIcons|ReportStorage|SettingsExport|Throttle"</code></pre>
 
 <p>The in-app <strong>API Traces</strong> screen (Hub → AI API Traces)
 is usually a faster way to inspect what was sent / received during a
 report run — each call gets a JSON file under
 <code class="path">&lt;filesDir&gt;/trace/</code> while
 <code>ApiTracer.isTracingEnabled</code> is on (it's on by default but
-can be toggled in Settings). On-device LLM and on-device embedder
-calls trace too with hostname <code>local</code>.</p>
+can be toggled in Settings).</p>
 
 <p>There's also the <strong>AI App log</strong> in-app viewer
 (Hub → AI App log) — a log4j-style file appender
@@ -140,29 +118,23 @@ Complete</strong> options. See <a href="applog.html">applog</a>.</p>
 <li>ai/src/main/java/com/ai/
   <ul>
     <li>MainActivity.kt</li>
-    <li>data/ <span class="note">— 41 files incl. data/local/</span>
+    <li>data/
       <ul>
         <li>AnalysisRepository.kt, ApiClient.kt, ApiDispatch.kt</li>
         <li>ApiFormat.kt, ApiModels.kt, ApiStreaming.kt</li>
         <li>ApiTracer.kt, AppLog.kt, AppService.kt</li>
         <li>AtomicFileWrite.kt, BackupManager.kt</li>
         <li>ChatHistoryManager.kt, DataModels.kt</li>
-        <li>EmbeddingsStore.kt, EmojiExtract.kt, ExamplePromptSeed.kt</li>
+        <li>EmojiExtract.kt, ExamplePromptSeed.kt</li>
         <li>FanOutRunModel.kt, HuggingFaceCache.kt</li>
         <li>ImageAttach.kt, InaccessibleSeed.kt</li>
         <li>InternalPromptIconCache.kt, InternalPromptSeed.kt</li>
-        <li>Knowledge.kt + KnowledgeService.kt + KnowledgeExtractors.kt</li>
         <li>ModelCooldownStore.kt, ModelListCache.kt</li>
         <li>ModelTestRunModel.kt, ModelTestRunStore.kt</li>
         <li>ModelType.kt, PricingCache.kt, PricingParsers.kt</li>
         <li>PromptCache.kt, ProviderFieldTimestamps.kt</li>
         <li>ProviderRegistry.kt, ReportStorage.kt</li>
         <li>SecondaryResult.kt, SharedContent.kt, TestExcludedSeed.kt</li>
-        <li>local/ <span class="note">— 2 files</span>
-          <ul>
-            <li>LocalEmbedder.kt + LocalLlm.kt</li>
-          </ul>
-        </li>
       </ul>
     </li>
     <li>model/ <span class="note">— 2 files</span>
@@ -181,8 +153,7 @@ Complete</strong> options. See <a href="applog.html">applog</a>.</p>
         <li>hub/ (1) <span class="note">— main hub + Reports / Chats hubs</span></li>
         <li>report/ (37) <span class="note">— report flows, secondary results, exports, FanOut + L1/L2/L3 + Icons, ModelTest, Translation, FindAlternativeIcons</span></li>
         <li>chat/ (5) <span class="note">— chat + chat history + dual chat</span></li>
-        <li>knowledge/ (1) <span class="note">— KB list + detail</span></li>
-        <li>search/ (4) <span class="note">— Quick / Extended local + Local / Remote semantic</span></li>
+        <li>search/ <span class="note">— Quick / Extended local</span></li>
         <li>share/ (1) <span class="note">— ShareChooserScreen + helpers</span></li>
         <li>models/ (1) <span class="note">— model search + Model Info</span></li>
         <li>history/ (3) <span class="note">— report history + prompt history + example-prompt picker</span></li>
@@ -379,50 +350,6 @@ too.</p>
 </details>
 
 <details>
-<summary>A new Knowledge source type</summary>
-<div class="body">
-<ol>
-<li>Add an enum value to <code>KnowledgeSourceType</code> in
-<code>data/Knowledge.kt</code>.</li>
-<li>Add an extractor function in <code>KnowledgeExtractors.kt</code>
-and a dispatch arm in the <code>extract()</code> <code>when</code>.</li>
-<li>Update <code>pickTypeForUri</code> in
-<code>ui/knowledge/KnowledgeScreens.kt</code> so the SAF picker
-recognises the extension.</li>
-<li>Add the matching MIME types to the SAF picker's filter array in
-<code>KnowledgeDetailScreen</code> and to the share-target filters
-in <code>AndroidManifest.xml</code>.</li>
-<li>(Optional) Add the type to the Source-type icon mapping if you
-want a distinct emoji / icon on the source row.</li>
-</ol>
-<p>The chunker, embedder, and retriever are type-agnostic — once an
-extractor returns a string, every downstream stage works
-unchanged.</p>
-</div>
-</details>
-
-<details>
-<summary>A new local model (downloadable embedder)</summary>
-<div class="body">
-<p><code>LocalEmbedder.downloadable</code> is a hardcoded list of
-<code>DownloadableModel</code> entries. Append a new one with
-<code>name</code>, <code>displayName</code>, <code>url</code>,
-<code>sizeMbHint</code>, <code>description</code>. The model file
-must have proper MediaPipe Tasks metadata baked in or the runtime
-will refuse to load it — that's why the curated list is short. SAF
-"Add model from file" handles user-supplied <code>.tflite</code> with
-stamped metadata.</p>
-<p><code>LocalLlm.recommendedLinks</code> is the equivalent for
-<code>.task</code> LLMs but ships <strong>hand-off links only</strong>
-(no in-app downloads) because most worthwhile models require
-accepting model-card terms in a browser first. The user accepts on
-Kaggle / HuggingFace, downloads, then imports via the SAF picker
-(which handles <code>.task</code>, <code>.zip</code>,
-<code>.tar.gz</code>, <code>.tgz</code>, <code>.tar</code>).</p>
-</div>
-</details>
-
-<details>
 <summary>A new Internal Prompt category</summary>
 <div class="body">
 <p>Internal prompts have a free-form <code>category</code> string —
@@ -484,7 +411,7 @@ JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew connectedDebugAndroidTest    # 
 <code>TraceSharePath</code>, …; and roughly <strong>22 instrumented
 tests</strong> under
 <code class="path">ai/src/androidTest/java/com/ai/</code> covering
-the Compose UI and on-device data plumbing.</p>
+the Compose UI and data plumbing.</p>
 
 <div class="callout warn">
 <p><strong>Important:</strong> AGP's
@@ -497,10 +424,10 @@ first:</p>
 "extended cycle" referenced in <code>CLAUDE.md</code>.</p>
 </div>
 
-<p>When changing a flow (especially generation, retry, persistence,
-or RAG injection), <strong>run an actual report</strong> before
-declaring success. Type-checking and unit tests verify code
-correctness, not feature correctness here.</p>
+<p>When changing a flow (especially generation, retry, persistence),
+<strong>run an actual report</strong> before declaring success.
+Type-checking and unit tests verify code correctness, not feature
+correctness here.</p>
 
 <h2 id="gotchas">Common gotchas</h2>
 
@@ -577,12 +504,8 @@ whole batch for minutes.</li>
 <code>isSafeFlatId</code> (non-blank, not <code>.</code> /
 <code>..</code>, no <code>/</code> or <code>\</code>) gates the
 write side of <code>ReportStorage.saveReport / deleteReport</code>,
-<code>ChatHistoryManager.saveChatSession</code>,
-<code>SecondaryResultStorage.save…</code>,
-<code>KnowledgeStore.saveSource / deleteSource</code>. Knowledge
-paths additionally enforce canonical-containment around
-<code>kbId</code> joins so a symlink or <code>..</code> segment can't
-escape <code class="path">&lt;filesDir&gt;/knowledge/</code>.</li>
+<code>ChatHistoryManager.saveChatSession</code>, and
+<code>SecondaryResultStorage.save…</code>.</li>
 <li><strong>ProviderFieldTimestamps.</strong> Per-provider per-field
 user-edit timestamps live in a separate prefs file
 (<code>provider_field_timestamps</code>).
@@ -591,24 +514,16 @@ value differs; the every-start asset-sync paths skip fields with a
 non-null timestamp so a bundled-asset refresh never overwrites a user
 edit. Backup / restore mirrors this prefs file.</li>
 <li><strong>Backup zip</strong> mirrors <code>filesDir</code> (incl.
-<code>knowledge/</code>, <code>embeddings/</code>,
 <code>secondary/</code>, <code>trace/</code>, <code>pricing/</code>,
 <code>model_lists/</code>, <code>prompt_cache/</code>, plus
 <code>test_run.json</code>) and 6 SharedPreferences files
 (<code>eval_prefs</code>, <code>provider_registry</code>,
 <code>provider_field_timestamps</code>, <code>pricing_cache</code>,
 <code>dual_chat_prefs</code>, <code>huggingface_cache</code>, and
-<code>model_cooldowns</code>). Two top-level subdirs are explicitly
-excluded via <code>BackupManager.FILES_DIR_BACKUP_EXCLUDES</code> —
-<code>local_llms/</code> and <code>local_models/</code>, holding
-user-supplied multi-GB on-device model bundles. The same set is
-<strong>also</strong> preserved through
-<code>clearFilesDirForRestore</code>, so a settings restore on a
-device with local models installed doesn't destroy them. New prefs
-files won't survive a restore unless added to
-<code>BackupManager.PREFS_TO_BACKUP</code>. The backup zip also
-mirrors <code>cacheDir</code> (exports, shared traces) but skips
-in-flight temp files (<code>ai-restore-</code>,
+<code>model_cooldowns</code>). New prefs files won't survive a
+restore unless added to <code>BackupManager.PREFS_TO_BACKUP</code>.
+The backup zip also mirrors <code>cacheDir</code> (exports, shared
+traces) but skips in-flight temp files (<code>ai-restore-</code>,
 <code>reset_keys_</code>, <code>ai-backup-</code>). See
 <a href="backup-restore.html">backup-restore</a>.</li>
 <li><strong>Manifest version is <code>1</code>.</strong> The backup
@@ -641,24 +556,7 @@ collapsed into <code>id</code> in the id-unification refactor;
 backwards-compat migrations were stripped. Existing installs
 upgraded transparently because the registry already carried the
 unified ids.</li>
-<li><strong><code>AppService.LOCAL</code> isn't in
-<code>ProviderRegistry</code>.</strong> It's a sentinel singleton
-found via <code>findById("Local")</code> (case-insensitive for compat
-with persisted <code>"LOCAL"</code> strings). Persisted ChatSessions
-whose provider was Local can be reloaded across launches because the
-deserializer routes the id to the sentinel.</li>
-<li><strong><code>LocalLlm.generate</code> is synchronous and not
-streaming.</strong> The MediaPipe API in this version doesn't expose
-a partial-token callback through the Kotlin binding; the chat
-session shows the full reply when the call returns.
-Per-native-handle calls are serialised so two consumers of the same
-<code>.task</code> don't race.</li>
-<li><strong>Truth + MediaPipe</strong> ship incompatible Guava
-transitive dependencies. The <code>ai/build.gradle.kts</code>
-constraint pinning Guava to <code>33.4.3-android</code> is required
-— without it the instrumented test suite VerifyError-s on every
-Truth assertion.</li>
-<li><strong>Atomic writes are required for prefs / KB / pricing /
+<li><strong>Atomic writes are required for prefs / pricing /
 secondary writes.</strong> Use
 <code>AtomicFileWrite.writeTextAtomic</code>
 (<code>Files.move ATOMIC_MOVE</code> + tmp file fsync + parent-dir

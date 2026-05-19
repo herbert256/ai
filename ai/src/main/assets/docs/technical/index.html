@@ -12,10 +12,8 @@
 
 <h1>Documentation</h1>
 
-<p>Multi-provider AI app — reports, chat, dual chat, RAG knowledge
-bases, on-device LLM &amp; embedder, share-target ingest, fan-out /
-fan-in. 42 cloud providers across three API formats, plus a synthetic
-on-device <em>Local</em> provider.</p>
+<p>Multi-provider AI app — reports, chat, dual chat, share-target
+ingest, fan-out / fan-in. Cloud providers across three API formats.</p>
 
 <p class="muted">Kotlin 2.2.10 · Jetpack Compose · single Activity ·
 MVVM with five view models · seven external metadata repositories
@@ -26,12 +24,12 @@ layered into one resolved view per (provider, model) pair.</p>
 
 <a class="index-card" href="architecture.html">
   <span class="name">Architecture</span>
-  <span class="blurb">Big-picture map: navigation, view models, data layer, layered lookups, concurrency, state recovery, RAG, on-device runtime, Fan-out.</span>
+  <span class="blurb">Big-picture map: navigation, view models, data layer, layered lookups, concurrency, state recovery, Fan-out.</span>
 </a>
 
 <a class="index-card" href="development.html">
   <span class="name">Development</span>
-  <span class="blurb">Build / deploy / test commands. How to add a provider, parameter, pricing tier, knowledge source, SecondaryKind, internal prompt. Gotchas.</span>
+  <span class="blurb">Build / deploy / test commands. How to add a provider, parameter, pricing tier, SecondaryKind, internal prompt. Gotchas.</span>
 </a>
 
 <a class="index-card" href="api-formats.html">
@@ -83,16 +81,6 @@ layered into one resolved view per (provider, model) pair.</p>
 <div class="index-section">
 <h2>Subsystem deep dives</h2>
 
-<a class="index-card" href="knowledge.html">
-  <span class="name">Knowledge / RAG</span>
-  <span class="blurb">Knowledge base structure, ten source-type extractors, local + remote embedding, chunker, retrieval, attachment to reports and chats.</span>
-</a>
-
-<a class="index-card" href="local-runtime.html">
-  <span class="name">Local runtime</span>
-  <span class="blurb">On-device LLM (<code>LocalLlm</code>, MediaPipe GenAI) + embedder (<code>LocalEmbedder</code>, TextEmbedder). Model gating, download, import.</span>
-</a>
-
 <a class="index-card" href="translation.html">
   <span class="name">Translation</span>
   <span class="blurb">TRANSLATE secondary-kind, multi-language fan-out, translation runs, side-by-side / Translate Run / Translate Call detail screens.</span>
@@ -100,12 +88,12 @@ layered into one resolved view per (provider, model) pair.</p>
 
 <a class="index-card" href="share-target.html">
   <span class="name">Share target</span>
-  <span class="blurb"><code>ACTION_SEND</code> / <code>ACTION_SEND_MULTIPLE</code> plumbing, the chooser, and the three landing routes (Report, Chat, Knowledge).</span>
+  <span class="blurb"><code>ACTION_SEND</code> / <code>ACTION_SEND_MULTIPLE</code> plumbing and the landing routes (Report, Chat).</span>
 </a>
 
 <a class="index-card" href="backup-restore.html">
   <span class="name">Backup &amp; restore</span>
-  <span class="blurb">Full-app zip backup format, two-pass validate-then-write restore, local-models exclude/preserve set, post-restore catalog merge.</span>
+  <span class="blurb">Full-app zip backup format, two-pass validate-then-write restore, post-restore catalog merge.</span>
 </a>
 </div>
 
@@ -114,7 +102,7 @@ layered into one resolved view per (provider, model) pair.</p>
 
 <a class="index-card" href="providers.html">
   <span class="name">Providers</span>
-  <span class="blurb">All 42 cloud providers with base URL, admin URL, and non-default fields. Plus the synthetic Local provider.</span>
+  <span class="blurb">All 42 cloud providers with base URL, admin URL, and non-default fields.</span>
 </a>
 
 <a class="index-card" href="repositories.html">
@@ -124,7 +112,7 @@ layered into one resolved view per (provider, model) pair.</p>
 
 <a class="index-card" href="persistent.html">
   <span class="name">Persistent state</span>
-  <span class="blurb">Every SharedPreferences file and every persistent JSON file under <code>&lt;filesDir&gt;</code>, including knowledge, models, embeddings, secondary, pricing, trace.</span>
+  <span class="blurb">Every SharedPreferences file and every persistent JSON file under <code>&lt;filesDir&gt;</code>, including secondary, pricing, trace.</span>
 </a>
 </div>
 

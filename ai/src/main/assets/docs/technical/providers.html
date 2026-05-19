@@ -12,9 +12,8 @@
 
 <h1>Providers</h1>
 
-<p>Every provider shipped in <code>assets/providers.json</code>, plus
-the synthetic <em>Local</em> provider added at runtime. The full
-schema is in <a href="datastructures.html#appservice">AppService</a>;
+<p>Every provider shipped in <code>assets/providers.json</code>. The
+full schema is in <a href="datastructures.html#appservice">AppService</a>;
 each card below lists only the fields that differ from the default.</p>
 
 <p>The bundled JSON is a flat <code>{"providers": [...]}</code> array
@@ -48,11 +47,10 @@ Where it declares <code>openRouterName</code>, the OpenRouter key is
 <li><a href="#regional">Regional &amp; vertical</a></li>
 <li><a href="#field-reference">Field reference</a></li>
 <li><a href="#activation">Activation gating</a></li>
-<li><a href="#local">The synthetic Local provider</a></li>
 </ul>
 </nav>
 
-<p><strong>42 cloud providers total</strong>, plus <em>Local</em>.</p>
+<p><strong>42 cloud providers total</strong>.</p>
 
 <h2 id="frontier">Frontier vendors</h2>
 
@@ -764,29 +762,6 @@ mis-configured provider stays <code>not-used</code> until it can
 prove it actually works. Refresh-all surfaces failed providers with a
 one-tap nav-to-edit so the user can fix bad configurations without
 hunting.</p>
-
-<h2 id="local">The synthetic Local provider</h2>
-
-<details class="entity" open>
-<summary>Local <span class="badge">on-device</span></summary>
-<div class="body">
-<p class="muted">Base <code>local://</code> · Admin (none)</p>
-<p>Default model (empty — depends on what's been imported).</p>
-<p>Routes chat / report / Fan-out / RAG / embedding calls through
-<code>LocalLlm.generate</code> (for <code>.task</code> LLMs) and
-<code>LocalEmbedder.embed</code> (for <code>.tflite</code> text
-embedders). Not registered in <code>ProviderRegistry</code>; surfaces
-only via <code>AppService.findById("Local")</code> (case-insensitive
-— accepts the legacy uppercase <code>LOCAL</code> from persisted
-ChatSessions).</p>
-<p>Model list comes from whatever <code>.task</code> files live under
-<code class="path">&lt;filesDir&gt;/local_llms/</code>; embedder list
-from <code class="path">&lt;filesDir&gt;/local_models/</code>. No
-<code>apiFormat</code> — dispatch is by
-<code>provider.id == "Local"</code>.</p>
-<p>See <a href="local-runtime.html">Local runtime</a>.</p>
-</div>
-</details>
 
 <p class="backtop"><a href="#">↑ Top</a></p>
 

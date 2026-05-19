@@ -24,9 +24,7 @@
 <li><a href="#nav-twotier">Two-tier navigation</a></li>
 <li><a href="#titlebar">TitleBar + green subject row</a></li>
 <li><a href="#layered">Layered lookups</a></li>
-<li><a href="#rag">RAG layer</a></li>
 <li><a href="#trace">Trace storage</a></li>
-<li><a href="#local-runtime">On-device runtime</a></li>
 <li><a href="#share">Share-target</a></li>
 <li><a href="#crud">Generic CRUD list</a></li>
 <li><a href="#overlay">Full-screen overlay pattern</a></li>
@@ -48,8 +46,7 @@ Networking goes through Retrofit + OkHttp (with custom interceptors
 for tracing and rate-limit retry). Persistence is split between
 <code>SharedPreferences</code> (user-curated config, caches) and JSON
 files under <code>filesDir</code> (reports, secondary results, traces,
-chat history, knowledge bases, embeddings, usage stats, pricing tier
-blobs).</p>
+chat history, usage stats, pricing tier blobs).</p>
 
 <h2 id="nav-tree">Navigation tree</h2>
 
@@ -64,9 +61,8 @@ blobs).</p>
         <li>HubScreen</li>
         <li>ReportsHubScreen / ReportScreen / ReportSingleResultScreen</li>
         <li>ChatsHubScreen / ChatScreens / DualChatScreen</li>
-        <li>KnowledgeListScreen / KnowledgeDetailScreen</li>
         <li>ModelInfoScreen / ModelListScreen</li>
-        <li>SearchScreens <span class="note">— Quick / Extended local + Local / Remote semantic</span></li>
+        <li>SearchScreens <span class="note">— Quick / Extended local</span></li>
         <li>ShareChooserScreen <span class="note">— overlay before NavHost</span></li>
         <li>SettingsScreen <span class="note">— two-tier: enum-driven sub-screens</span></li>
         <li>HousekeepingScreen <span class="note">— full screens per NavCard row</span></li>
@@ -95,7 +91,7 @@ models</a>.</p>
 <ul class="tree">
 <li><strong>HTTP &amp; dispatch</strong>
   <ul>
-    <li>AnalysisRepository <span class="note">— façade with retry / fallback / RAG inject</span></li>
+    <li>AnalysisRepository <span class="note">— façade with retry / fallback</span></li>
     <li>ApiDispatch <span class="note">— selects ApiFormat-specific code path</span></li>
     <li>ApiStreaming <span class="note">— SSE parser + Flow emission</span></li>
     <li>ApiClient <span class="note">— Retrofit interfaces, ApiFactory</span></li>
@@ -145,20 +141,6 @@ models</a>.</p>
     <li>ImageAttach <span class="note">— vision-image downscale + JPEG-encode</span></li>
   </ul>
 </li>
-<li><strong>RAG</strong>
-  <ul>
-    <li>Knowledge <span class="note">— KnowledgeBase, KnowledgeSource, KnowledgeChunk, KnowledgeStore</span></li>
-    <li>KnowledgeExtractors <span class="note">— 10 source-type extractors</span></li>
-    <li>KnowledgeService <span class="note">— index + retrieve pipeline</span></li>
-    <li>EmbeddingsStore <span class="note">— content-hashed per-doc embedding cache</span></li>
-  </ul>
-</li>
-<li><strong>On-device runtime</strong> <span class="note">(data/local/)</span>
-  <ul>
-    <li>LocalLlm <span class="note">— MediaPipe Tasks GenAI .task runtime</span></li>
-    <li>LocalEmbedder <span class="note">— MediaPipe Tasks TextEmbedder runtime</span></li>
-  </ul>
-</li>
 <li><strong>Share-target</strong>
   <ul>
     <li>SharedContent <span class="note">— snapshot of an ACTION_SEND payload</span></li>
@@ -167,8 +149,7 @@ models</a>.</p>
 </ul>
 
 <p>Out of that layer the app talks to: external APIs across 42 cloud
-providers, seven metadata repositories, and on-device MediaPipe Tasks
-(no network).</p>
+providers and seven metadata repositories.</p>
 
 <h2 id="shape">Codebase shape</h2>
 
@@ -178,10 +159,8 @@ providers, seven metadata repositories, and on-device MediaPipe Tasks
 <div>
 <dt>data/</dt>
 <dd>41 files. HTTP, dispatch, streaming, tracer, rate limit / throttle,
-registry, pricing, cooldowns, storage, RAG, in-app file logger,
-atomic-write helpers, bundled-asset seeds — including the
-<code>data/local/</code> subpackage (<code>LocalLlm</code>,
-<code>LocalEmbedder</code>).</dd>
+registry, pricing, cooldowns, storage, in-app file logger,
+atomic-write helpers, bundled-asset seeds.</dd>
 </div>
 <div>
 <dt>model/</dt>
@@ -196,14 +175,14 @@ atomic-write helpers, bundled-asset seeds — including the
 </div>
 <div>
 <dt>ui/</dt>
-<dd>100 files across 13 sub-domains: <code>hub</code>,
-<code>report</code> ×37 (incl. FanOut L1/L2/L3, FanOutIcons,
+<dd>Sub-domains: <code>hub</code>,
+<code>report</code> (incl. FanOut L1/L2/L3, FanOutIcons,
 ModelTest L1/L2/L3, Translation L1/L2/L3, Find-alternative-icons
-screens), <code>chat</code> ×5, <code>knowledge</code>,
-<code>models</code>, <code>search</code> ×4, <code>history</code> ×3,
-<code>settings</code> ×17, <code>admin</code> ×11 (incl. AppLog),
+screens), <code>chat</code>, <code>models</code>,
+<code>search</code>, <code>history</code>,
+<code>settings</code>, <code>admin</code> (incl. AppLog),
 <code>share</code>, <code>shared</code>, <code>theme</code>,
-<code>navigation</code> ×2.</dd>
+<code>navigation</code>.</dd>
 </div>
 <div>
 <dt>MainActivity.kt</dt>
@@ -257,20 +236,6 @@ own. There is <strong>no longer</strong> a separate
 on first run via <code>importFromAsset</code> and then merges any
 custom provider definitions the user imports.</p>
 
-<div class="callout">
-<p>In addition there is a <strong>synthetic <code>Local</code>
-<code>AppService</code></strong> — <code>AppService.LOCAL</code>,
-id <code>"Local"</code> — that is <strong>not</strong> registered in
-<code>ProviderRegistry</code>. It surfaces only via
-<code>findById("Local")</code> (case-insensitive, accepts the legacy
-uppercase <code>LOCAL</code> from persisted ChatSessions) and is the
-routing sentinel for the on-device runtime: if
-<code>agent.provider == LOCAL</code> the dispatch layer skips Retrofit
-entirely and calls <code>LocalLlm.generate</code> (or
-<code>LocalEmbedder.embed</code> for embeddings). It appears in every
-model picker as a normal "Local" provider.</p>
-</div>
-
 <h2 id="viewmodels">Five view models</h2>
 
 <details open>
@@ -303,8 +268,7 @@ ceilings — <code>maxConcurrentApiCalls</code> (50),
 <details>
 <summary>ChatViewModel</summary>
 <div class="body">
-<p>Chat session state and streaming, including per-turn KB retrieval
-and context-block injection. Also fires the bundled
+<p>Chat session state and streaming. Also fires the bundled
 <code>internal/chat_title</code> prompt asynchronously after the first
 assistant response and stamps <code>ChatSession.title</code> with the
 returned label.</p>
@@ -382,8 +346,8 @@ cost &gt; 5¢ + manual entries are <code>testExcludedModels</code>).</p>
 <code>SettingsSubScreen</code> enum (~32 entries covering AI Setup
 hubs, providers, models, model-types, agents, flocks, swarms,
 parameters, system prompts, internal-prompt hubs by category, example
-prompts, external services, local LiteRT models, local LLMs,
-import / export, refresh) and a <code>when</code> block — this keeps
+prompts, external services, import / export, refresh) and a
+<code>when</code> block — this keeps
 deep links into a single Settings overlay simple and lets
 back-navigation be a single state mutation.</p>
 
@@ -516,57 +480,6 @@ on <code>ProviderConfig</code> after a refresh, so the hot path on
 list-render screens is a <code>Set</code> membership check rather
 than the full layered scan.</p>
 
-<h2 id="rag">RAG layer</h2>
-
-<p><code>com.ai.data.Knowledge*</code> implements the
-retrieval-augmented generation pipeline.</p>
-
-<dl class="kv">
-<div>
-<dt>Knowledge bases</dt>
-<dd>Live under <code class="path">&lt;filesDir&gt;/knowledge/&lt;kbId&gt;/</code>
-with a <code>manifest.json</code> (the <code>KnowledgeBase</code> +
-<code>KnowledgeSource[]</code> list) and a
-<code>chunks/&lt;sourceId&gt;.json</code> per source.</dd>
-</div>
-<div>
-<dt>Sources</dt>
-<dd>Extracted by <code>KnowledgeExtractors</code> — ten types: TEXT,
-MARKDOWN, PDF (with OCR fallback for image-only PDFs), DOCX, ODT,
-XLSX (sheets spooled — no full-zip slurp), ODS (content.xml streamed),
-CSV, IMAGE, URL.</dd>
-</div>
-<div>
-<dt>Chunking</dt>
-<dd>Paragraph-greedy with overlap (<code>KnowledgeChunker</code>).</dd>
-</div>
-<div>
-<dt>Embeddings</dt>
-<dd>Go through either <code>LocalEmbedder</code> (when
-<code>embedderProviderId == "Local"</code>) or
-<code>AnalysisRepository.embed</code> (any provider's
-<code>/v1/embeddings</code>). Per-content cache lives in
-<code>EmbeddingsStore</code>. Chunks with empty / mismatched-dim
-embeddings are refused at save time rather than scored as 0 at
-retrieval.</dd>
-</div>
-<div>
-<dt>Retrieval</dt>
-<dd>Cosine-similarity top-K across every chunk in every attached KB.
-The query is embedded once and converted to <code>FloatArray</code>;
-chunks are streamed per source via
-<code>KnowledgeStore.forEachChunk</code> into a bounded
-<code>PriorityQueue&lt;Scored&gt;</code> of size <code>topK*2</code>,
-so peak heap is the heap itself plus one chunk in flight, regardless
-of total KB size. Survivors are sorted descending and walked under the
-<code>maxContextChars</code> budget. The prompt or user message gets a
-<code>&lt;context&gt;…&lt;/context&gt;</code> block prepended at
-dispatch time.</dd>
-</div>
-</dl>
-
-<p>See <a href="knowledge.html">knowledge</a> for the full pipeline.</p>
-
 <h2 id="trace">Trace storage</h2>
 
 <p><code>ApiTracer</code> writes one JSON file per outbound API call
@@ -601,38 +514,6 @@ thread-locals through OkHttp's dispatcher so retries and cancellations
 preserve the originating call's identity.</li>
 </ul>
 
-<h2 id="local-runtime">On-device runtime</h2>
-
-<p>Two singletons wrap MediaPipe Tasks:</p>
-
-<dl class="kv">
-<div>
-<dt>LocalLlm</dt>
-<dd>Holds an <code>LlmInference</code> cache keyed by
-<code>.task</code> file name. <code>availableLlms()</code> lists
-<code class="path">&lt;filesDir&gt;/local_llms/*.task</code>.
-<code>generate()</code> runs synchronously and writes a synthetic
-<code>ApiTrace</code> (hostname <code>local</code>, url
-<code>local://generate/&lt;modelFile&gt;</code>).</dd>
-</div>
-<div>
-<dt>LocalEmbedder</dt>
-<dd>Holds a <code>TextEmbedder</code> cache keyed by
-<code>.tflite</code> file name. <code>availableModels()</code> lists
-<code class="path">&lt;filesDir&gt;/local_models/*.tflite</code> plus
-the curated <code>downloadable</code> list. <code>embed()</code>
-writes a similar synthetic trace.</dd>
-</div>
-</dl>
-
-<p>Both are reachable from any provider-agnostic code path because
-they share the <code>AppService.LOCAL</code> sentinel (id
-<code>"Local"</code>) — chat, report, RAG, and Fan-out flows route to
-them when the provider id matches. Per-native-handle calls are
-serialised with a per-handle mutex so two concurrent users of the
-same <code>.task</code> don't race the shared MediaPipe context. See
-<a href="local-runtime.html">local runtime</a>.</p>
-
 <h2 id="share">Share-target</h2>
 
 <p><code>MainActivity</code> extracts incoming <code>ACTION_SEND</code>
@@ -640,11 +521,9 @@ same <code>.task</code> don't race the shared MediaPipe context. See
 <code>SharedContent</code> snapshot (text + subject + URI list + mime).
 <code>AppNavHost</code> renders <code>ShareChooserScreen</code> as
 an <strong>overlay before the NavHost</strong> and routes the user's
-pick to one of three destinations: Report (<code>routeShareToReport</code>
-pre-fills title / prompt + base64s a single image), Chat (stages
-<code>chatStarterText</code> in <code>UiState</code>), or Knowledge
-(queues URIs in <code>UiState.pendingKnowledgeUris</code> and the
-Knowledge list / detail screens drain the queue). See
+pick to one of two destinations: Report (<code>routeShareToReport</code>
+pre-fills title / prompt + base64s a single image) or Chat (stages
+<code>chatStarterText</code> in <code>UiState</code>). See
 <a href="share-target.html">share-target</a>.</p>
 
 <h2 id="crud">Generic CRUD list</h2>
@@ -779,11 +658,7 @@ pre-acquire permits on the coroutine side and set
 <code>ProviderThrottle.permitPreAcquired</code> so the OkHttp
 interceptor doesn't double-count.</li>
 <li><code>ApiTracer</code> and <code>ReportStorage</code> use
-<code>ReentrantLock</code> for thread-safe file writes;
-<code>KnowledgeStore</code> does the same for KB manifest + chunk
-files (chunks + manifest are also written atomically as a batch so a
-crash mid-write doesn't leave the manifest pointing at half a chunk
-file).</li>
+<code>ReentrantLock</code> for thread-safe file writes.</li>
 <li><code>AtomicFileWrite.writeTextAtomic</code> uses
 <code>Files.move(ATOMIC_MOVE)</code> with an <code>fsync</code> of
 the temp file before the rename, and creates the parent dir on demand
@@ -814,14 +689,9 @@ results land in their own rows.</li>
 <li>Storage write APIs validate flat ids (<code>isSafeFlatId</code>:
 non-blank, not <code>.</code> / <code>..</code>, no <code>/</code> or
 <code>\</code>) on <code>saveReport</code>, <code>deleteReport</code>,
-<code>saveChatSession</code>, <code>saveSecondaryResult</code>, KB
-<code>saveSource</code> / <code>deleteSource</code>. Knowledge writes
-also enforce a canonical-containment guard around <code>kbId</code>
-path joins — a symlink or <code>..</code> segment can't escape
-<code class="path">&lt;filesDir&gt;/knowledge/</code>.</li>
-<li>Backup restore caps per-entry and total bytes (large attachments
-truncated) before writing into <code>filesDir</code> /
-<code>cacheDir</code> from the zip.</li>
+<code>saveChatSession</code>, <code>saveSecondaryResult</code>.</li>
+<li>Backup restore caps per-entry and total bytes before writing into
+<code>filesDir</code> / <code>cacheDir</code> from the zip.</li>
 </ul>
 
 <h2 id="streaming">Streaming</h2>
@@ -834,10 +704,7 @@ are buffered before the blank-line dispatch; Anthropic's
 <code>event:</code> + <code>data:</code> pairs; Gemini's
 chunked-JSON format). Error responses on streaming endpoints have
 their body drained and surfaced with the HTTP status, instead of
-leaving the stream half-consumed. The <code>Local</code> provider
-doesn't stream — <code>LocalLlm.generate</code> returns the full
-text in one go (the MediaPipe API doesn't expose a partial-token
-callback this version plumbs through).</p>
+leaving the stream half-consumed.</p>
 
 <h2 id="recovery">State recovery</h2>
 

@@ -1,19 +1,15 @@
 # AI — Multi-Provider AI Reports & Chat
 
-Android app for AI-powered reports, conversations, and document Q&A
-using 42 cloud AI services plus an on-device LLM runtime. Run the
-same prompt against many models at once, compare responses
-side-by-side, rerank / chat-meta / moderate / translate them, fan
-out one model's response into another's prompt, chat with real-time
-streaming, attach documents as a knowledge base, and run everything
-offline against a local `.task` model when you want to.
+Android app for AI-powered reports and conversations using 42 cloud
+AI services. Run the same prompt against many models at once,
+compare responses side-by-side, rerank / chat-meta / moderate /
+translate them, fan out one model's response into another's
+prompt, and chat with real-time streaming.
 
 ## Features
 
 - **42 Cloud AI Services** across three API formats (OpenAI-compatible,
   Anthropic, Google), all with real-time SSE streaming
-- **On-Device LLM** via MediaPipe Tasks GenAI — chat, report, or RAG
-  against a `.task` model bundle (Gemma, Phi, Llama …) with no network
 - **Multi-Agent Reports** — query providers in parallel, compare
   responses side-by-side, exportable as HTML, JSON, PDF, DOCX, ODT,
   RTF, or a self-contained zipped HTML site
@@ -29,17 +25,13 @@ offline against a local `.task` model when you want to.
   N model outputs into a ranked list, a content-policy verdict, or
   a multi-language translation; rerank routes through a provider's
   dedicated `/rerank` endpoint when the picked model supports it
-- **AI Knowledge (RAG)** — attach PDFs, Office docs, spreadsheets,
-  Markdown, plain text, web pages, or images (with OCR) as a
-  knowledge base; chunk + embed them locally or remotely; inject
-  retrieved context into Reports and Chats
 - **AI Chat** with multi-turn conversations, streaming, vision,
-  reasoning-effort selection, KB attachment, and auto-saved history
+  reasoning-effort selection, and auto-saved history
 - **AI Dual Chat** — two models in conversation with each other
-- **Local + Remote Semantic Search** + **Quick / Extended local search**
-  across your saved reports
+- **Reports Search** — Quick local search, Extended local search,
+  and Remote semantic search across your saved reports
 - **Share-Target** — receive `ACTION_SEND` from any app to start a
-  Report, Chat, or Knowledge ingest from the shared payload
+  Report or Chat from the shared payload
 - **AI Flocks** (agent groups) and **AI Swarms** (provider/model
   groups) for organising configurations
 - **Reusable Parameters** and **System Prompts** assignable to agents,
@@ -54,7 +46,7 @@ offline against a local `.task` model when you want to.
 - **Per-(provider, model, kind) Cost Tracking** with breakdown for
   rerank / chat-meta / moderate / translate / fan-out API spend
 - **API Trace Viewer** — every request and response saved as
-  inspectable JSON; local LLM and local embedder calls trace too
+  inspectable JSON
 - **Backup / Restore** the entire app to a single zip
 - **Granular Export / Import** — split bundles for Settings, Model
   lists, Parameters, System prompts, Workers (agents + flocks +
@@ -68,8 +60,7 @@ offline against a local `.task` model when you want to.
 ## Requirements
 
 - Android 8.0 (API 26) or higher
-- API keys for the cloud providers you want to use (none required for
-  the on-device LLM and local embedder paths)
+- API keys for the cloud providers you want to use
 
 ## Installation
 
@@ -93,12 +84,10 @@ order:
 | [doc/api-formats.md](doc/api-formats.md) | The three API dispatch paths and their quirks |
 | [doc/datastructures.md](doc/datastructures.md) | Every data class with every field |
 | [doc/secondary-results.md](doc/secondary-results.md) | Rerank / Meta prompts / Moderate / Translate / Fan-out / Fan-in deep dive |
-| [doc/knowledge.md](doc/knowledge.md) | RAG: knowledge bases, source extractors, embeddings, retrieval |
-| [doc/local-runtime.md](doc/local-runtime.md) | On-device LLM (`LocalLlm`) + on-device embeddings (`LocalEmbedder`) |
 | [doc/translation.md](doc/translation.md) | TRANSLATE secondary-kind, multi-language fan-out, translation runs |
 | [doc/share-target.md](doc/share-target.md) | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` flow |
-| [doc/backup-restore.md](doc/backup-restore.md) | Backup zip format, two-pass validate-then-write restore, exclude/preserve list for on-device model bundles |
-| [doc/providers.md](doc/providers.md) | All 42 cloud providers from `providers.json` plus the synthetic Local provider |
+| [doc/backup-restore.md](doc/backup-restore.md) | Backup zip format, two-pass validate-then-write restore |
+| [doc/providers.md](doc/providers.md) | All 42 cloud providers from `providers.json` |
 | [doc/repositories.md](doc/repositories.md) | The seven external metadata sources |
 | [doc/persistent.md](doc/persistent.md) | Every prefs key and every persistent file |
 | [doc/help.md](doc/help.md) | The in-app Help system: per-screen topics, per-provider pages, icon legend |
@@ -116,8 +105,6 @@ bit more orientation.
   device
 - **Masked Traces** — sensitive headers masked in API logs (redacted
   at write time, not just on Copy / Share)
-- **Fully Offline Path** — chat, report, and RAG against an on-device
-  `.task` model + on-device embedder make zero network calls
 
 ## License
 
@@ -134,11 +121,7 @@ This project is licensed under the
   Workers AI, DeepInfra, Hyperbolic, Novita.ai, Featherless.ai,
   Liquid AI, Llama API, Krutrim, Nebius AI Studio, Chutes,
   Inference.net
-- **On-Device Runtime**: MediaPipe Tasks GenAI (LiteRT) for the local
-  LLM, MediaPipe Tasks TextEmbedder for local embeddings, ML Kit
-  Latin Text Recognition for OCR
-- **Document Extraction**: PDFBox-Android, Jsoup, Apache Commons
-  Compress
+- **Document Extraction**: PDFBox-Android
 - **Model Data**: LiteLLM, OpenRouter, models.dev, Helicone,
   llm-prices, Artificial Analysis, HuggingFace
 - **Android UI**: Jetpack Compose, Material 3
