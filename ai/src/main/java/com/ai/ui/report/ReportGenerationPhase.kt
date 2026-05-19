@@ -10,9 +10,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -23,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -485,13 +483,107 @@ internal fun ColumnScope.GenerationPhase(
             translates = translateRows)
     }
 
+    // Cost / token rollup lifted above Row 1 so the row's trailing
+    // 💰 + cents slot has [totalCost] / [showTotals] in scope. (Was
+    // computed further down, just above the old green subject row.)
+    // When the user staged a new model list via Edit / Models, the result rows below
+    // are derived from the staged list (not the on-disk agent set) so added rows appear
+    // and removed rows disappear immediately. The progress bar is hidden in that mode
+    // because the X/Y count is meaningless until they re-run.
+    val staged = uiState.stagedReportModels
+    val isStagedMode = isComplete && staged.isNotEmpty()
+
+    // Per-agent token + cost rollup. Cost is recomputed every
+    // recomposition (no remember) so a cold PricingCache that loads
+    // *after* the first composition picks up real values once any
+    // recomposition fires — e.g. after the user touches the screen
+    // or the next batching tick lands. Memoising on
+    // reportsAgentResults alone would fossilise DEFAULT_PRICING for
+    // a finished report whose pricing tier wasn't preloaded yet.
+    // Token sums share a memo since they only depend on tokenUsage.
+    val selectedAgents = uiState.genericReportsSelectedAgents
+    // Filter against selectedAgents — _agentResults can briefly hold
+    // entries for agents the user just removed via "Remove from
+    // report" until the next refresh tick. Counting them double-bills
+    // the cost banner during the eviction window.
+    val activeAgentIds: Set<String> = selectedAgents
+    val agentCost = reportsAgentResults.entries
+        .filter { (agentId, _) -> activeAgentIds.isEmpty() || agentId in activeAgentIds }
+        .sumOf { (agentId, resp) ->
+            resp.tokenUsage?.let {
+                PricingCache.computeCost(it, PricingCache.getPricing(context, resp.service, resolveModelForResult(agentId, resp)))
+            } ?: 0.0
+        }
+    val (agentInputTokens, agentOutputTokens) = remember(reportsAgentResults, activeAgentIds) {
+        var input = 0; var output = 0
+        reportsAgentResults.forEach { (agentId, r) ->
+            if (activeAgentIds.isNotEmpty() && agentId !in activeAgentIds) return@forEach
+            r.tokenUsage?.let { input += it.inputTokens; output += it.outputTokens }
+        }
+        input to output
+    }
+    // Live in-flight translation runs aren't persisted as TRANSLATE
+    // SecondaryResults until the whole batch finishes, so secondaryTotals
+    // (computed from disk) misses every per-call cost during a running
+    // translation — the bottom-of-screen run row was the only place that
+    // showed the live tally. Fold the in-memory state in here so the
+    // top banner ticks up with each call. When the run finishes its
+    // rows persist and the live row is consumed within ~200ms (no
+    // double-count window worth worrying about). Single pass — was
+    // three separate filter+sum walks before.
+    val liveTranslation = remember(translationRuns) {
+        var input = 0; var output = 0; var cost = 0.0
+        translationRuns.forEach { run ->
+            if (run.isFinished) return@forEach
+            cost += run.totalCostDollars
+            run.items.forEach { item ->
+                item.tokenUsage?.let {
+                    input += it.inputTokens; output += it.outputTokens
+                }
+            }
+        }
+        Triple(input, output, cost)
+    }
+    val liveTranslationInputTokens = liveTranslation.first
+    val liveTranslationOutputTokens = liveTranslation.second
+    val liveTranslationCost = liveTranslation.third
+
+    val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
+    val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
+    // Per-agent icon-chain cost — every successful tier of the
+    // 3-tier per-agent icon chain bumps ReportAgent.iconInputCost
+    // + iconOutputCost. agentIconRows is the parent's mirror of
+    // those two fields per agent. Without this fold the icon
+    // chain's spend (often several cents on long runs) would only
+    // show on the cost table.
+    val agentIconCost = agentIconRows.values.sumOf { it.cost }
+    val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost +
+        liveTranslationCost + costsFromDeletedItems + reportIconCost + languageIconCost +
+        languageDetectCost + agentIconCost + secondaryTotals.fanOutIconCost
+    val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
+
+    // ----- Centered green report title — full-row, at the top of the
+    // Manage body so the screen leads with the report's subject before
+    // the action chrome below. Replaces the in-line HardcodedSubjectRow
+    // that used to sit above the progress bar.
+    if (!uiState.genericPromptTitle.isNullOrBlank()) {
+        Text(
+            text = uiState.genericPromptTitle,
+            fontSize = 32.sp,
+            color = AppColors.Green,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        )
+    }
+
     // ----- Row 1 -----
-    // Same horizontal layout as the original ActionRow (View / Edit /
-    // Create / Action) but with prev / next chevrons right-aligned on
-    // the same line. Switching from FlowRow to a regular Row so the
-    // weight-1 Spacer pushes the chevrons to the trailing edge; the
-    // four buttons are short enough that wrapping isn't a real risk
-    // on any phone we care about.
+    // Edit / Create buttons on the left; the running 💰 + cents cost
+    // pill sits right-aligned via the weight-1 Spacer. (The prev / next
+    // chevrons used to live here — they're gone now since the title-bar
+    // + whole-body swipe cover prev/next navigation.)
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -505,42 +597,20 @@ internal fun ColumnScope.GenerationPhase(
         CompactButton(onClick = { toggleBar("edit") }, color = rowOneColor("edit", editColor), text = "Edit")
         CompactButton(onClick = { toggleBar("create") }, color = rowOneColor("create", createColor), text = "Create")
         Spacer(modifier = Modifier.weight(1f))
-        // Inner Row so the two chevrons sit at zero spacing — the
-        // outer Row's spacedBy(6.dp) would otherwise add a gap
-        // between them. Bigger glyphs (32 dp) so they read clearly
-        // as nav arrows, and a +6 dp rightward offset so the icon's
-        // visible-glyph right edge lines up with the cost column on
-        // the result-list rows below (the chevron SVG has built-in
-        // whitespace on each side of the stroke, so an icon flush
-        // to the right edge of the row still LOOKS left of the cost
-        // numbers — the offset compensates). 48 dp Material touch
-        // target stays via LocalMinimumInteractiveComponentSize.
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.offset(x = 10.dp)
-        ) {
-            IconButton(
-                onClick = onPrevReport,
-                enabled = hasPrevReport,
-                modifier = Modifier.size(48.dp)
+        if (showTotals) {
+            // Tap the 💰 + cents pair to jump to the Manage
+            // ReportsViewer scrolled to its Costs section — same
+            // destination as the View tile grid's Costs card.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.clickable { handlers.onViewCosts() }
             ) {
-                Icon(
-                    imageVector = Icons.Filled.KeyboardArrowLeft,
-                    contentDescription = "Previous AI report",
-                    tint = if (hasPrevReport) AppColors.Blue else AppColors.TextDisabled,
-                    modifier = Modifier.size(48.dp)
-                )
-            }
-            IconButton(
-                onClick = onNextReport,
-                enabled = hasNextReport,
-                modifier = Modifier.size(48.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.KeyboardArrowRight,
-                    contentDescription = "Next AI report",
-                    tint = if (hasNextReport) AppColors.Blue else AppColors.TextDisabled,
-                    modifier = Modifier.size(48.dp)
+                Text("💰", fontSize = 20.sp)
+                Text(
+                    text = " ${formatCents(totalCost)}",
+                    fontSize = 14.sp, color = AppColors.Blue,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold
                 )
             }
         }
@@ -642,126 +712,6 @@ internal fun ColumnScope.GenerationPhase(
             }
         }
     }
-
-    // When the user staged a new model list via Edit / Models, the result rows below
-    // are derived from the staged list (not the on-disk agent set) so added rows appear
-    // and removed rows disappear immediately. The progress bar is hidden in that mode
-    // because the X/Y count is meaningless until they re-run.
-    val staged = uiState.stagedReportModels
-    val isStagedMode = isComplete && staged.isNotEmpty()
-
-    // Per-agent token + cost rollup. Cost is recomputed every
-    // recomposition (no remember) so a cold PricingCache that loads
-    // *after* the first composition picks up real values once any
-    // recomposition fires — e.g. after the user touches the screen
-    // or the next batching tick lands. Memoising on
-    // reportsAgentResults alone would fossilise DEFAULT_PRICING for
-    // a finished report whose pricing tier wasn't preloaded yet.
-    // Token sums share a memo since they only depend on tokenUsage.
-    val selectedAgents = uiState.genericReportsSelectedAgents
-    // Filter against selectedAgents — _agentResults can briefly hold
-    // entries for agents the user just removed via "Remove from
-    // report" until the next refresh tick. Counting them double-bills
-    // the cost banner during the eviction window.
-    val activeAgentIds: Set<String> = selectedAgents
-    val agentCost = reportsAgentResults.entries
-        .filter { (agentId, _) -> activeAgentIds.isEmpty() || agentId in activeAgentIds }
-        .sumOf { (agentId, resp) ->
-            resp.tokenUsage?.let {
-                PricingCache.computeCost(it, PricingCache.getPricing(context, resp.service, resolveModelForResult(agentId, resp)))
-            } ?: 0.0
-        }
-    val (agentInputTokens, agentOutputTokens) = remember(reportsAgentResults, activeAgentIds) {
-        var input = 0; var output = 0
-        reportsAgentResults.forEach { (agentId, r) ->
-            if (activeAgentIds.isNotEmpty() && agentId !in activeAgentIds) return@forEach
-            r.tokenUsage?.let { input += it.inputTokens; output += it.outputTokens }
-        }
-        input to output
-    }
-    // Live in-flight translation runs aren't persisted as TRANSLATE
-    // SecondaryResults until the whole batch finishes, so secondaryTotals
-    // (computed from disk) misses every per-call cost during a running
-    // translation — the bottom-of-screen run row was the only place that
-    // showed the live tally. Fold the in-memory state in here so the
-    // top banner ticks up with each call. When the run finishes its
-    // rows persist and the live row is consumed within ~200ms (no
-    // double-count window worth worrying about). Single pass — was
-    // three separate filter+sum walks before.
-    val liveTranslation = remember(translationRuns) {
-        var input = 0; var output = 0; var cost = 0.0
-        translationRuns.forEach { run ->
-            if (run.isFinished) return@forEach
-            cost += run.totalCostDollars
-            run.items.forEach { item ->
-                item.tokenUsage?.let {
-                    input += it.inputTokens; output += it.outputTokens
-                }
-            }
-        }
-        Triple(input, output, cost)
-    }
-    val liveTranslationInputTokens = liveTranslation.first
-    val liveTranslationOutputTokens = liveTranslation.second
-    val liveTranslationCost = liveTranslation.third
-
-    val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
-    val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
-    // Per-agent icon-chain cost — every successful tier of the
-    // 3-tier per-agent icon chain bumps ReportAgent.iconInputCost
-    // + iconOutputCost. agentIconRows is the parent's mirror of
-    // those two fields per agent. Without this fold the icon
-    // chain's spend (often several cents on long runs) would only
-    // show on the cost table.
-    val agentIconCost = agentIconRows.values.sumOf { it.cost }
-    val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost +
-        liveTranslationCost + costsFromDeletedItems + reportIconCost + languageIconCost +
-        languageDetectCost + agentIconCost + secondaryTotals.fanOutIconCost
-
-    // Totals — sums tokens and cents across the per-agent rows, every
-    // persisted meta run (rerank / summarize / compare / moderation /
-    // translate), and any in-flight translation batch's live state.
-    // Rendered as the last item inside the LazyColumn below so the
-    // layout matches the rest of the rows.
-    val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
-
-    // Green subject row carries the total cost on the right (💰 +
-    // cents + ¢). Rendered above the progress bar so the layout
-    // matches the pre-totals-relocation order: subject → progress →
-    // list. The running cost stays visible while scrolling.
-    //
-    // Wrapped with a top + bottom Spacer so the green title has
-    // more breathing room above (against the white report title)
-    // and below (against the progress bar / list start). The
-    // HardcodedSubjectRow itself has an internal -8 dp offset that
-    // pulls it up tight; the leading spacer offsets that, the
-    // trailing spacer adds room below.
-    Spacer(modifier = Modifier.height(8.dp))
-    com.ai.ui.shared.HardcodedSubjectRow(
-        text = uiState.genericPromptTitle,
-        trailing = {
-            if (showTotals) {
-                // Tap the 💰 + cents pair to jump to the Manage
-                // ReportsViewer scrolled to its Costs section — same
-                // destination as the View tile grid's Costs card.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .clickable { handlers.onViewCosts() }
-                ) {
-                    Text("💰", fontSize = 20.sp)
-                    Text(
-                        text = " ${formatCents(totalCost)}",
-                        fontSize = 14.sp, color = AppColors.Blue,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-    )
-    Spacer(modifier = Modifier.height(10.dp))
 
     // Progress is in-flight UI: shown only while at least one agent is
     // still pending. Drops out once every agent finishes (or in
