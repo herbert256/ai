@@ -395,11 +395,18 @@ private fun ReportsViewerScreenLoaded(
             val promptTraceFile = if (initialSection == "prompt") {
                 translationRowByTarget["PROMPT:prompt"]?.traceFile?.takeIf { it.isNotBlank() }
             } else null
-            // 👁 → Main View (prompt/costs section views fall back to
-            // the tile grid; no per-section View jump in ViewJump today).
+            // 👁 → matching dedicated View screen for this section.
+            // Costs → CostsViewScreen, Prompt → PromptViewScreen,
+            // anything else (defensive) → main View tile grid.
             val pendingSectionHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
-            val onOpenViewSectionJump: (() -> Unit)? = pendingSectionHolder?.let {
-                { it.value = com.ai.ui.shared.ViewJump.Main }
+            val onOpenViewSectionJump: (() -> Unit)? = pendingSectionHolder?.let { holder ->
+                {
+                    holder.value = when (initialSection) {
+                        "costs"  -> com.ai.ui.shared.ViewJump.Costs
+                        "prompt" -> com.ai.ui.shared.ViewJump.Prompt
+                        else     -> com.ai.ui.shared.ViewJump.Main
+                    }
+                }
             }
             TitleBar(helpTopic = sectionHelpTopic,
                 title = title,

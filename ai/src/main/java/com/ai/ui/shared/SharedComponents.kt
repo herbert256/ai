@@ -258,6 +258,10 @@ val LocalOpenManage = compositionLocalOf<((ManageJump) -> Unit)?> { null }
  *  feedback_overlay_back_stack.md). */
 sealed class ViewJump {
     object Main : ViewJump()
+    /** PromptViewScreen — there's only one prompt per report. */
+    object Prompt : ViewJump()
+    /** CostsViewScreen — there's only one costs roll-up per report. */
+    object Costs : ViewJump()
     data class Rerank(val id: String) : ViewJump()
     data class Moderation(val id: String) : ViewJump()
     data class Meta(val id: String) : ViewJump()

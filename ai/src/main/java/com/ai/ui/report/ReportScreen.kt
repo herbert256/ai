@@ -3331,6 +3331,16 @@ private fun ReportPrimaryOverlays(
                     initialAgentId = jump.agentId,
                     onBack = { close() }
                 )
+                is com.ai.ui.shared.ViewJump.Costs -> CostsViewScreen(
+                    reportId = rid,
+                    onBack = close
+                )
+                is com.ai.ui.shared.ViewJump.Prompt -> PromptViewScreen(
+                    reportId = rid,
+                    availableLanguages = emptyList(),
+                    initialLanguage = null,
+                    onBack = { _ -> close() }
+                )
             }
         }
         return true
