@@ -25,8 +25,8 @@ class ReportExportScreenTest {
             MaterialTheme {
                 ReportExportScreen(
                     onBack = {}, onNavigateHome = {},
-                    onExport = { _, _, _, _ -> },
-                    onExportAll = { _ -> }
+                    onExport = { _, _, _, _, _ -> },
+                    onExportAll = { _, _ -> }
                 )
             }
         }

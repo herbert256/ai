@@ -3,10 +3,9 @@ package com.ai.compose
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.filterToOne
-import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -35,14 +34,15 @@ class HelpScreenTest {
                 HelpScreen(onBack = {}, onNavigateHome = {})
             }
         }
-        // "Help" appears twice — the TitleBar title and the "❓ Help"
-        // row in the icon-legend card — so target the first match.
+        // "Help" appears multiple times — the TitleBar title and a
+        // few rows in the legend / footer — so target the first match.
         rule.onAllNodesWithText("Help")[0].assertIsDisplayed()
+        // Sections currently rendered by CompactOverview in
+        // HelpScreen.kt: "Welcome" near the top, "Per-screen help"
+        // below it, and "Copyright" pinned near the foot.
         rule.onNodeWithText("Welcome").assertIsDisplayed()
-        rule.onNodeWithText("Getting started").assertIsDisplayed()
-        // "Privacy" sits well below the fold (after the full
-        // cloud-provider directory) — scroll it into view first.
-        rule.onNodeWithText("Privacy").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Per-screen help").assertIsDisplayed()
+        rule.onNodeWithText("Copyright").performScrollTo().assertIsDisplayed()
     }
 
     @Test fun back_button_invokes_onBack() {
@@ -58,17 +58,16 @@ class HelpScreenTest {
 
     @Test fun home_button_invokes_navigate_home() {
         // HelpScreen's own onNavigateHome param is vestigial — the
-        // 🏠 button (in BottomIconBar) routes through LocalNavigateHome,
-        // which the harness wires.
+        // AI brand glyph in TitleBar routes through LocalNavigateHome,
+        // which the harness wires. It's an Image with
+        // contentDescription = "Home" (was a 🏠 emoji on an older UI).
         val homeClicks = mutableIntStateOf(0)
         rule.setContent {
             WithBottomBar(onNavigateHome = { homeClicks.intValue++ }) {
                 HelpScreen(onBack = {}, onNavigateHome = {})
             }
         }
-        // "🏠" also appears as a passive row in HelpScreen's icon-legend
-        // table — the clickable one is the BottomIconBar's Home button.
-        rule.onAllNodesWithText("🏠").filterToOne(hasClickAction()).performClick()
+        rule.onNodeWithContentDescription("Home").performClick()
         assertThat(homeClicks.intValue).isEqualTo(1)
     }
 }

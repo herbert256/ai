@@ -29,6 +29,7 @@ class ChatsHubScreenTest {
             MaterialTheme {
                 ChatsHubScreen(
                     aiSettings = Settings(),
+                    experimentalFeatures = false,
                     onNavigateBack = {}, onNavigateHome = {},
                     onNavigateToAgentSelect = {},
                     onNavigateToNewChat = {},
@@ -53,6 +54,7 @@ class ChatsHubScreenTest {
             MaterialTheme {
                 ChatsHubScreen(
                     aiSettings = Settings(),
+                    experimentalFeatures = false,
                     onNavigateBack = {}, onNavigateHome = {},
                     onNavigateToAgentSelect = {},
                     onNavigateToNewChat = { newChat.intValue++ },
@@ -73,6 +75,7 @@ class ChatsHubScreenTest {
             MaterialTheme {
                 ChatsHubScreen(
                     aiSettings = Settings(),
+                    experimentalFeatures = false,
                     onNavigateBack = {}, onNavigateHome = {},
                     onNavigateToAgentSelect = {},
                     onNavigateToNewChat = {},
