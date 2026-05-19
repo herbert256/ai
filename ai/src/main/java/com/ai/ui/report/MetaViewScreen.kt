@@ -13,8 +13,11 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -74,6 +77,10 @@ fun MetaViewScreen(
     onBack: (activeLanguage: String?) -> Unit
 ) {
     val context = LocalContext.current
+    var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
+    var currentResultId by rememberSaveable(resultId) { mutableStateOf(resultId) }
+    val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
+    val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
 
     data class Loaded(
         /** The single META row this screen is anchored on — looked up
@@ -88,21 +95,21 @@ fun MetaViewScreen(
 
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap(), null),
-        reportId, resultId
+        currentReportId, currentResultId
     ) {
         value = withContext(Dispatchers.IO) {
-            val r = SecondaryResultStorage.get(context, reportId, resultId)
+            val r = SecondaryResultStorage.get(context, currentReportId, currentResultId)
                 ?.takeIf { !it.content.isNullOrBlank() }
             val translates = SecondaryResultStorage
-                .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                .listForReport(context, currentReportId, SecondaryKind.TRANSLATE)
                 .filter {
                     it.translateSourceKind == "META" &&
-                        it.translateSourceTargetId == resultId &&
+                        it.translateSourceTargetId == currentResultId &&
                         !it.content.isNullOrBlank() &&
                         !it.targetLanguage.isNullOrBlank()
                 }
                 .associate { it.targetLanguage!! to it.content!! }
-            val rep = ReportStorage.getReport(context, reportId)
+            val rep = ReportStorage.getReport(context, currentReportId)
             Loaded(r, translates, rep)
         }
     }
@@ -155,16 +162,35 @@ fun MetaViewScreen(
         // to View grid", which is the opposite of what 🔧 should do.
         val openManage = com.ai.ui.shared.LocalOpenManage.current
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
-            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
+            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(currentResultId)) }
         }
         val screenTitleLabel = if (metaPromptName != null) "Meta - $metaPromptName" else "Meta"
+        val metaFilter: ViewSwipeFilter? = metaPromptName?.let {
+            ViewSwipeFilter.HasMeta(metaPromptName = it)
+        }
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = screenTitleLabel,
             subject = null,
             helpTopic = "meta_view",
             onOpenManage = onOpenManageJump,
-            onBack = { onBack(activeLangState.value.ifBlank { null }) }
+            onBack = { onBack(activeLangState.value.ifBlank { null }) },
+            onSwipePrev = metaFilter?.let { filter -> {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, filter)
+                if (m != null) {
+                    currentReportId = m.reportId
+                    m.resultId?.let { currentResultId = it }
+                    switchReport?.invoke(m.reportId); true
+                } else false
+            } },
+            onSwipeNext = metaFilter?.let { filter -> {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, filter)
+                if (m != null) {
+                    currentReportId = m.reportId
+                    m.resultId?.let { currentResultId = it }
+                    switchReport?.invoke(m.reportId); true
+                } else false
+            } }
         )
         // Header row: dynamic per-prompt icon + the model name that
         // produced this META row. Matches the Fan-in View screen.

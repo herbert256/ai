@@ -23,8 +23,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,6 +75,14 @@ fun RerankViewScreen(
 ) {
     androidx.activity.compose.BackHandler { onBack() }
     val context = LocalContext.current
+    // Title-bar swipe targets — `currentReportId`/`currentResultId`
+    // shadow the props so a swipe can hot-swap the rerank row in
+    // place. `rememberSaveable(reportId)` re-seeds on parent-driven
+    // prop changes.
+    var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
+    var currentResultId by rememberSaveable(resultId) { mutableStateOf(resultId) }
+    val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
+    val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
 
     data class Loaded(
         val result: SecondaryResult?,
@@ -81,11 +92,11 @@ fun RerankViewScreen(
 
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap(), null),
-        reportId, resultId
+        currentReportId, currentResultId
     ) {
         value = withContext(Dispatchers.IO) {
-            val r = SecondaryResultStorage.get(context, reportId, resultId)
-            val report = ReportStorage.getReport(context, reportId)
+            val r = SecondaryResultStorage.get(context, currentReportId, currentResultId)
+            val report = ReportStorage.getReport(context, currentReportId)
             val labels = report?.agents
                 ?.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                 ?.mapIndexed { idx, agent ->
@@ -113,7 +124,7 @@ fun RerankViewScreen(
         // which would land 🔧 back on the grid instead of Manage.
         val openManage = com.ai.ui.shared.LocalOpenManage.current
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
-            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
+            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(currentResultId)) }
         }
         ViewScreenTitleBar(
             reportTitle = loaded.reportTitle,
@@ -123,7 +134,25 @@ fun RerankViewScreen(
             subject = null,
             helpTopic = "rerank_view",
             onOpenManage = onOpenManageJump,
-            onBack = onBack
+            onBack = onBack,
+            onSwipePrev = {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev,
+                    ViewSwipeFilter.HasKind(com.ai.data.SecondaryKind.RERANK))
+                if (m != null) {
+                    currentReportId = m.reportId
+                    m.resultId?.let { currentResultId = it }
+                    switchReport?.invoke(m.reportId); true
+                } else false
+            },
+            onSwipeNext = {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next,
+                    ViewSwipeFilter.HasKind(com.ai.data.SecondaryKind.RERANK))
+                if (m != null) {
+                    currentReportId = m.reportId
+                    m.resultId?.let { currentResultId = it }
+                    switchReport?.invoke(m.reportId); true
+                } else false
+            }
         )
         if (result == null) {
             Box(

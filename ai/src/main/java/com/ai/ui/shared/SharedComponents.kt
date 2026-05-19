@@ -338,6 +338,22 @@ data class ReportNeighborNav(
 
 val LocalReportNeighborNav = compositionLocalOf<ReportNeighborNav?> { null }
 
+/** Newest-first list of report ids on disk. Provided by
+ *  [com.ai.ui.report.ReportsScreenNav] at the same site that supplies
+ *  [LocalReportNeighborNav]. Used by [ViewScreenTitleBar]'s swipe
+ *  gesture: each sub-View screen walks this list outward from the
+ *  current report to find the nearest one that matches its filter
+ *  (e.g. "has a rerank entry", "has a meta result for prompt X").
+ *  Empty when the navigation context isn't a report screen. */
+val LocalReportIdsNewestFirst = compositionLocalOf<List<String>> { emptyList() }
+
+/** Swap the app-wide "current report" after a sub-View swipe. The
+ *  provider wraps [com.ai.viewmodel.ReportViewModel.restoreCompletedReport]
+ *  so the rest of the app (Manage screens, hub badges, neighbour
+ *  navigation) stays in sync once the user backs out of the sub-View.
+ *  Null when no provider has wired it. */
+val LocalReportSwitchHandler = compositionLocalOf<((String) -> Unit)?> { null }
+
 /** Optional handle to the per-report Regenerate batch engine.
  *  Provided by [com.ai.ui.report.ReportsScreenNav] so deep
  *  descendants (the Manage screen's Regenerate row + the

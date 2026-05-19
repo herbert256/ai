@@ -86,6 +86,14 @@ fun FanOutViewScreen(
 ) {
     androidx.activity.compose.BackHandler { onBack() }
     val context = LocalContext.current
+    // Title-bar swipe targets — `currentReportId` + `currentPromptName`
+    // shadow the props so a swipe can hot-swap the fan-out run in
+    // place. The fan-out screen identifies itself by (reportId,
+    // metaPromptName) — no resultId.
+    var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
+    var currentPromptName by rememberSaveable(metaPromptName) { mutableStateOf(metaPromptName) }
+    val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
+    val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
 
     data class Loaded(
         val report: Report?,
@@ -95,14 +103,14 @@ fun FanOutViewScreen(
 
     val loadedState = produceState(
         initialValue = Loaded(null, emptyList(), emptyList()),
-        reportId, metaPromptName
+        currentReportId, currentPromptName
     ) {
         value = withContext(Dispatchers.IO) {
-            val rep = ReportStorage.getReport(context, reportId)
-            val allSecondary = SecondaryResultStorage.listForReport(context, reportId)
+            val rep = ReportStorage.getReport(context, currentReportId)
+            val allSecondary = SecondaryResultStorage.listForReport(context, currentReportId)
             val pairs = allSecondary.filter {
                 it.fanOutSourceAgentId != null &&
-                    it.metaPromptName == metaPromptName &&
+                    it.metaPromptName == currentPromptName &&
                     !it.content.isNullOrBlank()
             }
             // Pull BOTH META and AGENT translates. META rows are
@@ -221,14 +229,31 @@ fun FanOutViewScreen(
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
             { dispatch(com.ai.ui.shared.ManageJump.Main) }
         }
-        val titleText = "Fan-out" + metaPromptName.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty()
+        val titleText = "Fan-out" + currentPromptName.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty()
+        val fanOutFilter: ViewSwipeFilter? = currentPromptName.takeIf { it.isNotBlank() }?.let {
+            ViewSwipeFilter.HasMeta(metaPromptName = it, requireFanOut = true)
+        }
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = titleText,
             subject = null,
             helpTopic = "fan_out_view",
             onOpenManage = onOpenManageJump,
-            onBack = onBack
+            onBack = onBack,
+            onSwipePrev = fanOutFilter?.let { filter -> {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, filter)
+                if (m != null) {
+                    currentReportId = m.reportId
+                    switchReport?.invoke(m.reportId); true
+                } else false
+            } },
+            onSwipeNext = fanOutFilter?.let { filter -> {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, filter)
+                if (m != null) {
+                    currentReportId = m.reportId
+                    switchReport?.invoke(m.reportId); true
+                } else false
+            } }
         )
         if (report == null) {
             Box(

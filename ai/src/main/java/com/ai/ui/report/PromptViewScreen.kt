@@ -19,6 +19,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -64,30 +65,24 @@ fun PromptViewScreen(
     onBack: (activeLanguage: String?) -> Unit
 ) {
     val context = LocalContext.current
-
-    // Normalise / dedupe. Original ("") is always available since
-    // the report.prompt itself is shown for it.
-    val languages = remember(availableLanguages) {
-        val seen = linkedSetOf<String>()
-        seen += ""
-        availableLanguages.forEach { seen += (it ?: "") }
-        seen.toList()
+    // Title-bar swipe targets — `currentReportId` shadows the prop so
+    // a swipe can hot-swap the displayed report without unmounting.
+    var currentReportId by androidx.compose.runtime.saveable.rememberSaveable(reportId) {
+        androidx.compose.runtime.mutableStateOf(reportId)
     }
-    val initialIndex = remember(languages, initialLanguage) {
-        val target = initialLanguage ?: ""
-        languages.indexOf(target).coerceAtLeast(0)
-    }
+    val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
+    val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
 
     data class Loaded(val report: Report?, val translatedByLang: Map<String, String>)
 
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap()),
-        reportId
+        currentReportId
     ) {
         value = withContext(Dispatchers.IO) {
-            val rep = ReportStorage.getReport(context, reportId)
+            val rep = ReportStorage.getReport(context, currentReportId)
             val translated = SecondaryResultStorage
-                .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                .listForReport(context, currentReportId, SecondaryKind.TRANSLATE)
                 .filter {
                     it.translateSourceKind == "PROMPT" &&
                         !it.content.isNullOrBlank() &&
@@ -99,6 +94,26 @@ fun PromptViewScreen(
     }
     val loaded = loadedState.value
     val report = loaded.report
+
+    // Normalise / dedupe. Original ("") is always available since
+    // the report.prompt itself is shown for it. Falls back to the
+    // parent-supplied [availableLanguages] until the loaded
+    // translations arrive, then tracks the loaded set so a swiped-in
+    // new report's pager carries that report's own languages.
+    val languages = remember(availableLanguages, loaded.translatedByLang) {
+        val seen = linkedSetOf<String>()
+        seen += ""
+        if (loaded.translatedByLang.isNotEmpty()) {
+            loaded.translatedByLang.keys.forEach { seen += it }
+        } else {
+            availableLanguages.forEach { seen += (it ?: "") }
+        }
+        seen.toList()
+    }
+    val initialIndex = remember(languages, initialLanguage) {
+        val target = initialLanguage ?: ""
+        languages.indexOf(target).coerceAtLeast(0)
+    }
 
     // Non-wrapping pager — one page per language, swipe past the
     // first / last stops dead. Earlier shape used Int.MAX_VALUE +
@@ -142,7 +157,15 @@ fun PromptViewScreen(
             subject = null,
             helpTopic = "prompt_view_screen",
             onOpenManage = onOpenManageJump,
-            onBack = { onBack(activeLangState.value.ifBlank { null }) }
+            onBack = { onBack(activeLangState.value.ifBlank { null }) },
+            onSwipePrev = {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, ViewSwipeFilter.Any)
+                if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+            },
+            onSwipeNext = {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, ViewSwipeFilter.Any)
+                if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+            }
         )
         if (report == null) {
             Box(

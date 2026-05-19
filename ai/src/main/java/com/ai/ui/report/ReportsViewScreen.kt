@@ -89,6 +89,9 @@ fun ReportsViewScreen(
     onBack: (activeLanguage: String?) -> Unit
 ) {
     val context = LocalContext.current
+    var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
+    val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
+    val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
 
     // Normalise / dedupe — Original ("") is always present so the
     // pager has at least one page to render.
@@ -125,12 +128,12 @@ fun ReportsViewScreen(
 
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap(), emptyMap()),
-        reportId
+        currentReportId
     ) {
         value = withContext(Dispatchers.IO) {
-            val rep = ReportStorage.getReport(context, reportId)
+            val rep = ReportStorage.getReport(context, currentReportId)
             val translateRows = SecondaryResultStorage
-                .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                .listForReport(context, currentReportId, SecondaryKind.TRANSLATE)
                 .filter {
                     !it.content.isNullOrBlank() &&
                         !it.targetLanguage.isNullOrBlank()
@@ -195,7 +198,15 @@ fun ReportsViewScreen(
             subject = null,
             helpTopic = "reports_view",
             onOpenManage = onOpenManageJump,
-            onBack = { onBack(activeLangState.value.ifBlank { null }) }
+            onBack = { onBack(activeLangState.value.ifBlank { null }) },
+            onSwipePrev = {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, ViewSwipeFilter.Any)
+                if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+            },
+            onSwipeNext = {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, ViewSwipeFilter.Any)
+                if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+            }
         )
         if (report == null) {
             Box(

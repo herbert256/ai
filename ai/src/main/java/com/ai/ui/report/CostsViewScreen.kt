@@ -72,8 +72,15 @@ fun CostsViewScreen(
 ) {
     androidx.activity.compose.BackHandler { onBack() }
     val context = LocalContext.current
-    val reportState = produceState<Report?>(initialValue = null, reportId) {
-        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
+    // Title-bar swipe targets — `currentReportId` shadows the prop so
+    // a successful swipe can hot-swap the displayed report without
+    // unmounting the screen. `rememberSaveable(reportId)` re-seeds on
+    // any parent-driven prop change.
+    var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
+    val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
+    val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
+    val reportState = produceState<Report?>(initialValue = null, currentReportId) {
+        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, currentReportId) }
     }
     val report = reportState.value
 
@@ -97,7 +104,15 @@ fun CostsViewScreen(
             subject = null,
             helpTopic = "costs_view",
             onOpenManage = onOpenManageJump,
-            onBack = onBack
+            onBack = onBack,
+            onSwipePrev = {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, ViewSwipeFilter.Any)
+                if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+            },
+            onSwipeNext = {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, ViewSwipeFilter.Any)
+                if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+            }
         )
         // (The "💰 Costs" duplicate-label row that used to sit
         // here was removed per the user — the orange "Costs"

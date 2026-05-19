@@ -1,24 +1,36 @@
 package com.ai.ui.shared
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -82,7 +94,15 @@ fun ViewScreenTitleBar(
      *  on Manage even when [onBack] would normally pop somewhere
      *  else (e.g. back to a report list when the user arrived
      *  via a per-row 👁 with `initialView=true`). */
-    onTitleClick: (() -> Unit)? = null
+    onTitleClick: (() -> Unit)? = null,
+    /** Horizontal swipe handlers. Return true if a matching
+     *  prev/next report was found and the caller has already
+     *  updated its state to point at it; false to surface
+     *  "No more reports" in the transient pill. Pass null to
+     *  disable the swipe (drill-deeper screens like FanInModel /
+     *  FanOutPair / IconsView). */
+    onSwipePrev: (() -> Boolean)? = null,
+    onSwipeNext: (() -> Boolean)? = null
 ) {
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
@@ -128,12 +148,37 @@ fun ViewScreenTitleBar(
             }
         }
     }
+    // Transient pill state ("Loading report" / "No more reports")
+    // shown for ~1 second after the user swipes the title bar.
+    // statusTick bumps per swipe so a fresh swipe restarts the
+    // dismissal timer instead of being eaten by a stale delay.
+    val swipeStatus = remember { mutableStateOf<String?>(null) }
+    val statusTick = remember { mutableIntStateOf(0) }
+    LaunchedEffect(statusTick.intValue) {
+        if (swipeStatus.value != null) {
+            kotlinx.coroutines.delay(1000)
+            swipeStatus.value = null
+        }
+    }
+    // Horizontal-drag detector for prev/next-report navigation.
+    // Threshold 80 dp matches the old whole-screen swipe in
+    // ViewAiReportScreen. Skipped entirely when both lambdas are
+    // null (drill-deeper screens opt out by passing null/null).
+    val swipeDensity = LocalDensity.current
+    val swipeThresholdPx = with(swipeDensity) { 80.dp.toPx() }
+    val swipeDragX = remember { mutableFloatStateOf(0f) }
+    val swipeEnabled = onSwipePrev != null || onSwipeNext != null
     // Pull the whole bar up 16 dp AND shrink its measured height by
     // the same amount so the AI logo lands at the same y as the
     // Report - manage TitleBar (which uses the same trick — see
     // SharedComponents.kt TitleBar). Without this the View bar
     // would sit 16 dp lower than the manage bar because both
     // screens add a 16 dp top padding to their root Column.
+    // Outer Box hosts the layout-locked Column AND the transient
+    // status pill anchored at TopCenter. Anchoring the pill on the
+    // Box (not inline in the Column) means appearing/disappearing
+    // the pill doesn't push the body content down.
+    Box(modifier = Modifier.fillMaxWidth()) {
     // Three-column Row: AI logo on the left, a centre Column with
     // the white report title + orange screen title (+ optional
     // green subject) stacked, and the ❓ help icon on the right.
@@ -149,6 +194,50 @@ fun ViewScreenTitleBar(
     }) {
         Row(
             modifier = Modifier
+                // Horizontal-drag detector — flicks across the title
+                // bar load the prev (drag→) / next (drag←) report
+                // that supports the same View screen kind. The
+                // gesture short-circuits when both lambdas are null
+                // so drill-deeper screens (FanInModel / FanOutPair /
+                // Icons) keep their static title bar. Tap events
+                // (logo home / help / centre title) are unaffected —
+                // detectHorizontalDragGestures only claims after the
+                // touch slop is exceeded on the X axis.
+                .then(
+                    if (swipeEnabled) {
+                        Modifier.pointerInput(onSwipePrev, onSwipeNext) {
+                            detectHorizontalDragGestures(
+                                onDragStart = { swipeDragX.floatValue = 0f },
+                                onDragEnd = {
+                                    val dx = swipeDragX.floatValue
+                                    when {
+                                        dx > swipeThresholdPx -> {
+                                            swipeStatus.value = "Loading report"
+                                            statusTick.intValue++
+                                            val found = onSwipePrev?.invoke() ?: false
+                                            if (!found) {
+                                                swipeStatus.value = "No more reports"
+                                                statusTick.intValue++
+                                            }
+                                        }
+                                        dx < -swipeThresholdPx -> {
+                                            swipeStatus.value = "Loading report"
+                                            statusTick.intValue++
+                                            val found = onSwipeNext?.invoke() ?: false
+                                            if (!found) {
+                                                swipeStatus.value = "No more reports"
+                                                statusTick.intValue++
+                                            }
+                                        }
+                                    }
+                                    swipeDragX.floatValue = 0f
+                                },
+                                onDragCancel = { swipeDragX.floatValue = 0f },
+                                onHorizontalDrag = { _, d -> swipeDragX.floatValue += d }
+                            )
+                        }
+                    } else Modifier
+                )
                 // Outset 12 dp on each side so the AI logo and help
                 // icon visually break out of the parent screen's
                 // 16 dp horizontal padding and sit closer to the
@@ -281,5 +370,24 @@ fun ViewScreenTitleBar(
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
+    }
+        // Transient pill — floats at TopCenter of the title bar so
+        // it can appear/disappear without nudging the body content
+        // below. Cleared by the LaunchedEffect(statusTick) above.
+        val status = swipeStatus.value
+        if (status != null) {
+            Text(
+                text = status,
+                color = Color.White,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 8.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
+                    .border(1.dp, AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+            )
+        }
     }
 }

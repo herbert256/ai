@@ -21,8 +21,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,6 +68,10 @@ fun TranslateViewScreen(
 ) {
     androidx.activity.compose.BackHandler { onBack() }
     val context = LocalContext.current
+    var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
+    var currentTranslationRunId by rememberSaveable(translationRunId) { mutableStateOf(translationRunId) }
+    val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
+    val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
 
     data class Loaded(
         val rows: List<SecondaryResult>,
@@ -74,16 +81,16 @@ fun TranslateViewScreen(
 
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(emptyList(), null, emptyMap()),
-        reportId, translationRunId
+        currentReportId, currentTranslationRunId
     ) {
         value = withContext(Dispatchers.IO) {
-            val all = SecondaryResultStorage.listForReport(context, reportId)
+            val all = SecondaryResultStorage.listForReport(context, currentReportId)
             val translates = all.filter {
                 it.kind == SecondaryKind.TRANSLATE &&
-                    it.translationRunId == translationRunId &&
+                    it.translationRunId == currentTranslationRunId &&
                     !it.content.isNullOrBlank()
             }
-            val rep = ReportStorage.getReport(context, reportId)
+            val rep = ReportStorage.getReport(context, currentReportId)
             // Map any source META row by id so we can render its
             // content as the "source" side for META translations.
             val byId = all.filter { it.kind != SecondaryKind.TRANSLATE }.associateBy { it.id }
@@ -111,7 +118,7 @@ fun TranslateViewScreen(
         // which would land 🔧 back on the grid instead of Manage.
         val openManage = com.ai.ui.shared.LocalOpenManage.current
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
-            { dispatch(com.ai.ui.shared.ManageJump.TranslationRun(translationRunId)) }
+            { dispatch(com.ai.ui.shared.ManageJump.TranslationRun(currentTranslationRunId)) }
         }
         ViewScreenTitleBar(
             reportTitle = report?.title,
@@ -119,7 +126,23 @@ fun TranslateViewScreen(
             subject = rows.firstOrNull()?.let { it.targetLanguageNative ?: it.targetLanguage }?.takeIf { it.isNotBlank() },
             helpTopic = "translate_view",
             onOpenManage = onOpenManageJump,
-            onBack = onBack
+            onBack = onBack,
+            onSwipePrev = {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, ViewSwipeFilter.Translate)
+                if (m != null) {
+                    currentReportId = m.reportId
+                    m.translationRunId?.let { currentTranslationRunId = it }
+                    switchReport?.invoke(m.reportId); true
+                } else false
+            },
+            onSwipeNext = {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, ViewSwipeFilter.Translate)
+                if (m != null) {
+                    currentReportId = m.reportId
+                    m.translationRunId?.let { currentTranslationRunId = it }
+                    switchReport?.invoke(m.reportId); true
+                } else false
+            }
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),

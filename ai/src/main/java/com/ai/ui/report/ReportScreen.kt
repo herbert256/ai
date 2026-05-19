@@ -379,6 +379,10 @@ fun ReportsScreenNav(
             onExitToList = onNavigateBack
         ),
         com.ai.ui.shared.LocalReportNeighborNav provides neighborNav,
+        com.ai.ui.shared.LocalReportIdsNewestFirst provides reportIdsNewestFirst,
+        com.ai.ui.shared.LocalReportSwitchHandler provides remember(reportViewModel) {
+            { id: String -> scope.launch { reportViewModel.restoreCompletedReport(context, id) } }
+        },
         com.ai.ui.shared.LocalPendingViewOverManage provides pendingViewOverManage,
         com.ai.ui.shared.LocalMainViewResetTick provides mainViewResetTick,
         com.ai.ui.shared.LocalRegenerateBatchEngine provides reportViewModel.regenerateBatchEngine,

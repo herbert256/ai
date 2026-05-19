@@ -17,9 +17,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +64,10 @@ fun FanInViewScreen(
     onBack: (activeLanguage: String?) -> Unit
 ) {
     val context = LocalContext.current
+    var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
+    var currentResultId by rememberSaveable(resultId) { mutableStateOf(resultId) }
+    val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
+    val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
 
     data class Loaded(
         val result: SecondaryResult?,
@@ -72,20 +79,20 @@ fun FanInViewScreen(
 
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap(), null),
-        reportId, resultId
+        currentReportId, currentResultId
     ) {
         value = withContext(Dispatchers.IO) {
-            val r = SecondaryResultStorage.get(context, reportId, resultId)
+            val r = SecondaryResultStorage.get(context, currentReportId, currentResultId)
             val translates = SecondaryResultStorage
-                .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                .listForReport(context, currentReportId, SecondaryKind.TRANSLATE)
                 .filter {
                     it.translateSourceKind == "META" &&
-                        it.translateSourceTargetId == resultId &&
+                        it.translateSourceTargetId == currentResultId &&
                         !it.content.isNullOrBlank() &&
                         !it.targetLanguage.isNullOrBlank()
                 }
                 .associate { it.targetLanguage!! to it.content!! }
-            val rep = ReportStorage.getReport(context, reportId)
+            val rep = ReportStorage.getReport(context, currentReportId)
             Loaded(r, translates, rep)
         }
     }
@@ -145,19 +152,38 @@ fun FanInViewScreen(
         // to View grid", which is the opposite of what 🔧 should do.
         val openManage = com.ai.ui.shared.LocalOpenManage.current
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
-            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
+            { dispatch(com.ai.ui.shared.ManageJump.MetaResult(currentResultId)) }
         }
         // Orange screen-title spells out the fan-in's internal-
         // prompt name ("Fan In - <name>"); green subject row is
         // dropped so the header reads on a single line.
         val screenTitleLabel = if (metaPromptName != null) "Fan In - $metaPromptName" else "Fan In"
+        val fanInFilter: ViewSwipeFilter? = metaPromptName?.let {
+            ViewSwipeFilter.HasMeta(metaPromptName = it, requireFanIn = true)
+        }
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = screenTitleLabel,
             subject = null,
             helpTopic = "fan_in_view",
             onOpenManage = onOpenManageJump,
-            onBack = { onBack(activeLangState.value.ifBlank { null }) }
+            onBack = { onBack(activeLangState.value.ifBlank { null }) },
+            onSwipePrev = fanInFilter?.let { filter -> {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, filter)
+                if (m != null) {
+                    currentReportId = m.reportId
+                    m.resultId?.let { currentResultId = it }
+                    switchReport?.invoke(m.reportId); true
+                } else false
+            } },
+            onSwipeNext = fanInFilter?.let { filter -> {
+                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, filter)
+                if (m != null) {
+                    currentReportId = m.reportId
+                    m.resultId?.let { currentResultId = it }
+                    switchReport?.invoke(m.reportId); true
+                } else false
+            } }
         )
         // Header row: dynamic per-prompt icon + the synthesis
         // model name. Provider name dropped per the user's spec.

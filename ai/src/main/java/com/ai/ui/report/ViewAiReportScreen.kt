@@ -6,7 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import android.content.Context
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -1062,61 +1061,14 @@ internal fun ViewAiReportScreen(
         }
     }
 
-    // Horizontal swipe → prev / next report. Same axis convention as
-    // Report - manage's < / > chevrons: swipe RIGHT (drag→) reveals the
-    // older neighbour, swipe LEFT (drag←) reveals the newer one. Touch
-    // slop on detectHorizontalDragGestures locks the gesture to the
-    // horizontal axis once it claims, so vertical scrolls aren't
-    // hijacked. The tile reorder uses a long-press to initiate, so a
-    // quick horizontal flick goes here, not into a tile drag.
-    val swipeDensity = androidx.compose.ui.platform.LocalDensity.current
-    val swipeThresholdPx = with(swipeDensity) { 80.dp.toPx() }
-    var swipeDragX by remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-    // Transient status pinned at top-center for ~1 second when the
-    // user swipes — either "Loading report" (when a neighbour is
-    // about to load) or "No more reports" (when they swiped past an
-    // edge). statusTick bumps per swipe so a fresh swipe restarts
-    // the dismissal timer instead of being eaten by a stale delay.
-    var swipeStatus by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
-    var statusTick by remember { androidx.compose.runtime.mutableIntStateOf(0) }
-    androidx.compose.runtime.LaunchedEffect(statusTick) {
-        if (swipeStatus != null) {
-            kotlinx.coroutines.delay(1000)
-            swipeStatus = null
-        }
-    }
-    // Box wraps the whole screen so the transient swipe pill (top)
-    // AND the persistent "still running" / "has problems" notices
-    // (bottom) can float on top of the tile grid without taking
-    // layout space from it. Previously the swipe pill was inline
-    // inside the Column and shifted every tile down 30 dp the moment
-    // it appeared — the user reported "the cards are moving".
+    // Outer Box still wraps the screen so the bottom-anchored
+    // "still running" / "has problems" notices can float on top of
+    // the tile grid without taking layout space from it. The old
+    // whole-screen horizontal-drag gesture moved into
+    // [ViewScreenTitleBar] (title-bar swipe is now generic across
+    // every View screen — see ViewSwipeNav.kt).
     Box(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
-            .pointerInput(swipeNav) {
-                detectHorizontalDragGestures(
-                    onDragStart = { swipeDragX = 0f },
-                    onDragEnd = {
-                        when {
-                            swipeDragX > swipeThresholdPx -> {
-                                val nav = swipeNav
-                                swipeStatus = if (nav?.hasPrev == true) "Loading report" else "No more reports"
-                                statusTick++
-                                nav?.onPrev?.invoke()
-                            }
-                            swipeDragX < -swipeThresholdPx -> {
-                                val nav = swipeNav
-                                swipeStatus = if (nav?.hasNext == true) "Loading report" else "No more reports"
-                                statusTick++
-                                nav?.onNext?.invoke()
-                            }
-                        }
-                        swipeDragX = 0f
-                    },
-                    onDragCancel = { swipeDragX = 0f },
-                    onHorizontalDrag = { _, dx -> swipeDragX += dx }
-                )
-            }
     ) {
     Column(
         modifier = Modifier.fillMaxSize()
@@ -1145,7 +1097,18 @@ internal fun ViewAiReportScreen(
             // rows must always land on the main Manage screen, even
             // when [onBack] would normally pop to a report list
             // (initialView=true case).
-            onTitleClick = onOpenManageJump
+            onTitleClick = onOpenManageJump,
+            // Title-bar swipe — main View grid uses the existing
+            // [LocalReportNeighborNav] which already loads agent
+            // results via [ReportViewModel.restoreCompletedReport]
+            // (sub-Views don't need that since they read from
+            // storage directly).
+            onSwipePrev = swipeNav?.let { nav ->
+                { if (nav.hasPrev) { nav.onPrev(); true } else false }
+            },
+            onSwipeNext = swipeNav?.let { nav ->
+                { if (nav.hasNext) { nav.onNext(); true } else false }
+            }
         )
 
         // One picker for the whole View screen; tile clicks below
@@ -1266,28 +1229,6 @@ internal fun ViewAiReportScreen(
         }
     }
 
-    // Floating top-center pill — transient swipe status. Anchored
-    // to the Box's TopCenter so the tile grid below it never
-    // shifts when the pill appears / disappears (the previous
-    // inline placement bumped every tile down ~30 dp). Cleared
-    // automatically by the LaunchedEffect(statusTick) above.
-    val currentStatus = swipeStatus
-    if (currentStatus != null) {
-        Text(
-            text = currentStatus,
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 8.dp)
-                .clip(RoundedCornerShape(20.dp))
-                .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
-                .border(1.dp, AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
-                .padding(horizontal = 16.dp, vertical = 6.dp)
-        )
-    }
-
     // Floating bottom-center notices — persistent indicator that
     // the report is still running and / or has at least one
     // recorded problem. Predicates reuse the AI Reports hub's
@@ -1317,7 +1258,7 @@ internal fun ViewAiReportScreen(
             }
         }
     }
-    } // close outer Box (pointerInput / overlay container)
+    } // close outer Box (overlay container for bottom notices)
 
     // "Language missing" popup — listed sources are languages this
     // tile DOES have content in. Picking one fires the translation
