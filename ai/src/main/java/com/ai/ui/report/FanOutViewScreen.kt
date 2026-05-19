@@ -339,11 +339,8 @@ fun FanOutViewScreen(
                                 }?.content?.takeIf { it.isNotBlank() }
                             } else null
                             val body = translated ?: pair.content.orEmpty()
-                            val responderAgent = report.agents.firstOrNull {
-                                it.provider == pair.providerId && it.model == pair.model
-                            }
                             FanOutBodyCard(
-                                reportIcon = responderAgent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
+                                reportIcon = pair.icon?.takeIf { it.isNotBlank() } ?: "🤖",
                                 body = body,
                                 borderColor = AppColors.Blue.copy(alpha = 0.35f)
                             )
