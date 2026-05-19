@@ -741,9 +741,14 @@ internal fun ColumnScope.GenerationPhase(
         text = uiState.genericPromptTitle,
         trailing = {
             if (showTotals) {
+                // Tap the 💰 + cents pair to jump to the Manage
+                // ReportsViewer scrolled to its Costs section — same
+                // destination as the View tile grid's Costs card.
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(start = 8.dp)
+                    modifier = Modifier
+                        .padding(start = 8.dp)
+                        .clickable { handlers.onViewCosts() }
                 ) {
                     Text("💰", fontSize = 20.sp)
                     Text(
