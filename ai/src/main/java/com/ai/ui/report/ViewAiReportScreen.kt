@@ -152,6 +152,19 @@ internal fun ViewAiReportScreen(
     // user on a fresh tile grid instead of the previously-open
     // sub-View that rememberSaveable would otherwise restore.
     val resetTick = com.ai.ui.shared.LocalMainViewResetTick.current?.value ?: 0
+    // Language picker key — hoisted above every sub-overlay early
+    // return so its rememberSaveable slot stays alive while
+    // Costs / Icons / Rerank / Moderation / FanInModel / Translate
+    // are open. Without this hoist, opening any of those overlays
+    // disposes the slot (the `if (cond) return` below skips its
+    // declaration) and pressing back resets the picker to Original.
+    // Meta / Fan-in already round-trip the language via
+    // [pendingLangFromSubView], but those overlays still benefit
+    // from the hoist too — the LaunchedEffects further down that
+    // consume this key continue to read it via closure.
+    var selectedViewLangKey by rememberSaveable(reportId) {
+        mutableStateOf(LangTab.ORIGINAL_KEY)
+    }
     // Per-tile content-only "View" overlay state. Owned by
     // ViewAiReportScreen rather than the parent so adding new view
     // overlays one-per-commit doesn't grow ReportsScreen's bytecode
@@ -487,7 +500,11 @@ internal fun ViewAiReportScreen(
                 }
         }
     }
-    var selectedViewLangKey by rememberSaveable(reportId) { mutableStateOf(LangTab.ORIGINAL_KEY) }
+    // [selectedViewLangKey] is declared higher up (hoisted above the
+    // sub-overlay early returns) so its rememberSaveable slot
+    // survives round-trips through Costs / Icons / Rerank /
+    // Moderation / FanInModel / Translate. The LaunchedEffect below
+    // continues to read it via closure.
     androidx.compose.runtime.LaunchedEffect(viewLangTabs) {
         // Only reset when we know the tabs reflect loaded data —
         // i.e. there's at least one translation tab beyond
