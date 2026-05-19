@@ -199,16 +199,26 @@ fun ViewScreenTitleBar(
             //      slides up into the white slot so the bar always
             //      shows *something*.
             //
-            // Both lines route through [onTitleClick] when the caller
-            // provides one (the main View grid does — explicit "go
-            // to Manage report") and otherwise fall back to [onBack]
-            // (child View screens — pops to the View grid).
-            val titleClick: () -> Unit = onTitleClick ?: onBack
+            // Click chain: explicit [onTitleClick] wins (the main
+            // View grid passes one — go to Manage main). Otherwise
+            // [LocalNavigateToCurrentReport] — each sub-View overlay
+            // provides this as a "close-this-overlay" lambda which
+            // lands on the main View grid. [onBack] is the last-
+            // resort safety net for any caller mounted without
+            // either local.
+            val navToCurrentReport = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+            val titleClick: () -> Unit = onTitleClick ?: navToCurrentReport ?: onBack
             var bigSizeFits by remember(screenTitle, reportTitle) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else reportTitle.orEmpty()
+            // Column-wide clickable so taps anywhere in the centre
+            // column (white title, orange report title, padding
+            // between them, green subject row when present) all hit
+            // [titleClick]. Individual Text modifiers stay free of
+            // their own .clickable to keep the tap target a single
+            // contiguous area.
             Column(
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).clickable { titleClick() },
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -227,7 +237,6 @@ fun ViewScreenTitleBar(
                     },
                     modifier = Modifier.fillMaxWidth()
                         .offset(y = (-4).dp)
-                        .clickable { titleClick() }
                 )
                 if (hasScreenTitle && !reportTitle.isNullOrBlank()) {
                     // Breathing room between the white top line and
@@ -241,7 +250,7 @@ fun ViewScreenTitleBar(
                         maxLines = 1,
                         overflow = TextOverflow.Clip,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().clickable { titleClick() }
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
                 if (!subject.isNullOrBlank()) {
