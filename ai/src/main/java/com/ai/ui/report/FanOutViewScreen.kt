@@ -308,27 +308,41 @@ fun FanOutViewScreen(
                         }
                     }
                 } else {
-                    val agent = activeInitiatorId?.let { aid -> report.agents.firstOrNull { it.agentId == aid } }
-                    // Match the expanded-card translation lookup so
-                    // the preview line shows the translated body
-                    // when a language is active.
-                    val translatedBody = if (!language.isNullOrEmpty() && activeInitiatorId != null) {
-                        translates.firstOrNull {
-                            it.translateSourceKind == "AGENT" &&
-                                it.translateSourceTargetId == activeInitiatorId &&
-                                it.targetLanguage == language
-                        }?.content?.takeIf { it.isNotBlank() }
-                    } else null
-                    val originalBody = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
-                        ?.responseBody?.takeIf { !it.isNullOrBlank() }
-                    val previewBody = (translatedBody ?: originalBody)
-                        ?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim()
-                        ?: "(initiator response no longer available)"
-                    CollapsedInitiatorRow(
-                        icon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
-                        preview = previewBody,
-                        onToggle = { initiatorExpanded = true }
-                    )
+                    // Collapsed mode: still a HorizontalPager so the
+                    // user can swipe between initiators without
+                    // expanding the card. Tap on the row expands; the
+                    // pager handles drag gestures first so they don't
+                    // race with the tap.
+                    com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+                        pagerState = initiatorPagerState,
+                        noMoreLabel = "No more initiators",
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        HorizontalPager(
+                            state = initiatorPagerState,
+                            modifier = Modifier.fillMaxWidth().wrapContentHeight()
+                        ) { page ->
+                            val agentId = initiatorIds[page]
+                            val agent = report.agents.firstOrNull { it.agentId == agentId }
+                            val translatedBody = if (!language.isNullOrEmpty()) {
+                                translates.firstOrNull {
+                                    it.translateSourceKind == "AGENT" &&
+                                        it.translateSourceTargetId == agentId &&
+                                        it.targetLanguage == language
+                                }?.content?.takeIf { it.isNotBlank() }
+                            } else null
+                            val originalBody = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
+                                ?.responseBody?.takeIf { !it.isNullOrBlank() }
+                            val previewBody = (translatedBody ?: originalBody)
+                                ?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim()
+                                ?: "(initiator response no longer available)"
+                            CollapsedInitiatorRow(
+                                icon = agent?.icon?.takeIf { it.isNotBlank() } ?: "🤖",
+                                preview = previewBody,
+                                onToggle = { initiatorExpanded = true }
+                            )
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
