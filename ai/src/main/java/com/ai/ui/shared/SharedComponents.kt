@@ -869,8 +869,15 @@ fun TitleBar(
             // illegible. Resets when the title text changes.
             val minFontSize = (barFontSize.value * 0.55f).sp
             var titleFontSize by remember(title) { mutableStateOf(barFontSize) }
+            // Title text falls back to the report-icon tap when the
+            // caller doesn't pass an explicit click handler, so on
+            // every Manage sub-overlay both icon and title close the
+            // overlay → land on main Manage. Outside a report
+            // context [LocalNavigateToCurrentReport] is null so the
+            // title stays non-interactive (matches today).
+            val effectiveTitleClick = onTitleClick ?: reportIconTap
             val titleMod = Modifier.align(Alignment.Top).padding(top = 4.dp)
-                .let { base -> if (onTitleClick != null) base.clickable(onClick = onTitleClick) else base }
+                .let { base -> if (effectiveTitleClick != null) base.clickable(onClick = effectiveTitleClick) else base }
             Text(
                 text = title, style = titleStyle, color = Color.White,
                 fontSize = titleFontSize, fontWeight = FontWeight.Bold,

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -20,7 +19,6 @@ import com.ai.data.ReportStorage
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.model.ReportModel
-import com.ai.ui.shared.LocalNavigateToCurrentReport
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.UiState
@@ -128,35 +126,36 @@ internal fun ReportRunScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         val promptTitle = uiState.genericPromptTitle
-        CompositionLocalProvider(
-            LocalNavigateToCurrentReport provides (
-                if (currentReportId != null) onOpenViewReport else null
-            )
-        ) {
-            TitleBar(
-                helpTopic = "report_run",
-                title = "Manage report",
-                onTitleClick = if (currentReportId != null) onOpenViewReport else null,
-                subject = promptTitle,
-                reportIcon = if (iconGenEnabled) reportIcon?.takeIf { it.isNotEmpty() } ?: "📝" else null,
-                onBackClick = onDismiss,
-                onReload = if (currentReportId != null && isComplete) onRequestRegenerate else null,
-                onTrace = if (currentReportId != null) generationHandlers.onTrace else null,
-                onDelete = if (currentReportId != null) generationHandlers.onDelete else null,
-                onOpenView = if (currentReportId != null) onOpenViewReport else null,
-                onChat = if (uiState.genericPromptText.isNotBlank()) {
-                    { onChatWithReportPrompt(uiState.genericPromptText) }
-                } else null,
-                onShare = if (currentReportId != null && isComplete) generationHandlers.onRequestExport else null,
-                onCopyReport = if (currentReportId != null) {
-                    { showCopyConfirm = true }
-                } else null,
-                onPin = if (currentReportId != null) {
-                    { generationHandlers.onTogglePin(); pinTick++ }
-                } else null,
-                isPinned = isPinned
-            )
-        }
+        // Main Manage screen: report icon + screen title are no-ops
+        // (we're already on Manage). View↔Manage navigation lives
+        // on the bottom-bar 👁 / 🔧 icons. No LocalNavigateToCurrentReport
+        // override here — the parent stack doesn't provide one inside
+        // a report context, so the icon click resolves to null and
+        // becomes inert. With the SharedComponents default, a null
+        // onTitleClick also resolves to that same (null) lambda.
+        TitleBar(
+            helpTopic = "report_run",
+            title = "Manage report",
+            onTitleClick = null,
+            subject = promptTitle,
+            reportIcon = if (iconGenEnabled) reportIcon?.takeIf { it.isNotEmpty() } ?: "📝" else null,
+            onBackClick = onDismiss,
+            onReload = if (currentReportId != null && isComplete) onRequestRegenerate else null,
+            onTrace = if (currentReportId != null) generationHandlers.onTrace else null,
+            onDelete = if (currentReportId != null) generationHandlers.onDelete else null,
+            onOpenView = if (currentReportId != null) onOpenViewReport else null,
+            onChat = if (uiState.genericPromptText.isNotBlank()) {
+                { onChatWithReportPrompt(uiState.genericPromptText) }
+            } else null,
+            onShare = if (currentReportId != null && isComplete) generationHandlers.onRequestExport else null,
+            onCopyReport = if (currentReportId != null) {
+                { showCopyConfirm = true }
+            } else null,
+            onPin = if (currentReportId != null) {
+                { generationHandlers.onTogglePin(); pinTick++ }
+            } else null,
+            isPinned = isPinned
+        )
 
         if (showRegenerateConfirm && currentReportId != null) {
             val rid = currentReportId
