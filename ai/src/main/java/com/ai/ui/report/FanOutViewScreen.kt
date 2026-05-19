@@ -31,6 +31,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -156,14 +157,35 @@ fun FanOutViewScreen(
     val responderPagerState = rememberPagerState(initialPage = 0) {
         responders.size.coerceAtLeast(1)
     }
-    // When the user swipes the top pager to a new initiator, snap the
-    // bottom pager back to its first responder. Without this the
-    // responder pager would keep an index that no longer maps to the
-    // new initiator's smaller / different responder list.
-    LaunchedEffect(activeInitiatorId) {
-        if (responderPagerState.currentPage != 0) {
-            responderPagerState.scrollToPage(0)
+    // Track the active responder by (provider, model) — survives
+    // initiator swipes so the bottom pager lands on the same
+    // responder model in the new initiator's list. Falls back to
+    // page 0 when the new initiator's responder set doesn't include
+    // that model.
+    val responderKeyOf: (SecondaryResult) -> String = { "${it.providerId}|${it.model}" }
+    var preferredResponderKey by rememberSaveable { mutableStateOf<String?>(null) }
+    // On initiator change: jump to the matching responder for the
+    // new initiator (or 0 if the preferred model isn't paired with
+    // this initiator).
+    LaunchedEffect(activeInitiatorId, responders) {
+        if (responders.isEmpty()) return@LaunchedEffect
+        val targetIdx = preferredResponderKey?.let { key ->
+            responders.indexOfFirst { responderKeyOf(it) == key }.takeIf { it >= 0 }
+        } ?: 0
+        if (responderPagerState.currentPage != targetIdx) {
+            responderPagerState.scrollToPage(targetIdx)
         }
+    }
+    // Whenever the bottom pager settles on a responder, latch its
+    // (provider, model) key so subsequent initiator swipes can find
+    // it again.
+    LaunchedEffect(responderPagerState) {
+        snapshotFlow { responderPagerState.settledPage }
+            .collect { idx ->
+                responders.getOrNull(idx)?.let { r ->
+                    preferredResponderKey = responderKeyOf(r)
+                }
+            }
     }
     val activeResponder = responders.getOrNull(responderPagerState.currentPage)
 
