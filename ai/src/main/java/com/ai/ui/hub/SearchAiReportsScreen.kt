@@ -37,7 +37,11 @@ fun SearchAiReportsScreen(
     onNavigateToQuickLocalSearch: () -> Unit,
     onNavigateToLocalSearch: () -> Unit,
     onNavigateToSearch: () -> Unit,
-    onNavigateToLocalSemanticSearch: () -> Unit
+    onNavigateToLocalSemanticSearch: () -> Unit,
+    /** Master experimental-features gate. When false the
+     *  "Local semantic search" item is hidden — relies on on-device
+     *  LiteRT embedders which sit behind the same toggle. */
+    experimentalFeatures: Boolean = false
 ) {
     Column(
         modifier = Modifier
@@ -58,8 +62,10 @@ fun SearchAiReportsScreen(
             onClick = onNavigateToLocalSearch)
         SearchAiReportsItem(icon = "🌐", title = "Remote semantic search",
             onClick = onNavigateToSearch)
-        SearchAiReportsItem(icon = "📱", title = "Local semantic search",
-            onClick = onNavigateToLocalSemanticSearch)
+        if (experimentalFeatures) {
+            SearchAiReportsItem(icon = "📱", title = "Local semantic search",
+                onClick = onNavigateToLocalSemanticSearch)
+        }
     }
 }
 

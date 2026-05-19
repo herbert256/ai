@@ -24,6 +24,7 @@ import com.ai.ui.shared.TitleBar
 @Composable
 fun ChatsHubScreen(
     aiSettings: Settings,
+    experimentalFeatures: Boolean,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToAgentSelect: () -> Unit,
@@ -114,7 +115,7 @@ fun ChatsHubScreen(
         // filesDir/local_llms/. The card embeds a dropdown so a
         // single tap picks the model and navigates straight to the
         // chat session \u2014 no separate picker screen.
-        if (installedLocalLlms.isNotEmpty()) {
+        if (experimentalFeatures && installedLocalLlms.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
             LocalLlmChatCard(installed = installedLocalLlms, onPick = onNavigateToLocalLlmChat)
         }

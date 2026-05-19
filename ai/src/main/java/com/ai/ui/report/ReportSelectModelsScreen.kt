@@ -77,6 +77,7 @@ internal fun ReportSelectModelsScreen(
             onUpdateModelList = onUpdateModelList,
             attachedKnowledgeBaseIds = uiState.attachedKnowledgeBaseIds,
             onAttachKnowledgeBases = onAttachKnowledgeBases,
+            experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled,
             selectedSystemPromptId = uiState.reportSystemPromptId,
             onSystemPromptChange = onSystemPromptChange
         )

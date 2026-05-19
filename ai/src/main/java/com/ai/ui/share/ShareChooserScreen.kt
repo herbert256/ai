@@ -31,7 +31,11 @@ fun ShareChooserScreen(
     onCancel: () -> Unit,
     onSendToReport: () -> Unit,
     onSendToChat: () -> Unit,
-    onSendToKnowledge: () -> Unit
+    onSendToKnowledge: () -> Unit,
+    /** Master experimental-features gate. When false the "Add to
+     *  Knowledge" card is hidden — Knowledge / RAG is an experimental
+     *  surface; sharing to Report or Chat stays available. */
+    experimentalFeatures: Boolean = false
 ) {
     BackHandler { onCancel() }
     val hasText = !shared.text.isNullOrBlank()
@@ -89,14 +93,16 @@ fun ShareChooserScreen(
             enabled = hasText,
             onClick = onSendToChat
         )
-        Spacer(modifier = Modifier.height(12.dp))
-        ShareCard(
-            icon = "📚",
-            title = "Add to Knowledge",
-            description = "Open the Knowledge screen with the file or URL pre-staged.",
-            enabled = hasUris || shared.isUrl,
-            onClick = onSendToKnowledge
-        )
+        if (experimentalFeatures) {
+            Spacer(modifier = Modifier.height(12.dp))
+            ShareCard(
+                icon = "📚",
+                title = "Add to Knowledge",
+                description = "Open the Knowledge screen with the file or URL pre-staged.",
+                enabled = hasUris || shared.isUrl,
+                onClick = onSendToKnowledge
+            )
+        }
     }
 }
 

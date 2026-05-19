@@ -274,7 +274,12 @@ fun ChatSessionScreen(
     /** Fires once when [initialUserInput] / [initialUserImageBase64]
      *  / [initialUserImageMime] have been consumed so the staged
      *  values can be cleared from UiState. */
-    onConsumeStarter: () -> Unit = {}
+    onConsumeStarter: () -> Unit = {},
+    /** Master experimental-features gate. When false the Knowledge
+     *  attach chip is hidden — KBs already attached to this session
+     *  still get sent at API time, so an existing chat that relied
+     *  on a KB keeps working invisibly. */
+    experimentalFeatures: Boolean = false
 ) {
     // Outer BackHandler: only active when no overlay (moderation
     // picker / flagged-input dialog) is up. Without the conditional
@@ -656,7 +661,7 @@ fun ChatSessionScreen(
             // dialog over saved KBs. Shown only when at least one
             // KB exists. Per-turn injection happens in
             // ChatViewModel.{sendChatMessageStream,sendLocalLlmStream}.
-            if (availableKbs.isNotEmpty()) {
+            if (experimentalFeatures && availableKbs.isNotEmpty()) {
                 val kbLabel = if (attachedKnowledgeBaseIds.isEmpty()) "📚 Knowledge"
                     else "📚 ${attachedKnowledgeBaseIds.size}"
                 Text(kbLabel, fontSize = 11.sp,

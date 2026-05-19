@@ -356,6 +356,7 @@ fun SettingsScreen(
             ModelsSetupScreen(
                 aiSettings = aiSettings,
                 hasActiveProvider = aiSettings.getActiveServices().isNotEmpty(),
+                experimentalFeatures = generalSettings.experimentalFeaturesEnabled,
                 onBack = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it }
             )
@@ -768,7 +769,7 @@ private fun SettingsMainScreen(
             SettingsNavCard(
                 icon = "🎨",
                 title = "UI tweaks",
-                description = "Model name layout, title-bar mode, icon bar position, back button, Knowledge card.",
+                description = "Model name layout, full-screen, back-arrow visibility, experimental features.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_UI) }
             )
             SettingsNavCard(
@@ -1160,15 +1161,17 @@ private fun UiTweaksSubScreen(
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
     var fullScreen by remember { mutableStateOf(generalSettings.fullScreen) }
     var showBackArrow by remember { mutableStateOf(generalSettings.showBackArrow) }
+    var experimentalFeatures by remember { mutableStateOf(generalSettings.experimentalFeaturesEnabled) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         modelNameLayout = modelNameLayout,
         showKnowledgeCard = showKnowledgeCard,
         fullScreen = fullScreen,
-        showBackArrow = showBackArrow
+        showBackArrow = showBackArrow,
+        experimentalFeaturesEnabled = experimentalFeatures
     )
 
-    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen, showBackArrow) {
+    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen, showBackArrow, experimentalFeatures) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1202,11 +1205,19 @@ private fun UiTweaksSubScreen(
                 }
             }
             ToggleSettingCard(
-                title = "Show AI Knowledge card on home page",
-                description = "Show the AI Knowledge / RAG card on the Hub. Off (default) hides the card — knowledge bases still work via the share-target chooser, and any KB already attached to a chat or report is unaffected.",
-                checked = showKnowledgeCard,
-                onCheckedChange = { showKnowledgeCard = it }
+                title = "Experimental features",
+                description = "Master gate for on-device Local LLMs, LiteRT embedders, AI Knowledge / RAG, and Local Semantic Search. Off (default) hides those UI surfaces — installed model files and KBs stay on disk, and any KB already attached to a chat or report keeps sending context at API time.",
+                checked = experimentalFeatures,
+                onCheckedChange = { experimentalFeatures = it }
             )
+            if (experimentalFeatures) {
+                ToggleSettingCard(
+                    title = "Show AI Knowledge card on home page",
+                    description = "Show the AI Knowledge / RAG card on the Hub. Off hides the card — knowledge bases still work via the share-target chooser, and any KB already attached to a chat or report is unaffected.",
+                    checked = showKnowledgeCard,
+                    onCheckedChange = { showKnowledgeCard = it }
+                )
+            }
             ToggleSettingCard(
                 title = "Full screen",
                 description = "Hide the Android status bar (clock / battery / signal) so the app uses the full screen height. Swipe down from the top edge to reveal the bar transiently.",

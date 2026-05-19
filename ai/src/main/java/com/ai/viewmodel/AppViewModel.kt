@@ -196,8 +196,20 @@ data class GeneralSettings(
      *  Knowledge card on home page" once a user wants it. The
      *  Knowledge subsystem itself stays fully functional whether or
      *  not the card is visible — KBs attached to a chat / report
-     *  still work, share-target Knowledge ingest still works. */
-    val showKnowledgeCard: Boolean = false
+     *  still work, share-target Knowledge ingest still works.
+     *  Only editable when [experimentalFeaturesEnabled] is true. */
+    val showKnowledgeCard: Boolean = false,
+    /** Master gate for experimental / advanced surfaces. When false,
+     *  hides every UI surface related to on-device models (Local
+     *  LLMs, LiteRT embedders, the synthetic AppService.LOCAL
+     *  provider), AI Knowledge / RAG (Hub card, attach buttons in
+     *  chat + report, share-target "Add to Knowledge" entry,
+     *  Knowledge screens), and Local Semantic Search. Installed
+     *  model files on disk stay put; flipping this back on reveals
+     *  everything intact. KBs already attached to existing chats /
+     *  reports keep sending context at API time even while the
+     *  attach UI is hidden. */
+    val experimentalFeaturesEnabled: Boolean = false
 )
 
 // Prompt history entry

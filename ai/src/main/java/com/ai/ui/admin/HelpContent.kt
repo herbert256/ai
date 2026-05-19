@@ -1497,7 +1497,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Settings is a pure table of contents. Every editable preference lives one tap deeper inside one of the four sub-screens. Edits autosave on each sub-screen with a 400 ms debounce, so you don't need a Save button — just type and back out."),
             HelpCard("Network settings", "Read timeouts, per-provider throttling, and 429 / 529 retry policies. Tap the row to open the dedicated sub-screen."),
-            HelpCard("UI tweaks", "Model name layout, title-bar mode, icon-bar position, < Back visibility, AI Knowledge card on the Hub. Tap the row to open the dedicated sub-screen."),
+            HelpCard("UI tweaks", "Experimental features master toggle, model name layout, full-screen, back-arrow visibility, AI Knowledge card on the Hub. Tap the row to open the dedicated sub-screen."),
             HelpCard("Logging and tracing", "API tracing master switch and application log level. Tap the row to open the dedicated sub-screen."),
             HelpCard("Other settings", "Identity (Name + Email) used for outbound prompts and email exports, plus the master switch for per-report icon generation."),
             HelpCard("Tips", "Each sub-screen has no Save button on purpose — every keystroke restarts a 400 ms debounce timer. If you tap Back fast, the latest values still flush to disk via a DisposableEffect."),
@@ -1541,8 +1541,9 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Help - UI tweaks",
         cards = listOf(
             HelpCard("Overview", "Visual / layout preferences that don't affect how the app talks to providers. Pick what's most legible for you — every option autosaves with a 400 ms debounce."),
+            HelpCard("Experimental features", "Master gate for on-device Local LLMs, LiteRT embedders, the synthetic Local provider, AI Knowledge / RAG, and Local Semantic Search. Off (default) hides every UI surface for those features — Local Models setup, Knowledge attach buttons in Chat and Report, the share-target Add to Knowledge card, the Local LLM chat card on the Chat hub, and the Local semantic search entry under Search AI reports. Installed model files on disk are left alone, and KBs already attached to existing chats or reports keep sending context at API time even when the UI is hidden."),
             HelpCard("Model name layout", "Two radios. Model name only is the dense default — useful when you mostly run different models. Provider and model name joins the provider's display name and the model id with \" · \" — useful when you run the same model id on multiple providers."),
-            HelpCard("Show AI Knowledge card on home page", "RAG / Knowledge is hidden on the Hub by default — most users don't need it on a fresh install. Turn this on to surface the AI Knowledge card alongside Reports / Chat / Models. The Knowledge subsystem stays fully functional whether or not the card is visible — KBs attached to a chat / report still work, share-target Knowledge still works.")
+            HelpCard("Show AI Knowledge card on home page", "Only visible when Experimental features is on. RAG / Knowledge is hidden on the Hub by default — turn this on to surface the AI Knowledge card alongside Reports / Chat / Models. The Knowledge subsystem stays fully functional whether or not the card is visible — KBs attached to a chat / report still work, share-target Knowledge still works.")
         )
     ),
     "settings_logging" to HelpContent(

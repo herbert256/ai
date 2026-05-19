@@ -168,8 +168,10 @@ fun AppNavHost(
     if (sharedContent != null && !sharedContent.isEmpty) {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
+        val uiStateForShare by appViewModel.uiState.collectAsState()
         com.ai.ui.share.ShareChooserScreen(
             shared = sharedContent,
+            experimentalFeatures = uiStateForShare.generalSettings.experimentalFeaturesEnabled,
             onCancel = onSharedContentHandled,
             onSendToReport = {
                 scope.launch {
@@ -377,13 +379,15 @@ fun AppNavHost(
             )
         }
         composable(NavRoutes.AI_SEARCH_REPORTS) {
+            val uiState by appViewModel.uiState.collectAsState()
             com.ai.ui.hub.SearchAiReportsScreen(
                 onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToQuickLocalSearch = { navController.navigate(NavRoutes.AI_QUICK_LOCAL_SEARCH) },
                 onNavigateToLocalSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEARCH) },
                 onNavigateToSearch = { navController.navigate(NavRoutes.AI_SEARCH) },
-                onNavigateToLocalSemanticSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEMANTIC_SEARCH) }
+                onNavigateToLocalSemanticSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEMANTIC_SEARCH) },
+                experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled
             )
         }
         composable(NavRoutes.AI_ALL_REPORTS) {
@@ -918,7 +922,7 @@ fun AppNavHost(
         // ===== Chat =====
         composable(NavRoutes.AI_CHATS_HUB) {
             val uiState by appViewModel.uiState.collectAsState()
-            ChatsHubScreen(aiSettings = uiState.aiSettings, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+            ChatsHubScreen(aiSettings = uiState.aiSettings, experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToAgentSelect = { navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT) },
                 onNavigateToNewChat = { navController.navigate(NavRoutes.AI_CHAT_PROVIDER) },
                 onNavigateToChatHistory = { navController.navigate(NavRoutes.AI_CHAT_HISTORY) },
@@ -989,7 +993,8 @@ fun AppNavHost(
                                 chatStarterImageMime = null
                             )
                         }
-                    }
+                    },
+                    experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled
                 )
             } else {
                 LaunchedEffect(Unit) { safePopBack() }
@@ -1115,7 +1120,8 @@ fun AppNavHost(
                                 chatStarterImageMime = null
                             )
                         }
-                    }
+                    },
+                    experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled
                 )
             }
         }
@@ -1154,7 +1160,8 @@ fun AppNavHost(
                     aiSettings = uiState.aiSettings,
                     repository = appViewModel.repository,
                     isVisionCapable = !isLocalSession && uiState.aiSettings.isVisionCapable(session.provider, session.model),
-                    onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
+                    onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
+                    experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled
                 )
             } else {
                 LaunchedEffect(Unit) { safePopBack() }

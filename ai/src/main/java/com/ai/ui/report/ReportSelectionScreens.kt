@@ -186,8 +186,17 @@ internal fun ReportSelectModelsScreen(
     // is empty there. The (provider, model) tuple ends up at the
     // caller's onConfirm — they branch on provider.id ==
     // AppService.LOCAL.id when needed.
-    val localModelsForFilter = remember(modelTypeFilter, context) {
-        when (modelTypeFilter) {
+    // Master experimental-features gate read from prefs directly so
+    // we don't have to thread a flag through every caller of this
+    // picker. When off the synthetic LOCAL provider stays invisible
+    // even when .task / .tflite files exist on disk.
+    val experimentalFeatures = remember {
+        context.getSharedPreferences("eval_prefs", android.content.Context.MODE_PRIVATE)
+            .getBoolean("experimental_features", false)
+    }
+    val localModelsForFilter = remember(modelTypeFilter, context, experimentalFeatures) {
+        if (!experimentalFeatures) emptyList()
+        else when (modelTypeFilter) {
             com.ai.data.ModelType.RERANK -> com.ai.data.local.LocalEmbedder.availableModels(context)
             com.ai.data.ModelType.MODERATION -> emptyList()
             else -> com.ai.data.local.LocalLlm.availableLlms(context)

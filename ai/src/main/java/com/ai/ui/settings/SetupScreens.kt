@@ -121,6 +121,7 @@ private fun SetupNavCard(icon: String, title: String, description: String, count
 fun ModelsSetupScreen(
     aiSettings: Settings,
     hasActiveProvider: Boolean,
+    experimentalFeatures: Boolean,
     onBack: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit
@@ -146,8 +147,10 @@ fun ModelsSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_TYPES) })
             ModelsSetupNavCard("✍️", "Manual model types overrides", "Per-model type assignments that win over autodetection", "${aiSettings.modelTypeOverrides.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MANUAL_MODEL_TYPES) })
-            ModelsSetupNavCard("💻", "Local Models", "On-device LLMs and LiteRT text embedders", "${liteRtCount + localLlmCount}",
-                onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_MODELS_SETUP) })
+            if (experimentalFeatures) {
+                ModelsSetupNavCard("💻", "Local Models", "On-device LLMs and LiteRT text embedders", "${liteRtCount + localLlmCount}",
+                    onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_MODELS_SETUP) })
+            }
             ModelsSetupNavCard("⏳", "Model cooldowns", "Rate-limited models benched on a >1h 429", "${cooldownCount.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_COOLDOWNS) })
             ModelsSetupNavCard("🚫", "Blocked models", "Provider/model pairs flagged as blocked — dimmed in every model picker", "${aiSettings.blockedModels.size}",

@@ -166,7 +166,7 @@ fun HubScreen(
                 HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = onNavigateToChatsHub)
                 Spacer(modifier = Modifier.height(12.dp))
             }
-            if (uiState.generalSettings.showKnowledgeCard) {
+            if (uiState.generalSettings.experimentalFeaturesEnabled && uiState.generalSettings.showKnowledgeCard) {
                 HubCard(icon = "\uD83D\uDCDA", title = "AI Knowledge", onClick = onNavigateToKnowledge)
                 Spacer(modifier = Modifier.height(12.dp))
             }

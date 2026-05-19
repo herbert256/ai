@@ -255,6 +255,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("modelNameLayout", g.modelNameLayout.name)
     addProperty("iconGenEnabled", g.iconGenEnabled)
     addProperty("showKnowledgeCard", g.showKnowledgeCard)
+    addProperty("experimentalFeaturesEnabled", g.experimentalFeaturesEnabled)
     context.getSharedPreferences("view_screen_prefs", Context.MODE_PRIVATE)
         .getString("tile_order", null)
         ?.let { addProperty("viewTileOrder", it) }
@@ -292,7 +293,8 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         showBackArrow = bool("showBackArrow") ?: current.showBackArrow,
         modelNameLayout = layout ?: current.modelNameLayout,
         iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled,
-        showKnowledgeCard = bool("showKnowledgeCard") ?: current.showKnowledgeCard
+        showKnowledgeCard = bool("showKnowledgeCard") ?: current.showKnowledgeCard,
+        experimentalFeaturesEnabled = bool("experimentalFeaturesEnabled") ?: current.experimentalFeaturesEnabled
     )
 }
 

@@ -53,6 +53,10 @@ internal fun ColumnScope.SelectionPhase(
     onUpdateModelList: () -> Unit,
     attachedKnowledgeBaseIds: List<String> = emptyList(),
     onAttachKnowledgeBases: (List<String>) -> Unit = {},
+    /** Master experimental-features gate. When false the Knowledge
+     *  attach button is hidden — already-attached KBs on the report
+     *  keep sending context at API time. */
+    experimentalFeatures: Boolean = false,
     /** Per-report system prompt override. When non-null at generation
      *  time, replaces the per-agent / per-flock / external-intent
      *  system prompt for every agent in this report. */
@@ -196,7 +200,7 @@ internal fun ColumnScope.SelectionPhase(
     var showKbDialog by remember { mutableStateOf(false) }
     val kbRefreshTick = com.ai.ui.shared.resumeRefreshTick()
     val allKbs = remember(kbRefreshTick) { com.ai.data.KnowledgeStore.listKnowledgeBases(ctx) }
-    if (allKbs.isNotEmpty()) {
+    if (experimentalFeatures && allKbs.isNotEmpty()) {
         OutlinedButton(
             onClick = { showKbDialog = true },
             modifier = Modifier.fillMaxWidth(),
