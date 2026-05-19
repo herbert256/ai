@@ -238,12 +238,13 @@ fun ViewScreenTitleBar(
                         }
                     } else Modifier
                 )
-                // Outset 12 dp on each side so the AI logo and help
+                // Outset 16 dp on each side so the AI logo and help
                 // icon visually break out of the parent screen's
-                // 16 dp horizontal padding and sit closer to the
-                // screen edges.
+                // 16 dp horizontal padding and sit flush against the
+                // screen edges — closes the perceived gap between
+                // the three columns inside the bar.
                 .layout { measurable, constraints ->
-                    val outsetPx = 12.dp.roundToPx()
+                    val outsetPx = 16.dp.roundToPx()
                     val widenedMax = if (constraints.maxWidth == Constraints.Infinity) {
                         constraints.maxWidth
                     } else {
@@ -359,13 +360,15 @@ fun ViewScreenTitleBar(
             // the previous 40 sp and lifted a few dp so it visually
             // hangs near the top of the bar rather than dead-centre
             // (the 76 dp logo dominates the Row's measured height,
-            // so the lift doesn't change the bar's height).
+            // so the lift doesn't change the bar's height). The +x
+            // offset shifts the glyph a little past the row's outset
+            // edge so it sits closer to the physical screen edge.
             Text(
                 text = "❓",
                 fontSize = 52.sp,
                 color = AppColors.Blue,
                 modifier = Modifier
-                    .offset(y = (-4).dp)
+                    .offset(x = 8.dp, y = (-4).dp)
                     .clickable { navigateHelp(helpTopic) }
             )
         }
