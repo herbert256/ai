@@ -644,7 +644,8 @@ fun NewReportScreen(
         // it out of the Clear / 📎 row.
         Button(
             onClick = next@{
-                    if (title.isBlank() || prompt.isBlank() || isModerating) return@next
+                    val titleRequired = uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual
+                    if ((titleRequired && title.isBlank()) || prompt.isBlank() || isModerating) return@next
                     val fullPrompt = if (userTagBlock.isNotEmpty()) "$prompt\n$userTagBlock" else prompt
                     prefs.edit().putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
                         .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, fullPrompt).apply()
@@ -690,7 +691,8 @@ fun NewReportScreen(
                         }
                     }
                 },
-            enabled = title.isNotBlank() && prompt.isNotBlank() && !isModerating,
+            enabled = (uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI || title.isNotBlank())
+                && prompt.isNotBlank() && !isModerating,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
         ) {
@@ -810,12 +812,18 @@ fun NewReportScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-        OutlinedTextField(
-            value = title, onValueChange = { title = it }, label = { Text("Title") },
-            placeholder = { Text("Enter a title for the report") },
-            modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors()
-        )
+        // Title input hidden in AI title-mode — the title is filled
+        // post-creation by [ReportViewModel.kickOffReportTitleGeneration]
+        // via the bundled `internal/report_title` prompt and surfaced
+        // on Manage report's new `title` row.
+        if (uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual) {
+            Spacer(modifier = Modifier.height(16.dp))
+            OutlinedTextField(
+                value = title, onValueChange = { title = it }, label = { Text("Title") },
+                placeholder = { Text("Enter a title for the report") },
+                modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors()
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
             value = prompt, onValueChange = { prompt = it }, label = { Text("AI Prompt") },

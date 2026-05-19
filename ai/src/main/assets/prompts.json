@@ -128,6 +128,14 @@
     "text": "Give a short title, a sentence of maximal 10 words, no other text in the response, based on below text: \n\n @PROMPT@ \n\n @RESPONSE@"
   },
   {
+    "name": "report_title",
+    "title": "Decide the report title",
+    "reference": false,
+    "category": "internal",
+    "agent": "Anthropic",
+    "text": "Please see the text after the @@@ marker in this request, you must give it a title, max 5 words, max 30 characters, including space, only give this title back, nothing more.\n@@@\n@PROMPT@"
+  },
+  {
     "name": "meta",
     "title": "Find a fitting emoji for an internal prompt",
     "reference": false,

@@ -254,6 +254,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("showBackArrow", g.showBackArrow)
     addProperty("modelNameLayout", g.modelNameLayout.name)
     addProperty("iconGenEnabled", g.iconGenEnabled)
+    addProperty("reportTitleMode", g.reportTitleMode.name)
     addProperty("showKnowledgeCard", g.showKnowledgeCard)
     addProperty("experimentalFeaturesEnabled", g.experimentalFeaturesEnabled)
     context.getSharedPreferences("view_screen_prefs", Context.MODE_PRIVATE)
@@ -280,6 +281,9 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
     val layout = str("modelNameLayout")?.let {
         runCatching { ModelNameLayout.valueOf(it) }.getOrNull()
     }
+    val titleMode = str("reportTitleMode")?.let {
+        runCatching { com.ai.viewmodel.ReportTitleMode.valueOf(it) }.getOrNull()
+    }
     str("viewTileOrder")?.let { order ->
         context.getSharedPreferences("view_screen_prefs", Context.MODE_PRIVATE)
             .edit().putString("tile_order", order).apply()
@@ -293,6 +297,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         showBackArrow = bool("showBackArrow") ?: current.showBackArrow,
         modelNameLayout = layout ?: current.modelNameLayout,
         iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled,
+        reportTitleMode = titleMode ?: current.reportTitleMode,
         showKnowledgeCard = bool("showKnowledgeCard") ?: current.showKnowledgeCard,
         experimentalFeaturesEnabled = bool("experimentalFeaturesEnabled") ?: current.experimentalFeaturesEnabled
     )

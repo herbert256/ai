@@ -29,6 +29,14 @@ import kotlinx.coroutines.withContext
  *  multiple providers and want to disambiguate at a glance. */
 enum class ModelNameLayout { MODEL_ONLY, PROVIDER_AND_MODEL }
 
+/** How a new report's title is set. MANUAL keeps the original
+ *  behaviour — the user types a title in the New AI Report screen.
+ *  AI hides the input field and a background LLM call (the bundled
+ *  `internal/report_title` prompt) fills it from the prompt body,
+ *  with the resolved title rendered on the new `title` row of the
+ *  main "Manage report" screen. */
+enum class ReportTitleMode { Manual, AI }
+
 data class GeneralSettings(
     val userName: String = "user",
     val huggingFaceApiKey: String = "",
@@ -76,6 +84,16 @@ data class GeneralSettings(
      *  iconCost values on existing reports stay on disk — re-enabling
      *  brings them back. */
     val iconGenEnabled: Boolean = true,
+    /** How the title of a new report is decided. `Manual` keeps the
+     *  Title input field on the New AI Report screen; `AI` (default)
+     *  hides it and fires a background LLM call after report start
+     *  via [com.ai.viewmodel.ReportViewModel.kickOffReportTitleGeneration],
+     *  which uses the bundled `internal/report_title` prompt + its
+     *  pinned agent. The resolved title surfaces on the main
+     *  Manage-report screen's new `title` row (sibling of `icon` /
+     *  `language`) and replaces the placeholder "AI Report" once the
+     *  call returns. */
+    val reportTitleMode: ReportTitleMode = ReportTitleMode.AI,
     /** Master switch for the per-agent 3-tier icon chain
      *  ([com.ai.viewmodel.ReportViewModel.runReportIcons]). When true
      *  (default) every report that finishes generation — initial

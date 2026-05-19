@@ -1326,6 +1326,35 @@ internal fun ColumnScope.GenerationPhase(
             }
         }
 
+        // Title row — sibling of icon / language rows. Surfaces the
+        // background `internal/report_title` LLM call kicked off at
+        // report start (kickOffReportTitleGeneration). Gated
+        // independently of iconGen — only on
+        // [com.ai.viewmodel.ReportTitleMode.AI] + the prompt + agent
+        // being resolvable. Tap opens the existing Edit-Title
+        // overlay (same screen as Edit → Title).
+        run {
+            val titlePrompt = aiSettings.internalPrompts.firstOrNull {
+                it.category == "internal" && it.name == "report_title"
+            }
+            val titleAgent = titlePrompt?.let { p ->
+                aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
+            }
+            val titleModeIsAi = uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI
+            if (titleModeIsAi && titlePrompt != null && titleAgent != null && currentReportId != null) {
+                item(key = "row-title") {
+                    // Reuse the existing Edit → Title handler so we
+                    // don't push the parent ReportsScreen method over
+                    // the JVM 64 KB ceiling with another callback.
+                    TitleRow(
+                        reportId = currentReportId,
+                        iconRefreshTick = uiState.iconRefreshTick,
+                        onOpenDetail = onEditTitle
+                    )
+                }
+            }
+        }
+
         items(displayRows, key = { "row-${it.rowId}" }) { row ->
             val agentId = row.rowId
             val result = reportsAgentResults[agentId]
@@ -1500,6 +1529,69 @@ internal fun LanguageRow(
                 snapshot.error != null -> snapshot.error
                 running -> "Detecting…"
                 else -> snapshot.name ?: "(unknown)"
+            }
+            val color = if (snapshot.error != null) AppColors.Red else Color.White
+            Text(
+                text, fontSize = 13.sp, color = color,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (snapshot.cost > 0.0) {
+            Text(formatCents(snapshot.cost), fontSize = 10.sp,
+                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+        }
+    }
+    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+}
+
+/** Title row — sibling of [LanguageRow]. Mirrors its loading /
+ *  error / success states for the AI-generated report title.
+ *  Status: `⏳` while running (no titlePromptUsed yet + no error),
+ *  `❌` on failure, `🏷️` on success. Tap opens the existing
+ *  Edit-Title overlay. */
+@Composable
+internal fun TitleRow(
+    reportId: String,
+    iconRefreshTick: Int,
+    onOpenDetail: () -> Unit,
+) {
+    val context = LocalContext.current
+    data class TitleSnapshot(val title: String?, val promptUsed: String?, val error: String?, val cost: Double)
+    val snapshot = produceState(initialValue = TitleSnapshot(null, null, null, 0.0), reportId, iconRefreshTick) {
+        value = withContext(Dispatchers.IO) {
+            val r = com.ai.data.ReportStorage.getReport(context, reportId)
+            TitleSnapshot(
+                r?.title, r?.titlePromptUsed, r?.titleErrorMessage,
+                (r?.titleInputCost ?: 0.0) + (r?.titleOutputCost ?: 0.0)
+            )
+        }
+    }.value
+    // Running = AI hasn't returned yet AND hasn't errored. A
+    // [titlePromptUsed] of "report_title" means the call landed.
+    val running = snapshot.promptUsed == null && snapshot.error == null
+    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+        .clickable { onOpenDetail() },
+        verticalAlignment = Alignment.CenterVertically) {
+        when {
+            snapshot.error != null -> Text("❌", fontSize = 16.sp,
+                modifier = Modifier.width(24.dp))
+            running -> {
+                val transition = rememberInfiniteTransition(label = "title-hourglass")
+                val angle by transition.animateFloat(
+                    initialValue = 0f, targetValue = 360f,
+                    animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
+                    label = "title-hourglass-rot"
+                )
+                Text("⏳", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
+            }
+            else -> Text("🏷️", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+        }
+        RowTypeCell("title")
+        Column(modifier = Modifier.weight(1f)) {
+            val text = when {
+                snapshot.error != null -> snapshot.error
+                running -> "Generating…"
+                else -> snapshot.title ?: "(no title)"
             }
             val color = if (snapshot.error != null) AppColors.Red else Color.White
             Text(

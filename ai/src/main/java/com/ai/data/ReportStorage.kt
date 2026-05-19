@@ -202,6 +202,36 @@ data class Report(
      *  subject row. Null on legacy reports — Icon lookup falls
      *  back to "main". */
     var iconPromptUsed: String? = null,
+    /** Failure reason from the AI title-gen call (the bundled
+     *  `internal/report_title` prompt). Null while running, on
+     *  success, on legacy reports, or when the user is in MANUAL
+     *  title mode. Set instead of overwriting [title] when the LLM
+     *  returned an error / empty body. */
+    var titleErrorMessage: String? = null,
+    /** Token usage + USD cost of the AI title-gen call, split
+     *  input vs output so the call surfaces as a proper row in the
+     *  per-call cost tables. Computed at write time × the pricing
+     *  tier; rolled into the report total alongside agent + icon +
+     *  language spend. All zero while running, in MANUAL mode, on
+     *  missing pricing, or on legacy reports. */
+    var titleInputTokens: Int = 0,
+    var titleOutputTokens: Int = 0,
+    var titleInputCost: Double = 0.0,
+    var titleOutputCost: Double = 0.0,
+    /** Trace filename captured for the AI title-gen call. Null when
+     *  tracing is off, on legacy reports, or before the call
+     *  returned. */
+    var titleTraceFile: String? = null,
+    /** Resolved "<providerId>/<modelId>" for the agent that
+     *  produced the AI-generated title. Surfaces on the Manage
+     *  report `title` row. Null in MANUAL mode, while running, or
+     *  on legacy reports. */
+    var titleModel: String? = null,
+    /** Bundled prompt name that produced the title — currently
+     *  always "report_title" on success. Doubles as the "AI gen
+     *  succeeded" sentinel that drives the 🏷️ status icon on the
+     *  Manage `title` row (null while running, non-null = success). */
+    var titlePromptUsed: String? = null,
     /** Per-call audit log for the 3-tier Create → Report icons
      *  chain. Cleared whenever a fresh chain run starts; otherwise
      *  every tier appends one [IconCallRecord]. The export's per-
@@ -660,6 +690,50 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             saveReport(report.copy(iconErrorMessage = error,
+                timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Persist the AI-generated title + token usage + split cost.
+     *  Clears any prior [Report.titleErrorMessage] so a successful
+     *  retry overwrites a previous failure. Bumps the timestamp so
+     *  screens that key on it pick up the change. Mirrors
+     *  [updateReportIcon]. */
+    fun updateReportTitleFromAi(
+        context: Context, reportId: String, newTitle: String,
+        inputTokens: Int, outputTokens: Int,
+        inputCost: Double, outputCost: Double,
+        traceFile: String? = null,
+        model: String? = null,
+        promptUsed: String? = null
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(
+                title = newTitle, titleErrorMessage = null,
+                titleInputTokens = report.titleInputTokens + inputTokens,
+                titleOutputTokens = report.titleOutputTokens + outputTokens,
+                titleInputCost = report.titleInputCost + inputCost,
+                titleOutputCost = report.titleOutputCost + outputCost,
+                titleTraceFile = traceFile,
+                titleModel = model,
+                titlePromptUsed = promptUsed ?: report.titlePromptUsed,
+                timestamp = System.currentTimeMillis()
+            ))
+            true
+        }
+    }
+
+    /** Persist a failure reason for the AI title-gen call. Leaves
+     *  [Report.title] alone (so a previously-resolved title survives
+     *  a retry that errored). */
+    fun updateReportTitleError(context: Context, reportId: String, error: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(titleErrorMessage = error,
                 timestamp = System.currentTimeMillis()))
             true
         }

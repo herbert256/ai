@@ -1247,6 +1247,7 @@ private fun OtherSettingsSubScreen(
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
+    var reportTitleMode by remember { mutableStateOf(generalSettings.reportTitleMode) }
     var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
     var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
     var useInternalPromptsIcons by remember { mutableStateOf(generalSettings.useInternalPromptsIcons) }
@@ -1254,12 +1255,13 @@ private fun OtherSettingsSubScreen(
     fun build(): GeneralSettings = generalSettings.copy(
         userName = userName,
         defaultEmail = defaultEmail,
+        reportTitleMode = reportTitleMode,
         iconGenEnabled = iconGenEnabled,
         perModelIconGenEnabled = perModelIconGenEnabled,
         useInternalPromptsIcons = useInternalPromptsIcons
     )
 
-    LaunchedEffect(userName, defaultEmail, iconGenEnabled, perModelIconGenEnabled, useInternalPromptsIcons) {
+    LaunchedEffect(userName, defaultEmail, reportTitleMode, iconGenEnabled, perModelIconGenEnabled, useInternalPromptsIcons) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1291,6 +1293,20 @@ private fun OtherSettingsSubScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
+            }
+            SettingCard("Report title", "How a new report's title is decided. Manual keeps the Title input field on the New AI Report screen. AI (default) hides the field and runs a background LLM call after report start that fills the title from the prompt body — the resolved title shows on the 'title' row of the Manage report screen, alongside the icon and language rows.") {
+                Column {
+                    RadioRow(
+                        selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual,
+                        label = "Manual — type a title yourself",
+                        onClick = { reportTitleMode = com.ai.viewmodel.ReportTitleMode.Manual }
+                    )
+                    RadioRow(
+                        selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
+                        label = "AI — generate from the prompt",
+                        onClick = { reportTitleMode = com.ai.viewmodel.ReportTitleMode.AI }
+                    )
+                }
             }
             ToggleSettingCard(
                 title = "Generate report icons",

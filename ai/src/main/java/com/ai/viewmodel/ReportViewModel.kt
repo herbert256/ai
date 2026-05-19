@@ -345,6 +345,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
                 kickOffIconGeneration(context, reportId, aiPrompt, aiSettings)
                 kickOffLanguageGeneration(context, reportId, aiPrompt, aiSettings)
+                kickOffReportTitleGeneration(context, reportId, aiPrompt, aiSettings)
 
                 try {
                     coroutineScope {
@@ -499,6 +500,101 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     ReportStorage.updateReportIconError(
                         context, reportId,
                         it.message ?: "icon-gen failed"
+                    )
+                }
+                appViewModel.updateUiState {
+                    it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                }
+            }
+        }
+    }
+
+    /** Background helper that runs the bundled `internal/report_title`
+     *  prompt against its pinned agent and writes the resolved title
+     *  onto the Report. Only fires when the user is in
+     *  [com.ai.viewmodel.ReportTitleMode.AI] (default). Mirrors
+     *  [kickOffIconGeneration] — best-effort, off the main thread,
+     *  failures persisted via [ReportStorage.updateReportTitleError]
+     *  so the Manage `title` row can flip to ❌.
+     *
+     *  On success the generated title is hard-capped to 30 chars and
+     *  also pushed into [com.ai.model.UiState.genericPromptTitle] when
+     *  the user is currently on this report, so the green title row
+     *  at the top of Manage report updates without a refresh. */
+    internal fun kickOffReportTitleGeneration(
+        context: Context,
+        reportId: String,
+        promptText: String,
+        aiSettings: Settings
+    ) {
+        // Master switch — MANUAL mode = user typed a title themselves;
+        // never run the LLM call.
+        if (appViewModel.uiState.value.generalSettings.reportTitleMode != com.ai.viewmodel.ReportTitleMode.AI) return
+        val titlePrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "report_title"
+        } ?: return
+        val rawAgent = aiSettings.agents.firstOrNull {
+            it.name.equals(titlePrompt.agent, ignoreCase = true)
+        } ?: return
+        val agent = rawAgent.copy(
+            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
+            model = aiSettings.getEffectiveModelForAgent(rawAgent)
+        )
+        val resolved = titlePrompt.text.replace("@PROMPT@", promptText)
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            withTracerTags(reportId = reportId, category = "report_title") {
+                val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                runCatching {
+                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                    val response = withTraceFilenameSink(traceSink) {
+                        appViewModel.repository.analyzeWithAgent(
+                            agent, "", resolved, AgentParameters(),
+                            null, context, baseUrl
+                        )
+                    }
+                    if (response.error == null) {
+                        // Defensive trims — some models wrap output in
+                        // quotes or include a "Title: " prefix even
+                        // when told not to.
+                        val raw = (response.analysis ?: "").trim()
+                            .removePrefix("Title:").trim()
+                            .removeSurrounding("\"").trim()
+                            .removeSurrounding("'").trim()
+                            .lineSequence().firstOrNull { it.isNotBlank() }
+                            ?.trim().orEmpty()
+                        val generated = raw.take(30).ifBlank { "AI Report" }
+                        val tu = response.tokenUsage
+                        val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
+                        val inT = tu?.inputTokens ?: 0
+                        val outT = tu?.outputTokens ?: 0
+                        val inC = inT * pricing.promptPrice
+                        val outC = outT * pricing.completionPrice
+                        ReportStorage.updateReportTitleFromAi(
+                            context, reportId, generated,
+                            inputTokens = inT, outputTokens = outT,
+                            inputCost = inC, outputCost = outC,
+                            traceFile = traceSink.get(),
+                            model = "${agent.provider.id}/${agent.model}",
+                            promptUsed = "report_title"
+                        )
+                        // Keep the in-memory UiState in sync so the
+                        // green title row on Manage report updates the
+                        // moment the call returns, without waiting for
+                        // a navigation event to re-read from disk.
+                        appViewModel.updateUiState { st ->
+                            if (st.currentReportId == reportId) {
+                                st.copy(genericPromptTitle = generated)
+                            } else st
+                        }
+                    } else {
+                        ReportStorage.updateReportTitleError(
+                            context, reportId, response.error
+                        )
+                    }
+                }.onFailure {
+                    ReportStorage.updateReportTitleError(
+                        context, reportId,
+                        it.message ?: "title-gen failed"
                     )
                 }
                 appViewModel.updateUiState {
