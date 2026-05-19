@@ -119,7 +119,10 @@ internal fun TranslationRunScreen(
      *  rows. Wired to ReportViewModel.buildPersistedTranslationRunState. */
     loadPersisted: suspend () -> ReportViewModel.TranslationRunState?,
     actions: TranslationActions,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** Re-targets the parent's `openTranslationRunId` after a title-bar
+     *  swipe lands on a different report. Wired in `ReportScreen`. */
+    onChangeRunId: (String) -> Unit = {}
 ) {
     var nav by rememberSaveable(runId, stateSaver = translationNavSaver) {
         mutableStateOf<TranslationNav>(TranslationNav.L1)
@@ -143,6 +146,17 @@ internal fun TranslationRunScreen(
     }
     val run = liveRun ?: persisted
 
+    // Per-screen title-bar swipe override. Filter = Translate so the
+    // gesture skips reports without any TRANSLATE row. The on-match
+    // callback flips the parent's openTranslationRunId to the new
+    // report's first translation run *before* the report itself
+    // switches, so the screen reloads with a valid runId.
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.ai.ui.shared.LocalManageSwipeFilter provides ViewSwipeFilter.Translate,
+        com.ai.ui.shared.LocalManageSwipeOnMatch provides { match: SwipeMatch ->
+            match.translationRunId?.let(onChangeRunId)
+        }
+    ) {
     if (run == null) {
         Column(
             modifier = Modifier.fillMaxSize()
@@ -151,7 +165,7 @@ internal fun TranslationRunScreen(
             TitleBar(helpTopic = "translation_run_l1", title = "Translation", onBackClick = onBack)
             Text("Loading…", color = AppColors.TextTertiary)
         }
-        return
+        return@CompositionLocalProvider
     }
 
     when (val n = nav) {
@@ -182,4 +196,5 @@ internal fun TranslationRunScreen(
             onBack = { nav = TranslationNav.L2(n.modelKey) }
         )
     }
+    } // close CompositionLocalProvider
 }

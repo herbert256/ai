@@ -373,6 +373,32 @@ val LocalReportSwitchHandler = compositionLocalOf<((String) -> Unit)?> { null }
  *  re-used outside the report flow (e.g. future AI Chat surfaces). */
 val LocalCurrentReportIdForSwipe = compositionLocalOf<String?> { null }
 
+/** Per-Manage-screen filter consumed by the standard [TitleBar]
+ *  swipe auto-wire. Default is [com.ai.ui.report.ViewSwipeFilter.Any]
+ *  — every report matches — which suits the bulk of Manage screens
+ *  (every report has a prompt / title / parameters / export / HTML /
+ *  agents). Sub-screens with a stricter "data for this screen"
+ *  requirement override it locally:
+ *
+ *  - `ReportMetaScreen` → `HasKind(SecondaryKind.META)` (skip
+ *    reports without any meta result).
+ *  - `TranslationRunScreen` → handled by an explicit swipe lambda
+ *    (the auto-wire is bypassed because the screen also needs to
+ *    update its `runId` when crossing reports). */
+val LocalManageSwipeFilter = compositionLocalOf<com.ai.ui.report.ViewSwipeFilter> {
+    com.ai.ui.report.ViewSwipeFilter.Any
+}
+
+/** Optional callback fired by the standard [TitleBar] auto-wire when
+ *  a swipe match is found, **before** the report switch handler. The
+ *  callback receives the full [com.ai.ui.report.SwipeMatch] so a
+ *  sub-screen can update extra per-screen state that's keyed to the
+ *  destination report (e.g. `TranslationRunScreen` flips its parent's
+ *  `openTranslationRunId` to the new report's first TRANSLATE row's
+ *  run before the report id itself swaps in). Null by default. */
+val LocalManageSwipeOnMatch =
+    compositionLocalOf<((com.ai.ui.report.SwipeMatch) -> Unit)?> { null }
+
 /** Optional handle to the per-report Regenerate batch engine.
  *  Provided by [com.ai.ui.report.ReportsScreenNav] so deep
  *  descendants (the Manage screen's Regenerate row + the
@@ -877,19 +903,21 @@ fun TitleBar(
     // ----- Title-bar swipe (Manage-flow counterpart of ViewScreenTitleBar) -----
     // Resolve the swipe handlers: explicit caller lambdas win;
     // otherwise auto-wire from the report-context CompositionLocals
-    // (currentReportId + newest-first list + switch-handler). Pop-
-    // then-switch order — call [LocalNavigateToCurrentReport] first to
-    // collapse any open Manage sub-overlay (each overlay block in
-    // ReportScreen provides that local as `{ showX = false }`), then
-    // invoke the switch handler to load the new report. On main
-    // Manage the local is null so the pop is a no-op. Filter is
-    // [ViewSwipeFilter.Any] — no kind filtering, just walk newest-
-    // first outward from the current report.
+    // (currentReportId + newest-first list + switch-handler + per-
+    // screen filter). Behaviour matches the View flow:
+    //   - Use [LocalManageSwipeFilter] (default Any) so each Manage
+    //     sub-screen can require its own kind of data (e.g. the
+    //     Meta hub skips reports without any META row).
+    //   - Stay on the same sub-screen — only call the switch
+    //     handler, do NOT pop the overlay. The sub-screen's
+    //     rememberSaveable / produceState inputs re-derive from the
+    //     new uiState and reload naturally.
     val swipeCtx = LocalContext.current
     val swipeIds = LocalReportIdsNewestFirst.current
     val swipeCurrentReportId = LocalCurrentReportIdForSwipe.current
     val swipeReportSwitchHandler = LocalReportSwitchHandler.current
-    val swipePopToManage = reportIconTap
+    val swipeFilter = LocalManageSwipeFilter.current
+    val swipeOnMatch = LocalManageSwipeOnMatch.current
     val swipeAutoReady = swipeCurrentReportId != null
         && swipeIds.isNotEmpty()
         && swipeReportSwitchHandler != null
@@ -898,11 +926,11 @@ fun TitleBar(
             val match = com.ai.ui.report.findSwipeMatch(
                 swipeCtx, swipeIds, swipeCurrentReportId!!,
                 com.ai.ui.report.SwipeDirection.Prev,
-                com.ai.ui.report.ViewSwipeFilter.Any
+                swipeFilter
             )
             if (match == null) false
             else {
-                swipePopToManage?.invoke()
+                swipeOnMatch?.invoke(match)
                 swipeReportSwitchHandler!!(match.reportId)
                 true
             }
@@ -912,11 +940,11 @@ fun TitleBar(
             val match = com.ai.ui.report.findSwipeMatch(
                 swipeCtx, swipeIds, swipeCurrentReportId!!,
                 com.ai.ui.report.SwipeDirection.Next,
-                com.ai.ui.report.ViewSwipeFilter.Any
+                swipeFilter
             )
             if (match == null) false
             else {
-                swipePopToManage?.invoke()
+                swipeOnMatch?.invoke(match)
                 swipeReportSwitchHandler!!(match.reportId)
                 true
             }
@@ -958,8 +986,6 @@ fun TitleBar(
                                 val dx = swipeDragX.floatValue
                                 when {
                                     dx > swipeThresholdPx -> {
-                                        swipeStatus.value = "Loading report"
-                                        statusTick.intValue++
                                         val found = resolvedOnSwipePrev?.invoke() ?: false
                                         if (!found) {
                                             swipeStatus.value = "No more reports"
@@ -967,8 +993,6 @@ fun TitleBar(
                                         }
                                     }
                                     dx < -swipeThresholdPx -> {
-                                        swipeStatus.value = "Loading report"
-                                        statusTick.intValue++
                                         val found = resolvedOnSwipeNext?.invoke() ?: false
                                         if (!found) {
                                             swipeStatus.value = "No more reports"

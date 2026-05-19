@@ -161,8 +161,6 @@ internal fun ReportRunScreen(
     val bodyThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
     val bodyDragX = remember { mutableFloatStateOf(0f) }
     val triggerBodySwipe: (SwipeDirection) -> Unit = { dir ->
-        bodySwipeStatus.value = "Loading report"
-        bodyStatusTick.intValue++
         val match = findSwipeMatch(
             swipeCtx, swipeIds, swipeReportId!!,
             dir, ViewSwipeFilter.Any

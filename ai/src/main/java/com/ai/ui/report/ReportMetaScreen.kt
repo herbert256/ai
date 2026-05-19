@@ -115,6 +115,13 @@ internal fun ReportMetaScreen(
     val parentReport by produceState<com.ai.data.Report?>(initialValue = null, reportId) {
         value = withContext(Dispatchers.IO) { com.ai.data.ReportStorage.getReport(context, reportId) }
     }
+    // Title-bar swipe override: only navigate to reports that have
+    // at least one Meta result. The Meta hub renders an empty state
+    // for reports without any, which would be pointless landings.
+    CompositionLocalProvider(
+        com.ai.ui.shared.LocalManageSwipeFilter provides
+            ViewSwipeFilter.HasKind(SecondaryKind.META)
+    ) {
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         // 👁 → Main View (Meta list is a picker; no per-meta View context).
         val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
@@ -176,6 +183,7 @@ internal fun ReportMetaScreen(
             }
         }
     }
+    } // close CompositionLocalProvider(LocalManageSwipeFilter)
 }
 
 @Composable

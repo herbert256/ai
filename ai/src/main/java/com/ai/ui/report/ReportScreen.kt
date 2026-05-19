@@ -2323,6 +2323,7 @@ fun ReportsScreen(
             TranslationRunScreen(
                 reportId = rid,
                 runId = openRunId,
+                onChangeRunId = { openTranslationRunId = it },
                 // Live state for the in-flight run. Null after the run
                 // finishes — the screen then reconstructs it from disk
                 // via onBuildPersistedTranslationRun.
