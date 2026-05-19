@@ -173,16 +173,24 @@ fun FanOutViewScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         // Manage's fan-out lives behind a multi-step picker chain
-        // with no clean single-step entry — 🔧 falls back to the
-        // main Report - manage screen here.
-        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+        // with no clean single-step entry — 🔧 dispatches
+        // ManageJump.Main which closes the View overlay and reveals
+        // the main "Manage report" screen. Going through
+        // LocalOpenManage (not LocalNavigateToCurrentReport) matters
+        // because the latter is overridden by ViewAiReportScreen's
+        // sub-View block to "back to View grid" — using it here would
+        // land the user back on the View grid instead of Manage.
+        val openManage = com.ai.ui.shared.LocalOpenManage.current
+        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
+            { dispatch(com.ai.ui.shared.ManageJump.Main) }
+        }
         val titleText = "Fan-out" + metaPromptName.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty()
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = titleText,
             subject = null,
             helpTopic = "fan_out_view",
-            onOpenManage = navToManageMain,
+            onOpenManage = onOpenManageJump,
             onBack = onBack
         )
         if (report == null) {

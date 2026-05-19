@@ -110,11 +110,14 @@ fun FanInModelViewScreen(
         // visible pager (defined further down) can swipe to siblings,
         // but the seed id is a stable jump target — Manage's detail
         // screen renders the same metaPromptName group.
+        // 🔧 → Manage's SecondaryResultDetail for this seed row.
+        // No fallback to LocalNavigateToCurrentReport — that local is
+        // overridden by ViewAiReportScreen to "back to View grid",
+        // which would land 🔧 back on the grid instead of Manage.
         val openManage = com.ai.ui.shared.LocalOpenManage.current
-        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
             { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
-        } ?: navToManageMain
+        }
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Fan-in-model",

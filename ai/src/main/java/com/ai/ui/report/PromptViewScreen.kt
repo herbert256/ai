@@ -122,9 +122,17 @@ fun PromptViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        // No per-prompt Manage screen — 🔧 lands on main Manage via
-        // the existing report-context local.
-        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+        // No per-prompt Manage screen — 🔧 dispatches ManageJump.Main
+        // which closes the View overlay and reveals the main
+        // "Manage report" screen. Going through LocalOpenManage (not
+        // LocalNavigateToCurrentReport) matters because the latter is
+        // overridden by ViewAiReportScreen's sub-View block to "back
+        // to View grid" — using it here would land the user back on
+        // the View grid instead of Manage.
+        val openManage = com.ai.ui.shared.LocalOpenManage.current
+        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
+            { dispatch(com.ai.ui.shared.ManageJump.Main) }
+        }
         ViewScreenTitleBar(
             reportTitle = report?.title,
             screenTitle = "Prompt",
@@ -133,7 +141,7 @@ fun PromptViewScreen(
             // slot null keeps the bar uncluttered.
             subject = null,
             helpTopic = "prompt_view_screen",
-            onOpenManage = navToManageMain,
+            onOpenManage = onOpenManageJump,
             onBack = { onBack(activeLangState.value.ifBlank { null }) }
         )
         if (report == null) {

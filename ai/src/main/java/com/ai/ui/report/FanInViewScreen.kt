@@ -138,11 +138,15 @@ fun FanInViewScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         // 🔧 → Manage's SecondaryResultDetail for this fan-in row.
+        // When LocalOpenManage is null (standalone View route, no
+        // report context) the wrench hides itself — no fallback to
+        // LocalNavigateToCurrentReport because that local gets
+        // overridden by ViewAiReportScreen's sub-View block to "back
+        // to View grid", which is the opposite of what 🔧 should do.
         val openManage = com.ai.ui.shared.LocalOpenManage.current
-        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
             { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
-        } ?: navToManageMain
+        }
         // Orange screen-title spells out the fan-in's internal-
         // prompt name ("Fan In - <name>"); green subject row is
         // dropped so the header reads on a single line.

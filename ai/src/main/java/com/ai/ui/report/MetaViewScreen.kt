@@ -148,11 +148,15 @@ fun MetaViewScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         // 🔧 → Manage's SecondaryResultDetail for this META row.
+        // When LocalOpenManage is null (standalone View route, no
+        // report context) the wrench hides itself — no fallback to
+        // LocalNavigateToCurrentReport because that local gets
+        // overridden by ViewAiReportScreen's sub-View block to "back
+        // to View grid", which is the opposite of what 🔧 should do.
         val openManage = com.ai.ui.shared.LocalOpenManage.current
-        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
             { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
-        } ?: navToManageMain
+        }
         val screenTitleLabel = if (metaPromptName != null) "Meta - $metaPromptName" else "Meta"
         ViewScreenTitleBar(
             reportTitle = report?.title,

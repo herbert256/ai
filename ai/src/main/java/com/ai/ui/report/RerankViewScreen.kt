@@ -108,11 +108,13 @@ fun RerankViewScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         // 🔧 → Manage's SecondaryResultDetail for this rerank row.
+        // No fallback to LocalNavigateToCurrentReport — that local is
+        // overridden by ViewAiReportScreen to "back to View grid",
+        // which would land 🔧 back on the grid instead of Manage.
         val openManage = com.ai.ui.shared.LocalOpenManage.current
-        val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
             { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
-        } ?: navToManageMain
+        }
         ViewScreenTitleBar(
             reportTitle = loaded.reportTitle,
             screenTitle = "Rerank",

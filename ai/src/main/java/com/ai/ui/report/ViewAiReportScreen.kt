@@ -1105,22 +1105,30 @@ internal fun ViewAiReportScreen(
         modifier = Modifier.fillMaxSize()
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        // Main View grid's 🔧 jumps to the main Report - Manage screen.
-        // [LocalNavigateToCurrentReport] already does exactly that —
-        // it's the same lambda the title-tap uses.
+        // Main View grid's 🔧 jumps to the main Report - Manage
+        // screen. Going through LocalOpenManage (not
+        // LocalNavigateToCurrentReport) keeps the dispatch consistent
+        // with the sub-View screens — every View 🔧 in this file uses
+        // the same path. The title-row tap also uses
+        // LocalOpenManage(Main) so it always lands on Manage, never
+        // on whatever back lambda was supplied.
         val navToManageMain = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+        val openManage = com.ai.ui.shared.LocalOpenManage.current
+        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
+            { dispatch(com.ai.ui.shared.ManageJump.Main) }
+        } ?: navToManageMain
         ViewScreenTitleBar(
             reportTitle = loadedReport?.title ?: promptTitle,
             screenTitle = "View an AI report",
             subject = null,
             helpTopic = "view_ai_report",
-            onOpenManage = navToManageMain,
+            onOpenManage = onOpenManageJump,
             onBack = onBack,
             // Explicit override: the main View grid's centre title
             // rows must always land on the main Manage screen, even
             // when [onBack] would normally pop to a report list
             // (initialView=true case).
-            onTitleClick = navToManageMain
+            onTitleClick = onOpenManageJump
         )
 
         // One picker for the whole View screen; tile clicks below
