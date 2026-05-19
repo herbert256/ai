@@ -383,6 +383,16 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalReportSwitchHandler provides remember(reportViewModel) {
             { id: String -> scope.launch { reportViewModel.restoreCompletedReport(context, id) } }
         },
+        // Source of truth for the standard TitleBar's swipe gesture
+        // on every non-View (Manage) screen. The bar auto-wires its
+        // swipe handlers from this local + LocalReportIdsNewestFirst +
+        // LocalReportSwitchHandler; everything outside this tree
+        // (Settings/Admin/Hub/etc.) sees the default null and gets no
+        // gesture. Reusable picker overlays explicitly override this
+        // back to null at their call sites in ReportScreen — see the
+        // `CompositionLocalProvider(LocalCurrentReportIdForSwipe provides null)`
+        // wraps around each picker block.
+        com.ai.ui.shared.LocalCurrentReportIdForSwipe provides uiState.currentReportId,
         com.ai.ui.shared.LocalPendingViewOverManage provides pendingViewOverManage,
         com.ai.ui.shared.LocalMainViewResetTick provides mainViewResetTick,
         com.ai.ui.shared.LocalRegenerateBatchEngine provides reportViewModel.regenerateBatchEngine,
@@ -2169,7 +2179,11 @@ fun ReportsScreen(
     // made; the progress screen sticks around until the run finishes
     // and the user taps "To translated report" (or Cancel).
     if (showTranslateLanguagePicker) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showTranslateLanguagePicker = false }) {
+        // Picker overlays opt OUT of the standard TitleBar swipe —
+        // these composables are also used outside the AI Report flow
+        // (e.g. future AI Chat surfaces), so the report-context local
+        // is overridden to null here.
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showTranslateLanguagePicker = false }, com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null) {
             LanguageSelectionScreen(
                 onConfirm = { lang ->
                     showTranslateLanguagePicker = false
@@ -2184,7 +2198,7 @@ fun ReportsScreen(
     }
     val pickingTranslateModelFor = showTranslateModelPicker
     if (pickingTranslateModelFor != null && currentReportId != null) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showTranslateModelPicker = null }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showTranslateModelPicker = null }, com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null) {
             ModelSelectionScreen(
                 models = translationModels,
                 aiSettings = aiSettings,
@@ -2223,7 +2237,7 @@ fun ReportsScreen(
 
     if (showRerankPicker && currentReportId != null) {
         val rid = currentReportId
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showRerankPicker = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showRerankPicker = false }, com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null) {
             ReportSelectModelsScreen(
                 aiSettings = aiSettings,
                 titleText = "Pick rerank model",
@@ -2250,7 +2264,8 @@ fun ReportsScreen(
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides { showModerationPicker = false }
+            LocalNavigateToCurrentReport provides { showModerationPicker = false },
+            com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null
         ) {
             ReportSelectModelsScreen(
                 aiSettings = aiSettings,
@@ -2561,7 +2576,7 @@ fun ReportsScreen(
     // so the parent TitleBar and the action row don't paint above
     // them when the user opens a picker.
     if (showMetaPicker) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showMetaPicker = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showMetaPicker = false }, com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null) {
             ReportSelectInternalPromptScreen(
                 titleText = "Run a Meta prompt",
                 category = "meta",
@@ -2600,7 +2615,7 @@ fun ReportsScreen(
         showViewReportScreen = true
     }
     if (showFanOutPicker && secondaryScopeMetaPrompt == null && fanOutConfirmMetaPrompt == null) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showFanOutPicker = false }) {
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showFanOutPicker = false }, com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null) {
             ReportSelectInternalPromptScreen(
                 titleText = "Fan Out - prompt",
                 category = "fan_out",

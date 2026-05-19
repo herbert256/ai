@@ -6,19 +6,24 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -353,6 +358,20 @@ val LocalReportIdsNewestFirst = compositionLocalOf<List<String>> { emptyList() }
  *  navigation) stays in sync once the user backs out of the sub-View.
  *  Null when no provider has wired it. */
 val LocalReportSwitchHandler = compositionLocalOf<((String) -> Unit)?> { null }
+
+/** Current report id used by the standard [TitleBar] swipe gesture
+ *  on the **Manage** flow (the non-View counterpart of the View
+ *  title-bar swipe). Provided by [com.ai.ui.report.ReportScreen]
+ *  with the app-state's `currentReportId` so every Manage sub-overlay
+ *  (Edit prompt, Edit title, Export, HTML preview, Meta screen,
+ *  Translation run, Run-confirm screens, …) inherits it for free.
+ *  Null outside the report-detail tree, which gates the gesture off
+ *  on Settings / Admin / Hub / Knowledge / Models / Search / History /
+ *  Chat / ReportManage. Picker overlays (Language / Model /
+ *  Internal-prompt / Rerank-Moderation model) explicitly override
+ *  this back to `null` because the same picker composables get
+ *  re-used outside the report flow (e.g. future AI Chat surfaces). */
+val LocalCurrentReportIdForSwipe = compositionLocalOf<String?> { null }
 
 /** Optional handle to the per-report Regenerate batch engine.
  *  Provided by [com.ai.ui.report.ReportsScreenNav] so deep
@@ -791,6 +810,16 @@ fun TitleBar(
     /** Current pinned state, drives the 📌 glyph colour in the bottom
      *  bar (orange when pinned). Ignored when [onPin] is null. */
     isPinned: Boolean = false,
+    /** Explicit swipe-right (older report) handler. Pass `null` to
+     *  let the bar auto-wire itself from [LocalCurrentReportIdForSwipe]
+     *  + [LocalReportIdsNewestFirst] + [LocalReportSwitchHandler]
+     *  when those are all set (the standard Manage-flow case). The
+     *  callback must return `true` if a destination was found and
+     *  the navigation was kicked off; `false` triggers the "No more
+     *  reports" pill. */
+    onSwipePrev: (() -> Boolean)? = null,
+    /** Explicit swipe-left (newer report) counterpart of [onSwipePrev]. */
+    onSwipeNext: (() -> Boolean)? = null,
     /** Applied to the bar's outer Row. */
     modifier: Modifier = Modifier
 ) {
@@ -845,6 +874,73 @@ fun TitleBar(
     val titleStyle = MaterialTheme.typography.titleLarge
     val barFontSize = titleStyle.fontSize * 1.35f
     val reportIconTap = LocalNavigateToCurrentReport.current
+    // ----- Title-bar swipe (Manage-flow counterpart of ViewScreenTitleBar) -----
+    // Resolve the swipe handlers: explicit caller lambdas win;
+    // otherwise auto-wire from the report-context CompositionLocals
+    // (currentReportId + newest-first list + switch-handler). Pop-
+    // then-switch order — call [LocalNavigateToCurrentReport] first to
+    // collapse any open Manage sub-overlay (each overlay block in
+    // ReportScreen provides that local as `{ showX = false }`), then
+    // invoke the switch handler to load the new report. On main
+    // Manage the local is null so the pop is a no-op. Filter is
+    // [ViewSwipeFilter.Any] — no kind filtering, just walk newest-
+    // first outward from the current report.
+    val swipeCtx = LocalContext.current
+    val swipeIds = LocalReportIdsNewestFirst.current
+    val swipeCurrentReportId = LocalCurrentReportIdForSwipe.current
+    val swipeReportSwitchHandler = LocalReportSwitchHandler.current
+    val swipePopToManage = reportIconTap
+    val swipeAutoReady = swipeCurrentReportId != null
+        && swipeIds.isNotEmpty()
+        && swipeReportSwitchHandler != null
+    val resolvedOnSwipePrev: (() -> Boolean)? = onSwipePrev
+        ?: if (swipeAutoReady) ({
+            val match = com.ai.ui.report.findSwipeMatch(
+                swipeCtx, swipeIds, swipeCurrentReportId!!,
+                com.ai.ui.report.SwipeDirection.Prev,
+                com.ai.ui.report.ViewSwipeFilter.Any
+            )
+            if (match == null) false
+            else {
+                swipePopToManage?.invoke()
+                swipeReportSwitchHandler!!(match.reportId)
+                true
+            }
+        }) else null
+    val resolvedOnSwipeNext: (() -> Boolean)? = onSwipeNext
+        ?: if (swipeAutoReady) ({
+            val match = com.ai.ui.report.findSwipeMatch(
+                swipeCtx, swipeIds, swipeCurrentReportId!!,
+                com.ai.ui.report.SwipeDirection.Next,
+                com.ai.ui.report.ViewSwipeFilter.Any
+            )
+            if (match == null) false
+            else {
+                swipePopToManage?.invoke()
+                swipeReportSwitchHandler!!(match.reportId)
+                true
+            }
+        }) else null
+    val swipeEnabled = resolvedOnSwipePrev != null || resolvedOnSwipeNext != null
+    // Transient pill state ("Loading report" / "No more reports")
+    // shown for ~1 second after a swipe. statusTick bumps per swipe
+    // so a fresh swipe restarts the dismissal timer.
+    val swipeStatus = remember { mutableStateOf<String?>(null) }
+    val statusTick = remember { mutableIntStateOf(0) }
+    LaunchedEffect(statusTick.intValue) {
+        if (swipeStatus.value != null) {
+            kotlinx.coroutines.delay(1000)
+            swipeStatus.value = null
+        }
+    }
+    val swipeDensity = LocalDensity.current
+    val swipeThresholdPx = with(swipeDensity) { 80.dp.toPx() }
+    val swipeDragX = remember { mutableFloatStateOf(0f) }
+    // Outer Box hosts both the title Row and the floating status
+    // pill. Anchoring the pill on the Box (TopCenter) means it can
+    // appear/disappear without pushing the body content below the
+    // bar — same trick used in [ViewScreenTitleBar].
+    Box(modifier = Modifier.fillMaxWidth()) {
     // Pull the whole bar up 10dp AND shrink its measured height by
     // the same amount so the next composable starts where the bar
     // visually ends. Plain Modifier.offset only shifts paint — it
@@ -852,7 +948,43 @@ fun TitleBar(
     // of empty space under every title that had no HardcodedSubjectRow
     // filling it.
     Row(
-        modifier = modifier.fillMaxWidth().layout { measurable, constraints ->
+        modifier = modifier.fillMaxWidth()
+            .then(
+                if (swipeEnabled) {
+                    Modifier.pointerInput(resolvedOnSwipePrev, resolvedOnSwipeNext) {
+                        detectHorizontalDragGestures(
+                            onDragStart = { swipeDragX.floatValue = 0f },
+                            onDragEnd = {
+                                val dx = swipeDragX.floatValue
+                                when {
+                                    dx > swipeThresholdPx -> {
+                                        swipeStatus.value = "Loading report"
+                                        statusTick.intValue++
+                                        val found = resolvedOnSwipePrev?.invoke() ?: false
+                                        if (!found) {
+                                            swipeStatus.value = "No more reports"
+                                            statusTick.intValue++
+                                        }
+                                    }
+                                    dx < -swipeThresholdPx -> {
+                                        swipeStatus.value = "Loading report"
+                                        statusTick.intValue++
+                                        val found = resolvedOnSwipeNext?.invoke() ?: false
+                                        if (!found) {
+                                            swipeStatus.value = "No more reports"
+                                            statusTick.intValue++
+                                        }
+                                    }
+                                }
+                                swipeDragX.floatValue = 0f
+                            },
+                            onDragCancel = { swipeDragX.floatValue = 0f },
+                            onHorizontalDrag = { _, d -> swipeDragX.floatValue += d }
+                        )
+                    }
+                } else Modifier
+            )
+            .layout { measurable, constraints ->
             val placeable = measurable.measure(constraints)
             val shift = 16.dp.roundToPx()
             layout(placeable.width, (placeable.height - shift).coerceAtLeast(0)) {
@@ -920,6 +1052,25 @@ fun TitleBar(
             onClick = { navigateHelp(helpTopic) },
             modifier = Modifier.offset(y = (-10).dp)
         )
+    }
+        // Transient pill — floats at TopCenter of the title bar so
+        // it can appear/disappear without nudging the body content
+        // below. Cleared by the LaunchedEffect(statusTick) above.
+        val status = swipeStatus.value
+        if (status != null) {
+            Text(
+                text = status,
+                color = Color.White,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 8.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
+                    .border(1.dp, AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 16.dp, vertical = 6.dp)
+            )
+        }
     }
 }
 
