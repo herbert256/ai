@@ -1451,7 +1451,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> = mapOf(
         title = "Help - UI tweaks",
         cards = listOf(
             HelpCard("Overview", "Visual / layout preferences that don't affect how the app talks to providers. Pick what's most legible for you — every option autosaves with a 400 ms debounce."),
-            HelpCard("Experimental features", "Master gate for on-device Local LLMs, LiteRT embedders, the synthetic Local provider, AI Knowledge / RAG, and Local Semantic Search. Off (default) hides every UI surface for those features — Local Models setup, Knowledge attach buttons in Chat and Report, the share-target Add to Knowledge card, the Local LLM chat card on the Chat hub, and the Local semantic search entry under Search AI reports. Installed model files on disk are left alone, and KBs already attached to existing chats or reports keep sending context at API time even when the UI is hidden."),
+            HelpCard("Experimental features", "Reveals in-progress UI surfaces that aren't ready for general use yet. Off by default — leave it off unless you specifically know what you're enabling."),
             HelpCard("Model name layout", "Two radios. Model name only is the dense default — useful when you mostly run different models. Provider and model name joins the provider's display name and the model id with \" · \" — useful when you run the same model id on multiple providers.")
         )
     ),
