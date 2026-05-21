@@ -20,48 +20,6 @@ import com.ai.ui.chat.SystemPromptSelectorDialog
 import com.ai.ui.shared.*
 
 @Composable
-fun FlocksScreen(
-    aiSettings: Settings,
-    onBackToAiSetup: () -> Unit,
-    onBackToHome: () -> Unit,
-    onSave: (Settings) -> Unit,
-    onAddFlock: () -> Unit,
-    onEditFlock: (String) -> Unit
-) {
-    CrudListScreen(
-        title = "Flocks",
-        helpTopic = "flocks_list",
-        items = aiSettings.flocks,
-        addLabel = "Add Flock",
-        emptyMessage = "No flocks configured",
-        sortKey = { it.name },
-        itemTitle = { it.name },
-        itemSubtitle = { flock ->
-            // Show every member, including those whose provider is
-            // currently inactive — the previous "agents.size" was
-            // computed AFTER the active-provider filter, so a flock
-            // with 5 members of which 2 had inactive providers showed
-            // "3 agents:" while the edit screen showed all 5. Same
-            // reasoning as the AgentsScreen filter fix: list reality,
-            // not a context-dependent subset.
-            val all = aiSettings.getAgentsForFlock(flock)
-            val active = all.filter { aiSettings.isProviderActive(it.provider) }
-            val countLabel = if (active.size != all.size) "${active.size}/${all.size} agents"
-                             else "${all.size} agents"
-            "$countLabel: ${all.joinToString(", ") { it.name }}"
-        },
-        onAdd = onAddFlock,
-        onEdit = { onEditFlock(it.id) },
-        onDelete = { flock -> onSave(aiSettings.copy(flocks = aiSettings.flocks.filter { it.id != flock.id })) },
-        onBack = onBackToAiSetup,
-        onHome = onBackToHome,
-        deleteEntityType = "Flock",
-        deleteEntityName = { it.name },
-        itemKey = { it.id }
-    )
-}
-
-@Composable
 fun FlockEditScreen(
     flock: Flock?,
     aiSettings: Settings,

@@ -20,45 +20,6 @@ import com.ai.ui.chat.SystemPromptSelectorDialog
 import com.ai.ui.shared.*
 
 @Composable
-fun SwarmsScreen(
-    aiSettings: Settings,
-    onBackToAiSetup: () -> Unit,
-    onBackToHome: () -> Unit,
-    onSave: (Settings) -> Unit,
-    onAddSwarm: () -> Unit,
-    onEditSwarm: (String) -> Unit
-) {
-    CrudListScreen(
-        title = "Swarms",
-        helpTopic = "swarms_list",
-        items = aiSettings.swarms,
-        addLabel = "Add Swarm",
-        emptyMessage = "No swarms configured",
-        sortKey = { it.name },
-        itemTitle = { it.name },
-        itemSubtitle = { swarm ->
-            // Show every member, including those whose provider is
-            // inactive. The previous "members.size" was the
-            // active-only count and drifted from the storage size
-            // (which still kept the inactive member).
-            val all = swarm.members
-            val active = all.filter { aiSettings.isProviderActive(it.provider) }
-            val countLabel = if (active.size != all.size) "${active.size}/${all.size} members"
-                             else "${all.size} members"
-            "$countLabel: ${all.joinToString(", ") { "${it.provider.id}/${it.model}" }}"
-        },
-        onAdd = onAddSwarm,
-        onEdit = { onEditSwarm(it.id) },
-        onDelete = { swarm -> onSave(aiSettings.copy(swarms = aiSettings.swarms.filter { it.id != swarm.id })) },
-        onBack = onBackToAiSetup,
-        onHome = onBackToHome,
-        deleteEntityType = "Swarm",
-        deleteEntityName = { it.name },
-        itemKey = { it.id }
-    )
-}
-
-@Composable
 fun SwarmEditScreen(
     swarm: Swarm?,
     aiSettings: Settings,

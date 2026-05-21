@@ -441,15 +441,25 @@ fun SettingsScreen(
             )
         }
         SettingsSubScreen.AI_AGENTS -> {
-            AgentsScreen(
-                aiSettings = aiSettings,
-                onBackToAiSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
-                onTestAiModel = onTestAiModel, onFetchModels = onFetchModels,
-                onAddAgent = { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENT_EDIT },
-                onEditAgent = { editingAgentId = it; currentSubScreen = SettingsSubScreen.AI_AGENT_EDIT }
+            com.ai.ui.cruds.workers.agents.AgentsCrud(
+                aiSettings = aiSettings, onSave = onSaveAi,
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                deps = com.ai.ui.cruds.workers.agents.AgentEditDeps(
+                    onTestAiModel = onTestAiModel,
+                    onFetchModels = onFetchModels,
+                    loadingModelsFor = loadingModelsFor,
+                    fetchModelsErrors = fetchModelsErrors,
+                    onNavigateToTrace = onNavigateToTrace,
+                    onAddEndpoint = { provider, ep ->
+                        val current = aiSettings.getEndpointsForProvider(provider)
+                        onSaveAi(aiSettings.withEndpoints(provider, current + ep))
+                    }
+                )
             )
         }
         SettingsSubScreen.AI_AGENT_EDIT -> {
+            // Deep-link entry (SETTINGS_AGENT_EDIT route) — the AI_AGENTS
+            // list itself uses AgentsCrud's own internal edit overlay.
             val agent = editingAgentId?.let { aiSettings.getAgentById(it) }
             AgentEditScreen(
                 agent = agent, aiSettings = aiSettings,
@@ -474,10 +484,9 @@ fun SettingsScreen(
             )
         }
         SettingsSubScreen.AI_FLOCKS -> {
-            FlocksScreen(
-                aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
-                onAddFlock = { editingFlockId = null; currentSubScreen = SettingsSubScreen.AI_FLOCK_EDIT },
-                onEditFlock = { editingFlockId = it; currentSubScreen = SettingsSubScreen.AI_FLOCK_EDIT }
+            com.ai.ui.cruds.workers.flocks.FlocksCrud(
+                aiSettings = aiSettings, onSave = onSaveAi,
+                onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
         SettingsSubScreen.AI_FLOCK_EDIT -> {
@@ -497,10 +506,9 @@ fun SettingsScreen(
             )
         }
         SettingsSubScreen.AI_SWARMS -> {
-            SwarmsScreen(
-                aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
-                onAddSwarm = { editingSwarmId = null; currentSubScreen = SettingsSubScreen.AI_SWARM_EDIT },
-                onEditSwarm = { editingSwarmId = it; currentSubScreen = SettingsSubScreen.AI_SWARM_EDIT }
+            com.ai.ui.cruds.workers.swarms.SwarmsCrud(
+                aiSettings = aiSettings, onSave = onSaveAi,
+                onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
         SettingsSubScreen.AI_SWARM_EDIT -> {
