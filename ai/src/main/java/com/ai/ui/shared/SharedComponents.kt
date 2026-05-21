@@ -575,11 +575,11 @@ data class TitleBarIcons(
      *  glyph (orange when pinned, white when not). Ignored when
      *  [onPin] is null. */
     val isPinned: Boolean = false,
-    /** Optional ❓ help hook. Set only by the View screens'
-     *  [ViewScreenTitleBar] (which moves its top-bar help glyph down
-     *  here). When non-null the bottom bar switches to the View
-     *  layout — action strip left-aligned, ❓ pinned to the right.
-     *  Null on Manage screens, which keep the right-aligned strip. */
+    /** Optional ❓ help hook. Set by the regular [TitleBar] (every
+     *  non-View screen), which moved its top-bar help glyph down here.
+     *  When non-null the bottom bar uses the help layout — action
+     *  strip left-aligned, ❓ pinned to the right. Null on the View
+     *  screens, whose [ViewScreenTitleBar] keeps ❓ in the top bar. */
     val onHelp: (() -> Unit)? = null
 )
 
@@ -895,7 +895,11 @@ fun TitleBar(
         onMemo = null,
         onCopyReport = onCopyReport,
         onPin = onPin,
-        isPinned = isPinned
+        isPinned = isPinned,
+        // ❓ help moved out of the top bar into the bottom icons bar
+        // (right-aligned, other icons left). View screens keep their
+        // top-bar ❓ — see ViewScreenTitleBar.
+        onHelp = helpTopic?.let { { navigateHelp(it) } }
     )
     if (state != null) {
         SideEffect { state.value = captured }
@@ -1074,14 +1078,11 @@ fun TitleBar(
                 modifier = titleMod
             )
         }
-        // ❓ help button moved to the rightmost slot of the bar
-        // (was second-from-left, after the AI logo). Same callback
-        // and topic — only the position changes.
+        // ❓ help no longer lives in the top bar — it's published via
+        // TitleBarIcons.onHelp and rendered right-aligned in the
+        // bottom icons bar (BottomIconBar). The title now runs to the
+        // right edge; a small end pad keeps it off the physical edge.
         Spacer(modifier = Modifier.width(8.dp))
-        HelpButton(
-            onClick = { navigateHelp(helpTopic) },
-            modifier = Modifier.offset(y = (-10).dp)
-        )
     }
         // Transient pill — floats at TopCenter of the title bar so
         // it can appear/disappear without nudging the body content
@@ -1115,16 +1116,6 @@ private fun AiLogoButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
             indication = null,
             onClick = onClick
         )
-    )
-}
-
-@Composable
-private fun HelpButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Text(
-        text = "❓",
-        fontSize = 28.sp,
-        color = AppColors.Blue,
-        modifier = modifier.clickable(onClick = onClick)
     )
 }
 
@@ -1300,8 +1291,8 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val onCopyReport = icons?.onCopyReport
     val onPin = icons?.onPin
     val isPinned = icons?.isPinned == true
-    // Non-null only on View screens — flips the bar into the View
-    // layout (strip left-aligned, ❓ pinned to the right).
+    // Non-null on the non-View screens (regular TitleBar) — flips the
+    // bar into the help layout: strip left-aligned, ❓ pinned right.
     val onHelp = icons?.onHelp
     val extraGap = 2
     var stripBase = 0
@@ -1371,12 +1362,13 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                     )
                 }
             }
-            // View layout (onHelp != null): action strip left-aligned
-            // (right after the back arrow), then a stretched Spacer,
-            // then ❓ pinned to the right. Otherwise the Manage layout:
-            // right-align (back-arrow ON) by pushing the strip to the
-            // end with one stretched Spacer; centre (back-arrow OFF) by
-            // sandwiching the strip between two equal-weight Spacers.
+            // Help layout (onHelp != null — every non-View screen):
+            // action strip left-aligned (right after the back arrow),
+            // then a stretched Spacer, then ❓ pinned to the right.
+            // Otherwise (View screens, onHelp == null): right-align
+            // (back-arrow ON) by pushing the strip to the end with one
+            // stretched Spacer; centre (back-arrow OFF) by sandwiching
+            // the strip between two equal-weight Spacers.
             if (onHelp == null) Spacer(modifier = Modifier.weight(1f))
             TitleBarActionStrip(
                 onReload = onReload,
