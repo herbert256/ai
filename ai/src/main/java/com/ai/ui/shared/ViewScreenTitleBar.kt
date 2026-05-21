@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -136,7 +137,8 @@ fun ViewScreenTitleBar(
                 onOpenView = null, onOpenManage = onOpenManage, onCopy = null,
                 onShare = null, onReload = null, onDelete = null, onTrace = null,
                 onTranslationCompare = null, onMemo = null,
-                onCopyReport = null, onPin = null, isPinned = false
+                onCopyReport = null, onPin = null, isPinned = false,
+                onHelp = { navigateHelp(helpTopic) }
             )
             androidx.compose.runtime.SideEffect { bottomIconState.value = capturedIcons }
             androidx.compose.runtime.DisposableEffect(Unit) {
@@ -356,21 +358,25 @@ fun ViewScreenTitleBar(
                     )
                 }
             }
-            // Right column — help icon. Sized a touch larger than
-            // the previous 40 sp and lifted a few dp so it visually
-            // hangs near the top of the bar rather than dead-centre
-            // (the 76 dp logo dominates the Row's measured height,
-            // so the lift doesn't change the bar's height). The +x
-            // offset shifts the glyph a little past the row's outset
-            // edge so it sits closer to the physical screen edge.
-            Text(
-                text = "❓",
-                fontSize = 52.sp,
-                color = AppColors.Blue,
-                modifier = Modifier
-                    .offset(x = 8.dp, y = (-4).dp)
-                    .clickable { navigateHelp(helpTopic) }
-            )
+            // Right column. On the View screens that render a bottom
+            // icons bar (onOpenManage != null) the ❓ help glyph has
+            // moved down into that bar (right-aligned), so here we
+            // only reserve a balancing Spacer the width of the help
+            // glyph so the centered title stays centered between the
+            // 76 dp logo and the right edge. On the help-less View
+            // screens (no bottom bar) the ❓ stays in the top bar.
+            if (onOpenManage == null) {
+                Text(
+                    text = "❓",
+                    fontSize = 52.sp,
+                    color = AppColors.Blue,
+                    modifier = Modifier
+                        .offset(x = 8.dp, y = (-4).dp)
+                        .clickable { navigateHelp(helpTopic) }
+                )
+            } else {
+                Spacer(modifier = Modifier.width(52.dp))
+            }
         }
         Spacer(modifier = Modifier.height(8.dp))
     }

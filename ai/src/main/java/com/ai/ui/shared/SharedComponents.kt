@@ -574,7 +574,13 @@ data class TitleBarIcons(
     /** Current pinned state, read by the bottom bar to colour the 📌
      *  glyph (orange when pinned, white when not). Ignored when
      *  [onPin] is null. */
-    val isPinned: Boolean = false
+    val isPinned: Boolean = false,
+    /** Optional ❓ help hook. Set only by the View screens'
+     *  [ViewScreenTitleBar] (which moves its top-bar help glyph down
+     *  here). When non-null the bottom bar switches to the View
+     *  layout — action strip left-aligned, ❓ pinned to the right.
+     *  Null on Manage screens, which keep the right-aligned strip. */
+    val onHelp: (() -> Unit)? = null
 )
 
 /** Make a model-name Text clickable so tapping it opens the Model
@@ -1294,6 +1300,9 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val onCopyReport = icons?.onCopyReport
     val onPin = icons?.onPin
     val isPinned = icons?.isPinned == true
+    // Non-null only on View screens — flips the bar into the View
+    // layout (strip left-aligned, ❓ pinned to the right).
+    val onHelp = icons?.onHelp
     val extraGap = 2
     var stripBase = 0
     var slotCount = 0
@@ -1333,8 +1342,12 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         val showBack = LocalShowBackArrow.current && onBack != null
         val backW = if (showBack) 45 else 0
         val backGap = if (showBack) 4 else 0
+        // The View layout pins ❓ to the right — reserve its slot so
+        // the auto-fit scale keeps the strip + help from overflowing.
+        val helpW = if (onHelp != null) 32 else 0
+        val helpGap = if (onHelp != null) 4 else 0
         val available = maxWidth.value
-        val desired = (available - backW - backGap) / stripIntrinsic
+        val desired = (available - backW - backGap - helpW - helpGap) / stripIntrinsic
         // Floor at 1.0× so the strip never shrinks below the previous
         // top-bar size; ceiling at 1.875× = 1.5× × 1.25× preserves the
         // original headroom multiplier on roomy screens.
@@ -1358,11 +1371,13 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                     )
                 }
             }
-            // Right-align (back-arrow ON) by pushing the strip to
-            // the end with one stretched Spacer; centre (back-arrow
-            // OFF) by sandwiching the strip between two equal-weight
-            // Spacers.
-            Spacer(modifier = Modifier.weight(1f))
+            // View layout (onHelp != null): action strip left-aligned
+            // (right after the back arrow), then a stretched Spacer,
+            // then ❓ pinned to the right. Otherwise the Manage layout:
+            // right-align (back-arrow ON) by pushing the strip to the
+            // end with one stretched Spacer; centre (back-arrow OFF) by
+            // sandwiching the strip between two equal-weight Spacers.
+            if (onHelp == null) Spacer(modifier = Modifier.weight(1f))
             TitleBarActionStrip(
                 onReload = onReload,
                 onChat = onChat,
@@ -1381,7 +1396,12 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 scale = scale,
                 extraSpacing = extraGap.dp
             )
-            if (!showBack) Spacer(modifier = Modifier.weight(1f))
+            if (onHelp != null) {
+                Spacer(modifier = Modifier.weight(1f))
+                TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, scale = scale)
+            } else if (!showBack) {
+                Spacer(modifier = Modifier.weight(1f))
+            }
         }
     }
 }
