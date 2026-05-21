@@ -221,6 +221,9 @@ internal fun ReportRunScreen(
             onTitleClick = null,
             subject = promptTitle,
             reportIcon = if (iconGenEnabled) reportIcon?.takeIf { it.isNotEmpty() } ?: "📝" else null,
+            // On Manage itself the report icon would re-navigate to Manage;
+            // make it a Home shortcut instead.
+            reportIconGoesHome = true,
             onBackClick = onDismiss,
             onReload = if (currentReportId != null && isComplete) onRequestRegenerate else null,
             onTrace = if (currentReportId != null) generationHandlers.onTrace else null,

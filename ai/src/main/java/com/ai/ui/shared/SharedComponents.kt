@@ -881,6 +881,11 @@ fun TitleBar(
      *  pass `report.icon ?: "📝"` so the slot is filled while
      *  icon-gen is in flight or after it errored. */
     reportIcon: String? = null,
+    /** When true, tapping the left report icon navigates to app Home
+     *  instead of [LocalNavigateToCurrentReport]. Set only by the main
+     *  "Manage report" screen — there the report icon would otherwise be
+     *  inert (already on Manage), so it doubles as a Home shortcut. */
+    reportIconGoesHome: Boolean = false,
     /** Optional tap target on the title text itself. Used by paired
      *  sub-screens (e.g. Report - manage ↔ Report - view) to let the
      *  title double as a navigation toggle between them. Null →
@@ -1101,7 +1106,7 @@ fun TitleBar(
             Box(modifier = Modifier.offset(x = (-6).dp, y = (-10).dp)) {
                 TitleBarIcon(
                     resolvedReportIcon, Color.Unspecified,
-                    onClick = reportIconTap ?: {},
+                    onClick = if (reportIconGoesHome) navigateHome else (reportIconTap ?: {}),
                     width = 32.dp, scale = 2.0f
                 )
             }
