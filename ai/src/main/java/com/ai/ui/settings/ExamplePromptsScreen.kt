@@ -40,7 +40,7 @@ fun ExamplePromptEditScreen(
             title = if (isAddMode) "Add example prompt" else "Edit example prompt",
             subject = title,
             onBackClick = onBack,
-            onCopyReport = dup.copyTrigger
+            onCopyReport = null
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(

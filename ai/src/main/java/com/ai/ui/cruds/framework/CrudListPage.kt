@@ -104,6 +104,7 @@ fun <T> CrudListPage(
                     Text(
                         "Page ${safePage + 1} / $totalPages · ${items.size} items · swipe to page",
                         color = AppColors.TextTertiary, fontSize = 11.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         modifier = Modifier.fillMaxWidth().padding(bottom = 2.dp)
                     )
                 }

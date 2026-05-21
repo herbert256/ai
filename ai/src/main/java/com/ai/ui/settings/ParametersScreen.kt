@@ -64,7 +64,7 @@ fun ParametersEditScreen(
             title = if (isAddMode) "Add Parameters" else "Edit Parameters",
             subject = name,
             onBackClick = onBack,
-            onCopyReport = dup.copyTrigger
+            onCopyReport = null
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(

@@ -134,7 +134,7 @@ fun InternalPromptEditScreen(
             title = if (isAddMode) "Add $singular" else "Edit $singular",
             subject = name,
             onBackClick = onBack,
-            onCopyReport = dup.copyTrigger
+            onCopyReport = null
         )
         // Save / Create CTA hoisted to the top — these forms can be
         // long (especially with the prompt-text editor) so a bottom

@@ -145,7 +145,7 @@ fun AgentEditScreen(
             // 👁 only visible on Edit (the View screen needs an
             // existing agent id) — null in Add mode.
             onOpenView = if (!isAddMode) onOpenView else null,
-            onCopyReport = dup.copyTrigger
+            onCopyReport = null
         )
         // Save / Create CTA hoisted to the top — the form below can
         // be long enough to push a bottom button out of reach.

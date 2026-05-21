@@ -106,7 +106,7 @@ fun SwarmEditScreen(
             subject = name,
             onBackClick = onBack,
             onOpenView = if (!isAddMode) onOpenView else null,
-            onCopyReport = dup.copyTrigger
+            onCopyReport = null
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(

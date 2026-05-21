@@ -49,7 +49,7 @@ fun SystemPromptEditScreen(
             title = if (isAddMode) "Add System Prompt" else "Edit System Prompt",
             subject = name,
             onBackClick = onBack,
-            onCopyReport = dup.copyTrigger
+            onCopyReport = null
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(

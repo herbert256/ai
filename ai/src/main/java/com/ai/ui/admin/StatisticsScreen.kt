@@ -323,7 +323,7 @@ internal fun AddManualOverrideScreen(
             helpTopic = "cost_override",
             title = if (isAddMode) "Add Override" else "Edit Override",
             onBackClick = onBack,
-            onCopyReport = dup.copyTrigger
+            onCopyReport = null
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(onClick = {
