@@ -1251,10 +1251,9 @@ private data class BottomBarIcon(
  *  separate by [BottomIconBar] so it can stay pinned bottom-right).
  *  Order is fixed; only the non-null callbacks contribute. */
 private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = buildList {
-    // 🆕 add — CRUD list pages' "add new entry" action, leftmost.
-    icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
-    // 👁 view leads on every Manage screen (slightly larger glyph).
+    // 👁 view is ALWAYS the first icon.
     icons.onOpenView?.let { add(BottomBarIcon("👁", Color.Unspecified, it, 32, fontSize = 18.sp)) }
+    // ----- middle (non-group) icons -----
     icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
     // 🔧 manage — rendered a touch smaller so 👁 leads on View screens.
     icons.onOpenManage?.let { add(BottomBarIcon("🔧", Color.Unspecified, it, 28, fontSize = 15.sp)) }
@@ -1268,23 +1267,27 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onShare?.let { add(BottomBarIcon("📤", Color.Unspecified, it, 28)) }
     icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
     icons.onTranslationCompare?.let { add(BottomBarIcon("🌐", Color.Unspecified, it, 28)) }
-    // ✏️ edit / 👯 copy / 🗑 delete — the per-entry action cluster.
-    icons.onEdit?.let { add(BottomBarIcon("✏️", Color.Unspecified, it, 28)) }
-    icons.onCopyReport?.let { add(BottomBarIcon("👯", Color.Unspecified, it, 28)) }
-    icons.onDelete?.let { add(BottomBarIcon("🗑", AppColors.Red, it, 22)) }
     icons.onTrace?.let { add(BottomBarIcon("🐞", Color.Unspecified, it, 22)) }
     icons.onMemo?.let { add(BottomBarIcon("📝", Color.Unspecified, it, 28)) }
+    // ----- copy / edit / delete / new — one contiguous group, in this
+    // sequence, kept whole (placed last so a 2-row split never breaks it). -----
+    icons.onCopyReport?.let { add(BottomBarIcon("👯", Color.Unspecified, it, 28)) }
+    icons.onEdit?.let { add(BottomBarIcon("✏️", Color.Unspecified, it, 28)) }
+    icons.onDelete?.let { add(BottomBarIcon("🗑", AppColors.Red, it, 22)) }
+    icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
 }
 
-/** Renders one row of bottom-bar action icons via [TitleBarIcon]. */
+/** Renders one row of bottom-bar action icons via [TitleBarIcon]. When
+ *  [cellWidthDp] is set, every icon uses that fixed width so columns
+ *  line up vertically across the two-row layout. */
 @Composable
-private fun BottomBarIconRow(specs: List<BottomBarIcon>, scale: Float, gap: Dp) {
+private fun BottomBarIconRow(specs: List<BottomBarIcon>, scale: Float, gap: Dp, cellWidthDp: Int? = null) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(gap)
     ) {
         specs.forEach {
-            TitleBarIcon(it.emoji, it.tint, it.onClick, width = it.widthDp.dp, scale = scale, alpha = it.alpha, fontSize = it.fontSize)
+            TitleBarIcon(it.emoji, it.tint, it.onClick, width = (cellWidthDp ?: it.widthDp).dp, scale = scale, alpha = it.alpha, fontSize = it.fontSize)
         }
     }
 }
@@ -1361,26 +1364,30 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             return@BoxWithConstraints
         }
 
-        // Help layout (every non-View screen). ❓ is pinned bottom-right;
-        // reserve its slot in the auto-fit budget.
+        // Help layout (every non-View screen). ❓ is pinned bottom-right
+        // and never counts toward the split.
         val helpW = 32f
         val helpGap = 4f
-        // Count the bar's icons including ❓: more than 6 → two rows.
-        val twoRows = specs.size + 1 > 6 && specs.size >= 2
+        // More than 6 action icons → two rows. Both left-aligned; the
+        // bottom row gets the larger half (ceil) and carries the
+        // contiguous copy/edit/delete/new group + ❓. A uniform per-icon
+        // cell width keeps the two rows' columns aligned vertically.
+        val twoRows = specs.size > 6
         if (twoRows) {
-            val mid = (specs.size + 1) / 2
-            val firstHalf = specs.take(mid)
-            val secondHalf = specs.drop(mid)
-            // Fit against the widest row (the bottom row also carries ❓).
-            val widest = maxOf(intrinsicOf(firstHalf), intrinsicOf(secondHalf) + helpW + helpGap)
+            val split = specs.size / 2          // floor → top count
+            val topRow = specs.take(split)
+            val bottomRow = specs.drop(split)   // ceil → ≥ top
+            val cell = 30                        // uniform column width (dp)
+            fun rowWidth(count: Int) = (count * cell + (count - 1).coerceAtLeast(0) * extraGap).toFloat()
+            val widest = maxOf(rowWidth(topRow.size), rowWidth(bottomRow.size) + helpGap + helpW)
             val scale = (available / widest).coerceIn(1.0f, ceiling)
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    BottomBarIconRow(firstHalf, scale, extraGap.dp)
+                    BottomBarIconRow(topRow, scale, extraGap.dp, cellWidthDp = cell)
                     Spacer(modifier = Modifier.weight(1f))
                 }
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    BottomBarIconRow(secondHalf, scale, extraGap.dp)
+                    BottomBarIconRow(bottomRow, scale, extraGap.dp, cellWidthDp = cell)
                     Spacer(modifier = Modifier.weight(1f))
                     TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, scale = scale)
                 }
