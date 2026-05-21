@@ -768,7 +768,7 @@ class FanOutEngine internal constructor(
             // Stop any in-flight fan-icons batch first so a tier call
             // mid-flight doesn't write an icon back onto a row we're
             // about to clear.
-            reportViewModel.cancelFanIconsBatch(run.reportId, run.metaPrompt.id)
+            reportViewModel.iconGen.cancelFanIconsBatch(run.reportId, run.metaPrompt.id)
             val pairIds = run.pairs.values.map { it.id }.toSet()
             run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.clearFanOutIconState(context, run.reportId, pair.id)

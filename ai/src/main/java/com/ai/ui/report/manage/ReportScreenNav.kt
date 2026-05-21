@@ -184,12 +184,12 @@ fun ReportsScreenNav(
     val languageIconCallbacks = LanguageIconCallbacks(
         fanOutByReport = languageIconFanOutByReport,
         onStartFanOut = { rid, prompt, models ->
-            reportViewModel.startLanguageIconFanOut(context, rid, prompt, models, aiSettings)
+            reportViewModel.iconGen.startLanguageIconFanOut(context, rid, prompt, models, aiSettings)
         },
         onPickAlternative = { rid, emoji, iconModel ->
-            reportViewModel.pickAlternativeLanguageIcon(context, rid, emoji, iconModel)
+            reportViewModel.iconGen.pickAlternativeLanguageIcon(context, rid, emoji, iconModel)
         },
-        onRestartFanOut = { rid -> reportViewModel.restartLanguageIconFanOut(rid) },
+        onRestartFanOut = { rid -> reportViewModel.iconGen.restartLanguageIconFanOut(rid) },
     )
 
     // Bundle the +Report picker's row-icon callbacks plus the
@@ -293,80 +293,80 @@ fun ReportsScreenNav(
             runningFanIconsPairs = runningFanIconsPairs,
             throttledFanIconsPairs = throttledFanIconsPairs,
             onLaunchFanIconsBatch = { rid, metaPromptId ->
-                reportViewModel.runFanIconsBatch(context, rid, metaPromptId)
+                reportViewModel.iconGen.runFanIconsBatch(context, rid, metaPromptId)
             },
             onClearFanIconErrors = { rid, mp ->
-                reportViewModel.clearFanIconErrors(context, rid, mp)
+                reportViewModel.iconGen.clearFanIconErrors(context, rid, mp)
             },
             onRestartFanIconErrors = { rid, mp ->
-                reportViewModel.restartFanIconErrors(context, rid, mp)
+                reportViewModel.iconGen.restartFanIconErrors(context, rid, mp)
             }
         ),
         fanOutEngine = reportViewModel.fanOutEngine,
         iconFanOutByReport = iconFanOutByReport,
         onStartIconFanOut = { rid, prompt, models ->
-            reportViewModel.startIconFanOut(context, rid, prompt, models, aiSettings)
+            reportViewModel.iconGen.startIconFanOut(context, rid, prompt, models, aiSettings)
         },
         onPickAlternativeIcon = { rid, emoji, iconModel ->
-            reportViewModel.pickAlternativeIcon(context, rid, emoji, iconModel)
+            reportViewModel.iconGen.pickAlternativeIcon(context, rid, emoji, iconModel)
         },
-        onRestartIconFanOut = { rid -> reportViewModel.restartIconFanOut(rid) },
+        onRestartIconFanOut = { rid -> reportViewModel.iconGen.restartIconFanOut(rid) },
         languageIconCallbacks = languageIconCallbacks,
         onStartAgentIconFanOut = { rid, agentId, models ->
-            reportViewModel.startAgentIconFanOut(context, rid, agentId, models, aiSettings)
+            reportViewModel.iconGen.startAgentIconFanOut(context, rid, agentId, models, aiSettings)
         },
         onPickAgentIcon = { rid, agentId, emoji ->
-            reportViewModel.pickAgentIcon(context, rid, agentId, emoji)
+            reportViewModel.iconGen.pickAgentIcon(context, rid, agentId, emoji)
         },
         onRestartAgentIconFanOut = { rid, agentId ->
-            reportViewModel.restartAgentIconFanOut(rid, agentId)
+            reportViewModel.iconGen.restartAgentIconFanOut(rid, agentId)
         },
         onStartPairIconFanOut = { rid, pairId, models ->
-            reportViewModel.startPairIconFanOut(context, rid, pairId, models, aiSettings)
+            reportViewModel.iconGen.startPairIconFanOut(context, rid, pairId, models, aiSettings)
         },
         onPickPairIcon = { rid, pairId, emoji ->
-            reportViewModel.pickPairIconAlternative(context, rid, pairId, emoji)
+            reportViewModel.iconGen.pickPairIconAlternative(context, rid, pairId, emoji)
         },
         onRestartPairIconFanOut = { rid, pairId ->
-            reportViewModel.restartPairIconFanOut(rid, pairId)
+            reportViewModel.iconGen.restartPairIconFanOut(rid, pairId)
         },
         pairIconFanOutByPair = pairIconFanOutByPair,
         promptIconCallbacks = InternalPromptIconCallbacks(
             onKickoff = { prompt ->
-                reportViewModel.kickOffInternalPromptIcon(context, prompt, aiSettings)
+                reportViewModel.iconGen.kickOffInternalPromptIcon(context, prompt, aiSettings)
             },
             onStartFanOut = { prompt, picks ->
-                reportViewModel.startInternalPromptIconFanOut(
+                reportViewModel.iconGen.startInternalPromptIconFanOut(
                     context, prompt, picks, aiSettings,
                     reportId = uiState.currentReportId
                 )
             },
             onPick = { prompt, cand ->
-                reportViewModel.pickInternalPromptIcon(context, prompt, cand, aiSettings)
+                reportViewModel.iconGen.pickInternalPromptIcon(context, prompt, cand, aiSettings)
             },
             onRestartFanOut = { prompt ->
-                reportViewModel.restartInternalPromptIconFanOut(prompt)
+                reportViewModel.iconGen.restartInternalPromptIconFanOut(prompt)
             },
             onPickRow = { reportId, rowId, emoji ->
-                reportViewModel.pickMetaRowIcon(context, reportId, rowId, emoji)
+                reportViewModel.iconGen.pickMetaRowIcon(context, reportId, rowId, emoji)
             }
         ),
         internalPromptIconFanOutByPrompt = internalPromptIconFanOutByPrompt,
         translationIconCallbacks = TranslationIconCallbacks(
             onKickoff = { language ->
-                reportViewModel.kickOffTranslationIcon(context, language, aiSettings)
+                reportViewModel.iconGen.kickOffTranslationIcon(context, language, aiSettings)
             },
             onStartFanOut = { language, picks ->
-                reportViewModel.startTranslationIconFanOut(
+                reportViewModel.iconGen.startTranslationIconFanOut(
                     context, language, picks, aiSettings,
                     reportId = uiState.currentReportId
                 )
             },
             onPick = { language, cand ->
-                reportViewModel.pickTranslationIcon(context, language, cand, aiSettings)
+                reportViewModel.iconGen.pickTranslationIcon(context, language, cand, aiSettings)
             },
             onRestartFanOut = { language ->
-                reportViewModel.restartTranslationIconFanOut(language)
+                reportViewModel.iconGen.restartTranslationIconFanOut(language)
             }
         ),
         agentIconFanOutByAgent = agentIconFanOutByAgent,

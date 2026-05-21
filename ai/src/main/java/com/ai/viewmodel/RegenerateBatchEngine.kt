@@ -500,12 +500,12 @@ class RegenerateBatchEngine internal constructor(
             RegeneratePhase.ICON -> {
                 val report = ReportStorage.getReport(context, reportId) ?: return
                 val ai = appViewModel.uiState.value.aiSettings
-                reportViewModel.kickOffIconGeneration(context, reportId, report.prompt, ai)
+                reportViewModel.iconGen.kickOffIconGeneration(context, reportId, report.prompt, ai)
             }
             RegeneratePhase.LANGUAGE -> {
                 val report = ReportStorage.getReport(context, reportId) ?: return
                 val ai = appViewModel.uiState.value.aiSettings
-                reportViewModel.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
+                reportViewModel.iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
             }
             RegeneratePhase.AGENTS -> {
                 reportViewModel.forceRegenerateAllAgents(context, reportId)
@@ -546,7 +546,7 @@ class RegenerateBatchEngine internal constructor(
                     .filter { it.id in phaseTasks.map { t -> t.rowId }.toSet() }
                 val byPrompt = rows.mapNotNull { it.metaPromptId }.distinct()
                 byPrompt.forEach { promptId ->
-                    reportViewModel.runFanIconsBatch(context, reportId, promptId)
+                    reportViewModel.iconGen.runFanIconsBatch(context, reportId, promptId)
                 }
             }
         }
