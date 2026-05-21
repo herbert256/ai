@@ -1830,6 +1830,7 @@ fun ReportsScreen(
             translationRuns = translationRuns,
             translationRunSummaries = translationRunSummaries,
             fanOutSummaries = fanOutSummaries,
+            loaded = runtime.loaded,
             reportIcon = reportIcon,
             reportIconError = reportIconError,
             reportIconCost = reportIconCost,

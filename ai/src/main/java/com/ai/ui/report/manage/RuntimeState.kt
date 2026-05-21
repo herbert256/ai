@@ -78,6 +78,11 @@ internal data class ReportRuntimeState(
     val loadedReportTitle: String?,
     val loadedReportTimestamp: Long,
     val effectiveReportIcon: String?,
+    /** True once the report's disk read has completed for the current
+     *  report id. Lets status rows tell "data not read yet" apart from
+     *  "field genuinely empty / still generating" so a finished row
+     *  doesn't flash the running hourglass on screen open. */
+    val loaded: Boolean,
     val onSecondaryRefresh: () -> Unit,
     val onDeleteSecondaryWithRefresh: (String, String) -> Unit
 )
@@ -118,10 +123,15 @@ internal fun rememberReportRuntimeState(
     var loadedReportPrompt by remember { mutableStateOf("") }
     var loadedReportTitle by remember { mutableStateOf<String?>(null) }
     var loadedReportTimestamp by remember { mutableStateOf(0L) }
+    // Report id whose disk read has completed. Keyed to the id (not a
+    // bool) so a report switch re-arms the "loading" state while an
+    // iconRefreshTick re-run keeps it loaded → no hourglass flash.
+    var loadedReportId by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(currentReportId, uiState.iconRefreshTick) {
         val rid = currentReportId
         if (rid == null) {
+            loadedReportId = null
             reportIcon = null
             reportIconError = null
             reportIconCost = 0.0
@@ -154,6 +164,7 @@ internal fun rememberReportRuntimeState(
             loadedReportPrompt = r?.prompt.orEmpty()
             loadedReportTitle = r?.title
             loadedReportTimestamp = r?.timestamp ?: 0L
+            loadedReportId = rid
         }
     }
 
@@ -286,6 +297,7 @@ internal fun rememberReportRuntimeState(
         loadedReportTitle = loadedReportTitle,
         loadedReportTimestamp = loadedReportTimestamp,
         effectiveReportIcon = effectiveReportIcon,
+        loaded = currentReportId != null && loadedReportId == currentReportId,
         onSecondaryRefresh = onSecondaryRefresh,
         onDeleteSecondaryWithRefresh = { rid, sid ->
             onDeleteSecondary(rid, sid)

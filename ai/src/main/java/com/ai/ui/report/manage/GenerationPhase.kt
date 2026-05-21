@@ -335,6 +335,10 @@ internal fun ColumnScope.GenerationPhase(
     fanOutSummaries: List<FanOutRunSummary> = emptyList(),
     metaPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanOutPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
+    /** True once the report's disk read has landed for the current
+     *  report id. The 'icon' row only spins its hourglass when loaded,
+     *  so a finished row doesn't flash it during the initial read. */
+    loaded: Boolean = false,
     /** Report.icon mirrored from disk, populated by the parent's
      *  iconRefreshTick-keyed effect. Null while the icon-gen call is
      *  in flight or when the prompt isn't configured. */
@@ -1123,7 +1127,13 @@ internal fun ColumnScope.GenerationPhase(
                         },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("🎨", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        when {
+                            run.iconPendingCount > 0 -> Box(
+                                modifier = Modifier.width(24.dp),
+                                contentAlignment = Alignment.Center
+                            ) { AnimatedHourglass(fontSize = 16.sp) }
+                            else -> Text("🎨", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        }
                         RowTypeCell("fan-icons")
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
@@ -1264,25 +1274,22 @@ internal fun ColumnScope.GenerationPhase(
             }
             if (iconGenEnabledForRow && iconPrompt != null && iconAgent != null) {
                 item(key = "row-icon") {
-                    val running = reportIcon == null && reportIconError == null
                     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                         .clickable { onOpenIconDetail() },
                         verticalAlignment = Alignment.CenterVertically) {
                         when {
                             reportIconError != null -> Text("❌", fontSize = 16.sp,
                                 modifier = Modifier.width(24.dp))
-                            running -> {
-                                val transition = rememberInfiniteTransition(label = "icon-hourglass")
-                                val angle by transition.animateFloat(
-                                    initialValue = 0f, targetValue = 360f,
-                                    animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
-                                    label = "icon-hourglass-rot"
-                                )
-                                Text("⏳", fontSize = 16.sp,
-                                    modifier = Modifier.width(24.dp).rotate(angle))
-                            }
-                            else -> Text(reportIcon!!, fontSize = 16.sp,
+                            reportIcon != null -> Text(reportIcon, fontSize = 16.sp,
                                 modifier = Modifier.width(24.dp))
+                            // Loaded with neither icon nor error → genuinely
+                            // still generating. While not loaded yet, render
+                            // a blank cell rather than flashing the spinner.
+                            loaded -> Box(modifier = Modifier.width(24.dp),
+                                contentAlignment = Alignment.Center) {
+                                AnimatedHourglass(fontSize = 16.sp)
+                            }
+                            else -> Spacer(modifier = Modifier.width(24.dp))
                         }
                         RowTypeCell("icon")
                         Column(modifier = Modifier.weight(1f)) {
@@ -1491,35 +1498,33 @@ internal fun LanguageRow(
     onOpenDetail: () -> Unit,
 ) {
     val context = LocalContext.current
-    data class LangSnapshot(val name: String?, val icon: String?, val error: String?, val cost: Double)
-    val snapshot = produceState(initialValue = LangSnapshot(null, null, null, 0.0), reportId, iconRefreshTick) {
+    data class LangSnapshot(val name: String?, val icon: String?, val error: String?, val cost: Double, val loaded: Boolean)
+    val snapshot = produceState(initialValue = LangSnapshot(null, null, null, 0.0, false), reportId, iconRefreshTick) {
         value = withContext(Dispatchers.IO) {
             val r = com.ai.data.ReportStorage.getReport(context, reportId)
             LangSnapshot(
                 r?.languageName, r?.languageIcon, r?.languageIconErrorMessage,
-                (r?.languageIconInputCost ?: 0.0) + (r?.languageIconOutputCost ?: 0.0)
+                (r?.languageIconInputCost ?: 0.0) + (r?.languageIconOutputCost ?: 0.0),
+                loaded = true
             )
         }
     }.value
-    // Detection is "running" only while the language NAME isn't yet
-    // known. A null icon with a known name means the icon-gen step
-    // didn't fire (or pre-dates the feature) — that's a steady state,
-    // not "still working", so don't spin the hourglass forever.
-    val running = snapshot.name == null && snapshot.error == null
+    // Detection is "running" only once the disk read has landed and the
+    // language NAME still isn't known. A null icon with a known name
+    // means the icon-gen step didn't fire (or pre-dates the feature) —
+    // a steady state, not "still working". And before the read lands we
+    // render a blank cell rather than flashing the hourglass.
+    val running = snapshot.loaded && snapshot.name == null && snapshot.error == null
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
         .clickable { onOpenDetail() },
         verticalAlignment = Alignment.CenterVertically) {
         when {
             snapshot.error != null -> Text("❌", fontSize = 16.sp,
                 modifier = Modifier.width(24.dp))
-            running -> {
-                val transition = rememberInfiniteTransition(label = "lang-hourglass")
-                val angle by transition.animateFloat(
-                    initialValue = 0f, targetValue = 360f,
-                    animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
-                    label = "lang-hourglass-rot"
-                )
-                Text("⏳", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
+            !snapshot.loaded -> Spacer(modifier = Modifier.width(24.dp))
+            running -> Box(modifier = Modifier.width(24.dp),
+                contentAlignment = Alignment.Center) {
+                AnimatedHourglass(fontSize = 16.sp)
             }
             // Name is set; show the language-specific icon if one was
             // generated, otherwise a neutral 🌐 placeholder so the row
@@ -1530,6 +1535,7 @@ internal fun LanguageRow(
         Column(modifier = Modifier.weight(1f)) {
             val text = when {
                 snapshot.error != null -> snapshot.error
+                !snapshot.loaded -> ""
                 running -> "Detecting…"
                 else -> snapshot.name ?: "(unknown)"
             }
@@ -1559,33 +1565,32 @@ internal fun TitleRow(
     onOpenDetail: () -> Unit,
 ) {
     val context = LocalContext.current
-    data class TitleSnapshot(val title: String?, val promptUsed: String?, val error: String?, val cost: Double)
-    val snapshot = produceState(initialValue = TitleSnapshot(null, null, null, 0.0), reportId, iconRefreshTick) {
+    data class TitleSnapshot(val title: String?, val promptUsed: String?, val error: String?, val cost: Double, val loaded: Boolean)
+    val snapshot = produceState(initialValue = TitleSnapshot(null, null, null, 0.0, false), reportId, iconRefreshTick) {
         value = withContext(Dispatchers.IO) {
             val r = com.ai.data.ReportStorage.getReport(context, reportId)
             TitleSnapshot(
                 r?.title, r?.titlePromptUsed, r?.titleErrorMessage,
-                (r?.titleInputCost ?: 0.0) + (r?.titleOutputCost ?: 0.0)
+                (r?.titleInputCost ?: 0.0) + (r?.titleOutputCost ?: 0.0),
+                loaded = true
             )
         }
     }.value
-    // Running = AI hasn't returned yet AND hasn't errored. A
-    // [titlePromptUsed] of "report_title" means the call landed.
-    val running = snapshot.promptUsed == null && snapshot.error == null
+    // Running = disk read landed AND the AI hasn't returned yet AND
+    // hasn't errored. A [titlePromptUsed] of "report_title" means the
+    // call landed. Before the read lands, render a blank cell rather
+    // than flashing the hourglass.
+    val running = snapshot.loaded && snapshot.promptUsed == null && snapshot.error == null
     Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
         .clickable { onOpenDetail() },
         verticalAlignment = Alignment.CenterVertically) {
         when {
             snapshot.error != null -> Text("❌", fontSize = 16.sp,
                 modifier = Modifier.width(24.dp))
-            running -> {
-                val transition = rememberInfiniteTransition(label = "title-hourglass")
-                val angle by transition.animateFloat(
-                    initialValue = 0f, targetValue = 360f,
-                    animationSpec = infiniteRepeatable(animation = tween(1500, easing = LinearEasing)),
-                    label = "title-hourglass-rot"
-                )
-                Text("⏳", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
+            !snapshot.loaded -> Spacer(modifier = Modifier.width(24.dp))
+            running -> Box(modifier = Modifier.width(24.dp),
+                contentAlignment = Alignment.Center) {
+                AnimatedHourglass(fontSize = 16.sp)
             }
             else -> Text("🏷️", fontSize = 16.sp, modifier = Modifier.width(24.dp))
         }
@@ -1593,6 +1598,7 @@ internal fun TitleRow(
         Column(modifier = Modifier.weight(1f)) {
             val text = when {
                 snapshot.error != null -> snapshot.error
+                !snapshot.loaded -> ""
                 running -> "Generating…"
                 else -> snapshot.title ?: "(no title)"
             }
@@ -1701,6 +1707,10 @@ internal data class FanOutRunSummary(
     /** Pairs that have a fan-out icon (emoji landed) or an icon-chain
      *  error. > 0 surfaces a sibling "fan-icons" row in the list. */
     val iconCount: Int,
+    /** Pairs the fan-icons batch still has to process — content present
+     *  but no icon and no icon error yet. > 0 keeps the spinner on the
+     *  sibling "fan-icons" row while a Find-Icons batch is in flight. */
+    val iconPendingCount: Int,
     /** Summed icon-chain (tier 1/2/3) call cost across the run's
      *  pairs — rendered on the sibling "fan-icons" row. Separate from
      *  [totalCost], which covers only the fan-out pair calls. */
@@ -1736,6 +1746,10 @@ internal fun buildFanOutSummaries(rows: List<com.ai.data.SecondaryResult>): List
                 errorCount = items.count { it.errorMessage != null },
                 iconCount = items.count {
                     !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank()
+                },
+                iconPendingCount = items.count {
+                    !it.content.isNullOrBlank() &&
+                        it.icon.isNullOrBlank() && it.iconErrorMessage.isNullOrBlank()
                 },
                 iconCost = items.sumOf { it.iconInputCost + it.iconOutputCost },
                 totalCost = items.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) },
