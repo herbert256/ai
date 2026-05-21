@@ -62,12 +62,6 @@ data class GeneralSettings(
      *  flush. Defaults to false so first-launch users see the system
      *  bar and can opt into hiding it under Settings → UI tweaks. */
     val fullScreen: Boolean = false,
-    /** When true the BottomIconBar's left-edge ← back-arrow is
-     *  rendered and the action icons are right-aligned (the legacy
-     *  layout). When false (default) the back arrow is hidden and
-     *  the action icons are horizontally centered — the user navigates
-     *  back via the Android system back gesture / button instead. */
-    val showBackArrow: Boolean = false,
     /** Controls whether combined provider+model labels (Fan out drill-in
      *  rows, secondary picker buttons, agent rows on Report Result,
      *  chat headers, …) show only the model or both. Provided to the

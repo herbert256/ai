@@ -13,7 +13,6 @@ import com.ai.ui.shared.BottomIconBar
 import com.ai.ui.shared.LocalBottomIconState
 import com.ai.ui.shared.LocalNavigateHome
 import com.ai.ui.shared.LocalNavigateToHelp
-import com.ai.ui.shared.LocalShowBackArrow
 import com.ai.ui.shared.TitleBarIcons
 
 /**
@@ -28,9 +27,11 @@ import com.ai.ui.shared.TitleBarIcons
  * smoke tests that exercise those have to wire this up themselves.
  *
  * Affordance text nodes the wrapped content can target:
- *  - back arrow → `"←"`
  *  - Home → `"🏠"`
  *  - Help → `"❓"`
+ *
+ * There is no visible back affordance — navigation back is the Android
+ * system gesture, routed through each screen's BackHandler.
  */
 @Composable
 fun WithBottomBar(
@@ -43,11 +44,7 @@ fun WithBottomBar(
         CompositionLocalProvider(
             LocalBottomIconState provides iconState,
             LocalNavigateHome provides onNavigateHome,
-            LocalNavigateToHelp provides onNavigateToHelp,
-            // Real app gates the ← arrow on this local (default false);
-            // tests expect to be able to click ← regardless of the
-            // user's preference, so force it on inside the harness.
-            LocalShowBackArrow provides true
+            LocalNavigateToHelp provides onNavigateToHelp
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Box(modifier = Modifier.weight(1f)) { content() }

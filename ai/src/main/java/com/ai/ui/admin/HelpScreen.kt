@@ -68,7 +68,7 @@ private val HELP_HOME_SUBPAGES = setOf(
     // subpage's own tap-throughs (rendered by the table-style
     // dispatch in HelpScreen). Same ❓-returns-to-Help-home
     // semantics — the user can step back to the glossary page
-    // via Android back / title-bar back arrow.
+    // via the Android system back gesture.
     "help_glossary_blocks",
     "help_glossary_groupings",
     "help_glossary_operations"

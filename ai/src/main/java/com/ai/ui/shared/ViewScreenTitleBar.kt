@@ -132,7 +132,7 @@ fun ViewScreenTitleBar(
     if (bottomIconState != null) {
         if (onOpenManage != null) {
             val capturedIcons = com.ai.ui.shared.TitleBarIcons(
-                helpTopic = helpTopic, onBack = null, onChat = null, onInfo = null,
+                helpTopic = helpTopic, onChat = null, onInfo = null,
                 onOpenView = null, onOpenManage = onOpenManage, onCopy = null,
                 onShare = null, onReload = null, onDelete = null, onTrace = null,
                 onTranslationCompare = null, onMemo = null,

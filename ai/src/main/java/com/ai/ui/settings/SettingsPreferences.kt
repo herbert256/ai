@@ -68,7 +68,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             defaultTypePaths = defaultTypePaths,
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
             fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, false),
-            showBackArrow = prefs.getBoolean(KEY_SHOW_BACK_ARROW, false),
             modelNameLayout = modelNameLayout,
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             reportTitleMode = reportTitleMode,
@@ -121,7 +120,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
             putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
             putBoolean(KEY_FULL_SCREEN, settings.fullScreen)
-            putBoolean(KEY_SHOW_BACK_ARROW, settings.showBackArrow)
             putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
             putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
             putString(KEY_REPORT_TITLE_MODE, settings.reportTitleMode.name)
@@ -503,7 +501,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
         private const val KEY_TRACING_ENABLED = "tracing_enabled"
         private const val KEY_FULL_SCREEN = "full_screen"
-        private const val KEY_SHOW_BACK_ARROW = "show_back_arrow"
         private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
         private const val KEY_REPORT_TITLE_MODE = "report_title_mode"

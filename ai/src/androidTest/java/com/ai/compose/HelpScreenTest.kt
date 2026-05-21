@@ -45,17 +45,6 @@ class HelpScreenTest {
         rule.onNodeWithText("Copyright").performScrollTo().assertIsDisplayed()
     }
 
-    @Test fun back_button_invokes_onBack() {
-        val backClicks = mutableIntStateOf(0)
-        rule.setContent {
-            WithBottomBar {
-                HelpScreen(onBack = { backClicks.intValue++ }, onNavigateHome = {})
-            }
-        }
-        rule.onNodeWithText("←").performClick()
-        assertThat(backClicks.intValue).isEqualTo(1)
-    }
-
     @Test fun home_button_invokes_navigate_home() {
         // HelpScreen's own onNavigateHome param is vestigial — the
         // AI brand glyph in TitleBar routes through LocalNavigateHome,

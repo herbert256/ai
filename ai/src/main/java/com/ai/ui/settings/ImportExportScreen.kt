@@ -251,7 +251,6 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     })
     addProperty("tracingEnabled", g.tracingEnabled)
     addProperty("fullScreen", g.fullScreen)
-    addProperty("showBackArrow", g.showBackArrow)
     addProperty("modelNameLayout", g.modelNameLayout.name)
     addProperty("iconGenEnabled", g.iconGenEnabled)
     addProperty("reportTitleMode", g.reportTitleMode.name)
@@ -294,7 +293,6 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         defaultTypePaths = typePaths ?: current.defaultTypePaths,
         tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
         fullScreen = bool("fullScreen") ?: current.fullScreen,
-        showBackArrow = bool("showBackArrow") ?: current.showBackArrow,
         modelNameLayout = layout ?: current.modelNameLayout,
         iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled,
         reportTitleMode = titleMode ?: current.reportTitleMode,

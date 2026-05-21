@@ -463,12 +463,6 @@ val LocalReportListIconBundle = compositionLocalOf { ReportListIconBundle() }
  *  circuit when false. Default true keeps the feature live. */
 val LocalIconGenEnabled = compositionLocalOf { true }
 
-/** Mirrors GeneralSettings.showBackArrow into the composition tree.
- *  Read only by [BottomIconBar] to decide whether to paint the ←
- *  back arrow and whether to right-align or centre the action icons.
- *  Default false matches the data-class default. */
-val LocalShowBackArrow = compositionLocalOf { false }
-
 /** Resolved per-report emoji propagated to every TitleBar inside a
  *  report-scoped composition tree. Provided by ReportsScreen at every
  *  inline overlay's CompositionLocalProvider so picker / viewer / etc.
@@ -530,7 +524,6 @@ fun shareText(context: android.content.Context, text: String, subject: String? =
  *  render the same strip the top bar would have rendered. */
 data class TitleBarIcons(
     val helpTopic: String?,
-    val onBack: (() -> Unit)?,
     val onChat: (() -> Unit)?,
     val onInfo: (() -> Unit)?,
     /** Optional 👁 view-report hook. Distinct from [onInfo] (ℹ️
@@ -881,7 +874,6 @@ fun TitleBar(
     val state = LocalBottomIconState.current
     val captured = TitleBarIcons(
         helpTopic = helpTopic,
-        onBack = onBackClick,
         onChat = onChat,
         onInfo = onInfo,
         onOpenView = onOpenView,
@@ -1268,15 +1260,15 @@ private fun TitleBarIcon(
 }
 
 /** Fixed-position bottom bar that mirrors the active TitleBar's
- *  action icons + back arrow. Home + Help live in the top bar; this
- *  strip carries the per-screen actions only (chat / info / copy /
- *  share / reload / delete / trace / memo + the ← back arrow on the
- *  left). Icons render at a 1.25× scale by default, narrowing
- *  adaptively when the strip would otherwise overflow on a narrow
- *  screen. */
+ *  action icons. The per-screen actions (chat / info / copy / share /
+ *  reload / delete / trace / memo) sit here; the ❓ help glyph (when
+ *  published via [TitleBarIcons.onHelp]) is pinned to the right. There
+ *  is no visible back affordance — navigation back is the Android
+ *  system back gesture, routed through each screen's [BackHandler].
+ *  Icons render at a 1.25× scale by default, narrowing adaptively when
+ *  the strip would otherwise overflow on a narrow screen. */
 @Composable
 fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
-    val onBack = icons?.onBack
     val onChat = icons?.onChat
     val onInfo = icons?.onInfo
     val onOpenView = icons?.onOpenView
@@ -1326,19 +1318,12 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         // physical edge once the system-bars inset was dropped.
         modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 8.dp, bottom = 12.dp)
     ) {
-        // Settings → UI tweaks → "Show back arrow". When off the
-        // arrow is hidden AND the action strip is horizontally
-        // centred instead of right-aligned (Android system back
-        // gesture / button still works as usual).
-        val showBack = LocalShowBackArrow.current && onBack != null
-        val backW = if (showBack) 45 else 0
-        val backGap = if (showBack) 4 else 0
-        // The View layout pins ❓ to the right — reserve its slot so
+        // The help layout pins ❓ to the right — reserve its slot so
         // the auto-fit scale keeps the strip + help from overflowing.
         val helpW = if (onHelp != null) 32 else 0
         val helpGap = if (onHelp != null) 4 else 0
         val available = maxWidth.value
-        val desired = (available - backW - backGap - helpW - helpGap) / stripIntrinsic
+        val desired = (available - helpW - helpGap) / stripIntrinsic
         // Floor at 1.0× so the strip never shrinks below the previous
         // top-bar size; ceiling at 1.875× = 1.5× × 1.25× preserves the
         // original headroom multiplier on roomy screens.
@@ -1347,28 +1332,12 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (showBack) {
-                // Big arrow needs a Box at least the glyph's intrinsic
-                // height; smaller Boxes clipped the upper / lower
-                // stroke of "←" and made it look like the arrow had
-                // disappeared entirely on some screens.
-                Box(
-                    modifier = Modifier.size(width = 50.dp, height = 56.dp).clickable(onClick = onBack!!),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "←", color = Color.White, fontSize = 48.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                }
-            }
             // Help layout (onHelp != null — every non-View screen):
-            // action strip left-aligned (right after the back arrow),
-            // then a stretched Spacer, then ❓ pinned to the right.
-            // Otherwise (View screens, onHelp == null): right-align
-            // (back-arrow ON) by pushing the strip to the end with one
-            // stretched Spacer; centre (back-arrow OFF) by sandwiching
-            // the strip between two equal-weight Spacers.
+            // action strip left-aligned, then a stretched Spacer, then
+            // ❓ pinned to the right. Otherwise (View screens, onHelp ==
+            // null): the strip is centred between two equal-weight
+            // Spacers. There is no back affordance either way — back is
+            // the Android system gesture.
             if (onHelp == null) Spacer(modifier = Modifier.weight(1f))
             TitleBarActionStrip(
                 onReload = onReload,
@@ -1388,11 +1357,9 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 scale = scale,
                 extraSpacing = extraGap.dp
             )
+            Spacer(modifier = Modifier.weight(1f))
             if (onHelp != null) {
-                Spacer(modifier = Modifier.weight(1f))
                 TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, scale = scale)
-            } else if (!showBack) {
-                Spacer(modifier = Modifier.weight(1f))
             }
         }
     }

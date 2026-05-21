@@ -10,7 +10,6 @@ import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ai.ui.hub.ReportsHubScreen
-import com.ai.util.WithBottomBar
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.ReportViewModel
 import com.google.common.truth.Truth.assertThat
@@ -81,24 +80,4 @@ class ReportsHubScreenTest {
         assertThat(newClicks.intValue).isEqualTo(1)
     }
 
-    @Test fun back_button_invokes_onNavigateBack() {
-        val back = mutableIntStateOf(0)
-        val rvm = newReportViewModel()
-        rule.setContent {
-            WithBottomBar {
-                ReportsHubScreen(
-                    onNavigateBack = { back.intValue++ },
-                    onNavigateHome = {},
-                    onOpenReportManage = {},
-                    onOpenReportView = {},
-                    onNavigateToNewAiReport = {},
-                    onNavigateToSearchAiReports = {},
-                    onNavigateToAllReports = {},
-                    reportViewModel = rvm
-                )
-            }
-        }
-        rule.onNodeWithText("←").performClick()
-        assertThat(back.intValue).isEqualTo(1)
-    }
 }

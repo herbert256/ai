@@ -261,7 +261,6 @@ fun AppNavHost(
         com.ai.ui.shared.LocalNavigateToFlockView provides rootNavigateToFlockView,
         com.ai.ui.shared.LocalNavigateToSwarmView provides rootNavigateToSwarmView,
         com.ai.ui.shared.LocalIconGenEnabled provides rootUiStateForLayout.generalSettings.iconGenEnabled,
-        com.ai.ui.shared.LocalShowBackArrow provides rootUiStateForLayout.generalSettings.showBackArrow,
         com.ai.ui.shared.LocalBottomIconState provides bottomBarIconState,
         com.ai.ui.shared.LocalNavigateHome provides rootNavigateHome,
         com.ai.ui.shared.LocalNavigateToHelp provides rootNavigateHelp

@@ -1,23 +1,19 @@
 package com.ai.compose
 
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performClick
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ai.ui.report.view.TranslationCompareScreen
-import com.ai.util.WithBottomBar
-import com.google.common.truth.Truth.assertThat
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
  * Smoke tests for the original/translation split overlay. Verifies
- * the title is rendered, both pane labels appear, both content
- * blocks are visible, and the back-button callback fires.
+ * the title is rendered, both pane labels appear, and both content
+ * blocks are visible.
  */
 @RunWith(AndroidJUnit4::class)
 class TranslationCompareScreenTest {
@@ -42,23 +38,6 @@ class TranslationCompareScreenTest {
         rule.onNodeWithText("Translation").assertIsDisplayed()
         rule.onNodeWithText("Hello world!").assertIsDisplayed()
         rule.onNodeWithText("Hallo wereld!").assertIsDisplayed()
-    }
-
-    @Test fun back_button_invokes_callback() {
-        val backClicks = mutableIntStateOf(0)
-        rule.setContent {
-            WithBottomBar {
-                TranslationCompareScreen(
-                    title = "Translation info",
-                    originalLabel = "O", originalContent = "x",
-                    translatedLabel = "T", translatedContent = "y",
-                    onBack = { backClicks.intValue++ },
-                    onNavigateHome = {}
-                )
-            }
-        }
-        rule.onNodeWithText("←").performClick()
-        assertThat(backClicks.intValue).isEqualTo(1)
     }
 
     @Test fun shows_no_content_placeholder_when_a_pane_is_blank() {

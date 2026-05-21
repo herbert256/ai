@@ -535,7 +535,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Search", "Filters by title or prompt. The count line above the list reads '<filtered> of <total> reports'."),
             HelpCard("Empty state", "When no reports exist yet, the body shows 'No previous reports yet.'"),
             HelpCard("Pitfalls", "Reports list is loaded off the UI thread because getAllReports re-parses every report JSON, including image-attached ones."),
-            HelpCard("Title bar", "Standard back arrow — popping back returns you to the New AI Report selection phase.")
+            HelpCard("Title bar", "The Android system back gesture returns you to the New AI Report selection phase.")
         )
     ),
     "report_pick_swarm" to HelpContent(
@@ -569,7 +569,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Per-swarm detail screen reached by tapping the ℹ️ icon next to a row on Pick a swarm. Lists every (provider, model) member of the swarm in member order."),
             HelpCard("Per-row content", "Provider id in blue on top, model id in white below. Capability badges (vision / web search / reasoning) only appear when the catalog reports the capability for this model. Per-million-token prompt / completion price pair on the right — red when real pricing data exists, grey badge when the row fell through to DEFAULT_PRICING."),
             HelpCard("Tap a row", "Opens Model Info for that (provider, model) — the same destination the title-bar ℹ️ icon reaches across the rest of the app. Use the Costs and Capabilities cards there to see every source's reading for this model."),
-            HelpCard("Title bar", "Static \"Swarm\" with the swarm name as the dynamic subject (folds into the bar when the \"Subject to title bar\" setting is on, otherwise sits below as a green sub-header). The back arrow returns to Pick a swarm with the previous filter intact."),
+            HelpCard("Title bar", "Static \"Swarm\" with the swarm name as the dynamic subject (folds into the bar when the \"Subject to title bar\" setting is on, otherwise sits below as a green sub-header). The Android system back gesture returns to Pick a swarm with the previous filter intact."),
             HelpCard("Pitfalls", "Members survive even when their provider is inactive or their API key isn't configured — the swarm definition is purely structural. The report-run dispatch silently skips inactive members; this info screen still lists them so you can spot which row to fix."),
         )
     ),
