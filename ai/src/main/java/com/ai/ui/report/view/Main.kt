@@ -408,49 +408,10 @@ internal fun ViewAiReportScreen(
     val loadedReport = translatesState.value.report
     val originalLanguageIcon = loadedReport?.languageIcon
 
-    // All secondaries on this report — separate from [translatesState]
-    // because the "Report has problems" notice at the bottom of the
-    // screen needs to scan every kind for stuck placeholders /
-    // non-cooldown errors, not just TRANSLATE rows. Refreshed every
-    // 5 s on the same cadence the AI Reports hub's Problems card uses
-    // so a fresh disk-side red cross surfaces without leaving the
-    // screen.
-    val problemsTick by androidx.compose.runtime.produceState(initialValue = 0) {
-        while (true) {
-            kotlinx.coroutines.delay(5_000L)
-            value = value + 1
-        }
-    }
-    val allSecondaries by androidx.compose.runtime.produceState(
-        initialValue = emptyList<com.ai.data.SecondaryResult>(),
-        reportId, problemsTick
-    ) {
-        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            com.ai.data.SecondaryResultStorage.listForReport(viewPrefsCtx, reportId)
-        }
-    }
-    // Re-load the Report itself on the same tick so PENDING / RUNNING
-    // → SUCCESS transitions land while the user is still on the View
-    // screen. translatesState only re-loads on [reportId] which
-    // doesn't change while the report runs.
-    val tickedReport by androidx.compose.runtime.produceState<com.ai.data.Report?>(
-        initialValue = null, reportId, problemsTick
-    ) {
-        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            com.ai.data.ReportStorage.getReport(viewPrefsCtx, reportId)
-        }
-    }
-    val statusReport = tickedReport ?: loadedReport
-    val activeTranslationIds = com.ai.ui.shared.LocalActiveTranslationReportIds.current
-    val isReportRunning = statusReport?.let {
-        com.ai.ui.hub.reportIsRunning(it, activeTranslationIds)
-    } == true
-    val reportHasProblemsNow = statusReport?.let {
-        // Mirror the hub's rule: Problems is hidden while Running is
-        // showing for the same report. Avoids a doubled-up notice
-        // when a retry is in flight against a stale red cross.
-        !isReportRunning && com.ai.ui.hub.reportHasProblems(it, allSecondaries)
-    } == true
+    // The View screen is read-only: it loads once and renders. No 5 s
+    // running/problems polling here (that lived on the AI Reports hub);
+    // the View screen never re-reads the report or scans secondaries
+    // while the user is looking at it.
     // The report's detected source-language display name (e.g.
     // "English"). TRANSLATE rows tagged with this language are
     // back-translations TO Original — they fold into the Original
@@ -864,7 +825,7 @@ internal fun ViewAiReportScreen(
     // prompt-icon cache is cold or the master toggle is off). The
     // active language is shown by the View screen's top picker
     // strip; no per-tile language badge needed.
-    val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang, loadedReport, reportLanguageName, onBack) {
+    val metaTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, currentLang, loadedReport, reportLanguageName, onBack) {
         everyItems["meta"].orEmpty().map { item ->
             val prompt = item.prompt
             // Per-row icon override wins over the shared per-(name,title)
@@ -880,9 +841,7 @@ internal fun ViewAiReportScreen(
             // metaPromptName can carry distinct icons. The dynamic
             // cache then wins over the static 🧠 fallback.
             val cachedEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
-                val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
-                if (e == null) onMissingPromptIcon(prompt)
-                e
+                com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
             } else null
             val promptEmoji = rowIcon ?: cachedEmoji
             val metaEnabled = item.availableLanguages?.contains(currentLang) ?: true
@@ -932,7 +891,7 @@ internal fun ViewAiReportScreen(
     // pulls from [InternalPromptIconCache] so each fan-out prompt
     // can carry its own dynamic glyph; falls back to the static
     // 🌀 when no cached icon exists yet.
-    val fanOutTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, iconRefreshTick, currentLang) {
+    val fanOutTiles = remember(everyItems, internalPrompts, useInternalPromptsIcons, currentLang) {
         everyItems["fan_out"].orEmpty().map { item ->
             val fanOutEnabled = item.availableLanguages?.contains(currentLang) ?: true
             // Fan-out items synthesised from fanOutSummaries carry no
@@ -947,9 +906,7 @@ internal fun ViewAiReportScreen(
             val promptEmoji = if (
                 useInternalPromptsIcons && resolvedPrompt != null && resolvedPrompt.name.isNotBlank()
             ) {
-                val e = com.ai.data.InternalPromptIconCache.get(resolvedPrompt.name, resolvedPrompt.title)
-                if (e == null) onMissingPromptIcon(resolvedPrompt)
-                e
+                com.ai.data.InternalPromptIconCache.get(resolvedPrompt.name, resolvedPrompt.title)
             } else null
             IdentifiedTile(
                 id = "fan_out:${item.label}",
@@ -973,7 +930,7 @@ internal fun ViewAiReportScreen(
     // Dynamic per-prompt icon via [InternalPromptIconCache];
     // 🪢 fallback matches the previous aggregated tile glyph.
     // (fan_in is excluded from [computedTiles] below.)
-    val fanInTiles = remember(everyItems, useInternalPromptsIcons, iconRefreshTick, currentLang) {
+    val fanInTiles = remember(everyItems, useInternalPromptsIcons, currentLang) {
         everyItems["fan_in"].orEmpty().map { item ->
             val fanInEnabled = item.availableLanguages?.contains(currentLang) ?: true
             val prompt = item.prompt
@@ -983,9 +940,7 @@ internal fun ViewAiReportScreen(
             // cache so two Fan-in tiles sharing a metaPromptName can
             // carry distinct icons. Same precedence as the Meta tile.
             val cachedEmoji = if (useInternalPromptsIcons && prompt != null && prompt.name.isNotBlank()) {
-                val e = com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
-                if (e == null) onMissingPromptIcon(prompt)
-                e
+                com.ai.data.InternalPromptIconCache.get(prompt.name, prompt.title)
             } else null
             val promptEmoji = rowIcon ?: cachedEmoji
             val rowId = sourceRow?.id ?: item.label
@@ -1232,36 +1187,9 @@ internal fun ViewAiReportScreen(
         }
     }
 
-    // Floating bottom-center notices — persistent indicator that
-    // the report is still running and / or has at least one
-    // recorded problem. Predicates reuse the AI Reports hub's
-    // [com.ai.ui.hub.reportIsRunning] / [reportHasProblems] so
-    // the View screen and the hub's top two cards stay in sync.
-    if (isReportRunning || reportHasProblemsNow) {
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (isReportRunning) {
-                ViewStatusNotice(
-                    icon = "⏳",
-                    text = "Report is still running",
-                    accent = AppColors.Blue
-                )
-            }
-            if (reportHasProblemsNow) {
-                ViewStatusNotice(
-                    icon = "⚠️",
-                    text = "Report has problems",
-                    accent = AppColors.Red
-                )
-            }
-        }
-    }
-    } // close outer Box (overlay container for bottom notices)
+    // (Running / problems notices removed — the View screen is
+    // read-only and no longer polls report status.)
+    } // close outer Box
 
     // "Language missing" popup — listed sources are languages this
     // tile DOES have content in. Picking one fires the translation
@@ -1707,32 +1635,6 @@ private fun ExpandedKindCard(
                 }
             }
         }
-    }
-}
-
-/** Persistent bottom-of-screen badge used on the Main View screen
- *  to mirror the AI Reports hub's "Running" / "Problems" top cards
- *  for the currently-viewed report. Rendered inside the Main View
- *  Box so it floats over the tile grid without consuming layout
- *  space. */
-@Composable
-private fun ViewStatusNotice(icon: String, text: String, accent: Color) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
-            .border(1.dp, accent.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
-            .padding(horizontal = 14.dp, vertical = 6.dp)
-    ) {
-        Text(text = icon, fontSize = 14.sp)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = text,
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold
-        )
     }
 }
 
