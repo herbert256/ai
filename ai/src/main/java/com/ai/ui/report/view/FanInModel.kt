@@ -44,7 +44,7 @@ import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.ViewScreenTitleBar
+import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
@@ -120,7 +120,7 @@ fun FanInModelViewScreen(
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
             { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
         }
-        ViewScreenTitleBar(
+        ViewTitleBar(
             reportTitle = report?.title,
             screenTitle = "Fan-in-model",
             subject = rows.firstOrNull()?.metaPromptName?.takeIf { it.isNotBlank() },

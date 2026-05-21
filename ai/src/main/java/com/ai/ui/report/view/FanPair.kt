@@ -44,7 +44,7 @@ import com.ai.data.ReportStorage
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.ViewScreenTitleBar
+import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -118,7 +118,7 @@ fun FanOutPairViewScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        ViewScreenTitleBar(
+        ViewTitleBar(
             reportTitle = report?.title,
             screenTitle = "Fan-out pair",
             subject = metaPromptName.takeIf { it.isNotBlank() },

@@ -37,7 +37,7 @@ import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.ViewScreenTitleBar
+import com.ai.ui.report.view.helpers.ViewTitleBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -150,7 +150,7 @@ fun PromptViewScreen(
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
             { dispatch(com.ai.ui.shared.ManageJump.Main) }
         }
-        ViewScreenTitleBar(
+        ViewTitleBar(
             reportTitle = report?.title,
             screenTitle = "Prompt",
             // Language flag moved to the top-right of the prompt card

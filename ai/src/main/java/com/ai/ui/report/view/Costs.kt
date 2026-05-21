@@ -43,7 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.ViewScreenTitleBar
+import com.ai.ui.report.view.helpers.ViewTitleBar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -101,7 +101,7 @@ fun CostsViewScreen(
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
             { dispatch(com.ai.ui.shared.ManageJump.ReportsViewer(null, "costs")) }
         }
-        ViewScreenTitleBar(
+        ViewTitleBar(
             reportTitle = report?.title,
             screenTitle = "Costs",
             subject = null,

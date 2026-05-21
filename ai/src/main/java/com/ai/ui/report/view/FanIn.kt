@@ -41,7 +41,7 @@ import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.ViewScreenTitleBar
+import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
@@ -163,7 +163,7 @@ fun FanInViewScreen(
         val fanInFilter: ViewSwipeFilter? = metaPromptName?.let {
             ViewSwipeFilter.HasMeta(metaPromptName = it, requireFanIn = true)
         }
-        ViewScreenTitleBar(
+        ViewTitleBar(
             reportTitle = report?.title,
             screenTitle = screenTitleLabel,
             subject = null,

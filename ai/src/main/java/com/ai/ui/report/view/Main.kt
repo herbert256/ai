@@ -63,7 +63,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.SecondaryKind
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.ViewScreenTitleBar
+import com.ai.ui.report.view.helpers.ViewTitleBar
 
 /**
  * First-version "View AI Report" page — the home for every "look at
@@ -1044,7 +1044,7 @@ internal fun ViewAiReportScreen(
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
             { dispatch(com.ai.ui.shared.ManageJump.Main) }
         } ?: navToManageMain
-        ViewScreenTitleBar(
+        ViewTitleBar(
             reportTitle = loadedReport?.title ?: promptTitle,
             screenTitle = "View an AI report",
             subject = null,

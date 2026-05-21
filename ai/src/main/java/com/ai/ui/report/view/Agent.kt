@@ -50,7 +50,7 @@ import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.ViewScreenTitleBar
+import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
@@ -194,7 +194,7 @@ fun ReportsViewScreen(
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
             { dispatch(com.ai.ui.shared.ManageJump.ReportsViewer(activeAgent?.agentId, null)) }
         }
-        ViewScreenTitleBar(
+        ViewTitleBar(
             reportTitle = report?.title,
             screenTitle = "Model reports",
             subject = null,

@@ -253,7 +253,14 @@ fun AppNavHost(
     val bottomBarIconState = androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf<com.ai.ui.shared.TitleBarIcons?>(null)
     }
+    // View subsystem owns its own bottom bar (centred 🔧). A View screen
+    // publishes a spec here while mounted; when present we render the
+    // View bar instead of the generic one.
+    val viewBottomBarState = androidx.compose.runtime.remember {
+        androidx.compose.runtime.mutableStateOf<com.ai.ui.report.view.helpers.ViewBottomBarSpec?>(null)
+    }
     androidx.compose.runtime.CompositionLocalProvider(
+        com.ai.ui.report.view.helpers.LocalViewBottomBar provides viewBottomBarState,
         com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,
         com.ai.ui.shared.LocalNavigateToModelInfo provides rootNavigateToModelInfo,
         com.ai.ui.shared.LocalNavigateToModelInfoView provides rootNavigateToModelInfoView,
@@ -284,7 +291,11 @@ fun AppNavHost(
     // the bare Home + Help fallback. The Hub already routes home /
     // help via its own card list; no need for a duplicate strip.
     val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
-    if (currentRoute != NavRoutes.AI) {
+    val viewBar = viewBottomBarState.value
+    if (viewBar != null) {
+        // A View screen is active → render the View-owned bottom bar.
+        com.ai.ui.report.view.helpers.ViewBottomBar(spec = viewBar)
+    } else if (currentRoute != NavRoutes.AI) {
         com.ai.ui.shared.BottomIconBar(icons = bottomBarIconState.value)
     }
     } // end Column
