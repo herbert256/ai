@@ -567,12 +567,11 @@ fun SettingsScreen(
             )
         }
         SettingsSubScreen.AI_INTERNAL_PROMPTS -> {
-            InternalPromptsListScreen(
+            com.ai.ui.cruds.prompts.internal.InternalPromptCrud(
                 aiSettings = aiSettings,
-                categoryFilter = selectedInternalCategory,
-                onBackToPromptsSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
-                onAddInternalPrompt = { editingInternalPromptId = null; currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT },
-                onEditInternalPrompt = { editingInternalPromptId = it; currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT }
+                category = selectedInternalCategory,
+                onSave = onSaveAi,
+                onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
         SettingsSubScreen.AI_EXAMPLE_PROMPTS -> {

@@ -64,58 +64,6 @@ fun categoryDisplayName(category: String): String = when (category) {
     "icons" -> "Icons prompts"
     else -> category
 }
-
-@Composable
-fun InternalPromptsListScreen(
-    aiSettings: Settings,
-    /** Pin the list to a single [InternalPrompt.category]. The screen
-     *  filters [Settings.internalPrompts] on this value, titles itself
-     *  from [categoryDisplayName], and forwards the same value through
-     *  to the edit screen so new rows are saved into this bucket. */
-    categoryFilter: String,
-    onBackToPromptsSetup: () -> Unit,
-    onBackToHome: () -> Unit,
-    onSave: (Settings) -> Unit,
-    onAddInternalPrompt: () -> Unit,
-    onEditInternalPrompt: (String) -> Unit
-) {
-    val label = categoryDisplayName(categoryFilter)
-    val isFixedList = categoryFilter == "internal" || categoryFilter == "icons"
-    CrudListScreen(
-        title = label,
-        helpTopic = "internal_prompts_list",
-        items = aiSettings.internalPrompts.filter { it.category == categoryFilter },
-        addLabel = "Add ${label.lowercase().removeSuffix("s")}",
-        emptyMessage = "No ${label.lowercase()} configured",
-        sortKey = { it.name },
-        itemTitle = { it.name },
-        itemSubtitle = { ip ->
-            val parts = buildList {
-                if (ip.reference) add("ref")
-                if (ip.agent != AGENT_SELECT && ip.agent.isNotBlank()) add(ip.agent)
-            }
-            val tail = ip.title.takeIf { it.isNotBlank() }
-                ?: ip.text.lineSequence().firstOrNull().orEmpty().take(60)
-            val head = parts.joinToString(" · ")
-            when {
-                head.isBlank() && tail.isBlank() -> ""
-                head.isBlank() -> tail
-                tail.isBlank() -> head
-                else -> "$head — $tail"
-            }
-        },
-        onAdd = onAddInternalPrompt,
-        onEdit = { onEditInternalPrompt(it.id) },
-        onDelete = { ip -> onSave(aiSettings.removeInternalPrompt(ip.id)) },
-        onBack = onBackToPromptsSetup,
-        onHome = onBackToHome,
-        deleteEntityType = label.removeSuffix("s"),
-        deleteEntityName = { it.name },
-        itemKey = { it.id },
-        fixedList = isFixedList
-    )
-}
-
 @Composable
 fun InternalPromptEditScreen(
     internalPrompt: InternalPrompt?,
