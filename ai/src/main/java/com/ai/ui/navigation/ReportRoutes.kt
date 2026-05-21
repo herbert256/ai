@@ -173,7 +173,7 @@ internal fun NavGraphBuilder.reportRoutes(
             }
         }
         composable(NavRoutes.AI_REPORT_MANAGE) {
-            com.ai.ui.report.manage.ReportManageScreen(
+            com.ai.ui.report.other.ReportManageScreen(
                 onBack = safePopBack,
                 onNavigateHome = navigateHome
             )
