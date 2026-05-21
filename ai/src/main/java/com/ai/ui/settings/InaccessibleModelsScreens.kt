@@ -37,7 +37,7 @@ fun InaccessibleModelsListScreen(
 
     if (pickerMode != null) {
         val mode = pickerMode!!
-        com.ai.ui.report.manage.ReportSelectModelsScreen(
+        com.ai.ui.other.ReportSelectModelsScreen(
             aiSettings = aiSettings,
             titleText = "Pick inaccessible model",
             onConfirm = { (provider, m) ->

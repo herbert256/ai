@@ -178,7 +178,7 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
             // Browse mode: tap a row → open that model's Model Info
             // page. Picker stays mounted on the back stack so back
             // from Model Info returns to the list, not the Hub.
-            com.ai.ui.report.manage.ReportSelectModelsScreen(
+            com.ai.ui.other.ReportSelectModelsScreen(
                 aiSettings = uiState.aiSettings,
                 titleText = "AI Models",
                 onConfirm = { (p, m) -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },

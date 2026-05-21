@@ -139,7 +139,7 @@ internal fun NavGraphBuilder.chatRoutes(
             // Configure-on-the-fly entry: same picker as the New
             // Report's +Model button. Row click jumps straight to
             // AI_CHAT_PARAMS with the chosen (provider, model).
-            com.ai.ui.report.manage.ReportSelectModelsScreen(
+            com.ai.ui.other.ReportSelectModelsScreen(
                 aiSettings = uiState.aiSettings,
                 titleText = "Pick model for chat",
                 onConfirm = { (provider, model) ->

@@ -406,7 +406,7 @@ fun NewReportScreen(
     // Moderation model picker — overlay. Single-select; tap → set the
     // session's moderation model and close.
     if (showModerationPicker) {
-        com.ai.ui.report.manage.ReportSelectModelsScreen(
+        com.ai.ui.other.ReportSelectModelsScreen(
             aiSettings = uiState.aiSettings,
             titleText = "Pick moderation model",
             modelTypeFilter = com.ai.data.ModelType.MODERATION,

@@ -98,7 +98,7 @@ fun BlockedModelEditScreen(
     if (showPicker) {
         // Same picker the New Report's "+Model" button uses. Blocked
         // pairs render dimmed inside it but stay selectable.
-        com.ai.ui.report.manage.ReportSelectModelsScreen(
+        com.ai.ui.other.ReportSelectModelsScreen(
             aiSettings = aiSettings,
             titleText = "Pick model to block",
             onConfirm = { (provider, m) ->

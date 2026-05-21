@@ -103,7 +103,7 @@ fun SwarmEditScreen(
         val already = remember(selectedMembers) {
             selectedMembers.map { it.provider to it.model }.toSet()
         }
-        com.ai.ui.report.manage.ReportSelectModelsScreen(
+        com.ai.ui.other.ReportSelectModelsScreen(
             aiSettings = aiSettings,
             alreadyAdded = already,
             titleText = "Pick model for swarm",

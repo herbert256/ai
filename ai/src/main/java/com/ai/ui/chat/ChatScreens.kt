@@ -889,7 +889,7 @@ fun ChatSessionScreen(
     // ModelType.MODERATION by default; toggle-able to widen if the
     // moderation model isn't in the user's catalog under that type.
     if (showModerationPicker) {
-        com.ai.ui.report.manage.ReportSelectModelsScreen(
+        com.ai.ui.other.ReportSelectModelsScreen(
             aiSettings = aiSettings,
             titleText = "Pick moderation model",
             modelTypeFilter = com.ai.data.ModelType.MODERATION,
