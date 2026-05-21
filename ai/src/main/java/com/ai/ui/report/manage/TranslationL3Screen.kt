@@ -44,6 +44,9 @@ import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
 import com.ai.viewmodel.ReportViewModel
+import com.ai.viewmodel.TranslationKind
+import com.ai.viewmodel.TranslationRunState
+import com.ai.viewmodel.TranslationStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -65,7 +68,7 @@ private data class TranslationSourceInfo(
  */
 @Composable
 internal fun TranslationL3Screen(
-    run: ReportViewModel.TranslationRunState,
+    run: TranslationRunState,
     reportId: String,
     runId: String,
     modelKey: String,
@@ -93,10 +96,10 @@ internal fun TranslationL3Screen(
                 compareBy(
                     { sib ->
                         when (sib.status) {
-                            ReportViewModel.TranslationStatus.RUNNING,
-                            ReportViewModel.TranslationStatus.PENDING -> 0
-                            ReportViewModel.TranslationStatus.ERROR -> 1
-                            ReportViewModel.TranslationStatus.DONE -> 2
+                            TranslationStatus.RUNNING,
+                            TranslationStatus.PENDING -> 0
+                            TranslationStatus.ERROR -> 1
+                            TranslationStatus.DONE -> 2
                         }
                     },
                     { it.label.lowercase() }
@@ -120,17 +123,17 @@ internal fun TranslationL3Screen(
         value = withContext(Dispatchers.IO) {
             val report = ReportStorage.getReport(context, reportId)
             when (item.kind) {
-                ReportViewModel.TranslationKind.TITLE ->
+                TranslationKind.TITLE ->
                     TranslationSourceInfo(report?.title, null, null, null)
-                ReportViewModel.TranslationKind.PROMPT ->
+                TranslationKind.PROMPT ->
                     TranslationSourceInfo(report?.prompt, null, null, null)
-                ReportViewModel.TranslationKind.AGENT_RESPONSE -> {
+                TranslationKind.AGENT_RESPONSE -> {
                     val agent = report?.agents?.firstOrNull {
                         it.agentId == item.target && it.reportStatus == ReportStatus.SUCCESS
                     }
                     TranslationSourceInfo(agent?.responseBody, agent?.model, agent?.provider, null)
                 }
-                ReportViewModel.TranslationKind.META -> {
+                TranslationKind.META -> {
                     val sec = item.target?.let { SecondaryResultStorage.get(context, reportId, it) }
                     TranslationSourceInfo(sec?.content, sec?.model, sec?.providerId, sec?.metaPromptName)
                 }
@@ -140,10 +143,10 @@ internal fun TranslationL3Screen(
     val sourceContent = source.content?.takeIf { it.isNotBlank() } ?: item.sourceText.takeIf { it.isNotBlank() }
     val sourceLabel = source.model?.takeIf { it.isNotBlank() }
         ?: when (item.kind) {
-            ReportViewModel.TranslationKind.TITLE -> "Title"
-            ReportViewModel.TranslationKind.PROMPT -> "Prompt"
-            ReportViewModel.TranslationKind.META -> source.metaName?.takeIf { it.isNotBlank() } ?: "Meta"
-            ReportViewModel.TranslationKind.AGENT_RESPONSE -> "Source"
+            TranslationKind.TITLE -> "Title"
+            TranslationKind.PROMPT -> "Prompt"
+            TranslationKind.META -> source.metaName?.takeIf { it.isNotBlank() } ?: "Meta"
+            TranslationKind.AGENT_RESPONSE -> "Source"
         }
     val sourceProviderService = source.providerId?.let { AppService.findById(it) }
 
@@ -247,7 +250,7 @@ internal fun TranslationL3Screen(
                 Spacer(modifier = Modifier.height(6.dp))
                 Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                     when (item.status) {
-                        ReportViewModel.TranslationStatus.ERROR -> {
+                        TranslationStatus.ERROR -> {
                             Text("Error", fontSize = 14.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
                             Text(
                                 item.errorMessage ?: "Unknown error",
@@ -255,14 +258,14 @@ internal fun TranslationL3Screen(
                                 modifier = Modifier.padding(top = 4.dp)
                             )
                         }
-                        ReportViewModel.TranslationStatus.RUNNING ->
+                        TranslationStatus.RUNNING ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 AnimatedHourglass(fontSize = 16.sp)
                                 Text("  Running…", color = AppColors.Orange, fontSize = 13.sp)
                             }
-                        ReportViewModel.TranslationStatus.PENDING ->
+                        TranslationStatus.PENDING ->
                             Text("🕓 Queued", color = AppColors.TextTertiary, fontSize = 13.sp)
-                        ReportViewModel.TranslationStatus.DONE -> {
+                        TranslationStatus.DONE -> {
                             val tx = item.translatedText
                             if (tx.isNullOrBlank()) {
                                 Text("(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)

@@ -51,6 +51,9 @@ import com.ai.ui.shared.ReloadConfirmationDialog
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.ReportViewModel
+import com.ai.viewmodel.TranslationMode
+import com.ai.viewmodel.TranslationRunState
+import com.ai.viewmodel.TranslationStatus
 import kotlinx.coroutines.launch
 
 /** Aggregate stats for one model's slice of a translation run. */
@@ -76,7 +79,7 @@ private data class TranslationModelRow(
  */
 @Composable
 internal fun TranslationL1Screen(
-    run: ReportViewModel.TranslationRunState,
+    run: TranslationRunState,
     reportId: String,
     runId: String,
     actions: TranslationActions,
@@ -102,17 +105,17 @@ internal fun TranslationL1Screen(
     val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
     fun benched(p: String?, m: String?): Boolean =
         p != null && m != null && (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
-    val doneCount = items.count { it.status == ReportViewModel.TranslationStatus.DONE }
+    val doneCount = items.count { it.status == TranslationStatus.DONE }
     // Errors and Bench split the errored set — a benched item will
     // recover once its cooldown lifts, so it's counted separately.
     val errorCount = items.count {
-        it.status == ReportViewModel.TranslationStatus.ERROR && !benched(it.providerId, it.model)
+        it.status == TranslationStatus.ERROR && !benched(it.providerId, it.model)
     }
     val benchCount = items.count {
-        it.status == ReportViewModel.TranslationStatus.ERROR && benched(it.providerId, it.model)
+        it.status == TranslationStatus.ERROR && benched(it.providerId, it.model)
     }
-    val runningCount = items.count { it.status == ReportViewModel.TranslationStatus.RUNNING }
-    val queuedCount = items.count { it.status == ReportViewModel.TranslationStatus.PENDING }
+    val runningCount = items.count { it.status == TranslationStatus.RUNNING }
+    val queuedCount = items.count { it.status == TranslationStatus.PENDING }
 
     // Group items by the model that handled them. Unassigned PENDING
     // items (providerId/model still null) drop out — they show only
@@ -133,9 +136,9 @@ internal fun TranslationL1Screen(
             TranslationModelRow(
                 modelKey = key,
                 total = its.size,
-                done = its.count { it.status == ReportViewModel.TranslationStatus.DONE },
-                err = its.count { it.status == ReportViewModel.TranslationStatus.ERROR },
-                running = its.count { it.status == ReportViewModel.TranslationStatus.RUNNING },
+                done = its.count { it.status == TranslationStatus.DONE },
+                err = its.count { it.status == TranslationStatus.ERROR },
+                running = its.count { it.status == TranslationStatus.RUNNING },
                 cost = its.sumOf { it.costDollars }
             )
         }.toMutableList()
@@ -196,9 +199,9 @@ internal fun TranslationL1Screen(
             // Order: Speed | Mixed | Cost — left-to-right matches the
             // user-facing speed-vs-cost spectrum.
             listOf(
-                ReportViewModel.TranslationMode.SPEED to "Speed",
-                ReportViewModel.TranslationMode.MIXED to "Mixed",
-                ReportViewModel.TranslationMode.COST to "Cost"
+                TranslationMode.SPEED to "Speed",
+                TranslationMode.MIXED to "Mixed",
+                TranslationMode.COST to "Cost"
             ).forEach { (m, label) ->
                 FilterChip(
                     selected = run.mode == m,
@@ -446,8 +449,8 @@ internal fun TranslationL1Screen(
 
     if (confirmDelete) {
         val pendingCount = items.count {
-            it.status == ReportViewModel.TranslationStatus.PENDING ||
-                it.status == ReportViewModel.TranslationStatus.RUNNING
+            it.status == TranslationStatus.PENDING ||
+                it.status == TranslationStatus.RUNNING
         }
         val pendingNote = if (pendingCount > 0)
             " Also cancels $pendingCount in-flight / queued call${if (pendingCount == 1) "" else "s"}."

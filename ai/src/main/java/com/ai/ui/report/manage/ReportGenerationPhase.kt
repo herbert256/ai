@@ -35,6 +35,7 @@ import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.ai.viewmodel.TranslationRunState
 
 /** Per-agent icon UI snapshot mirrored from disk for the result
  *  list. Populated by [com.ai.viewmodel.ReportViewModel.runReportIcons]
@@ -329,7 +330,7 @@ internal fun ColumnScope.GenerationPhase(
      *  cross-translate / back-translate availability correctly. */
     translateRows: List<com.ai.data.SecondaryResult> = emptyList(),
     secondaryTotals: SecondaryTotals = SecondaryTotals.ZERO,
-    translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
+    translationRuns: List<com.ai.viewmodel.TranslationRunState> = emptyList(),
     translationRunSummaries: List<TranslationRunSummary> = emptyList(),
     fanOutSummaries: List<FanOutRunSummary> = emptyList(),
     metaPrompts: List<com.ai.model.InternalPrompt> = emptyList(),

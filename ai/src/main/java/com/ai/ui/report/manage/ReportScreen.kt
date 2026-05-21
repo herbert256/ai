@@ -41,6 +41,7 @@ import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.IconCandidate
 import com.ai.viewmodel.ReportViewModel
+import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -189,7 +190,7 @@ fun ReportsScreen(
     onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
     onExportAll: suspend (String, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _ -> },
-    translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState> = emptyList(),
+    translationRuns: List<com.ai.viewmodel.TranslationRunState> = emptyList(),
     onStartTranslation: (String, String, String, List<Pair<AppService, String>>) -> Unit = { _, _, _, _ -> },
     translationLifecycle: TranslationLifecycleCallbacks = TranslationLifecycleCallbacks(),
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
@@ -236,7 +237,7 @@ fun ReportsScreen(
      *  TRANSLATE rows so the run screen can render it after the live
      *  state is gone. Wired to
      *  ReportViewModel.buildPersistedTranslationRunState. */
-    onBuildPersistedTranslationRun: suspend (String, String) -> com.ai.viewmodel.ReportViewModel.TranslationRunState? = { _, _ -> null },
+    onBuildPersistedTranslationRun: suspend (String, String) -> com.ai.viewmodel.TranslationRunState? = { _, _ -> null },
     /** Deep-link callbacks fired by the full-screen +Agent / +Flock /
      *  +Swarm / Meta / Fan out pickers' "Edit X" buttons. AppNavHost
      *  wires each to the matching Settings sub-screen route. */

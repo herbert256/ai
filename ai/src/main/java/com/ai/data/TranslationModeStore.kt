@@ -1,7 +1,7 @@
 package com.ai.data
 
 import android.content.Context
-import com.ai.viewmodel.ReportViewModel.TranslationMode
+import com.ai.viewmodel.TranslationMode
 
 /**
  * Per-runId persistence for the translation runner's cost-vs-speed

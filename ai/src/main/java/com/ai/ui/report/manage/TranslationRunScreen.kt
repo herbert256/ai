@@ -25,11 +25,14 @@ import com.ai.data.SecondaryResult
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.ReportViewModel
+import com.ai.viewmodel.TranslationItem
+import com.ai.viewmodel.TranslationMode
+import com.ai.viewmodel.TranslationRunState
 
-/** "providerId|model" key for grouping a [ReportViewModel.TranslationItem]
+/** "providerId|model" key for grouping a [TranslationItem]
  *  by the model that handled it. Null while the item is still
  *  unassigned (PENDING, not yet pulled by any worker). */
-internal fun translationModelKey(item: ReportViewModel.TranslationItem): String? {
+internal fun translationModelKey(item: TranslationItem): String? {
     val p = item.providerId
     val m = item.model
     return if (p != null && m != null) "$p|$m" else null
@@ -92,12 +95,12 @@ data class TranslationActions(
     /** Flip the cost-vs-speed mode on a (possibly in-flight) run.
      *  Workers re-read the mode on every queue pull, so the new bias
      *  kicks in within one chunk (~1s). Persisted per-runId. */
-    val onSetMode: (runId: String, mode: ReportViewModel.TranslationMode) -> Unit = { _, _ -> }
+    val onSetMode: (runId: String, mode: TranslationMode) -> Unit = { _, _ -> }
 )
 
 /**
  * Parent of the 3-level translation run drill-in. Resolves the run to
- * one [ReportViewModel.TranslationRunState] — the live in-flight state
+ * one [TranslationRunState] — the live in-flight state
  * when available, otherwise reconstructed from the persisted TRANSLATE
  * rows on disk — holds the [TranslationNav] state, and routes to L1 /
  * L2 / L3. Replaces the old flat TranslationRunDetailScreen.
@@ -108,10 +111,10 @@ internal fun TranslationRunScreen(
     runId: String,
     /** Live in-flight state. Null once the run finishes — then the
      *  screen reconstructs the run from disk via [loadPersisted]. */
-    liveRun: ReportViewModel.TranslationRunState?,
+    liveRun: TranslationRunState?,
     /** Reconstructs the finished run from its persisted TRANSLATE
      *  rows. Wired to ReportViewModel.buildPersistedTranslationRunState. */
-    loadPersisted: suspend () -> ReportViewModel.TranslationRunState?,
+    loadPersisted: suspend () -> TranslationRunState?,
     actions: TranslationActions,
     onBack: () -> Unit,
     /** Re-targets the parent's `openTranslationRunId` after a title-bar
@@ -133,7 +136,7 @@ internal fun TranslationRunScreen(
         }
     }
 
-    val persisted by produceState<ReportViewModel.TranslationRunState?>(
+    val persisted by produceState<TranslationRunState?>(
         initialValue = null, reportId, runId, refreshTick, liveRun == null
     ) {
         value = if (liveRun != null) null else loadPersisted()

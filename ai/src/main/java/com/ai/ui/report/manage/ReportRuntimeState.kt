@@ -41,6 +41,7 @@ import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.IconCandidate
 import com.ai.viewmodel.ReportViewModel
+import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -88,7 +89,7 @@ internal fun rememberReportRuntimeState(
     uiState: UiState,
     isComplete: Boolean,
     iconGenEnabled: Boolean,
-    translationRuns: List<com.ai.viewmodel.ReportViewModel.TranslationRunState>,
+    translationRuns: List<com.ai.viewmodel.TranslationRunState>,
     fanRuntime: FanRuntimeBundle,
     fanOutEngine: com.ai.viewmodel.FanOutEngine?,
     translationLifecycle: TranslationLifecycleCallbacks,

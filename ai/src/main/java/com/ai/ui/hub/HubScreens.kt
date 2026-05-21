@@ -45,6 +45,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.ReportViewModel
+import com.ai.viewmodel.TranslationRunState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -271,7 +272,7 @@ fun rememberHomeReportLists(
  *  without dragging the Compose plumbing along. */
 internal fun computeHomeReportLists(
     context: android.content.Context,
-    translationRuns: Map<String, ReportViewModel.TranslationRunState>
+    translationRuns: Map<String, TranslationRunState>
 ): HomeReportLists {
     val all = ReportStorage.getAllReports(context)
     val activeTranslationReportIds = translationRuns.values

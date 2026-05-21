@@ -38,6 +38,7 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.model.ReportModel
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.ReportViewModel
+import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -67,7 +68,7 @@ internal fun ReportRunScreen(
     secondaryRuns: List<SecondaryResult>,
     translateRows: List<SecondaryResult>,
     secondaryTotals: SecondaryTotals,
-    translationRuns: List<ReportViewModel.TranslationRunState>,
+    translationRuns: List<TranslationRunState>,
     translationRunSummaries: List<TranslationRunSummary>,
     fanOutSummaries: List<FanOutRunSummary>,
     reportIcon: String?,

@@ -37,6 +37,9 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.ReportViewModel
+import com.ai.viewmodel.TranslationKind
+import com.ai.viewmodel.TranslationRunState
+import com.ai.viewmodel.TranslationStatus
 
 /**
  * L2 of the translation run drill-in: the items one model
@@ -46,7 +49,7 @@ import com.ai.viewmodel.ReportViewModel
  */
 @Composable
 internal fun TranslationL2Screen(
-    run: ReportViewModel.TranslationRunState,
+    run: TranslationRunState,
     modelKey: String,
     actions: TranslationActions,
     onOpenItem: (String) -> Unit,
@@ -66,10 +69,10 @@ internal fun TranslationL2Screen(
                 compareBy(
                     { item ->
                         when (item.status) {
-                            ReportViewModel.TranslationStatus.RUNNING,
-                            ReportViewModel.TranslationStatus.PENDING -> 0
-                            ReportViewModel.TranslationStatus.ERROR -> 1
-                            ReportViewModel.TranslationStatus.DONE -> 2
+                            TranslationStatus.RUNNING,
+                            TranslationStatus.PENDING -> 0
+                            TranslationStatus.ERROR -> 1
+                            TranslationStatus.DONE -> 2
                         }
                     },
                     { it.label.lowercase() }
@@ -77,7 +80,7 @@ internal fun TranslationL2Screen(
             )
     }
     val total = rows.size
-    val done = rows.count { it.status == ReportViewModel.TranslationStatus.DONE }
+    val done = rows.count { it.status == TranslationStatus.DONE }
     val cost = rows.sumOf { it.costDollars }
     val allDone = total > 0 && done == total
 
@@ -122,8 +125,8 @@ internal fun TranslationL2Screen(
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rows, key = { it.id }) { item ->
                     val fillColor = when (item.status) {
-                        ReportViewModel.TranslationStatus.DONE -> AppColors.Green.copy(alpha = 0.30f)
-                        ReportViewModel.TranslationStatus.ERROR -> AppColors.Red.copy(alpha = 0.30f)
+                        TranslationStatus.DONE -> AppColors.Green.copy(alpha = 0.30f)
+                        TranslationStatus.ERROR -> AppColors.Red.copy(alpha = 0.30f)
                         else -> null
                     }
                     Row(
@@ -139,12 +142,12 @@ internal fun TranslationL2Screen(
                     ) {
                         if (!allDone) {
                             when (item.status) {
-                                ReportViewModel.TranslationStatus.RUNNING ->
+                                TranslationStatus.RUNNING ->
                                     AnimatedHourglass(fontSize = 16.sp, modifier = Modifier.width(24.dp).padding(end = 8.dp))
                                 else -> {
                                     val glyph = when (item.status) {
-                                        ReportViewModel.TranslationStatus.DONE -> "✅"
-                                        ReportViewModel.TranslationStatus.ERROR -> "❌"
+                                        TranslationStatus.DONE -> "✅"
+                                        TranslationStatus.ERROR -> "❌"
                                         else -> "🕓"
                                     }
                                     Text(glyph, fontSize = 16.sp, modifier = Modifier.width(24.dp).padding(end = 8.dp))
@@ -180,9 +183,9 @@ internal fun TranslationL2Screen(
 
 /** Broad category label for a translation item's source kind — the
  *  ~70dp column on each L2 row. */
-internal fun translationKindLabel(kind: ReportViewModel.TranslationKind): String = when (kind) {
-    ReportViewModel.TranslationKind.TITLE -> "title"
-    ReportViewModel.TranslationKind.PROMPT -> "prompt"
-    ReportViewModel.TranslationKind.AGENT_RESPONSE -> "report"
-    ReportViewModel.TranslationKind.META -> "meta"
+internal fun translationKindLabel(kind: TranslationKind): String = when (kind) {
+    TranslationKind.TITLE -> "title"
+    TranslationKind.PROMPT -> "prompt"
+    TranslationKind.AGENT_RESPONSE -> "report"
+    TranslationKind.META -> "meta"
 }
