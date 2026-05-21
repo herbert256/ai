@@ -247,6 +247,14 @@ fun SettingsScreen(
 
     BackHandler { goBack() }
 
+    // 🧹 jump targets for sub-screens with a clear Housekeeping
+    // counterpart (Models setup / Providers → Refresh; Test-excluded /
+    // Inaccessible models → Test all models). Navigates by route via the
+    // AppNavHost-provided local, so no per-mount prop-drilling.
+    val navHk = com.ai.ui.shared.LocalNavigateToHousekeeping.current
+    val hkRefresh = { navHk(com.ai.ui.navigation.NavRoutes.AI_REFRESH) }
+    val hkTest = { navHk(com.ai.ui.navigation.NavRoutes.AI_TEST) }
+
     when (currentSubScreen) {
         SettingsSubScreen.MAIN -> {
             SettingsMainScreen(
@@ -271,6 +279,7 @@ fun SettingsScreen(
             ProvidersScreen(
                 aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
                 scrollState = providersListScrollState,
+                onHousekeeping = hkRefresh,
                 onProviderSelected = { selectedProviderId = it.id; currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT },
                 onAddProvider = { name ->
                     // Stub provider — every other field is empty / default;
@@ -354,7 +363,8 @@ fun SettingsScreen(
                 hasActiveProvider = aiSettings.getActiveServices().isNotEmpty(),
                 experimentalFeatures = generalSettings.experimentalFeaturesEnabled,
                 onBack = goBack, onBackToHome = onNavigateHome,
-                onNavigate = { currentSubScreen = it }
+                onNavigate = { currentSubScreen = it },
+                onHousekeeping = hkRefresh
             )
         }
         SettingsSubScreen.AI_WORKERS_SETUP -> {
@@ -429,13 +439,15 @@ fun SettingsScreen(
         SettingsSubScreen.AI_TEST_EXCLUDED_MODELS -> {
             com.ai.ui.cruds.models.testexcluded.TestExcludedModelsCrud(
                 aiSettings = aiSettings, onSave = onSaveAi,
-                onBack = goBack, onNavigateHome = onNavigateHome
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                onHousekeeping = hkTest
             )
         }
         SettingsSubScreen.AI_INACCESSIBLE_MODELS -> {
             com.ai.ui.cruds.models.inaccessible.InaccessibleModelsCrud(
                 aiSettings = aiSettings, onSave = onSaveAi,
-                onBack = goBack, onNavigateHome = onNavigateHome
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                onHousekeeping = hkTest
             )
         }
         SettingsSubScreen.AI_AGENTS -> {

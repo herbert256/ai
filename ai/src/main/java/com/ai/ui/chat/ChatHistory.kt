@@ -33,7 +33,8 @@ fun ChatHistoryScreen(
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onSelectSession: (String) -> Unit,
-    onOpenTraces: (String) -> Unit = {}
+    onOpenTraces: (String) -> Unit = {},
+    onHousekeeping: (() -> Unit)? = null
 ) {
     BackHandler { onNavigateBack() }
 
@@ -47,7 +48,7 @@ fun ChatHistoryScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "chat_history", title = "Chat History", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "chat_history", title = "Chat History", onBackClick = onNavigateBack, onHousekeeping = onHousekeeping)
 
         if (allSessions.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

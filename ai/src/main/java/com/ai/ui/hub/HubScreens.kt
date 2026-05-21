@@ -335,7 +335,8 @@ fun ReportsHubScreen(
     onNavigateToNewAiReport: () -> Unit,
     onNavigateToSearchAiReports: () -> Unit,
     onNavigateToAllReports: () -> Unit,
-    reportViewModel: ReportViewModel
+    reportViewModel: ReportViewModel,
+    onHousekeeping: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     // Re-fetch on every ON_RESUME — without this, navigating into a
@@ -378,7 +379,7 @@ fun ReportsHubScreen(
         .background(MaterialTheme.colorScheme.background)
         .verticalScroll(rememberScrollState())
         .padding(16.dp)) {
-        TitleBar(helpTopic = "reports_hub", title = "AI Reports", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "reports_hub", title = "AI Reports", onBackClick = onNavigateBack, onHousekeeping = onHousekeeping)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)

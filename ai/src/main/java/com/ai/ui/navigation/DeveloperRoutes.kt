@@ -51,7 +51,8 @@ internal fun NavGraphBuilder.developerRoutes(
                     AppService.entries.firstOrNull { it.crossProviderModelList }?.let { uiState.aiSettings.getApiKey(it) } ?: ""
                 },
                 onBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) })
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
         composable(NavRoutes.AI_HOUSEKEEPING) {
             val uiState by appViewModel.uiState.collectAsState()
@@ -257,7 +258,8 @@ internal fun NavGraphBuilder.developerRoutes(
             TraceListScreen(aiSettings = uiState.aiSettings,
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
-                onClearTraces = { appViewModel.clearTraces() })
+                onClearTraces = { appViewModel.clearTraces() },
+                onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) })
         }
         composable(NavRoutes.TRACE_LIST_FOR_REPORT) { entry ->
             val reportId = entry.arguments?.getString("reportId") ?: ""
@@ -276,7 +278,8 @@ internal fun NavGraphBuilder.developerRoutes(
                 TraceListScreen(aiSettings = uiState.aiSettings,
                     onBack = safePopBack, onNavigateHome = navigateHome,
                     onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
-                    onClearTraces = { appViewModel.clearTraces() }, reportId = reportId)
+                    onClearTraces = { appViewModel.clearTraces() }, reportId = reportId,
+                    onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) })
             }
         }
         composable(NavRoutes.TRACE_LIST_FOR_REPORT_CATEGORY) { entry ->
@@ -296,7 +299,8 @@ internal fun NavGraphBuilder.developerRoutes(
                     onBack = safePopBack, onNavigateHome = navigateHome,
                     onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                     onClearTraces = { appViewModel.clearTraces() },
-                    reportId = reportId, initialCategory = category)
+                    reportId = reportId, initialCategory = category,
+                    onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) })
             }
         }
         composable(NavRoutes.TRACE_LIST_FOR_MODEL) { entry ->
@@ -305,7 +309,8 @@ internal fun NavGraphBuilder.developerRoutes(
             TraceListScreen(aiSettings = uiState.aiSettings,
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
-                onClearTraces = { appViewModel.clearTraces() }, modelFilter = model)
+                onClearTraces = { appViewModel.clearTraces() }, modelFilter = model,
+                onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) })
         }
         composable(NavRoutes.TRACE_LIST_FOR_RUN) { entry ->
             val runId = try { java.net.URLDecoder.decode(entry.arguments?.getString("runId") ?: "", "UTF-8") } catch (_: Exception) { "" }
@@ -313,7 +318,8 @@ internal fun NavGraphBuilder.developerRoutes(
             TraceListScreen(aiSettings = uiState.aiSettings,
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
-                onClearTraces = { appViewModel.clearTraces() }, runIdFilter = runId)
+                onClearTraces = { appViewModel.clearTraces() }, runIdFilter = runId,
+                onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) })
         }
         composable(NavRoutes.TRACE_DETAIL) { entry ->
             val filename = entry.arguments?.getString("filename") ?: ""

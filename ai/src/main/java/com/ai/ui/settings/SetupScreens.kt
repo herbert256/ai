@@ -124,7 +124,8 @@ fun ModelsSetupScreen(
     experimentalFeatures: Boolean,
     onBack: () -> Unit,
     onBackToHome: () -> Unit,
-    onNavigate: (SettingsSubScreen) -> Unit
+    onNavigate: (SettingsSubScreen) -> Unit,
+    onHousekeeping: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -138,7 +139,7 @@ fun ModelsSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "setup_models", title = "AI Models setup", onBackClick = onBack)
+        TitleBar(helpTopic = "setup_models", title = "AI Models setup", onBackClick = onBack, onHousekeeping = onHousekeeping)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🧠", "Models", "Source and model list per active provider", "$modelCount",
@@ -376,6 +377,7 @@ fun ProvidersScreen(
     onBackToHome: () -> Unit,
     onProviderSelected: (AppService) -> Unit,
     onAddProvider: (String) -> Unit = {},
+    onHousekeeping: (() -> Unit)? = null,
     /** Hoisted by SettingsScreen so it survives the sub-screen `when`
      *  block tearing this composable down whenever the user opens a
      *  Provider detail page. Defaults to a fresh state for callers
@@ -415,7 +417,7 @@ fun ProvidersScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "providers", title = "Providers", onBackClick = onBackToAiSetup)
+        TitleBar(helpTopic = "providers", title = "Providers", onBackClick = onBackToAiSetup, onHousekeeping = onHousekeeping)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             visibleProviders.forEach { provider ->

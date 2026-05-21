@@ -43,7 +43,8 @@ private sealed interface Mode {
 fun CostManualOverridesCrud(
     aiSettings: Settings,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onHousekeeping: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     var refreshTrigger by remember { mutableIntStateOf(0) }
@@ -70,6 +71,7 @@ fun CostManualOverridesCrud(
             itemKey = { it.key },
             onView = { mode = Mode.View(it) },
             onAdd = { mode = Mode.Add(null) },
+            onHousekeeping = onHousekeeping,
             onBack = onBack,
             emptyMessage = "No manual price overrides configured.\nPricing uses automatic lookup."
         )

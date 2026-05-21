@@ -21,7 +21,8 @@ fun TestExcludedModelsCrud(
     aiSettings: Settings,
     onSave: (Settings) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onHousekeeping: (() -> Unit)? = null
 ) {
     var mode by remember { mutableStateOf<Mode>(Mode.List) }
     val toList = { mode = Mode.List }
@@ -40,6 +41,7 @@ fun TestExcludedModelsCrud(
             itemKey = { it.key },
             onView = { mode = Mode.View(it) },
             onAdd = { mode = Mode.Add(null) },
+            onHousekeeping = onHousekeeping,
             onBack = onBack,
             emptyMessage = "No test-excluded models"
         )

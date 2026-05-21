@@ -119,7 +119,8 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateToNewAiReport = { navController.navigate(NavRoutes.AI_NEW_REPORT_HUB) },
                 onNavigateToSearchAiReports = { navController.navigate(NavRoutes.AI_SEARCH_REPORTS) },
                 onNavigateToAllReports = { navController.navigate(NavRoutes.AI_ALL_REPORTS) },
-                reportViewModel = reportViewModel
+                reportViewModel = reportViewModel,
+                onHousekeeping = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) }
             )
         }
         composable(NavRoutes.AI_NEW_REPORT_HUB) {

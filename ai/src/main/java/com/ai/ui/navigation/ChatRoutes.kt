@@ -216,7 +216,8 @@ internal fun NavGraphBuilder.chatRoutes(
         composable(NavRoutes.AI_CHAT_HISTORY) {
             ChatHistoryScreen(onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectSession = { navController.navigate(NavRoutes.aiChatContinue(it)) },
-                onOpenTraces = { sid -> navController.navigate(NavRoutes.traceListForReport(sid)) })
+                onOpenTraces = { sid -> navController.navigate(NavRoutes.traceListForReport(sid)) },
+                onHousekeeping = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) })
         }
         composable(NavRoutes.AI_CHAT_CONTINUE) { entry ->
             val sessionId = entry.arguments?.getString("sessionId") ?: ""

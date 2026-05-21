@@ -35,7 +35,8 @@ fun UsageScreen(
     openRouterApiKey: String,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> }
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onHousekeeping: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -95,7 +96,8 @@ fun UsageScreen(
         TitleBar(
             helpTopic = "statistics",
             title = "AI Usage", onBackClick = onBack,
-            onDelete = if (stats.isNotEmpty()) { { confirmClear = true } } else null
+            onDelete = if (stats.isNotEmpty()) { { confirmClear = true } } else null,
+            onHousekeeping = onHousekeeping
         )
 
         if (isLoading) {

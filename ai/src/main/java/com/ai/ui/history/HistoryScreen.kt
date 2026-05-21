@@ -36,7 +36,8 @@ fun HistoryScreenNav(
     /** Per-row 👁 View icon target — opens the report at the View tile
      *  grid (`showViewReportScreen`). The row's main tap area and the
      *  🔧 icon both keep firing onOpenReportResult (Manage). */
-    onOpenReportView: (String) -> Unit = {}
+    onOpenReportView: (String) -> Unit = {},
+    onHousekeeping: (() -> Unit)? = null
 ) {
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
@@ -83,7 +84,8 @@ fun HistoryScreenNav(
             TitleBar(
                 helpTopic = "history",
                 title = "History", onBackClick = onNavigateBack,
-                onDelete = if (allReports.isNotEmpty()) { { confirmClearAll = true } } else null
+                onDelete = if (allReports.isNotEmpty()) { { confirmClearAll = true } } else null,
+                onHousekeeping = onHousekeeping
             )
 
             // Search toggle

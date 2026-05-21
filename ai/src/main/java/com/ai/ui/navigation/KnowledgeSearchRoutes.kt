@@ -168,7 +168,8 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
                         reportViewModel.restoreCompletedReport(context, reportId)
                         navController.navigate(NavRoutes.aiReportView())
                     }
-                }
+                },
+                onHousekeeping = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) }
             )
         }
 

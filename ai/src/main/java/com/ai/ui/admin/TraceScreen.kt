@@ -63,7 +63,8 @@ fun TraceListScreen(
      *  carry this runId — every API call produced by one user-
      *  launched batch (fan-out, fan-icons, translation, model-test,
      *  report). Wired by the L1 🐞 icon on those screens. */
-    runIdFilter: String? = null
+    runIdFilter: String? = null,
+    onHousekeeping: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -235,7 +236,8 @@ fun TraceListScreen(
                 subject = subHeader,
                 reportIcon = resolvedReportIcon,
                 onBackClick = onBack,
-                onDelete = if (canClear) { { confirmClearAll = true } } else null
+                onDelete = if (canClear) { { confirmClearAll = true } } else null,
+                onHousekeeping = onHousekeeping
             )
             com.ai.ui.shared.HardcodedSubjectRow(subHeader)
 

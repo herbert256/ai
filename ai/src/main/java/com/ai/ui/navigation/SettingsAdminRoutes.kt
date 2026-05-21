@@ -67,7 +67,8 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
             val uiState by appViewModel.uiState.collectAsState()
             com.ai.ui.cruds.costsmanualoverride.CostManualOverridesCrud(
                 aiSettings = uiState.aiSettings,
-                onBack = safePopBack, onNavigateHome = navigateHome)
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
         composable(NavRoutes.AI_COSTS_MAINTENANCE) {
             val uiState by appViewModel.uiState.collectAsState()

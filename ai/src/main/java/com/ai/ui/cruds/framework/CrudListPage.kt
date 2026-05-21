@@ -51,6 +51,7 @@ fun <T> CrudListPage(
     onBack: () -> Unit,
     helpTopic: String? = null,
     onAdd: (() -> Unit)? = null,
+    onHousekeeping: (() -> Unit)? = null,
     emptyMessage: String = "Nothing here yet."
 ) {
     BackHandler { onBack() }
@@ -62,7 +63,7 @@ fun <T> CrudListPage(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        TitleBar(helpTopic = helpTopic, title = title, onBackClick = onBack, onAdd = onAdd)
+        TitleBar(helpTopic = helpTopic, title = title, onBackClick = onBack, onAdd = onAdd, onHousekeeping = onHousekeeping)
 
         if (items.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
