@@ -1019,26 +1019,26 @@ fun TitleBar(
         },
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AiLogoButton(
-            onClick = navigateHome,
-            modifier = Modifier.offset(x = (-14).dp, y = (-7).dp)
-        )
-        // Spacer 1 — pushes the report icon to the midpoint
-        // between the AI logo and the right-side title group.
-        Spacer(modifier = Modifier.weight(1f))
+        // Left edge: the dynamic report icon when one is in scope —
+        // tap → Manage report (via LocalNavigateToCurrentReport, which
+        // on every regular-TitleBar Manage screen lands on Manage
+        // main). Otherwise the AI logo → app Home. The right edge
+        // (below) always carries the AI logo → Home.
         if (resolvedReportIcon != null) {
-            Box(modifier = Modifier.offset(y = (-10).dp)) {
+            Box(modifier = Modifier.offset(x = (-6).dp, y = (-10).dp)) {
                 TitleBarIcon(
                     resolvedReportIcon, Color.Unspecified,
                     onClick = reportIconTap ?: {},
                     width = 32.dp, scale = 2.0f
                 )
             }
+        } else {
+            AiLogoButton(
+                onClick = navigateHome,
+                modifier = Modifier.offset(x = (-14).dp, y = (-7).dp)
+            )
         }
-        // Spacer 2 — equal weight to spacer 1 so the report icon
-        // sits centred between the AI logo (left) and the title
-        // text (right). User-requested layout: AI ─── 📝 ─── Title ❓.
-        Spacer(modifier = Modifier.weight(1f))
+        // Centre: the screen title, centred between the two edge icons.
         if (title != null) {
             // Long titles shrink rather than truncate: start at the
             // normal bar size, drop ~5 % per layout pass whenever the
@@ -1054,12 +1054,12 @@ fun TitleBar(
             // context [LocalNavigateToCurrentReport] is null so the
             // title stays non-interactive (matches today).
             val effectiveTitleClick = onTitleClick ?: reportIconTap
-            val titleMod = Modifier.align(Alignment.Top).padding(top = 4.dp)
+            val titleMod = Modifier.weight(1f).align(Alignment.Top).padding(top = 4.dp)
                 .let { base -> if (effectiveTitleClick != null) base.clickable(onClick = effectiveTitleClick) else base }
             Text(
                 text = title, style = titleStyle, color = Color.White,
                 fontSize = titleFontSize, fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.End,
+                textAlign = TextAlign.Center,
                 maxLines = 1, softWrap = false,
                 overflow = androidx.compose.ui.text.style.TextOverflow.Visible,
                 onTextLayout = { result ->
@@ -1069,12 +1069,14 @@ fun TitleBar(
                 },
                 modifier = titleMod
             )
+        } else {
+            Spacer(modifier = Modifier.weight(1f))
         }
-        // ❓ help no longer lives in the top bar — it's published via
-        // TitleBarIcons.onHelp and rendered right-aligned in the
-        // bottom icons bar (BottomIconBar). The title now runs to the
-        // right edge; a small end pad keeps it off the physical edge.
-        Spacer(modifier = Modifier.width(8.dp))
+        // Right edge: AI logo → app Home (mirrors the left inset).
+        AiLogoButton(
+            onClick = navigateHome,
+            modifier = Modifier.offset(x = 14.dp, y = (-7).dp)
+        )
     }
         // Transient pill — floats at TopCenter of the title bar so
         // it can appear/disappear without nudging the body content

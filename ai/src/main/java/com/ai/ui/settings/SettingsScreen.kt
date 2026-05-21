@@ -769,7 +769,7 @@ private fun SettingsMainScreen(
             SettingsNavCard(
                 icon = "🎨",
                 title = "UI tweaks",
-                description = "Model name layout, full-screen, back-arrow visibility, experimental features.",
+                description = "Model name layout, full-screen, experimental features.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_UI) }
             )
             SettingsNavCard(
