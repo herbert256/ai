@@ -19,7 +19,6 @@ import com.ai.data.ModelType
 import com.ai.model.ModelTypeOverride
 import com.ai.model.Settings
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.CrudListScreen
 import com.ai.ui.shared.TitleBar
 import java.util.UUID
 

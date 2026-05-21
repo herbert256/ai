@@ -15,42 +15,6 @@ import com.ai.model.*
 import com.ai.ui.shared.*
 
 @Composable
-fun ParametersListScreen(
-    aiSettings: Settings,
-    onBackToAiSetup: () -> Unit,
-    onBackToHome: () -> Unit,
-    onSave: (Settings) -> Unit,
-    onAddParameters: () -> Unit,
-    onEditParameters: (String) -> Unit
-) {
-    CrudListScreen(
-        title = "Parameters",
-        helpTopic = "parameters_list",
-        items = aiSettings.parameters,
-        addLabel = "Add Parameter Preset",
-        emptyMessage = "No parameter presets configured",
-        sortKey = { it.name },
-        itemTitle = { it.name },
-        itemSubtitle = { params ->
-            val count = listOfNotNull(
-                params.temperature, params.maxTokens, params.topP, params.topK,
-                params.frequencyPenalty, params.presencePenalty, params.seed,
-                params.systemPrompt?.takeIf { it.isNotBlank() }
-            ).size + (if (params.searchEnabled) 1 else 0) + (if (params.webSearchTool) 1 else 0)
-            "$count parameters configured"
-        },
-        onAdd = onAddParameters,
-        onEdit = { onEditParameters(it.id) },
-        onDelete = { params -> onSave(aiSettings.removeParameters(params.id)) },
-        onBack = onBackToAiSetup,
-        onHome = onBackToHome,
-        deleteEntityType = "Parameter Preset",
-        deleteEntityName = { it.name },
-        itemKey = { it.id }
-    )
-}
-
-@Composable
 fun ParametersEditScreen(
     params: Parameters?,
     existingNames: Set<String>,

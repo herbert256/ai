@@ -29,7 +29,7 @@ enum class SettingsSubScreen {
     AI_AGENTS, AI_AGENT_EDIT,
     AI_FLOCKS, AI_FLOCK_EDIT,
     AI_SWARMS, AI_SWARM_EDIT,
-    AI_PARAMETERS, AI_PARAMETERS_EDIT,
+    AI_PARAMETERS,
     AI_SYSTEM_PROMPTS, AI_SYSTEM_PROMPT_EDIT,
     AI_FAN_PROMPTS_HUB,
     AI_INTERNAL_PROMPTS, AI_INTERNAL_PROMPT_EDIT,
@@ -133,7 +133,6 @@ fun SettingsScreen(
     var editingAgentId by remember { mutableStateOf(initialEditingAgentId) }
     var editingFlockId by remember { mutableStateOf(initialEditingFlockId) }
     var editingSwarmId by remember { mutableStateOf(initialEditingSwarmId) }
-    var editingParametersId by remember { mutableStateOf<String?>(null) }
     var editingSystemPromptId by remember { mutableStateOf<String?>(null) }
     var editingInternalPromptId by remember { mutableStateOf(initialEditingInternalPromptId) }
     var editingExamplePromptId by remember { mutableStateOf<String?>(null) }
@@ -234,7 +233,6 @@ fun SettingsScreen(
             SettingsSubScreen.AI_AGENT_EDIT -> { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENTS }
             SettingsSubScreen.AI_FLOCK_EDIT -> { editingFlockId = null; currentSubScreen = SettingsSubScreen.AI_FLOCKS }
             SettingsSubScreen.AI_SWARM_EDIT -> { editingSwarmId = null; currentSubScreen = SettingsSubScreen.AI_SWARMS }
-            SettingsSubScreen.AI_PARAMETERS_EDIT -> { editingParametersId = null; currentSubScreen = SettingsSubScreen.AI_PARAMETERS }
             SettingsSubScreen.AI_SYSTEM_PROMPT_EDIT -> { editingSystemPromptId = null; currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS }
             SettingsSubScreen.AI_INTERNAL_PROMPT_EDIT -> { editingInternalPromptId = null; currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS }
             SettingsSubScreen.AI_EXAMPLE_PROMPT_EDIT -> { editingExamplePromptId = null; currentSubScreen = SettingsSubScreen.AI_EXAMPLE_PROMPTS }
@@ -528,22 +526,8 @@ fun SettingsScreen(
             )
         }
         SettingsSubScreen.AI_PARAMETERS -> {
-            ParametersListScreen(
-                aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
-                onAddParameters = { editingParametersId = null; currentSubScreen = SettingsSubScreen.AI_PARAMETERS_EDIT },
-                onEditParameters = { editingParametersId = it; currentSubScreen = SettingsSubScreen.AI_PARAMETERS_EDIT }
-            )
-        }
-        SettingsSubScreen.AI_PARAMETERS_EDIT -> {
-            val params = editingParametersId?.let { aiSettings.getParametersById(it) }
-            ParametersEditScreen(
-                params = params,
-                existingNames = aiSettings.parameters.filter { it.id != (params?.id ?: "") }.map { it.name.lowercase(java.util.Locale.ROOT) }.toSet(),
-                onSave = { saved ->
-                    val updated = if (params != null) aiSettings.copy(parameters = aiSettings.parameters.map { if (it.id == params.id) saved else it })
-                    else aiSettings.copy(parameters = aiSettings.parameters + saved)
-                    onSaveAi(updated); goBack()
-                },
+            com.ai.ui.cruds.parameters.ParametersCrud(
+                aiSettings = aiSettings, onSave = onSaveAi,
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
