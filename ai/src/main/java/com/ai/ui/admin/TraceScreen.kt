@@ -602,7 +602,7 @@ fun TraceDetailScreen(
     var showTranslationCompare by remember { mutableStateOf(false) }
 
     if (showTranslationCompare && translationParts != null) {
-        com.ai.ui.report.view.TranslationCompareScreen(
+        com.ai.ui.helpers.TranslationCompareScreen(
             title = "Translation result",
             originalLabel = "Original",
             originalContent = translationParts.first,
