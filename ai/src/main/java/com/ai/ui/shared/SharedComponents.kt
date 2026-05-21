@@ -10,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -71,6 +72,44 @@ fun Modifier.horizontalSwipeNavigation(
                     totalDrag < -thresholdPx -> {
                         if (atLast) android.widget.Toast.makeText(context, "Last page reached", android.widget.Toast.LENGTH_SHORT).show()
                         else onSwipeLeft()
+                    }
+                }
+            },
+            onDragCancel = { totalDrag = 0f }
+        ) { _, dragAmount -> totalDrag += dragAmount }
+    }
+}
+
+/** Vertical sibling of [horizontalSwipeNavigation]: swipe **up** =
+ *  previous, swipe **down** = next. Uses [detectVerticalDragGestures]
+ *  (own vertical touch slop), so it coexists with a horizontal
+ *  swipe modifier on the same element — whichever axis the user
+ *  commits to wins. Edge toasts mirror the horizontal version
+ *  ([atFirst] guards the up swipe, [atLast] the down swipe). */
+fun Modifier.verticalSwipeNavigation(
+    key1: Any?,
+    key2: Any? = Unit,
+    thresholdDp: Dp = 60.dp,
+    atFirst: Boolean = false,
+    atLast: Boolean = false,
+    onSwipeUp: () -> Unit,
+    onSwipeDown: () -> Unit,
+): Modifier = this.composed {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val thresholdPx = with(LocalDensity.current) { thresholdDp.toPx() }
+    pointerInput(key1, key2, atFirst, atLast) {
+        var totalDrag = 0f
+        detectVerticalDragGestures(
+            onDragStart = { totalDrag = 0f },
+            onDragEnd = {
+                when {
+                    totalDrag < -thresholdPx -> {
+                        if (atFirst) android.widget.Toast.makeText(context, "First page reached", android.widget.Toast.LENGTH_SHORT).show()
+                        else onSwipeUp()
+                    }
+                    totalDrag > thresholdPx -> {
+                        if (atLast) android.widget.Toast.makeText(context, "Last page reached", android.widget.Toast.LENGTH_SHORT).show()
+                        else onSwipeDown()
                     }
                 }
             },
@@ -568,6 +607,13 @@ data class TitleBarIcons(
      *  glyph (orange when pinned, white when not). Ignored when
      *  [onPin] is null. */
     val isPinned: Boolean = false,
+    /** Optional 🆕 add hook. CRUD list pages publish it so the bottom
+     *  bar carries the "add new entry" action (replacing the old top-of-
+     *  list Add button). Null → glyph hidden. */
+    val onAdd: (() -> Unit)? = null,
+    /** Optional ✏️ edit hook. CRUD view pages publish it so the bottom
+     *  bar carries the "edit this entry" action. Null → glyph hidden. */
+    val onEdit: (() -> Unit)? = null,
     /** Optional ❓ help hook. Set by the regular [TitleBar] (every
      *  non-View screen), which moved its top-bar help glyph down here.
      *  When non-null the bottom bar uses the help layout — action
@@ -845,6 +891,10 @@ fun TitleBar(
     onSwipePrev: (() -> Boolean)? = null,
     /** Explicit swipe-left (newer report) counterpart of [onSwipePrev]. */
     onSwipeNext: (() -> Boolean)? = null,
+    /** Optional 🆕 add hook (CRUD list pages). Null → glyph hidden. */
+    onAdd: (() -> Unit)? = null,
+    /** Optional ✏️ edit hook (CRUD view pages). Null → glyph hidden. */
+    onEdit: (() -> Unit)? = null,
     /** Applied to the bar's outer Row. */
     modifier: Modifier = Modifier
 ) {
@@ -888,6 +938,8 @@ fun TitleBar(
         onCopyReport = onCopyReport,
         onPin = onPin,
         isPinned = isPinned,
+        onAdd = onAdd,
+        onEdit = onEdit,
         // ❓ help moved out of the top bar into the bottom icons bar
         // (right-aligned, other icons left). View screens keep their
         // top-bar ❓ — see ViewScreenTitleBar.
@@ -1179,6 +1231,8 @@ private fun TitleBarActionStrip(
     onCopyReport: (() -> Unit)? = null,
     onPin: (() -> Unit)? = null,
     isPinned: Boolean = false,
+    onAdd: (() -> Unit)? = null,
+    onEdit: (() -> Unit)? = null,
     scale: Float = 1f,
     /** Extra horizontal gap inserted between every adjacent icon —
      *  on top of the per-pair Spacers already coded into the strip. */
@@ -1188,6 +1242,8 @@ private fun TitleBarActionStrip(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(extraSpacing)
     ) {
+        // 🆕 add — CRUD list pages' "add new entry" action, leftmost.
+        if (onAdd != null) TitleBarIcon("🆕", Color.Unspecified, onAdd, width = 28.dp, scale = scale)
         // 👁 view lives at the leftmost slot of the strip on every
         // Manage screen — the user's "View icon must be the
         // leftmost icon" rule. Larger glyph (18 sp vs the standard
@@ -1218,6 +1274,9 @@ private fun TitleBarActionStrip(
         // "operates on the report itself" actions, and grouping them
         // keeps the destructive icon flanked by its sibling action
         // rather than mixed in with the per-content viewers.
+        // ✏️ edit — CRUD view pages' "edit this entry" action, grouped
+        // just before 👯 copy / 🗑 delete (the per-entry action cluster).
+        if (onEdit != null) TitleBarIcon("✏️", Color.Unspecified, onEdit, width = 28.dp, scale = scale)
         if (onCopyReport != null) TitleBarIcon("👯", Color.Unspecified, onCopyReport, width = 28.dp, scale = scale)
         if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, width = 22.dp, scale = scale)
         if (onDelete != null && onTrace != null) {
@@ -1285,6 +1344,8 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     val onCopyReport = icons?.onCopyReport
     val onPin = icons?.onPin
     val isPinned = icons?.isPinned == true
+    val onAdd = icons?.onAdd
+    val onEdit = icons?.onEdit
     // Non-null on the non-View screens (regular TitleBar) — flips the
     // bar into the help layout: strip left-aligned, ❓ pinned right.
     val onHelp = icons?.onHelp
@@ -1292,6 +1353,8 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     var stripBase = 0
     var slotCount = 0
     fun slot(w: Int) { stripBase += w; slotCount++ }
+    if (onAdd != null) slot(28)
+    if (onEdit != null) slot(28)
     if (onChat != null) slot(28)
     // 👁 renders a touch wider so the slightly larger glyph (matches
     // the per-row eye on every reports list) doesn't collide with
@@ -1356,6 +1419,8 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 onCopyReport = onCopyReport,
                 onPin = onPin,
                 isPinned = isPinned,
+                onAdd = onAdd,
+                onEdit = onEdit,
                 scale = scale,
                 extraSpacing = extraGap.dp
             )

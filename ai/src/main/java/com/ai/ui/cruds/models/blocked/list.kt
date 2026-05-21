@@ -44,13 +44,8 @@ fun BlockedModelsCrud(
             line = { "${it.providerId} · ${it.model}" },
             itemKey = { it.key },
             onView = { mode = Mode.View(it) },
-            onEdit = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add(null) },
-            onCopy = { mode = Mode.Add(it) },
-            onDelete = { remove(it) },
-            deleteName = { "${it.providerId} · ${it.model}" },
             onBack = onBack,
-            addLabel = "Add blocked model",
             emptyMessage = "No blocked models"
         )
         is Mode.View -> BlockedModelView(

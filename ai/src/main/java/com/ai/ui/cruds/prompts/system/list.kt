@@ -41,13 +41,8 @@ fun SystemPromptsCrud(
             line = { "${it.name} · ${it.prompt.lineSequence().firstOrNull().orEmpty().take(50)}" },
             itemKey = { it.id },
             onView = { mode = Mode.View(it) },
-            onEdit = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add },
-            onCopy = { mode = Mode.Edit(it.copy(id = UUID.randomUUID().toString(), name = "${it.name}-copy")) },
-            onDelete = { onSave(aiSettings.removeSystemPrompt(it.id)) },
-            deleteName = { it.name },
             onBack = onBack,
-            addLabel = "Add system prompt",
             emptyMessage = "No system prompts"
         )
         is Mode.View -> SystemPromptView(

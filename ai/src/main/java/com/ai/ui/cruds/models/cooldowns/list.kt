@@ -44,13 +44,8 @@ fun ModelCooldownsCrud(
             line = { "${it.providerId} / ${com.ai.ui.shared.shortModelName(it.model)}" },
             itemKey = { "${it.providerId}:${it.model}" },
             onView = { mode = Mode.View(it) },
-            onEdit = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add(null) },
-            onCopy = { mode = Mode.Add(it) },
-            onDelete = { ModelCooldownStore.remove(it.providerId, it.model) },
-            deleteName = { "${it.providerId}/${it.model}" },
             onBack = onBack,
-            addLabel = "Add cooldown",
             emptyMessage = "No cooldowns. Models rate-limited by a >1h 429 land here automatically; you can also add one manually."
         )
         is Mode.View -> CooldownView(

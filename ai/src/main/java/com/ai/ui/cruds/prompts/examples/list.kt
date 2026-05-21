@@ -41,13 +41,8 @@ fun ExamplePromptsCrud(
             line = { "${it.title.ifBlank { "(untitled)" }} · ${it.text.lineSequence().firstOrNull().orEmpty().take(50)}" },
             itemKey = { it.id },
             onView = { mode = Mode.View(it) },
-            onEdit = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add },
-            onCopy = { mode = Mode.Edit(it.copy(id = UUID.randomUUID().toString(), title = "${it.title}-copy")) },
-            onDelete = { onSave(aiSettings.removeExamplePrompt(it.id)) },
-            deleteName = { it.title.ifBlank { "(untitled)" } },
             onBack = onBack,
-            addLabel = "Add example prompt",
             emptyMessage = "No example prompts"
         )
         is Mode.View -> ExamplePromptView(

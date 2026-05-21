@@ -82,13 +82,8 @@ fun InternalPromptCrud(
             },
             itemKey = { it.id },
             onView = { mode = Mode.View(it) },
-            onEdit = { mode = Mode.Edit(it) },
             onAdd = if (fixedList) null else ({ mode = Mode.Add }),
-            onCopy = if (fixedList) null else ({ mode = Mode.Edit(it.copy(id = UUID.randomUUID().toString(), name = "${it.name}-copy")) }),
-            onDelete = if (fixedList) null else ({ remove(it) }),
-            deleteName = { it.name },
             onBack = onBack,
-            addLabel = "Add ${label.lowercase().removeSuffix("s")}",
             emptyMessage = "No ${label.lowercase()} configured"
         )
         is Mode.View -> CrudViewPage(

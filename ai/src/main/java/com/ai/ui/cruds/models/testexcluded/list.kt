@@ -39,13 +39,8 @@ fun TestExcludedModelsCrud(
             line = { "${it.providerId} · ${it.model}" },
             itemKey = { it.key },
             onView = { mode = Mode.View(it) },
-            onEdit = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add(null) },
-            onCopy = { mode = Mode.Add(it) },
-            onDelete = { remove(it) },
-            deleteName = { "${it.providerId} · ${it.model}" },
             onBack = onBack,
-            addLabel = "Add test-excluded model",
             emptyMessage = "No test-excluded models"
         )
         is Mode.View -> TestExcludedModelView(

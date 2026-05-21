@@ -69,13 +69,8 @@ fun CostManualOverridesCrud(
             line = { "${it.providerId} · ${shortModelName(it.model)} · ${formatTokenPricePerMillion(it.promptPrice)} / ${formatTokenPricePerMillion(it.completionPrice)}" },
             itemKey = { it.key },
             onView = { mode = Mode.View(it) },
-            onEdit = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add(null) },
-            onCopy = { mode = Mode.Add(it) },
-            onDelete = { remove(it) },
-            deleteName = { "${it.providerId} · ${it.model}" },
             onBack = onBack,
-            addLabel = "Add manual override",
             emptyMessage = "No manual price overrides configured.\nPricing uses automatic lookup."
         )
         is Mode.View -> CostOverrideView(

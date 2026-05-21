@@ -47,13 +47,8 @@ fun ParametersCrud(
             line = { "${it.name} · ${setCount(it)} set" },
             itemKey = { it.id },
             onView = { mode = Mode.View(it) },
-            onEdit = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add },
-            onCopy = { mode = Mode.Edit(it.copy(id = UUID.randomUUID().toString(), name = "${it.name}-copy")) },
-            onDelete = { onSave(aiSettings.removeParameters(it.id)) },
-            deleteName = { it.name },
             onBack = onBack,
-            addLabel = "Add parameter preset",
             emptyMessage = "No parameter presets configured"
         )
         is Mode.View -> ParametersView(

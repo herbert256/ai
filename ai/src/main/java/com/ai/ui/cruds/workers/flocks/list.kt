@@ -42,13 +42,8 @@ fun FlocksCrud(
             line = { "${it.name} · ${aiSettings.getAgentsForFlock(it).size} agents" },
             itemKey = { it.id },
             onView = { mode = Mode.View(it) },
-            onEdit = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add },
-            onCopy = { mode = Mode.Edit(it.copy(id = UUID.randomUUID().toString(), name = "${it.name}-copy")) },
-            onDelete = { remove(it) },
-            deleteName = { it.name },
             onBack = onBack,
-            addLabel = "Add flock",
             emptyMessage = "No flocks configured"
         )
         is Mode.View -> FlockView(

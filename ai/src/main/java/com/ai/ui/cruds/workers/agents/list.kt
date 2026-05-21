@@ -51,13 +51,8 @@ fun AgentsCrud(
             },
             itemKey = { it.id },
             onView = { mode = Mode.View(it) },
-            onEdit = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add },
-            onCopy = { mode = Mode.Edit(it.copy(id = UUID.randomUUID().toString(), name = "${it.name}-copy")) },
-            onDelete = { onSave(aiSettings.removeAgent(it.id)) },
-            deleteName = { it.name },
             onBack = onBack,
-            addLabel = "Add agent",
             emptyMessage = "No agents configured"
         )
         is Mode.View -> AgentView(

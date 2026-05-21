@@ -51,13 +51,8 @@ fun ManualOverridesCrud(
             line = { "${it.providerId} / ${it.modelId} → ${it.type}${flags(it)}" },
             itemKey = { it.id },
             onView = { mode = Mode.View(it) },
-            onEdit = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add(null) },
-            onCopy = { mode = Mode.Add(it) },
-            onDelete = { remove(it) },
-            deleteName = { "${it.providerId}/${it.modelId}" },
             onBack = onBack,
-            addLabel = "Add override",
             emptyMessage = "No overrides yet. Add one to force a specific type for a provider/model pair."
         )
         is Mode.View -> ManualOverrideView(

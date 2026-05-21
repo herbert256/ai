@@ -2,9 +2,7 @@ package com.ai.ui.cruds.framework
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,8 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,9 +25,9 @@ import com.ai.ui.shared.DeleteConfirmationDialog
 import com.ai.ui.shared.TitleBar
 
 /**
- * Uniform CRUD view (read-only detail) page. A row of Edit / Copy /
- * Delete buttons sits at the top (Copy / Delete hidden when null), then
- * the entity's read-only [content].
+ * Uniform CRUD view (read-only detail) page. Edit / Copy / Delete live in
+ * the bottom icon bar (✏️ / 👯 / 🗑, published via [TitleBar]; Copy /
+ * Delete omitted when null), then the entity's read-only [content].
  */
 @Composable
 fun CrudViewPage(
@@ -52,28 +48,12 @@ fun CrudViewPage(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        TitleBar(helpTopic = helpTopic, title = title, onBackClick = onBack)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = onEdit, modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-            ) { Text("✏️ Edit", maxLines = 1, softWrap = false) }
-            if (onCopy != null) {
-                Button(
-                    onClick = onCopy, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                ) { Text("👯 Copy", maxLines = 1, softWrap = false) }
-            }
-            if (onDelete != null) {
-                Button(
-                    onClick = { confirmDelete = true }, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-                ) { Text("🗑 Delete", maxLines = 1, softWrap = false) }
-            }
-        }
+        TitleBar(
+            helpTopic = helpTopic, title = title, onBackClick = onBack,
+            onEdit = onEdit,
+            onCopyReport = onCopy,
+            onDelete = onDelete?.let { { confirmDelete = true } }
+        )
         Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             content()
