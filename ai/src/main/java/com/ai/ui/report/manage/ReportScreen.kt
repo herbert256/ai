@@ -161,7 +161,7 @@ fun ReportsScreen(
     onRunSecondary: (String, com.ai.model.InternalPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
     /** Fired by the View screen's "Language missing" popup. Routes
      *  to ReportViewModel.translateMissingItems. */
-    onTranslateMissingItems: (String, List<com.ai.viewmodel.ReportViewModel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
+    onTranslateMissingItems: (String, List<com.ai.viewmodel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
     onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?) -> Unit = { _, _, _, _, _ -> },
     onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String?) -> Unit = { _, _, _, _ -> },
     /** Model-scoped fan-in run path. Args: reportId, prompt, picked

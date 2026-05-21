@@ -391,7 +391,7 @@ fun ReportsScreenNav(
             reportViewModel.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
         },
         onTranslateMissingItems = { reportId, items, target, targetNative ->
-            reportViewModel.translateMissingItems(context, reportId, items, target, targetNative)
+            reportViewModel.translation.translateMissingItems(context, reportId, items, target, targetNative)
         },
         onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage ->
             reportViewModel.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage)
@@ -497,19 +497,19 @@ fun ReportsScreenNav(
         // older report's in-flight (or never-cleared) translation runs
         // would show as live "translate" rows on every other report's
         // manage screen.
-        translationRuns = reportViewModel.translationRuns.collectAsState().value.values
+        translationRuns = reportViewModel.translation.translationRuns.collectAsState().value.values
             .filter { it.sourceReportId == uiState.currentReportId }
             .toList(),
         onStartTranslation = { sourceId, langName, langNative, models ->
-            reportViewModel.startTranslation(context, sourceId, langName, langNative, models)
+            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, models)
         },
         translationLifecycle = TranslationLifecycleCallbacks(
-            onCancelRun = { runId -> reportViewModel.cancelTranslation(runId) },
-            onCancelItem = { runId, itemId -> reportViewModel.cancelTranslationItem(runId, itemId) },
-            onConsumeRun = { runId -> reportViewModel.consumeTranslationRun(runId) },
-            onReconcileStalled = { sourceId, runId -> reportViewModel.reconcileStalledTranslationRun(context, sourceId, runId) },
-            onDeleteRun = { sourceId, runId -> reportViewModel.deleteTranslationRun(context, sourceId, runId) },
-            onSetMode = { runId, mode -> reportViewModel.setTranslationMode(runId, mode) }
+            onCancelRun = { runId -> reportViewModel.translation.cancelTranslation(runId) },
+            onCancelItem = { runId, itemId -> reportViewModel.translation.cancelTranslationItem(runId, itemId) },
+            onConsumeRun = { runId -> reportViewModel.translation.consumeTranslationRun(runId) },
+            onReconcileStalled = { sourceId, runId -> reportViewModel.translation.reconcileStalledTranslationRun(context, sourceId, runId) },
+            onDeleteRun = { sourceId, runId -> reportViewModel.translation.deleteTranslationRun(context, sourceId, runId) },
+            onSetMode = { runId, mode -> reportViewModel.translation.setTranslationMode(runId, mode) }
         ),
         onContinueWithCurrent = onContinueWithCurrent,
         onContinueWithAgentPicker = onContinueWithAgentPicker,
@@ -530,22 +530,22 @@ fun ReportsScreenNav(
             reportViewModel.resumeStaleRunsForReport(context, rid)
         },
         onRestartFailedTranslations = { rid, runId ->
-            reportViewModel.restartFailedTranslations(context, rid, runId)
+            reportViewModel.translation.restartFailedTranslations(context, rid, runId)
         },
         onRemoveFailedTranslations = { rid, runId ->
-            reportViewModel.removeFailedTranslations(context, rid, runId)
+            reportViewModel.translation.removeFailedTranslations(context, rid, runId)
         },
         onRemoveBenchedTranslations = { rid, runId ->
-            reportViewModel.removeBenchedTranslations(context, rid, runId)
+            reportViewModel.translation.removeBenchedTranslations(context, rid, runId)
         },
         onRestartAllTranslations = { rid, runId ->
-            reportViewModel.restartAllTranslations(context, rid, runId)
+            reportViewModel.translation.restartAllTranslations(context, rid, runId)
         },
         onStartMissingTranslations = { rid, runId ->
-            reportViewModel.startMissingTranslations(context, rid, runId)
+            reportViewModel.translation.startMissingTranslations(context, rid, runId)
         },
         onBuildPersistedTranslationRun = { rid, runId ->
-            reportViewModel.buildPersistedTranslationRunState(context, rid, runId)
+            reportViewModel.translation.buildPersistedTranslationRunState(context, rid, runId)
         },
         onRestartFailedFanOut = { rid, mp ->
             reportViewModel.rerunFailedFanOutPairs(context, rid, mp)

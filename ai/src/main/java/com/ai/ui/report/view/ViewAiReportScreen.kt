@@ -126,7 +126,7 @@ internal fun ViewAiReportScreen(
      *  Dispatches a one-off translation of the picked items to the
      *  active target language. Hosted by ReportScreen which routes
      *  to ReportViewModel.translateMissingItems. */
-    onTranslateMissingItems: (items: List<com.ai.viewmodel.ReportViewModel.TranslateMissingItem>,
+    onTranslateMissingItems: (items: List<com.ai.viewmodel.TranslateMissingItem>,
                               targetLanguageName: String,
                               targetLanguageNative: String) -> Unit = { _, _, _ -> },
     onBack: () -> Unit
@@ -688,7 +688,7 @@ internal fun ViewAiReportScreen(
                 if (sourceText.isNotBlank()) {
                     onTranslateMissingItems(
                         listOf(
-                            com.ai.viewmodel.ReportViewModel.TranslateMissingItem(
+                            com.ai.viewmodel.TranslateMissingItem(
                                 sourceKind = "PROMPT",
                                 targetId = "prompt",
                                 sourceText = sourceText,
@@ -732,7 +732,7 @@ internal fun ViewAiReportScreen(
                     }?.content.orEmpty()
                     if (sourceText.isBlank()) return@mapNotNull null
                     val prov = com.ai.data.AppService.findById(agent.provider)?.id ?: agent.provider
-                    com.ai.viewmodel.ReportViewModel.TranslateMissingItem(
+                    com.ai.viewmodel.TranslateMissingItem(
                         sourceKind = "AGENT",
                         targetId = agent.agentId,
                         sourceText = sourceText,
@@ -792,7 +792,7 @@ internal fun ViewAiReportScreen(
                     val name = meta.metaPromptName?.takeIf { it.isNotBlank() }
                         ?: com.ai.data.legacyKindDisplayName(meta.kind)
                     val prov = com.ai.data.AppService.findById(meta.providerId)?.id ?: meta.providerId
-                    com.ai.viewmodel.ReportViewModel.TranslateMissingItem(
+                    com.ai.viewmodel.TranslateMissingItem(
                         sourceKind = "META",
                         targetId = meta.id,
                         sourceText = sourceText,

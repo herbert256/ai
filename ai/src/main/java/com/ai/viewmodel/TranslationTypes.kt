@@ -97,3 +97,16 @@ data class TranslationRunState(
     val isRunning: Boolean get() = !finished && !cancelled && completed < total
     val isFinished: Boolean get() = finished
 }
+
+/** One item the View screen's "Language missing" popup asked us
+ *  to translate from a chosen source language to the View's
+ *  active target language. The [sourceText] is whatever the
+ *  source language renders for that item — Original's
+ *  `report.prompt` / `agent.responseBody` / `meta.content`, or a
+ *  non-Original existing TRANSLATE row's content. */
+data class TranslateMissingItem(
+    val sourceKind: String,    // "PROMPT" | "AGENT" | "META"
+    val targetId: String,      // "prompt" / agentId / meta SecondaryResult id
+    val sourceText: String,
+    val label: String          // surfaced on the placeholder row's agentName
+)

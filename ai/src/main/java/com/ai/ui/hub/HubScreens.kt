@@ -248,7 +248,7 @@ fun rememberHomeReportLists(
     reportViewModel: ReportViewModel
 ): State<HomeReportLists> {
     val context = LocalContext.current
-    val translationRuns by reportViewModel.translationRuns.collectAsState()
+    val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
     val cardsTick by produceState(initialValue = 0) {
         while (true) {
             kotlinx.coroutines.delay(5_000L)

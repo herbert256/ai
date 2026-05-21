@@ -231,7 +231,7 @@ internal fun NavGraphBuilder.reportRoutes(
             // Local so [ReportRunScreen]'s Edit Row 2 "System prompt"
             // dialog can fire it without adding another arg to
             // [ReportsScreen]'s 60+ param signature.
-            val translationRunsForLocal by reportViewModel.translationRuns.collectAsState()
+            val translationRunsForLocal by reportViewModel.translation.translationRuns.collectAsState()
             val activeTranslationReportIds = remember(translationRunsForLocal) {
                 translationRunsForLocal.values
                     .filter { !it.isFinished && !it.cancelled }

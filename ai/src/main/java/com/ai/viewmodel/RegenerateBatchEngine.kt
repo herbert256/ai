@@ -531,7 +531,7 @@ class RegenerateBatchEngine internal constructor(
                     .filter { it.id in phaseTasks.map { t -> t.rowId }.toSet() }
                 val runIds = rows.mapNotNull { it.translationRunId }.distinct()
                 runIds.forEach {
-                    reportViewModel.startMissingTranslations(context, reportId, it)
+                    reportViewModel.translation.startMissingTranslations(context, reportId, it)
                 }
             }
             RegeneratePhase.FAN_ICONS -> {

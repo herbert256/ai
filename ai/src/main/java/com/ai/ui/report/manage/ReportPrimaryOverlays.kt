@@ -122,7 +122,7 @@ internal fun ReportPrimaryOverlays(
      *  source language; dispatches a one-off translation of the
      *  supplied items into the active target language. */
     onTranslateMissingItems: (reportId: String,
-                              items: List<com.ai.viewmodel.ReportViewModel.TranslateMissingItem>,
+                              items: List<com.ai.viewmodel.TranslateMissingItem>,
                               targetLanguageName: String,
                               targetLanguageNative: String) -> Unit,
     /** When non-null, mounts [FanOutViewScreen] — the content-only
