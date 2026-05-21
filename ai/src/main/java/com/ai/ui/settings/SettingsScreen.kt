@@ -410,14 +410,13 @@ fun SettingsScreen(
             )
         }
         SettingsSubScreen.AI_MANUAL_MODEL_TYPES -> {
-            ManualModelTypesScreen(
-                aiSettings = aiSettings,
-                onBack = goBack, onNavigateHome = onNavigateHome,
-                onSave = onSaveAi
+            com.ai.ui.cruds.models.manualoverrides.ManualOverridesCrud(
+                aiSettings = aiSettings, onSave = onSaveAi,
+                onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
         SettingsSubScreen.AI_MODEL_COOLDOWNS -> {
-            ModelCooldownsScreen(
+            com.ai.ui.cruds.models.cooldowns.ModelCooldownsCrud(
                 aiSettings = aiSettings,
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 onNavigateToTrace = onNavigateToTrace
@@ -430,15 +429,15 @@ fun SettingsScreen(
             )
         }
         SettingsSubScreen.AI_TEST_EXCLUDED_MODELS -> {
-            TestExcludedModelsListScreen(
-                aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
-                onSave = onSaveAi, onNavigateHome = onNavigateHome
+            com.ai.ui.cruds.models.testexcluded.TestExcludedModelsCrud(
+                aiSettings = aiSettings, onSave = onSaveAi,
+                onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
         SettingsSubScreen.AI_INACCESSIBLE_MODELS -> {
-            InaccessibleModelsListScreen(
-                aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
-                onSave = onSaveAi, onNavigateHome = onNavigateHome
+            com.ai.ui.cruds.models.inaccessible.InaccessibleModelsCrud(
+                aiSettings = aiSettings, onSave = onSaveAi,
+                onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
         SettingsSubScreen.AI_AGENTS -> {
