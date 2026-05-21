@@ -22,6 +22,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import com.ai.ui.report.view.helpers.rememberWrapPager
+import com.ai.ui.report.view.helpers.wrapTo
+import com.ai.ui.report.view.helpers.wrapCenterPage
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -106,11 +109,9 @@ fun ReportsViewScreen(
     val initialLangIdx = remember(languages, initialLanguage) {
         languages.indexOf(initialLanguage ?: "").coerceAtLeast(0)
     }
-    val langPagerState = rememberPagerState(
-        initialPage = initialLangIdx.coerceIn(0, languages.size - 1)
-    ) { languages.size.coerceAtLeast(1) }
+    val langPagerState = rememberWrapPager(languages.size, initialLangIdx)
     val activeLanguage = if (languages.isEmpty()) ""
-        else languages[langPagerState.currentPage.coerceIn(0, languages.size - 1)]
+        else languages[langPagerState.currentPage.wrapTo(languages.size)]
     val activeLangState = androidx.compose.runtime.rememberUpdatedState(activeLanguage)
     androidx.activity.compose.BackHandler {
         onBack(activeLangState.value.ifBlank { null })
@@ -162,7 +163,7 @@ fun ReportsViewScreen(
     val agents = report?.agents?.filter {
         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
     }.orEmpty()
-    val pagerState = rememberPagerState(initialPage = 0) { agents.size.coerceAtLeast(1) }
+    val pagerState = rememberWrapPager(agents.size, 0)
     // When called with an initialAgentId, jump to that agent's page
     // once the report has finished loading and the pager has its real
     // count. Keyed on (agents, initialAgentId) so the jump only fires
@@ -170,12 +171,12 @@ fun ReportsViewScreen(
     androidx.compose.runtime.LaunchedEffect(agents, initialAgentId) {
         if (initialAgentId != null && agents.isNotEmpty()) {
             val idx = agents.indexOfFirst { it.agentId == initialAgentId }
-            if (idx >= 0 && idx != pagerState.currentPage) {
-                pagerState.scrollToPage(idx)
+            if (idx >= 0 && idx != pagerState.currentPage.wrapTo(agents.size)) {
+                pagerState.scrollToPage(wrapCenterPage(agents.size, idx))
             }
         }
     }
-    val activeAgent = agents.getOrNull(pagerState.currentPage)
+    val activeAgent = agents.getOrNull(pagerState.currentPage.wrapTo(agents.size))
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -297,7 +298,7 @@ fun ReportsViewScreen(
                                     .heightIn(max = promptCap)
                                     .wrapContentHeight()
                             ) { page ->
-                                val lang = languages[page.coerceIn(0, languages.size - 1)]
+                                val lang = languages[page.wrapTo(languages.size)]
                                 val flag = when {
                                     lang.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() }
                                     else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
@@ -337,7 +338,7 @@ fun ReportsViewScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "${pagerState.currentPage + 1} / ${agents.size}",
+                        text = "${pagerState.currentPage.wrapTo(agents.size) + 1} / ${agents.size}",
                         color = AppColors.TextTertiary, fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -353,7 +354,7 @@ fun ReportsViewScreen(
                             .heightIn(max = responseCap)
                             .wrapContentHeight()
                     ) { page ->
-                        val agent = agents[page]
+                        val agent = agents[page.wrapTo(agents.size)]
                         AgentResponseCard(
                             agent = agent,
                             overrideBody = translatedByAgentId[agent.agentId]

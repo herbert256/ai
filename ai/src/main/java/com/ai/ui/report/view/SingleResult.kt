@@ -319,13 +319,16 @@ fun ReportSingleResultScreen(
             .horizontalSwipeNavigation(
                 key1 = currentAgentId,
                 key2 = orderedAgents,
-                atFirst = agentIdx <= 0,
-                atLast = agentIdx < 0 || agentIdx >= orderedAgents.size - 1,
+                // Wrap both ways — swipe agents forever, no edge stop.
+                atFirst = false,
+                atLast = false,
                 onSwipeLeft = {
-                    orderedAgents.getOrNull(agentIdx + 1)?.let { currentAgentId = it.agentId }
+                    val n = orderedAgents.size
+                    if (n > 0 && agentIdx >= 0) currentAgentId = orderedAgents[(agentIdx + 1) % n].agentId
                 },
                 onSwipeRight = {
-                    orderedAgents.getOrNull(agentIdx - 1)?.let { currentAgentId = it.agentId }
+                    val n = orderedAgents.size
+                    if (n > 0 && agentIdx >= 0) currentAgentId = orderedAgents[(agentIdx - 1 + n) % n].agentId
                 }
             )
         ) {

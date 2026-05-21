@@ -39,6 +39,8 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
+import com.ai.ui.report.view.helpers.rememberWrapPager
+import com.ai.ui.report.view.helpers.wrapTo
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -118,16 +120,11 @@ fun PromptViewScreen(
         languages.indexOf(target).coerceAtLeast(0)
     }
 
-    // Non-wrapping pager — one page per language, swipe past the
-    // first / last stops dead. Earlier shape used Int.MAX_VALUE +
-    // modular wrap so swipes ticker-tape forever; the user found
-    // that disorienting on a small set of languages.
-    val pageCount = languages.size.coerceAtLeast(1)
-    val pagerState = rememberPagerState(
-        initialPage = initialIndex.coerceIn(0, pageCount - 1)
-    ) { pageCount }
+    // Wrapping language pager — swipe past the first / last wraps around
+    // (the user wants every View swipe to cycle forever, both ways).
+    val pagerState = rememberWrapPager(languages.size, initialIndex)
     val currentLanguage = if (languages.isEmpty()) ""
-        else languages[pagerState.currentPage.coerceIn(0, languages.size - 1)]
+        else languages[pagerState.currentPage.wrapTo(languages.size)]
 
     // Android back returns to the parent View screen AND tells it
     // which language ended up active here, so the parent's picker
@@ -192,7 +189,7 @@ fun PromptViewScreen(
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 val lang = if (languages.isEmpty()) ""
-                    else languages[page.coerceIn(0, languages.size - 1)]
+                    else languages[page.wrapTo(languages.size)]
                 val body = if (lang.isBlank()) report.prompt.orEmpty()
                     else loaded.translatedByLang[lang].orEmpty().ifBlank { report.prompt.orEmpty() }
                 // Pass the per-page language icon so each card carries its

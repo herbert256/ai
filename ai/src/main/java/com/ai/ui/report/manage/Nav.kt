@@ -206,21 +206,24 @@ fun ReportsScreenNav(
     // Threading the same lambdas through ReportsScreen as args would
     // push that function past the JVM 64 KB per-method ceiling.
     val neighborNav = remember(hasPrevReport, hasNextReport, currentIdx, reportIdsNewestFirst) {
+        // Wrap both ways: with >1 report a swipe always moves and cycles
+        // around the ends — no dead-end, no "No more reports".
+        val size = reportIdsNewestFirst.size
         com.ai.ui.shared.ReportNeighborNav(
             onPrev = {
-                if (hasPrevReport) {
-                    val targetId = reportIdsNewestFirst[currentIdx + 1]
+                if (size > 1 && currentIdx >= 0) {
+                    val targetId = reportIdsNewestFirst[(currentIdx + 1) % size]
                     scope.launch { reportViewModel.restoreCompletedReport(context, targetId) }
                 }
             },
             onNext = {
-                if (hasNextReport) {
-                    val targetId = reportIdsNewestFirst[currentIdx - 1]
+                if (size > 1 && currentIdx >= 0) {
+                    val targetId = reportIdsNewestFirst[(currentIdx - 1 + size) % size]
                     scope.launch { reportViewModel.restoreCompletedReport(context, targetId) }
                 }
             },
-            hasPrev = hasPrevReport,
-            hasNext = hasNextReport
+            hasPrev = size > 1,
+            hasNext = size > 1
         )
     }
     // Manage → View 👁 jump holder. Lives HERE (one wrapper level

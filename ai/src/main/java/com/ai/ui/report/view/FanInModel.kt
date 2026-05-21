@@ -45,6 +45,9 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
+import com.ai.ui.report.view.helpers.rememberWrapPager
+import com.ai.ui.report.view.helpers.wrapTo
+import com.ai.ui.report.view.helpers.wrapCenterPage
 import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
@@ -163,20 +166,20 @@ fun FanInModelViewScreen(
             return@Column
         }
 
-        val pagerState = rememberPagerState(initialPage = loaded.activeIndex, pageCount = { rows.size })
+        val pagerState = rememberWrapPager(rows.size, loaded.activeIndex)
         // Sync the pager to the loaded active index when it lands (the
         // initial value is captured at remember time, before the IO
         // load finishes, so it's 0). Without this, the user opening
         // the second sibling would always land on the first.
         LaunchedEffect(loaded.activeIndex, rows.size) {
-            if (rows.isNotEmpty() && pagerState.currentPage != loaded.activeIndex) {
-                pagerState.scrollToPage(loaded.activeIndex.coerceAtMost(rows.size - 1))
+            if (rows.isNotEmpty() && pagerState.currentPage.wrapTo(rows.size) != loaded.activeIndex) {
+                pagerState.scrollToPage(wrapCenterPage(rows.size, loaded.activeIndex))
             }
         }
 
         // Sibling tabs strip: one chip per model. Active model is
         // bolded + brighter; tapping a chip flips the pager to it.
-        ModelTabsRow(rows = rows, activePage = pagerState.currentPage,
+        ModelTabsRow(rows = rows, activePage = pagerState.currentPage.wrapTo(rows.size),
             onSelect = { idx ->
                 // Pager scroll happens via LaunchedEffect below.
             },
@@ -195,7 +198,7 @@ fun FanInModelViewScreen(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(horizontal = 4.dp)
             ) { page ->
-                val row = rows[page]
+                val row = rows[page.wrapTo(rows.size)]
                 val provider = AppService.findById(row.providerId)?.id ?: row.providerId
                 val scopedProvider = row.scopeProviderId?.let { AppService.findById(it)?.id ?: it }
                 val scopedModel = row.scopeModel

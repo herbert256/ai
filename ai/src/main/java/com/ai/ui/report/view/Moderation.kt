@@ -46,6 +46,8 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
+import com.ai.ui.report.view.helpers.rememberWrapPager
+import com.ai.ui.report.view.helpers.wrapTo
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -203,10 +205,10 @@ fun ModerationViewScreen(
         // model. Counter sits between the verdict hero and the card
         // so the user reads top-to-bottom:
         //   title → verdict → X / Y → moderation card → response card.
-        val pagerState = rememberPagerState(initialPage = 0) { rows.size }
+        val pagerState = rememberWrapPager(rows.size, 0)
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "${pagerState.currentPage + 1} / ${rows.size}",
+            text = "${pagerState.currentPage.wrapTo(rows.size) + 1} / ${rows.size}",
             color = AppColors.TextTertiary, fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -221,7 +223,7 @@ fun ModerationViewScreen(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
-                val r = rows[page]
+                val r = rows[page.wrapTo(rows.size)]
                 // LazyColumn (not verticalScroll Column) so the inner
                 // vertical scroll cooperates with HorizontalPager's
                 // horizontal drag detection — a swipe across the

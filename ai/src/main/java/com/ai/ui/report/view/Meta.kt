@@ -45,6 +45,8 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
+import com.ai.ui.report.view.helpers.rememberWrapPager
+import com.ai.ui.report.view.helpers.wrapTo
 import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
@@ -134,12 +136,9 @@ fun MetaViewScreen(
         val target = language ?: ""
         languages.indexOf(target).coerceAtLeast(0)
     }
-    val pageCount = languages.size.coerceAtLeast(1)
-    val pagerState = rememberPagerState(
-        initialPage = initialIndex.coerceIn(0, pageCount - 1)
-    ) { pageCount }
+    val pagerState = rememberWrapPager(languages.size, initialIndex)
     val activeLanguage = if (languages.isEmpty()) ""
-        else languages[pagerState.currentPage.coerceIn(0, languages.size - 1)]
+        else languages[pagerState.currentPage.wrapTo(languages.size)]
     val activeLangState = rememberUpdatedState(activeLanguage)
     androidx.activity.compose.BackHandler {
         onBack(activeLangState.value.ifBlank { null })
@@ -242,7 +241,7 @@ fun MetaViewScreen(
                 modifier = Modifier.fillMaxSize()
             ) { page ->
                 val lang = if (languages.isEmpty()) ""
-                    else languages[page.coerceIn(0, languages.size - 1)]
+                    else languages[page.wrapTo(languages.size)]
                 val body = if (lang.isBlank()) row.content.orEmpty()
                     else loaded.translatedByLanguage[lang]?.takeIf { it.isNotBlank() }
                         ?: row.content.orEmpty()

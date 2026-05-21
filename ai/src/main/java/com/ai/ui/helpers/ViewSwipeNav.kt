@@ -64,15 +64,18 @@ fun findSwipeMatch(
     direction: SwipeDirection,
     filter: ViewSwipeFilter,
 ): SwipeMatch? {
+    val n = reportIdsNewestFirst.size
+    if (n == 0) return null
     val currentIdx = reportIdsNewestFirst.indexOf(currentReportId)
     if (currentIdx < 0) return null
     val step = if (direction == SwipeDirection.Prev) +1 else -1
-    var i = currentIdx + step
-    while (i in reportIdsNewestFirst.indices) {
-        val candidate = reportIdsNewestFirst[i]
-        val match = matchOn(context, candidate, filter)
+    // Walk all n positions, wrapping modulo the list size. The k = n step
+    // lands back on the current report, so a lone match wraps to itself
+    // instead of dead-ending — swipe forever, no "No more reports".
+    for (k in 1..n) {
+        val i = (((currentIdx + step * k) % n) + n) % n
+        val match = matchOn(context, reportIdsNewestFirst[i], filter)
         if (match != null) return match
-        i += step
     }
     return null
 }

@@ -53,6 +53,9 @@ import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
+import com.ai.ui.report.view.helpers.rememberWrapPager
+import com.ai.ui.report.view.helpers.wrapTo
+import com.ai.ui.report.view.helpers.wrapCenterPage
 import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
@@ -152,11 +155,9 @@ fun FanOutViewScreen(
     }
     val initiatorIds: List<String> = remember(pairsByInitiator) { pairsByInitiator.keys.toList() }
 
-    val initiatorPagerState = rememberPagerState(initialPage = 0) {
-        initiatorIds.size.coerceAtLeast(1)
-    }
+    val initiatorPagerState = rememberWrapPager(initiatorIds.size, 0)
     val activeInitiatorId: String? = initiatorIds.getOrNull(
-        initiatorPagerState.currentPage.coerceIn(0, (initiatorIds.size - 1).coerceAtLeast(0))
+        initiatorPagerState.currentPage.wrapTo(initiatorIds.size)
     )
     val activeInitiator: ReportAgent? = remember(report, activeInitiatorId) {
         report?.agents?.firstOrNull { it.agentId == activeInitiatorId }
@@ -165,9 +166,10 @@ fun FanOutViewScreen(
         activeInitiatorId?.let { pairsByInitiator[it] }.orEmpty()
     }
 
-    val responderPagerState = rememberPagerState(initialPage = 0) {
-        responders.size.coerceAtLeast(1)
-    }
+    // coerceAtLeast(2) forces the wrapping span on even though responders
+    // is re-counted per initiator — so a later initiator with more
+    // responders than the first never overflows the pager.
+    val responderPagerState = rememberWrapPager(responders.size.coerceAtLeast(2), 0)
     // Track the active responder by (provider, model) — survives
     // initiator swipes so the bottom pager lands on the same
     // responder model in the new initiator's list. Falls back to
@@ -188,10 +190,10 @@ fun FanOutViewScreen(
         val targetIdx = preferredResponderKey?.let { key ->
             responders.indexOfFirst { responderKeyOf(it) == key }.takeIf { it >= 0 }
         } ?: 0
-        if (responderPagerState.currentPage != targetIdx) {
+        if (responderPagerState.currentPage.wrapTo(responders.size) != targetIdx) {
             isAutoScrolling.value = true
             try {
-                responderPagerState.scrollToPage(targetIdx)
+                responderPagerState.scrollToPage(wrapCenterPage(responders.size, targetIdx))
             } finally {
                 isAutoScrolling.value = false
             }
@@ -208,12 +210,12 @@ fun FanOutViewScreen(
         snapshotFlow { responderPagerState.settledPage }
             .collect { idx ->
                 if (isAutoScrolling.value) return@collect
-                responders.getOrNull(idx)?.let { r ->
+                responders.getOrNull(idx.wrapTo(responders.size))?.let { r ->
                     preferredResponderKey = responderKeyOf(r)
                 }
             }
     }
-    val activeResponder = responders.getOrNull(responderPagerState.currentPage)
+    val activeResponder = responders.getOrNull(responderPagerState.currentPage.wrapTo(responders.size))
 
     val fanOutFilter: ViewSwipeFilter? = currentPromptName.takeIf { it.isNotBlank() }?.let {
         ViewSwipeFilter.HasMeta(metaPromptName = it, requireFanOut = true)
@@ -321,7 +323,7 @@ fun FanOutViewScreen(
                                 .heightIn(max = initCap)
                                 .wrapContentHeight()
                         ) { page ->
-                            val agentId = initiatorIds[page]
+                            val agentId = initiatorIds[page.wrapTo(initiatorIds.size)]
                             val agent = report.agents.firstOrNull { it.agentId == agentId }
                             val originalBody = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
                                 ?.responseBody?.takeIf { !it.isNullOrBlank() }
@@ -362,7 +364,7 @@ fun FanOutViewScreen(
                             state = initiatorPagerState,
                             modifier = Modifier.fillMaxWidth().wrapContentHeight()
                         ) { page ->
-                            val agentId = initiatorIds[page]
+                            val agentId = initiatorIds[page.wrapTo(initiatorIds.size)]
                             val agent = report.agents.firstOrNull { it.agentId == agentId }
                             val translatedBody = if (!language.isNullOrEmpty()) {
                                 translates.firstOrNull {
@@ -388,7 +390,7 @@ fun FanOutViewScreen(
                 Spacer(modifier = Modifier.height(16.dp))
                 CounterRow(
                     counter = if (responders.isEmpty()) "0 / 0"
-                        else "${responderPagerState.currentPage + 1} / ${responders.size}",
+                        else "${responderPagerState.currentPage.wrapTo(responders.size) + 1} / ${responders.size}",
                     modelLabel = activeResponder?.let { shortModelName(it.model) }.orEmpty(),
                     providerService = activeResponder?.let { com.ai.data.AppService.findById(it.providerId) },
                     modelId = activeResponder?.model.orEmpty()
@@ -415,7 +417,7 @@ fun FanOutViewScreen(
                                 .heightIn(max = respCap)
                                 .wrapContentHeight()
                         ) { page ->
-                            val pair = responders[page]
+                            val pair = responders[page.wrapTo(responders.size)]
                             val translated = if (!language.isNullOrEmpty()) {
                                 translates.firstOrNull {
                                     it.translateSourceTargetId == pair.id &&

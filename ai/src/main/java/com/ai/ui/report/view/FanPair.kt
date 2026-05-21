@@ -45,6 +45,9 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
+import com.ai.ui.report.view.helpers.rememberWrapPager
+import com.ai.ui.report.view.helpers.wrapTo
+import com.ai.ui.report.view.helpers.wrapCenterPage
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -96,7 +99,7 @@ fun FanOutPairViewScreen(
     val report = loaded.report
     val pairs = loaded.pairs
 
-    val pagerState = rememberPagerState(initialPage = 0) { pairs.size.coerceAtLeast(1) }
+    val pagerState = rememberWrapPager(pairs.size, 0)
     // Once the pair list has loaded, jump the pager to the tapped
     // pair. Keyed on (pairs, sourceAgentId, answererProviderId,
     // answererModel) so a different deep-link recomputes the target.
@@ -107,8 +110,8 @@ fun FanOutPairViewScreen(
                     it.providerId == answererProviderId &&
                     it.model == answererModel
             }
-            if (idx >= 0 && idx != pagerState.currentPage) {
-                pagerState.scrollToPage(idx)
+            if (idx >= 0 && idx != pagerState.currentPage.wrapTo(pairs.size)) {
+                pagerState.scrollToPage(wrapCenterPage(pairs.size, idx))
             }
         }
     }
@@ -170,7 +173,7 @@ fun FanOutPairViewScreen(
                 state = pagerState,
                 modifier = Modifier.fillMaxSize()
             ) { page ->
-                val pair = pairs[page]
+                val pair = pairs[page.wrapTo(pairs.size)]
                 val initiator = report?.agents?.firstOrNull { it.agentId == pair.fanOutSourceAgentId }
                 val initiatorLabel = initiator?.let {
                     val prov = AppService.findById(it.provider)?.id ?: it.provider

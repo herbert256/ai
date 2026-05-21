@@ -122,16 +122,12 @@ fun ViewTitleBar(
                                     val dx = swipeDragX.floatValue
                                     when {
                                         dx > swipeThresholdPx -> {
-                                            val found = onSwipePrev?.invoke() ?: false
-                                            android.widget.Toast.makeText(context,
-                                                if (found) "Loading report" else "No more reports",
-                                                android.widget.Toast.LENGTH_SHORT).show()
+                                            if (onSwipePrev?.invoke() == true)
+                                                android.widget.Toast.makeText(context, "Loading report", android.widget.Toast.LENGTH_SHORT).show()
                                         }
                                         dx < -swipeThresholdPx -> {
-                                            val found = onSwipeNext?.invoke() ?: false
-                                            android.widget.Toast.makeText(context,
-                                                if (found) "Loading report" else "No more reports",
-                                                android.widget.Toast.LENGTH_SHORT).show()
+                                            if (onSwipeNext?.invoke() == true)
+                                                android.widget.Toast.makeText(context, "Loading report", android.widget.Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                     swipeDragX.floatValue = 0f
