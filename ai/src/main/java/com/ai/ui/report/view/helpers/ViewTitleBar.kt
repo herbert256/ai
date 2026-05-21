@@ -97,20 +97,13 @@ fun ViewTitleBar(
             onDispose { if (viewBottomBarState.value === spec) viewBottomBarState.value = null }
         }
     }
-    // Transient pill state ("Loading report" / "No more reports").
-    val swipeStatus = remember { mutableStateOf<String?>(null) }
-    val statusTick = remember { mutableIntStateOf(0) }
-    LaunchedEffect(statusTick.intValue) {
-        if (swipeStatus.value != null) {
-            kotlinx.coroutines.delay(1000)
-            swipeStatus.value = null
-        }
-    }
+    // Swipe feedback uses the app's standard Android Toast (same as the
+    // shared horizontalSwipeNavigation edge toasts), not a bespoke pill.
+    val context = androidx.compose.ui.platform.LocalContext.current
     val swipeDensity = LocalDensity.current
     val swipeThresholdPx = with(swipeDensity) { 80.dp.toPx() }
     val swipeDragX = remember { mutableFloatStateOf(0f) }
     val swipeEnabled = onSwipePrev != null || onSwipeNext != null
-    Box(modifier = Modifier.fillMaxWidth()) {
     Column(modifier = Modifier.fillMaxWidth().layout { measurable, constraints ->
         val placeable = measurable.measure(constraints)
         val shift = 16.dp.roundToPx()
@@ -129,22 +122,16 @@ fun ViewTitleBar(
                                     val dx = swipeDragX.floatValue
                                     when {
                                         dx > swipeThresholdPx -> {
-                                            swipeStatus.value = "Loading report"
-                                            statusTick.intValue++
                                             val found = onSwipePrev?.invoke() ?: false
-                                            if (!found) {
-                                                swipeStatus.value = "No more reports"
-                                                statusTick.intValue++
-                                            }
+                                            android.widget.Toast.makeText(context,
+                                                if (found) "Loading report" else "No more reports",
+                                                android.widget.Toast.LENGTH_SHORT).show()
                                         }
                                         dx < -swipeThresholdPx -> {
-                                            swipeStatus.value = "Loading report"
-                                            statusTick.intValue++
                                             val found = onSwipeNext?.invoke() ?: false
-                                            if (!found) {
-                                                swipeStatus.value = "No more reports"
-                                                statusTick.intValue++
-                                            }
+                                            android.widget.Toast.makeText(context,
+                                                if (found) "Loading report" else "No more reports",
+                                                android.widget.Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                     swipeDragX.floatValue = 0f
@@ -249,21 +236,5 @@ fun ViewTitleBar(
             )
         }
         Spacer(modifier = Modifier.height(8.dp))
-    }
-        val status = swipeStatus.value
-        if (status != null) {
-            Text(
-                text = status,
-                color = Color.White,
-                fontSize = 13.sp,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 8.dp)
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
-                    .border(1.dp, AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
-            )
-        }
     }
 }
