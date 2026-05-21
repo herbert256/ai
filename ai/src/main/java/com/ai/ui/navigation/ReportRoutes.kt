@@ -21,6 +21,8 @@ import com.ai.model.*
 import com.ai.viewmodel.*
 import com.ai.ui.chat.*
 import com.ai.ui.hub.*
+import com.ai.ui.report.start.NewAiReportScreen
+import com.ai.ui.report.start.NewReportScreen
 import com.ai.ui.report.view.*
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
@@ -122,7 +124,7 @@ internal fun NavGraphBuilder.reportRoutes(
         }
         composable(NavRoutes.AI_NEW_REPORT_HUB) {
             val uiState by appViewModel.uiState.collectAsState()
-            com.ai.ui.hub.NewAiReportScreen(
+            NewAiReportScreen(
                 onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToNewReport = { navController.navigate(NavRoutes.AI_NEW_REPORT) },
@@ -342,7 +344,7 @@ internal fun NavGraphBuilder.reportRoutes(
             com.ai.ui.admin.UpdateFromCloudScreen(onBack = safePopBack)
         }
         composable(NavRoutes.AI_TEST_ALL_MODELS) {
-            com.ai.ui.report.manage.ModelTestScreen(
+            com.ai.ui.other.ModelTestScreen(
                 engine = reportViewModel.modelTestEngine,
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToTraceRunList = { runId -> navController.navigate(NavRoutes.traceListForRun(runId)) },

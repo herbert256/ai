@@ -1789,7 +1789,7 @@ fun ReportsScreen(
         onReconcileStalledTranslation = translationLifecycle.onReconcileStalled
     )
     if (!isGenerating) {
-        ReportSelectModelsScreen(
+        com.ai.ui.report.start.ReportSelectModelsScreen(
             uiState = uiState,
             models = models,
             selectedParametersIds = selectedParametersIds,

@@ -1,4 +1,4 @@
-package com.ai.ui.hub
+package com.ai.ui.report.start
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
