@@ -41,7 +41,7 @@ enum class SettingsSubScreen {
     AI_LOCAL_LITERT_MODELS,
     AI_LOCAL_LLMS,
     AI_MODEL_COOLDOWNS,
-    AI_BLOCKED_MODELS, AI_BLOCKED_MODEL_EDIT,
+    AI_BLOCKED_MODELS,
     AI_TEST_EXCLUDED_MODELS,
     AI_INACCESSIBLE_MODELS,
     AI_IMPORT_EXPORT,
@@ -139,7 +139,6 @@ fun SettingsScreen(
     var editingExamplePromptId by remember { mutableStateOf<String?>(null) }
     // "providerId:model" key of the blocked-model row being edited;
     // null = adding a new one.
-    var editingBlockedModelKey by remember { mutableStateOf<String?>(null) }
     // Which Internal Prompts CRUD bucket is currently open. Set by the
     // four cards on Prompt Management; the AI_INTERNAL_PROMPTS list
     // and AI_INTERNAL_PROMPT_EDIT screens filter / pin on it. When the
@@ -232,7 +231,6 @@ fun SettingsScreen(
             SettingsSubScreen.AI_TEST_EXCLUDED_MODELS,
             SettingsSubScreen.AI_INACCESSIBLE_MODELS,
             SettingsSubScreen.AI_IMPORT_EXPORT, SettingsSubScreen.AI_REFRESH -> currentSubScreen = SettingsSubScreen.AI_SETUP
-            SettingsSubScreen.AI_BLOCKED_MODEL_EDIT -> { editingBlockedModelKey = null; currentSubScreen = SettingsSubScreen.AI_BLOCKED_MODELS }
             SettingsSubScreen.AI_AGENT_EDIT -> { editingAgentId = null; currentSubScreen = SettingsSubScreen.AI_AGENTS }
             SettingsSubScreen.AI_FLOCK_EDIT -> { editingFlockId = null; currentSubScreen = SettingsSubScreen.AI_FLOCKS }
             SettingsSubScreen.AI_SWARM_EDIT -> { editingSwarmId = null; currentSubScreen = SettingsSubScreen.AI_SWARMS }
@@ -426,23 +424,8 @@ fun SettingsScreen(
             )
         }
         SettingsSubScreen.AI_BLOCKED_MODELS -> {
-            BlockedModelsListScreen(
-                aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
-                onAddBlockedModel = { editingBlockedModelKey = null; currentSubScreen = SettingsSubScreen.AI_BLOCKED_MODEL_EDIT },
-                onEditBlockedModel = { editingBlockedModelKey = it; currentSubScreen = SettingsSubScreen.AI_BLOCKED_MODEL_EDIT }
-            )
-        }
-        SettingsSubScreen.AI_BLOCKED_MODEL_EDIT -> {
-            val existing = editingBlockedModelKey?.let { key ->
-                aiSettings.blockedModels.firstOrNull { it.key == key }
-            }
-            BlockedModelEditScreen(
-                item = existing, aiSettings = aiSettings,
-                onSave = { saved ->
-                    // Drop the original key (it may have changed) and upsert the new one.
-                    val pruned = existing?.let { aiSettings.removeBlockedModel(it.providerId, it.model) } ?: aiSettings
-                    onSaveAi(pruned.upsertBlockedModel(saved)); goBack()
-                },
+            com.ai.ui.cruds.models.blocked.BlockedModelsCrud(
+                aiSettings = aiSettings, onSave = onSaveAi,
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
