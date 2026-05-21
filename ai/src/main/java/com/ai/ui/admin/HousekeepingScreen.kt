@@ -42,7 +42,8 @@ fun HousekeepingScreen(
     onNavigateToReset: () -> Unit = {},
     onNavigateToAppLog: () -> Unit = {},
     onNavigateToTest: () -> Unit = {},
-    onNavigateToUpdateFromCloud: () -> Unit = {}
+    onNavigateToUpdateFromCloud: () -> Unit = {},
+    onNavigateToCosts: () -> Unit = {}
 ) {
     BackHandler { onBackToHome() }
 
@@ -70,6 +71,9 @@ fun HousekeepingScreen(
             // system PackageInstaller. One-time setup picks the file;
             // every subsequent tap installs whatever's currently there.
             NavCard("Update from cloud", onClick = onNavigateToUpdateFromCloud)
+            // Bulk manual-cost-override maintenance: cleanup + layered
+            // CSV. Per-row override curation lives in AI Setup → Costs.
+            NavCard("Costs", onClick = onNavigateToCosts)
             // Diagnostic test flows — currently "Test all models".
             NavCard("Test", onClick = onNavigateToTest)
             // Refresh and Reset live together at the bottom — both

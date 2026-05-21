@@ -76,7 +76,7 @@ fun SetupScreen(
             }
             SetupNavCard("\uD83C\uDFDB\uFE0F", "Parameters", "Parameter presets", "${aiSettings.parameters.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_PARAMETERS) })
-            SetupNavCard("\uD83D\uDCB0", "Costs", "Manual pricing configuration", "$costCount",
+            SetupNavCard("\uD83D\uDCB0", "Costs", "Manual pricing overrides", "$costCount",
                 onClick = onNavigateToCostConfig)
             SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })

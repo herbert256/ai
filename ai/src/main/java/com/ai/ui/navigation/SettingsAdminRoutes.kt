@@ -65,7 +65,14 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
         // ===== Reports =====
         composable(NavRoutes.AI_COST_CONFIG) {
             val uiState by appViewModel.uiState.collectAsState()
-            CostConfigurationScreen(aiSettings = uiState.aiSettings,
+            com.ai.ui.cruds.costsmanualoverride.CostManualOverridesCrud(
+                aiSettings = uiState.aiSettings,
+                onBack = safePopBack, onNavigateHome = navigateHome)
+        }
+        composable(NavRoutes.AI_COSTS_MAINTENANCE) {
+            val uiState by appViewModel.uiState.collectAsState()
+            com.ai.ui.admin.CostsMaintenanceScreen(
+                aiSettings = uiState.aiSettings,
                 onBack = safePopBack, onNavigateHome = navigateHome)
         }
 

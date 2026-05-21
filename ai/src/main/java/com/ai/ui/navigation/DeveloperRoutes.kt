@@ -79,7 +79,8 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToReset = { navController.navigate(NavRoutes.AI_RESET) },
                 onNavigateToAppLog = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
                 onNavigateToTest = { navController.navigate(NavRoutes.AI_TEST) },
-                onNavigateToUpdateFromCloud = { navController.navigate(NavRoutes.AI_UPDATE_FROM_CLOUD) }
+                onNavigateToUpdateFromCloud = { navController.navigate(NavRoutes.AI_UPDATE_FROM_CLOUD) },
+                onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) }
             )
         }
         composable(NavRoutes.AI_TEST) {

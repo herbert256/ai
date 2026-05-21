@@ -77,6 +77,7 @@ object NavRoutes {
     const val AI_LOCAL_SEMANTIC_SEARCH = "ai_local_semantic_search"
     const val AI_USAGE = "ai_usage"
     const val AI_COST_CONFIG = "ai_cost_config"
+    const val AI_COSTS_MAINTENANCE = "ai_costs_maintenance"
     const val AI_SETUP = "ai_setup"
     const val AI_HOUSEKEEPING = "ai_housekeeping"
     const val AI_BACKUP_RESTORE = "ai_backup_restore"
