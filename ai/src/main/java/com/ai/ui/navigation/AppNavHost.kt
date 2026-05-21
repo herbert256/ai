@@ -57,7 +57,7 @@ fun AppNavHost(
     // AppViewModel) handles Activity rotation cleanly.
     val sweepContext = LocalContext.current
     LaunchedEffect(Unit) {
-        reportViewModel.startBackgroundResumeSweep(sweepContext)
+        reportViewModel.secondary.startBackgroundResumeSweep(sweepContext)
     }
 
     val safePopBack: () -> Unit = {

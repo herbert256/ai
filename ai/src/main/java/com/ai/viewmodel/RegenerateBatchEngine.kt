@@ -513,7 +513,7 @@ class RegenerateBatchEngine internal constructor(
             RegeneratePhase.META, RegeneratePhase.FAN_IN -> {
                 val rows = SecondaryResultStorage.listForReport(context, reportId)
                     .filter { it.id in phaseTasks.map { t -> t.rowId }.toSet() }
-                rows.forEach { reportViewModel.resumeStaleMetaPlaceholder(context, reportId, it) }
+                rows.forEach { reportViewModel.secondary.resumeStaleMetaPlaceholder(context, reportId, it) }
             }
             RegeneratePhase.FAN_OUT -> {
                 val rows = SecondaryResultStorage.listForReport(context, reportId)
@@ -523,7 +523,7 @@ class RegenerateBatchEngine internal constructor(
                 byPrompt.forEach { promptId ->
                     val prompt = aiSettings.internalPrompts.firstOrNull { it.id == promptId }
                         ?: return@forEach
-                    reportViewModel.resumeStaleFanOutPairs(context, reportId, prompt)
+                    reportViewModel.secondary.resumeStaleFanOutPairs(context, reportId, prompt)
                 }
             }
             RegeneratePhase.TRANSLATIONS -> {

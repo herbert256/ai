@@ -445,7 +445,7 @@ class FanOutEngine internal constructor(
                         // for the progress bar.
                         try {
                             withTimeout(60_000) {
-                                reportViewModel.executeSecondaryTask(
+                                reportViewModel.secondary.executeSecondaryTask(
                                     context, report.id, SecondaryKind.META, metaPrompt,
                                     provider, answererModel, resolved, aiSettings, report,
                                     fanOutSourceAgentId = sourceAgentId,
@@ -707,7 +707,7 @@ class FanOutEngine internal constructor(
             // Re-fire via the legacy launch path so an in-flight
             // launch via runFanOutPrompt and our rerun share the
             // same fanOutJobs dedupe key.
-            reportViewModel.runFanOutPrompt(context, run.reportId, run.metaPrompt, run.scope, run.responderIds, run.sourceLanguage)
+            reportViewModel.secondary.runFanOutPrompt(context, run.reportId, run.metaPrompt, run.scope, run.responderIds, run.sourceLanguage)
         }
 
     /** Drop every pair row in the run + the run itself. Combined-
@@ -866,7 +866,7 @@ class FanOutEngine internal constructor(
         pick: Pair<AppService, String>
     ): Job? {
         val run = _runs.value[runKey] ?: return null
-        val job = reportViewModel.runFanInPrompt(context, run.reportId, fanInPrompt, pick, run.sourceLanguage)
+        val job = reportViewModel.secondary.runFanInPrompt(context, run.reportId, fanInPrompt, pick, run.sourceLanguage)
         // Re-hydrate after the call completes to surface the new combined-report row.
         job?.invokeOnCompletion {
             appViewModel.viewModelScope.launch(Dispatchers.IO) { hydrate(context, run.reportId) }
@@ -885,7 +885,7 @@ class FanOutEngine internal constructor(
         pick: Pair<AppService, String>
     ): Job? {
         val run = _runs.value[runKey] ?: return null
-        val job = reportViewModel.runModelFanInPrompt(context, run.reportId, fanInPrompt, pick, providerId, model, run.sourceLanguage)
+        val job = reportViewModel.secondary.runModelFanInPrompt(context, run.reportId, fanInPrompt, pick, providerId, model, run.sourceLanguage)
         job?.invokeOnCompletion {
             appViewModel.viewModelScope.launch(Dispatchers.IO) { hydrate(context, run.reportId) }
         }

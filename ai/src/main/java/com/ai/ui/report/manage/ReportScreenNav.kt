@@ -388,23 +388,23 @@ fun ReportsScreenNav(
         hasNextReport = hasNextReport,
         initialModels = initialModels,
         onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
-            reportViewModel.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
+            reportViewModel.secondary.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
         },
         onTranslateMissingItems = { reportId, items, target, targetNative ->
             reportViewModel.translation.translateMissingItems(context, reportId, items, target, targetNative)
         },
         onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage ->
-            reportViewModel.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage)
+            reportViewModel.secondary.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage)
         },
         onRunFanIn = { reportId, metaPrompt, pick, sourceLanguage ->
-            reportViewModel.runFanInPrompt(context, reportId, metaPrompt, pick, sourceLanguage)
+            reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, pick, sourceLanguage)
         },
         onRunModelFanIn = { reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage ->
-            reportViewModel.runModelFanInPrompt(context, reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage)
+            reportViewModel.secondary.runModelFanInPrompt(context, reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage)
         },
         onCreateReportFromFanOut = { sourceRid, activePid, activeMdl ->
             scope.launch {
-                val newId = reportViewModel.createReportFromFanOut(context, sourceRid, activePid, activeMdl)
+                val newId = reportViewModel.secondary.createReportFromFanOut(context, sourceRid, activePid, activeMdl)
                     ?: return@launch
                 // Already on AI_REPORTS; restoreCompletedReport flips
                 // UiState (showGenericReportsDialog + currentReportId)
@@ -413,19 +413,19 @@ fun ReportsScreenNav(
             }
         },
         onRunLocalRerank = { reportId, modelName ->
-            reportViewModel.runLocalRerank(context, reportId, modelName)
+            reportViewModel.secondary.runLocalRerank(context, reportId, modelName)
         },
         onRunRerank = { reportId, pick, languageScope ->
-            reportViewModel.runRerank(context, reportId, pick, languageScope)
+            reportViewModel.secondary.runRerank(context, reportId, pick, languageScope)
         },
         onRunModeration = { reportId, pick, languageScope ->
-            reportViewModel.runModeration(context, reportId, pick, languageScope)
+            reportViewModel.secondary.runModeration(context, reportId, pick, languageScope)
         },
         onDeleteSecondary = { reportId, resultId ->
-            reportViewModel.deleteSecondaryResult(context, reportId, resultId)
+            reportViewModel.secondary.deleteSecondaryResult(context, reportId, resultId)
         },
         onBulkDeleteSecondaries = { reportId, ids, onDone ->
-            reportViewModel.bulkDeleteSecondaryResults(context, reportId, ids, onDone)
+            reportViewModel.secondary.bulkDeleteSecondaryResults(context, reportId, ids, onDone)
         },
         onGenerate = { models, paramsIds, reportType ->
             val agentIds = models.filter { it.type == "agent" }.mapNotNull { it.agentId }.toSet()
@@ -524,10 +524,10 @@ fun ReportsScreenNav(
             viewModel.recordRecentReportModel(providerId, model)
         },
         onResumeStaleFanOut = { rid, mp ->
-            reportViewModel.resumeStaleFanOutPairs(context, rid, mp)
+            reportViewModel.secondary.resumeStaleFanOutPairs(context, rid, mp)
         },
         onResumeStaleRuns = { rid ->
-            reportViewModel.resumeStaleRunsForReport(context, rid)
+            reportViewModel.secondary.resumeStaleRunsForReport(context, rid)
         },
         onRestartFailedTranslations = { rid, runId ->
             reportViewModel.translation.restartFailedTranslations(context, rid, runId)
@@ -548,25 +548,25 @@ fun ReportsScreenNav(
             reportViewModel.translation.buildPersistedTranslationRunState(context, rid, runId)
         },
         onRestartFailedFanOut = { rid, mp ->
-            reportViewModel.rerunFailedFanOutPairs(context, rid, mp)
+            reportViewModel.secondary.rerunFailedFanOutPairs(context, rid, mp)
         },
         onRemoveFailedFanOut = { rid, mp ->
-            reportViewModel.removeFailedFanOutPairs(context, rid, mp)
+            reportViewModel.secondary.removeFailedFanOutPairs(context, rid, mp)
         },
         onRestartFailedFanOutForModel = { rid, mp, prov, mdl ->
-            reportViewModel.rerunFailedFanOutPairsForModel(context, rid, mp, prov, mdl)
+            reportViewModel.secondary.rerunFailedFanOutPairsForModel(context, rid, mp, prov, mdl)
         },
         onRemoveFailedFanOutForModel = { rid, mp, prov, mdl ->
-            reportViewModel.removeFailedFanOutPairsForModel(context, rid, mp, prov, mdl)
+            reportViewModel.secondary.removeFailedFanOutPairsForModel(context, rid, mp, prov, mdl)
         },
         onRerunCompleteFanOut = { rid, mp ->
-            reportViewModel.rerunCompleteFanOut(context, rid, mp)
+            reportViewModel.secondary.rerunCompleteFanOut(context, rid, mp)
         },
         onRerunFanOutPair = { rid, mp, pair ->
-            reportViewModel.rerunSingleFanOutPair(context, rid, mp, pair)
+            reportViewModel.secondary.rerunSingleFanOutPair(context, rid, mp, pair)
         },
         onDeleteFanOutModel = { rid, pid, prov, model ->
-            reportViewModel.deleteFanOutModel(context, rid, pid, prov, model)
+            reportViewModel.secondary.deleteFanOutModel(context, rid, pid, prov, model)
         }
     )
     } // close CompositionLocalProvider added for LocalReportListIconBundle
