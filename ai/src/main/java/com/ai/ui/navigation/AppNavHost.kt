@@ -21,7 +21,9 @@ import com.ai.model.*
 import com.ai.viewmodel.*
 import com.ai.ui.chat.*
 import com.ai.ui.hub.*
-import com.ai.ui.report.*
+import com.ai.ui.report.view.*
+import com.ai.ui.report.manage.*
+import com.ai.ui.helpers.*
 import com.ai.ui.history.*
 import com.ai.ui.models.*
 import com.ai.ui.search.*
@@ -488,7 +490,7 @@ fun AppNavHost(
             )
         }
         composable(NavRoutes.AI_REPORT_MANAGE) {
-            com.ai.ui.report.ReportManageScreen(
+            com.ai.ui.report.manage.ReportManageScreen(
                 onBack = safePopBack,
                 onNavigateHome = navigateHome
             )
@@ -735,7 +737,7 @@ fun AppNavHost(
             // Browse mode: tap a row → open that model's Model Info
             // page. Picker stays mounted on the back stack so back
             // from Model Info returns to the list, not the Hub.
-            com.ai.ui.report.ReportSelectModelsScreen(
+            com.ai.ui.report.manage.ReportSelectModelsScreen(
                 aiSettings = uiState.aiSettings,
                 titleText = "AI Models",
                 onConfirm = { (p, m) -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
@@ -1051,7 +1053,7 @@ fun AppNavHost(
             // Configure-on-the-fly entry: same picker as the New
             // Report's +Model button. Row click jumps straight to
             // AI_CHAT_PARAMS with the chosen (provider, model).
-            com.ai.ui.report.ReportSelectModelsScreen(
+            com.ai.ui.report.manage.ReportSelectModelsScreen(
                 aiSettings = uiState.aiSettings,
                 titleText = "Pick model for chat",
                 onConfirm = { (provider, model) ->
@@ -1221,7 +1223,7 @@ fun AppNavHost(
             )
         }
         composable(NavRoutes.AI_TEST_ALL_MODELS) {
-            com.ai.ui.report.ModelTestScreen(
+            com.ai.ui.report.manage.ModelTestScreen(
                 engine = reportViewModel.modelTestEngine,
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onNavigateToTraceRunList = { runId -> navController.navigate(NavRoutes.traceListForRun(runId)) },

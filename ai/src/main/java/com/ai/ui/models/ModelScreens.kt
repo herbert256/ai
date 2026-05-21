@@ -23,8 +23,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.*
 import com.ai.model.*
-import com.ai.ui.report.ContentWithThinkSections
-import com.ai.ui.report.formatPricingPerMillion
+import com.ai.ui.helpers.ContentWithThinkSections
+import com.ai.ui.helpers.formatPricingPerMillion
 import com.ai.ui.settings.AgentEditScreen
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.*

@@ -20,7 +20,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.ai.data.*
-import com.ai.ui.report.*
+import com.ai.ui.report.view.*
+import com.ai.ui.report.manage.*
+import com.ai.ui.helpers.*
 import com.ai.ui.shared.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch

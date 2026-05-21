@@ -6,7 +6,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.data.*
 import com.ai.model.*
-import com.ai.ui.report.translationRunGroupingId
+import com.ai.ui.helpers.translationRunGroupingId
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -4710,7 +4710,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  [resumeStaleRunsForReport] on it — catches translation /
      *  fan-out / single-Meta placeholders for reports the user
      *  hasn't opened recently (the per-report on-open trigger
-     *  inside [com.ai.ui.report.ReportScreen] misses those).
+     *  inside [com.ai.ui.report.manage.ReportScreen] misses those).
      *
      *  Idempotent vs already-running work: the called function's
      *  guards (activeTranslationRunIds snapshot, the active-job
@@ -6993,7 +6993,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val translateRows = withContext(Dispatchers.IO) {
             SecondaryResultStorage
                 .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
-                .filter { com.ai.ui.report.translationRunGroupingId(it) == runId }
+                .filter { com.ai.ui.helpers.translationRunGroupingId(it) == runId }
         }
         if (translateRows.isEmpty()) {
             // No rows on disk for this runId — the run is gone. Drop

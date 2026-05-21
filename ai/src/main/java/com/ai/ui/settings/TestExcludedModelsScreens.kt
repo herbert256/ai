@@ -31,7 +31,7 @@ fun TestExcludedModelsListScreen(
 
     if (pickerMode != null) {
         val mode = pickerMode!!
-        com.ai.ui.report.ReportSelectModelsScreen(
+        com.ai.ui.report.manage.ReportSelectModelsScreen(
             aiSettings = aiSettings,
             titleText = "Pick model to exclude from Test all models",
             onConfirm = { (provider, m) ->

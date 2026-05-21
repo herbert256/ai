@@ -43,7 +43,7 @@ import com.ai.R
 
 /**
  * Layout-locked title bar used by every Report - view screen
- * ([com.ai.ui.report.ViewAiReportScreen] + every `*ViewScreen.kt`
+ * ([com.ai.ui.report.view.ViewAiReportScreen] + every `*ViewScreen.kt`
  * destination it opens). Distinct from the standard [TitleBar] so
  * the View family has a consistent look that emphasises content
  * and de-emphasises management chrome.

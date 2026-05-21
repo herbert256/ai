@@ -1,0 +1,1455 @@
+package com.ai.ui.helpers
+import com.ai.ui.report.view.*
+import com.ai.ui.report.manage.*
+
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
+import androidx.core.content.FileProvider
+import com.ai.data.*
+import com.ai.data.ApiTrace
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+// ===== Data Classes =====
+
+internal data class HtmlReportData(
+    val title: String, val prompt: String, val timestamp: String,
+    val rapportText: String?, val closeText: String?,
+    val agents: List<HtmlAgentData>, val reportType: ReportType = ReportType.CLASSIC,
+    val secondary: List<HtmlSecondaryData> = emptyList(),
+    val traces: List<HtmlTraceData> = emptyList(),
+    /** [com.ai.data.Report.icon] — prefixed (additive) on the report
+     *  title `<h1>` across every renderer. Null / blank leaves the
+     *  title as-is. */
+    val reportIcon: String? = null,
+    /** [com.ai.data.Report.languageIcon] — the detected source-language
+     *  emoji. Drives the Original tab's language icon in the picker /
+     *  per-language headings. Null / blank → caller falls back to the
+     *  English name text. */
+    val sourceLanguageIcon: String? = null,
+    /** Sum of API spend the user dropped from this report via Delete
+     *  actions. Surfaces as a dedicated row above the Total in every
+     *  cost table on the result page + the export. Carried straight
+     *  from [Report.costsFromDeletedItems]. */
+    val costsFromDeletedItems: Double = 0.0,
+    /** Icon-gen call's contribution to spend, surfaced as its own
+     *  row in the cost view. Provider + model identify the agent the
+     *  internal/icon prompt was pinned to at run time. All zero on
+     *  reports where icon-gen wasn't run, or never resolved (and the
+     *  row is omitted). */
+    val iconProviderDisplay: String = "",
+    val iconModel: String = "",
+    val iconPricingTier: String = "",
+    val iconInputTokens: Int = 0,
+    val iconOutputTokens: Int = 0,
+    val iconInputCost: Double = 0.0,
+    val iconOutputCost: Double = 0.0,
+    /** Per-call rows from the 3-tier Create → Report icons chain.
+     *  One entry per tier API call (multiple per agent when earlier
+     *  tiers failed and a later one ran). Surfaces in the export's
+     *  per-call All-tab so every attempt shows as its own row;
+     *  aggregates automatically into the Types tab's "icon" bucket
+     *  and into the Models tab per (provider, model). */
+    val iconCalls: List<HtmlIconCallData> = emptyList()
+)
+
+/** One captured per-tier call from the 3-tier Report icons chain.
+ *  Mirrors [com.ai.data.IconCallRecord] shape with the UI-side
+ *  provider display label resolved. */
+internal data class HtmlIconCallData(
+    val agentId: String,
+    val tier: Int,
+    val providerDisplay: String,
+    val model: String,
+    val pricingTier: String,
+    val inputTokens: Int,
+    val outputTokens: Int,
+    val inputCost: Double,
+    val outputCost: Double,
+    val durationMs: Long?,
+    val success: Boolean
+)
+
+/** One captured API trace surfaced in the JSON view. [origin] is "this"
+ *  for traces tagged with the report's own id, or "source" for traces
+ *  carried over from the parent report when this is a translated copy. */
+internal data class HtmlTraceData(
+    val id: String,
+    val origin: String,
+    val timestamp: String,
+    val method: String,
+    val hostname: String,
+    val url: String,
+    val statusCode: Int,
+    val model: String?,
+    val category: String?,
+    val requestHeaders: String,
+    val requestBody: String,
+    val responseHeaders: String,
+    val responseBody: String
+)
+
+internal data class HtmlAgentData(
+    val agentId: String, val agentName: String, val provider: AppService?,
+    val providerDisplay: String, val model: String,
+    val responseText: String?, val errorMessage: String?,
+    val citations: List<String>?, val searchResults: List<SearchResult>?,
+    val relatedQuestions: List<String>?, val rawUsageJson: String?, val responseHeaders: String?,
+    val inputTokens: Int? = null, val outputTokens: Int? = null,
+    val inputCost: Double? = null, val outputCost: Double? = null, val durationMs: Long? = null,
+    /** Pricing tier (PricingCache source) used for the cost estimate —
+     *  surfaced in the Costs table so the reader knows where the number
+     *  came from (LITELLM, OPENROUTER, OVERRIDE, …). */
+    val pricingTier: String? = null,
+    /** Stable anchor used by the Reranks block to link back to this agent's
+     *  card. Matches the bracketed [N] tag the rerank prompt asked for. */
+    val anchorIndex: Int? = null,
+    /** [com.ai.data.ReportAgent.icon] — prefixed (additive) on every
+     *  agent heading / card across the export renderers. Null / blank
+     *  → no prefix added. */
+    val icon: String? = null
+)
+
+internal data class HtmlSecondaryData(
+    val id: String, val kind: SecondaryKind,
+    val providerDisplay: String, val model: String,
+    val agentName: String,
+    val timestamp: String,
+    val content: String?, val errorMessage: String?,
+    val inputTokens: Int? = null, val outputTokens: Int? = null,
+    val inputCost: Double? = null, val outputCost: Double? = null, val durationMs: Long? = null,
+    val pricingTier: String? = null,
+    val translateSourceKind: String? = null,
+    val translateSourceTargetId: String? = null,
+    /** TRANSLATE rows only — language this row produced text in. */
+    val targetLanguage: String? = null,
+    val targetLanguageNative: String? = null,
+    /** Legacy field kept for old reports that forked into translated
+     *  copies. Always null on new TRANSLATE rows. */
+    val translatedFromSecondaryId: String? = null,
+    /** User-given Meta prompt name, copied from the source
+     *  [SecondaryResult]. Drives every section heading / bucket in
+     *  the exports. Null on TRANSLATE rows and on rows persisted
+     *  before the Meta-prompt CRUD existed. */
+    val metaPromptName: String? = null,
+    /** Set when this row is a fan-out per-pair response. Lets the
+     *  cost view's row-type label group fan-out rows as `"fan-out"`
+     *  instead of falling through to the metaPromptName / kind
+     *  fallback — same rules the in-app cost table uses. */
+    val fanOutSourceAgentId: String? = null,
+    /** Set when this row is a fan-in combine-reports follow-up. */
+    val fanInOf: String? = null,
+    /** [com.ai.data.SecondaryResult.icon] — fan-out pair icon (or any
+     *  other per-row icon the secondary carries). Additive, prefixed
+     *  on per-secondary headings. Null / blank → no prefix. */
+    val icon: String? = null
+)
+
+/** A "view" of [HtmlReportData] under one language — Original or one of
+ *  the translation runs that produced TRANSLATE secondaries on the
+ *  report. The language picker on Complete HTML and the per-language
+ *  directories on Zipped HTML iterate this list. */
+internal data class HtmlLanguageView(
+    /** Stable id used in CSS selectors / directory names. Lowercase,
+     *  filesystem-safe. "original" for the source content; otherwise
+     *  the lowercased English language name with non-alnum stripped. */
+    val key: String,
+    /** Human-facing label rendered on the picker tab — "Original",
+     *  "Dutch", "German", … */
+    val displayName: String,
+    /** Native rendering for the picker subline. Null on Original. */
+    val nativeName: String?,
+    /** Report data with translated text overlaid. Costs / JSON / Rerank
+     *  / Moderation rows are unchanged across languages — only Prompt /
+     *  Reports + chat-type META rows get the overlay. */
+    val data: HtmlReportData
+)
+
+// ===== Public Functions =====
+
+/** Build the zip-of-traces for a report. Returns null when the report
+ *  has no captured traces (own + source combined). The zip's top-level
+ *  directories are the trace categories; for translated reports the
+ *  source report's traces sit under a "source/" prefix. Each entry is
+ *  the redacted trace JSON. Stored app traces stay complete; only export
+ *  payloads redact credentials before leaving the app. Shared by the JSON
+ *  export action and the "Export all" bulk-zip path. */
+internal fun buildJsonTraceZipBytes(context: android.content.Context, report: Report): ByteArray? {
+    val ownTraces = ApiTracer.getTraceFilesForReport(report.id)
+    val sourceTraces = report.sourceReportId?.let { ApiTracer.getTraceFilesForReport(it) }.orEmpty()
+    if (ownTraces.isEmpty() && sourceTraces.isEmpty()) return null
+    val baos = java.io.ByteArrayOutputStream()
+    java.util.zip.ZipOutputStream(baos.buffered()).use { zos ->
+        fun writeTrace(t: com.ai.data.TraceFileInfo, prefix: String) {
+            val cat = (t.category ?: "Other").trim().ifBlank { "Other" }
+            // Filesystem-safe category name (slashes / colons / etc. would
+            // otherwise create unintended subdirectories).
+            val safeCat = cat.replace(Regex("[^A-Za-z0-9 _.-]+"), "_")
+            val raw = ApiTracer.readTraceFile(t.filename)?.toRedactedExportJson() ?: return
+            val entry = java.util.zip.ZipEntry("$prefix$safeCat/${t.filename}")
+            entry.time = t.timestamp
+            zos.putNextEntry(entry)
+            zos.write(raw.toByteArray(Charsets.UTF_8))
+            zos.closeEntry()
+        }
+        ownTraces.forEach { writeTrace(it, "") }
+        sourceTraces.forEach { writeTrace(it, "source/") }
+    }
+    return baos.toByteArray()
+}
+
+internal fun shareReportAsJson(context: android.content.Context, reportId: String, action: ReportExportAction = ReportExportAction.SHARE) {
+    val report = ReportStorage.getReport(context, reportId) ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
+    try {
+        val bytes = buildJsonTraceZipBytes(context, report)
+        if (bytes == null) {
+            Toast.makeText(context, "No traces for this report", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val safeTitle = report.title.ifBlank { "Untitled" }.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(60)
+        val outFile = File(File(context.cacheDir, "ai_analysis").also { it.mkdirs() },
+            "ai_report_${safeTitle}_traces_${timestamp()}.zip")
+        outFile.writeBytes(bytes)
+
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", outFile)
+        val intent = when (action) {
+            ReportExportAction.SHARE -> Intent(Intent.ACTION_SEND).apply {
+                type = "application/zip"
+                putExtra(Intent.EXTRA_STREAM, uri)
+                putExtra(Intent.EXTRA_SUBJECT, "AI Report traces - ${report.title}")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+            ReportExportAction.VIEW -> Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, "application/zip")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }
+        val chooser = if (action == ReportExportAction.SHARE)
+            Intent.createChooser(intent, "Share AI Report traces (zip)") else intent
+        context.startActivity(chooser)
+    } catch (e: Exception) { Toast.makeText(context, "Error sharing: ${e.message}", Toast.LENGTH_SHORT).show() }
+}
+
+internal fun shareReportAsHtml(context: android.content.Context, reportId: String) {
+    val report = ReportStorage.getReport(context, reportId) ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
+    try {
+        val html = convertReportToHtml(context, report, getAppVersion(context))
+        val file = writeToCache(context, "ai_report_${timestamp()}.html", html)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "text/html"; putExtra(Intent.EXTRA_SUBJECT, "AI Report - ${report.title}")
+            putExtra(Intent.EXTRA_TEXT, "AI Report attached. Open the HTML file in a browser to view.")
+            putExtra(Intent.EXTRA_STREAM, uri); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "Share AI Report (HTML)"))
+    } catch (e: Exception) { Toast.makeText(context, "Error sharing: ${e.message}", Toast.LENGTH_SHORT).show() }
+}
+
+internal fun emailReportAsHtml(context: android.content.Context, reportId: String, emailAddress: String): Boolean {
+    val report = ReportStorage.getReport(context, reportId) ?: return false
+    return try {
+        val html = convertReportToHtml(context, report, getAppVersion(context))
+        val file = writeToCache(context, "ai_report_${timestamp()}.html", html)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_SEND).apply {
+            type = "message/rfc822"
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(emailAddress))
+            putExtra(Intent.EXTRA_SUBJECT, "AI Report - ${report.title}")
+            putExtra(Intent.EXTRA_STREAM, uri)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(Intent.createChooser(intent, "Email AI Report"))
+        true
+    } catch (e: Exception) { Toast.makeText(context, "Error emailing: ${e.message}", Toast.LENGTH_SHORT).show(); false }
+}
+
+internal fun openReportInChrome(context: android.content.Context, reportId: String) {
+    val report = ReportStorage.getReport(context, reportId) ?: run { Toast.makeText(context, "Report not found", Toast.LENGTH_SHORT).show(); return }
+    try {
+        val html = convertReportToHtml(context, report, getAppVersion(context))
+        val file = writeToCache(context, "ai_${timestamp()}.html", html)
+        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = Intent(Intent.ACTION_VIEW).apply { setDataAndType(uri, "text/html"); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+        context.startActivity(intent)
+    } catch (e: Exception) { Toast.makeText(context, "Error opening: ${e.message}", Toast.LENGTH_SHORT).show() }
+}
+
+// ===== HTML Conversion =====
+
+internal fun convertReportToHtml(context: android.content.Context, report: Report, appVersion: String): String {
+    // Legacy external-intent path used by share / email / browser
+    // actions. Match the Export screen's HTML format — no inline
+    // JSON trace dump. Use the JSON export format for that.
+    return renderHtmlReport(buildHtmlReportData(context, report), appVersion, includeJsonView = false)
+}
+
+/** Complete HTML renderer from a pre-built [HtmlReportData].
+ *  Per-language exports feed a `buildLanguageViews(base)` slice
+ *  in here so the translated content reaches the renderer.
+ *
+ *  [includeJsonView] toggles the in-HTML "JSON" tab that dumps the
+ *  redacted API traces. Standalone HTML / PDF / DOCX / ODT exports
+ *  and the in-app HTML preview pass `false` — those formats either
+ *  don't need an inline trace dump (the user can pick the JSON
+ *  format for that) or surface traces through their own renderer
+ *  (Zipped HTML, JSON). */
+internal fun convertReportToHtmlFromData(
+    data: HtmlReportData,
+    appVersion: String,
+    includeJsonView: Boolean = true
+): String = renderHtmlReport(data, appVersion, includeJsonView)
+
+/** Build the unified data shape every Medium-equivalent export consumes:
+ *  the agent list with cost/anchor data, the secondary results, and the
+ *  redacted captured-trace bundle. Shared between the Medium HTML
+ *  renderer and the DOCX / ODT / PDF Medium renderers so they all show
+ *  the same content. */
+internal fun buildHtmlReportData(context: android.content.Context, report: Report): HtmlReportData {
+    // The bracketed [N] in the rerank prompt is built from the
+    // SUCCESS-only ordered subset (see buildResultsBlock). Reuse the same
+    // ordering here so the anchorIndex on each card matches the rank ids
+    // a rerank model produced.
+    val anchorByKey = mutableMapOf<String, Int>()
+    report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+        .forEachIndexed { idx, a -> anchorByKey["${a.provider}::${a.model}"] = idx + 1 }
+
+    val agents = report.agents
+        .filter { it.reportStatus != ReportStatus.STOPPED && it.reportStatus != ReportStatus.PENDING }
+        .sortedBy { it.agentName.lowercase() }
+        .map { agent ->
+            val provider = AppService.findById(agent.provider)
+            val pricing = provider?.let { PricingCache.getPricing(context, it, agent.model) }
+            val tu = agent.tokenUsage
+            // Prefer the persisted run-time cost split. Fall back
+            // to live pricing × tokens only for legacy rows that
+            // pre-date the freeze landing in the agent storage —
+            // those rows have null inputCost / outputCost.
+            val persistedIn = agent.inputCost
+            val persistedOut = agent.outputCost
+            val inCost: Double? = persistedIn
+                ?: if (tu != null && pricing != null) tu.inputTokens * pricing.promptPrice else null
+            val outCost: Double? = persistedOut
+                ?: if (tu != null && pricing != null) tu.outputTokens * pricing.completionPrice else null
+            HtmlAgentData(
+                agentId = agent.agentId, agentName = agent.agentName, provider = provider,
+                providerDisplay = provider?.id ?: agent.provider, model = agent.model,
+                responseText = agent.responseBody, errorMessage = agent.errorMessage?.takeIf { agent.reportStatus == ReportStatus.ERROR },
+                citations = agent.citations, searchResults = agent.searchResults, relatedQuestions = agent.relatedQuestions,
+                rawUsageJson = agent.rawUsageJson, responseHeaders = agent.responseHeaders,
+                inputTokens = tu?.inputTokens, outputTokens = tu?.outputTokens, inputCost = inCost, outputCost = outCost, durationMs = agent.durationMs,
+                pricingTier = pricing?.source,
+                anchorIndex = anchorByKey["${agent.provider}::${agent.model}"],
+                icon = agent.icon
+            )
+        }
+
+    val secondary = SecondaryResultStorage.listForReport(context, report.id).map { s ->
+        val secProvider = AppService.findById(s.providerId)
+        val secPricing = secProvider?.let { PricingCache.getPricing(context, it, s.model) }
+        HtmlSecondaryData(
+            id = s.id, kind = s.kind,
+            providerDisplay = secProvider?.id ?: s.providerId,
+            model = s.model,
+            agentName = s.agentName,
+            timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(s.timestamp)),
+            content = s.content, errorMessage = s.errorMessage,
+            inputTokens = s.tokenUsage?.inputTokens, outputTokens = s.tokenUsage?.outputTokens,
+            inputCost = s.inputCost, outputCost = s.outputCost, durationMs = s.durationMs,
+            pricingTier = secPricing?.source,
+            translateSourceKind = s.translateSourceKind,
+            translateSourceTargetId = s.translateSourceTargetId,
+            targetLanguage = s.targetLanguage,
+            targetLanguageNative = s.targetLanguageNative,
+            translatedFromSecondaryId = s.translatedFromSecondaryId,
+            metaPromptName = s.metaPromptName,
+            fanOutSourceAgentId = s.fanOutSourceAgentId,
+            fanInOf = s.fanInOf,
+            icon = s.icon
+        )
+    }
+
+    // Pull traces tagged with this report's id, plus — if this is a
+    // translated copy — the source report's traces too. The user asked to
+    // surface both sets in the JSON view: translation API calls land on
+    // the new id (since createTranslatedReport reserved it before
+    // running translations), and the original report's API calls keep
+    // their old id.
+    val traceFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US)
+    val ownTraces = ApiTracer.getTraceFilesForReport(report.id)
+        .mapNotNull { ApiTracer.readTraceFile(it.filename) }
+        .map { it to "this" }
+    val sourceTraces = report.sourceReportId
+        ?.let { ApiTracer.getTraceFilesForReport(it) }
+        ?.mapNotNull { ApiTracer.readTraceFile(it.filename) }
+        ?.map { it to "source" }
+        .orEmpty()
+    val traces = (ownTraces + sourceTraces).sortedBy { it.first.timestamp }
+        .mapIndexed { i, (t, origin) ->
+            val redactedReqBody = redactJsonString(t.request.body) ?: ""
+            val redactedRespBody = redactJsonString(t.response.body) ?: ""
+            HtmlTraceData(
+                id = "t$i",
+                origin = origin,
+                timestamp = traceFmt.format(Date(t.timestamp)),
+                method = t.request.method,
+                hostname = t.hostname,
+                url = redactUrl(t.request.url),
+                statusCode = t.response.statusCode,
+                model = t.model,
+                category = t.category,
+                requestHeaders = redactHeaders(t.request.headers),
+                requestBody = redactedReqBody,
+                responseHeaders = redactHeaders(t.response.headers),
+                responseBody = redactedRespBody
+            )
+        }
+
+    // Resolve the icon-gen agent + pricing tier so the export's cost
+    // table can show a fully-attributed icon row. The pinned agent on
+    // internal/icon supplies the (provider, model) pair; PricingCache
+    // looks up the tier the cost was billed against.
+    val ai = com.ai.model.SettingsHolder.current
+    val iconPrompt = ai?.internalPrompts?.firstOrNull {
+        it.category == "icons" && it.name == "main"
+    }
+    val iconAgent = iconPrompt?.let { p ->
+        ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
+    }
+    val iconProvider = iconAgent?.provider
+    val iconModel = iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
+    val iconPricing = iconProvider?.let { PricingCache.getPricing(context, it, iconModel) }
+
+    // Per-tier audit rows from the 3-tier Create → Report icons
+    // chain. The provider on each IconCallRecord is the registered
+    // AppService id of the model that actually billed the call (so
+    // tier 3 = DeepSeek even when the agent itself uses a different
+    // model). Use AppService.findById to recover the display label.
+    val iconCalls = report.iconCalls.map { r ->
+        val p = AppService.findById(r.provider)
+        HtmlIconCallData(
+            agentId = r.agentId, tier = r.tier,
+            providerDisplay = p?.id ?: r.provider, model = r.model,
+            pricingTier = r.pricingTier,
+            inputTokens = r.inputTokens, outputTokens = r.outputTokens,
+            inputCost = r.inputCost, outputCost = r.outputCost,
+            durationMs = r.durationMs, success = r.success
+        )
+    }
+
+    return HtmlReportData(
+        title = report.title, prompt = report.prompt,
+        timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date(report.timestamp)),
+        rapportText = report.rapportText, closeText = report.closeText,
+        agents = agents, reportType = report.reportType, secondary = secondary,
+        traces = traces,
+        reportIcon = report.icon,
+        sourceLanguageIcon = report.languageIcon,
+        costsFromDeletedItems = report.costsFromDeletedItems,
+        iconProviderDisplay = iconProvider?.id ?: "",
+        iconModel = iconModel,
+        iconPricingTier = iconPricing?.source ?: "",
+        iconInputTokens = report.iconInputTokens,
+        iconOutputTokens = report.iconOutputTokens,
+        iconInputCost = report.iconInputCost,
+        iconOutputCost = report.iconOutputCost,
+        iconCalls = iconCalls
+    )
+}
+
+/** Build the language picker list — Original plus one entry per
+ *  distinct [HtmlSecondaryData.targetLanguage] across the TRANSLATE
+ *  rows in [base]. Each translated language's [HtmlLanguageView.data]
+ *  reuses [base] but with the prompt / agent.responseText /
+ *  summary.content / compare.content overlaid by the matching
+ *  TRANSLATE row's content. Cost rows and traces are NOT mutated —
+ *  the cost table sums the same totals across languages, and the
+ *  language picker only swaps the narrative content sections. The
+ *  TRANSLATE rows themselves are filtered out of each language view's
+ *  secondary list (they're translation metadata, not part of the
+ *  report's narrative). When no TRANSLATE rows exist the result is a
+ *  one-element list containing only the Original view. */
+internal fun buildLanguageViews(base: HtmlReportData): List<HtmlLanguageView> {
+    val translates = base.secondary.filter { it.kind == SecondaryKind.TRANSLATE }
+    // Language order = first-seen across the (already-timestamped)
+    // TRANSLATE rows, preserving the order languages were run.
+    val languageOrder = LinkedHashMap<String, String?>()
+    for (t in translates) {
+        val lang = t.targetLanguage?.takeIf { it.isNotBlank() } ?: continue
+        if (lang !in languageOrder) languageOrder[lang] = t.targetLanguageNative
+    }
+
+    val nonTranslateSecondary = base.secondary.filter { it.kind != SecondaryKind.TRANSLATE }
+    // Original view shows only secondaries with no language tag (the
+    // canonical originals); per-language META rows
+    // tagged with a targetLanguage live exclusively in their own
+    // language view.
+    val originalSecondary = nonTranslateSecondary.filter { it.targetLanguage == null }
+    val original = HtmlLanguageView(
+        key = "original",
+        displayName = "Original",
+        nativeName = null,
+        data = base.copy(secondary = originalSecondary)
+    )
+    if (languageOrder.isEmpty()) return listOf(original)
+
+    val views = mutableListOf(original)
+    for ((lang, native) in languageOrder) {
+        // Index the translations for this language by source target so
+        // the overlay can substitute in O(1) per item.
+        val byTarget = translates.filter { it.targetLanguage == lang && !it.content.isNullOrBlank() }
+            .associateBy { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
+
+        val translatedPrompt = byTarget["PROMPT:prompt"]?.content ?: base.prompt
+        val translatedAgents = base.agents.map { a ->
+            val tx = byTarget["AGENT:${a.agentId}"]?.content
+            if (tx != null) a.copy(responseText = tx) else a
+        }
+        // Chat-type META rows for this language come in two flavours:
+        // native per-language batch rows tagged with
+        // targetLanguage = lang (preferred — generated directly from
+        // translated input), and Original rows whose content has been
+        // translated via a TRANSLATE row pointing at them (legacy
+        // path, still surfaced so old translate-only flows keep
+        // working). Both are included.
+        val perLangMeta = nonTranslateSecondary.filter {
+            it.kind == SecondaryKind.META && it.targetLanguage == lang
+        }
+        val overlaidOriginalMeta = nonTranslateSecondary.mapNotNull { s ->
+            if (s.targetLanguage != null || s.kind != SecondaryKind.META) return@mapNotNull null
+            val tx = byTarget["META:${s.id}"]?.content ?: return@mapNotNull null
+            s.copy(content = tx)
+        }
+        val translatedSecondary = perLangMeta + overlaidOriginalMeta
+        views += HtmlLanguageView(
+            key = languageKey(lang),
+            displayName = lang,
+            nativeName = native?.takeIf { it != lang },
+            data = base.copy(
+                prompt = translatedPrompt,
+                agents = translatedAgents,
+                secondary = translatedSecondary
+            )
+        )
+    }
+    return views
+}
+
+/** Lower-case, alnum-only key for use in CSS ids and zip directory
+ *  names. "Mandarin Chinese" → "mandarinchinese". The English name is
+ *  the canonical id source so the same TRANSLATE rows always group
+ *  under the same key regardless of how they were rendered. */
+internal fun languageKey(language: String): String =
+    language.lowercase(Locale.US).replace(Regex("[^a-z0-9]+"), "").ifBlank { "x" }
+
+private fun ApiTrace.toRedactedExportJson(): String {
+    val redactedTrace = copy(
+        request = request.copy(
+            url = redactUrl(request.url),
+            headers = redactHeaderMap(request.headers),
+            body = redactJsonString(request.body)
+        ),
+        response = response.copy(
+            headers = redactHeaderMap(response.headers),
+            body = redactJsonString(response.body)
+        )
+    )
+    return createAppGson(prettyPrint = true).toJson(redactedTrace)
+}
+
+// ===== Unified HTML Report =====
+// Top-level "language picker" (Original | Dutch | German …) wraps each
+// language's set of view-blocks. When no translations exist on the
+// report the picker collapses to a single "Original" block and stays
+// hidden. Inside each language block the "view picker" lets the user
+// switch between Reports, one tab per chat-type Meta prompt name
+// present on the report (e.g. "Compare", "Critique", "Synthesize"),
+// Reranks / Moderations / Prompt / Costs / JSON. Costs and JSON are
+// emitted only inside the Original block — they aggregate across all
+// languages and would be misleading duplicates. Reranks / Moderations
+// are also Original-only (their content is structured JSON, not
+// narrative translatable text). Each multi-item view gets its own
+// "One by one" / "All together" sub-toggle.
+//
+// All in-block toggles use DOM-relative `closest()` traversal in JS
+// rather than IDs, so identical button/card markup in different
+// language blocks doesn't collide.
+
+private fun renderHtmlReport(
+    data: HtmlReportData,
+    appVersion: String,
+    includeJsonView: Boolean = true
+): String {
+    val sb = StringBuilder()
+    sb.append(htmlHead(data.title))
+    sb.append("<body><div class='container'>")
+    sb.append("<h1>${iconPrefixHtml(data.reportIcon)}${esc(data.title)}</h1>")
+    data.rapportText?.let { sb.append("<div class='rapport'>${convertMarkdownToHtmlForExport(it)}</div>") }
+
+    val languages = buildLanguageViews(data)
+
+    // Language picker — shown only when there's at least one
+    // translation. With no translations the lone "Original" view is
+    // rendered straight without the extra row of chrome.
+    if (languages.size > 1) {
+        sb.append("<div class='lang-picker'>")
+        languages.forEachIndexed { i, lv ->
+            val active = if (i == 0) " active" else ""
+            // Icon replaces the language name entirely when cached;
+            // falls back to the English name + nativeName subspan on
+            // a cache miss so picker stays readable.
+            val nativeFallback = if (lv.nativeName != null) " <span class='lang-native'>${esc(lv.nativeName)}</span>" else ""
+            val label = languageLabelOrIconHtml(lv, data.sourceLanguageIcon, "${esc(lv.displayName)}$nativeFallback")
+            sb.append("<button class='lang-btn$active' onclick=\"showLanguage(this,'${lv.key}')\">$label</button>")
+        }
+        sb.append("</div>")
+    }
+
+    languages.forEachIndexed { i, lv ->
+        val display = if (i == 0) "block" else "none"
+        sb.append("<div class='lang-block' data-lang='${lv.key}' style='display:$display'>")
+        renderLanguageBlock(sb, lv, isOriginal = (lv.key == "original"), includeJsonView = includeJsonView)
+        sb.append("</div>")
+    }
+
+    data.closeText?.let { sb.append("<div class='close-text'>${convertMarkdownToHtmlForExport(it)}</div>") }
+    sb.append("<div class='footer'>Generated by AI v$appVersion on ${data.timestamp}</div>")
+    sb.append("</div>")
+    sb.append(htmlScript())
+    sb.append("</body></html>")
+    return sb.toString()
+}
+
+/** Emit one language's view-picker + view-blocks. [isOriginal] gates
+ *  the views whose content is shared across languages (Costs, JSON) or
+ *  doesn't have meaningful translations (Reranks, Moderations) — those
+ *  appear only in the Original block. */
+private fun renderLanguageBlock(
+    sb: StringBuilder,
+    lv: HtmlLanguageView,
+    isOriginal: Boolean,
+    includeJsonView: Boolean = true
+) {
+    val data = lv.data
+    val defaultAllTogether = data.reportType == ReportType.TABLE
+    val reranks = data.secondary.filter { it.kind == SecondaryKind.RERANK }
+    val moderations = data.secondary.filter { it.kind == SecondaryKind.MODERATION }
+    // Chat-type META rows bucket by user-given prompt name. Each
+    // bucket gets its own tab in the view picker — first-seen order
+    // is preserved so tabs match the chronological run order.
+    val metaByName = LinkedHashMap<String, MutableList<HtmlSecondaryData>>()
+    data.secondary.filter { it.kind == SecondaryKind.META }.forEach { s ->
+        val name = s.metaPromptName?.takeIf { it.isNotBlank() }
+            ?: com.ai.data.legacyKindDisplayName(s.kind)
+        metaByName.getOrPut(name) { mutableListOf() }.add(s)
+    }
+    val hasPrompt = data.prompt.isNotBlank()
+    val hasReports = data.agents.isNotEmpty()
+    val hasAgentCosts = data.agents.any { it.inputTokens != null }
+    val hasSecondaryCosts = data.secondary.any { it.inputTokens != null }
+    val hasCosts = isOriginal && (hasAgentCosts || hasSecondaryCosts)
+    val hasJson = isOriginal && data.traces.isNotEmpty() && includeJsonView
+    val showReranks = isOriginal && reranks.isNotEmpty()
+    val showModerations = isOriginal && moderations.isNotEmpty()
+    val maxAnchor = data.agents.mapNotNull { it.anchorIndex }.maxOrNull() ?: 0
+    val agentsByAnchor: Map<Int, String> = data.agents.mapNotNull { a ->
+        a.anchorIndex?.let { it to "${a.providerDisplay} · ${com.ai.ui.shared.shortModelName(a.model)}" }
+    }.toMap()
+
+    data class View(val id: String, val label: String, val iconPrefix: String? = null, val emit: () -> Unit)
+    val views = mutableListOf<View>()
+    if (hasReports) views += View("reports", "Reports") {
+        renderReportsView(sb, data, defaultAllTogether, isOriginal)
+    }
+    metaByName.forEach { (name, items) ->
+        // CSS id derived from the prompt name: lowercase + non-alnum
+        // stripped, falling back to "meta" when the name reduces to
+        // nothing. Multiple Meta prompts can never collide because
+        // metaByName is name-keyed, so the id collisions handled here
+        // would only be fan out-language (each language renders its own
+        // view-block tree, and the JS uses DOM-relative scoping).
+        val viewId = "meta-" + name.lowercase().replace(Regex("[^a-z0-9]+"), "").ifBlank { "x" }
+        views += View(viewId, name, iconPrefix = metaPromptIcon(name)) { renderMetaItemsView(sb, viewId, items, maxAnchor) }
+    }
+    if (showReranks) views += View("reranks", "Reranks", iconPrefix = metaPromptIcon("rerank")) {
+        renderMetaItemsView(sb, "reranks", reranks, maxAnchor, agentsByAnchor)
+    }
+    if (showModerations) views += View("moderations", "Moderations", iconPrefix = metaPromptIcon("moderation")) {
+        renderMetaItemsView(sb, "moderations", moderations, maxAnchor, agentsByAnchor)
+    }
+    if (hasPrompt) views += View("prompt", "Prompt") {
+        sb.append("<div class='prompt-section'><div class='prompt-label'>Prompt:</div><pre class='prompt-text'>${esc(data.prompt)}</pre></div>")
+    }
+    if (hasCosts) views += View("costs", "Costs") { renderCostsView(sb, data) }
+    if (hasJson) views += View("json", "JSON") { renderJsonView(sb, data.traces) }
+
+    if (views.isEmpty()) return
+
+    val firstViewId = views.first().id
+
+    sb.append("<div class='view-picker'>")
+    views.forEach { v ->
+        val active = if (v.id == firstViewId) " active" else ""
+        sb.append("<button class='view-btn$active' data-view-id='${v.id}' onclick=\"showView(this,'${v.id}')\">${iconPrefixHtml(v.iconPrefix)}${esc(v.label)}</button>")
+    }
+    sb.append("</div>")
+
+    views.forEach { v ->
+        val display = if (v.id == firstViewId) "block" else "none"
+        sb.append("<div class='view-block' data-view-id='${v.id}' style='display:$display'>")
+        v.emit()
+        sb.append("</div>")
+    }
+}
+
+// ===== View Renderers =====
+
+/** Reports view — agents in either One-by-one or All-together layout.
+ *  Default layout follows the report's reportType (CLASSIC=oneByOne,
+ *  TABLE=allTogether). The sub-toggle is always shown for this view since
+ *  even a single agent might benefit from the All-together card layout.
+ *  [emitAnchors] is true only for the Original language block; rerank
+ *  hyperlinks like `#result-N` jump to the Original's per-agent cards
+ *  and emitting duplicate `id` attributes in translated language blocks
+ *  would shadow the lookup. */
+private fun renderReportsView(sb: StringBuilder, data: HtmlReportData, defaultAllTogether: Boolean, emitAnchors: Boolean) {
+    sb.append("<div class='layout-toggle'>")
+    sb.append("<button class='layout-btn${if (!defaultAllTogether) " active" else ""}' data-layout='oneByOne' onclick=\"showLayout(this,'oneByOne')\">One by one</button>")
+    sb.append("<button class='layout-btn${if (defaultAllTogether) " active" else ""}' data-layout='allTogether' onclick=\"showLayout(this,'allTogether')\">All together</button>")
+    sb.append("</div>")
+
+    sb.append("<div class='layout' data-layout='oneByOne'${if (defaultAllTogether) " style='display:none'" else ""}>")
+    sb.append("<div class='agent-buttons'>")
+    data.agents.forEachIndexed { i, a -> sb.append("<button class='agent-btn${if (i == 0) " active" else ""}' data-agent='${escId(a.agentId)}' onclick=\"showAgent(this,'${escId(a.agentId)}')\">${iconPrefixHtml(a.icon)}${esc(a.agentName)}</button>") }
+    sb.append("</div>")
+    data.agents.forEachIndexed { i, a ->
+        val resultIdAttr = if (emitAnchors) a.anchorIndex?.let { " id='result-$it'" } ?: "" else ""
+        sb.append("<div class='agent-result${if (i == 0) " active" else ""}' data-agent='${escId(a.agentId)}'$resultIdAttr>")
+        sb.append("<div class='agent-header'>${iconPrefixHtml(a.icon)}${esc(a.providerDisplay)} - ${esc(com.ai.ui.shared.shortModelName(a.model))}</div>")
+        sb.append("<div class='report-content'>")
+        if (a.errorMessage != null) sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
+        if (a.responseText != null) sb.append("<div class='agent-response'>${processThinkSections(a.responseText, a.agentId)}</div>")
+        a.citations?.takeIf { it.isNotEmpty() }?.let { cites ->
+            sb.append("<div class='sources-section'><div class='sources-label'>Sources</div>")
+            cites.forEachIndexed { ci, url -> sb.append("<div class='source-item'>${ci + 1}. <a href='${esc(url)}'>${esc(url)}</a></div>") }
+            sb.append("</div>")
+        }
+        a.searchResults?.takeIf { it.isNotEmpty() }?.let { results ->
+            sb.append("<div class='search-results-section'><div class='search-results-label'>Search Results</div>")
+            results.forEachIndexed { ri, r -> if (r.url != null) sb.append("<div class='search-result'>${ri + 1}. <a href='${esc(r.url)}' class='search-result-title'>${esc(r.name ?: r.url)}</a>${if (!r.snippet.isNullOrBlank()) "<div class='search-result-snippet'>${esc(r.snippet)}</div>" else ""}</div>") }
+            sb.append("</div>")
+        }
+        a.relatedQuestions?.takeIf { it.isNotEmpty() }?.let { qs ->
+            sb.append("<div class='related-questions-section'><div class='related-questions-label'>Related Questions</div>")
+            qs.forEachIndexed { qi, q -> sb.append("<div class='related-question'>${qi + 1}. ${esc(q)}</div>") }
+            sb.append("</div>")
+        }
+        sb.append("</div></div>")
+    }
+    sb.append("</div>")
+
+    sb.append("<div class='layout' data-layout='allTogether'${if (!defaultAllTogether) " style='display:none'" else ""}>")
+    sb.append("<div class='table-grid'>")
+    data.agents.forEach { a ->
+        sb.append("<div class='table-card'>")
+        sb.append("<div class='card-header'>${iconPrefixHtml(a.icon)}${esc(a.providerDisplay)}</div>")
+        sb.append("<div class='card-model'>${esc(com.ai.ui.shared.shortModelName(a.model))}</div>")
+        if (a.errorMessage != null) {
+            sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
+        } else if (a.responseText != null) {
+            val conclusion = extractTagContent(a.responseText, "conclusion")
+            val motivation = extractTagContent(a.responseText, "motivation")
+            if (conclusion != null) sb.append("<div class='card-conclusion'><div class='card-section-label' style='color:#4CAF50'>Conclusion</div>${convertMarkdownToHtmlForExport(conclusion)}</div>")
+            if (motivation != null) sb.append("<div class='card-motivation'><div class='card-section-label' style='color:#FF9800'>Motivation</div>${convertMarkdownToHtmlForExport(motivation)}</div>")
+            if (conclusion == null && motivation == null) sb.append("<div class='card-body'>${convertMarkdownToHtmlForExport(a.responseText)}</div>")
+        }
+        sb.append("</div>")
+    }
+    sb.append("</div>")
+    sb.append("</div>")
+}
+
+/** Meta-items view (one chat-type Meta bucket / Reranks / Moderations).
+ *  Single-item views render the lone item directly with no sub-toggle.
+ *  Multi-item views get their own One-by-one / All-together toggle.
+ *  All scoping is DOM-relative (closest('.view-block')) so multiple
+ *  copies of the same view across language blocks don't collide. */
+private fun renderMetaItemsView(sb: StringBuilder, viewId: String, items: List<HtmlSecondaryData>, maxAnchor: Int, agentsByAnchor: Map<Int, String> = emptyMap()) {
+    if (items.isEmpty()) return
+
+    if (items.size == 1) {
+        sb.append("<div class='secondary-section'>")
+        renderMetaCard(sb, items[0], maxAnchor, agentsByAnchor)
+        sb.append("</div>")
+        return
+    }
+
+    sb.append("<div class='layout-toggle'>")
+    sb.append("<button class='layout-btn active' data-layout='oneByOne' onclick=\"showLayout(this,'oneByOne')\">One by one</button>")
+    sb.append("<button class='layout-btn' data-layout='allTogether' onclick=\"showLayout(this,'allTogether')\">All together</button>")
+    sb.append("</div>")
+
+    sb.append("<div class='layout' data-layout='oneByOne'>")
+    sb.append("<div class='agent-buttons'>")
+    items.forEachIndexed { i, it ->
+        val label = "${it.providerDisplay} · ${com.ai.ui.shared.shortModelName(it.model)}"
+        sb.append("<button class='item-btn${if (i == 0) " active" else ""}' data-item='${escId(it.id)}' onclick=\"showItem(this,'${escId(it.id)}')\">${iconPrefixHtml(it.icon)}${esc(label)}</button>")
+    }
+    sb.append("</div>")
+    items.forEachIndexed { i, it ->
+        sb.append("<div class='item-content${if (i == 0) " active" else ""}' data-item='${escId(it.id)}'>")
+        sb.append("<div class='secondary-section'>")
+        renderMetaCard(sb, it, maxAnchor, agentsByAnchor)
+        sb.append("</div>")
+        sb.append("</div>")
+    }
+    sb.append("</div>")
+
+    sb.append("<div class='layout' data-layout='allTogether' style='display:none'>")
+    sb.append("<div class='secondary-section'>")
+    items.forEach { renderMetaCard(sb, it, maxAnchor, agentsByAnchor) }
+    sb.append("</div>")
+    sb.append("</div>")
+}
+
+private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor: Int, agentsByAnchor: Map<Int, String> = emptyMap()) {
+    sb.append("<div class='secondary-card'>")
+    sb.append("<div class='secondary-card-header'>${iconPrefixHtml(item.icon)}${esc(item.providerDisplay)} · ${esc(com.ai.ui.shared.shortModelName(item.model))} <span class='secondary-ts'>${esc(item.timestamp)}</span></div>")
+    if (item.errorMessage != null) {
+        sb.append("<div class='error'>Error: ${esc(item.errorMessage)}</div>")
+    } else if (!item.content.isNullOrBlank()) {
+        when (item.kind) {
+            SecondaryKind.RERANK -> sb.append("<div class='secondary-body'>${renderRerankContent(item.content, maxAnchor, agentsByAnchor)}</div>")
+            SecondaryKind.MODERATION -> {
+                // Structured renderer with per-model picker + a full
+                // per-category table for the picked model. Falls
+                // through to the raw markdown path on parse failure.
+                val rendered = renderModerationContent(item.content, item.id, agentsByAnchor)
+                if (rendered != null) sb.append("<div class='secondary-body'>$rendered</div>")
+                else sb.append("<div class='secondary-body'>${convertMarkdownToHtmlForExport(item.content)}</div>")
+            }
+            SecondaryKind.META -> {
+                // Chat-type Meta content can reference report rows via
+                // bracketed [N] tags. Linkify them so a "Compare" /
+                // "Critique" / etc. result can jump back to any cited
+                // agent card. RERANK has its own structured renderer
+                // above; MODERATION renders as plain text below.
+                //
+                // Linkify AFTER the markdown→HTML pass — that pass
+                // unconditionally escapes `<` / `>`, which would
+                // otherwise turn `<a href=…>` into literal text.
+                // `[N]` survives both the markdown rules and the
+                // escape, so the post-pass regex still matches.
+                val html = convertMarkdownToHtmlForExport(item.content)
+                sb.append("<div class='secondary-body'>${linkifyAnchorRefs(html, maxAnchor)}</div>")
+            }
+            else -> sb.append("<div class='secondary-body'>${convertMarkdownToHtmlForExport(item.content)}</div>")
+        }
+    }
+    sb.append("</div>")
+}
+
+/** Costs view — the per-call cost table. Sorted by total cents desc so
+ *  the most expensive call is always at the top. Includes report agents
+ *  AND every secondary kind (rerank/summarize/compare/moderation/
+ *  translate) as separate rows. */
+private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
+    data class Row(val type: String, val providerDisplay: String, val model: String, val tier: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
+    val agentRows = data.agents.filter { it.inputCost != null }.map {
+        Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
+            (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
+    }
+    val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
+        // Match the in-app cost table's row-type label rules: fan-out
+        // / fan-in rows always read "fan-out" / "fan-in" so the
+        // grouping reflects scope-of-the-call. Other secondaries
+        // fall back to the user-given Meta prompt name; rerank /
+        // moderation / translate keep their fixed labels.
+        val type = when {
+            it.fanOutSourceAgentId != null -> "fan-out"
+            it.fanInOf != null -> "fan-in"
+            !it.metaPromptName.isNullOrBlank() -> it.metaPromptName.lowercase()
+            else -> when (it.kind) {
+                SecondaryKind.RERANK -> "rerank"
+                SecondaryKind.META -> "meta"
+                SecondaryKind.MODERATION -> "moderation"
+                SecondaryKind.TRANSLATE -> "translate"
+            }
+        }
+        Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
+            (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
+    }
+    // Icon-gen call as its own row so the export's cost totals match
+    // the in-app totals. Hidden when icon-gen wasn't run / didn't
+    // resolve token usage.
+    val iconRow = if (data.iconInputCost > 0.0 || data.iconOutputCost > 0.0) {
+        Row("icon", data.iconProviderDisplay, data.iconModel, data.iconPricingTier,
+            null, data.iconInputTokens, data.iconOutputTokens,
+            data.iconInputCost * 100, data.iconOutputCost * 100)
+    } else null
+    // Per-tier rows from the 3-tier Create → Report icons chain.
+    // Every tier API call (including failed earlier tiers) shows up
+    // as its own row with type="icon" so the user can audit every
+    // attempt. The Types tab aggregates them all into one "icon"
+    // bucket; the Models tab groups by (providerDisplay, model) so
+    // tier 3's DeepSeek calls line up under DeepSeek even when the
+    // agent row itself uses a different model.
+    val iconCallRows = data.iconCalls.map { c ->
+        Row("icon", c.providerDisplay, c.model, c.pricingTier,
+            c.durationMs, c.inputTokens, c.outputTokens,
+            c.inputCost * 100, c.outputCost * 100)
+    }
+    val sorted = (agentRows + secondaryRows + listOfNotNull(iconRow) + iconCallRows)
+        .sortedByDescending { it.inCents + it.outCents }
+    val deletedCents = data.costsFromDeletedItems * 100
+
+    sb.append("<div class='prompt-section'><div class='prompt-label'>Costs</div>")
+
+    if (sorted.isEmpty() && deletedCents <= 0.0) {
+        sb.append("</div>")
+        return
+    }
+
+    // Sub-picker — three sub-panes the reader can flip between in
+    // the browser. Distinct CSS classes (.cost-scope-btn / .cost-pane)
+    // so the JSON view's showCat() — which queries the whole
+    // document for .cat-block / .cat-btn — doesn't accidentally
+    // hide / unstyle the cost panes when the user taps a JSON
+    // category. Same visual styling as .cat-btn, declared in the
+    // CSS block.
+    sb.append("<div class='cost-scope-list'>")
+    sb.append("<button id='cost-btn-types' class='cost-scope-btn active' onclick=\"showCostsScope('types')\">Types</button>")
+    sb.append("<button id='cost-btn-models' class='cost-scope-btn' onclick=\"showCostsScope('models')\">Models</button>")
+    sb.append("<button id='cost-btn-all' class='cost-scope-btn' onclick=\"showCostsScope('all')\">All</button>")
+    sb.append("</div>")
+
+    // Group totals — one structure that fits both By type (single
+    // key) and By model (provider + model split). For By type,
+    // provider / model are null and `key` carries the type string.
+    // For By model, provider / model are filled and `key` is ignored.
+    data class GroupTotal(
+        val key: String, val provider: String?, val model: String?,
+        val calls: Int,
+        val inputTokens: Int, val outputTokens: Int,
+        val inCents: Double, val outCents: Double
+    )
+
+    fun groupByType(): List<GroupTotal> =
+        sorted.groupBy { it.type }.map { (k, gs) ->
+            var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+            gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inCents; oC += it.outCents }
+            GroupTotal(k, null, null, gs.size, iT, oT, iC, oC)
+        }.sortedByDescending { it.inCents + it.outCents }
+
+    fun groupByModel(): List<GroupTotal> =
+        sorted.groupBy { it.providerDisplay to it.model }.map { (k, gs) ->
+            var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+            gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inCents; oC += it.outCents }
+            GroupTotal("${k.first} · ${k.second}", k.first, k.second, gs.size, iT, oT, iC, oC)
+        }.sortedByDescending { it.inCents + it.outCents }
+
+    fun appendSummary(groups: List<GroupTotal>, isByModel: Boolean) {
+        if (groups.isEmpty() && deletedCents <= 0.0) return
+        // .cost-table-wide opts every cell into `white-space:nowrap`
+        // and lets the table grow past its container width — so a
+        // long provider / model name is no longer broken across
+        // lines mid-character. The parent .cost-pane has
+        // `overflow-x:auto` so the user can scroll horizontally
+        // when the table genuinely doesn't fit.
+        val tableClass = if (isByModel) "cost-table cost-table-wide" else "cost-table"
+        sb.append("<table class='$tableClass'><tr>")
+        if (isByModel) {
+            sb.append("<th>Provider</th><th>Model</th>")
+        } else {
+            sb.append("<th>Type</th>")
+        }
+        sb.append("<th style='text-align:right'>Calls</th>")
+        sb.append("<th style='text-align:right'>Input<br>tokens</th>")
+        sb.append("<th style='text-align:right'>Output<br>tokens</th>")
+        sb.append("<th style='text-align:right'>Input<br>cents</th>")
+        sb.append("<th style='text-align:right'>Output<br>cents</th>")
+        sb.append("<th style='text-align:right'>Total<br>cents</th>")
+        sb.append("</tr>")
+        var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+        var totalCalls = 0
+        groups.forEach { g ->
+            iT += g.inputTokens; oT += g.outputTokens; iC += g.inCents; oC += g.outCents
+            totalCalls += g.calls
+            sb.append("<tr>")
+            if (isByModel) {
+                sb.append("<td>${esc(g.provider ?: "")}</td><td>${esc(com.ai.ui.shared.shortModelName(g.model ?: ""))}</td>")
+            } else {
+                sb.append("<td>${esc(g.key)}</td>")
+            }
+            sb.append("<td class='num'>${g.calls}</td>")
+            sb.append("<td class='num'>${g.inputTokens}</td>")
+            sb.append("<td class='num'>${g.outputTokens}</td>")
+            sb.append("<td class='num'>${"%.2f".format(g.inCents)}</td>")
+            sb.append("<td class='num'>${"%.2f".format(g.outCents)}</td>")
+            sb.append("<td class='num'>${"%.2f".format(g.inCents + g.outCents)}</td>")
+            sb.append("</tr>")
+        }
+        if (deletedCents > 0.0) {
+            sb.append("<tr>")
+            if (isByModel) sb.append("<td colspan='2'>deleted</td>") else sb.append("<td>deleted</td>")
+            sb.append("<td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td>")
+            sb.append("<td class='num'>${"%.2f".format(deletedCents)}</td></tr>")
+        }
+        sb.append("<tr class='total-row'>")
+        if (isByModel) sb.append("<td colspan='2'>Total</td>") else sb.append("<td>Total</td>")
+        sb.append("<td class='num'>$totalCalls</td>")
+        sb.append("<td class='num'>$iT</td><td class='num'>$oT</td>")
+        sb.append("<td class='num'>${"%.2f".format(iC)}</td><td class='num'>${"%.2f".format(oC)}</td>")
+        sb.append("<td class='num'>${"%.2f".format(iC + oC + deletedCents)}</td></tr>")
+        sb.append("</table>")
+    }
+
+    fun appendAllCalls() {
+        // Same width-grows-as-needed treatment as the By model
+        // summary — long model names stay on one line so the user
+        // can read them.
+        sb.append("<table class='cost-table cost-table-wide'><tr><th>Type</th><th>Provider</th><th>Model</th><th>Tier</th><th style='text-align:right'>Seconds</th><th style='text-align:right'>Input<br>tokens</th><th style='text-align:right'>Output<br>tokens</th><th style='text-align:right'>Input<br>cents</th><th style='text-align:right'>Output<br>cents</th><th style='text-align:right'>Total<br>cents</th></tr>")
+        var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
+        sorted.forEach { r ->
+            tIn += r.inputTokens; tOut += r.outputTokens; tInC += r.inCents; tOutC += r.outCents
+            val secs = r.durationMs?.let { "%.1f".format(it / 1000.0) } ?: ""
+            sb.append("<tr><td>${esc(r.type)}</td><td>${esc(r.providerDisplay)}</td><td>${esc(com.ai.ui.shared.shortModelName(r.model))}</td><td>${esc(r.tier)}</td><td class='num'>$secs</td><td class='num'>${r.inputTokens}</td><td class='num'>${r.outputTokens}</td><td class='num'>${"%.2f".format(r.inCents)}</td><td class='num'>${"%.2f".format(r.outCents)}</td><td class='num'>${"%.2f".format(r.inCents + r.outCents)}</td></tr>")
+        }
+        if (deletedCents > 0.0) {
+            sb.append("<tr><td>deleted</td><td></td><td></td><td></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'></td><td class='num'>${"%.2f".format(deletedCents)}</td></tr>")
+        }
+        sb.append("<tr class='total-row'><td colspan='5'>Total</td><td class='num'>$tIn</td><td class='num'>$tOut</td><td class='num'>${"%.2f".format(tInC)}</td><td class='num'>${"%.2f".format(tOutC)}</td><td class='num'>${"%.2f".format(tInC + tOutC + deletedCents)}</td></tr>")
+        sb.append("</table>")
+    }
+
+    val byType = groupByType()
+    val byModel = groupByModel()
+
+    // Pane 1 — Types. The "By type" summary on its own. Default
+    // visible (matches the first button being .active above).
+    sb.append("<div id='cost-pane-types' class='cost-pane' style='display:block'>")
+    appendSummary(byType, isByModel = false)
+    sb.append("</div>")
+
+    // Pane 2 — Models. The "By model" summary on its own.
+    sb.append("<div id='cost-pane-models' class='cost-pane' style='display:none'>")
+    appendSummary(byModel, isByModel = true)
+    sb.append("</div>")
+
+    // Pane 3 — All. The per-call detail table only. The two
+    // summaries already have their own panes, so showing them
+    // here too would just be duplication.
+    sb.append("<div id='cost-pane-all' class='cost-pane' style='display:none'>")
+    appendAllCalls()
+    sb.append("</div>")
+
+    sb.append("</div>")
+}
+
+/** JSON view — every captured API trace this report knows about, with
+ *  the four parts (request headers, request body, response headers,
+ *  response body) gated behind per-trace tabs. Bodies and headers are
+ *  redacted (api keys, tokens, cookies, authorization → [REDACTED])
+ *  before being serialised into the HTML so a shared export doesn't
+ *  leak credentials. */
+private fun renderJsonView(sb: StringBuilder, traces: List<HtmlTraceData>) {
+    // Group traces by category. Null categories collapse into a single
+    // "Other" bucket (pre-feature traces, plus any unbracketed sites).
+    // Order: alphabetical by category label, with "Other" pinned to the
+    // end so it doesn't elbow ahead of real categories.
+    val groups = traces.groupBy { it.category ?: "Other" }
+    val orderedKeys = groups.keys.sortedWith(compareBy(
+        { it == "Other" },         // false (real cats) < true ("Other")
+        { it.lowercase() }
+    ))
+    if (orderedKeys.isEmpty()) return
+
+    // The category list assigns a stable short id used everywhere in this
+    // view — escId is overkill for indexes, but keeps the convention
+    // consistent with the rest of the export.
+    val categoryIds = orderedKeys.mapIndexed { idx, cat -> cat to "c$idx" }.toMap()
+
+    // Category row — only emitted when there are 2+ buttons. Otherwise
+    // the lone category's content shows directly with no chrome above it.
+    if (orderedKeys.size > 1) {
+        sb.append("<div class='cat-list'>")
+        orderedKeys.forEachIndexed { i, cat ->
+            val active = if (i == 0) " active" else ""
+            val cid = categoryIds[cat]!!
+            sb.append("<button id='cat-btn-$cid' class='cat-btn$active' onclick=\"showCat('$cid')\">${esc(cat)} (${groups[cat]!!.size})</button>")
+        }
+        sb.append("</div>")
+    }
+
+    // Per-category block: a (conditional) trace-button row + per-trace
+    // panes. Hidden by default unless this is the first category. Single-
+    // trace categories skip the trace-button row and render the lone
+    // trace's parts directly.
+    orderedKeys.forEachIndexed { i, cat ->
+        val cid = categoryIds[cat]!!
+        val catTraces = groups[cat]!!
+        val display = if (i == 0) "block" else "none"
+        sb.append("<div id='cat-$cid' class='cat-block' style='display:$display'>")
+
+        if (catTraces.size > 1) {
+            sb.append("<div class='trace-list'>")
+            catTraces.forEachIndexed { ti, t ->
+                val tActive = if (ti == 0) " active" else ""
+                val label = buildString {
+                    if (t.origin == "source") append("[source] ")
+                    append(t.timestamp).append(" · ").append(t.method).append(" · ").append(t.hostname)
+                    if (!t.model.isNullOrBlank()) append(" / ").append(t.model)
+                    append(" · ").append(t.statusCode)
+                }
+                sb.append("<button id='trace-btn-${t.id}' class='trace-btn$tActive' data-cat='$cid' onclick=\"showTrace('$cid','${t.id}')\">${esc(label)}</button>")
+            }
+            sb.append("</div>")
+        }
+
+        catTraces.forEachIndexed { ti, t ->
+            val paneDisplay = if (ti == 0) "block" else "none"
+            sb.append("<div id='trace-${t.id}' class='trace-pane' data-cat='$cid' style='display:$paneDisplay'>")
+            sb.append("<div class='trace-meta'><span class='trace-meta-url'>${esc(t.method)} ${esc(t.url)}</span></div>")
+            sb.append("<div class='trace-part-tabs'>")
+            sb.append("<button id='part-btn-${t.id}-reqh' class='trace-part-btn active' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','reqh')\">Request headers</button>")
+            sb.append("<button id='part-btn-${t.id}-reqb' class='trace-part-btn' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','reqb')\">Request body</button>")
+            sb.append("<button id='part-btn-${t.id}-resh' class='trace-part-btn' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','resh')\">Response headers</button>")
+            sb.append("<button id='part-btn-${t.id}-resb' class='trace-part-btn' data-trace='${t.id}' onclick=\"showTracePart('${t.id}','resb')\">Response body</button>")
+            sb.append("</div>")
+            sb.append("<pre id='part-${t.id}-reqh' class='trace-part trace-part-active' data-trace='${t.id}'>${esc(t.requestHeaders)}</pre>")
+            sb.append("<pre id='part-${t.id}-reqb' class='trace-part' data-trace='${t.id}'>${esc(t.requestBody)}</pre>")
+            sb.append("<pre id='part-${t.id}-resh' class='trace-part' data-trace='${t.id}'>${esc(t.responseHeaders)}</pre>")
+            sb.append("<pre id='part-${t.id}-resb' class='trace-part' data-trace='${t.id}'>${esc(t.responseBody)}</pre>")
+            sb.append("</div>")
+        }
+        sb.append("</div>")
+    }
+}
+
+/** If the rerank model returned the requested JSON array, render it as a
+ *  table with anchor links to the corresponding result cards. Otherwise
+ *  fall back to running it through the markdown renderer with a simple
+ *  pass to linkify any [N] references that point at a known result. */
+private fun renderRerankContent(content: String, maxAnchor: Int, agentsByAnchor: Map<Int, String> = emptyMap()): String {
+    // Try strict JSON first — strip ``` fences just in case.
+    val cleaned = content.trim()
+        .removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+    val asArray = try {
+        @Suppress("DEPRECATION")
+        com.google.gson.JsonParser().parse(cleaned).takeIf { it.isJsonArray }?.asJsonArray
+    } catch (_: Exception) { null }
+
+    if (asArray != null && asArray.size() > 0 && asArray.all { it.isJsonObject }) {
+        val rows = asArray.mapNotNull { el ->
+            val obj = el.asJsonObject
+            val id = obj.get("id")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@mapNotNull null
+            val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }?.asInt
+            val score = obj.get("score")?.takeIf { it.isJsonPrimitive }?.asDouble
+            val reason = obj.get("reason")?.takeIf { it.isJsonPrimitive }?.asString
+            Triple(id, rank to score, reason)
+        }.sortedBy { it.second.first ?: Int.MAX_VALUE }
+        if (rows.isNotEmpty()) {
+            val sb = StringBuilder()
+            sb.append("<table class='rerank-table'><tr><th>Rank</th><th>Result</th><th>Model</th><th>Score</th><th>Reason</th></tr>")
+            rows.forEach { (id, rs, reason) ->
+                val link = if (id in 1..maxAnchor) "<a href='#result-$id'>[$id]</a>" else "[$id]"
+                val rank = rs.first?.toString() ?: ""
+                val score = rs.second?.let { "%.0f".format(it) } ?: ""
+                val modelLabel = agentsByAnchor[id]?.let { esc(it) } ?: ""
+                sb.append("<tr><td class='num'>$rank</td><td>$link</td><td>$modelLabel</td><td class='num'>$score</td><td>${esc(reason ?: "")}</td></tr>")
+            }
+            sb.append("</table>")
+            return sb.toString()
+        }
+    }
+
+    // Fallback: convert to HTML first, then linkify [N] references on
+    // the result. convertMarkdownToHtmlForExport unconditionally
+    // escapes `<` / `>`, so linkifying before would emit `&lt;a...&gt;`
+    // and render as literal text.
+    return linkifyAnchorRefs(convertMarkdownToHtmlForExport(content), maxAnchor)
+}
+
+/** Structured renderer for a moderation SecondaryResult's content
+ *  JSON. Emits a per-model button row (one button per moderated
+ *  agent) plus a hidden detail pane per model with that model's
+ *  full per-category table. The matching button + pane share a
+ *  unique `[contextId]-[rowId]` data-mod key so multiple moderation
+ *  cards on the same page don't cross-trigger. Returns null on
+ *  parse failure so the caller can fall back to the raw markdown
+ *  path. Mirrors the in-app `ModerationCallDetailScreen` shape. */
+private fun renderModerationContent(content: String, contextId: String, agentsByAnchor: Map<Int, String>): String? {
+    val rows = parseModerationRows(content) ?: return null
+    val sb = StringBuilder()
+    sb.append("<div class='moderation-block'>")
+    sb.append("<div class='moderation-buttons'>")
+    rows.forEachIndexed { i, r ->
+        val label = agentsByAnchor[r.id] ?: "[${r.id}]"
+        val flagPrefix = if (r.flagged) "🚩 " else "✓ "
+        val color = if (r.flagged) "#ff7a7a" else "#7fdc7f"
+        val active = if (i == 0) " active" else ""
+        sb.append(
+            "<button class='mod-btn$active' data-mod='${escId(contextId)}-${r.id}'" +
+            " onclick=\"showModRow(this,'${escId(contextId)}-${r.id}')\"" +
+            " style='color:$color'>$flagPrefix${esc(label)}</button>"
+        )
+    }
+    sb.append("</div>")
+
+    rows.forEachIndexed { i, r ->
+        val active = if (i == 0) " active" else ""
+        val style = if (i == 0) "" else " style='display:none'"
+        sb.append("<div class='mod-row$active' data-mod='${escId(contextId)}-${r.id}'$style>")
+        val verdictColor = if (r.flagged) "#ff7a7a" else "#7fdc7f"
+        val verdictText = if (r.flagged) "🚩 Flagged" else "✓ Clean"
+        sb.append("<div class='mod-verdict' style='color:$verdictColor;font-weight:600;margin-bottom:6px'>$verdictText</div>")
+
+        // Categories table — every category the API returned,
+        // sorted by score desc. Fired rows in red.
+        val cats = (r.allCategories.keys + r.allScores.keys).distinct()
+            .sortedWith(compareByDescending<String> { r.allScores[it] ?: -1.0 }.thenBy { it.lowercase() })
+        if (cats.isEmpty()) {
+            sb.append("<div style='color:#888'>(no categories returned)</div>")
+        } else {
+            sb.append("<table class='mod-cats'>")
+            sb.append("<tr><th></th><th>Category</th><th>Score</th></tr>")
+            cats.forEach { cat ->
+                val fired = r.allCategories[cat] == true
+                val score = r.allScores[cat]
+                val rowStyle = if (fired) " style='color:#ff7a7a'" else ""
+                val flagCell = if (fired) "🚩" else "·"
+                val scoreCell = score?.let { "%.4f".format(it) } ?: "—"
+                sb.append("<tr$rowStyle><td>$flagCell</td><td>${esc(cat)}</td><td class='num'>$scoreCell</td></tr>")
+            }
+            sb.append("</table>")
+        }
+        sb.append("</div>")
+    }
+
+    sb.append("</div>")
+    return sb.toString()
+}
+
+/** Replace bracketed `[N]` references in already-rendered HTML with
+ *  `<a href='#result-N'>[N]</a>` anchors. Operates post-conversion
+ *  so the markdown pass's HTML-escape doesn't shred the inserted
+ *  tags. `[` / `]` are inert in HTML and survive both the markdown
+ *  rules and the escape unchanged. */
+private fun linkifyAnchorRefs(html: String, maxAnchor: Int): String =
+    Regex("""\[(\d+)\]""").replace(html) { m ->
+        val id = m.groupValues[1].toIntOrNull() ?: return@replace m.value
+        if (id in 1..maxAnchor) "<a href='#result-$id'>[$id]</a>" else m.value
+    }
+
+internal fun processThinkSections(text: String, agentId: String): String {
+    val pattern = Regex("<think>(.*?)</think>", RegexOption.DOT_MATCHES_ALL)
+    val matches = pattern.findAll(text).toList()
+    if (matches.isEmpty()) return convertMarkdownToHtmlForExport(text)
+
+    var idx = 0
+    var lastEnd = 0
+    val out = StringBuilder()
+    matches.forEach { m ->
+        val before = text.substring(lastEnd, m.range.first)
+        if (before.isNotEmpty()) out.append(convertMarkdownToHtmlForExport(before))
+        val content = esc(m.groupValues[1])
+        val id = "${escId(agentId)}-${idx++}"
+        out.append("""<button id="think-btn-$id" class="think-btn" onclick="toggleThink('$id')">Think</button><div id="think-$id" class="think-content">$content</div>""")
+        lastEnd = m.range.last + 1
+    }
+    val after = text.substring(lastEnd)
+    if (after.isNotEmpty()) out.append(convertMarkdownToHtmlForExport(after))
+    return out.toString()
+}
+
+internal fun convertMarkdownToHtmlForExport(markdown: String): String {
+    // Pull GFM tables out first so the placeholder survives the
+    // inline/heading/list regex passes below — re-inserted as real
+    // <table> HTML at the end. Tables can't be expressed via the
+    // inline regex chain since they're multi-line and the \n→<br>
+    // step would shred them.
+    val (preProcessed, tables) = parseGfmTables(markdown)
+    var html = preProcessed.replace("\r\n", "\n").replace(Regex("\n{3,}"), "\n\n")
+    html = html.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+        .replace(Regex("```(.*?)```", RegexOption.DOT_MATCHES_ALL), "<pre><code>$1</code></pre>")
+        .replace(Regex("`([^`]+)`"), "<code>$1</code>")
+        .replace(Regex("^### (.+)$", RegexOption.MULTILINE), "<h4>$1</h4>")
+        .replace(Regex("^## (.+)$", RegexOption.MULTILINE), "<h3>$1</h3>")
+        .replace(Regex("^# (.+)$", RegexOption.MULTILINE), "<h2>$1</h2>")
+        .replace(Regex("\\*\\*(.+?)\\*\\*"), "<strong>$1</strong>")
+        .replace(Regex("\\*(.+?)\\*"), "<em>$1</em>")
+        .replace(Regex("^- (.+)$", RegexOption.MULTILINE), "<li>$1</li>")
+        .replace(Regex("^\\* (.+)$", RegexOption.MULTILINE), "<li>$1</li>")
+        .replace(Regex("^\\d+\\. (.+)$", RegexOption.MULTILINE), "<li>$1</li>")
+        .replace("\n\n", "</p><p>").replace("\n", "<br>")
+    html = html.replace(Regex("(<li>.*?</li>)+")) { "<ul>${it.value}</ul>" }
+    html = html.replace(Regex("(<br>\\s*)+<br>"), "<br>")
+        .replace(Regex("<br>\\s*(<h[234]>)"), "$1").replace(Regex("(</h[234]>)\\s*<br>"), "$1")
+        .replace(Regex("<br>\\s*(<ul>)"), "$1").replace(Regex("(</ul>)\\s*<br>"), "$1")
+        .replace(Regex("<br>\\s*(<pre>)"), "$1").replace(Regex("(</pre>)\\s*<br>"), "$1")
+        .replace(Regex("<p>\\s*</p>"), "")
+    if (html.isNotBlank()) html = "<p>$html</p>"
+    if (tables.isNotEmpty()) {
+        // Replace the placeholder + any leftover <p>/<br> wrapping
+        // around it with the real <table>. Browsers tolerate <p>
+        // around <table> (auto-close), but stripping keeps the source
+        // clean and lets the table style take effect cleanly.
+        //
+        // Bounds-check the index — user-authored content can contain a
+        // literal `MDTBL999`, which would otherwise index past
+        // tables.size and crash the export.
+        html = html.replace(Regex("(?:<p>\\s*)?(?:<br>\\s*)*${MD_TABLE_PLACEHOLDER_REGEX.pattern}(?:\\s*<br>)*(?:\\s*</p>)?")) { m ->
+            val idx = m.groupValues[1].toIntOrNull()
+            if (idx == null || idx !in tables.indices) m.value
+            else buildExportTableHtml(tables[idx])
+        }
+    }
+    return html
+}
+
+private fun esc(s: String) = s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;").replace("'", "&#39;")
+private fun escId(s: String) = s.replace("'", "").replace("\"", "").replace("&", "").replace("<", "").replace(">", "")
+private fun timestamp() = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+private fun getAppVersion(context: android.content.Context): String = try { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "unknown" } catch (_: Exception) { "unknown" }
+
+private fun writeToCache(context: android.content.Context, filename: String, content: String): File {
+    val dir = File(context.cacheDir, "ai_analysis").also { it.mkdirs() }
+    return File(dir, filename).also { it.writeText(content) }
+}
+
+// ===== HTML Template =====
+
+private fun htmlHead(title: String) = """<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>AI Report - ${esc(title)}</title>
+<style>
+body{background:#1a1a1a;color:#e0e0e0;font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:16px}
+.container{max-width:800px;margin:0 auto}
+h1{color:#fff;font-size:24px;margin-bottom:16px}
+.lang-picker{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;padding-bottom:12px;border-bottom:1px solid #333}
+.lang-btn{background:transparent;color:#A5D6A7;border:1px solid #555;border-radius:4px;padding:8px 16px;cursor:pointer;font-weight:bold;font-size:14px}
+.lang-btn.active{background:#A5D6A7;color:#1a1a1a;border-color:#A5D6A7}
+.lang-native{color:#888;font-weight:normal;font-size:11px;margin-left:4px}
+.lang-btn.active .lang-native{color:#1a1a1a}
+.view-picker{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.view-btn{background:transparent;color:#FFB74D;border:1px solid #555;border-radius:4px;padding:8px 16px;cursor:pointer;font-weight:bold;font-size:14px}
+.view-btn.active{background:#FFB74D;color:#1a1a1a;border-color:#FFB74D}
+.view-block{margin-bottom:16px}
+.layout-toggle{display:flex;gap:8px;margin-bottom:16px}
+.layout-btn{background:transparent;color:#6B9BFF;border:1px solid #555;border-radius:4px;padding:8px 16px;cursor:pointer;font-weight:bold;font-size:14px}
+.layout-btn.active{background:#6B9BFF;color:#1a1a1a;border-color:#6B9BFF}
+.agent-buttons{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+.agent-btn{background:transparent;color:#e0e0e0;border:1px solid #555;border-radius:16px;padding:4px 12px;cursor:pointer;font-size:13px}
+.agent-btn.active{background:#8B5CF6;color:#fff;border-color:#8B5CF6}
+.agent-result{display:none}.agent-result.active{display:block}
+.item-btn{background:transparent;color:#e0e0e0;border:1px solid #555;border-radius:16px;padding:4px 12px;cursor:pointer;font-size:13px}
+.item-btn.active{background:#FF9800;color:#fff;border-color:#FF9800}
+.item-content{display:none}.item-content.active{display:block}
+.agent-header{color:#6B9BFF;font-size:18px;font-weight:600;margin-bottom:12px}
+.agent-response{line-height:1.6}
+.error{color:#ff6b6b;padding:8px;background:#2a1a1a;border-radius:4px;margin-bottom:8px}
+.think-btn{background:#333;color:#999;border:1px solid #555;border-radius:4px;padding:4px 12px;cursor:pointer;font-size:13px;margin:8px 0}
+.think-content{display:none;background:#252525;border-left:3px solid #555;padding:12px;margin:8px 0;color:#999;font-size:14px;line-height:1.5;white-space:pre-wrap}
+.section-buttons{margin-top:16px;display:flex;gap:8px}
+.section-btn{background:transparent;color:#6B9BFF;border:1px solid #555;border-radius:4px;padding:8px 16px;cursor:pointer;font-weight:bold;font-size:14px}
+.section-btn.active{background:#6B9BFF;color:#1a1a1a}
+.section-content{display:none;margin-top:8px}
+.prompt-section{background:#252525;border-radius:8px;padding:16px;margin-top:8px}
+.prompt-label{color:#6B9BFF;font-weight:bold;margin-bottom:8px}
+.prompt-text{white-space:pre-wrap;color:#ccc;font-size:14px;line-height:1.5}
+.cost-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px}
+.cost-table th{color:#6B9BFF;text-align:left;padding:4px 8px;border-bottom:1px solid #444}
+.cost-table td{padding:4px 8px;border-bottom:1px solid #333}
+.cost-table .num{text-align:right;font-family:monospace}
+/* By-model + All-calls tables: provider + model names stay on
+   one line and the table grows past 100% when needed. The cost
+   pane scrolls horizontally to surface the overflow. */
+.cost-pane{overflow-x:auto}
+.cost-table-wide{width:auto;min-width:100%}
+.cost-table-wide td,.cost-table-wide th{white-space:nowrap}
+.total-row td{color:#6B9BFF;font-weight:bold;border-top:2px solid #444}
+.sources-section,.search-results-section,.related-questions-section{background:#252525;border-radius:8px;padding:16px;margin-top:16px}
+.sources-label{color:#8B5CF6;font-weight:bold;font-size:16px;margin-bottom:12px}
+.search-results-label{color:#FF9800;font-weight:bold;font-size:16px;margin-bottom:12px}
+.related-questions-label{color:#4CAF50;font-weight:bold;font-size:16px;margin-bottom:12px}
+a{color:#64B5F6}
+.footer{color:#666;font-size:12px;margin-top:24px;text-align:center}
+h2{color:#8BB8FF;font-size:20px}h3{color:#9FCFFF;font-size:17px}h4{color:#B0D0FF;font-size:15px}
+strong{font-weight:bold}em{color:#ccc;font-style:italic}
+code{background:#333;padding:2px 6px;border-radius:3px;font-family:monospace;font-size:13px}
+pre code{display:block;background:#252525;padding:12px;border-radius:6px;overflow-x:auto;white-space:pre-wrap}
+ul{padding-left:20px}li{margin:4px 0}
+.md-table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px;background:#222}
+.md-table th{background:#2a2a3a;color:#9FCFFF;font-weight:600;text-align:left;padding:8px 12px;border:1px solid #3a3a3a}
+.md-table td{padding:8px 12px;border:1px solid #333;vertical-align:top}
+.md-table tbody tr:nth-child(even){background:#262626}
+.table-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-bottom:16px}
+.table-card{background:#252525;border-radius:8px;padding:16px;overflow:hidden}
+.card-header{color:#6B9BFF;font-weight:600;font-size:14px}.card-model{color:#999;font-size:12px;margin-bottom:8px}
+.card-section-label{font-weight:bold;font-size:14px;margin-bottom:4px}
+.card-body,.card-conclusion,.card-motivation{font-size:14px;line-height:1.5}
+.rapport{background:#1a2a1a;border-left:3px solid #4CAF50;padding:12px;margin-bottom:16px;font-size:14px}
+.close-text{margin-top:16px;padding:12px;background:#252525;border-radius:8px}
+.usage-label{color:#999;font-size:12px;margin-top:12px}.usage-json,.headers-text{font-size:11px;color:#888;background:#1a1a1a;padding:8px;border-radius:4px;overflow-x:auto}
+.secondary-section{margin-top:24px}
+.secondary-heading{color:#FF9800;font-size:18px;margin-bottom:8px}
+.secondary-card{background:#252525;border-radius:8px;padding:14px;margin-bottom:12px;border-left:3px solid #FF9800}
+.secondary-card-header{color:#FF9800;font-weight:600;font-size:13px;margin-bottom:8px}
+.secondary-ts{color:#888;font-weight:normal;font-size:11px;margin-left:8px}
+.secondary-body{font-size:14px;line-height:1.5}
+.cat-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.cat-btn{background:transparent;color:#FFB74D;border:1px solid #555;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:bold}
+.cat-btn.active{background:#FFB74D;color:#1a1a1a;border-color:#FFB74D}
+.cat-block{margin-bottom:8px}
+.cost-scope-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.cost-scope-btn{background:transparent;color:#FFB74D;border:1px solid #555;border-radius:4px;padding:6px 12px;cursor:pointer;font-size:12px;font-weight:bold}
+.cost-scope-btn.active{background:#FFB74D;color:#1a1a1a;border-color:#FFB74D}
+.cost-pane{margin-bottom:8px}
+.trace-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.trace-btn{background:transparent;color:#e0e0e0;border:1px solid #555;border-radius:4px;padding:6px 10px;cursor:pointer;font-size:11px;font-family:monospace}
+.trace-btn.active{background:#64B5F6;color:#1a1a1a;border-color:#64B5F6}
+.trace-pane{margin-top:8px}
+.trace-meta{color:#888;font-size:11px;font-family:monospace;margin-bottom:8px;word-break:break-all}
+.trace-meta-url{color:#999}
+.trace-part-tabs{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+.trace-part-btn{background:transparent;color:#e0e0e0;border:1px solid #555;border-radius:16px;padding:4px 12px;cursor:pointer;font-size:12px}
+.trace-part-btn.active{background:#FF9800;color:#fff;border-color:#FF9800}
+.trace-part{display:none;background:#1a1a1a;color:#ccc;font-size:11px;padding:10px;border-radius:6px;border-left:3px solid #555;white-space:pre-wrap;word-break:break-all;max-height:600px;overflow-y:auto;margin:0}
+.trace-part-active{display:block}
+.translate-meta{font-size:13px;margin-top:4px;border-collapse:collapse}
+.translate-meta td{padding:3px 12px 3px 0}
+.translate-meta td.k{color:#FF9800;font-weight:600;white-space:nowrap}
+.translate-meta td.num{text-align:right;font-family:monospace}
+.rerank-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+.rerank-table th{color:#FF9800;text-align:left;padding:4px 8px;border-bottom:1px solid #444}
+.rerank-table td{padding:4px 8px;border-bottom:1px solid #333}
+.rerank-table .num{text-align:right;font-family:monospace}
+.rerank-table a{color:#64B5F6;text-decoration:none;font-family:monospace}
+.moderation-block{margin-top:4px}
+.moderation-buttons{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.mod-btn{background:transparent;border:1px solid #555;border-radius:16px;padding:4px 12px;cursor:pointer;font-size:13px}
+.mod-btn.active{background:#333;border-color:#888}
+.mod-row{display:none}.mod-row.active{display:block}
+.mod-cats{width:100%;border-collapse:collapse;font-size:12px;margin-top:4px}
+.mod-cats th{color:#6B9BFF;text-align:left;padding:4px 8px;border-bottom:1px solid #444}
+.mod-cats td{padding:4px 8px;border-bottom:1px solid #333}
+.mod-cats .num{text-align:right;font-family:monospace}
+.secondary-body a{color:#64B5F6;text-decoration:none;font-family:monospace}
+</style></head>
+"""
+
+private fun htmlScript() = """
+<script>
+function showLanguage(btn,key){document.querySelectorAll('.lang-block').forEach(function(e){e.style.display=(e.getAttribute('data-lang')===key)?'block':'none';});document.querySelectorAll('.lang-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');}
+function showView(btn,id){var scope=btn.closest('.lang-block')||document;scope.querySelectorAll(':scope > .view-block').forEach(function(e){e.style.display='none';});scope.querySelectorAll(':scope > .view-picker .view-btn').forEach(function(b){b.classList.remove('active');});var el=scope.querySelector(':scope > .view-block[data-view-id="'+id+'"]');if(el)el.style.display='block';btn.classList.add('active');}
+function showLayout(btn,mode){var scope=btn.closest('.view-block');if(!scope)return;scope.querySelectorAll(':scope > .layout').forEach(function(l){l.style.display=(l.getAttribute('data-layout')===mode)?'block':'none';});scope.querySelectorAll(':scope > .layout-toggle .layout-btn').forEach(function(b){b.classList.remove('active');});btn.classList.add('active');}
+function showAgent(btn,id){var scope=btn.closest('.view-block');if(!scope)return;scope.querySelectorAll('.agent-result').forEach(function(e){e.classList.remove('active');});scope.querySelectorAll('.agent-btn').forEach(function(b){b.classList.remove('active');});var el=scope.querySelector('.agent-result[data-agent="'+id+'"]');if(el)el.classList.add('active');btn.classList.add('active');}
+function showItem(btn,id){var scope=btn.closest('.view-block');if(!scope)return;scope.querySelectorAll('.item-content').forEach(function(e){e.classList.remove('active');});scope.querySelectorAll('.item-btn').forEach(function(b){b.classList.remove('active');});var el=scope.querySelector('.item-content[data-item="'+id+'"]');if(el)el.classList.add('active');btn.classList.add('active');}
+function showModRow(btn,id){var scope=btn.closest('.moderation-block');if(!scope)return;scope.querySelectorAll('.mod-row').forEach(function(e){e.classList.remove('active');e.style.display='none';});scope.querySelectorAll('.mod-btn').forEach(function(b){b.classList.remove('active');});var el=scope.querySelector('.mod-row[data-mod="'+id+'"]');if(el){el.classList.add('active');el.style.display='block';}btn.classList.add('active');}
+function showCat(cid){document.querySelectorAll('.cat-block').forEach(e=>e.style.display='none');document.querySelectorAll('.cat-btn').forEach(b=>b.classList.remove('active'));var el=document.getElementById('cat-'+cid);var btn=document.getElementById('cat-btn-'+cid);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
+function showCostsScope(scope){var ids=['all','types','models'];ids.forEach(function(s){var pane=document.getElementById('cost-pane-'+s);var btn=document.getElementById('cost-btn-'+s);if(pane)pane.style.display=(s===scope)?'block':'none';if(btn){if(s===scope){btn.classList.add('active')}else{btn.classList.remove('active')}}});}
+function showTrace(cid,id){document.querySelectorAll('.trace-pane[data-cat="'+cid+'"]').forEach(e=>e.style.display='none');document.querySelectorAll('.trace-btn[data-cat="'+cid+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('trace-'+id);var btn=document.getElementById('trace-btn-'+id);if(el)el.style.display='block';if(btn)btn.classList.add('active')}
+function showTracePart(traceId,part){document.querySelectorAll('.trace-part[data-trace="'+traceId+'"]').forEach(e=>e.classList.remove('trace-part-active'));document.querySelectorAll('.trace-part-btn[data-trace="'+traceId+'"]').forEach(b=>b.classList.remove('active'));var el=document.getElementById('part-'+traceId+'-'+part);var btn=document.getElementById('part-btn-'+traceId+'-'+part);if(el)el.classList.add('trace-part-active');if(btn)btn.classList.add('active')}
+function toggleThink(id){var el=document.getElementById('think-'+id);var btn=document.getElementById('think-btn-'+id);if(el.style.display==='block'){el.style.display='none';btn.textContent='Think'}else{el.style.display='block';btn.textContent='Hide Think'}}
+</script>
+"""

@@ -63,7 +63,7 @@ import com.ai.data.createAppGson
 import com.ai.data.withTraceCategory
 import com.ai.model.Agent
 import com.ai.model.Settings
-import com.ai.ui.report.ContentWithThinkSections
+import com.ai.ui.helpers.ContentWithThinkSections
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.LocalNavigateToAgentView

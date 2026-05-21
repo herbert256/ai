@@ -291,7 +291,7 @@ val LocalPendingViewOverManage = compositionLocalOf<MutableState<ViewJump?>?> { 
 
 /** Counter bumped by `ReportPrimaryOverlays`' layered-View "go to
  *  main View" path (the Report-title tap on a View sub-screen that
- *  was opened ON TOP of a Manage overlay). [com.ai.ui.report.ViewAiReportScreen]
+ *  was opened ON TOP of a Manage overlay). [com.ai.ui.report.view.ViewAiReportScreen]
  *  reads this and keys its inner overlay state on it, so a bump
  *  resets every sub-View overlay (rerank / moderation / fan-in / …)
  *  back to the tile grid in the same composition pass — no
@@ -344,7 +344,7 @@ data class ReportNeighborNav(
 val LocalReportNeighborNav = compositionLocalOf<ReportNeighborNav?> { null }
 
 /** Newest-first list of report ids on disk. Provided by
- *  [com.ai.ui.report.ReportsScreenNav] at the same site that supplies
+ *  [com.ai.ui.report.manage.ReportsScreenNav] at the same site that supplies
  *  [LocalReportNeighborNav]. Used by [ViewScreenTitleBar]'s swipe
  *  gesture: each sub-View screen walks this list outward from the
  *  current report to find the nearest one that matches its filter
@@ -361,7 +361,7 @@ val LocalReportSwitchHandler = compositionLocalOf<((String) -> Unit)?> { null }
 
 /** Current report id used by the standard [TitleBar] swipe gesture
  *  on the **Manage** flow (the non-View counterpart of the View
- *  title-bar swipe). Provided by [com.ai.ui.report.ReportScreen]
+ *  title-bar swipe). Provided by [com.ai.ui.report.manage.ReportScreen]
  *  with the app-state's `currentReportId` so every Manage sub-overlay
  *  (Edit prompt, Edit title, Export, HTML preview, Meta screen,
  *  Translation run, Run-confirm screens, …) inherits it for free.
@@ -374,7 +374,7 @@ val LocalReportSwitchHandler = compositionLocalOf<((String) -> Unit)?> { null }
 val LocalCurrentReportIdForSwipe = compositionLocalOf<String?> { null }
 
 /** Per-Manage-screen filter consumed by the standard [TitleBar]
- *  swipe auto-wire. Default is [com.ai.ui.report.ViewSwipeFilter.Any]
+ *  swipe auto-wire. Default is [com.ai.ui.helpers.ViewSwipeFilter.Any]
  *  — every report matches — which suits the bulk of Manage screens
  *  (every report has a prompt / title / parameters / export / HTML /
  *  agents). Sub-screens with a stricter "data for this screen"
@@ -385,22 +385,22 @@ val LocalCurrentReportIdForSwipe = compositionLocalOf<String?> { null }
  *  - `TranslationRunScreen` → handled by an explicit swipe lambda
  *    (the auto-wire is bypassed because the screen also needs to
  *    update its `runId` when crossing reports). */
-val LocalManageSwipeFilter = compositionLocalOf<com.ai.ui.report.ViewSwipeFilter> {
-    com.ai.ui.report.ViewSwipeFilter.Any
+val LocalManageSwipeFilter = compositionLocalOf<com.ai.ui.helpers.ViewSwipeFilter> {
+    com.ai.ui.helpers.ViewSwipeFilter.Any
 }
 
 /** Optional callback fired by the standard [TitleBar] auto-wire when
  *  a swipe match is found, **before** the report switch handler. The
- *  callback receives the full [com.ai.ui.report.SwipeMatch] so a
+ *  callback receives the full [com.ai.ui.helpers.SwipeMatch] so a
  *  sub-screen can update extra per-screen state that's keyed to the
  *  destination report (e.g. `TranslationRunScreen` flips its parent's
  *  `openTranslationRunId` to the new report's first TRANSLATE row's
  *  run before the report id itself swaps in). Null by default. */
 val LocalManageSwipeOnMatch =
-    compositionLocalOf<((com.ai.ui.report.SwipeMatch) -> Unit)?> { null }
+    compositionLocalOf<((com.ai.ui.helpers.SwipeMatch) -> Unit)?> { null }
 
 /** Optional handle to the per-report Regenerate batch engine.
- *  Provided by [com.ai.ui.report.ReportsScreenNav] so deep
+ *  Provided by [com.ai.ui.report.manage.ReportsScreenNav] so deep
  *  descendants (the Manage screen's Regenerate row + the
  *  full-screen detail) can read state without threading it
  *  through every intermediate composable's parameter list —
@@ -923,9 +923,9 @@ fun TitleBar(
         && swipeReportSwitchHandler != null
     val resolvedOnSwipePrev: (() -> Boolean)? = onSwipePrev
         ?: if (swipeAutoReady) ({
-            val match = com.ai.ui.report.findSwipeMatch(
+            val match = com.ai.ui.helpers.findSwipeMatch(
                 swipeCtx, swipeIds, swipeCurrentReportId!!,
-                com.ai.ui.report.SwipeDirection.Prev,
+                com.ai.ui.helpers.SwipeDirection.Prev,
                 swipeFilter
             )
             if (match == null) false
@@ -937,9 +937,9 @@ fun TitleBar(
         }) else null
     val resolvedOnSwipeNext: (() -> Boolean)? = onSwipeNext
         ?: if (swipeAutoReady) ({
-            val match = com.ai.ui.report.findSwipeMatch(
+            val match = com.ai.ui.helpers.findSwipeMatch(
                 swipeCtx, swipeIds, swipeCurrentReportId!!,
-                com.ai.ui.report.SwipeDirection.Next,
+                com.ai.ui.helpers.SwipeDirection.Next,
                 swipeFilter
             )
             if (match == null) false

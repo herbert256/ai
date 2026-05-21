@@ -1,0 +1,95 @@
+package com.ai.ui.report.manage
+import com.ai.ui.report.view.*
+import com.ai.ui.helpers.*
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.TitleBar
+
+/**
+ * Edit the report's prompt body. Saving sets `hasPendingPromptChange`
+ * so the result screen surfaces a "regenerate to apply" hint — the
+ * model output is stale until the user re-runs.
+ */
+@Composable
+fun ReportEditPromptScreen(
+    initialPrompt: String,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onUpdate: (newPrompt: String) -> Unit
+) {
+    BackHandler { onBack() }
+    // Key the saver on initialPrompt so that re-opening the overlay
+    // with a different starting value doesn't restore the old draft
+    // out of the SaveableStateRegistry. Without the key, an external
+    // edit between two openings would silently re-surface the prior
+    // text.
+    var prompt by rememberSaveable(initialPrompt) { mutableStateOf(initialPrompt) }
+    val canUpdate = prompt.trim().isNotBlank()
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(helpTopic = "report_edit_prompt", title = "Edit prompt", onBackClick = onBack)
+
+        OutlinedTextField(
+            value = prompt, onValueChange = { prompt = it },
+            label = { Text("Prompt") },
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            colors = AppColors.outlinedFieldColors()
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(
+            onClick = { onUpdate(prompt.trim()) },
+            enabled = canUpdate,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Update prompt", maxLines = 1, softWrap = false) }
+    }
+}
+
+/**
+ * Edit just the report title. Title changes don't affect any outbound
+ * API call, so saving updates the persisted report + UiState in place
+ * without flagging the report as needing a regenerate.
+ */
+@Composable
+fun ReportEditTitleScreen(
+    initialTitle: String,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onUpdate: (newTitle: String) -> Unit
+) {
+    BackHandler { onBack() }
+    // Same caveat as ReportEditPromptScreen above — key on
+    // initialTitle so a stale draft doesn't outlive an external edit.
+    var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
+    val canUpdate = title.trim().isNotBlank()
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(helpTopic = "report_edit_title", title = "Edit title", onBackClick = onBack)
+
+        OutlinedTextField(
+            value = title, onValueChange = { title = it },
+            label = { Text("Title") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedFieldColors()
+        )
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = { onUpdate(title.trim()) },
+            enabled = canUpdate,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Update title", maxLines = 1, softWrap = false) }
+    }
+}

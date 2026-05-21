@@ -602,7 +602,7 @@ fun TraceDetailScreen(
     var showTranslationCompare by remember { mutableStateOf(false) }
 
     if (showTranslationCompare && translationParts != null) {
-        com.ai.ui.report.TranslationCompareScreen(
+        com.ai.ui.report.view.TranslationCompareScreen(
             title = "Translation result",
             originalLabel = "Original",
             originalContent = translationParts.first,
@@ -687,11 +687,11 @@ fun TraceDetailScreen(
     fun redactedContentFor(view: TraceContentView, trace: ApiTrace): String = when (view) {
         TraceContentView.META -> metaEntries.joinToString("\n") { "${it.first}: ${it.second}" }
         TraceContentView.GET -> queryParams.joinToString("\n") { (k, _) -> "$k: [REDACTED]" }
-        TraceContentView.REQ_HEADERS -> com.ai.ui.report.redactHeaders(trace.request.headers)
-        TraceContentView.RSP_HEADERS -> com.ai.ui.report.redactHeaders(trace.response.headers)
-        TraceContentView.REQ_DATA -> com.ai.ui.report.redactJsonString(trace.request.body)
+        TraceContentView.REQ_HEADERS -> com.ai.ui.helpers.redactHeaders(trace.request.headers)
+        TraceContentView.RSP_HEADERS -> com.ai.ui.helpers.redactHeaders(trace.response.headers)
+        TraceContentView.REQ_DATA -> com.ai.ui.helpers.redactJsonString(trace.request.body)
             ?.let { ApiTracer.prettyPrintJson(it) } ?: ""
-        TraceContentView.RSP_DATA -> com.ai.ui.report.redactJsonString(trace.response.body)
+        TraceContentView.RSP_DATA -> com.ai.ui.helpers.redactJsonString(trace.response.body)
             ?.let { ApiTracer.prettyPrintJson(it) } ?: ""
     }
 
@@ -792,7 +792,7 @@ fun TraceDetailScreen(
                     val prefs = context.getSharedPreferences("eval_prefs", Context.MODE_PRIVATE)
                     prefs.edit().apply {
                         putString("last_test_raw_json", t.request.body)
-                        putString("last_test_api_url", com.ai.ui.report.redactUrl(t.request.url))
+                        putString("last_test_api_url", com.ai.ui.helpers.redactUrl(t.request.url))
                         putString("last_test_model", t.model ?: "")
                     }.apply()
                     onEditRequest()
@@ -1009,7 +1009,7 @@ fun TraceDetailScreen(
                         val prefs = context.getSharedPreferences("eval_prefs", Context.MODE_PRIVATE)
                         prefs.edit().apply {
                             putString("last_test_raw_json", trace.request.body)
-                            putString("last_test_api_url", com.ai.ui.report.redactUrl(trace.request.url))
+                            putString("last_test_api_url", com.ai.ui.helpers.redactUrl(trace.request.url))
                             putString("last_test_model", trace.model ?: "")
                         }.apply()
                     }

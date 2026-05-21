@@ -33,7 +33,7 @@ import kotlinx.coroutines.delay
  * "No more <label>" pill at the top-centre when the user tries to
  * swipe past the pager's first or last page. Mirrors the Main View
  * screen's swipe-past-edge pill (the one anchored over the View
- * tile grid in [com.ai.ui.report.ViewAiReportScreen]). The pill
+ * tile grid in [com.ai.ui.report.view.ViewAiReportScreen]). The pill
  * fades out after one second and re-arms on the next over-swipe.
  *
  * The detection runs at [PointerEventPass.Final] so it never
