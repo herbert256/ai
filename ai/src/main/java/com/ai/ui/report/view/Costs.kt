@@ -83,7 +83,7 @@ fun CostsViewScreen(
     val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
     val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
     val reportState = produceState<Report?>(initialValue = null, currentReportId) {
-        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, currentReportId) }
+        value = withContext(Dispatchers.IO) { com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId) }
     }
     val report = reportState.value
 

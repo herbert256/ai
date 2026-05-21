@@ -94,7 +94,7 @@ fun FanInModelViewScreen(
                 }
             } else emptyList()
             val active = siblings.indexOfFirst { it.id == resultId }.coerceAtLeast(0)
-            val rep = ReportStorage.getReport(context, reportId)
+            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, reportId)
             Loaded(siblings, active, rep)
         }
     }

@@ -108,7 +108,7 @@ fun FanOutViewScreen(
         currentReportId, currentPromptName
     ) {
         value = withContext(Dispatchers.IO) {
-            val rep = ReportStorage.getReport(context, currentReportId)
+            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
             val allSecondary = SecondaryResultStorage.listForReport(context, currentReportId)
             val pairs = allSecondary.filter {
                 it.fanOutSourceAgentId != null &&

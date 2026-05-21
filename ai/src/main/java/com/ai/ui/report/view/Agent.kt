@@ -133,7 +133,7 @@ fun ReportsViewScreen(
         currentReportId
     ) {
         value = withContext(Dispatchers.IO) {
-            val rep = ReportStorage.getReport(context, currentReportId)
+            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
             val translateRows = SecondaryResultStorage
                 .listForReport(context, currentReportId, SecondaryKind.TRANSLATE)
                 .filter {

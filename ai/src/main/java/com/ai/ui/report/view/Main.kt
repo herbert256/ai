@@ -400,7 +400,7 @@ internal fun ViewAiReportScreen(
             val list = com.ai.data.SecondaryResultStorage
                 .listForReport(viewPrefsCtx, reportId, SecondaryKind.TRANSLATE)
                 .filter { !it.content.isNullOrBlank() }
-            val rep = com.ai.data.ReportStorage.getReport(viewPrefsCtx, reportId)
+            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(viewPrefsCtx, reportId)
             TranslatesLoad(list, rep)
         }
     }

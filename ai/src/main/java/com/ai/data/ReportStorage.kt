@@ -185,6 +185,14 @@ object ReportStorage {
         withContext(Dispatchers.IO) { markAgentStopped(context, reportId, agentId) }
 
     fun getReport(context: Context, reportId: String): Report? { init(context); return lock.withLock { loadReport(reportId) } }
+    /** Cheap last-modified timestamp of the report's on-disk JSON (0 when
+     *  absent). Lets a read-only cache (the View subsystem) detect edits
+     *  without re-parsing the file. */
+    fun reportLastModified(context: Context, reportId: String): Long {
+        init(context)
+        val dir = reportsDir ?: return 0L
+        return File(dir, "$reportId.json").lastModified()
+    }
     fun getAllReports(context: Context): List<Report> { init(context); return lock.withLock { loadAllReports().sortedByDescending { it.timestamp } } }
     fun deleteReport(context: Context, reportId: String) {
         init(context)

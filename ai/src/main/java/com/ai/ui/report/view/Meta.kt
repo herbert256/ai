@@ -111,7 +111,7 @@ fun MetaViewScreen(
                         !it.targetLanguage.isNullOrBlank()
                 }
                 .associate { it.targetLanguage!! to it.content!! }
-            val rep = ReportStorage.getReport(context, currentReportId)
+            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
             Loaded(r, translates, rep)
         }
     }

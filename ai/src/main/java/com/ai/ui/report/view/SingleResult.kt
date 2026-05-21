@@ -113,7 +113,7 @@ fun ReportSingleResultScreen(
     // (which can be MB-sized for image-attached reports). The Loading
     // → Loaded transition keeps the UI thread free while reading.
     val reportState = produceState<com.ai.data.Report?>(initialValue = null, reportId) {
-        value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
+        value = withContext(Dispatchers.IO) { com.ai.ui.report.view.helpers.ViewReportCache.get(context, reportId) }
     }
     val report = reportState.value
     val agent = report?.agents?.find { it.agentId == currentAgentId }

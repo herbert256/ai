@@ -87,7 +87,7 @@ fun ModerationViewScreen(
     ) {
         value = withContext(Dispatchers.IO) {
             val r = SecondaryResultStorage.get(context, currentReportId, currentResultId)
-            val report = ReportStorage.getReport(context, currentReportId)
+            val report = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
             val successful = report?.agents
                 ?.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                 .orEmpty()

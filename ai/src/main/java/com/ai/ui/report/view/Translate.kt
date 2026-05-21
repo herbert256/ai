@@ -92,7 +92,7 @@ fun TranslateViewScreen(
                     it.translationRunId == currentTranslationRunId &&
                     !it.content.isNullOrBlank()
             }
-            val rep = ReportStorage.getReport(context, currentReportId)
+            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
             // Map any source META row by id so we can render its
             // content as the "source" side for META translations.
             val byId = all.filter { it.kind != SecondaryKind.TRANSLATE }.associateBy { it.id }

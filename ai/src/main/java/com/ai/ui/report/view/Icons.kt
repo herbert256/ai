@@ -81,7 +81,7 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
         reportId
     ) {
         value = withContext(Dispatchers.IO) {
-            val rep = ReportStorage.getReport(context, reportId)
+            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, reportId)
             val rows = SecondaryResultStorage.listForReport(context, reportId).filter {
                 it.fanOutSourceAgentId != null && !it.content.isNullOrBlank()
             }

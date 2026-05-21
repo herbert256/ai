@@ -83,7 +83,7 @@ fun FanOutPairViewScreen(
         reportId, metaPromptName
     ) {
         value = withContext(Dispatchers.IO) {
-            val rep = ReportStorage.getReport(context, reportId)
+            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, reportId)
             val pairs = SecondaryResultStorage.listForReport(context, reportId).filter {
                 it.fanOutSourceAgentId != null &&
                     it.metaPromptName == metaPromptName &&
