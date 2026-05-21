@@ -211,6 +211,10 @@ internal fun ReportRunScreen(
         // a report context, so the icon click resolves to null and
         // becomes inert. With the SharedComponents default, a null
         // onTitleClick also resolves to that same (null) lambda.
+        // Edit / Create now live on the bottom bar (✏️ / 🆕); tapping
+        // either toggles this shared menu state, which GenerationPhase
+        // reads to pop up the same set of choices.
+        val editCreateMenu = remember { mutableStateOf<String?>(null) }
         TitleBar(
             helpTopic = "report_run",
             title = "Manage report",
@@ -232,7 +236,9 @@ internal fun ReportRunScreen(
             onPin = if (currentReportId != null) {
                 { generationHandlers.onTogglePin(); pinTick++ }
             } else null,
-            isPinned = isPinned
+            isPinned = isPinned,
+            onEdit = { editCreateMenu.value = if (editCreateMenu.value == "edit") null else "edit" },
+            onAdd = { editCreateMenu.value = if (editCreateMenu.value == "create") null else "create" }
         )
 
         if (showRegenerateConfirm && currentReportId != null) {
@@ -280,7 +286,8 @@ internal fun ReportRunScreen(
             languageName = languageName,
             agentIconRows = agentIconRows,
             hasPrevReport = hasPrevReport,
-            hasNextReport = hasNextReport
+            hasNextReport = hasNextReport,
+            editCreateMenu = editCreateMenu
         )
     } // close inner Column
         // Body-level pill. TopCenter + 24.dp top padding lines this

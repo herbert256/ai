@@ -375,7 +375,11 @@ internal fun ColumnScope.GenerationPhase(
      *  [AgentIconRow.icon]) render the default ✅/❌/⏳/🆕 cell. */
     agentIconRows: Map<String, AgentIconRow> = emptyMap(),
     hasPrevReport: Boolean = false,
-    hasNextReport: Boolean = false
+    hasNextReport: Boolean = false,
+    /** Shared Edit/Create menu trigger, hoisted to [ReportRunScreen] so
+     *  the bottom-bar ✏️ / 🆕 icons (published by the Manage TitleBar)
+     *  can toggle it. "edit" / "create" / null. */
+    editCreateMenu: androidx.compose.runtime.MutableState<String?> = androidx.compose.runtime.mutableStateOf(null)
 ) {
     // Local aliases so the existing body keeps reading short names
     // — avoids touching every call site inside this 1000-line phase.
@@ -448,29 +452,34 @@ internal fun ColumnScope.GenerationPhase(
             content = content
         )
     }
-    // Row 1 active group: "view" / "edit" / "create" / null.
-    // rememberSaveable so a rotation doesn't collapse the sub-row in
-    // the middle of the user reading it.
-    var activeBar by rememberSaveable { mutableStateOf<String?>(null) }
+    // Row 1 active group: "edit" / "create" / null. Hoisted to
+    // [ReportRunScreen] (editCreateMenu) so the bottom-bar ✏️ / 🆕 icons
+    // can toggle it; GenerationPhase reads it to pop up the choices.
+    var activeBar by editCreateMenu
     // Row 3 active "every:" kind under View. Possible values: "meta" /
     // "rerank" / "fan_out" / "fan_in" / "fan-in-model" / "translate" /
     // null. Only meaningful when activeBar == "view".
     var activeEveryKind by rememberSaveable { mutableStateOf<String?>(null) }
-    fun toggleBar(name: String) {
-        activeBar = if (activeBar == name) null else name
-        // Switching Row 1 group → drop any Row 3 selection.
-        activeEveryKind = null
-    }
     fun close() { activeBar = null; activeEveryKind = null }
 
-    // Per-group colour. Active button uses the full colour; inactive
-    // Row-1 buttons fall back to a dim tint so the open group is
-    // visually anchored.
-    val viewColor = AppColors.Purple
+    // Per-group colour for the choice buttons inside the Edit / Create
+    // pop-ups.
     val editColor = AppColors.Indigo
     val createColor = AppColors.Orange
-    fun rowOneColor(name: String, active: Color): Color =
-        if (activeBar == name) active else active.copy(alpha = 0.32f)
+
+    // Edit / Create choices, shown as a centred pop-up when the
+    // matching bottom-bar icon is tapped (activeBar set by the TitleBar).
+    @Composable
+    fun ChoicePopup(label: String, content: @Composable () -> Unit) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { close() }) {
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(label, color = AppColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
+                    content()
+                }
+            }
+        }
+    }
 
     // Per-kind / per-category item lists driving the View row's
     // "every:" buttons + Row 3 picker. Each item knows how to open
@@ -586,28 +595,16 @@ internal fun ColumnScope.GenerationPhase(
         )
     }
 
-    // ----- Row 1 -----
-    // Edit / Create buttons on the left; the running 💰 + cents cost
-    // pill sits right-aligned via the weight-1 Spacer. (The prev / next
-    // chevrons used to live here — they're gone now since the title-bar
-    // + whole-body swipe cover prev/next navigation.)
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        // "View" Row 1 button removed — the same set of sub-views is now
-        // reachable via the bottom-bar ℹ️ icon (see [ViewAiReportScreen]).
-        // The "view" -> { ... } Row 2 case below is also gone for the same
-        // reason; the legacy handlers + GenerationPhaseHandlers fields
-        // stay in place so re-adding the button is a one-line revert.
-        CompactButton(onClick = { toggleBar("edit") }, color = rowOneColor("edit", editColor), text = "Edit")
-        CompactButton(onClick = { toggleBar("create") }, color = rowOneColor("create", createColor), text = "Create")
-        Spacer(modifier = Modifier.weight(1f))
-        if (showTotals) {
-            // Tap the 💰 + cents pair to jump to the Manage
-            // ReportsViewer scrolled to its Costs section — same
-            // destination as the View tile grid's Costs card.
+    // ----- Row 1: centered running cost -----
+    // Edit / Create moved to the bottom-bar ✏️ / 🆕 icons (which pop up
+    // their choices), so this row now carries only the 💰 + cents cost,
+    // centered. Tap it to jump to the Manage ReportsViewer Costs section.
+    if (showTotals) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.clickable { handlers.onViewCosts() }
@@ -623,14 +620,9 @@ internal fun ColumnScope.GenerationPhase(
         }
     }
 
-    // ----- Row 2 (contextual) -----
-    // "view" -> { ... } case removed — the sub-buttons it exposed now
-    // live on [ViewAiReportScreen], reached from the bottom-bar ℹ️.
-    // `everyItems` + `activeEveryKind` are still read by ViewAiReportScreen
-    // via the shared builder; the Row 3 expansion lived only here.
-    when (activeBar) {
-        "edit" -> {
-            Spacer(modifier = Modifier.height(4.dp))
+    // ----- Edit / Create pop-ups (triggered by the bottom-bar icons) -----
+    if (activeBar == "edit") {
+        ChoicePopup("Edit") {
             ActionRow {
                 CompactButton(onClick = { close(); onEditTitle() }, color = editColor, text = "Title")
                 CompactButton(onClick = { close(); onEditPromptInline() }, color = editColor, text = "Prompt")
@@ -643,29 +635,21 @@ internal fun ColumnScope.GenerationPhase(
                 CompactButton(onClick = { close(); onEditParametersInline() }, color = editColor, text = "Parameters")
             }
         }
-        "create" -> {
-            Spacer(modifier = Modifier.height(4.dp))
-            // Five sub-buttons + a start indent would push the row
-            // onto a second line, so leave flush-left.
+    }
+    if (activeBar == "create") {
+        ChoicePopup("Create") {
             ActionRow {
                 CompactButton(
                     onClick = { close(); onOpenMetaPicker() },
                     color = createColor, text = "Meta",
                     enabled = metaPrompts.isNotEmpty()
                 )
-                // Rerank / Moderation are single-shot per report — a
-                // second run would just overwrite the first's tile.
-                // Gray the buttons out once a result of that kind
-                // already exists on the report.
+                // Rerank / Moderation are single-shot per report — gray
+                // them out once a result of that kind already exists.
                 val hasRerank = secondaryCounts.rerank > 0
                 val hasModeration = secondaryCounts.moderation > 0
                 CompactButton(
                     onClick = {
-                        // The rerank picker enumerates every configured
-                        // provider's models filtered to RERANK type; on
-                        // catalog-heavy setups that first composition can
-                        // take a noticeable beat. Toast on tap so the user
-                        // knows the click landed.
                         android.widget.Toast.makeText(context, "Loading rerank models…", android.widget.Toast.LENGTH_SHORT).show()
                         close(); onOpenRerankPicker()
                     },
@@ -674,9 +658,6 @@ internal fun ColumnScope.GenerationPhase(
                 )
                 CompactButton(
                     onClick = {
-                        // Same loading-toast rationale as rerank — the
-                        // moderation picker filters every provider's
-                        // catalog down to MODERATION-typed entries.
                         android.widget.Toast.makeText(context, "Loading moderation models…", android.widget.Toast.LENGTH_SHORT).show()
                         close(); onOpenModerationPicker()
                     },
@@ -691,7 +672,6 @@ internal fun ColumnScope.GenerationPhase(
                 CompactButton(onClick = { close(); onTranslate() }, color = createColor, text = "Translate")
             }
         }
-        else -> { /* no Row 2 */ }
     }
     Spacer(modifier = Modifier.height(8.dp))
 
