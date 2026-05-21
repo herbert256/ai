@@ -45,6 +45,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
+import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -109,10 +110,19 @@ fun TranslateViewScreen(
 
     val expanded = remember { TranslateExpansionMap() }
 
+    val onSwipePrevAction: () -> Boolean = {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, ViewSwipeFilter.Translate)
+        if (m != null) { currentReportId = m.reportId; m.translationRunId?.let { currentTranslationRunId = it }; switchReport?.invoke(m.reportId); true } else false
+    }
+    val onSwipeNextAction: () -> Boolean = {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, ViewSwipeFilter.Translate)
+        if (m != null) { currentReportId = m.reportId; m.translationRunId?.let { currentTranslationRunId = it }; switchReport?.invoke(m.reportId); true } else false
+    }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction() }, onNext = { onSwipeNextAction() })
     ) {
         // 🔧 → Manage's TranslationRun detail for this run id.
         // No fallback to LocalNavigateToCurrentReport — that local is
@@ -129,22 +139,8 @@ fun TranslateViewScreen(
             helpTopic = "translate_view",
             onOpenManage = onOpenManageJump,
             onBack = onBack,
-            onSwipePrev = {
-                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, ViewSwipeFilter.Translate)
-                if (m != null) {
-                    currentReportId = m.reportId
-                    m.translationRunId?.let { currentTranslationRunId = it }
-                    switchReport?.invoke(m.reportId); true
-                } else false
-            },
-            onSwipeNext = {
-                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, ViewSwipeFilter.Translate)
-                if (m != null) {
-                    currentReportId = m.reportId
-                    m.translationRunId?.let { currentTranslationRunId = it }
-                    switchReport?.invoke(m.reportId); true
-                } else false
-            }
+            onSwipePrev = onSwipePrevAction,
+            onSwipeNext = onSwipeNextAction
         )
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),

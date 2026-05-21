@@ -44,6 +44,7 @@ import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
+import com.ai.ui.report.view.helpers.viewBodySwipe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -87,10 +88,16 @@ fun CostsViewScreen(
     }
     val report = reportState.value
 
+    // Mode toggle hoisted above the Column so the body swipe can flip it.
+    var mode by rememberSaveable { mutableStateOf(CostsMode.Buckets) }
+    val flipMode = { mode = if (mode == CostsMode.Buckets) CostsMode.Models else CostsMode.Buckets }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            // Body swipe flips Buckets ⇄ Models (both directions, wraps).
+            // The title-bar swipe still changes report.
+            .viewBodySwipe(mode, onPrev = flipMode, onNext = flipMode)
     ) {
         // 🔧 → Manage's per-agent ReportsViewer scrolled to its
         // Costs section. No fallback to LocalNavigateToCurrentReport
@@ -122,8 +129,7 @@ fun CostsViewScreen(
         // screen-title in the bar above already names the page.)
         // Mode toggle — fancy pill that flips the bar block below
         // between bucket-roll-ups (the original behaviour) and
-        // per-(provider, model) rows.
-        var mode by rememberSaveable { mutableStateOf(CostsMode.Buckets) }
+        // per-(provider, model) rows. (State hoisted above the Column.)
         CostsModeToggle(mode = mode, onPick = { mode = it })
         Spacer(modifier = Modifier.height(12.dp))
         if (report == null) {

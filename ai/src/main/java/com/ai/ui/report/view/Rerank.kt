@@ -47,6 +47,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
+import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -115,10 +116,21 @@ fun RerankViewScreen(
     val rows = remember(result) {
         result?.content?.let { parseRerankRows(it) } ?: emptyList()
     }
+    val onSwipePrevAction: () -> Boolean = {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev,
+            ViewSwipeFilter.HasKind(com.ai.data.SecondaryKind.RERANK))
+        if (m != null) { currentReportId = m.reportId; m.resultId?.let { currentResultId = it }; switchReport?.invoke(m.reportId); true } else false
+    }
+    val onSwipeNextAction: () -> Boolean = {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next,
+            ViewSwipeFilter.HasKind(com.ai.data.SecondaryKind.RERANK))
+        if (m != null) { currentReportId = m.reportId; m.resultId?.let { currentResultId = it }; switchReport?.invoke(m.reportId); true } else false
+    }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction() }, onNext = { onSwipeNextAction() })
     ) {
         // 🔧 → Manage's SecondaryResultDetail for this rerank row.
         // No fallback to LocalNavigateToCurrentReport — that local is
@@ -137,24 +149,8 @@ fun RerankViewScreen(
             helpTopic = "rerank_view",
             onOpenManage = onOpenManageJump,
             onBack = onBack,
-            onSwipePrev = {
-                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev,
-                    ViewSwipeFilter.HasKind(com.ai.data.SecondaryKind.RERANK))
-                if (m != null) {
-                    currentReportId = m.reportId
-                    m.resultId?.let { currentResultId = it }
-                    switchReport?.invoke(m.reportId); true
-                } else false
-            },
-            onSwipeNext = {
-                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next,
-                    ViewSwipeFilter.HasKind(com.ai.data.SecondaryKind.RERANK))
-                if (m != null) {
-                    currentReportId = m.reportId
-                    m.resultId?.let { currentResultId = it }
-                    switchReport?.invoke(m.reportId); true
-                } else false
-            }
+            onSwipePrev = onSwipePrevAction,
+            onSwipeNext = onSwipeNextAction
         )
         if (result == null) {
             Box(

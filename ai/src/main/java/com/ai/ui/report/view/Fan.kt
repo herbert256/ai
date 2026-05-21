@@ -52,6 +52,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
+import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
@@ -214,10 +215,22 @@ fun FanOutViewScreen(
     }
     val activeResponder = responders.getOrNull(responderPagerState.currentPage)
 
+    val fanOutFilter: ViewSwipeFilter? = currentPromptName.takeIf { it.isNotBlank() }?.let {
+        ViewSwipeFilter.HasMeta(metaPromptName = it, requireFanOut = true)
+    }
+    val onSwipePrevAction: (() -> Boolean)? = fanOutFilter?.let { filter -> {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, filter)
+        if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+    } }
+    val onSwipeNextAction: (() -> Boolean)? = fanOutFilter?.let { filter -> {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, filter)
+        if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+    } }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction?.invoke() }, onNext = { onSwipeNextAction?.invoke() })
     ) {
         // Manage's fan-out lives behind a multi-step picker chain
         // with no clean single-step entry — 🔧 dispatches
@@ -232,9 +245,6 @@ fun FanOutViewScreen(
             { dispatch(com.ai.ui.shared.ManageJump.Main) }
         }
         val titleText = "Fan-out" + currentPromptName.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty()
-        val fanOutFilter: ViewSwipeFilter? = currentPromptName.takeIf { it.isNotBlank() }?.let {
-            ViewSwipeFilter.HasMeta(metaPromptName = it, requireFanOut = true)
-        }
         ViewTitleBar(
             reportTitle = report?.title,
             screenTitle = titleText,
@@ -242,20 +252,8 @@ fun FanOutViewScreen(
             helpTopic = "fan_out_view",
             onOpenManage = onOpenManageJump,
             onBack = onBack,
-            onSwipePrev = fanOutFilter?.let { filter -> {
-                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, filter)
-                if (m != null) {
-                    currentReportId = m.reportId
-                    switchReport?.invoke(m.reportId); true
-                } else false
-            } },
-            onSwipeNext = fanOutFilter?.let { filter -> {
-                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, filter)
-                if (m != null) {
-                    currentReportId = m.reportId
-                    switchReport?.invoke(m.reportId); true
-                } else false
-            } }
+            onSwipePrev = onSwipePrevAction,
+            onSwipeNext = onSwipeNextAction
         )
         if (report == null) {
             Box(

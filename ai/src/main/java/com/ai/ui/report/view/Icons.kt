@@ -47,6 +47,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
+import com.ai.ui.report.view.helpers.viewBodySwipe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -71,6 +72,21 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
     androidx.activity.compose.BackHandler { onBack() }
     val context = LocalContext.current
 
+    // Body / title-bar swipe → previous/next report's Icons. Shadow the
+    // prop with currentReportId so a swipe hot-swaps the report in place
+    // (and switchReport keeps the app's current report in sync).
+    var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
+    val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
+    val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
+    val onSwipePrevAction: () -> Boolean = {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, ViewSwipeFilter.Any)
+        if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+    }
+    val onSwipeNextAction: () -> Boolean = {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, ViewSwipeFilter.Any)
+        if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+    }
+
     data class Loaded(
         val report: Report?,
         val fanOutRows: List<SecondaryResult>
@@ -78,11 +94,11 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
 
     val loadedState = produceState(
         initialValue = Loaded(null, emptyList()),
-        reportId
+        currentReportId
     ) {
         value = withContext(Dispatchers.IO) {
-            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, reportId)
-            val rows = SecondaryResultStorage.listForReport(context, reportId).filter {
+            val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
+            val rows = SecondaryResultStorage.listForReport(context, currentReportId).filter {
                 it.fanOutSourceAgentId != null && !it.content.isNullOrBlank()
             }
             Loaded(rep, rows)
@@ -103,7 +119,7 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
 
     if (openedReportsAgentId != null) {
         ReportsViewScreen(
-            reportId = reportId,
+            reportId = currentReportId,
             initialAgentId = openedReportsAgentId,
             onBack = { openedReportsAgentId = null }
         )
@@ -113,7 +129,7 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
         openedPairAnswererProvider != null && openedPairAnswererModel != null
     ) {
         FanOutPairViewScreen(
-            reportId = reportId,
+            reportId = currentReportId,
             metaPromptName = openedPairMeta!!,
             sourceAgentId = openedPairSource!!,
             answererProviderId = openedPairAnswererProvider!!,
@@ -132,13 +148,16 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction() }, onNext = { onSwipeNextAction() })
     ) {
         ViewTitleBar(
             reportTitle = report?.title,
             screenTitle = "Icons",
             subject = null,
             helpTopic = "icons_view",
-            onBack = onBack
+            onBack = onBack,
+            onSwipePrev = onSwipePrevAction,
+            onSwipeNext = onSwipeNextAction
         )
 
         if (report == null) {

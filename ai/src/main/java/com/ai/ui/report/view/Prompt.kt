@@ -38,6 +38,7 @@ import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
+import com.ai.ui.report.view.helpers.viewBodySwipe
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -134,10 +135,19 @@ fun PromptViewScreen(
     val activeLangState = rememberUpdatedState(currentLanguage)
     BackHandler { onBack(activeLangState.value.ifBlank { null }) }
 
+    val onSwipePrevAction: () -> Boolean = {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, ViewSwipeFilter.Any)
+        if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+    }
+    val onSwipeNextAction: () -> Boolean = {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, ViewSwipeFilter.Any)
+        if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
+    }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction() }, onNext = { onSwipeNextAction() })
     ) {
         // No per-prompt Manage screen — 🔧 dispatches ManageJump.Main
         // which closes the View overlay and reveals the main
@@ -160,14 +170,8 @@ fun PromptViewScreen(
             helpTopic = "prompt_view_screen",
             onOpenManage = onOpenManageJump,
             onBack = { onBack(activeLangState.value.ifBlank { null }) },
-            onSwipePrev = {
-                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, ViewSwipeFilter.Any)
-                if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
-            },
-            onSwipeNext = {
-                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, ViewSwipeFilter.Any)
-                if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
-            }
+            onSwipePrev = onSwipePrevAction,
+            onSwipeNext = onSwipeNextAction
         )
         if (report == null) {
             Box(

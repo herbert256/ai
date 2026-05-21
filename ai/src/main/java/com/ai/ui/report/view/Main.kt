@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.SecondaryKind
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
+import com.ai.ui.report.view.helpers.viewBodySwipe
 
 /**
  * First-version "View AI Report" page — the home for every "look at
@@ -1031,6 +1032,14 @@ internal fun ViewAiReportScreen(
     Column(
         modifier = Modifier.fillMaxSize()
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            // Whole-screen swipe → previous/next report (same as the
+            // title-bar swipe). Tile drag-reorder (long-press) is
+            // unaffected — it needs a hold before the drag.
+            .viewBodySwipe(
+                reportId,
+                onPrev = { swipeNav?.let { if (it.hasPrev) it.onPrev() } },
+                onNext = { swipeNav?.let { if (it.hasNext) it.onNext() } }
+            )
     ) {
         // Main View grid's 🔧 jumps to the main Report - Manage
         // screen. Going through LocalOpenManage (not

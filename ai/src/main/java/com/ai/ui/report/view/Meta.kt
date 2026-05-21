@@ -44,6 +44,7 @@ import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
+import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
@@ -151,10 +152,20 @@ fun MetaViewScreen(
     val displayedEmoji = cachedIcon ?: rowIcon ?: "🧠"
     val modelLabel = row?.model?.let { shortModelName(it) }.orEmpty()
 
+    val metaFilter: ViewSwipeFilter? = metaPromptName?.let { ViewSwipeFilter.HasMeta(metaPromptName = it) }
+    val onSwipePrevAction: (() -> Boolean)? = metaFilter?.let { filter -> {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, filter)
+        if (m != null) { currentReportId = m.reportId; m.resultId?.let { currentResultId = it }; switchReport?.invoke(m.reportId); true } else false
+    } }
+    val onSwipeNextAction: (() -> Boolean)? = metaFilter?.let { filter -> {
+        val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, filter)
+        if (m != null) { currentReportId = m.reportId; m.resultId?.let { currentResultId = it }; switchReport?.invoke(m.reportId); true } else false
+    } }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+            .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction?.invoke() }, onNext = { onSwipeNextAction?.invoke() })
     ) {
         // 🔧 → Manage's SecondaryResultDetail for this META row.
         // When LocalOpenManage is null (standalone View route, no
@@ -167,9 +178,6 @@ fun MetaViewScreen(
             { dispatch(com.ai.ui.shared.ManageJump.MetaResult(currentResultId)) }
         }
         val screenTitleLabel = if (metaPromptName != null) "Meta - $metaPromptName" else "Meta"
-        val metaFilter: ViewSwipeFilter? = metaPromptName?.let {
-            ViewSwipeFilter.HasMeta(metaPromptName = it)
-        }
         ViewTitleBar(
             reportTitle = report?.title,
             screenTitle = screenTitleLabel,
@@ -177,22 +185,8 @@ fun MetaViewScreen(
             helpTopic = "meta_view",
             onOpenManage = onOpenManageJump,
             onBack = { onBack(activeLangState.value.ifBlank { null }) },
-            onSwipePrev = metaFilter?.let { filter -> {
-                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev, filter)
-                if (m != null) {
-                    currentReportId = m.reportId
-                    m.resultId?.let { currentResultId = it }
-                    switchReport?.invoke(m.reportId); true
-                } else false
-            } },
-            onSwipeNext = metaFilter?.let { filter -> {
-                val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, filter)
-                if (m != null) {
-                    currentReportId = m.reportId
-                    m.resultId?.let { currentResultId = it }
-                    switchReport?.invoke(m.reportId); true
-                } else false
-            } }
+            onSwipePrev = onSwipePrevAction,
+            onSwipeNext = onSwipeNextAction
         )
         // Header row: dynamic per-prompt icon + the model name that
         // produced this META row. Matches the Fan-in View screen.
