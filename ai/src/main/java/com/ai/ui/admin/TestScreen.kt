@@ -20,11 +20,12 @@ import com.ai.ui.shared.TitleBar
 @Composable
 fun TestScreen(
     onBack: () -> Unit,
-    onOpenTestAllModels: () -> Unit
+    onOpenTestAllModels: () -> Unit,
+    onSettings: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "test", title = "Test", onBackClick = onBack)
+        TitleBar(helpTopic = "test", title = "Test", onBackClick = onBack, onSettings = onSettings)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             NavCard("Test all models", onClick = onOpenTestAllModels)

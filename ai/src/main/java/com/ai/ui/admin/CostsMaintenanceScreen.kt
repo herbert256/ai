@@ -41,7 +41,8 @@ import com.ai.ui.shared.parseCsvRow
 fun CostsMaintenanceScreen(
     aiSettings: Settings,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onSettings: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -128,7 +129,7 @@ fun CostsMaintenanceScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "cost_config", title = "Costs", onBackClick = onBack)
+        TitleBar(helpTopic = "cost_config", title = "Costs", onBackClick = onBack, onSettings = onSettings)
 
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {

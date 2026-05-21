@@ -271,7 +271,7 @@ fun AppNavHost(
         com.ai.ui.shared.LocalBottomIconState provides bottomBarIconState,
         com.ai.ui.shared.LocalNavigateHome provides rootNavigateHome,
         com.ai.ui.shared.LocalNavigateToHelp provides rootNavigateHelp,
-        com.ai.ui.shared.LocalNavigateToHousekeeping provides { route -> navController.navigate(route) }
+        com.ai.ui.shared.LocalNavigateToRoute provides { route -> navController.navigate(route) }
     ) {
     Column(modifier = Modifier.fillMaxSize()) {
     NavHost(

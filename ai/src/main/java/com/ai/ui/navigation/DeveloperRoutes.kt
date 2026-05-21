@@ -87,7 +87,8 @@ internal fun NavGraphBuilder.developerRoutes(
         composable(NavRoutes.AI_TEST) {
             com.ai.ui.admin.TestScreen(
                 onBack = safePopBack,
-                onOpenTestAllModels = { navController.navigate(NavRoutes.AI_TEST_ALL_MODELS) }
+                onOpenTestAllModels = { navController.navigate(NavRoutes.AI_TEST_ALL_MODELS) },
+                onSettings = { navController.navigate(NavRoutes.SETTINGS_TEST_EXCLUDED_MODELS) }
             )
         }
         composable(NavRoutes.AI_APPLOG_LIST) {
@@ -259,7 +260,8 @@ internal fun NavGraphBuilder.developerRoutes(
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onClearTraces = { appViewModel.clearTraces() },
-                onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) })
+                onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
         }
         composable(NavRoutes.TRACE_LIST_FOR_REPORT) { entry ->
             val reportId = entry.arguments?.getString("reportId") ?: ""
@@ -279,7 +281,8 @@ internal fun NavGraphBuilder.developerRoutes(
                     onBack = safePopBack, onNavigateHome = navigateHome,
                     onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                     onClearTraces = { appViewModel.clearTraces() }, reportId = reportId,
-                    onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) })
+                    onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
             }
         }
         composable(NavRoutes.TRACE_LIST_FOR_REPORT_CATEGORY) { entry ->
@@ -300,7 +303,8 @@ internal fun NavGraphBuilder.developerRoutes(
                     onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                     onClearTraces = { appViewModel.clearTraces() },
                     reportId = reportId, initialCategory = category,
-                    onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) })
+                    onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
             }
         }
         composable(NavRoutes.TRACE_LIST_FOR_MODEL) { entry ->
@@ -310,7 +314,8 @@ internal fun NavGraphBuilder.developerRoutes(
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onClearTraces = { appViewModel.clearTraces() }, modelFilter = model,
-                onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) })
+                onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
         }
         composable(NavRoutes.TRACE_LIST_FOR_RUN) { entry ->
             val runId = try { java.net.URLDecoder.decode(entry.arguments?.getString("runId") ?: "", "UTF-8") } catch (_: Exception) { "" }
@@ -319,7 +324,8 @@ internal fun NavGraphBuilder.developerRoutes(
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onClearTraces = { appViewModel.clearTraces() }, runIdFilter = runId,
-                onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) })
+                onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
         }
         composable(NavRoutes.TRACE_DETAIL) { entry ->
             val filename = entry.arguments?.getString("filename") ?: ""

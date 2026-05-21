@@ -74,7 +74,8 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
             val uiState by appViewModel.uiState.collectAsState()
             com.ai.ui.admin.CostsMaintenanceScreen(
                 aiSettings = uiState.aiSettings,
-                onBack = safePopBack, onNavigateHome = navigateHome)
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onSettings = { navController.navigate(NavRoutes.AI_COST_CONFIG) })
         }
 
         // ===== Models =====
@@ -332,6 +333,30 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_INACCESSIBLE_MODELS)
+        }
+        composable(NavRoutes.SETTINGS_TEST_EXCLUDED_MODELS) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.AI_TEST_EXCLUDED_MODELS)
+        }
+        composable(NavRoutes.SETTINGS_MODELS_SETUP) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.AI_MODELS_SETUP)
+        }
+        composable(NavRoutes.SETTINGS_LOGGING) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
+                onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.SETTINGS_LOGGING)
         }
         composable(NavRoutes.SETTINGS_MODEL_COOLDOWNS) {
             SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,

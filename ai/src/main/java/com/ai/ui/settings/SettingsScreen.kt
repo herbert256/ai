@@ -247,13 +247,15 @@ fun SettingsScreen(
 
     BackHandler { goBack() }
 
-    // 🧹 jump targets for sub-screens with a clear Housekeeping
-    // counterpart (Models setup / Providers → Refresh; Test-excluded /
-    // Inaccessible models → Test all models). Navigates by route via the
-    // AppNavHost-provided local, so no per-mount prop-drilling.
-    val navHk = com.ai.ui.shared.LocalNavigateToHousekeeping.current
-    val hkRefresh = { navHk(com.ai.ui.navigation.NavRoutes.AI_REFRESH) }
-    val hkTest = { navHk(com.ai.ui.navigation.NavRoutes.AI_TEST) }
+    // Cross-area bottom-bar jumps for dispatcher sub-screens. Navigates
+    // by route via the AppNavHost-provided local, so no per-mount
+    // prop-drilling. 🧹 → Housekeeping (Models setup / Providers →
+    // Refresh; Test-excluded / Inaccessible → Test). ⚙️ → AI Setup
+    // (Refresh → Models setup).
+    val navRoute = com.ai.ui.shared.LocalNavigateToRoute.current
+    val hkRefresh = { navRoute(com.ai.ui.navigation.NavRoutes.AI_REFRESH) }
+    val hkTest = { navRoute(com.ai.ui.navigation.NavRoutes.AI_TEST) }
+    val settingsModelsSetup = { navRoute(com.ai.ui.navigation.NavRoutes.SETTINGS_MODELS_SETUP) }
 
     when (currentSubScreen) {
         SettingsSubScreen.MAIN -> {
@@ -681,7 +683,8 @@ fun SettingsScreen(
                     currentSubScreen = SettingsSubScreen.AI_PROVIDER_EDIT
                 },
                 onNavigateToHelpTopic = onNavigateToHelpTopic,
-                onBack = goBack, onNavigateHome = onNavigateHome
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                onSettings = settingsModelsSetup
             )
         }
         SettingsSubScreen.SETTINGS_NETWORK -> {

@@ -45,7 +45,8 @@ fun RefreshScreen(
     onOpenProvider: (AppService) -> Unit = {},
     onNavigateToHelpTopic: (String) -> Unit = {},
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onSettings: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -385,7 +386,7 @@ fun RefreshScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "refresh", title = "Refresh", onBackClick = onBack)
+        TitleBar(helpTopic = "refresh", title = "Refresh", onBackClick = onBack, onSettings = onSettings)
 
         // Fresh-install gate: with no keyed provider, the Workers phase
         // has nothing to act on, so "Refresh all" would just run the

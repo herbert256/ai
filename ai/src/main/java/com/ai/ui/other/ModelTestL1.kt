@@ -75,12 +75,16 @@ internal fun ModelTestL1Screen(
         ?.takeIf { it.isNotBlank() && com.ai.data.ApiTracer.isTracingEnabled }
         ?.let { rid -> { actions.onNavigateToTraceRunList(rid) } }
 
+    val navRoute = com.ai.ui.shared.LocalNavigateToRoute.current
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "test_all_models_l1",
             title = "Test all models",
             onTrace = runScopedTraceClick,
-            onBackClick = onBack
+            onBackClick = onBack,
+            // ⚙️ → AI Setup → Models → Test-excluded models (which this
+            // sweep skips). Read the generic route-nav local directly.
+            onSettings = { navRoute(com.ai.ui.navigation.NavRoutes.SETTINGS_TEST_EXCLUDED_MODELS) }
         )
 
         if (run == null) {

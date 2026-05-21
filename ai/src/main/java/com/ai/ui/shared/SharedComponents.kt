@@ -262,11 +262,11 @@ val LocalNavigateToHelp = compositionLocalOf<(String?) -> Unit> { {} }
  *  the removed "AI" text-button used to play. */
 val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
 
-/** Provided by AppNavHost — navigate to any Housekeeping route by its
- *  NavRoutes constant. Used by the bottom-bar 🧹 "jump to the related
- *  Housekeeping screen" icon on Settings-dispatcher sub-screens, which
+/** Provided by AppNavHost — navigate to any route by its NavRoutes
+ *  constant. Backs the bottom-bar 🧹 "jump to Housekeeping" and ⚙️
+ *  "jump to AI Setup / Settings" icons on dispatcher sub-screens that
  *  can't easily prop-drill a NavController-backed callback. */
-val LocalNavigateToHousekeeping = compositionLocalOf<(String) -> Unit> { {} }
+val LocalNavigateToRoute = compositionLocalOf<(String) -> Unit> { {} }
 
 /** Ids of reports whose translation runs are currently in-flight
  *  (not yet finished and not cancelled). Provided at the AI_REPORTS
@@ -625,6 +625,10 @@ data class TitleBarIcons(
      *  Housekeeping → Costs) publish it to navigate there. Null →
      *  glyph hidden. */
     val onHousekeeping: (() -> Unit)? = null,
+    /** Optional ⚙️ jump-to-AI-Setup/Settings hook — the mirror of
+     *  [onHousekeeping] (e.g. Housekeeping → Test ↔ AI Setup →
+     *  Test-excluded models). Null → glyph hidden. */
+    val onSettings: (() -> Unit)? = null,
     /** Optional ❓ help hook. Set by the regular [TitleBar] (every
      *  non-View screen), which moved its top-bar help glyph down here.
      *  When non-null the bottom bar uses the help layout — action
@@ -908,6 +912,8 @@ fun TitleBar(
     onEdit: (() -> Unit)? = null,
     /** Optional 🧹 jump-to-Housekeeping hook. Null → glyph hidden. */
     onHousekeeping: (() -> Unit)? = null,
+    /** Optional ⚙️ jump-to-AI-Setup/Settings hook. Null → glyph hidden. */
+    onSettings: (() -> Unit)? = null,
     /** Applied to the bar's outer Row. */
     modifier: Modifier = Modifier
 ) {
@@ -954,6 +960,7 @@ fun TitleBar(
         onAdd = onAdd,
         onEdit = onEdit,
         onHousekeeping = onHousekeeping,
+        onSettings = onSettings,
         // ❓ help moved out of the top bar into the bottom icons bar
         // (right-aligned, other icons left). View screens keep their
         // top-bar ❓ — see ViewScreenTitleBar.
@@ -1246,9 +1253,10 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
     // 🔧 manage — rendered a touch smaller so 👁 leads on View screens.
     icons.onOpenManage?.let { add(BottomBarIcon("🔧", Color.Unspecified, it, 28, fontSize = 15.sp)) }
-    // 🧹 jump to the related Housekeeping screen — grouped with the
-    // other nav-jump glyphs (👁 / 🔧).
+    // 🧹 jump to the related Housekeeping screen, ⚙️ jump to the related
+    // AI Setup / Settings screen — grouped with the other nav-jumps.
     icons.onHousekeeping?.let { add(BottomBarIcon("🧹", Color.Unspecified, it, 28)) }
+    icons.onSettings?.let { add(BottomBarIcon("⚙️", Color.Unspecified, it, 28)) }
     icons.onInfo?.let { add(BottomBarIcon("ℹ️", Color.Unspecified, it, 28)) }
     icons.onCopy?.let { add(BottomBarIcon("📋", Color.Unspecified, it, 28)) }
     icons.onPin?.let { add(BottomBarIcon("📌", Color.Unspecified, it, 28, alpha = if (icons.isPinned) 1f else 0.35f)) }
