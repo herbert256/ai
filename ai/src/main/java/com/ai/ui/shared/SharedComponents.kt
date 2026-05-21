@@ -1211,82 +1211,51 @@ fun HardcodedSubjectRow(
     }
 }
 
-/** Action strip rendered on the right of [BottomIconBar]. Home / Help
- *  live in the top bar, so they're absent here. Every slot is
- *  conditional — null means the icon is omitted entirely so the strip
- *  stays tight. */
+/** One action icon in [BottomIconBar]'s strip. */
+private data class BottomBarIcon(
+    val emoji: String,
+    val tint: Color,
+    val onClick: () -> Unit,
+    val widthDp: Int,
+    val fontSize: androidx.compose.ui.unit.TextUnit = 16.sp,
+    val alpha: Float = 1f
+)
+
+/** Ordered list of the action icons currently present (❓ help is kept
+ *  separate by [BottomIconBar] so it can stay pinned bottom-right).
+ *  Order is fixed; only the non-null callbacks contribute. */
+private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = buildList {
+    // 🆕 add — CRUD list pages' "add new entry" action, leftmost.
+    icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
+    // 👁 view leads on every Manage screen (slightly larger glyph).
+    icons.onOpenView?.let { add(BottomBarIcon("👁", Color.Unspecified, it, 32, fontSize = 18.sp)) }
+    icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
+    // 🔧 manage — rendered a touch smaller so 👁 leads on View screens.
+    icons.onOpenManage?.let { add(BottomBarIcon("🔧", Color.Unspecified, it, 28, fontSize = 15.sp)) }
+    icons.onInfo?.let { add(BottomBarIcon("ℹ️", Color.Unspecified, it, 28)) }
+    icons.onCopy?.let { add(BottomBarIcon("📋", Color.Unspecified, it, 28)) }
+    icons.onPin?.let { add(BottomBarIcon("📌", Color.Unspecified, it, 28, alpha = if (icons.isPinned) 1f else 0.35f)) }
+    icons.onShare?.let { add(BottomBarIcon("📤", Color.Unspecified, it, 28)) }
+    icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
+    icons.onTranslationCompare?.let { add(BottomBarIcon("🌐", Color.Unspecified, it, 28)) }
+    // ✏️ edit / 👯 copy / 🗑 delete — the per-entry action cluster.
+    icons.onEdit?.let { add(BottomBarIcon("✏️", Color.Unspecified, it, 28)) }
+    icons.onCopyReport?.let { add(BottomBarIcon("👯", Color.Unspecified, it, 28)) }
+    icons.onDelete?.let { add(BottomBarIcon("🗑", AppColors.Red, it, 22)) }
+    icons.onTrace?.let { add(BottomBarIcon("🐞", Color.Unspecified, it, 22)) }
+    icons.onMemo?.let { add(BottomBarIcon("📝", Color.Unspecified, it, 28)) }
+}
+
+/** Renders one row of bottom-bar action icons via [TitleBarIcon]. */
 @Composable
-private fun TitleBarActionStrip(
-    onReload: (() -> Unit)?,
-    onChat: (() -> Unit)?,
-    onInfo: (() -> Unit)?,
-    onOpenView: (() -> Unit)?,
-    onOpenManage: (() -> Unit)?,
-    onCopy: (() -> Unit)?,
-    onShare: (() -> Unit)?,
-    onTranslationCompare: (() -> Unit)?,
-    onDelete: (() -> Unit)?,
-    onTrace: (() -> Unit)?,
-    onMemo: (() -> Unit)?,
-    onCopyReport: (() -> Unit)? = null,
-    onPin: (() -> Unit)? = null,
-    isPinned: Boolean = false,
-    onAdd: (() -> Unit)? = null,
-    onEdit: (() -> Unit)? = null,
-    scale: Float = 1f,
-    /** Extra horizontal gap inserted between every adjacent icon —
-     *  on top of the per-pair Spacers already coded into the strip. */
-    extraSpacing: Dp = 0.dp
-) {
+private fun BottomBarIconRow(specs: List<BottomBarIcon>, scale: Float, gap: Dp) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(extraSpacing)
+        horizontalArrangement = Arrangement.spacedBy(gap)
     ) {
-        // 🆕 add — CRUD list pages' "add new entry" action, leftmost.
-        if (onAdd != null) TitleBarIcon("🆕", Color.Unspecified, onAdd, width = 28.dp, scale = scale)
-        // 👁 view lives at the leftmost slot of the strip on every
-        // Manage screen — the user's "View icon must be the
-        // leftmost icon" rule. Larger glyph (18 sp vs the standard
-        // 16 sp) mirrors the slightly-bigger eye on every per-row
-        // report list.
-        if (onOpenView != null) TitleBarIcon("👁", Color.Unspecified, onOpenView, width = 32.dp, scale = scale, fontSize = 18.sp)
-        if (onChat != null) TitleBarIcon("💬", Color.Unspecified, onChat, width = 28.dp, scale = scale)
-        // 🔧 manage — same glyph the per-row 🔧 uses on every reports
-        // list. Wired by every View screen so the bottom-bar lets
-        // the user jump back to Report - manage (or a specific
-        // Manage sub-overlay) without re-opening a list. Sized a
-        // touch smaller than the 👁 view icon (15 sp vs 18 sp)
-        // per the user — the wrench is secondary to "view the
-        // content again" on every View screen, so the eye should
-        // visually lead.
-        if (onOpenManage != null) TitleBarIcon("🔧", Color.Unspecified, onOpenManage, width = 28.dp, scale = scale, fontSize = 15.sp)
-        if (onInfo != null) TitleBarIcon("ℹ️", Color.Unspecified, onInfo, width = 28.dp, scale = scale)
-        if (onCopy != null) TitleBarIcon("📋", Color.Unspecified, onCopy, width = 28.dp, scale = scale)
-        if (onPin != null) TitleBarIcon("📌", Color.Unspecified, onPin, width = 28.dp, scale = scale, alpha = if (isPinned) 1f else 0.35f)
-        if (onShare != null) TitleBarIcon("📤", Color.Unspecified, onShare, width = 28.dp, scale = scale)
-        if (onReload != null) TitleBarIcon("🔄", AppColors.Orange, onReload, width = 28.dp, scale = scale)
-        // 🌐 globe: the screen is rendering a translation. Tapping
-        // opens the side-by-side original ↔ translated compare view.
-        // The callback is only ever non-null on translated screens,
-        // so the icon's presence already implies translation content.
-        if (onTranslationCompare != null) TitleBarIcon("🌐", Color.Unspecified, onTranslationCompare, width = 28.dp, scale = scale)
-        // 👯 Copy-report sits immediately before 🗑 Delete — both are
-        // "operates on the report itself" actions, and grouping them
-        // keeps the destructive icon flanked by its sibling action
-        // rather than mixed in with the per-content viewers.
-        // ✏️ edit — CRUD view pages' "edit this entry" action, grouped
-        // just before 👯 copy / 🗑 delete (the per-entry action cluster).
-        if (onEdit != null) TitleBarIcon("✏️", Color.Unspecified, onEdit, width = 28.dp, scale = scale)
-        if (onCopyReport != null) TitleBarIcon("👯", Color.Unspecified, onCopyReport, width = 28.dp, scale = scale)
-        if (onDelete != null) TitleBarIcon("🗑", AppColors.Red, onDelete, width = 22.dp, scale = scale)
-        if (onDelete != null && onTrace != null) {
-            Spacer(modifier = Modifier.width(2.dp * scale))
+        specs.forEach {
+            TitleBarIcon(it.emoji, it.tint, it.onClick, width = it.widthDp.dp, scale = scale, alpha = it.alpha, fontSize = it.fontSize)
         }
-        if (onTrace != null) TitleBarIcon("🐞", Color.Unspecified, onTrace, width = 22.dp, scale = scale)
-        if (onDelete != null && onTrace == null) {
-            Spacer(modifier = Modifier.width(2.dp * scale))
-        }
-        if (onMemo != null) TitleBarIcon("📝", Color.Unspecified, onMemo, width = 28.dp, scale = scale)
     }
 }
 
@@ -1330,102 +1299,67 @@ private fun TitleBarIcon(
  *  the strip would otherwise overflow on a narrow screen. */
 @Composable
 fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
-    val onChat = icons?.onChat
-    val onInfo = icons?.onInfo
-    val onOpenView = icons?.onOpenView
-    val onOpenManage = icons?.onOpenManage
-    val onCopy = icons?.onCopy
-    val onShare = icons?.onShare
-    val onReload = icons?.onReload
-    val onDelete = icons?.onDelete
-    val onTrace = icons?.onTrace
-    val onTranslationCompare = icons?.onTranslationCompare
-    val onMemo = icons?.onMemo
-    val onCopyReport = icons?.onCopyReport
-    val onPin = icons?.onPin
-    val isPinned = icons?.isPinned == true
-    val onAdd = icons?.onAdd
-    val onEdit = icons?.onEdit
     // Non-null on the non-View screens (regular TitleBar) — flips the
     // bar into the help layout: strip left-aligned, ❓ pinned right.
     val onHelp = icons?.onHelp
+    val specs = if (icons != null) buildBottomBarIcons(icons) else emptyList()
     val extraGap = 2
-    var stripBase = 0
-    var slotCount = 0
-    fun slot(w: Int) { stripBase += w; slotCount++ }
-    if (onAdd != null) slot(28)
-    if (onEdit != null) slot(28)
-    if (onChat != null) slot(28)
-    // 👁 renders a touch wider so the slightly larger glyph (matches
-    // the per-row eye on every reports list) doesn't collide with
-    // its neighbours.
-    if (onOpenView != null) slot(32)
-    // 🔧 manage uses the standard 28 dp slot — the glyph itself
-    // is rendered a couple of points smaller than 👁 so the eye
-    // visually leads on every View screen.
-    if (onOpenManage != null) slot(28)
-    if (onInfo != null) slot(28)
-    if (onCopy != null) slot(28)
-    if (onPin != null) slot(28)
-    if (onShare != null) slot(28)
-    if (onReload != null) slot(28)
-    if (onTranslationCompare != null) slot(28)
-    if (onCopyReport != null) slot(28)
-    if (onDelete != null) slot(22)
-    if (onDelete != null && onTrace != null) stripBase += 2
-    if (onTrace != null) slot(22)
-    if (onDelete != null && onTrace == null) stripBase += 2
-    if (onMemo != null) slot(28)
-    val stripIntrinsic = (stripBase + (slotCount - 1).coerceAtLeast(0) * extraGap).coerceAtLeast(1)
+    fun intrinsicOf(list: List<BottomBarIcon>): Float {
+        if (list.isEmpty()) return 1f
+        return (list.sumOf { it.widthDp } + (list.size - 1) * extraGap).toFloat()
+    }
+    // 150% of the previous size: the auto-fit ceiling lifts from 1.875×
+    // to 1.875× × 1.5×. Floor stays 1.0× so a still-crowded row shrinks
+    // to fit rather than overflowing.
+    val ceiling = 1.875f * 1.5f
+
     androidx.compose.foundation.layout.BoxWithConstraints(
-        // Bottom padding lifts the bar a touch above the gesture
-        // pill — without it the strip sat dead flush against the
-        // physical edge once the system-bars inset was dropped.
+        // Bottom padding lifts the bar a touch above the gesture pill.
         modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 8.dp, bottom = 12.dp)
     ) {
-        // The help layout pins ❓ to the right — reserve its slot so
-        // the auto-fit scale keeps the strip + help from overflowing.
-        val helpW = if (onHelp != null) 32 else 0
-        val helpGap = if (onHelp != null) 4 else 0
         val available = maxWidth.value
-        val desired = (available - helpW - helpGap) / stripIntrinsic
-        // Floor at 1.0× so the strip never shrinks below the previous
-        // top-bar size; ceiling at 1.875× = 1.5× × 1.25× preserves the
-        // original headroom multiplier on roomy screens.
-        val scale = desired.coerceIn(1.0f, 1.875f)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Help layout (onHelp != null — every non-View screen):
-            // action strip left-aligned, then a stretched Spacer, then
-            // ❓ pinned to the right. Otherwise (View screens, onHelp ==
-            // null): the strip is centred between two equal-weight
-            // Spacers. There is no back affordance either way — back is
-            // the Android system gesture.
-            if (onHelp == null) Spacer(modifier = Modifier.weight(1f))
-            TitleBarActionStrip(
-                onReload = onReload,
-                onChat = onChat,
-                onInfo = onInfo,
-                onOpenView = onOpenView,
-                onOpenManage = onOpenManage,
-                onCopy = onCopy,
-                onShare = onShare,
-                onTranslationCompare = onTranslationCompare,
-                onDelete = onDelete,
-                onTrace = onTrace,
-                onMemo = onMemo,
-                onCopyReport = onCopyReport,
-                onPin = onPin,
-                isPinned = isPinned,
-                onAdd = onAdd,
-                onEdit = onEdit,
-                scale = scale,
-                extraSpacing = extraGap.dp
-            )
-            Spacer(modifier = Modifier.weight(1f))
-            if (onHelp != null) {
+
+        if (onHelp == null) {
+            // View-style centered single row (effectively unused — the
+            // Report View family has its own ViewBottomBar). Unchanged.
+            val scale = (available / intrinsicOf(specs)).coerceIn(1.0f, 1.875f)
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Spacer(modifier = Modifier.weight(1f))
+                BottomBarIconRow(specs, scale, extraGap.dp)
+                Spacer(modifier = Modifier.weight(1f))
+            }
+            return@BoxWithConstraints
+        }
+
+        // Help layout (every non-View screen). ❓ is pinned bottom-right;
+        // reserve its slot in the auto-fit budget.
+        val helpW = 32f
+        val helpGap = 4f
+        // Count the bar's icons including ❓: more than 6 → two rows.
+        val twoRows = specs.size + 1 > 6 && specs.size >= 2
+        if (twoRows) {
+            val mid = (specs.size + 1) / 2
+            val firstHalf = specs.take(mid)
+            val secondHalf = specs.drop(mid)
+            // Fit against the widest row (the bottom row also carries ❓).
+            val widest = maxOf(intrinsicOf(firstHalf), intrinsicOf(secondHalf) + helpW + helpGap)
+            val scale = (available / widest).coerceIn(1.0f, ceiling)
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    BottomBarIconRow(firstHalf, scale, extraGap.dp)
+                    Spacer(modifier = Modifier.weight(1f))
+                }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    BottomBarIconRow(secondHalf, scale, extraGap.dp)
+                    Spacer(modifier = Modifier.weight(1f))
+                    TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, scale = scale)
+                }
+            }
+        } else {
+            val scale = ((available - helpW - helpGap) / intrinsicOf(specs)).coerceIn(1.0f, ceiling)
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                BottomBarIconRow(specs, scale, extraGap.dp)
+                Spacer(modifier = Modifier.weight(1f))
                 TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, scale = scale)
             }
         }
