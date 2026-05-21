@@ -548,10 +548,9 @@ fun SettingsScreen(
             )
         }
         SettingsSubScreen.AI_SYSTEM_PROMPTS -> {
-            SystemPromptsListScreen(
-                aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
-                onAddSystemPrompt = { editingSystemPromptId = null; currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPT_EDIT },
-                onEditSystemPrompt = { editingSystemPromptId = it; currentSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPT_EDIT }
+            com.ai.ui.cruds.prompts.system.SystemPromptsCrud(
+                aiSettings = aiSettings, onSave = onSaveAi,
+                onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
         SettingsSubScreen.AI_SYSTEM_PROMPT_EDIT -> {
@@ -577,11 +576,9 @@ fun SettingsScreen(
             )
         }
         SettingsSubScreen.AI_EXAMPLE_PROMPTS -> {
-            ExamplePromptsListScreen(
-                aiSettings = aiSettings,
-                onBackToPromptsSetup = goBack, onBackToHome = onNavigateHome, onSave = onSaveAi,
-                onAddExamplePrompt = { editingExamplePromptId = null; currentSubScreen = SettingsSubScreen.AI_EXAMPLE_PROMPT_EDIT },
-                onEditExamplePrompt = { editingExamplePromptId = it; currentSubScreen = SettingsSubScreen.AI_EXAMPLE_PROMPT_EDIT }
+            com.ai.ui.cruds.prompts.examples.ExamplePromptsCrud(
+                aiSettings = aiSettings, onSave = onSaveAi,
+                onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
         SettingsSubScreen.AI_EXAMPLE_PROMPT_EDIT -> {

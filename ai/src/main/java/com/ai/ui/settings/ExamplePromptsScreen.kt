@@ -12,35 +12,6 @@ import com.ai.model.*
 import com.ai.ui.shared.*
 
 @Composable
-fun ExamplePromptsListScreen(
-    aiSettings: Settings,
-    onBackToPromptsSetup: () -> Unit,
-    onBackToHome: () -> Unit,
-    onSave: (Settings) -> Unit,
-    onAddExamplePrompt: () -> Unit,
-    onEditExamplePrompt: (String) -> Unit
-) {
-    CrudListScreen(
-        title = "Example prompts",
-        helpTopic = "example_prompts_list",
-        items = aiSettings.examplePrompts,
-        addLabel = "Add example prompt",
-        emptyMessage = "No example prompts yet",
-        sortKey = { it.title },
-        itemTitle = { it.title.ifBlank { "(untitled)" } },
-        itemSubtitle = { it.text.lineSequence().firstOrNull().orEmpty().take(80) },
-        onAdd = onAddExamplePrompt,
-        onEdit = { onEditExamplePrompt(it.id) },
-        onDelete = { ep -> onSave(aiSettings.removeExamplePrompt(ep.id)) },
-        onBack = onBackToPromptsSetup,
-        onHome = onBackToHome,
-        deleteEntityType = "Example prompt",
-        deleteEntityName = { it.title.ifBlank { "(untitled)" } },
-        itemKey = { it.id }
-    )
-}
-
-@Composable
 fun ExamplePromptEditScreen(
     examplePrompt: ExamplePrompt?,
     onSave: (ExamplePrompt) -> Unit,

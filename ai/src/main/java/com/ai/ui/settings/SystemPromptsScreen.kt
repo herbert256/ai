@@ -13,35 +13,6 @@ import com.ai.model.*
 import com.ai.ui.shared.*
 
 @Composable
-fun SystemPromptsListScreen(
-    aiSettings: Settings,
-    onBackToAiSetup: () -> Unit,
-    onBackToHome: () -> Unit,
-    onSave: (Settings) -> Unit,
-    onAddSystemPrompt: () -> Unit,
-    onEditSystemPrompt: (String) -> Unit
-) {
-    CrudListScreen(
-        title = "System Prompts",
-        helpTopic = "system_prompts_list",
-        items = aiSettings.systemPrompts,
-        addLabel = "Add System Prompt",
-        emptyMessage = "No system prompts configured",
-        sortKey = { it.name },
-        itemTitle = { it.name },
-        itemSubtitle = { it.prompt.take(80) },
-        onAdd = onAddSystemPrompt,
-        onEdit = { onEditSystemPrompt(it.id) },
-        onDelete = { sp -> onSave(aiSettings.removeSystemPrompt(sp.id)) },
-        onBack = onBackToAiSetup,
-        onHome = onBackToHome,
-        deleteEntityType = "System Prompt",
-        deleteEntityName = { it.name },
-        itemKey = { it.id }
-    )
-}
-
-@Composable
 fun SystemPromptEditScreen(
     systemPrompt: SystemPrompt?,
     existingNames: Set<String>,
