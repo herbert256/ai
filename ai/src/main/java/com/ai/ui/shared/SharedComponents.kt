@@ -1612,7 +1612,7 @@ fun ReportRowActionIcons(
             "🗑", fontSize = 18.sp, color = AppColors.Red,
             modifier = Modifier
                 .clickable { onDelete(reportId) }
-                .padding(start = 6.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)
+                .padding(start = 6.dp, end = 0.dp, top = 4.dp, bottom = 4.dp)
         )
     }
 }
@@ -1648,13 +1648,13 @@ fun ReportListRow(
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { onOpenManage(report.id) }
-            .padding(vertical = 4.dp),
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (iconGenEnabled) {
             Text(
                 text = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
-                fontSize = 16.sp
+                fontSize = 22.sp
             )
             Spacer(modifier = Modifier.width(8.dp))
         }

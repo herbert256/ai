@@ -351,7 +351,9 @@ fun ReportsHubScreen(
     val pinnedReports = remember(allReports) {
         allReports.filter { it.pinned }.sortedByDescending { it.timestamp }.take(5)
     }
-    val latestReports = remember(allReports) { allReports.take(5) }
+    val latestReports = remember(allReports) {
+        allReports.filter { !it.pinned }.take(5)
+    }
     val homeReportLists by rememberHomeReportLists(refreshTick, reportViewModel)
     val scope = rememberCoroutineScope()
     val bumpDelete: (String) -> Unit = { rid ->
@@ -396,14 +398,14 @@ fun ReportsHubScreen(
         }
         Spacer(modifier = Modifier.height(12.dp))
         ReportsHubListCard(
-            accentEmoji = "⚠️", accentColor = AppColors.Red,
-            label = "AI Reports with problems", reports = homeReportLists.problems,
+            accentEmoji = "⏳", accentColor = AppColors.Orange,
+            label = "Running AI reports", reports = homeReportLists.running,
             showEmptyHint = false
         )
         Spacer(modifier = Modifier.height(10.dp))
         ReportsHubListCard(
-            accentEmoji = "⏳", accentColor = AppColors.Orange,
-            label = "Running AI reports", reports = homeReportLists.running,
+            accentEmoji = "⚠️", accentColor = AppColors.Red,
+            label = "AI Reports with problems", reports = homeReportLists.problems,
             showEmptyHint = false
         )
         Spacer(modifier = Modifier.height(10.dp))
@@ -415,7 +417,8 @@ fun ReportsHubScreen(
         Spacer(modifier = Modifier.height(10.dp))
         ReportsHubListCard(
             accentEmoji = "🕘", accentColor = AppColors.Blue,
-            label = "Latest AI Reports", reports = latestReports
+            label = "Latest AI Reports", reports = latestReports,
+            showEmptyHint = false
         )
         Spacer(modifier = Modifier.height(16.dp))
     }
