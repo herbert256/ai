@@ -1119,7 +1119,9 @@ fun TitleBar(
         if (resolvedReportIcon != null) {
             // Same slot/position as the left AI logo it replaces, sized
             // to match the (now larger) logos.
-            Box(modifier = Modifier.align(Alignment.Top).padding(start = 4.dp, top = 3.dp)) {
+            // The report glyph sits centred in a tall (scale 2.5) icon box,
+            // so it reads as low; lift it well up with a negative offset.
+            Box(modifier = Modifier.align(Alignment.Top).offset(y = (-22).dp).padding(start = 4.dp, top = 3.dp)) {
                 TitleBarIcon(
                     resolvedReportIcon, Color.Unspecified,
                     onClick = onReportIconClick ?: (if (reportIconGoesHome) navigateHome else (reportIconTap ?: {})),
