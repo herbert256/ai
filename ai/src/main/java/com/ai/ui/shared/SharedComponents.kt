@@ -643,7 +643,9 @@ data class TitleBarIcons(
     val addFirst: Boolean = false,
     /** Optional cost readout shown right-aligned in the bottom bar's top
      *  row (above the ❓). Set by the Manage report screen. Null → hidden. */
-    val costText: String? = null
+    val costText: String? = null,
+    /** Tap handler for [costText] — opens the costs screen. */
+    val onCostClick: (() -> Unit)? = null
 )
 
 /** Make a model-name Text clickable so tapping it opens the Model
@@ -932,6 +934,8 @@ fun TitleBar(
     addFirst: Boolean = false,
     /** Optional cost readout for the bottom bar (top row, right, above ❓). */
     costText: String? = null,
+    /** Tap handler for [costText] → costs screen. */
+    onCostClick: (() -> Unit)? = null,
     /** Optional ✏️ edit hook (CRUD view pages). Null → glyph hidden. */
     onEdit: (() -> Unit)? = null,
     /** Optional 🧹 jump-to-Housekeeping hook. Null → glyph hidden. */
@@ -984,6 +988,7 @@ fun TitleBar(
         onAdd = onAdd,
         addFirst = addFirst,
         costText = costText,
+        onCostClick = onCostClick,
         onEdit = onEdit,
         onHousekeeping = onHousekeeping,
         onSettings = onSettings,
@@ -1442,6 +1447,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     // bar into the help layout: strip left-aligned, ❓ pinned right.
     val onHelp = icons?.onHelp
     val costText = icons?.costText
+    val onCostClick = icons?.onCostClick
     // Font size shrinks as the amount grows more digits so a 3-digit
     // value still fits and doesn't touch the icon to its left.
     val costBaseSp = costText?.let {
@@ -1516,7 +1522,9 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                             // Shift left so the right edge lines up with the
                             // per-row cost column (rows inset ~16dp; the bar
                             // only 8dp).
-                            modifier = Modifier.padding(end = 9.dp)
+                            modifier = Modifier
+                                .let { m -> if (onCostClick != null) m.clickable(onClick = onCostClick) else m }
+                                .padding(end = 9.dp)
                         )
                     }
                 }
@@ -1539,7 +1547,9 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                         fontWeight = FontWeight.Bold,
                         letterSpacing = (-0.5).sp,
                         maxLines = 1, softWrap = false,
-                        modifier = Modifier.padding(end = 9.dp)
+                        modifier = Modifier
+                            .let { m -> if (onCostClick != null) m.clickable(onClick = onCostClick) else m }
+                            .padding(end = 9.dp)
                     )
                 }
                 TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, scale = scale)
