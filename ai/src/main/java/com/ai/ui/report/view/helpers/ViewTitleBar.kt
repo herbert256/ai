@@ -55,8 +55,8 @@ import com.ai.ui.shared.LocalNavigateToHelp
  *
  * Three stacked rows: AI logo (left → Home) · centred white screen
  * title + orange report title + optional green subject · ❓ help (right).
- * Horizontal swipe loads the prev/next report of the same View kind; a
- * transient pill shows "Loading report" / "No more reports".
+ * Horizontal swipe loads the prev/next report of the same View kind
+ * silently (no transient message).
  *
  * Instead of the generic `LocalBottomIconState`, it publishes a
  * [ViewBottomBarSpec] into [LocalViewBottomBar] while mounted, so
@@ -103,7 +103,6 @@ fun ViewTitleBar(
     }
     // Swipe feedback uses the app's standard Android Toast (same as the
     // shared horizontalSwipeNavigation edge toasts), not a bespoke pill.
-    val context = androidx.compose.ui.platform.LocalContext.current
     val swipeDensity = LocalDensity.current
     val swipeThresholdPx = with(swipeDensity) { 80.dp.toPx() }
     val swipeDragX = remember { mutableFloatStateOf(0f) }
@@ -125,14 +124,8 @@ fun ViewTitleBar(
                                 onDragEnd = {
                                     val dx = swipeDragX.floatValue
                                     when {
-                                        dx > swipeThresholdPx -> {
-                                            if (onSwipePrev?.invoke() == true)
-                                                android.widget.Toast.makeText(context, "Loading report", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
-                                        dx < -swipeThresholdPx -> {
-                                            if (onSwipeNext?.invoke() == true)
-                                                android.widget.Toast.makeText(context, "Loading report", android.widget.Toast.LENGTH_SHORT).show()
-                                        }
+                                        dx > swipeThresholdPx -> onSwipePrev?.invoke()
+                                        dx < -swipeThresholdPx -> onSwipeNext?.invoke()
                                     }
                                     swipeDragX.floatValue = 0f
                                 },
