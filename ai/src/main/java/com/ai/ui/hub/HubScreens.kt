@@ -520,23 +520,19 @@ private fun ExampleReportRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onOpenManage(entry) }
-            .padding(vertical = 6.dp),
+            .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = entry.icon.ifBlank { "📝" }, fontSize = 20.sp)
-        Spacer(modifier = Modifier.width(10.dp))
+        Text(text = entry.icon.ifBlank { "📝" }, fontSize = 22.sp)
+        Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = entry.title, fontSize = 14.sp, color = Color.White,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
-        Text(
-            text = "🔧", fontSize = 18.sp,
-            modifier = Modifier.clickable { onOpenManage(entry) }.padding(horizontal = 6.dp)
-        )
-        Text(
-            text = "👁", fontSize = 18.sp,
-            modifier = Modifier.clickable { onOpenView(entry) }.padding(start = 6.dp)
+        com.ai.ui.shared.ReportRowActionIcons(
+            onOpenManage = { onOpenManage(entry) },
+            onOpenView = { onOpenView(entry) }
         )
     }
 }
