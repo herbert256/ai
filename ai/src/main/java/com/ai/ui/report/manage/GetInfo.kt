@@ -111,38 +111,44 @@ fun buildInfoJobs(
         jobs += InfoJob("title", label, state, report.titleInputCost + report.titleOutputCost, doneIcon = "🏷️")
     }
 
-    if (perModelIcon || perModelTitle) {
+    // Per-agent title state — agent must succeed first; when both jobs are
+    // on the icon is derived from the title, so the icon waits for it.
+    fun titleStateFor(a: com.ai.data.ReportAgent): InfoJobState =
+        if (a.reportStatus != ReportStatus.SUCCESS) InfoJobState.CLOCK else when {
+            a.modelTitleErrorMessage != null -> InfoJobState.FAILED
+            a.modelTitle != null -> InfoJobState.DONE
+            else -> InfoJobState.RUNNING
+        }
+
+    // All model-title rows first, then all model-icon rows (after the
+    // three report-level rows above).
+    if (perModelTitle) {
         report.agents.forEach { a ->
             val modelName = "${a.provider} · ${shortModelName(a.model)}"
-            val agentDone = a.reportStatus == ReportStatus.SUCCESS
-            // Title state — computed when titles are on, and also used to gate
-            // the icon: when both are on the icon is derived from the title, so
-            // it stays on the clock until the title resolves (done or failed).
-            val titleState: InfoJobState? = if (perModelTitle) {
-                if (!agentDone) InfoJobState.CLOCK else when {
-                    a.modelTitleErrorMessage != null -> InfoJobState.FAILED
-                    a.modelTitle != null -> InfoJobState.DONE
-                    else -> InfoJobState.RUNNING
-                }
-            } else null
+            jobs += InfoJob(
+                "model-title", modelName, titleStateFor(a),
+                a.modelTitleInputCost + a.modelTitleOutputCost, a.agentId,
+                // Show the model's found icon when there is one, else 🏷️.
+                doneIcon = a.icon?.takeIf { it.isNotBlank() } ?: "🏷️"
+            )
+        }
+    }
+    if (perModelIcon) {
+        report.agents.forEach { a ->
+            val modelName = "${a.provider} · ${shortModelName(a.model)}"
             val foundTitle = a.modelTitle?.takeIf { it.isNotBlank() }
-            if (perModelIcon) {
-                val iconState = when {
-                    !agentDone -> InfoJobState.CLOCK
-                    titleState == InfoJobState.CLOCK || titleState == InfoJobState.RUNNING -> InfoJobState.CLOCK
-                    a.iconErrorMessage != null -> InfoJobState.FAILED
-                    a.icon != null -> InfoJobState.DONE
-                    else -> InfoJobState.RUNNING
-                }
-                // Label shows the found title (the icon is derived from it);
-                // falls back to the model name when there's no title.
-                jobs += InfoJob("model-icon", foundTitle ?: modelName, iconState,
-                    a.iconInputCost + a.iconOutputCost, a.agentId, doneIcon = a.icon)
+            val titleState = if (perModelTitle) titleStateFor(a) else null
+            val iconState = when {
+                a.reportStatus != ReportStatus.SUCCESS -> InfoJobState.CLOCK
+                titleState == InfoJobState.CLOCK || titleState == InfoJobState.RUNNING -> InfoJobState.CLOCK
+                a.iconErrorMessage != null -> InfoJobState.FAILED
+                a.icon != null -> InfoJobState.DONE
+                else -> InfoJobState.RUNNING
             }
-            if (perModelTitle && titleState != null) {
-                jobs += InfoJob("model-title", modelName, titleState,
-                    a.modelTitleInputCost + a.modelTitleOutputCost, a.agentId, doneIcon = "🏷️")
-            }
+            // Label shows the found title (the icon is derived from it);
+            // falls back to the model name when there's no title.
+            jobs += InfoJob("model-icon", foundTitle ?: modelName, iconState,
+                a.iconInputCost + a.iconOutputCost, a.agentId, doneIcon = a.icon)
         }
     }
     return jobs
@@ -190,7 +196,8 @@ fun ReportGetInfoScreen(
     onOpenIconDetail: () -> Unit,
     onOpenLanguageDetail: () -> Unit,
     onEditTitle: () -> Unit,
-    onOpenAgentIconDetail: (String) -> Unit
+    onOpenAgentIconDetail: (String) -> Unit,
+    onEditModelTitle: (String) -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -216,6 +223,7 @@ fun ReportGetInfoScreen(
                     "language" -> onOpenLanguageDetail
                     "title" -> onEditTitle
                     "model-icon" -> job.agentId?.let { id -> { onOpenAgentIconDetail(id) } }
+                    "model-title" -> job.agentId?.let { id -> { onEditModelTitle(id) } }
                     else -> null
                 }
                 Row(

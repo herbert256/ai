@@ -11,6 +11,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
@@ -109,6 +110,44 @@ fun ReportEditTitleScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
+        Button(
+            onClick = { onUpdate(title.trim()) },
+            enabled = canUpdate,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Update title", maxLines = 1, softWrap = false) }
+    }
+}
+
+/**
+ * Edit one model's per-model title (the title generated from that model's
+ * response). Like [ReportEditTitleScreen] but per-agent: saving updates the
+ * [com.ai.data.ReportAgent.modelTitle] in place — it doesn't re-run anything.
+ * No 🐞 trace icon: model_title traces don't carry the agent id, so the
+ * per-agent trace can't be matched reliably.
+ */
+@Composable
+fun ReportEditModelTitleScreen(
+    reportId: String,
+    agentId: String,
+    modelName: String,
+    initialTitle: String,
+    onBack: () -> Unit,
+    onUpdate: (newTitle: String) -> Unit
+) {
+    BackHandler { onBack() }
+    var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
+    val canUpdate = title.trim().isNotBlank()
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(helpTopic = "report_edit_model_title", title = "Edit model title", onBackClick = onBack)
+        Text(modelName, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(bottom = 8.dp))
+        OutlinedTextField(
+            value = title, onValueChange = { title = it },
+            label = { Text("Title") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedFieldColors()
+        )
+        Spacer(modifier = Modifier.weight(1f))
         Button(
             onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,

@@ -161,6 +161,7 @@ fun ReportsScreen(
     onRegenerate: (String) -> Unit = {},
     onUpdatePrompt: (String, String) -> Unit = { _, _ -> },
     onUpdateTitle: (String, String) -> Unit = { _, _ -> },
+    onUpdateModelTitle: (String, String, String) -> Unit = { _, _, _ -> },
     onAttachKnowledgeBases: (List<String>) -> Unit = {},
     onDeleteReport: (String) -> Unit = {},
     onCopyReport: (String) -> Unit = {},
@@ -355,6 +356,7 @@ fun ReportsScreen(
     var showIconsView by st.showIconsView
     var showIconDetail by st.showIconDetail
     var agentIconDetailFor by st.agentIconDetailFor
+    var editModelTitleFor by st.editModelTitleFor
     var showFindIconsPicker by st.showFindIconsPicker
     var showAlternativeIcons by st.showAlternativeIcons
     // Multiplex flag: when true, the showIconDetail / showFindIconsPicker
@@ -1633,6 +1635,34 @@ fun ReportsScreen(
         return
     }
 
+    // Per-model title editor — opened from a Get-info model-title row.
+    // Checked before the Get-info block so it layers on top (showGetInfo
+    // stays set) and Android-back returns to Get-info.
+    editModelTitleFor?.let { agentId ->
+        val agent = agentRecordsByAgentId[agentId]
+        if (currentReportId != null && agent != null) {
+            val rid = currentReportId
+            CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+                com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+                LocalNavigateToCurrentReport provides { editModelTitleFor = null }
+            ) {
+                ReportEditModelTitleScreen(
+                    reportId = rid,
+                    agentId = agentId,
+                    modelName = "${agent.provider} · ${com.ai.ui.shared.shortModelName(agent.model)}",
+                    initialTitle = agent.modelTitle.orEmpty(),
+                    onBack = { editModelTitleFor = null },
+                    onUpdate = { newTitle ->
+                        editModelTitleFor = null
+                        onUpdateModelTitle(rid, agentId, newTitle)
+                    }
+                )
+            }
+            return
+        }
+    }
+
     // "Report - Get info" — the metadata-job status screen. Detail
     // overlays (icon / language / edit-title / per-agent icon) are all
     // checked earlier in this dispatcher, so opening one from a Get-info
@@ -1657,7 +1687,8 @@ fun ReportsScreen(
                 onOpenIconDetail = { showIconDetail = true },
                 onOpenLanguageDetail = { showIconDetail = true; targetLanguageIcon = true },
                 onEditTitle = { showEditTitle = true },
-                onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId }
+                onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
+                onEditModelTitle = { agentId -> editModelTitleFor = agentId }
             )
         }
         return

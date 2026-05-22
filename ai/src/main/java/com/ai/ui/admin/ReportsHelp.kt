@@ -44,6 +44,13 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Costs", "Each row shows its own cost; the screen total is in the bottom bar. The single info row on Manage report mirrors this total, and its status aggregates these jobs (❌ if any failed, else ⏳ if any are still clock/running, else ✅). Tap a row to open its detail (icon / language / title / per-model icon).")
         )
     ),
+    "report_edit_model_title" to HelpContent(
+        title = "Help - Edit model title",
+        cards = listOf(
+            HelpCard("What you see", "The title generated for one model's response (from Report - Get info → a model-title row). Edit it and tap Update title to save."),
+            HelpCard("How it works", "This is an in-place text edit — it does not re-run the model or the title call. The new title shows on the model-title row and as the label of that model's model-icon row.")
+        )
+    ),
     "report_new" to HelpContent(
         title = "Help - New AI Report",
         cards = listOf(

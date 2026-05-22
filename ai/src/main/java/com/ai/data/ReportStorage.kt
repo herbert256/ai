@@ -889,6 +889,26 @@ object ReportStorage {
         }
     }
 
+    /** Manually set an agent's model-title text (Get-info → Edit model
+     *  title). Text-only — costs/trace/model are untouched; clears any
+     *  prior error. Doesn't re-run anything. */
+    fun setReportAgentModelTitleText(
+        context: Context, reportId: String, agentId: String, title: String
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0) return@withLock false
+            val updated = report.agents[idx].copy(
+                modelTitle = title, modelTitleErrorMessage = null
+            )
+            val newAgents = report.agents.toMutableList().also { it[idx] = updated }
+            saveReport(report.copy(agents = newAgents, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
     /** Append one [IconCallRecord] onto [Report.iconCalls]. Called by
      *  [com.ai.viewmodel.ReportViewModel.runReportIcons] after every
      *  tier API call so the export's per-call All-tab can show each

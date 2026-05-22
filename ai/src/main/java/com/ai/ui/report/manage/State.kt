@@ -64,6 +64,7 @@ internal class ReportsScreenState(
     val showIconsView: MutableState<Boolean>,
     val showIconDetail: MutableState<Boolean>,
     val agentIconDetailFor: MutableState<String?>,
+    val editModelTitleFor: MutableState<String?>,
     val showFindIconsPicker: MutableState<Boolean>,
     val showAlternativeIcons: MutableState<Boolean>,
     val targetLanguageIcon: MutableState<Boolean>,
@@ -135,6 +136,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val showIconsView = rememberSaveable { mutableStateOf(false) }
     val showIconDetail = rememberSaveable { mutableStateOf(false) }
     val agentIconDetailFor = rememberSaveable { mutableStateOf<String?>(null) }
+    val editModelTitleFor = rememberSaveable { mutableStateOf<String?>(null) }
     val showFindIconsPicker = rememberSaveable { mutableStateOf(false) }
     val showAlternativeIcons = rememberSaveable { mutableStateOf(false) }
     val targetLanguageIcon = rememberSaveable { mutableStateOf(false) }
@@ -204,6 +206,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         showIconsView,
         showIconDetail,
         agentIconDetailFor,
+        editModelTitleFor,
         showFindIconsPicker,
         showAlternativeIcons,
         targetLanguageIcon,

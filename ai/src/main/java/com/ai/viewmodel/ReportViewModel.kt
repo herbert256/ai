@@ -680,6 +680,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.updateUiState { it.copy(genericPromptTitle = newTitle) }
     }
 
+    /** Manually set one agent's per-model title (Get-info → Edit model
+     *  title). In-place text edit; bumps iconRefreshTick so the Get-info
+     *  rows re-read. */
+    suspend fun updateModelTitle(context: Context, reportId: String, agentId: String, newTitle: String) {
+        withContext(Dispatchers.IO) {
+            ReportStorage.setReportAgentModelTitleText(context, reportId, agentId, newTitle)
+        }
+        appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+    }
+
     /**
      * Re-run a previously generated report end-to-end with the same prompt, agent set,
      * and parameter selections.
