@@ -602,10 +602,9 @@ internal fun ColumnScope.GenerationPhase(
         )
     }
 
-    // The running total cost is rendered as a fixed footer below the
-    // scrollable result list (after the LazyColumn) so it stays visible
-    // no matter how many rows the report has — see the footer at the end
-    // of this function.
+    // The running total cost is rendered as the last item of the result
+    // list (inside the LazyColumn) so it flows directly after the rows —
+    // see the "footer-total" item near the end of this function.
 
     // ----- Edit / Create pop-ups (triggered by the bottom-bar icons) -----
     if (activeBar == "edit") {
@@ -1440,28 +1439,26 @@ internal fun ColumnScope.GenerationPhase(
             }
         }
 
-    }
-
-    // ----- Fixed total-cost footer -----
-    // Sits below the scrollable list (outside the LazyColumn) so it stays
-    // pinned at the bottom regardless of row count. Right-aligned in the
-    // same column / font size as the per-row cost cells so it reads as
-    // their sum. Tap → ReportsViewer Costs section.
-    if (showTotals) {
-        HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-        Row(
-            modifier = Modifier.fillMaxWidth()
-                .clickable { handlers.onViewCosts() }
-                .padding(vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End
-        ) {
-            Text(
-                text = formatCents(totalCost),
-                fontSize = 10.sp, color = AppColors.Blue,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.SemiBold
-            )
+        // Total cost — the final list item, so it flows directly after
+        // the last row (scrolls with the list, no gap before it). Right-
+        // aligned in the per-row cost column. Tap → ReportsViewer Costs.
+        if (showTotals) {
+            item(key = "footer-total") {
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { handlers.onViewCosts() }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Text(
+                        text = formatCents(totalCost),
+                        fontSize = 10.sp, color = AppColors.Blue,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
         }
     }
 }
