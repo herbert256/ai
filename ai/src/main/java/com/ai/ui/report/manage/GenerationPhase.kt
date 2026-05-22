@@ -602,24 +602,10 @@ internal fun ColumnScope.GenerationPhase(
         )
     }
 
-    // ----- Row 1: running total cost, right-aligned -----
-    // No 💰 icon: the total sits at the right edge, in the same column
-    // and font size as the per-row cost cells below, so it reads as the
-    // sum of the rows. Tap it to jump to the Manage ReportsViewer Costs.
-    if (showTotals) {
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { handlers.onViewCosts() },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End
-        ) {
-            Text(
-                text = formatCents(totalCost),
-                fontSize = 10.sp, color = AppColors.Blue,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-    }
+    // The running total cost is rendered as a fixed footer below the
+    // scrollable result list (after the LazyColumn) so it stays visible
+    // no matter how many rows the report has — see the footer at the end
+    // of this function.
 
     // ----- Edit / Create pop-ups (triggered by the bottom-bar icons) -----
     if (activeBar == "edit") {
@@ -1454,12 +1440,29 @@ internal fun ColumnScope.GenerationPhase(
             }
         }
 
-        // Footer total row — visually matches the agent rows above:
-        // [icon 24dp][type cell][label weight 1f][cost on right].
-        // Σ stands in for the per-row status icon; the type cell reads
-        // "total" to keep the column alignment.
-        // Totals moved to the green subject row above — see the
-        // HardcodedSubjectRow call before this LazyColumn.
+    }
+
+    // ----- Fixed total-cost footer -----
+    // Sits below the scrollable list (outside the LazyColumn) so it stays
+    // pinned at the bottom regardless of row count. Right-aligned in the
+    // same column / font size as the per-row cost cells so it reads as
+    // their sum. Tap → ReportsViewer Costs section.
+    if (showTotals) {
+        HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .clickable { handlers.onViewCosts() }
+                .padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End
+        ) {
+            Text(
+                text = formatCents(totalCost),
+                fontSize = 10.sp, color = AppColors.Blue,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 
