@@ -221,6 +221,94 @@ class IconGenerationManager(
         }
     }
 
+    /** Per-agent variant of [kickOffReportTitleGeneration]: runs the
+     *  bundled `internal/model_title` prompt against this agent's own
+     *  response (via the prompt's pinned Anthropic agent) and writes the
+     *  resolved ≤4-word title onto the [ReportAgent]. Fired from
+     *  ReportViewModel after a model response succeeds, gated by the
+     *  "Generate per model titles" toggle. Best-effort, off the main
+     *  thread; failures persist via [ReportStorage.updateReportAgentModelTitleError]. */
+    internal fun runModelTitleForAgent(
+        context: Context,
+        reportId: String,
+        ra: ReportAgent,
+        aiSettings: Settings
+    ) {
+        val titlePrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "model_title"
+        } ?: return
+        val rawAgent = aiSettings.agents.firstOrNull {
+            it.name.equals(titlePrompt.agent, ignoreCase = true)
+        } ?: return
+        val agent = rawAgent.copy(
+            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
+            model = aiSettings.getEffectiveModelForAgent(rawAgent)
+        )
+        val agentResponse = ra.responseBody.orEmpty()
+        if (agentResponse.isBlank()) return
+        val resolved = titlePrompt.text.replace("@RESPONSE@", agentResponse)
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            withTracerTags(reportId = reportId, category = "model_title") {
+                val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                runCatching {
+                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                    val response = withTraceFilenameSink(traceSink) {
+                        appViewModel.repository.analyzeWithAgent(
+                            agent, "", resolved, AgentParameters(),
+                            null, context, baseUrl
+                        )
+                    }
+                    if (response.error == null) {
+                        val raw = (response.analysis ?: "").trim()
+                            .removePrefix("Title:").trim()
+                            .removeSurrounding("\"").trim()
+                            .removeSurrounding("'").trim()
+                            .lineSequence().firstOrNull { it.isNotBlank() }
+                            ?.trim().orEmpty()
+                        val generated = raw.take(325)
+                        if (generated.isBlank()) {
+                            ReportStorage.updateReportAgentModelTitleError(
+                                context, reportId, ra.agentId, "empty title"
+                            )
+                        } else {
+                            val tu = response.tokenUsage
+                            val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
+                            val inT = tu?.inputTokens ?: 0
+                            val outT = tu?.outputTokens ?: 0
+                            val inC = inT * pricing.promptPrice
+                            val outC = outT * pricing.completionPrice
+                            ReportStorage.updateReportAgentModelTitle(
+                                context, reportId, ra.agentId, generated,
+                                model = "${agent.provider.id}/${agent.model}",
+                                inputTokens = inT, outputTokens = outT,
+                                inputCost = inC, outputCost = outC,
+                                traceFile = traceSink.get(),
+                                promptUsed = "model_title"
+                            )
+                            if (inT > 0 || outT > 0) {
+                                appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                    agent.provider, agent.model, inT, outT, kind = "title"
+                                )
+                            }
+                        }
+                    } else {
+                        ReportStorage.updateReportAgentModelTitleError(
+                            context, reportId, ra.agentId, response.error
+                        )
+                    }
+                }.onFailure {
+                    ReportStorage.updateReportAgentModelTitleError(
+                        context, reportId, ra.agentId,
+                        it.message ?: "model-title gen failed"
+                    )
+                }
+                appViewModel.updateUiState {
+                    it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                }
+            }
+        }
+    }
+
     /** Two-call language flow. First call (bundled `internal/language`
      *  prompt) detects the report prompt's source language; on
      *  success, schedules a second call (bundled `icons/language`

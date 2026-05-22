@@ -80,6 +80,7 @@ internal fun ReportRunScreen(
     languageDetectCost: Double,
     languageName: String?,
     agentIconRows: Map<String, AgentIconRow>,
+    agentModelTitles: Map<String, AgentModelTitle> = emptyMap(),
     hasPrevReport: Boolean,
     hasNextReport: Boolean,
     onDismiss: () -> Unit,
@@ -296,6 +297,7 @@ internal fun ReportRunScreen(
             languageDetectCost = languageDetectCost,
             languageName = languageName,
             agentIconRows = agentIconRows,
+            agentModelTitles = agentModelTitles,
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
             editCreateMenu = editCreateMenu

@@ -72,6 +72,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             reportTitleMode = reportTitleMode,
             perModelIconGenEnabled = prefs.getBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, true),
+            perModelTitleGenEnabled = prefs.getBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, false),
             useInternalPromptsIcons = prefs.getBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, true),
             showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false),
             experimentalFeaturesEnabled = prefs.getBoolean(KEY_EXPERIMENTAL_FEATURES, false),
@@ -124,6 +125,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
             putString(KEY_REPORT_TITLE_MODE, settings.reportTitleMode.name)
             putBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, settings.perModelIconGenEnabled)
+            putBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, settings.perModelTitleGenEnabled)
             putBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, settings.useInternalPromptsIcons)
             putBoolean(KEY_SHOW_KNOWLEDGE_CARD, settings.showKnowledgeCard)
             putBoolean(KEY_EXPERIMENTAL_FEATURES, settings.experimentalFeaturesEnabled)
@@ -505,6 +507,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
         private const val KEY_REPORT_TITLE_MODE = "report_title_mode"
         private const val KEY_PER_MODEL_ICON_GEN_ENABLED = "per_model_icon_gen_enabled"
+        private const val KEY_PER_MODEL_TITLE_GEN_ENABLED = "per_model_title_gen_enabled"
         private const val KEY_USE_INTERNAL_PROMPTS_ICONS = "use_internal_prompts_icons"
         private const val KEY_SHOW_KNOWLEDGE_CARD = "show_knowledge_card"
         private const val KEY_EXPERIMENTAL_FEATURES = "experimental_features"

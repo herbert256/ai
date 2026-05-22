@@ -98,6 +98,12 @@ data class GeneralSettings(
      *  chain finishes for that row. When false the chain never
      *  runs automatically; per-agent rows keep their plain ✅. */
     val perModelIconGenEnabled: Boolean = true,
+    /** When true, after each model response a short Anthropic call
+     *  (internal/model_title) titles that response; the title then
+     *  replaces the model name on the Manage-report 'report' row and
+     *  its cost folds into that row + a "Model titles" Costs category.
+     *  Default off — it's an extra LLM call per agent. */
+    val perModelTitleGenEnabled: Boolean = false,
     /** Master switch for the per-internal-prompt icon cache. When true
      *  (default), every secondary-result row on the report result page
      *  whose `metaPromptId` resolves to a known InternalPrompt gets a

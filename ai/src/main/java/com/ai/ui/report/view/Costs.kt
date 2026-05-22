@@ -384,6 +384,7 @@ private fun bucketFor(type: String): String = when {
     type == "report" -> "Reports 📊"
     type.startsWith("icon_") -> "Icons 🖼"
     type == "language" -> "Language 🌐"
+    type == "model_title" -> "Model titles 🏷"
     type == "fan-out" -> "Fan-out 🌀"
     type == "fan-in" -> "Fan-in 🪢"
     type == "rerank" -> "Rerank 🏆"

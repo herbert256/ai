@@ -1227,6 +1227,7 @@ private fun OtherSettingsSubScreen(
     var reportTitleMode by remember { mutableStateOf(generalSettings.reportTitleMode) }
     var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
     var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
+    var perModelTitleGenEnabled by remember { mutableStateOf(generalSettings.perModelTitleGenEnabled) }
     var useInternalPromptsIcons by remember { mutableStateOf(generalSettings.useInternalPromptsIcons) }
 
     fun build(): GeneralSettings = generalSettings.copy(
@@ -1235,10 +1236,11 @@ private fun OtherSettingsSubScreen(
         reportTitleMode = reportTitleMode,
         iconGenEnabled = iconGenEnabled,
         perModelIconGenEnabled = perModelIconGenEnabled,
+        perModelTitleGenEnabled = perModelTitleGenEnabled,
         useInternalPromptsIcons = useInternalPromptsIcons
     )
 
-    LaunchedEffect(userName, defaultEmail, reportTitleMode, iconGenEnabled, perModelIconGenEnabled, useInternalPromptsIcons) {
+    LaunchedEffect(userName, defaultEmail, reportTitleMode, iconGenEnabled, perModelIconGenEnabled, perModelTitleGenEnabled, useInternalPromptsIcons) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1296,6 +1298,12 @@ private fun OtherSettingsSubScreen(
                 description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ✅ flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
                 checked = perModelIconGenEnabled,
                 onCheckedChange = { perModelIconGenEnabled = it }
+            )
+            ToggleSettingCard(
+                title = "Generate per model titles",
+                description = "After each model response, run a short Anthropic call (internal/model_title) to title that response in ≤4 words. The title replaces the model name on the Manage report 'report' row; its cost folds into that row and into a 'Model titles' category on the Costs screen. Off by default — it's one extra LLM call per model.",
+                checked = perModelTitleGenEnabled,
+                onCheckedChange = { perModelTitleGenEnabled = it }
             )
             ToggleSettingCard(
                 title = "Use internal prompts icons",

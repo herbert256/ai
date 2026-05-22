@@ -839,6 +839,56 @@ object ReportStorage {
         }
     }
 
+    /** Write the per-agent model-title (and its cost/trace) produced by
+     *  [com.ai.viewmodel.IconGenerationManager.runModelTitleForAgent].
+     *  Costs are additive so a re-fire accumulates rather than clobbers. */
+    fun updateReportAgentModelTitle(
+        context: Context, reportId: String, agentId: String, title: String,
+        model: String?,
+        inputTokens: Int, outputTokens: Int,
+        inputCost: Double, outputCost: Double,
+        traceFile: String? = null,
+        promptUsed: String? = null
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0) return@withLock false
+            val prev = report.agents[idx]
+            val updated = prev.copy(
+                modelTitle = title, modelTitleErrorMessage = null,
+                modelTitleModel = model ?: prev.modelTitleModel,
+                modelTitleInputTokens = prev.modelTitleInputTokens + inputTokens,
+                modelTitleOutputTokens = prev.modelTitleOutputTokens + outputTokens,
+                modelTitleInputCost = prev.modelTitleInputCost + inputCost,
+                modelTitleOutputCost = prev.modelTitleOutputCost + outputCost,
+                modelTitleTraceFile = traceFile ?: prev.modelTitleTraceFile,
+                modelTitlePromptUsed = promptUsed ?: prev.modelTitlePromptUsed
+            )
+            val newAgents = report.agents.toMutableList().also { it[idx] = updated }
+            saveReport(report.copy(agents = newAgents, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Record a per-agent model-title generation failure so the row can
+     *  surface it (and we don't retry on every recomposition). */
+    fun updateReportAgentModelTitleError(
+        context: Context, reportId: String, agentId: String, error: String
+    ): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0) return@withLock false
+            val updated = report.agents[idx].copy(modelTitleErrorMessage = error)
+            val newAgents = report.agents.toMutableList().also { it[idx] = updated }
+            saveReport(report.copy(agents = newAgents, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
     /** Append one [IconCallRecord] onto [Report.iconCalls]. Called by
      *  [com.ai.viewmodel.ReportViewModel.runReportIcons] after every
      *  tier API call so the export's per-call All-tab can show each

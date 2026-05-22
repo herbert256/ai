@@ -43,6 +43,12 @@ import com.ai.viewmodel.TranslationRunState
  *  screen rebuilds this map on every iconRefreshTick bump. */
 data class AgentIconRow(val icon: String?, val cost: Double)
 
+/** Per-agent model-title mirror — the generated ≤4-word title and its
+ *  folded cost. Parallel to [AgentIconRow]; rebuilt on every
+ *  iconRefreshTick bump. When [title] is non-blank it replaces the model
+ *  name on the 'report' row and its [cost] folds into the row total. */
+data class AgentModelTitle(val title: String?, val cost: Double)
+
 /** One item in a conditional "View" group (Meta / Rerank / Fan-out /
  *  Fan-in / Fan-in-model / Translate). Carries its on-screen label,
  *  the lambda that opens that item's detail, and the source
@@ -381,6 +387,7 @@ internal fun ColumnScope.GenerationPhase(
      *  manual subscribe. Rows without an entry (or with a null
      *  [AgentIconRow.icon]) render the default ✅/❌/⏳/🆕 cell. */
     agentIconRows: Map<String, AgentIconRow> = emptyMap(),
+    agentModelTitles: Map<String, AgentModelTitle> = emptyMap(),
     hasPrevReport: Boolean = false,
     hasNextReport: Boolean = false,
     /** Shared Edit/Create menu trigger, hoisted to [ReportRunScreen] so
@@ -580,9 +587,11 @@ internal fun ColumnScope.GenerationPhase(
     // chain's spend (often several cents on long runs) would only
     // show on the cost table.
     val agentIconCost = agentIconRows.values.sumOf { it.cost }
+    // Per-agent model-title cost — same fold rationale as agentIconCost.
+    val modelTitleCost = agentModelTitles.values.sumOf { it.cost }
     val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost +
         liveTranslationCost + costsFromDeletedItems + reportIconCost + languageIconCost +
-        languageDetectCost + agentIconCost + secondaryTotals.fanOutIconCost
+        languageDetectCost + agentIconCost + secondaryTotals.fanOutIconCost + modelTitleCost
     val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
 
     // Report the running total up to the host (ReportRunScreen) so it can
@@ -1405,15 +1414,19 @@ internal fun ColumnScope.GenerationPhase(
                 }
                 RowTypeCell("report")
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(com.ai.ui.shared.modelLabel(row.providerDisplay, displayName),
+                    // Once a per-model title has been generated it replaces
+                    // the whole provider/model label on this row.
+                    val modelTitle = agentModelTitles[agentId]?.title?.takeIf { it.isNotBlank() }
+                    Text(modelTitle ?: com.ai.ui.shared.modelLabel(row.providerDisplay, displayName),
                         fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (result?.tokenUsage != null) {
                     val baseCost = PricingCache.computeCost(result.tokenUsage, PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result)))
-                    // Fold per-agent icon cost into the row's right-side
-                    // cost cell so the user sees a single total per row —
-                    // icon spend doesn't get its own column.
-                    val totalCost = baseCost + (agentIconRows[agentId]?.cost ?: 0.0)
+                    // Fold per-agent icon + model-title cost into the row's
+                    // right-side cost cell so the user sees a single total
+                    // per row — neither gets its own column.
+                    val totalCost = baseCost + (agentIconRows[agentId]?.cost ?: 0.0) +
+                        (agentModelTitles[agentId]?.cost ?: 0.0)
                     Text(formatCents(totalCost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                 }
                 // Per-row 🐞 removed — ReportSingleResultScreen (the

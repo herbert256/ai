@@ -64,7 +64,25 @@ data class ReportAgent(
      *  Surfaces on the Icon lookup screen as the green subject row.
      *  Null on legacy rows; the screen falls back to deriving the
      *  name from [iconWinningTier]. */
-    var iconPromptUsed: String? = null
+    var iconPromptUsed: String? = null,
+    /** Per-agent title produced from this agent's own response by the
+     *  internal/model_title prompt (a fixed Anthropic call), when the
+     *  "Generate per model titles" setting is on. Once non-blank it
+     *  replaces the model name on the Manage-report 'report' row. Null
+     *  until generated; null too when the call errored
+     *  (see [modelTitleErrorMessage]). */
+    var modelTitle: String? = null,
+    var modelTitleErrorMessage: String? = null,
+    /** "provider/model" of the agent that produced [modelTitle] (the
+     *  fixed model_title agent), for the Costs breakdown. */
+    var modelTitleModel: String? = null,
+    var modelTitleInputTokens: Int = 0,
+    var modelTitleOutputTokens: Int = 0,
+    var modelTitleInputCost: Double = 0.0,
+    var modelTitleOutputCost: Double = 0.0,
+    var modelTitleTraceFile: String? = null,
+    /** Bundled prompt name that produced [modelTitle] — "model_title". */
+    var modelTitlePromptUsed: String? = null
 )
 
 /** One captured API call from the 3-tier Create → Report icons

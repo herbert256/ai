@@ -398,6 +398,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         iconGen.runReportIconsForAgent(context, reportId, ra, aiPrompt, aiSettings)
                                     }
                                 }
+                                // Per-agent model-title auto-fire — independent
+                                // toggle from per-model icons.
+                                if (appViewModel.uiState.value.generalSettings.perModelTitleGenEnabled) {
+                                    val raT = ReportStorage.getReport(context, reportId)
+                                        ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
+                                    if (raT?.reportStatus == ReportStatus.SUCCESS && !raT.responseBody.isNullOrBlank()) {
+                                        iconGen.runModelTitleForAgent(context, reportId, raT, aiSettings)
+                                    }
+                                }
                             }
                         }.awaitAll()
                     }
@@ -825,6 +834,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         iconGen.runReportIconsForAgent(context, reportId, ra, finalReport.prompt, ai)
                                     }
                                 }
+                                if (appViewModel.uiState.value.generalSettings.perModelTitleGenEnabled) {
+                                    val raT = ReportStorage.getReport(context, reportId)
+                                        ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
+                                    if (raT?.reportStatus == ReportStatus.SUCCESS && !raT.responseBody.isNullOrBlank()) {
+                                        iconGen.runModelTitleForAgent(context, reportId, raT, ai)
+                                    }
+                                }
                             }
                         }.awaitAll()
                     }
@@ -931,6 +947,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                     ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
                                 if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
                                     iconGen.runReportIconsForAgent(context, reportId, ra, report.prompt, ai)
+                                }
+                            }
+                            if (appViewModel.uiState.value.generalSettings.perModelTitleGenEnabled) {
+                                val raT = ReportStorage.getReport(context, reportId)
+                                    ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
+                                if (raT?.reportStatus == ReportStatus.SUCCESS && !raT.responseBody.isNullOrBlank()) {
+                                    iconGen.runModelTitleForAgent(context, reportId, raT, ai)
                                 }
                             }
                         }

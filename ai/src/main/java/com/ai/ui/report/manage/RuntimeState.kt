@@ -73,6 +73,7 @@ internal data class ReportRuntimeState(
      *  Export screen's Language picker as the "Original" icon. */
     val languageIcon: String?,
     val agentIconRows: Map<String, AgentIconRow>,
+    val agentModelTitles: Map<String, AgentModelTitle>,
     val agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent>,
     val loadedReportPrompt: String,
     val loadedReportTitle: String?,
@@ -119,6 +120,7 @@ internal fun rememberReportRuntimeState(
     var languageName by remember { mutableStateOf<String?>(null) }
     var languageIcon by remember { mutableStateOf<String?>(null) }
     var agentIconRows by remember { mutableStateOf<Map<String, AgentIconRow>>(emptyMap()) }
+    var agentModelTitles by remember { mutableStateOf<Map<String, AgentModelTitle>>(emptyMap()) }
     var agentRecordsByAgentId by remember { mutableStateOf<Map<String, com.ai.data.ReportAgent>>(emptyMap()) }
     var loadedReportPrompt by remember { mutableStateOf("") }
     var loadedReportTitle by remember { mutableStateOf<String?>(null) }
@@ -142,6 +144,7 @@ internal fun rememberReportRuntimeState(
             languageName = null
             languageIcon = null
             agentIconRows = emptyMap()
+            agentModelTitles = emptyMap()
             agentRecordsByAgentId = emptyMap()
             loadedReportPrompt = ""
             loadedReportTitle = null
@@ -159,6 +162,9 @@ internal fun rememberReportRuntimeState(
             languageIcon = r?.languageIcon
             agentIconRows = r?.agents?.associate { ra ->
                 ra.agentId to AgentIconRow(ra.icon, ra.iconInputCost + ra.iconOutputCost)
+            } ?: emptyMap()
+            agentModelTitles = r?.agents?.associate { ra ->
+                ra.agentId to AgentModelTitle(ra.modelTitle, ra.modelTitleInputCost + ra.modelTitleOutputCost)
             } ?: emptyMap()
             agentRecordsByAgentId = r?.agents?.associate { ra -> ra.agentId to ra } ?: emptyMap()
             loadedReportPrompt = r?.prompt.orEmpty()
@@ -292,6 +298,7 @@ internal fun rememberReportRuntimeState(
         languageName = languageName,
         languageIcon = languageIcon,
         agentIconRows = agentIconRows,
+        agentModelTitles = agentModelTitles,
         agentRecordsByAgentId = agentRecordsByAgentId,
         loadedReportPrompt = loadedReportPrompt,
         loadedReportTitle = loadedReportTitle,

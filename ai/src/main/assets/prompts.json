@@ -136,6 +136,14 @@
     "text": "Please see the text after the @@@ marker in this request, you must give it a title, max 5 words, max 30 characters, including space, only give this title back, nothing more.\n@@@\n@PROMPT@"
   },
   {
+    "name": "model_title",
+    "title": "Decide the model report title",
+    "reference": false,
+    "category": "internal",
+    "agent": "Anthropic",
+    "text": "Please see the text after the @@@ marker in this request, you must give it a title, max 4 words, max 325 characters, including spaces, only give this title back, nothing more.\n@@@\n@RESPONSE@"
+  },
+  {
     "name": "meta",
     "title": "Find a fitting emoji for an internal prompt",
     "reference": false,

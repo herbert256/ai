@@ -315,6 +315,7 @@ fun ReportsScreen(
     val languageIconCost = runtime.languageIconCost
     val languageName = runtime.languageName
     val agentIconRows = runtime.agentIconRows
+    val agentModelTitles = runtime.agentModelTitles
     val agentRecordsByAgentId = runtime.agentRecordsByAgentId
     val loadedReportPrompt = runtime.loadedReportPrompt
     val loadedReportTitle = runtime.loadedReportTitle
@@ -1853,6 +1854,7 @@ fun ReportsScreen(
             languageDetectCost = languageDetectCost,
             languageName = languageName,
             agentIconRows = agentIconRows,
+            agentModelTitles = agentModelTitles,
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
             onDismiss = onDismiss,

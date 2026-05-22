@@ -922,7 +922,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val hasLanguageDetectCost = report.languageInputCost > 0.0 || report.languageOutputCost > 0.0
     val hasLanguageIconCost = report.languageIconInputCost > 0.0 || report.languageIconOutputCost > 0.0
     val hasLanguageCost = hasLanguageDetectCost || hasLanguageIconCost
-    if (agentsWithCosts.isEmpty() && secondary.isEmpty() && !hasIconCost && !hasIconCalls && !hasLanguageCost) return null
+    val hasModelTitleCost = report.agents.any { it.modelTitleInputCost > 0.0 || it.modelTitleOutputCost > 0.0 }
+    if (agentsWithCosts.isEmpty() && secondary.isEmpty() && !hasIconCost && !hasIconCalls && !hasLanguageCost && !hasModelTitleCost) return null
 
     val agentRows = agentsWithCosts.map { agent ->
         val providerEnum = AppService.findById(agent.provider)
@@ -1055,6 +1056,27 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             outputCents = (report.languageIconOutputCost * 100) - languageAltOutCents
         )
     } else null
+    // Per-agent model-title rows — one per agent whose response was
+    // titled by the internal/model_title call. provider/model come from
+    // the stored "provider/model" string of the (fixed) title agent.
+    val modelTitleRows: List<CostRow> = report.agents.mapNotNull { agent ->
+        if (agent.modelTitleInputCost <= 0.0 && agent.modelTitleOutputCost <= 0.0) return@mapNotNull null
+        val parts = agent.modelTitleModel?.split("/", limit = 2)
+        val provider = parts?.firstOrNull()?.let { AppService.findById(it) }
+        val model = parts?.getOrNull(1) ?: ""
+        val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
+        CostRow(
+            type = "model_title",
+            providerDisplay = provider?.id ?: parts?.firstOrNull() ?: "",
+            model = model,
+            tier = pricing?.source ?: "",
+            durationMs = null,
+            inputTokens = agent.modelTitleInputTokens,
+            outputTokens = agent.modelTitleOutputTokens,
+            inputCents = agent.modelTitleInputCost * 100,
+            outputCents = agent.modelTitleOutputCost * 100
+        )
+    }
     // report.iconCalls holds two distinct tier-by-tier chains — one
     // IconCallRecord per recorded attempt (including failed earlier
     // tiers). They're told apart by agentId:
@@ -1141,7 +1163,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     // report.iconCalls (split into the "fan-icons" bucket by
     // iconCallRows above) — no separate pass over SecondaryResult
     // .iconInputCost, which would double-count.
-    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow, languageDetectRow, languageIconRow) + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
+    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow, languageDetectRow, languageIconRow) + modelTitleRows + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
 
     // GroupTotal carries an optional (provider, model) split so the
     // "By model" table can render the two as separate columns (same
@@ -1154,7 +1176,13 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         // single "icons" group so the user sees one summary line for
         // all icon spend; the All API calls view keeps the granular
         // per-prompt labels. Non-icon types group on their own key.
-        rows.groupBy { if (it.type.startsWith("icon_")) "icons" else it.type }.map { (k, gs) ->
+        rows.groupBy {
+            when {
+                it.type.startsWith("icon_") -> "icons"
+                it.type == "model_title" -> "model titles"
+                else -> it.type
+            }
+        }.map { (k, gs) ->
             var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
             gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inputCents; oC += it.outputCents }
             GroupTotal(k, null, null, gs.size, iT, oT, iC, oC)
