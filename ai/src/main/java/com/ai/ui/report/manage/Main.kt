@@ -813,7 +813,11 @@ fun ReportsScreen(
                 onOnTheFly = onContinueWithOnTheFly,
             ),
             onOpenPicker = { showIconDetail = false; showFindIconsPicker = true },
-            onOpenAltIcons = { showIconDetail = false; showAlternativeIcons = true },
+            // Layer Alt icons on top of the Icon lookup (don't close it),
+            // so Android-back from Alt icons returns to Icon lookup. The
+            // showAlternativeIcons overlay is checked before showIconDetail,
+            // so only Alt icons paints while both are set.
+            onOpenAltIcons = { showAlternativeIcons = true },
             onClose = { showIconDetail = false; targetLanguageIcon = false }
         )
         if (handled) return

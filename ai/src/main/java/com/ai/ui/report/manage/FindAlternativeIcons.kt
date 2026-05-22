@@ -9,7 +9,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -179,19 +178,16 @@ private fun CandidateRow(
                     is IconCandidate.Running -> { /* no subtitle while running */ }
                 }
             }
-            // Right side — 🐞 trace icon on every row. It's tappable when
-            // a matching trace exists, dimmed and inert otherwise (e.g.
-            // tracing was off, or the call hasn't run yet).
-            androidx.compose.material3.Text(
-                "🐞", fontSize = 16.sp,
-                modifier = Modifier
-                    .then(
-                        if (traceFilename != null) Modifier.clickable { onNavigateToTraceFile(traceFilename) }
-                        else Modifier
-                    )
-                    .alpha(if (traceFilename != null) 1f else 0.3f)
-                    .padding(horizontal = 6.dp)
-            )
+            // Right side — 🐞 trace icon, shown only when a matching
+            // trace exists for this row.
+            if (traceFilename != null) {
+                androidx.compose.material3.Text(
+                    "🐞", fontSize = 16.sp,
+                    modifier = Modifier
+                        .clickable { onNavigateToTraceFile(traceFilename) }
+                        .padding(horizontal = 6.dp)
+                )
+            }
             if (cost > 0.0) {
                 androidx.compose.material3.Text(
                     "${com.ai.ui.shared.formatCents(cost)} ¢",
