@@ -111,21 +111,28 @@ fun buildInfoJobs(
         report.agents.forEach { a ->
             val modelName = "${a.provider} · ${shortModelName(a.model)}"
             val agentDone = a.reportStatus == ReportStatus.SUCCESS
-            if (perModelIcon) {
-                val state = if (!agentDone) InfoJobState.CLOCK else when {
-                    a.iconErrorMessage != null -> InfoJobState.FAILED
-                    a.icon != null -> InfoJobState.DONE
-                    else -> InfoJobState.RUNNING
-                }
-                jobs += InfoJob("model-icon", modelName, state, a.iconInputCost + a.iconOutputCost, a.agentId)
-            }
-            if (perModelTitle) {
-                val state = if (!agentDone) InfoJobState.CLOCK else when {
+            // Title state — computed when titles are on, and also used to gate
+            // the icon: when both are on the icon is derived from the title, so
+            // it stays on the clock until the title resolves (done or failed).
+            val titleState: InfoJobState? = if (perModelTitle) {
+                if (!agentDone) InfoJobState.CLOCK else when {
                     a.modelTitleErrorMessage != null -> InfoJobState.FAILED
                     a.modelTitle != null -> InfoJobState.DONE
                     else -> InfoJobState.RUNNING
                 }
-                jobs += InfoJob("model-title", modelName, state, a.modelTitleInputCost + a.modelTitleOutputCost, a.agentId)
+            } else null
+            if (perModelIcon) {
+                val iconState = when {
+                    !agentDone -> InfoJobState.CLOCK
+                    titleState == InfoJobState.CLOCK || titleState == InfoJobState.RUNNING -> InfoJobState.CLOCK
+                    a.iconErrorMessage != null -> InfoJobState.FAILED
+                    a.icon != null -> InfoJobState.DONE
+                    else -> InfoJobState.RUNNING
+                }
+                jobs += InfoJob("model-icon", modelName, iconState, a.iconInputCost + a.iconOutputCost, a.agentId)
+            }
+            if (perModelTitle && titleState != null) {
+                jobs += InfoJob("model-title", modelName, titleState, a.modelTitleInputCost + a.modelTitleOutputCost, a.agentId)
             }
         }
     }

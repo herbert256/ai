@@ -144,6 +144,14 @@
     "text": "Please see the text after the @@@ marker in this request, you must give it a title, max 4 words, max 325 characters, including spaces, only give this title back, nothing more.\n@@@\n@RESPONSE@"
   },
   {
+    "name": "report_title_icon",
+    "title": "Decide the icon for a model, based on the title",
+    "reference": false,
+    "category": "internal",
+    "agent": "Anthropic",
+    "text": "Please see the text after the @@@ marker in this request, give a fitting emoji for below text, do not use a 'classic yellow smily, give only this emoji as feedback,@@@\n@TITLE@"
+  },
+  {
     "name": "meta",
     "title": "Find a fitting emoji for an internal prompt",
     "reference": false,

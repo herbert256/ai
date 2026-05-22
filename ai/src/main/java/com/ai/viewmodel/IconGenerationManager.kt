@@ -228,11 +228,37 @@ class IconGenerationManager(
      *  ReportViewModel after a model response succeeds, gated by the
      *  "Generate per model titles" toggle. Best-effort, off the main
      *  thread; failures persist via [ReportStorage.updateReportAgentModelTitleError]. */
+    /**
+     * Per-model enrichment orchestrator. Decides the per-agent icon/title
+     * flow from the two toggles:
+     *  - both on  → title first, then derive the icon from the title
+     *               (`report_title_icon`); fall back to the response-based
+     *               3-tier chain if no usable title.
+     *  - icon only → the response-based 3-tier chain (unchanged).
+     *  - title only → just the title.
+     */
+    fun runPerModelEnrichment(
+        context: Context, reportId: String, ra: ReportAgent,
+        reportPrompt: String, aiSettings: Settings,
+        iconOn: Boolean, titleOn: Boolean
+    ) {
+        when {
+            titleOn && iconOn -> runModelTitleForAgent(context, reportId, ra, aiSettings, reportPrompt, thenIconFromTitle = true)
+            iconOn -> runReportIconsForAgent(context, reportId, ra, reportPrompt, aiSettings)
+            titleOn -> runModelTitleForAgent(context, reportId, ra, aiSettings)
+        }
+    }
+
     internal fun runModelTitleForAgent(
         context: Context,
         reportId: String,
         ra: ReportAgent,
-        aiSettings: Settings
+        aiSettings: Settings,
+        reportPrompt: String = "",
+        /** When true, after the title resolves, build the per-agent icon
+         *  FROM the title (report_title_icon); fall back to the response-
+         *  based 3-tier chain when no usable title is produced. */
+        thenIconFromTitle: Boolean = false
     ) {
         val titlePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "internal" && it.name == "model_title"
@@ -248,6 +274,7 @@ class IconGenerationManager(
         if (agentResponse.isBlank()) return
         val resolved = titlePrompt.text.replace("@RESPONSE@", agentResponse)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            var generatedTitle: String? = null
             withTracerTags(reportId = reportId, category = "model_title") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 runCatching {
@@ -271,6 +298,7 @@ class IconGenerationManager(
                                 context, reportId, ra.agentId, "empty title"
                             )
                         } else {
+                            generatedTitle = generated
                             val tu = response.tokenUsage
                             val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
                             val inT = tu?.inputTokens ?: 0
@@ -305,6 +333,71 @@ class IconGenerationManager(
                 appViewModel.updateUiState {
                     it.copy(iconRefreshTick = it.iconRefreshTick + 1)
                 }
+            }
+            // Chain the icon when both per-model jobs are on: derive it from
+            // the title, falling back to the response-based 3-tier chain when
+            // there's no usable title (or the title→icon call yields no emoji).
+            if (thenIconFromTitle) {
+                val t = generatedTitle
+                val iconOk = if (t != null) generateIconFromTitle(context, reportId, ra, t, aiSettings) else false
+                if (!iconOk) runReportIconsForAgent(context, reportId, ra, reportPrompt, aiSettings)
+            }
+        }
+    }
+
+    /** Build a per-agent icon FROM its model-title via the bundled
+     *  `internal/report_title_icon` prompt (fixed Anthropic agent). Stores
+     *  the emoji + cost on the agent's icon fields exactly like the 3-tier
+     *  chain. Returns true on a committed emoji, false on any failure (the
+     *  caller then falls back to the response-based chain). */
+    private suspend fun generateIconFromTitle(
+        context: Context, reportId: String, ra: ReportAgent,
+        title: String, aiSettings: Settings
+    ): Boolean {
+        val prompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "report_title_icon"
+        } ?: return false
+        val rawAgent = aiSettings.agents.firstOrNull {
+            it.name.equals(prompt.agent, ignoreCase = true)
+        } ?: return false
+        val agent = rawAgent.copy(
+            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
+            model = aiSettings.getEffectiveModelForAgent(rawAgent)
+        )
+        // Reset this agent's icon fields + iconCalls so a re-fire
+        // (regenerate) replaces rather than accumulates — matches the
+        // 3-tier chain's clearReportAgentIconState at its own start.
+        ReportStorage.clearReportAgentIconState(context, reportId, ra.agentId)
+        return withTracerTags(reportId = reportId, category = "icon_report_title") {
+            val started = System.currentTimeMillis()
+            runCatching {
+                val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                val resolved = prompt.text.replace("@TITLE@", title)
+                val response = appViewModel.repository.analyzeWithAgent(
+                    agent, "", resolved, AgentParameters(), null, context, baseUrl
+                )
+                val durationMs = System.currentTimeMillis() - started
+                val tu = response.tokenUsage
+                val inT = tu?.inputTokens ?: 0
+                val outT = tu?.outputTokens ?: 0
+                val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
+                recordTierCall(
+                    context, reportId, ra.agentId, tier = 2,
+                    provider = agent.provider, model = agent.model,
+                    inT = inT, outT = outT, durationMs = durationMs,
+                    success = emoji != null
+                )
+                if (emoji != null) {
+                    ReportStorage.setReportAgentIconAndTier(
+                        context, reportId, ra.agentId, emoji,
+                        winningTier = null, promptUsed = "report_title_icon"
+                    )
+                    appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+                    true
+                } else false
+            }.getOrElse { e ->
+                AppLog.w("ReportIcons", "title-icon failed for ${ra.agentId}: ${e.message}")
+                false
             }
         }
     }
