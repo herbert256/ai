@@ -1623,17 +1623,15 @@ fun HubCard(
 fun ReportRowActionIcons(
     onOpenManage: () -> Unit,
     onOpenView: () -> Unit,
-    /** Optional 🗑 row-delete callback. When both [onDelete] and
-     *  [reportId] are non-null the trailing 🗑 icon renders; tap
-     *  fires the lambda with [reportId]. Existing call sites that
-     *  omit these get the same two-icon behaviour as before. */
-    onDelete: ((String) -> Unit)? = null,
-    reportId: String? = null
+    /** Accepted for call-site compatibility but no longer rendered:
+     *  AI-report lists now show only 👁 view + 🔧 manage. Deleting a
+     *  report happens from Report - manage. */
+    @Suppress("UNUSED_PARAMETER") onDelete: ((String) -> Unit)? = null,
+    @Suppress("UNUSED_PARAMETER") reportId: String? = null
 ) {
     // 👁 leads the strip and renders a couple of points larger than
-    // the other action icons — view is the dominant action on every
-    // report list, so the eye sits first and a little bigger to
-    // pull focus.
+    // 🔧 — view is the dominant action on every report list, so the
+    // eye sits first and a little bigger to pull focus. No 🗑 here.
     Text(
         "👁", fontSize = 22.sp,
         modifier = Modifier
@@ -1644,16 +1642,8 @@ fun ReportRowActionIcons(
         "🔧", fontSize = 18.sp,
         modifier = Modifier
             .clickable { onOpenManage() }
-            .padding(horizontal = 6.dp, vertical = 4.dp)
+            .padding(start = 6.dp, end = 0.dp, top = 4.dp, bottom = 4.dp)
     )
-    if (onDelete != null && reportId != null) {
-        Text(
-            "🗑", fontSize = 18.sp, color = AppColors.Red,
-            modifier = Modifier
-                .clickable { onDelete(reportId) }
-                .padding(start = 6.dp, end = 0.dp, top = 4.dp, bottom = 4.dp)
-        )
-    }
 }
 
 /** One full report-list row. Renders the per-report icon (when
