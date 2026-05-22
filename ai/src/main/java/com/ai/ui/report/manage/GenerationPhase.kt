@@ -316,6 +316,9 @@ internal fun ColumnScope.GenerationPhase(
      *  ("View an AI report"). Plumbed from ReportRunScreen's
      *  onOpenViewReport (= Main's openViewReportFromManage). */
     onOpenViewReport: () -> Unit = {},
+    /** Reports the running total cost up to the host so it can show it
+     *  in the bottom icon bar. 0.0 when there's nothing billable yet. */
+    onTotalCostChange: (Double) -> Unit = {},
     /** Opens the per-report system-prompt picker dialog from the
      *  Edit Row 2 "System prompt" button. Plumbed separately from
      *  [GenerationPhaseHandlers] so the dialog state + body stay
@@ -582,6 +585,12 @@ internal fun ColumnScope.GenerationPhase(
         languageDetectCost + agentIconCost + secondaryTotals.fanOutIconCost
     val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
 
+    // Report the running total up to the host (ReportRunScreen) so it can
+    // surface it in the bottom icon bar (top row, right, above ❓).
+    androidx.compose.runtime.LaunchedEffect(totalCost, showTotals) {
+        onTotalCostChange(if (showTotals) totalCost else 0.0)
+    }
+
     // ----- Centered green report title — full-row, at the top of the
     // Manage body so the screen leads with the report's subject before
     // the action chrome below. Replaces the in-line HardcodedSubjectRow
@@ -602,9 +611,9 @@ internal fun ColumnScope.GenerationPhase(
         )
     }
 
-    // The running total cost is rendered as the last item of the result
-    // list (inside the LazyColumn) so it flows directly after the rows —
-    // see the "footer-total" item near the end of this function.
+    // The running total cost is surfaced in the bottom icon bar (via
+    // onTotalCostChange → ReportRunScreen → TitleBar costText), not in
+    // the body list.
 
     // ----- Edit / Create pop-ups (triggered by the bottom-bar icons) -----
     if (activeBar == "edit") {
@@ -1439,27 +1448,7 @@ internal fun ColumnScope.GenerationPhase(
             }
         }
 
-        // Total cost — the final list item, so it flows directly after
-        // the last row (scrolls with the list, no gap before it). Right-
-        // aligned in the per-row cost column. Tap → ReportsViewer Costs.
-        if (showTotals) {
-            item(key = "footer-total") {
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .clickable { handlers.onViewCosts() }
-                        .padding(vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Text(
-                        text = formatCents(totalCost),
-                        fontSize = 10.sp, color = AppColors.Blue,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
+        // (Total cost now lives in the bottom icon bar, not the list.)
     }
 }
 

@@ -640,7 +640,10 @@ data class TitleBarIcons(
     /** When true, the 🆕 add glyph is placed first (leftmost) instead of
      *  in the trailing copy/edit/delete/new group. Set by the Manage
      *  report screen. */
-    val addFirst: Boolean = false
+    val addFirst: Boolean = false,
+    /** Optional cost readout shown right-aligned in the bottom bar's top
+     *  row (above the ❓). Set by the Manage report screen. Null → hidden. */
+    val costText: String? = null
 )
 
 /** Make a model-name Text clickable so tapping it opens the Model
@@ -927,6 +930,8 @@ fun TitleBar(
     /** When true, 🆕 leads the bar instead of sitting in the trailing
      *  group. Used by the Manage report screen. */
     addFirst: Boolean = false,
+    /** Optional cost readout for the bottom bar (top row, right, above ❓). */
+    costText: String? = null,
     /** Optional ✏️ edit hook (CRUD view pages). Null → glyph hidden. */
     onEdit: (() -> Unit)? = null,
     /** Optional 🧹 jump-to-Housekeeping hook. Null → glyph hidden. */
@@ -978,6 +983,7 @@ fun TitleBar(
         isPinned = isPinned,
         onAdd = onAdd,
         addFirst = addFirst,
+        costText = costText,
         onEdit = onEdit,
         onHousekeeping = onHousekeeping,
         onSettings = onSettings,
@@ -1435,6 +1441,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     // Non-null on the non-View screens (regular TitleBar) — flips the
     // bar into the help layout: strip left-aligned, ❓ pinned right.
     val onHelp = icons?.onHelp
+    val costText = icons?.costText
     val specs = if (icons != null) buildBottomBarIcons(icons) else emptyList()
     val extraGap = 2
     fun intrinsicOf(list: List<BottomBarIcon>): Float {
@@ -1488,6 +1495,16 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     BottomBarIconRow(topRow, scale, extraGap.dp, cellWidthDp = cell, cellHeightDp = rowCellH)
                     Spacer(modifier = Modifier.weight(1f))
+                    if (costText != null) {
+                        Text(
+                            text = costText,
+                            color = AppColors.Blue,
+                            fontSize = (10f * scale).sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            maxLines = 1, softWrap = false
+                        )
+                    }
                 }
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     BottomBarIconRow(bottomRow, scale, extraGap.dp, cellWidthDp = cell, cellHeightDp = rowCellH)
@@ -1500,6 +1517,17 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 BottomBarIconRow(specs, scale, extraGap.dp)
                 Spacer(modifier = Modifier.weight(1f))
+                if (costText != null) {
+                    Text(
+                        text = costText,
+                        color = AppColors.Blue,
+                        fontSize = (10f * scale).sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        maxLines = 1, softWrap = false,
+                        modifier = Modifier.padding(end = 6.dp)
+                    )
+                }
                 TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, scale = scale)
             }
         }

@@ -211,9 +211,13 @@ internal fun ReportRunScreen(
         // toggles this shared menu state, which GenerationPhase reads to
         // pop up the same set of choices.
         val editCreateMenu = remember { mutableStateOf<String?>(null) }
+        // Running total cost, reported up from GenerationPhase, shown in
+        // the bottom icon bar (top row, right, above ❓).
+        var totalCostForBar by remember { mutableStateOf(0.0) }
         TitleBar(
             helpTopic = "report_run",
             title = "Manage report",
+            costText = totalCostForBar.takeIf { it > 0.0 }?.let { com.ai.ui.shared.formatCents(it, 2) },
             // Tapping the "Manage report" screen title opens the main
             // View hub ("View an AI report") — same target as the report
             // icon, the green report-name and the bottom-bar 👁.
@@ -270,6 +274,7 @@ internal fun ReportRunScreen(
             currentReportId = currentReportId,
             handlers = generationHandlers,
             onOpenViewReport = onOpenViewReport,
+            onTotalCostChange = { totalCostForBar = it },
             editSystemPromptTrigger = editSystemPromptTrigger,
             secondaryCounts = secondaryCounts,
             costsFromDeletedItems = costsFromDeletedItems,
