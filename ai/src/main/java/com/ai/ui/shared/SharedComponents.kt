@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
@@ -1119,33 +1120,19 @@ fun TitleBar(
         if (resolvedReportIcon != null) {
             // Same slot/position as the left AI logo it replaces, sized
             // to match the (now larger) logos.
-            // Render the report glyph centred in a logo-sized box with
-            // tight text metrics (no font padding; line height trimmed and
-            // centred) so the *visible* emoji lands on the same vertical
-            // centre as the right-edge AI logo — independent of how much
-            // blank space the particular emoji carries inside its glyph.
+            // Centre the report glyph by its *measured pixel bounds* (not
+            // its font line box) so the visible emoji lands on the same
+            // vertical centre as the right-edge AI logo regardless of how
+            // much transparent padding the particular emoji carries.
             val reportIconClick = onReportIconClick ?: (if (reportIconGoesHome) navigateHome else (reportIconTap ?: {}))
-            Box(
+            ReportGlyphIcon(
+                emoji = resolvedReportIcon,
+                boxSize = 66.dp,
                 modifier = Modifier.align(Alignment.Top)
                     .offset(x = (-10).dp)
-                    .padding(top = 6.dp)
-                    .size(66.dp)
-                    .clickable(onClick = reportIconClick),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = resolvedReportIcon,
-                    fontSize = 46.sp,
-                    textAlign = TextAlign.Center,
-                    style = androidx.compose.ui.text.TextStyle(
-                        platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
-                        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
-                            alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
-                            trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both
-                        )
-                    )
-                )
-            }
+                    .padding(top = 4.dp)
+                    .clickable(onClick = reportIconClick)
+            )
         } else {
             AiLogoButton(
                 onClick = navigateHome,
@@ -1214,6 +1201,60 @@ fun TitleBar(
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             )
         }
+    }
+}
+
+/** Render [emoji] into a [renderPx]² bitmap and crop to its actual
+ *  non-transparent pixels, so a wide-short glyph (🚗) and a tall glyph
+ *  (🏆) both come back trimmed to exactly their visible content.
+ *  `getTextBounds` can't do this for colour (bitmap) emoji — they all
+ *  report the full em square — so we scan the rendered alpha instead. */
+private fun renderTrimmedEmoji(emoji: String, renderPx: Int): android.graphics.Bitmap? {
+    if (renderPx <= 0) return null
+    val bmp = android.graphics.Bitmap.createBitmap(renderPx, renderPx, android.graphics.Bitmap.Config.ARGB_8888)
+    val canvas = android.graphics.Canvas(bmp)
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        textAlign = android.graphics.Paint.Align.CENTER
+        textSize = renderPx * 0.82f
+    }
+    val fm = paint.fontMetrics
+    canvas.drawText(emoji, renderPx / 2f, renderPx / 2f - (fm.ascent + fm.descent) / 2f, paint)
+    val w = bmp.width; val h = bmp.height
+    val px = IntArray(w * h)
+    bmp.getPixels(px, 0, w, 0, 0, w, h)
+    var minX = w; var minY = h; var maxX = -1; var maxY = -1
+    var i = 0
+    for (y in 0 until h) {
+        for (x in 0 until w) {
+            if ((px[i] ushr 24) and 0xFF > 16) {
+                if (x < minX) minX = x; if (x > maxX) maxX = x
+                if (y < minY) minY = y; if (y > maxY) maxY = y
+            }
+            i++
+        }
+    }
+    if (maxX < minX || maxY < minY) return bmp
+    return android.graphics.Bitmap.createBitmap(bmp, minX, minY, maxX - minX + 1, maxY - minY + 1)
+}
+
+/** Draw a report-icon emoji centred by its *visible* (alpha-trimmed)
+ *  pixels inside a [boxSize] square (contain-fit), so glyphs with
+ *  differing internal transparent padding all land with their visible
+ *  centre on the box centre — matching the AI logo on the opposite edge. */
+@Composable
+private fun ReportGlyphIcon(emoji: String, boxSize: Dp, modifier: Modifier = Modifier) {
+    val boxPx = with(LocalDensity.current) { boxSize.roundToPx() }
+    val trimmed = remember(emoji, boxPx) { renderTrimmedEmoji(emoji, boxPx * 2) }
+    androidx.compose.foundation.Canvas(modifier = modifier.size(boxSize)) {
+        val bmp = trimmed ?: return@Canvas
+        val scale = minOf(size.width / bmp.width, size.height / bmp.height)
+        val dw = bmp.width * scale; val dh = bmp.height * scale
+        val left = (size.width - dw) / 2f; val top = (size.height - dh) / 2f
+        drawContext.canvas.nativeCanvas.drawBitmap(
+            bmp, null,
+            android.graphics.RectF(left, top, left + dw, top + dh),
+            android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+        )
     }
 }
 
