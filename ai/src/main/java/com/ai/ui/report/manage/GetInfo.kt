@@ -40,7 +40,10 @@ data class InfoJob(
     val label: String,
     val state: InfoJobState,
     val cost: Double,
-    val agentId: String? = null
+    val agentId: String? = null,
+    /** Emoji to show in the status cell when [state] is DONE (the generated
+     *  icon for this job) — falls back to ✅ when null/blank. */
+    val doneIcon: String? = null
 )
 
 /**
@@ -76,7 +79,7 @@ fun buildInfoJobs(
             else -> InfoJobState.RUNNING
         }
         val label = report.iconErrorMessage ?: report.icon ?: "Generating…"
-        jobs += InfoJob("icon", label, state, report.iconInputCost + report.iconOutputCost)
+        jobs += InfoJob("icon", label, state, report.iconInputCost + report.iconOutputCost, doneIcon = report.icon)
 
         // Language detection shares the icon-gen gate (same as the old
         // Manage row, which nested the language row inside the icon gate).
@@ -89,7 +92,8 @@ fun buildInfoJobs(
         jobs += InfoJob(
             "language", langLabel, langState,
             report.languageInputCost + report.languageOutputCost +
-                report.languageIconInputCost + report.languageIconOutputCost
+                report.languageIconInputCost + report.languageIconOutputCost,
+            doneIcon = report.languageIcon ?: "🌐"
         )
     }
 
@@ -104,7 +108,7 @@ fun buildInfoJobs(
         val label = report.titleErrorMessage
             ?: report.title.takeIf { report.titlePromptUsed != null }
             ?: "Generating…"
-        jobs += InfoJob("title", label, state, report.titleInputCost + report.titleOutputCost)
+        jobs += InfoJob("title", label, state, report.titleInputCost + report.titleOutputCost, doneIcon = "🏷️")
     }
 
     if (perModelIcon || perModelTitle) {
@@ -121,6 +125,7 @@ fun buildInfoJobs(
                     else -> InfoJobState.RUNNING
                 }
             } else null
+            val foundTitle = a.modelTitle?.takeIf { it.isNotBlank() }
             if (perModelIcon) {
                 val iconState = when {
                     !agentDone -> InfoJobState.CLOCK
@@ -129,10 +134,14 @@ fun buildInfoJobs(
                     a.icon != null -> InfoJobState.DONE
                     else -> InfoJobState.RUNNING
                 }
-                jobs += InfoJob("model-icon", modelName, iconState, a.iconInputCost + a.iconOutputCost, a.agentId)
+                // Label shows the found title (the icon is derived from it);
+                // falls back to the model name when there's no title.
+                jobs += InfoJob("model-icon", foundTitle ?: modelName, iconState,
+                    a.iconInputCost + a.iconOutputCost, a.agentId, doneIcon = a.icon)
             }
             if (perModelTitle && titleState != null) {
-                jobs += InfoJob("model-title", modelName, titleState, a.modelTitleInputCost + a.modelTitleOutputCost, a.agentId)
+                jobs += InfoJob("model-title", modelName, titleState,
+                    a.modelTitleInputCost + a.modelTitleOutputCost, a.agentId, doneIcon = "🏷️")
             }
         }
     }
@@ -150,14 +159,15 @@ fun aggregateInfoState(jobs: List<InfoJob>): InfoJobState = when {
 /** The leftmost 24 dp status cell shared by the Info screen rows and the
  *  Manage info row. */
 @Composable
-internal fun InfoStatusCell(state: InfoJobState) {
+internal fun InfoStatusCell(state: InfoJobState, doneIcon: String? = null) {
     when (state) {
         InfoJobState.CLOCK -> Text("⏰", fontSize = 16.sp, modifier = Modifier.width(24.dp))
         InfoJobState.RUNNING -> Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
             AnimatedHourglass(fontSize = 16.sp)
         }
         InfoJobState.FAILED -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
-        InfoJobState.DONE -> Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+        // Show the generated icon for this job once done; ✅ when none.
+        InfoJobState.DONE -> Text(doneIcon?.takeIf { it.isNotBlank() } ?: "✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
     }
 }
 
@@ -213,7 +223,7 @@ fun ReportGetInfoScreen(
                         .then(if (click != null) Modifier.clickable { click() } else Modifier),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    InfoStatusCell(job.state)
+                    InfoStatusCell(job.state, job.doneIcon)
                     // Wider than the shared 80dp RowTypeCell so "model-icon"
                     // / "model-title" aren't truncated.
                     Text(

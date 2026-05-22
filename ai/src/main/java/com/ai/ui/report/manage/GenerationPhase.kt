@@ -1275,7 +1275,9 @@ internal fun ColumnScope.GenerationPhase(
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     .clickable { onGetInfo() },
                     verticalAlignment = Alignment.CenterVertically) {
-                    InfoStatusCell(infoState)
+                    // When all jobs are done, the aggregate cell shows the
+                    // report's own icon instead of ✅.
+                    InfoStatusCell(infoState, doneIcon = reportIcon)
                     RowTypeCell("info")
                     Column(modifier = Modifier.weight(1f)) {
                         Text("icon, language, title, per-model icon / title",
@@ -1305,9 +1307,9 @@ internal fun ColumnScope.GenerationPhase(
                 .clickable { onViewAgent(agentId) },
                 verticalAlignment = Alignment.CenterVertically) {
                 // Status icon — newly-staged rows get a NEW badge, pending
-                // hourglass spins, success/failure static. Clean row: just
-                // the model's own response call — the per-model icon emoji
-                // and model-title now live on the "Report - Get info" screen.
+                // hourglass spins. Once green (success) the cell shows this
+                // model's generated icon when one has landed, else ✅; ❌ on
+                // failure. (Icon detail + model-title live on Get-info.)
                 if (row.isNew) {
                     Text(text = "🆕", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 } else if (result == null) {
@@ -1318,11 +1320,11 @@ internal fun ColumnScope.GenerationPhase(
                         label = "hourglass-rotation"
                     )
                     Text(text = "⏳", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
+                } else if (result.isSuccess) {
+                    val emoji = agentIconRows[agentId]?.icon?.takeIf { it.isNotBlank() }
+                    Text(text = emoji ?: "✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 } else {
-                    Text(
-                        text = if (result.isSuccess) "✅" else "❌",
-                        fontSize = 16.sp, modifier = Modifier.width(24.dp)
-                    )
+                    Text(text = "❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 }
                 RowTypeCell("report")
                 Column(modifier = Modifier.weight(1f)) {
