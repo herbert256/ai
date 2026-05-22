@@ -1464,10 +1464,12 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         if (list.isEmpty()) return 1f
         return (list.sumOf { it.widthDp } + (list.size - 1) * extraGap).toFloat()
     }
-    // 150% of the previous size: the auto-fit ceiling lifts from 1.875×
-    // to 1.875× × 1.5×. Floor stays 1.0× so a still-crowded row shrinks
-    // to fit rather than overflowing.
-    val ceiling = 1.875f * 1.5f
+    // Uniform icon size across 1-row and 2-row bars: the two-row layout
+    // naturally lands around 2.1×, so capping both branches here makes a
+    // sparse single-row bar render its icons at that same size instead of
+    // blowing them up. Floor stays 1.0× so a crowded row still shrinks to
+    // fit rather than overflowing.
+    val ceiling = 2.1f
 
     androidx.compose.foundation.layout.BoxWithConstraints(
         // Bottom padding lifts the bar a touch above the gesture pill.
