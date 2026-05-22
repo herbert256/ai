@@ -199,3 +199,54 @@ private fun appVersionName(context: Context): String = try {
     @Suppress("DEPRECATION")
     context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?"
 } catch (_: Exception) { "?" }
+
+// ---------------------------------------------------------------------------
+// Bundled example reports
+//
+// The APK ships a few ready-made report bundles under assets/examples/, indexed
+// by assets/examples/index.xml. The Reports hub lists them and imports one on
+// first open (same [readReportZip] path as a user-supplied zip — fresh UUIDs,
+// nothing clobbered). index.xml is authored alongside the zips; we parse it with
+// the platform XmlPullParser rather than adding a JSON sidecar.
+// ---------------------------------------------------------------------------
+
+/** One row of assets/examples/index.xml — the title + icon shown on the
+ *  Reports hub and the asset zip to import when the example is opened. */
+internal data class ExampleEntry(
+    val title: String,
+    val icon: String,
+    val zipFile: String
+)
+
+/** Parse assets/examples/index.xml. Returns [] on any error (missing file,
+ *  malformed XML) — the example card simply hides itself when empty. */
+internal fun loadExampleIndex(context: Context): List<ExampleEntry> = try {
+    context.assets.open("examples/index.xml").use { input ->
+        val parser = android.util.Xml.newPullParser()
+        parser.setInput(input, "UTF-8")
+        val out = mutableListOf<ExampleEntry>()
+        var title = ""; var icon = ""; var zip = ""
+        var text = ""
+        var event = parser.eventType
+        while (event != org.xmlpull.v1.XmlPullParser.END_DOCUMENT) {
+            when (event) {
+                org.xmlpull.v1.XmlPullParser.START_TAG ->
+                    if (parser.name == "example") { title = ""; icon = ""; zip = "" }
+                org.xmlpull.v1.XmlPullParser.TEXT -> text = parser.text
+                org.xmlpull.v1.XmlPullParser.END_TAG -> when (parser.name) {
+                    "report_title" -> title = text.trim()
+                    "report_icon" -> icon = text.trim()
+                    "zip_file" -> zip = text.trim()
+                    "example" -> if (zip.isNotBlank()) out.add(ExampleEntry(title, icon, zip))
+                }
+            }
+            event = parser.next()
+        }
+        out
+    }
+} catch (_: Exception) { emptyList() }
+
+/** Import a bundled example zip from assets/examples/ as a new report.
+ *  Reuses [readReportZip], so the example lands with a fresh report id. */
+internal fun importExampleReport(context: Context, zipFile: String): ReportImportSummary =
+    context.assets.open("examples/$zipFile").use { readReportZip(context, it) }

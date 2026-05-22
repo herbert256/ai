@@ -363,6 +363,30 @@ fun ReportsHubScreen(
             deleteTick++
         }
     }
+    // Bundled sample reports from assets/examples/index.xml.
+    val examples by produceState(initialValue = emptyList<com.ai.data.ExampleEntry>(), Unit) {
+        value = withContext(Dispatchers.IO) { com.ai.data.loadExampleIndex(context) }
+    }
+    // Shown while an example is being imported on first open.
+    var loadingExample by remember { mutableStateOf(false) }
+    // Open an example: reuse the already-imported copy if a report with the
+    // same title exists, otherwise import the bundled zip (popup meanwhile),
+    // then route to the chosen hub. `view` = 👁 View hub, else 🔧 Manage hub.
+    val openExample: (com.ai.data.ExampleEntry, Boolean) -> Unit = { entry, view ->
+        scope.launch {
+            val rid = withContext(Dispatchers.IO) {
+                val existing = ReportStorage.getAllReports(context)
+                    .firstOrNull { it.title == entry.title }
+                if (existing != null) existing.id
+                else {
+                    loadingExample = true
+                    try { com.ai.data.importExampleReport(context, entry.zipFile).newReportId }
+                    finally { loadingExample = false }
+                }
+            }
+            if (view) onOpenReportView(rid) else onOpenReportManage(rid)
+        }
+    }
     // Wire the per-row 🔧 / 👁 / 🗑 icons to the navigation +
     // delete behaviour the hub wants on every list card. Replaces
     // the bundle the host installs at AI_REPORTS_HUB so the dash-
@@ -421,8 +445,99 @@ fun ReportsHubScreen(
             label = "Latest AI Reports", reports = latestReports,
             showEmptyHint = false
         )
+        if (examples.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(10.dp))
+            ExampleReportsCard(
+                examples = examples,
+                onOpenManage = { openExample(it, false) },
+                onOpenView = { openExample(it, true) }
+            )
+        }
         Spacer(modifier = Modifier.height(16.dp))
     }
+    if (loadingExample) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("One moment") },
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("Loading example report…", fontSize = 13.sp)
+                }
+            },
+            confirmButton = {}
+        )
+    }
+    }
+}
+
+/** "Example AI Reports" card on the Reports hub. Rows come from
+ *  assets/examples/index.xml ([com.ai.data.ExampleEntry]) — not stored
+ *  reports — so it can't reuse [ReportsHubListCard]/ReportListRow which
+ *  take a persisted [Report]. Full-row tap opens Manage; the 👁 opens View;
+ *  no 🗑 (examples aren't deletable). */
+@Composable
+private fun ExampleReportsCard(
+    examples: List<com.ai.data.ExampleEntry>,
+    onOpenManage: (com.ai.data.ExampleEntry) -> Unit,
+    onOpenView: (com.ai.data.ExampleEntry) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "💡", fontSize = 18.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Example AI Reports", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                    color = AppColors.Purple, modifier = Modifier.weight(1f)
+                )
+            }
+            examples.forEach { entry ->
+                ExampleReportRow(
+                    entry = entry,
+                    onOpenManage = onOpenManage,
+                    onOpenView = onOpenView
+                )
+            }
+        }
+    }
+}
+
+/** One example row: report icon + title (tap → Manage) and trailing
+ *  🔧 (Manage) / 👁 (View) icons. Mirrors the chrome of
+ *  [com.ai.ui.shared.ReportListRow] minus the delete action. */
+@Composable
+private fun ExampleReportRow(
+    entry: com.ai.data.ExampleEntry,
+    onOpenManage: (com.ai.data.ExampleEntry) -> Unit,
+    onOpenView: (com.ai.data.ExampleEntry) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenManage(entry) }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = entry.icon.ifBlank { "📝" }, fontSize = 20.sp)
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = entry.title, fontSize = 14.sp, color = Color.White,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = "🔧", fontSize = 18.sp,
+            modifier = Modifier.clickable { onOpenManage(entry) }.padding(horizontal = 6.dp)
+        )
+        Text(
+            text = "👁", fontSize = 18.sp,
+            modifier = Modifier.clickable { onOpenView(entry) }.padding(start = 6.dp)
+        )
     }
 }
 

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<examples>
+  <example>
+    <report_title>A Rubber Band</report_title>
+    <report_icon>🤔</report_icon>
+    <zip_file>ai_report_A_Rubber_Band_260522-1859.zip</zip_file>
+  </example>
+  <example>
+    <report_title>Achmea: 25 Key Facts</report_title>
+    <report_icon>🏢</report_icon>
+    <zip_file>ai_report_Achmea_25_Key_Facts_260522-1859.zip</zip_file>
+  </example>
+  <example>
+    <report_title>Day Trip from Ruurlo</report_title>
+    <report_icon>🚲</report_icon>
+    <zip_file>ai_report_Day_Trip_from_Ruurlo_260522-1859.zip</zip_file>
+  </example>
+</examples>
