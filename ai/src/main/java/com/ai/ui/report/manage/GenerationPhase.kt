@@ -997,7 +997,25 @@ internal fun ColumnScope.GenerationPhase(
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     }
-                    val totalCost = (run.inputCost ?: 0.0) + (run.outputCost ?: 0.0)
+                    // Persisted cost first; if it's zero (e.g. a rerank
+                    // whose cost was computed against a cold pricing cache
+                    // and saved as 0, or any row saved before its price
+                    // was known) fall back to recomputing from the stored
+                    // token usage × current pricing — same fallback the
+                    // Costs table uses for legacy agent rows.
+                    val totalCost = androidx.compose.runtime.remember(
+                        run.id, run.inputCost, run.outputCost, run.tokenUsage
+                    ) {
+                        val persisted = (run.inputCost ?: 0.0) + (run.outputCost ?: 0.0)
+                        if (persisted > 0.0) persisted else {
+                            val tu = run.tokenUsage
+                            val prov = AppService.findById(run.providerId)
+                            if (tu != null && prov != null) {
+                                val pr = com.ai.data.PricingCache.getPricing(context, prov, run.model)
+                                tu.inputTokens * pr.promptPrice + tu.outputTokens * pr.completionPrice
+                            } else 0.0
+                        }
+                    }
                     if (totalCost > 0.0) {
                         Text(formatCents(totalCost), fontSize = 10.sp,
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
