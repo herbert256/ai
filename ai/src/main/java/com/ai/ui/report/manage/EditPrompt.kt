@@ -9,9 +9,13 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.ai.data.ApiTracer
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Edit the report's prompt body. Saving sets `hasPendingPromptChange`
@@ -62,19 +66,39 @@ fun ReportEditPromptScreen(
  */
 @Composable
 fun ReportEditTitleScreen(
+    reportId: String,
     initialTitle: String,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
+    onNavigateToTraceFile: (String) -> Unit,
     onUpdate: (newTitle: String) -> Unit
 ) {
     BackHandler { onBack() }
+    val context = LocalContext.current
     // Same caveat as ReportEditPromptScreen above — key on
     // initialTitle so a stale draft doesn't outlive an external edit.
     var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
     val canUpdate = title.trim().isNotBlank()
 
+    // The report title is filled in dynamically by a one-shot API call
+    // (IconGenerationManager.kickOffReportTitleGeneration, traced under
+    // category "report_title"). Surface that call's trace via the 🐞 icon
+    // when it exists. Read off the main thread — getTraceFiles parses
+    // every trace file.
+    val titleTraceFilenameState = produceState<String?>(initialValue = null, reportId) {
+        value = withContext(Dispatchers.IO) {
+            ApiTracer.getTraceFiles()
+                .filter { it.reportId == reportId && it.category == "report_title" }
+                .maxByOrNull { it.timestamp }?.filename
+        }
+    }
+    val titleTraceFilename = titleTraceFilenameState.value
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_edit_title", title = "Edit title", onBackClick = onBack)
+        TitleBar(
+            helpTopic = "report_edit_title", title = "Edit title", onBackClick = onBack,
+            onTrace = titleTraceFilename?.let { fn -> { onNavigateToTraceFile(fn) } }
+        )
 
         OutlinedTextField(
             value = title, onValueChange = { title = it },

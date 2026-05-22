@@ -1610,9 +1610,11 @@ fun ReportsScreen(
         val rid = currentReportId
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showEditTitle = false }) {
             ReportEditTitleScreen(
+                reportId = rid,
                 initialTitle = uiState.genericPromptTitle,
                 onBack = { showEditTitle = false },
                 onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
                 onUpdate = { newTitle ->
                     showEditTitle = false
                     onUpdateTitle(rid, newTitle)
