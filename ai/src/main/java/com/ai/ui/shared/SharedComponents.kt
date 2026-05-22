@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
@@ -1126,7 +1127,7 @@ fun TitleBar(
         } else {
             AiLogoButton(
                 onClick = navigateHome,
-                modifier = Modifier.offset(x = (-14).dp, y = (-7).dp)
+                modifier = Modifier.align(Alignment.Top).padding(start = 4.dp, top = 14.dp)
             )
         }
         // Centre: the screen title, centred between the two edge icons.
@@ -1163,10 +1164,12 @@ fun TitleBar(
         } else {
             Spacer(modifier = Modifier.weight(1f))
         }
-        // Right edge: AI logo → app Home (mirrors the left inset).
+        // Right edge: AI logo → app Home, at the mirror position of the
+        // left logo and flipped so the two face each other.
         AiLogoButton(
             onClick = navigateHome,
-            modifier = Modifier.offset(x = 14.dp, y = (-7).dp)
+            modifier = Modifier.align(Alignment.Top).padding(end = 4.dp, top = 14.dp),
+            mirrored = true
         )
     }
         // Transient pill — floats at TopCenter of the title bar so
@@ -1191,16 +1194,25 @@ fun TitleBar(
 }
 
 @Composable
-private fun AiLogoButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun AiLogoButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 52.dp,
+    /** Horizontally flip the glyph so the right-edge logo is a mirror
+     *  image of the left-edge one. */
+    mirrored: Boolean = false
+) {
     val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
     Image(
         painter = painterResource(R.drawable.brand_glyph),
         contentDescription = "Home",
-        modifier = modifier.size(52.dp).clickable(
-            interactionSource = interactionSource,
-            indication = null,
-            onClick = onClick
-        )
+        modifier = modifier.size(size)
+            .then(if (mirrored) Modifier.graphicsLayer(scaleX = -1f) else Modifier)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = onClick
+            )
     )
 }
 
