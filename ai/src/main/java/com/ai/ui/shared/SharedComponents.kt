@@ -1356,12 +1356,10 @@ private data class BottomBarIcon(
  *  separate by [BottomIconBar] so it can stay pinned bottom-right).
  *  Order is fixed; only the non-null callbacks contribute. */
 private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = buildList {
+    // ----- first-row-ish: creation / nav / share -----
     // 🆕 leads when the screen opts in (Manage report); otherwise it
     // stays in the trailing copy/edit/delete/new group below.
     if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
-    // 👁 view is the first icon otherwise.
-    icons.onOpenView?.let { add(BottomBarIcon("👁", Color.Unspecified, it, 32, fontSize = 18.sp)) }
-    // ----- middle (non-group) icons -----
     icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
     // 🔧 manage — rendered a touch smaller so 👁 leads on View screens.
     icons.onOpenManage?.let { add(BottomBarIcon("🔧", Color.Unspecified, it, 28, fontSize = 15.sp)) }
@@ -1373,14 +1371,15 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onCopy?.let { add(BottomBarIcon("📋", Color.Unspecified, it, 28)) }
     icons.onPin?.let { add(BottomBarIcon("📌", Color.Unspecified, it, 28, alpha = if (icons.isPinned) 1f else 0.35f)) }
     icons.onShare?.let { add(BottomBarIcon("📤", Color.Unspecified, it, 28)) }
-    icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
+    icons.onCopyReport?.let { add(BottomBarIcon("👯", Color.Unspecified, it, 28)) }
+    // ----- second-row-ish: 👁 view leads the second row, the per-item
+    // actions follow, and 🔄 regenerate sits just before 🗑 delete. -----
+    icons.onOpenView?.let { add(BottomBarIcon("👁", Color.Unspecified, it, 32, fontSize = 18.sp)) }
     icons.onTranslationCompare?.let { add(BottomBarIcon("🌐", Color.Unspecified, it, 28)) }
     icons.onTrace?.let { add(BottomBarIcon("🐞", Color.Unspecified, it, 22)) }
     icons.onMemo?.let { add(BottomBarIcon("📝", Color.Unspecified, it, 28)) }
-    // ----- copy / edit / delete / new — one contiguous group, in this
-    // sequence, kept whole (placed last so a 2-row split never breaks it). -----
-    icons.onCopyReport?.let { add(BottomBarIcon("👯", Color.Unspecified, it, 28)) }
     icons.onEdit?.let { add(BottomBarIcon("✏️", Color.Unspecified, it, 28)) }
+    icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
     icons.onDelete?.let { add(BottomBarIcon("🗑", AppColors.Red, it, 22)) }
     if (!icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
 }
