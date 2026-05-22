@@ -634,7 +634,11 @@ data class TitleBarIcons(
      *  When non-null the bottom bar uses the help layout — action
      *  strip left-aligned, ❓ pinned to the right. Null on the View
      *  screens, whose [ViewScreenTitleBar] keeps ❓ in the top bar. */
-    val onHelp: (() -> Unit)? = null
+    val onHelp: (() -> Unit)? = null,
+    /** When true, the 🆕 add glyph is placed first (leftmost) instead of
+     *  in the trailing copy/edit/delete/new group. Set by the Manage
+     *  report screen. */
+    val addFirst: Boolean = false
 )
 
 /** Make a model-name Text clickable so tapping it opens the Model
@@ -918,6 +922,9 @@ fun TitleBar(
     onSwipeNext: (() -> Boolean)? = null,
     /** Optional 🆕 add hook (CRUD list pages). Null → glyph hidden. */
     onAdd: (() -> Unit)? = null,
+    /** When true, 🆕 leads the bar instead of sitting in the trailing
+     *  group. Used by the Manage report screen. */
+    addFirst: Boolean = false,
     /** Optional ✏️ edit hook (CRUD view pages). Null → glyph hidden. */
     onEdit: (() -> Unit)? = null,
     /** Optional 🧹 jump-to-Housekeeping hook. Null → glyph hidden. */
@@ -968,6 +975,7 @@ fun TitleBar(
         onPin = onPin,
         isPinned = isPinned,
         onAdd = onAdd,
+        addFirst = addFirst,
         onEdit = onEdit,
         onHousekeeping = onHousekeeping,
         onSettings = onSettings,
@@ -1256,7 +1264,10 @@ private data class BottomBarIcon(
  *  separate by [BottomIconBar] so it can stay pinned bottom-right).
  *  Order is fixed; only the non-null callbacks contribute. */
 private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = buildList {
-    // 👁 view is ALWAYS the first icon.
+    // 🆕 leads when the screen opts in (Manage report); otherwise it
+    // stays in the trailing copy/edit/delete/new group below.
+    if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
+    // 👁 view is the first icon otherwise.
     icons.onOpenView?.let { add(BottomBarIcon("👁", Color.Unspecified, it, 32, fontSize = 18.sp)) }
     // ----- middle (non-group) icons -----
     icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
@@ -1279,7 +1290,7 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onCopyReport?.let { add(BottomBarIcon("👯", Color.Unspecified, it, 28)) }
     icons.onEdit?.let { add(BottomBarIcon("✏️", Color.Unspecified, it, 28)) }
     icons.onDelete?.let { add(BottomBarIcon("🗑", AppColors.Red, it, 22)) }
-    icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
+    if (!icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
 }
 
 /** Renders one row of bottom-bar action icons via [TitleBarIcon]. When

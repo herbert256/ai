@@ -240,7 +240,8 @@ internal fun ReportRunScreen(
             } else null,
             isPinned = isPinned,
             onEdit = { editCreateMenu.value = if (editCreateMenu.value == "edit") null else "edit" },
-            onAdd = { editCreateMenu.value = if (editCreateMenu.value == "create") null else "create" }
+            onAdd = { editCreateMenu.value = if (editCreateMenu.value == "create") null else "create" },
+            addFirst = true
         )
 
         if (showRegenerateConfirm && currentReportId != null) {
