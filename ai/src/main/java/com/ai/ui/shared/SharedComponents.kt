@@ -1117,17 +1117,20 @@ fun TitleBar(
         // main). Otherwise the AI logo → app Home. The right edge
         // (below) always carries the AI logo → Home.
         if (resolvedReportIcon != null) {
-            Box(modifier = Modifier.offset(x = (-6).dp, y = (-10).dp)) {
+            // Same slot/position as the left AI logo it replaces, sized
+            // to match the (now larger) logos.
+            Box(modifier = Modifier.align(Alignment.Top).padding(start = 4.dp, top = 14.dp)) {
                 TitleBarIcon(
                     resolvedReportIcon, Color.Unspecified,
                     onClick = onReportIconClick ?: (if (reportIconGoesHome) navigateHome else (reportIconTap ?: {})),
-                    width = 32.dp, scale = 2.0f
+                    width = 33.dp, scale = 2.5f
                 )
             }
         } else {
             AiLogoButton(
                 onClick = navigateHome,
-                modifier = Modifier.align(Alignment.Top).padding(start = 4.dp, top = 14.dp)
+                modifier = Modifier.align(Alignment.Top).padding(start = 4.dp, top = 14.dp),
+                size = 66.dp
             )
         }
         // Centre: the screen title, centred between the two edge icons.
@@ -1169,6 +1172,7 @@ fun TitleBar(
         AiLogoButton(
             onClick = navigateHome,
             modifier = Modifier.align(Alignment.Top).padding(end = 4.dp, top = 14.dp),
+            size = 66.dp,
             mirrored = true
         )
     }
