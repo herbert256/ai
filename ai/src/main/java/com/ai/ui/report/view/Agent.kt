@@ -274,9 +274,8 @@ fun ReportsViewScreen(
             val chrome = 64.dp
             val available = (totalH - chrome).coerceAtLeast(0.dp)
             val promptCap = if (promptExpanded) available / 3 else 0.dp
-            val responseCap = if (promptExpanded) available * 2 / 3 else available
 
-            Column(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxSize()) {
                 if (promptExpanded) {
                     if (languages.size <= 1) {
                         PromptCard(
@@ -343,16 +342,18 @@ fun ReportsViewScreen(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
+                // Fill the leftover height so the swipe region extends
+                // below the (wrap-content, top-aligned) card — swiping in
+                // the empty space under the last card navigates models
+                // exactly as swiping on the card does.
                 com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
                     pagerState = pagerState,
                     noMoreLabel = "No more models",
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().weight(1f)
                 ) {
                     HorizontalPager(
                         state = pagerState,
-                        modifier = Modifier.fillMaxWidth()
-                            .heightIn(max = responseCap)
-                            .wrapContentHeight()
+                        modifier = Modifier.fillMaxSize()
                     ) { page ->
                         val agent = agents[page.wrapTo(agents.size)]
                         AgentResponseCard(
