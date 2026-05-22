@@ -1376,12 +1376,13 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // actions follow, and 🔄 regenerate sits just before 🗑 delete. -----
     icons.onOpenView?.let { add(BottomBarIcon("👁", Color.Unspecified, it, 32, fontSize = 18.sp)) }
     icons.onTranslationCompare?.let { add(BottomBarIcon("🌐", Color.Unspecified, it, 28)) }
-    icons.onTrace?.let { add(BottomBarIcon("🐞", Color.Unspecified, it, 22)) }
     icons.onMemo?.let { add(BottomBarIcon("📝", Color.Unspecified, it, 28)) }
     icons.onEdit?.let { add(BottomBarIcon("✏️", Color.Unspecified, it, 28)) }
     icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
     icons.onDelete?.let { add(BottomBarIcon("🗑", AppColors.Red, it, 22)) }
     if (!icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
+    // 🐞 trace always sits last in the strip.
+    icons.onTrace?.let { add(BottomBarIcon("🐞", Color.Unspecified, it, 22)) }
 }
 
 /** Renders one row of bottom-bar action icons via [TitleBarIcon]. When
@@ -1470,7 +1471,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
 
     androidx.compose.foundation.layout.BoxWithConstraints(
         // Bottom padding lifts the bar a touch above the gesture pill.
-        modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 8.dp, bottom = 12.dp)
+        modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 4.dp, bottom = 12.dp)
     ) {
         val available = maxWidth.value
 
@@ -1523,7 +1524,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                             // only 8dp).
                             modifier = Modifier
                                 .let { m -> if (onCostClick != null) m.clickable(onClick = onCostClick) else m }
-                                .padding(end = 9.dp)
+                                .padding(end = 13.dp)
                         )
                     }
                 }
@@ -1548,7 +1549,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                         maxLines = 1, softWrap = false,
                         modifier = Modifier
                             .let { m -> if (onCostClick != null) m.clickable(onClick = onCostClick) else m }
-                            .padding(end = 9.dp)
+                            .padding(end = 13.dp)
                     )
                 }
                 TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, scale = scale)
