@@ -1286,13 +1286,13 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
  *  [cellWidthDp] is set, every icon uses that fixed width so columns
  *  line up vertically across the two-row layout. */
 @Composable
-private fun BottomBarIconRow(specs: List<BottomBarIcon>, scale: Float, gap: Dp, cellWidthDp: Int? = null) {
+private fun BottomBarIconRow(specs: List<BottomBarIcon>, scale: Float, gap: Dp, cellWidthDp: Int? = null, cellHeightDp: Int = 32) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(gap)
     ) {
         specs.forEach {
-            TitleBarIcon(it.emoji, it.tint, it.onClick, width = (cellWidthDp ?: it.widthDp).dp, scale = scale, alpha = it.alpha, fontSize = it.fontSize)
+            TitleBarIcon(it.emoji, it.tint, it.onClick, width = (cellWidthDp ?: it.widthDp).dp, heightDp = cellHeightDp, scale = scale, alpha = it.alpha, fontSize = it.fontSize)
         }
     }
 }
@@ -1303,6 +1303,9 @@ private fun TitleBarIcon(
     tint: Color,
     onClick: () -> Unit,
     width: Dp = 28.dp,
+    /** Box height before scaling. The two-row bottom bar passes a
+     *  smaller value to tighten the vertical gap between the rows. */
+    heightDp: Int = 32,
     scale: Float = 1f,
     /** Render alpha for the glyph. Defaults to fully opaque. Used by
      *  the bottom-bar 📌 pin icon to fade itself when the report isn't
@@ -1315,7 +1318,7 @@ private fun TitleBarIcon(
     fontSize: androidx.compose.ui.unit.TextUnit = 16.sp
 ) {
     Box(
-        modifier = Modifier.size(width = width * scale, height = 32.dp * scale)
+        modifier = Modifier.size(width = width * scale, height = heightDp.dp * scale)
             .clickable(onClick = onClick)
             .alpha(alpha),
         contentAlignment = Alignment.Center
@@ -1386,15 +1389,18 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             fun rowWidth(count: Int) = (count * cell + (count - 1).coerceAtLeast(0) * extraGap).toFloat()
             val widest = maxOf(rowWidth(topRow.size), rowWidth(bottomRow.size) + helpGap + helpW)
             val scale = (available / widest).coerceIn(1.0f, ceiling)
+            // Tighter per-row cell height so the two rows sit close
+            // together vertically (Arrangement.spacedBy can't go negative).
+            val rowCellH = 22
             Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    BottomBarIconRow(topRow, scale, extraGap.dp, cellWidthDp = cell)
+                    BottomBarIconRow(topRow, scale, extraGap.dp, cellWidthDp = cell, cellHeightDp = rowCellH)
                     Spacer(modifier = Modifier.weight(1f))
                 }
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    BottomBarIconRow(bottomRow, scale, extraGap.dp, cellWidthDp = cell)
+                    BottomBarIconRow(bottomRow, scale, extraGap.dp, cellWidthDp = cell, cellHeightDp = rowCellH)
                     Spacer(modifier = Modifier.weight(1f))
-                    TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, scale = scale)
+                    TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, heightDp = rowCellH, scale = scale)
                 }
             }
         } else {
