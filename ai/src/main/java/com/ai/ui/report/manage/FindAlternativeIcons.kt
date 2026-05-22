@@ -9,6 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -37,8 +38,22 @@ fun AlternativeIconsScreen(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
+    val screenContext = LocalContext.current
+    val iconGenEnabled = com.ai.ui.shared.LocalIconGenEnabled.current
+    // The left of the title bar carries the report's dynamic icon (same
+    // as the other Report - manage screens). Loaded from disk since this
+    // overlay isn't wrapped in a LocalReportIcon provider.
+    val loadedReportIcon = com.ai.ui.shared.LocalReportIcon.current
+        ?: produceState<String?>(initialValue = null, reportId) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.ai.ui.report.view.helpers.ViewReportCache.get(screenContext, reportId)?.icon
+            }
+        }.value
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "alternative_icons", title = "Alternative icons", onBackClick = onBack)
+        TitleBar(
+            helpTopic = "alternative_icons", title = "Alternative icons", onBackClick = onBack,
+            reportIcon = if (iconGenEnabled) loadedReportIcon?.takeIf { it.isNotBlank() } ?: "📝" else null
+        )
 
         // Stable order: by provider id, then model id — so re-renders
         // as candidates flip Running → Done/Error don't reshuffle rows.
@@ -94,12 +109,10 @@ private fun CandidateRow(
         is IconCandidate.Running -> 0.0
     }
     // 🐞 lookup — most recent trace for this (reportId, model) pair
-    // tagged with the icon fan-out category. Only triggered when
-    // tracing is on AND the call has actually run; for Running rows
-    // we keep the slot empty so the row layout stays stable when
-    // the candidate flips to Done.
-    val tracingEnabled = com.ai.data.ApiTracer.isTracingEnabled
-    val traceFilenameState = if (!tracingEnabled || candidate is IconCandidate.Running) null
+    // tagged with the icon fan-out category. Attempted for any row that
+    // has actually run (the file only exists if tracing was on at the
+    // time); Running rows have no trace yet.
+    val traceFilenameState = if (candidate is IconCandidate.Running) null
         else androidx.compose.runtime.produceState<String?>(
             initialValue = null, reportId, candidate.model, candidate::class
         ) {
@@ -154,16 +167,19 @@ private fun CandidateRow(
                     is IconCandidate.Running -> { /* no subtitle while running */ }
                 }
             }
-            // Right side — 🐞 trace icon (when tracing is on and a
-            // matching trace exists) then the per-call USD cost.
-            if (traceFilename != null) {
-                androidx.compose.material3.Text(
-                    "🐞", fontSize = 16.sp,
-                    modifier = Modifier
-                        .clickable { onNavigateToTraceFile(traceFilename) }
-                        .padding(horizontal = 6.dp)
-                )
-            }
+            // Right side — 🐞 trace icon on every row. It's tappable when
+            // a matching trace exists, dimmed and inert otherwise (e.g.
+            // tracing was off, or the call hasn't run yet).
+            androidx.compose.material3.Text(
+                "🐞", fontSize = 16.sp,
+                modifier = Modifier
+                    .then(
+                        if (traceFilename != null) Modifier.clickable { onNavigateToTraceFile(traceFilename) }
+                        else Modifier
+                    )
+                    .alpha(if (traceFilename != null) 1f else 0.3f)
+                    .padding(horizontal = 6.dp)
+            )
             if (cost > 0.0) {
                 androidx.compose.material3.Text(
                     "${com.ai.ui.shared.formatCents(cost)} ¢",
