@@ -204,16 +204,14 @@ internal fun ReportRunScreen(
             )
     ) {
         val promptTitle = uiState.genericPromptTitle
-        // Main Manage screen: report icon + screen title are no-ops
-        // (we're already on Manage). View↔Manage navigation lives
-        // on the bottom-bar 👁 / 🔧 icons. No LocalNavigateToCurrentReport
-        // override here — the parent stack doesn't provide one inside
-        // a report context, so the icon click resolves to null and
-        // becomes inert. With the SharedComponents default, a null
-        // onTitleClick also resolves to that same (null) lambda.
-        // Edit / Create now live on the bottom bar (✏️ / 🆕); tapping
-        // either toggles this shared menu state, which GenerationPhase
-        // reads to pop up the same set of choices.
+        // Main Manage screen: the report icon opens the View hub (via
+        // onReportIconClick below) — same target as the green report-name
+        // line and the bottom-bar 👁. The white "Manage report" screen
+        // title stays inert (onTitleClick = null); the green report-name
+        // in GenerationPhase is the tappable report-title instead.
+        // Edit / Create live on the bottom bar (✏️ / 🆕); tapping either
+        // toggles this shared menu state, which GenerationPhase reads to
+        // pop up the same set of choices.
         val editCreateMenu = remember { mutableStateOf<String?>(null) }
         TitleBar(
             helpTopic = "report_run",
@@ -221,9 +219,10 @@ internal fun ReportRunScreen(
             onTitleClick = null,
             subject = promptTitle,
             reportIcon = if (iconGenEnabled) reportIcon?.takeIf { it.isNotEmpty() } ?: "📝" else null,
-            // On Manage itself the report icon would re-navigate to Manage;
-            // make it a Home shortcut instead.
-            reportIconGoesHome = true,
+            // On the Manage report screen the report icon opens the main
+            // View hub ("View an AI report") — same target as the green
+            // report-name line and the bottom-bar 👁.
+            onReportIconClick = onOpenViewReport,
             onBackClick = onDismiss,
             onReload = if (currentReportId != null && isComplete) onRequestRegenerate else null,
             onTrace = if (currentReportId != null) generationHandlers.onTrace else null,
@@ -268,6 +267,7 @@ internal fun ReportRunScreen(
             reportsAgentResults = reportsAgentResults,
             currentReportId = currentReportId,
             handlers = generationHandlers,
+            onOpenViewReport = onOpenViewReport,
             editSystemPromptTrigger = editSystemPromptTrigger,
             secondaryCounts = secondaryCounts,
             costsFromDeletedItems = costsFromDeletedItems,

@@ -312,6 +312,10 @@ internal fun ColumnScope.GenerationPhase(
     reportsAgentResults: Map<String, AnalysisResponse>,
     currentReportId: String?,
     handlers: GenerationPhaseHandlers,
+    /** Tapping the green report-name line opens the main View hub
+     *  ("View an AI report"). Plumbed from ReportRunScreen's
+     *  onOpenViewReport (= Main's openViewReportFromManage). */
+    onOpenViewReport: () -> Unit = {},
     /** Opens the per-report system-prompt picker dialog from the
      *  Edit Row 2 "System prompt" button. Plumbed separately from
      *  [GenerationPhaseHandlers] so the dialog state + body stay
@@ -591,7 +595,9 @@ internal fun ColumnScope.GenerationPhase(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            modifier = Modifier.fillMaxWidth()
+                .then(if (currentReportId != null) Modifier.clickable(onClick = onOpenViewReport) else Modifier)
+                .padding(bottom = 8.dp)
         )
     }
 
