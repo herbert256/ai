@@ -91,6 +91,41 @@ fun CostsViewScreen(
     // Mode toggle hoisted above the Column so the body swipe can flip it.
     var mode by rememberSaveable { mutableStateOf(CostsMode.Buckets) }
     val flipMode = { mode = if (mode == CostsMode.Buckets) CostsMode.Models else CostsMode.Buckets }
+    // Drill state: l2Key = the L1 row tapped (a bucket key in Buckets
+    // mode, a model key in Models mode); l3Key = the L2 row tapped (the
+    // cross dimension). Reset whenever the displayed report changes.
+    var l2Key by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
+    var l3Key by rememberSaveable(currentReportId) { mutableStateOf<String?>(null) }
+
+    // 🔧 → Manage's per-agent ReportsViewer scrolled to its Costs
+    // section. Hoisted so L1 / L2 / L3 all carry the same manage jump.
+    val openManage = com.ai.ui.shared.LocalOpenManage.current
+    val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
+        { dispatch(com.ai.ui.shared.ManageJump.ReportsViewer(null, "costs")) }
+    }
+
+    // Drill overlays (full-screen, layered above L1). Each carries its
+    // own BackHandler so back steps L3 → L2 → L1 before leaving Costs.
+    if (report != null && l2Key != null) {
+        val drillData = rememberReportCostData(report)
+        if (drillData != null) {
+            val l2 = l2Key!!
+            val l3 = l3Key
+            if (l3 != null) {
+                CostsDrillL3Screen(
+                    reportTitle = report.title, mode = mode, l2Key = l2, l3Key = l3,
+                    data = drillData, onOpenManage = onOpenManageJump, onBack = { l3Key = null }
+                )
+                return
+            }
+            CostsDrillL2Screen(
+                reportTitle = report.title, mode = mode, l2Key = l2,
+                data = drillData, onOpenManage = onOpenManageJump,
+                onPick = { l3Key = it }, onBack = { l2Key = null }
+            )
+            return
+        }
+    }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -99,15 +134,6 @@ fun CostsViewScreen(
             // The title-bar swipe still changes report.
             .viewBodySwipe(mode, onPrev = flipMode, onNext = flipMode)
     ) {
-        // 🔧 → Manage's per-agent ReportsViewer scrolled to its
-        // Costs section. No fallback to LocalNavigateToCurrentReport
-        // — that local is overridden by ViewAiReportScreen to "back
-        // to View grid", which would land 🔧 back on the grid
-        // instead of Manage.
-        val openManage = com.ai.ui.shared.LocalOpenManage.current
-        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
-            { dispatch(com.ai.ui.shared.ManageJump.ReportsViewer(null, "costs")) }
-        }
         ViewTitleBar(
             reportTitle = report?.title,
             screenTitle = "Costs",
@@ -281,7 +307,9 @@ fun CostsViewScreen(
             contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
         ) {
             items(active) { b ->
-                BucketBar(bucket = b, totalCents = totalCents)
+                // Tap drills in: a bucket → its models, a model → its
+                // buckets (resolved by `mode` on the L2 screen).
+                BucketBar(bucket = b, totalCents = totalCents, onClick = { l2Key = b.key })
             }
         }
     }
@@ -365,14 +393,16 @@ private fun bucketFor(type: String): String = when {
     else -> "${type.replaceFirstChar { it.titlecase() }} 🧠"
 }
 
-/** Per-bucket horizontal bar — bar length is fraction of total. */
+/** Per-bucket horizontal bar — bar length is fraction of total.
+ *  [onClick] (when set) drills into the next level. */
 @Composable
-private fun BucketBar(bucket: BucketTotal, totalCents: Double) {
+private fun BucketBar(bucket: BucketTotal, totalCents: Double, onClick: (() -> Unit)? = null) {
     val pct = if (totalCents > 0.0) bucket.cents / totalCents else 0.0
     Column(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(AppColors.CardBackground)
+            .let { base -> if (onClick != null) base.clickable(onClick = onClick) else base }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
@@ -418,6 +448,170 @@ private fun BucketBar(bucket: BucketTotal, totalCents: Double) {
         Text(
             text = "${bucket.calls} call${if (bucket.calls == 1) "" else "s"}",
             color = AppColors.TextTertiary, fontSize = 11.sp
+        )
+    }
+}
+
+/**
+ * L2 drill. In Buckets mode [l2Key] is a bucket and the screen lists the
+ * models inside it; in Models mode [l2Key] is a model and the screen
+ * lists the buckets it appears in. Tapping a row drills to L3 for that
+ * bucket+model pair.
+ */
+@Composable
+private fun CostsDrillL2Screen(
+    reportTitle: String?,
+    mode: CostsMode,
+    l2Key: String,
+    data: ReportCostData,
+    onOpenManage: (() -> Unit)?,
+    onPick: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    androidx.activity.compose.BackHandler { onBack() }
+    val crossItems = remember(data, mode, l2Key) {
+        val acc = LinkedHashMap<String, BucketTotal>()
+        data.rows.forEach { row ->
+            val rowBucket = bucketFor(row.type)
+            val rowModel = com.ai.ui.shared.shortModelName(row.model).ifBlank { row.type }
+            val matches = if (mode == CostsMode.Buckets) rowBucket == l2Key else rowModel == l2Key
+            if (!matches) return@forEach
+            val key = if (mode == CostsMode.Buckets) rowModel else rowBucket
+            val total = row.inputCents + row.outputCents
+            val cur = acc[key]
+            acc[key] = if (cur == null) BucketTotal(key, total, 1)
+                       else cur.copy(cents = cur.cents + total, calls = cur.calls + 1)
+        }
+        acc.values.filter { it.cents > 0.0001 }.sortedByDescending { it.cents }
+    }
+    val drillTotal = crossItems.sumOf { it.cents }
+    val crossLabel = if (mode == CostsMode.Buckets) "model" else "bucket"
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        ViewTitleBar(
+            reportTitle = reportTitle, screenTitle = "Costs",
+            subject = l2Key, helpTopic = "costs_view",
+            onOpenManage = onOpenManage, onBack = onBack
+        )
+        Text(
+            text = "${crossItems.size} $crossLabel${if (crossItems.size == 1) "" else "s"} · ${formatCentsValue(drillTotal, 4)}",
+            color = AppColors.TextTertiary, fontSize = 12.sp,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        if (crossItems.isEmpty()) {
+            Text("No billable calls.", color = AppColors.TextTertiary, fontSize = 13.sp)
+            return@Column
+        }
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
+        ) {
+            items(crossItems) { b ->
+                BucketBar(bucket = b, totalCents = drillTotal, onClick = { onPick(b.key) })
+            }
+        }
+    }
+}
+
+/**
+ * L3 drill. Every individual call for one bucket+model combination,
+ * paged to fit the screen height — swipe left/right to move between
+ * pages.
+ */
+@Composable
+private fun CostsDrillL3Screen(
+    reportTitle: String?,
+    mode: CostsMode,
+    l2Key: String,
+    l3Key: String,
+    data: ReportCostData,
+    onOpenManage: (() -> Unit)?,
+    onBack: () -> Unit
+) {
+    androidx.activity.compose.BackHandler { onBack() }
+    val bucketKey = if (mode == CostsMode.Buckets) l2Key else l3Key
+    val modelKey = if (mode == CostsMode.Buckets) l3Key else l2Key
+    val entries = remember(data, bucketKey, modelKey) {
+        data.rows.filter {
+            bucketFor(it.type) == bucketKey &&
+                com.ai.ui.shared.shortModelName(it.model).ifBlank { it.type } == modelKey
+        }
+    }
+    val entriesTotal = entries.sumOf { it.inputCents + it.outputCents }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        ViewTitleBar(
+            reportTitle = reportTitle, screenTitle = "Costs",
+            subject = "$bucketKey · $modelKey", helpTopic = "costs_view",
+            onOpenManage = onOpenManage, onBack = onBack
+        )
+        Text(
+            text = "${entries.size} call${if (entries.size == 1) "" else "s"} · ${formatCentsValue(entriesTotal, 4)}",
+            color = AppColors.TextTertiary, fontSize = 12.sp,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        if (entries.isEmpty()) {
+            Text("No calls.", color = AppColors.TextTertiary, fontSize = 13.sp)
+            return@Column
+        }
+        androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val perPage = (maxHeight.value / 72f).toInt().coerceAtLeast(1)
+            val pages = entries.chunked(perPage)
+            val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { pages.size })
+            Column(modifier = Modifier.fillMaxSize()) {
+                if (pages.size > 1) {
+                    Text(
+                        text = "Page ${pagerState.currentPage + 1} / ${pages.size}  ·  swipe ⇄",
+                        color = AppColors.TextTertiary, fontSize = 11.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                    )
+                }
+                androidx.compose.foundation.pager.HorizontalPager(
+                    state = pagerState,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        pages[page].forEach { row -> CostEntryRow(row) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** One raw call on the L3 page: provider · model + cost, then a quiet
+ *  type / token line. */
+@Composable
+private fun CostEntryRow(row: CostRow) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(AppColors.CardBackground)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = listOf(row.providerDisplay, com.ai.ui.shared.shortModelName(row.model))
+                    .filter { it.isNotBlank() }.joinToString(" · ").ifBlank { row.type },
+                color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = formatCentsValue(row.inputCents + row.outputCents, 4),
+                color = AppColors.Yellow, fontSize = 13.sp, fontWeight = FontWeight.Bold
+            )
+        }
+        Text(
+            text = "${row.type} · in ${row.inputTokens} / out ${row.outputTokens} tok" +
+                (row.tier.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
+            color = AppColors.TextTertiary, fontSize = 11.sp,
+            maxLines = 1, overflow = TextOverflow.Ellipsis
         )
     }
 }
