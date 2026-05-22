@@ -1247,7 +1247,11 @@ private fun ReportGlyphIcon(emoji: String, boxSize: Dp, modifier: Modifier = Mod
     val trimmed = remember(emoji, boxPx) { renderTrimmedEmoji(emoji, boxPx * 2) }
     androidx.compose.foundation.Canvas(modifier = modifier.size(boxSize)) {
         val bmp = trimmed ?: return@Canvas
-        val scale = minOf(size.width / bmp.width, size.height / bmp.height)
+        // Cap the drawn height to the AI logo's visible-height ratio (the
+        // brand glyph fills ~75% of its box), so the report icon's visible
+        // height never exceeds the AI logo's. Width is free to the box.
+        val maxH = size.height * 0.74f
+        val scale = minOf(size.width / bmp.width, maxH / bmp.height)
         val dw = bmp.width * scale; val dh = bmp.height * scale
         val left = (size.width - dw) / 2f; val top = (size.height - dh) / 2f
         drawContext.canvas.nativeCanvas.drawBitmap(
