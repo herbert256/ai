@@ -475,15 +475,26 @@ fun ReportsHubScreen(
         AlertDialog(
             onDismissRequest = { overwriteTarget = null },
             title = { Text("Report already exists") },
-            text = { Text("A report named \"${entry.title}\" already exists. Overwrite it with the example?") },
+            text = { Text("A report named \"${entry.title}\" already exists.") },
             confirmButton = {
-                TextButton(onClick = {
-                    overwriteTarget = null
-                    importExampleAndOpen(entry, view, true)
-                }) { Text("Overwrite") }
-            },
-            dismissButton = {
-                TextButton(onClick = { overwriteTarget = null }) { Text("Cancel") }
+                // Three choices, stacked — the labels are too long for one row.
+                Column(horizontalAlignment = Alignment.End) {
+                    TextButton(onClick = {
+                        overwriteTarget = null
+                        scope.launch {
+                            val rid = withContext(Dispatchers.IO) {
+                                ReportStorage.getAllReports(context)
+                                    .firstOrNull { it.title == entry.title }?.id
+                            }
+                            if (rid != null) { if (view) onOpenReportView(rid) else onOpenReportManage(rid) }
+                        }
+                    }) { Text("Continue with existing report") }
+                    TextButton(onClick = {
+                        overwriteTarget = null
+                        importExampleAndOpen(entry, view, true)
+                    }) { Text("Overwrite from Examples") }
+                    TextButton(onClick = { overwriteTarget = null }) { Text("Cancel") }
+                }
             }
         )
     }
