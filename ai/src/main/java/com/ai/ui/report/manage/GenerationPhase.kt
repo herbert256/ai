@@ -596,8 +596,9 @@ internal fun ColumnScope.GenerationPhase(
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
+                .offset(y = (-8).dp)
                 .then(if (currentReportId != null) Modifier.clickable(onClick = onOpenViewReport) else Modifier)
-                .padding(bottom = 8.dp)
+                .padding(bottom = 2.dp)
         )
     }
 
