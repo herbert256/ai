@@ -1446,10 +1446,10 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     // value still fits and doesn't touch the icon to its left.
     val costBaseSp = costText?.let {
         when (it.substringBefore('.').trimStart('-').length) {
-            0, 1 -> 15f   // < 10
-            2 -> 12f      // < 100
-            3 -> 10f      // < 1000
-            else -> 8f
+            0, 1 -> 12f    // < 10
+            2 -> 10f       // < 100
+            3 -> 8.5f      // < 1000
+            else -> 7f
         }
     } ?: 0f
     val specs = if (icons != null) buildBottomBarIcons(icons) else emptyList()
@@ -1511,7 +1511,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                             color = AppColors.Blue,
                             fontSize = (costBaseSp * scale).sp,
                             fontWeight = FontWeight.Bold,
-                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                            letterSpacing = (-0.5).sp,
                             maxLines = 1, softWrap = false,
                             // Shift left so the right edge lines up with the
                             // per-row cost column (rows inset ~16dp; the bar
@@ -1537,7 +1537,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                         color = AppColors.Blue,
                         fontSize = (costBaseSp * scale).sp,
                         fontWeight = FontWeight.Bold,
-                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                        letterSpacing = (-0.5).sp,
                         maxLines = 1, softWrap = false,
                         modifier = Modifier.padding(end = 9.dp)
                     )
