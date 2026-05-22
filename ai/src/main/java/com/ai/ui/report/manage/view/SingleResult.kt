@@ -1,5 +1,4 @@
-package com.ai.ui.report.view
-import com.ai.ui.report.manage.view.*
+package com.ai.ui.report.manage.view
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 

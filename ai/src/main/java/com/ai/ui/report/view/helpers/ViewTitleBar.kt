@@ -87,14 +87,18 @@ fun ViewTitleBar(
     val effectiveLogoClick: () -> Unit = { navigateHome() }
     // Publish the View bottom-bar spec while mounted (always non-null so
     // the View bar — not the generic one — renders for this screen; the
-    // 🔧 itself only shows when onOpenManage is non-null). Identity check
-    // on dispose avoids clobbering the next screen's publication.
+    // 🔧 itself only shows when onOpenManage is non-null).
     val viewBottomBarState = LocalViewBottomBar.current
     if (viewBottomBarState != null) {
-        val spec = ViewBottomBarSpec(onManage = onOpenManage)
-        SideEffect { viewBottomBarState.value = spec }
-        DisposableEffect(Unit) {
-            onDispose { if (viewBottomBarState.value === spec) viewBottomBarState.value = null }
+        // Republish every recomposition (onOpenManage may change), and
+        // clear unconditionally on dispose. Only one ViewTitleBar is ever
+        // composed at a time (View screens are mutually exclusive
+        // full-screen overlays), so onDispose of the leaving screen runs
+        // before the entering screen's SideEffect in the same apply pass —
+        // no stale spec lingers and the next screen's spec always wins.
+        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage) }
+        DisposableEffect(viewBottomBarState) {
+            onDispose { viewBottomBarState.value = null }
         }
     }
     // Swipe feedback uses the app's standard Android Toast (same as the
