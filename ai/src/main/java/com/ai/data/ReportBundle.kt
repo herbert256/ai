@@ -139,9 +139,11 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
 
     // Re-key the report onto a fresh UUID so we never clobber an
     // existing same-id report on this install. Report.id is val so
-    // we go through data-class .copy.
+    // we go through data-class .copy. Also re-stamp the timestamp to
+    // "now" so a freshly imported report (Housekeeping or an example)
+    // sorts to the top of the timestamp-descending report lists.
     val newReportId = UUID.randomUUID().toString()
-    val report = parsedReport.copy(id = newReportId)
+    val report = parsedReport.copy(id = newReportId, timestamp = System.currentTimeMillis())
     ReportStorage.persistReport(context, report)
 
     // Re-key every secondary row: new UUID + new reportId.
