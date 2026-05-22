@@ -63,6 +63,7 @@ fun HubScreen(
     onNavigateToHousekeeping: () -> Unit,
     onNavigateToModelSearch: () -> Unit,
     onNavigateToKnowledge: () -> Unit = {},
+    onNavigateToExamples: () -> Unit = {},
     onOpenLatestReport: () -> Unit = {},
     viewModel: AppViewModel
 ) {
@@ -165,6 +166,12 @@ fun HubScreen(
                 HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub)
                 Spacer(modifier = Modifier.height(12.dp))
                 HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = onNavigateToChatsHub)
+                Spacer(modifier = Modifier.height(12.dp))
+            } else {
+                // No agents yet \u2192 the AI Reports hub is hidden. Offer the
+                // bundled example reports so a first-run user can open a
+                // real report without configuring a provider.
+                HubCard(icon = "\uD83D\uDCA1", title = "AI Examples", onClick = onNavigateToExamples)
                 Spacer(modifier = Modifier.height(12.dp))
             }
             if (uiState.generalSettings.experimentalFeaturesEnabled && uiState.generalSettings.showKnowledgeCard) {
@@ -367,42 +374,10 @@ fun ReportsHubScreen(
     val examples by produceState(initialValue = emptyList<com.ai.data.ExampleEntry>(), Unit) {
         value = withContext(Dispatchers.IO) { com.ai.data.loadExampleIndex(context) }
     }
-    // Shown while an example is being imported on first open.
-    var loadingExample by remember { mutableStateOf(false) }
-    // Set when the tapped example collides with an existing same-named
-    // report — drives the "Report already exists" Overwrite/Cancel dialog.
-    // Carries the tapped entry + whether 👁 (view) was the tap.
-    var overwriteTarget by remember { mutableStateOf<Pair<com.ai.data.ExampleEntry, Boolean>?>(null) }
-    // Import the bundled zip (popup meanwhile) and route to the chosen hub.
-    // `view` = 👁 View hub, else 🔧 Manage hub. When [replaceTitle] is given,
-    // every existing report with that title is deleted first (Overwrite).
-    val importExampleAndOpen: (com.ai.data.ExampleEntry, Boolean, Boolean) -> Unit = { entry, view, overwrite ->
-        scope.launch {
-            loadingExample = true
-            val rid = withContext(Dispatchers.IO) {
-                try {
-                    if (overwrite) {
-                        ReportStorage.getAllReports(context)
-                            .filter { it.title == entry.title }
-                            .forEach { ReportStorage.deleteReport(context, it.id) }
-                    }
-                    com.ai.data.importExampleReport(context, entry.zipFile).newReportId
-                } finally { loadingExample = false }
-            }
-            if (view) onOpenReportView(rid) else onOpenReportManage(rid)
-        }
-    }
-    // Open an example: if a report with the same title already exists, ask
-    // whether to overwrite; otherwise import straight away.
-    val openExample: (com.ai.data.ExampleEntry, Boolean) -> Unit = { entry, view ->
-        scope.launch {
-            val exists = withContext(Dispatchers.IO) {
-                ReportStorage.getAllReports(context).any { it.title == entry.title }
-            }
-            if (exists) overwriteTarget = entry to view
-            else importExampleAndOpen(entry, view, false)
-        }
-    }
+    // Shared example-open action (handles the exists/overwrite + import
+    // spinner dialogs itself); same opener the standalone AI Examples
+    // screen uses.
+    val openExample = rememberExampleOpener(onOpenReportManage, onOpenReportView)
     // Wire the per-row 🔧 / 👁 / 🗑 icons to the navigation +
     // delete behaviour the hub wants on every list card. Replaces
     // the bundle the host installs at AI_REPORTS_HUB so the dash-
@@ -471,112 +446,6 @@ fun ReportsHubScreen(
         }
         Spacer(modifier = Modifier.height(16.dp))
     }
-    overwriteTarget?.let { (entry, view) ->
-        AlertDialog(
-            onDismissRequest = { overwriteTarget = null },
-            title = { Text("Report already exists") },
-            text = { Text("A report named \"${entry.title}\" already exists.") },
-            confirmButton = {
-                // Three choices, stacked — the labels are too long for one row.
-                Column(horizontalAlignment = Alignment.End) {
-                    TextButton(onClick = {
-                        overwriteTarget = null
-                        scope.launch {
-                            val rid = withContext(Dispatchers.IO) {
-                                ReportStorage.getAllReports(context)
-                                    .firstOrNull { it.title == entry.title }?.id
-                            }
-                            if (rid != null) { if (view) onOpenReportView(rid) else onOpenReportManage(rid) }
-                        }
-                    }) { Text("Continue with existing report") }
-                    TextButton(onClick = {
-                        overwriteTarget = null
-                        importExampleAndOpen(entry, view, true)
-                    }) { Text("Overwrite from Examples") }
-                    TextButton(onClick = { overwriteTarget = null }) { Text("Cancel") }
-                }
-            }
-        )
-    }
-    if (loadingExample) {
-        AlertDialog(
-            onDismissRequest = {},
-            title = { Text("One moment") },
-            text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("Loading example report…", fontSize = 13.sp)
-                }
-            },
-            confirmButton = {}
-        )
-    }
-    }
-}
-
-/** "Example AI Reports" card on the Reports hub. Rows come from
- *  assets/examples/index.xml ([com.ai.data.ExampleEntry]) — not stored
- *  reports — so it can't reuse [ReportsHubListCard]/ReportListRow which
- *  take a persisted [Report]. Full-row tap opens Manage; the 👁 opens View;
- *  no 🗑 (examples aren't deletable). */
-@Composable
-private fun ExampleReportsCard(
-    examples: List<com.ai.data.ExampleEntry>,
-    onOpenManage: (com.ai.data.ExampleEntry) -> Unit,
-    onOpenView: (com.ai.data.ExampleEntry) -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "💡", fontSize = 18.sp)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "Example AI Reports", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                    color = AppColors.Purple, modifier = Modifier.weight(1f)
-                )
-            }
-            examples.forEach { entry ->
-                ExampleReportRow(
-                    entry = entry,
-                    onOpenManage = onOpenManage,
-                    onOpenView = onOpenView
-                )
-            }
-        }
-    }
-}
-
-/** One example row: report icon + title (tap → Manage) and trailing
- *  🔧 (Manage) / 👁 (View) icons. Mirrors the chrome of
- *  [com.ai.ui.shared.ReportListRow] minus the delete action. */
-@Composable
-private fun ExampleReportRow(
-    entry: com.ai.data.ExampleEntry,
-    onOpenManage: (com.ai.data.ExampleEntry) -> Unit,
-    onOpenView: (com.ai.data.ExampleEntry) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onOpenManage(entry) }
-            .padding(vertical = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(text = entry.icon.ifBlank { "📝" }, fontSize = 22.sp)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = entry.title, fontSize = 14.sp, color = Color.White,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f)
-        )
-        com.ai.ui.shared.ReportRowActionIcons(
-            onOpenManage = { onOpenManage(entry) },
-            onOpenView = { onOpenView(entry) }
-        )
     }
 }
 

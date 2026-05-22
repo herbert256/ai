@@ -26,6 +26,15 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("How to use it", "Swipe left / right to flip between pages. Each row carries the same tap-to-manage behaviour and 🔧 / 👁 / 🗑 icons as the dashboard cards. The page math re-fits when you rotate the device, so portrait and landscape both fill the visible area.")
         )
     ),
+    "ai_examples_screen" to HelpContent(
+        title = "Help - AI Examples",
+        cards = listOf(
+            HelpCard("What you see", "A list of ready-made example reports bundled with the app. This screen appears from the home menu when you haven't set up any agents yet, so you can open a real, fully-populated report before configuring a provider. (The same list also lives as the 'Example AI Reports' card inside the AI Reports hub once you have agents.)"),
+            HelpCard("How to use it", "Tap a row (or its 🔧) to open the example at Manage; tap 👁 to open the View tile grid. The first time you open an example it is imported into your reports — a brief 'Loading example report' popup shows while it copies. Imported examples then appear in your normal report lists."),
+            HelpCard("Already exists", "If a report with the same name already exists, you're asked whether to Continue with the existing report, Overwrite it from the example (re-import a fresh copy), or Cancel."),
+            HelpCard("Paging", "Rows are split into fixed pages that auto-fit the screen height; swipe left / right to flip between them.")
+        )
+    ),
     "report_new" to HelpContent(
         title = "Help - New AI Report",
         cards = listOf(

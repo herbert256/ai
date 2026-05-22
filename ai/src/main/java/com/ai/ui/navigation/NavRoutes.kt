@@ -44,6 +44,9 @@ object NavRoutes {
     /** Paginated browser of every saved report — swipe-paged
      *  HorizontalPager with auto-fit rows-per-page. */
     const val AI_ALL_REPORTS = "ai_all_reports"
+    /** Standalone "AI Examples" screen — the Reports hub's example
+     *  card as a full screen, shown from home when no agents exist. */
+    const val AI_EXAMPLES = "ai_examples"
     const val AI_NEW_REPORT = "ai_new_report"
     const val AI_NEW_REPORT_WITH_PARAMS = "ai_new_report/{title}/{prompt}"
     const val AI_PROMPT_HISTORY = "ai_prompt_history"

@@ -61,6 +61,7 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
                 onNavigateToModelSearch = { navController.navigate(NavRoutes.AI_MODEL_SEARCH) },
                 onNavigateToKnowledge = { navController.navigate(NavRoutes.AI_KNOWLEDGE) },
+                onNavigateToExamples = { navController.navigate(NavRoutes.AI_EXAMPLES) },
                 onOpenLatestReport = {
                     // Resume where the user last was: prefer the
                     // (reportId, mode) tuple recorded by
@@ -121,6 +122,27 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateToAllReports = { navController.navigate(NavRoutes.AI_ALL_REPORTS) },
                 reportViewModel = reportViewModel,
                 onHousekeeping = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) }
+            )
+        }
+        composable(NavRoutes.AI_EXAMPLES) {
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
+            com.ai.ui.hub.AllAiExamplesScreen(
+                onNavigateBack = safePopBack,
+                onOpenReportManage = { rid ->
+                    com.ai.data.LastReportTracker.record(rid, view = false)
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, rid)
+                        navController.navigate(NavRoutes.aiReportManage())
+                    }
+                },
+                onOpenReportView = { rid ->
+                    com.ai.data.LastReportTracker.record(rid, view = true)
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, rid)
+                        navController.navigate(NavRoutes.aiReportView())
+                    }
+                }
             )
         }
         composable(NavRoutes.AI_NEW_REPORT_HUB) {
