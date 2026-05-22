@@ -266,6 +266,8 @@ internal data class GenerationPhaseHandlers(
     /** Open the App Log Viewer filtered to this report's log-id. */
     val onViewLog: () -> Unit = {},
     val onEditTitle: () -> Unit = {},
+    /** Open the "Report - Get info" metadata-jobs screen. */
+    val onGetInfo: () -> Unit = {},
     val onEditPromptInline: () -> Unit = {},
     val onEditModelsInline: () -> Unit = {},
     val onEditParametersInline: () -> Unit = {},
@@ -388,6 +390,12 @@ internal fun ColumnScope.GenerationPhase(
      *  [AgentIconRow.icon]) render the default ✅/❌/⏳/🆕 cell. */
     agentIconRows: Map<String, AgentIconRow> = emptyMap(),
     agentModelTitles: Map<String, AgentModelTitle> = emptyMap(),
+    // Aggregate of the metadata jobs now shown on "Report - Get info":
+    // whether any job is enabled (→ render the info row), the aggregate
+    // status, and the summed cost (also folded into the grand total).
+    infoEnabled: Boolean = false,
+    infoState: InfoJobState = InfoJobState.DONE,
+    infoMetaTotal: Double = 0.0,
     hasPrevReport: Boolean = false,
     hasNextReport: Boolean = false,
     /** Shared Edit/Create menu trigger, hoisted to [ReportRunScreen] so
@@ -413,6 +421,7 @@ internal fun ColumnScope.GenerationPhase(
     val onViewIcons = handlers.onViewIcons
     val onViewLog = handlers.onViewLog
     val onEditTitle = handlers.onEditTitle
+    val onGetInfo = handlers.onGetInfo
     val onEditPromptInline = handlers.onEditPromptInline
     val onEditModelsInline = handlers.onEditModelsInline
     val onEditParametersInline = handlers.onEditParametersInline
@@ -580,18 +589,12 @@ internal fun ColumnScope.GenerationPhase(
 
     val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
     val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
-    // Per-agent icon-chain cost — every successful tier of the
-    // 3-tier per-agent icon chain bumps ReportAgent.iconInputCost
-    // + iconOutputCost. agentIconRows is the parent's mirror of
-    // those two fields per agent. Without this fold the icon
-    // chain's spend (often several cents on long runs) would only
-    // show on the cost table.
-    val agentIconCost = agentIconRows.values.sumOf { it.cost }
-    // Per-agent model-title cost — same fold rationale as agentIconCost.
-    val modelTitleCost = agentModelTitles.values.sumOf { it.cost }
+    // All metadata-job costs (report icon/language/title + per-model
+    // icon/model-title) are now summed once as `infoMetaTotal` (the same
+    // value the info row + Get-info screen show), folded into the grand
+    // total here so the bottom-bar total stays the true full total.
     val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost +
-        liveTranslationCost + costsFromDeletedItems + reportIconCost + languageIconCost +
-        languageDetectCost + agentIconCost + secondaryTotals.fanOutIconCost + modelTitleCost
+        liveTranslationCost + costsFromDeletedItems + secondaryTotals.fanOutIconCost + infoMetaTotal
     val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
 
     // Report the running total up to the host (ReportRunScreen) so it can
@@ -1260,110 +1263,31 @@ internal fun ColumnScope.GenerationPhase(
             }
         }
 
-        // Icon row — surfaces the background `internal/icon` LLM call
-        // kicked off at report start (kickOffIconGeneration). Hidden
-        // when the prompt isn't configured or its pinned agent has
-        // been deleted / renamed, so the row never shows up empty.
-        // Spinner while the call is in flight, the resolved emoji on
-        // success, ❌ on failure. Status mirrors the disk fields
-        // Report.icon / Report.iconErrorMessage.
-        run {
-            val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-                it.category == "icons" && it.name == "main"
-            }
-            val iconAgent = iconPrompt?.let { p ->
-                aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
-            }
-            if (iconGenEnabledForRow && iconPrompt != null && iconAgent != null) {
-                item(key = "row-icon") {
-                    Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                        .clickable { onOpenIconDetail() },
-                        verticalAlignment = Alignment.CenterVertically) {
-                        when {
-                            reportIconError != null -> Text("❌", fontSize = 16.sp,
-                                modifier = Modifier.width(24.dp))
-                            reportIcon != null -> Text(reportIcon, fontSize = 16.sp,
-                                modifier = Modifier.width(24.dp))
-                            // Loaded with neither icon nor error → genuinely
-                            // still generating. While not loaded yet, render
-                            // a blank cell rather than flashing the spinner.
-                            loaded -> Box(modifier = Modifier.width(24.dp),
-                                contentAlignment = Alignment.Center) {
-                                AnimatedHourglass(fontSize = 16.sp)
-                            }
-                            else -> Spacer(modifier = Modifier.width(24.dp))
-                        }
-                        RowTypeCell("icon")
-                        Column(modifier = Modifier.weight(1f)) {
-                            // On failure surface the recorded reason so
-                            // the user sees *why* it errored (rate limit /
-                            // 401 / etc.) instead of the harmless model
-                            // label that would otherwise appear next to
-                            // the ❌. Running and success show the
-                            // resolved model label — falling back to
-                            // getEffectiveModelForAgent when the agent's
-                            // model field is blank (i.e., it's pinned to
-                            // the provider's default).
-                            val effectiveModel = aiSettings.getEffectiveModelForAgent(iconAgent)
-                            val text = reportIconError
-                                ?: reportIconModel
-                                ?: com.ai.ui.shared.modelLabel(iconAgent.provider.id, effectiveModel)
-                            val color = if (reportIconError != null) AppColors.Red else Color.White
-                            Text(
-                                text, fontSize = 13.sp, color = color,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        if (reportIconCost > 0.0) {
-                            Text(formatCents(reportIconCost), fontSize = 10.sp,
-                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                        }
+        // Info row — single summary row replacing the old icon /
+        // language / title rows. Those jobs (plus per-model icon /
+        // model-title) now live on the "Report - Get info" screen. The
+        // row's status aggregates every enabled job (❌ if any failed,
+        // else ⏳ if any clock/running, else ✅) and its cost is the
+        // info meta total; tapping opens the Info screen. Hidden when no
+        // metadata job is enabled.
+        if (infoEnabled) {
+            item(key = "row-info") {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    .clickable { onGetInfo() },
+                    verticalAlignment = Alignment.CenterVertically) {
+                    InfoStatusCell(infoState)
+                    RowTypeCell("info")
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("icon, language, title, per-model icon / title",
+                            fontSize = 13.sp, color = Color.White,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-                }
-                // Language row — sits directly under the icon row.
-                // Same loading/error/success states (⏳ / ❌ / emoji),
-                // tap on the icon cell opens the language detail
-                // screen. Hidden when icon-gen is off (the gate
-                // above covers this since the same flag drives both).
-                if (currentReportId != null) {
-                    item(key = "row-language") {
-                        LanguageRow(
-                            reportId = currentReportId,
-                            iconRefreshTick = uiState.iconRefreshTick,
-                            onOpenDetail = onOpenLanguageDetail
-                        )
+                    if (infoMetaTotal > 0.0) {
+                        Text(formatCents(infoMetaTotal), fontSize = 10.sp,
+                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                     }
                 }
-            }
-        }
-
-        // Title row — sibling of icon / language rows. Surfaces the
-        // background `internal/report_title` LLM call kicked off at
-        // report start (kickOffReportTitleGeneration). Gated
-        // independently of iconGen — only on
-        // [com.ai.viewmodel.ReportTitleMode.AI] + the prompt + agent
-        // being resolvable. Tap opens the existing Edit-Title
-        // overlay (same screen as Edit → Title).
-        run {
-            val titlePrompt = aiSettings.internalPrompts.firstOrNull {
-                it.category == "internal" && it.name == "report_title"
-            }
-            val titleAgent = titlePrompt?.let { p ->
-                aiSettings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
-            }
-            val titleModeIsAi = uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI
-            if (titleModeIsAi && titlePrompt != null && titleAgent != null && currentReportId != null) {
-                item(key = "row-title") {
-                    // Reuse the existing Edit → Title handler so we
-                    // don't push the parent ReportsScreen method over
-                    // the JVM 64 KB ceiling with another callback.
-                    TitleRow(
-                        reportId = currentReportId,
-                        iconRefreshTick = uiState.iconRefreshTick,
-                        onOpenDetail = onEditTitle
-                    )
-                }
+                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
         }
 
@@ -1381,14 +1305,9 @@ internal fun ColumnScope.GenerationPhase(
                 .clickable { onViewAgent(agentId) },
                 verticalAlignment = Alignment.CenterVertically) {
                 // Status icon — newly-staged rows get a NEW badge, pending
-                // hourglass spins, success/failure static. When a Report
-                // icons run has landed an emoji for this row, the emoji
-                // replaces the ✅ AND becomes its own click target that
-                // opens the per-agent icon detail. The outer row's
-                // .clickable still fires for taps outside the 24 dp icon
-                // cell — Compose hit-testing prefers the innermost
-                // .clickable inside the bounds.
-                val agentIconEmoji = agentIconRows[agentId]?.icon
+                // hourglass spins, success/failure static. Clean row: just
+                // the model's own response call — the per-model icon emoji
+                // and model-title now live on the "Report - Get info" screen.
                 if (row.isNew) {
                     Text(text = "🆕", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 } else if (result == null) {
@@ -1399,13 +1318,6 @@ internal fun ColumnScope.GenerationPhase(
                         label = "hourglass-rotation"
                     )
                     Text(text = "⏳", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
-                } else if (result.isSuccess && !agentIconEmoji.isNullOrBlank()) {
-                    Text(
-                        text = agentIconEmoji,
-                        fontSize = 16.sp,
-                        modifier = Modifier.width(24.dp)
-                            .clickable { onOpenAgentIconDetail(agentId) }
-                    )
                 } else {
                     Text(
                         text = if (result.isSuccess) "✅" else "❌",
@@ -1414,20 +1326,14 @@ internal fun ColumnScope.GenerationPhase(
                 }
                 RowTypeCell("report")
                 Column(modifier = Modifier.weight(1f)) {
-                    // Once a per-model title has been generated it replaces
-                    // the whole provider/model label on this row.
-                    val modelTitle = agentModelTitles[agentId]?.title?.takeIf { it.isNotBlank() }
-                    Text(modelTitle ?: com.ai.ui.shared.modelLabel(row.providerDisplay, displayName),
+                    Text(com.ai.ui.shared.modelLabel(row.providerDisplay, displayName),
                         fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (result?.tokenUsage != null) {
+                    // Just the model's own response cost — meta costs moved
+                    // to the info row / Get-info screen.
                     val baseCost = PricingCache.computeCost(result.tokenUsage, PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result)))
-                    // Fold per-agent icon + model-title cost into the row's
-                    // right-side cost cell so the user sees a single total
-                    // per row — neither gets its own column.
-                    val totalCost = baseCost + (agentIconRows[agentId]?.cost ?: 0.0) +
-                        (agentModelTitles[agentId]?.cost ?: 0.0)
-                    Text(formatCents(totalCost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                    Text(formatCents(baseCost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                 }
                 // Per-row 🐞 removed — ReportSingleResultScreen (the
                 // row's tap target) carries the same trace icon in

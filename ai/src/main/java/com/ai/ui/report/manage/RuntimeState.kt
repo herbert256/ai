@@ -74,6 +74,9 @@ internal data class ReportRuntimeState(
     val languageIcon: String?,
     val agentIconRows: Map<String, AgentIconRow>,
     val agentModelTitles: Map<String, AgentModelTitle>,
+    val infoEnabled: Boolean,
+    val infoState: InfoJobState,
+    val infoMetaTotal: Double,
     val agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent>,
     val loadedReportPrompt: String,
     val loadedReportTitle: String?,
@@ -121,6 +124,11 @@ internal fun rememberReportRuntimeState(
     var languageIcon by remember { mutableStateOf<String?>(null) }
     var agentIconRows by remember { mutableStateOf<Map<String, AgentIconRow>>(emptyMap()) }
     var agentModelTitles by remember { mutableStateOf<Map<String, AgentModelTitle>>(emptyMap()) }
+    // Aggregate of the "Report - Get info" metadata jobs, recomputed on
+    // every iconRefreshTick so the Manage info row + grand total stay live.
+    var infoEnabled by remember { mutableStateOf(false) }
+    var infoState by remember { mutableStateOf(InfoJobState.DONE) }
+    var infoMetaTotal by remember { mutableStateOf(0.0) }
     var agentRecordsByAgentId by remember { mutableStateOf<Map<String, com.ai.data.ReportAgent>>(emptyMap()) }
     var loadedReportPrompt by remember { mutableStateOf("") }
     var loadedReportTitle by remember { mutableStateOf<String?>(null) }
@@ -145,6 +153,9 @@ internal fun rememberReportRuntimeState(
             languageIcon = null
             agentIconRows = emptyMap()
             agentModelTitles = emptyMap()
+            infoEnabled = false
+            infoState = InfoJobState.DONE
+            infoMetaTotal = 0.0
             agentRecordsByAgentId = emptyMap()
             loadedReportPrompt = ""
             loadedReportTitle = null
@@ -167,6 +178,15 @@ internal fun rememberReportRuntimeState(
                 ra.agentId to AgentModelTitle(ra.modelTitle, ra.modelTitleInputCost + ra.modelTitleOutputCost)
             } ?: emptyMap()
             agentRecordsByAgentId = r?.agents?.associate { ra -> ra.agentId to ra } ?: emptyMap()
+            val infoJobs = if (r != null) buildInfoJobs(
+                r, uiState.aiSettings, iconGenEnabled,
+                uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
+                uiState.generalSettings.perModelIconGenEnabled,
+                uiState.generalSettings.perModelTitleGenEnabled
+            ) else emptyList()
+            infoEnabled = infoJobs.isNotEmpty()
+            infoState = aggregateInfoState(infoJobs)
+            infoMetaTotal = infoJobs.sumOf { it.cost }
             loadedReportPrompt = r?.prompt.orEmpty()
             loadedReportTitle = r?.title
             loadedReportTimestamp = r?.timestamp ?: 0L
@@ -299,6 +319,9 @@ internal fun rememberReportRuntimeState(
         languageIcon = languageIcon,
         agentIconRows = agentIconRows,
         agentModelTitles = agentModelTitles,
+        infoEnabled = infoEnabled,
+        infoState = infoState,
+        infoMetaTotal = infoMetaTotal,
         agentRecordsByAgentId = agentRecordsByAgentId,
         loadedReportPrompt = loadedReportPrompt,
         loadedReportTitle = loadedReportTitle,

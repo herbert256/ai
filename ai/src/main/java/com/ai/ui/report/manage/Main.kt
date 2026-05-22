@@ -316,6 +316,9 @@ fun ReportsScreen(
     val languageName = runtime.languageName
     val agentIconRows = runtime.agentIconRows
     val agentModelTitles = runtime.agentModelTitles
+    val infoEnabled = runtime.infoEnabled
+    val infoState = runtime.infoState
+    val infoMetaTotal = runtime.infoMetaTotal
     val agentRecordsByAgentId = runtime.agentRecordsByAgentId
     val loadedReportPrompt = runtime.loadedReportPrompt
     val loadedReportTitle = runtime.loadedReportTitle
@@ -442,6 +445,7 @@ fun ReportsScreen(
     var fanOutViewLanguage by st.fanOutViewLanguage
     var showEditPrompt by st.showEditPrompt
     var showEditTitle by st.showEditTitle
+    var showGetInfo by st.showGetInfo
     var showEditParameters by st.showEditParameters
     var showAdvancedParameters by st.showAdvancedParameters
     // Translate flow state.
@@ -1629,6 +1633,36 @@ fun ReportsScreen(
         return
     }
 
+    // "Report - Get info" — the metadata-job status screen. Detail
+    // overlays (icon / language / edit-title / per-agent icon) are all
+    // checked earlier in this dispatcher, so opening one from a Get-info
+    // row layers it on top (showGetInfo stays set) and Android-back
+    // returns here.
+    if (showGetInfo && currentReportId != null) {
+        val rid = currentReportId
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides { showGetInfo = false }
+        ) {
+            ReportGetInfoScreen(
+                reportId = rid,
+                settings = aiSettings,
+                iconRefreshTick = uiState.iconRefreshTick,
+                iconGenEnabled = iconGenEnabled,
+                titleModeAi = uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
+                perModelIcon = uiState.generalSettings.perModelIconGenEnabled,
+                perModelTitle = uiState.generalSettings.perModelTitleGenEnabled,
+                onBack = { showGetInfo = false },
+                onOpenIconDetail = { showIconDetail = true },
+                onOpenLanguageDetail = { showIconDetail = true; targetLanguageIcon = true },
+                onEditTitle = { showEditTitle = true },
+                onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId }
+            )
+        }
+        return
+    }
+
     // Action-row picker overlays (Meta / Fan out / View / Edit). These
     // render at ReportsScreen scope — not inside GenerationPhase —
     // so the parent TitleBar and the action row don't paint above
@@ -1745,6 +1779,7 @@ fun ReportsScreen(
             }
         },
         onEditTitle = { showEditTitle = true },
+        onGetInfo = { showGetInfo = true },
         onEditPromptInline = { showEditPrompt = true },
         // onEditSystemPromptInline is wired inside [ReportRunScreen]
         // via a separate `editSystemPromptTrigger` arg on
@@ -1855,6 +1890,9 @@ fun ReportsScreen(
             languageName = languageName,
             agentIconRows = agentIconRows,
             agentModelTitles = agentModelTitles,
+            infoEnabled = infoEnabled,
+            infoState = infoState,
+            infoMetaTotal = infoMetaTotal,
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
             onDismiss = onDismiss,

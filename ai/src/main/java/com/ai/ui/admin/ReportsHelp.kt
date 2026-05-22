@@ -35,6 +35,15 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Paging", "Rows are split into fixed pages that auto-fit the screen height; swipe left / right to flip between them.")
         )
     ),
+    "report_get_info" to HelpContent(
+        title = "Help - Report - Get info",
+        cards = listOf(
+            HelpCard("What you see", "A list of the report's metadata-generation jobs, each with a status: ⏰ clock (can't run yet), ⏳ hourglass (running), ❌ red cross (failed), ✅ green (done). Report-level jobs are the icon, the detected language, and the AI title; per-model jobs are each model's icon and its model-title."),
+            HelpCard("When jobs run", "Icon / language / title start as soon as the report runs. A model's icon and model-title wait (⏰) until that model's own response finishes, then run. A model whose response failed leaves its icon/title rows on the clock — they can't be produced without a response."),
+            HelpCard("Which rows appear", "Only enabled jobs are listed: report icon/language need 'Generate report icons' on, the title needs report-title mode = AI, and the per-model icon/title rows need their 'Generate per model icons' / 'Generate per model titles' settings on."),
+            HelpCard("Costs", "Each row shows its own cost; the screen total is in the bottom bar. The single info row on Manage report mirrors this total, and its status aggregates these jobs (❌ if any failed, else ⏳ if any are still clock/running, else ✅). Tap a row to open its detail (icon / language / title / per-model icon).")
+        )
+    ),
     "report_new" to HelpContent(
         title = "Help - New AI Report",
         cards = listOf(

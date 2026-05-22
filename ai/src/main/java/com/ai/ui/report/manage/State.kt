@@ -85,6 +85,7 @@ internal class ReportsScreenState(
     val fanOutViewLanguage: MutableState<String?>,
     val showEditPrompt: MutableState<Boolean>,
     val showEditTitle: MutableState<Boolean>,
+    val showGetInfo: MutableState<Boolean>,
     val showEditParameters: MutableState<Boolean>,
     val showAdvancedParameters: MutableState<Boolean>,
     val showTranslateLanguagePicker: MutableState<Boolean>,
@@ -155,6 +156,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val fanOutViewLanguage = rememberSaveable { mutableStateOf<String?>(null) }
     val showEditPrompt = rememberSaveable { mutableStateOf(false) }
     val showEditTitle = rememberSaveable { mutableStateOf(false) }
+    val showGetInfo = rememberSaveable { mutableStateOf(false) }
     val showEditParameters = rememberSaveable { mutableStateOf(false) }
     val showAdvancedParameters = rememberSaveable { mutableStateOf(false) }
     val showTranslateLanguagePicker = rememberSaveable { mutableStateOf(false) }
@@ -223,6 +225,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         fanOutViewLanguage,
         showEditPrompt,
         showEditTitle,
+        showGetInfo,
         showEditParameters,
         showAdvancedParameters,
         showTranslateLanguagePicker,
