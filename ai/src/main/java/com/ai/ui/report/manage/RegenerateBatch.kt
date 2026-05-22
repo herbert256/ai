@@ -357,16 +357,12 @@ fun RegenerateBatchManageRow() {
     val engine = com.ai.ui.shared.LocalRegenerateBatchEngine.current ?: return
     val openState = com.ai.ui.shared.LocalRegenerateBatchOpenState.current
     val jobs by engine.jobs.collectAsState()
-    // The engine's StateFlow is keyed by reportId; we display the
-    // first (and per design only) job that matches the current
-    // report context. The Manage screen mounts this row once per
-    // report so picking the only entry whose reportId matches the
-    // navigated report is straightforward.
-    val reportId = com.ai.ui.shared.LocalReportNeighborNav.current?.run {
-        // Use the existing report-context local — neighbour nav
-        // already carries the active reportId in scope.
-        null  // best-effort; row matches whichever job hydrate populated
-    } ?: jobs.keys.firstOrNull()
+    // The engine's StateFlow is keyed by reportId — show ONLY the job
+    // for the currently displayed report (LocalCurrentReportIdForSwipe
+    // carries uiState.currentReportId). Without this match a leftover
+    // job from another report would surface on an unrelated (e.g. brand
+    // new) report. No-op when the current report has no regenerate job.
+    val reportId = com.ai.ui.shared.LocalCurrentReportIdForSwipe.current
     val job = reportId?.let { jobs[it] } ?: return
 
     val done = job.tasks.count { it.state == com.ai.data.RegenerateTaskState.SUCCESS }
