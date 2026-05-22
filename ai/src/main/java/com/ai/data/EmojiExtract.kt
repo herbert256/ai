@@ -39,13 +39,28 @@ fun extractFirstEmoji(text: String?): String? {
             val firstCp = text.codePointAt(start)
             val cluster = text.substring(start, end)
             if (isLikelyEmojiCodePoint(firstCp) || cluster.contains('⃣')) {
-                return cluster
+                return sanitizeZwj(cluster)
             }
         }
         start = end
         end = it.next()
     }
     return null
+}
+
+/**
+ * A grapheme cluster joined by ZERO WIDTH JOINER (U+200D) is one cluster
+ * to [BreakIterator] even when it isn't a real combined emoji — e.g. a
+ * model answering with "🚗‍♨️" (car + ZWJ + hot springs) for a
+ * car-wash title. The font has no single glyph for that, so it draws as
+ * TWO glyphs. Keep the ZWJ sequence only when the system font actually
+ * renders it as one glyph (real emoji like 👨‍🍳 / 🏳️‍🌈); otherwise drop
+ * everything from the first ZWJ on, leaving just the lead emoji.
+ */
+private fun sanitizeZwj(cluster: String): String {
+    if (!cluster.contains('\u200D')) return cluster
+    val ok = try { android.graphics.Paint().hasGlyph(cluster) } catch (_: Throwable) { false }
+    return if (ok) cluster else cluster.substringBefore('\u200D')
 }
 
 private fun isLikelyEmojiCodePoint(cp: Int): Boolean =
