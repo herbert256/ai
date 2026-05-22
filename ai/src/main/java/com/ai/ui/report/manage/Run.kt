@@ -204,11 +204,9 @@ internal fun ReportRunScreen(
             )
     ) {
         val promptTitle = uiState.genericPromptTitle
-        // Main Manage screen: the report icon opens the View hub (via
-        // onReportIconClick below) — same target as the green report-name
-        // line and the bottom-bar 👁. The white "Manage report" screen
-        // title stays inert (onTitleClick = null); the green report-name
-        // in GenerationPhase is the tappable report-title instead.
+        // Main Manage screen: the report icon, the "Manage report" screen
+        // title and the green report-name in GenerationPhase all open the
+        // View hub (same target as the bottom-bar 👁).
         // Edit / Create live on the bottom bar (✏️ / 🆕); tapping either
         // toggles this shared menu state, which GenerationPhase reads to
         // pop up the same set of choices.
@@ -216,7 +214,10 @@ internal fun ReportRunScreen(
         TitleBar(
             helpTopic = "report_run",
             title = "Manage report",
-            onTitleClick = null,
+            // Tapping the "Manage report" screen title opens the main
+            // View hub ("View an AI report") — same target as the report
+            // icon, the green report-name and the bottom-bar 👁.
+            onTitleClick = onOpenViewReport,
             subject = promptTitle,
             reportIcon = if (iconGenEnabled) reportIcon?.takeIf { it.isNotEmpty() } ?: "📝" else null,
             // On the Manage report screen the report icon opens the main
