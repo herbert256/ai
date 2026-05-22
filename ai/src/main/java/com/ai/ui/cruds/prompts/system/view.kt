@@ -17,7 +17,7 @@ internal fun SystemPromptView(
         title = "System prompt",
         onEdit = onEdit, onCopy = onCopy, onDelete = onDelete, onBack = onBack,
         deleteName = item.name,
-        helpTopic = "system_prompts"
+        helpTopic = "crud_system_prompts"
     ) {
         CrudField("Name", item.name)
         CrudField("Prompt", item.prompt.ifBlank { "(empty)" })

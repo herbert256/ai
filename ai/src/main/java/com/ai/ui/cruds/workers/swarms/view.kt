@@ -20,7 +20,7 @@ internal fun SwarmView(
         title = "Swarm",
         onEdit = onEdit, onCopy = onCopy, onDelete = onDelete, onBack = onBack,
         deleteName = swarm.name,
-        helpTopic = "swarm_view"
+        helpTopic = "crud_swarms"
     ) {
         CrudField("Name", swarm.name)
         CrudField(

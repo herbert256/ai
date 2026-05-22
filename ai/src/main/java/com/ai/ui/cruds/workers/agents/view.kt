@@ -25,7 +25,7 @@ internal fun AgentView(
         title = "Agent",
         onEdit = onEdit, onCopy = onCopy, onDelete = onDelete, onBack = onBack,
         deleteName = agent.name,
-        helpTopic = "agent_view"
+        helpTopic = "crud_agents"
     ) {
         CrudField("Name", agent.name)
         CrudField("Provider", agent.provider.id)

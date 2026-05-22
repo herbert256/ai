@@ -17,7 +17,7 @@ internal fun ExamplePromptView(
         title = "Example prompt",
         onEdit = onEdit, onCopy = onCopy, onDelete = onDelete, onBack = onBack,
         deleteName = item.title.ifBlank { "(untitled)" },
-        helpTopic = "example_prompts"
+        helpTopic = "crud_example_prompts"
     ) {
         CrudField("Title", item.title.ifBlank { "(untitled)" })
         CrudField("Text", item.text.ifBlank { "(empty)" })

@@ -65,7 +65,7 @@ fun CostManualOverridesCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Manual cost overrides",
-            helpTopic = "cost_config",
+            helpTopic = "crud_cost_overrides",
             items = rows,
             line = { "${it.providerId} · ${shortModelName(it.model)} · ${formatTokenPricePerMillion(it.promptPrice)} / ${formatTokenPricePerMillion(it.completionPrice)}" },
             itemKey = { it.key },

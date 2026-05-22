@@ -17,7 +17,7 @@ internal fun CostOverrideView(
         title = "Manual cost override",
         onEdit = onEdit, onCopy = onCopy, onDelete = onDelete, onBack = onBack,
         deleteName = "${row.providerId} · ${row.model}",
-        helpTopic = "cost_config"
+        helpTopic = "crud_cost_overrides"
     ) {
         CrudField("Provider", row.providerId)
         CrudField("Model", row.model)

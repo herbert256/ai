@@ -17,7 +17,7 @@ internal fun TestExcludedModelView(
         title = "Test-excluded model",
         onEdit = onEdit, onCopy = onCopy, onDelete = onDelete, onBack = onBack,
         deleteName = "${item.providerId} · ${item.model}",
-        helpTopic = "test_excluded_models"
+        helpTopic = "crud_test_excluded"
     ) {
         CrudField("Provider", item.providerId)
         CrudField("Model", item.model)

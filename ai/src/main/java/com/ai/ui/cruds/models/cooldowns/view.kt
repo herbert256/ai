@@ -24,7 +24,7 @@ internal fun CooldownView(
         title = "Cooldown",
         onEdit = onEdit, onCopy = onCopy, onDelete = onDelete, onBack = onBack,
         deleteName = "${item.providerId} / ${item.model}",
-        helpTopic = "model_cooldowns_list"
+        helpTopic = "crud_model_cooldowns"
     ) {
         CrudField("Provider", item.providerId)
         CrudField("Model", item.model)

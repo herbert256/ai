@@ -64,7 +64,7 @@ internal fun BlockedModelForm(
         saveEnabled = hasModel,
         onSave = { onSaved(BlockedModel(providerId, model, reason.trim())) },
         onBack = onBack,
-        helpTopic = "blocked_model_edit"
+        helpTopic = "crud_blocked_models"
     ) {
         OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
             Text(

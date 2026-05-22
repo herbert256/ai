@@ -71,7 +71,7 @@ internal fun CooldownForm(
             onSaved(providerId, model.trim(), System.currentTimeMillis() + h * 3_600_000L)
         },
         onBack = onBack,
-        helpTopic = "model_cooldowns"
+        helpTopic = "crud_model_cooldowns"
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ExposedDropdownMenuBox(expanded = providerExpanded, onExpandedChange = { providerExpanded = !providerExpanded }) {

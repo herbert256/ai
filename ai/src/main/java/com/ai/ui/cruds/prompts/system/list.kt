@@ -36,7 +36,7 @@ fun SystemPromptsCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "System prompts",
-            helpTopic = "system_prompts",
+            helpTopic = "crud_system_prompts",
             items = aiSettings.systemPrompts.sortedBy { it.name.lowercase() },
             line = { "${it.name} · ${it.prompt.lineSequence().firstOrNull().orEmpty().take(50)}" },
             itemKey = { it.id },

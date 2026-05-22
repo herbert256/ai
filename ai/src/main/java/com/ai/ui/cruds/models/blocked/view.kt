@@ -25,7 +25,7 @@ internal fun BlockedModelView(
         title = "Blocked model",
         onEdit = onEdit, onCopy = onCopy, onDelete = onDelete, onBack = onBack,
         deleteName = "${item.providerId} · ${item.model}",
-        helpTopic = "blocked_models"
+        helpTopic = "crud_blocked_models"
     ) {
         CrudField("Provider", item.providerId)
         CrudField("Model", item.model)

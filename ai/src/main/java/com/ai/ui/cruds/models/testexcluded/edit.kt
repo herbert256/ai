@@ -55,7 +55,7 @@ internal fun TestExcludedModelForm(
         saveEnabled = hasModel,
         onSave = { onSaved(TestExcludedModel(providerId, model)) },
         onBack = onBack,
-        helpTopic = "test_excluded_models"
+        helpTopic = "crud_test_excluded"
     ) {
         OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
             Text(

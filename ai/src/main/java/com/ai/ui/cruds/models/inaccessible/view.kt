@@ -17,7 +17,7 @@ internal fun InaccessibleModelView(
         title = "Inaccessible model",
         onEdit = onEdit, onCopy = onCopy, onDelete = onDelete, onBack = onBack,
         deleteName = "${item.providerId} · ${item.model}",
-        helpTopic = "inaccessible_models"
+        helpTopic = "crud_inaccessible_models"
     ) {
         CrudField("Provider", item.providerId)
         CrudField("Model", item.model)

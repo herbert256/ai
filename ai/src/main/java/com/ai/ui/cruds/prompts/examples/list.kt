@@ -36,7 +36,7 @@ fun ExamplePromptsCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Example prompts",
-            helpTopic = "example_prompts",
+            helpTopic = "crud_example_prompts",
             items = aiSettings.examplePrompts.sortedBy { it.title.lowercase() },
             line = { "${it.title.ifBlank { "(untitled)" }} · ${it.text.lineSequence().firstOrNull().orEmpty().take(50)}" },
             itemKey = { it.id },

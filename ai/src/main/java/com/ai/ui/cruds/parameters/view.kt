@@ -34,7 +34,7 @@ internal fun ParametersView(
         title = "Parameter preset",
         onEdit = onEdit, onCopy = onCopy, onDelete = onDelete, onBack = onBack,
         deleteName = item.name,
-        helpTopic = "parameters_list"
+        helpTopic = "crud_parameters"
     ) {
         CrudField("Name", item.name)
         val r = rows(item)

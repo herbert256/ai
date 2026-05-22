@@ -42,7 +42,7 @@ fun ParametersCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Parameters",
-            helpTopic = "parameters_list",
+            helpTopic = "crud_parameters",
             items = aiSettings.parameters.sortedBy { it.name.lowercase() },
             line = { "${it.name} · ${setCount(it)} set" },
             itemKey = { it.id },

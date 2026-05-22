@@ -37,7 +37,7 @@ fun SwarmsCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Swarms",
-            helpTopic = "swarms_list",
+            helpTopic = "crud_swarms",
             items = aiSettings.swarms.sortedBy { it.name.lowercase() },
             line = { "${it.name} · ${it.members.size} members" },
             itemKey = { it.id },

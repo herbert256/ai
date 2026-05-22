@@ -42,7 +42,7 @@ fun AgentsCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Agents",
-            helpTopic = "agents_list",
+            helpTopic = "crud_agents",
             items = aiSettings.agents.sortedBy { it.name.lowercase() },
             line = { agent ->
                 val active = aiSettings.isProviderActive(agent.provider)

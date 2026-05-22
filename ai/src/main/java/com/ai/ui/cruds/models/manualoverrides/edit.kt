@@ -83,7 +83,7 @@ internal fun ManualOverrideForm(
             )
         },
         onBack = onBack,
-        helpTopic = "manual_model_types"
+        helpTopic = "crud_model_types"
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ExposedDropdownMenuBox(expanded = providerExpanded, onExpandedChange = { providerExpanded = !providerExpanded }) {

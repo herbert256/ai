@@ -21,7 +21,8 @@ internal val HELP_TOPICS: Map<String, HelpContent> =
     developerHelp +
     chatHelp +
     modelsHelp +
-    providerCatalogHelp
+    providerCatalogHelp +
+    crudHelp
 
 
 /** Per-screen → home-help cross-link table. Keyed by topic id; the
@@ -259,5 +260,5 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "help_privacy" to listOf("help_backup"),
     "help_backup" to listOf("help_privacy"),
     "help_translations" to listOf("concepts", "help_glossary_operations", "help_costs")
-)
+) + crudRelatedHelp
 

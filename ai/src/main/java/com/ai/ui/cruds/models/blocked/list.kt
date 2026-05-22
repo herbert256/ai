@@ -39,7 +39,7 @@ fun BlockedModelsCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Blocked models",
-            helpTopic = "blocked_models",
+            helpTopic = "crud_blocked_models",
             items = aiSettings.blockedModels.sortedBy { it.key.lowercase() },
             line = { "${it.providerId} · ${it.model}" },
             itemKey = { it.key },

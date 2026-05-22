@@ -61,7 +61,7 @@ internal fun InaccessibleModelForm(
         saveEnabled = hasModel,
         onSave = { onSaved(InaccessibleModel(providerId, model, reason.trim().ifBlank { "Manually added" })) },
         onBack = onBack,
-        helpTopic = "inaccessible_models"
+        helpTopic = "crud_inaccessible_models"
     ) {
         OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
             Text(

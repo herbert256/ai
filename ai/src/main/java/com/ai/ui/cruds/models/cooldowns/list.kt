@@ -39,7 +39,7 @@ fun ModelCooldownsCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Model cooldowns",
-            helpTopic = "model_cooldowns_list",
+            helpTopic = "crud_model_cooldowns",
             items = items,
             line = { "${it.providerId} / ${com.ai.ui.shared.shortModelName(it.model)}" },
             itemKey = { "${it.providerId}:${it.model}" },

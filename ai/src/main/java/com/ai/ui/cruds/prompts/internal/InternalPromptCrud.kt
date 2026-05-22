@@ -73,7 +73,7 @@ fun InternalPromptCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = label,
-            helpTopic = "internal_prompts_list",
+            helpTopic = "crud_internal_prompts",
             items = aiSettings.internalPrompts.filter { it.category == category }.sortedBy { it.name.lowercase() },
             line = { ip ->
                 val tail = ip.title.takeIf { it.isNotBlank() }
@@ -93,7 +93,7 @@ fun InternalPromptCrud(
             onDelete = if (fixedList) null else ({ remove(m.item); toList() }),
             onBack = toList,
             deleteName = m.item.name,
-            helpTopic = "internal_prompts_list"
+            helpTopic = "crud_internal_prompts"
         ) {
             CrudField("Name", m.item.name)
             if (m.item.title.isNotBlank()) CrudField("Title", m.item.title)

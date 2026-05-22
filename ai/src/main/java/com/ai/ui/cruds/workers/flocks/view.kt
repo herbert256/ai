@@ -21,7 +21,7 @@ internal fun FlockView(
         title = "Flock",
         onEdit = onEdit, onCopy = onCopy, onDelete = onDelete, onBack = onBack,
         deleteName = flock.name,
-        helpTopic = "flock_view"
+        helpTopic = "crud_flocks"
     ) {
         CrudField("Name", flock.name)
         CrudField("Agents (${agents.size})", agents.joinToString(", ") { it.name }.ifBlank { "(none)" })

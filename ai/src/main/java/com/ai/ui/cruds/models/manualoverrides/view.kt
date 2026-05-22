@@ -22,7 +22,7 @@ internal fun ManualOverrideView(
         title = "Manual override",
         onEdit = onEdit, onCopy = onCopy, onDelete = onDelete, onBack = onBack,
         deleteName = "${item.providerId} / ${item.modelId}",
-        helpTopic = "manual_model_types_list"
+        helpTopic = "crud_model_types"
     ) {
         CrudField("Provider", item.providerId)
         CrudField("Model", item.modelId)
