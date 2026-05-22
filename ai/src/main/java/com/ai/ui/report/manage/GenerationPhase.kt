@@ -601,28 +601,22 @@ internal fun ColumnScope.GenerationPhase(
         )
     }
 
-    // ----- Row 1: centered running cost -----
-    // Edit / Create moved to the bottom-bar ✏️ / 🆕 icons (which pop up
-    // their choices), so this row now carries only the 💰 + cents cost,
-    // centered. Tap it to jump to the Manage ReportsViewer Costs section.
+    // ----- Row 1: running total cost, right-aligned -----
+    // No 💰 icon: the total sits at the right edge, in the same column
+    // and font size as the per-row cost cells below, so it reads as the
+    // sum of the rows. Tap it to jump to the Manage ReportsViewer Costs.
     if (showTotals) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().clickable { handlers.onViewCosts() },
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
+            horizontalArrangement = Arrangement.End
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.clickable { handlers.onViewCosts() }
-            ) {
-                Text("💰", fontSize = 20.sp)
-                Text(
-                    text = " ${formatCents(totalCost)}",
-                    fontSize = 14.sp, color = AppColors.Blue,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            Text(
+                text = formatCents(totalCost),
+                fontSize = 10.sp, color = AppColors.Blue,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 
