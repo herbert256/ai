@@ -1119,13 +1119,31 @@ fun TitleBar(
         if (resolvedReportIcon != null) {
             // Same slot/position as the left AI logo it replaces, sized
             // to match the (now larger) logos.
-            // The report glyph sits centred in a tall (scale 2.5) icon box,
-            // so it reads as low; lift it well up with a negative offset.
-            Box(modifier = Modifier.align(Alignment.Top).offset(x = (-10).dp, y = (-22).dp).padding(top = 3.dp)) {
-                TitleBarIcon(
-                    resolvedReportIcon, Color.Unspecified,
-                    onClick = onReportIconClick ?: (if (reportIconGoesHome) navigateHome else (reportIconTap ?: {})),
-                    width = 33.dp, scale = 2.5f
+            // Render the report glyph centred in a logo-sized box with
+            // tight text metrics (no font padding; line height trimmed and
+            // centred) so the *visible* emoji lands on the same vertical
+            // centre as the right-edge AI logo — independent of how much
+            // blank space the particular emoji carries inside its glyph.
+            val reportIconClick = onReportIconClick ?: (if (reportIconGoesHome) navigateHome else (reportIconTap ?: {}))
+            Box(
+                modifier = Modifier.align(Alignment.Top)
+                    .offset(x = (-10).dp)
+                    .padding(top = 6.dp)
+                    .size(66.dp)
+                    .clickable(onClick = reportIconClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = resolvedReportIcon,
+                    fontSize = 46.sp,
+                    textAlign = TextAlign.Center,
+                    style = androidx.compose.ui.text.TextStyle(
+                        platformStyle = androidx.compose.ui.text.PlatformTextStyle(includeFontPadding = false),
+                        lineHeightStyle = androidx.compose.ui.text.style.LineHeightStyle(
+                            alignment = androidx.compose.ui.text.style.LineHeightStyle.Alignment.Center,
+                            trim = androidx.compose.ui.text.style.LineHeightStyle.Trim.Both
+                        )
+                    )
                 )
             }
         } else {
