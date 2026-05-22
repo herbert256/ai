@@ -1119,7 +1119,7 @@ fun TitleBar(
         if (resolvedReportIcon != null) {
             // Same slot/position as the left AI logo it replaces, sized
             // to match the (now larger) logos.
-            Box(modifier = Modifier.align(Alignment.Top).padding(start = 4.dp, top = 14.dp)) {
+            Box(modifier = Modifier.align(Alignment.Top).padding(start = 4.dp, top = 3.dp)) {
                 TitleBarIcon(
                     resolvedReportIcon, Color.Unspecified,
                     onClick = onReportIconClick ?: (if (reportIconGoesHome) navigateHome else (reportIconTap ?: {})),
@@ -1129,7 +1129,7 @@ fun TitleBar(
         } else {
             AiLogoButton(
                 onClick = navigateHome,
-                modifier = Modifier.align(Alignment.Top).padding(start = 4.dp, top = 14.dp),
+                modifier = Modifier.align(Alignment.Top).padding(start = 4.dp, top = 6.dp),
                 size = 66.dp
             )
         }
@@ -1171,7 +1171,7 @@ fun TitleBar(
         // left logo and flipped so the two face each other.
         AiLogoButton(
             onClick = navigateHome,
-            modifier = Modifier.align(Alignment.Top).padding(end = 4.dp, top = 14.dp),
+            modifier = Modifier.align(Alignment.Top).padding(end = 4.dp, top = 6.dp),
             size = 66.dp,
             mirrored = true
         )
