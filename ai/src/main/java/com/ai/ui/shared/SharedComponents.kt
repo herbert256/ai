@@ -1442,6 +1442,16 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     // bar into the help layout: strip left-aligned, ❓ pinned right.
     val onHelp = icons?.onHelp
     val costText = icons?.costText
+    // Font size shrinks as the amount grows more digits so a 3-digit
+    // value still fits and doesn't touch the icon to its left.
+    val costBaseSp = costText?.let {
+        when (it.substringBefore('.').trimStart('-').length) {
+            0, 1 -> 15f   // < 10
+            2 -> 12f      // < 100
+            3 -> 10f      // < 1000
+            else -> 8f
+        }
+    } ?: 0f
     val specs = if (icons != null) buildBottomBarIcons(icons) else emptyList()
     val extraGap = 2
     fun intrinsicOf(list: List<BottomBarIcon>): Float {
@@ -1499,10 +1509,14 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                         Text(
                             text = costText,
                             color = AppColors.Blue,
-                            fontSize = (10f * scale).sp,
+                            fontSize = (costBaseSp * scale).sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
-                            maxLines = 1, softWrap = false
+                            maxLines = 1, softWrap = false,
+                            // Shift left so the right edge lines up with the
+                            // per-row cost column (rows inset ~16dp; the bar
+                            // only 8dp).
+                            modifier = Modifier.padding(end = 9.dp)
                         )
                     }
                 }
@@ -1521,11 +1535,11 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                     Text(
                         text = costText,
                         color = AppColors.Blue,
-                        fontSize = (10f * scale).sp,
+                        fontSize = (costBaseSp * scale).sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                         maxLines = 1, softWrap = false,
-                        modifier = Modifier.padding(end = 6.dp)
+                        modifier = Modifier.padding(end = 9.dp)
                     )
                 }
                 TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, scale = scale)
