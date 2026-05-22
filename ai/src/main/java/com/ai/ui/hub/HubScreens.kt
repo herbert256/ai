@@ -369,22 +369,38 @@ fun ReportsHubScreen(
     }
     // Shown while an example is being imported on first open.
     var loadingExample by remember { mutableStateOf(false) }
-    // Open an example: reuse the already-imported copy if a report with the
-    // same title exists, otherwise import the bundled zip (popup meanwhile),
-    // then route to the chosen hub. `view` = 👁 View hub, else 🔧 Manage hub.
-    val openExample: (com.ai.data.ExampleEntry, Boolean) -> Unit = { entry, view ->
+    // Set when the tapped example collides with an existing same-named
+    // report — drives the "Report already exists" Overwrite/Cancel dialog.
+    // Carries the tapped entry + whether 👁 (view) was the tap.
+    var overwriteTarget by remember { mutableStateOf<Pair<com.ai.data.ExampleEntry, Boolean>?>(null) }
+    // Import the bundled zip (popup meanwhile) and route to the chosen hub.
+    // `view` = 👁 View hub, else 🔧 Manage hub. When [replaceTitle] is given,
+    // every existing report with that title is deleted first (Overwrite).
+    val importExampleAndOpen: (com.ai.data.ExampleEntry, Boolean, Boolean) -> Unit = { entry, view, overwrite ->
         scope.launch {
+            loadingExample = true
             val rid = withContext(Dispatchers.IO) {
-                val existing = ReportStorage.getAllReports(context)
-                    .firstOrNull { it.title == entry.title }
-                if (existing != null) existing.id
-                else {
-                    loadingExample = true
-                    try { com.ai.data.importExampleReport(context, entry.zipFile).newReportId }
-                    finally { loadingExample = false }
-                }
+                try {
+                    if (overwrite) {
+                        ReportStorage.getAllReports(context)
+                            .filter { it.title == entry.title }
+                            .forEach { ReportStorage.deleteReport(context, it.id) }
+                    }
+                    com.ai.data.importExampleReport(context, entry.zipFile).newReportId
+                } finally { loadingExample = false }
             }
             if (view) onOpenReportView(rid) else onOpenReportManage(rid)
+        }
+    }
+    // Open an example: if a report with the same title already exists, ask
+    // whether to overwrite; otherwise import straight away.
+    val openExample: (com.ai.data.ExampleEntry, Boolean) -> Unit = { entry, view ->
+        scope.launch {
+            val exists = withContext(Dispatchers.IO) {
+                ReportStorage.getAllReports(context).any { it.title == entry.title }
+            }
+            if (exists) overwriteTarget = entry to view
+            else importExampleAndOpen(entry, view, false)
         }
     }
     // Wire the per-row 🔧 / 👁 / 🗑 icons to the navigation +
@@ -454,6 +470,22 @@ fun ReportsHubScreen(
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
+    }
+    overwriteTarget?.let { (entry, view) ->
+        AlertDialog(
+            onDismissRequest = { overwriteTarget = null },
+            title = { Text("Report already exists") },
+            text = { Text("A report named \"${entry.title}\" already exists. Overwrite it with the example?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    overwriteTarget = null
+                    importExampleAndOpen(entry, view, true)
+                }) { Text("Overwrite") }
+            },
+            dismissButton = {
+                TextButton(onClick = { overwriteTarget = null }) { Text("Cancel") }
+            }
+        )
     }
     if (loadingExample) {
         AlertDialog(
