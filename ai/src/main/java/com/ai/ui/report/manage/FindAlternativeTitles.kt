@@ -28,7 +28,7 @@ fun AlternativeTitlesScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "alternative_titles", title = "Alternative titles", onBackClick = onBack)
+        TitleBar(helpTopic = "alternative_titles", title = "Alternative titles", subject = "Live title ideas from several models", onBackClick = onBack)
 
         // Stable order so rows don't reshuffle as candidates settle.
         val ordered = remember(candidates) {

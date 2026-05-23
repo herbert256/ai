@@ -44,6 +44,7 @@ import com.ai.ui.shared.verticalSwipeNavigation
 @Composable
 fun <T> CrudListPage(
     title: String,
+    subject: String? = null,
     items: List<T>,
     line: (T) -> String,
     itemKey: (T) -> Any,
@@ -63,7 +64,7 @@ fun <T> CrudListPage(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        TitleBar(helpTopic = helpTopic, title = title, onBackClick = onBack, onAdd = onAdd, onHousekeeping = onHousekeeping)
+        TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack, onAdd = onAdd, onHousekeeping = onHousekeeping)
 
         if (items.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

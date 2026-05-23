@@ -102,6 +102,7 @@ internal fun ManualModelTypeEditScreen(
         TitleBar(
             helpTopic = "manual_model_types",
             title = if (isAddMode) "Add override" else "Edit override",
+            subject = "Set one model's API type by hand",
             onBackClick = onCancel,
             onCopyReport = dup.copyTrigger
         )

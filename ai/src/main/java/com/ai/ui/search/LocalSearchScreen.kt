@@ -52,7 +52,7 @@ fun LocalSearchScreen(
     var running by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "search_local", title = "Extended local search", onBackClick = onBack)
+        TitleBar(helpTopic = "search_local", title = "Extended local search", subject = "Tokenised search over saved reports", onBackClick = onBack)
 
         OutlinedTextField(
             value = query, onValueChange = { query = it },

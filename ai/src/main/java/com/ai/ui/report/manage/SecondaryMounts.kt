@@ -249,7 +249,7 @@ internal fun MetaRunScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_meta_run",
-            title = "Run ${metaPrompt.name}",
+            title = "Run ${metaPrompt.name}", subject = "Tweak the prompt for this run only",
             onBackClick = onCancel
         )
         // Primary CTA hoisted to the top — one tap to advance
@@ -325,7 +325,7 @@ internal fun FanOutConfirmScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_fan_out_confirm",
-            title = "Fan Out - run",
+            title = "Fan Out - run", subject = "Confirm the calls before fanning out",
             onBackClick = onCancel
         )
         // Primary CTA hoisted to the top — pairCount-gated Run sits

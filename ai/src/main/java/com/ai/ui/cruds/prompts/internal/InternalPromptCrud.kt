@@ -73,6 +73,7 @@ fun InternalPromptCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = label,
+            subject = "Prompts the app's own flows use",
             helpTopic = "crud_internal_prompts",
             items = aiSettings.internalPrompts.filter { it.category == category }.sortedBy { it.name.lowercase() },
             line = { ip ->

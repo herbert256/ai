@@ -48,7 +48,7 @@ fun HousekeepingScreen(
     BackHandler { onBackToHome() }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "housekeeping", title = "Housekeeping", onBackClick = onBackToHome)
+        TitleBar(helpTopic = "housekeeping", title = "Housekeeping", subject = "Backup, cleanup and maintenance tools", onBackClick = onBackToHome)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             NavCard(

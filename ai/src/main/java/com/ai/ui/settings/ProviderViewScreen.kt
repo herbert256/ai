@@ -54,10 +54,10 @@ fun ProviderViewScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewScreenTitleBar(
-            // Inherit the AI Report Title when this screen is opened
-            // from a report context, same convention as
-            // [com.ai.ui.models.ModelInfoViewScreen].
-            reportTitle = com.ai.ui.shared.LocalReportTitle.current,
+            // This screen is about one provider — name it on the orange
+            // line so it's never blank (the View family otherwise
+            // inherits the report title).
+            reportTitle = provider.id,
             screenTitle = "Provider",
             subject = null,
             helpTopic = "provider_view",

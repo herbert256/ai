@@ -35,6 +35,7 @@ fun TestExcludedModelsCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Test-excluded models",
+            subject = "Models skipped by Test all models",
             helpTopic = "crud_test_excluded",
             items = aiSettings.testExcludedModels.sortedBy { it.key.lowercase() },
             line = { "${it.providerId} · ${it.model}" },

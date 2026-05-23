@@ -60,6 +60,7 @@ internal fun BlockedModelForm(
     val hasModel = providerId.isNotBlank() && model.isNotBlank()
     CrudFormScaffold(
         title = if (isAdd) "Add blocked model" else "Edit blocked model",
+        subject = "Block one model from being called",
         isAdd = isAdd,
         saveEnabled = hasModel,
         onSave = { onSaved(BlockedModel(providerId, model, reason.trim())) },

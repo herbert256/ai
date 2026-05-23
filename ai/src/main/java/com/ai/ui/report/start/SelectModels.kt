@@ -56,7 +56,7 @@ internal fun ReportSelectModelsScreen(
     ) {
         TitleBar(
             helpTopic = "report_select_models",
-            title = "Report - select models",
+            title = "Report - select models", subject = "Add agents, flocks, swarms or models",
             onBackClick = onDismiss
         )
         SelectionPhase(

@@ -25,7 +25,7 @@ fun TestScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "test", title = "Test", onBackClick = onBack, onSettings = onSettings)
+        TitleBar(helpTopic = "test", title = "Test", subject = "Diagnostic test flows for models", onBackClick = onBack, onSettings = onSettings)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             NavCard("Test all models", onClick = onOpenTestAllModels)

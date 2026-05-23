@@ -179,7 +179,7 @@ fun NewReportScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_new", title = "New AI Report", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "report_new", title = "New AI Report", subject = "Write your prompt, then pick models", onBackClick = onNavigateBack)
 
         if (sharedKbUris.isNotEmpty() && sharedKbState !is SharedKbBannerState.Skipped) {
             SharedKbBanner(

@@ -63,7 +63,7 @@ fun AppLogListScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "applog_list",
-            title = "Application log",
+            title = "Application log", subject = "Daily app logs for diagnosing issues",
             onBackClick = onBack,
             onDelete = if (files.isNotEmpty()) { { confirmClearAll = true } } else null
         )

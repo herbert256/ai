@@ -126,6 +126,7 @@ fun BackupRestoreScreen(
         TitleBar(
             helpTopic = "backup_restore",
             title = if (restoreOnly) "Restore" else "Backup & Restore",
+            subject = if (restoreOnly) "Restore the whole app from a backup zip" else "Back up or restore the whole app to a zip",
             onBackClick = onBack
         )
         restartMessage?.let { msg ->

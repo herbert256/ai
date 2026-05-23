@@ -73,7 +73,7 @@ fun SemanticSearchScreen(
     var pickerOpen by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "search_semantic", title = "Semantic search", onBackClick = onBack)
+        TitleBar(helpTopic = "search_semantic", title = "Semantic search", subject = "Cloud embedding search by meaning", onBackClick = onBack)
 
         if (embeddingChoices.isEmpty()) {
             Text(

@@ -276,6 +276,7 @@ fun FanOutScreen(
                     FanOutMode.TITLES -> "Fan titles"
                     else -> "Fan out"
                 },
+                subject = "Loading the fan-out…",
                 onOpenView = onOpenViewJump,
                 onBackClick = onBack
             )

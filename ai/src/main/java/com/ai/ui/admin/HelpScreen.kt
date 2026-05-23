@@ -106,6 +106,7 @@ fun HelpScreen(
     val subject = topic?.title
         ?.removePrefix("Help")?.trimStart(' ', '-', '—', '–', ':')
         ?.takeIf { it.isNotBlank() }
+        ?: "How this app works, screen by screen"
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             title = "Help",

@@ -70,7 +70,7 @@ fun LocalLiteRtModelsScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "local_litert_models", title = "Local LiteRT models", onBackClick = onBack)
+        TitleBar(helpTopic = "local_litert_models", title = "Local LiteRT models", subject = "On-device embedding models", onBackClick = onBack)
 
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
@@ -202,7 +202,7 @@ fun LocalLlmsScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "local_llms", title = "Local LLMs", onBackClick = onBack)
+        TitleBar(helpTopic = "local_llms", title = "Local LLMs", subject = "On-device chat models, run offline", onBackClick = onBack)
 
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),

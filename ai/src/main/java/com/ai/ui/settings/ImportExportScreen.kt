@@ -1449,6 +1449,7 @@ fun ImportExportScreen(
         TitleBar(
             helpTopic = "import_export",
             title = if (importOnly) "Import" else "Export / Import",
+            subject = if (importOnly) "Bring data in from a file" else "Move your data in and out via files",
             onBackClick = onBack
         )
         restartMessage?.let { msg ->

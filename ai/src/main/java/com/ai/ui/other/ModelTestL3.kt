@@ -60,7 +60,7 @@ internal fun ModelTestL3Screen(
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(
                 helpTopic = "test_all_models_l3",
-                title = "Test all models - model",
+                title = "Test all models - model", subject = "Pass/fail, latency and the model's reply",
                 onBackClick = onBack
             )
             Text("Test result no longer exists.", color = AppColors.TextTertiary)

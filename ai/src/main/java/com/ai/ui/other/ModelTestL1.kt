@@ -79,7 +79,7 @@ internal fun ModelTestL1Screen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "test_all_models_l1",
-            title = "Test all models",
+            title = "Test all models", subject = "Per-provider pass rate, tap to drill in",
             onTrace = runScopedTraceClick,
             onBackClick = onBack,
             // ⚙️ → AI Setup → Models → Test-excluded models (which this

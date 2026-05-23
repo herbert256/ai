@@ -42,6 +42,7 @@ fun AgentsCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Agents",
+            subject = "Saved model + prompt + params combos",
             helpTopic = "crud_agents",
             items = aiSettings.agents.sortedBy { it.name.lowercase() },
             line = { agent ->

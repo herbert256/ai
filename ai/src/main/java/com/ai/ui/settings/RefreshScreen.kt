@@ -386,7 +386,7 @@ fun RefreshScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "refresh", title = "Refresh", onBackClick = onBack, onSettings = onSettings)
+        TitleBar(helpTopic = "refresh", title = "Refresh", subject = "Update model catalogs and workers", onBackClick = onBack, onSettings = onSettings)
 
         // Fresh-install gate: with no keyed provider, the Workers phase
         // has nothing to act on, so "Refresh all" would just run the
@@ -455,7 +455,7 @@ private fun InfoProvidersRefreshPage(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "refresh_info_providers", title = "AI Info Providers", onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_info_providers", title = "AI Info Providers", subject = "Six pricing & capability catalogs", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             RefreshAction(
                 label = "OpenRouter",
@@ -581,7 +581,7 @@ private fun RefreshAllProgressScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "refresh_all", title = state.title, onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_all", title = state.title, subject = "Updating catalogs and workers…", onBackClick = onBack)
         if (onRestart != null && restartMessage != null) {
             RestartAppBanner(message = restartMessage, onConfirm = onRestart)
         }
@@ -712,7 +712,7 @@ private fun RefreshResultScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "refresh_result", title = titleText, onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_result", title = titleText, subject = "What the refresh updated", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (!description.isNullOrBlank()) {
                 Text(description, fontSize = 13.sp, color = AppColors.TextSecondary)

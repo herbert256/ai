@@ -132,7 +132,7 @@ internal fun ReportMetaScreen(
             { it.value = com.ai.ui.shared.ViewJump.Main }
         }
         TitleBar(helpTopic = "report_meta",
-            title = "Meta",
+            title = "Meta", subject = "Run a prompt over the report's answers",
             reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onOpenView = onOpenViewJump,
             onBackClick = onBack)

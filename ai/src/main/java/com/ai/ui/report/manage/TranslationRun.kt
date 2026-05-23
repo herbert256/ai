@@ -159,7 +159,7 @@ internal fun TranslationRunScreen(
             modifier = Modifier.fillMaxSize()
                 .background(MaterialTheme.colorScheme.background).padding(16.dp)
         ) {
-            TitleBar(helpTopic = "translation_run_l1", title = "Translation", onBackClick = onBack)
+            TitleBar(helpTopic = "translation_run_l1", title = "Translation", subject = "Per-model progress of this translation", onBackClick = onBack)
             Text("Loading…", color = AppColors.TextTertiary)
         }
         return@CompositionLocalProvider

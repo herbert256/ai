@@ -67,7 +67,7 @@ fun ExternalIntentConfirmScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        TitleBar(helpTopic = "external_intent", title = "External request", onBackClick = onCancel)
+        TitleBar(helpTopic = "external_intent", title = "External request", subject = "Another app wants to make a report", onBackClick = onCancel)
         Text(
             "Another app asked this app to run a report. Review what it will do before generating — this can spend API credits.",
             fontSize = 12.sp, color = AppColors.TextSecondary

@@ -180,7 +180,7 @@ fun ApiTestScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "developer_test", title = "API Test", onBackClick = onBackClick)
+        TitleBar(helpTopic = "developer_test", title = "API Test", subject = "Hand-craft a raw API call to a model", onBackClick = onBackClick)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             // Provider selector
@@ -303,7 +303,7 @@ fun EditApiRequestScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
-            helpTopic = "developer_edit", title = "Edit Request", onBackClick = onBackClick,
+            helpTopic = "developer_edit", title = "Edit Request", subject = "Edit the raw JSON request body", onBackClick = onBackClick,
             onCopy = editableJson.takeIf { it.isNotBlank() }?.let {
                 { com.ai.ui.shared.copyToClipboard(context, editableJson, "request") }
             },

@@ -102,7 +102,7 @@ fun RegenerateBatchScreen(
     ) {
         TitleBar(
             helpTopic = "regenerate_batch",
-            title = "Regenerate report",
+            title = "Regenerate report", subject = "Re-run every model on this report",
             reportIcon = reportIcon ?: "📝",
             onBackClick = onBack,
             // Bottom-bar 🗑 — confirms then drops the persisted

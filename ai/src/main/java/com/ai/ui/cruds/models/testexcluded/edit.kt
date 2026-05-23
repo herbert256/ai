@@ -51,6 +51,7 @@ internal fun TestExcludedModelForm(
     val hasModel = providerId.isNotBlank() && model.isNotBlank()
     CrudFormScaffold(
         title = if (isAdd) "Add test-excluded model" else "Edit test-excluded model",
+        subject = "Exclude one model from Test all",
         isAdd = isAdd,
         saveEnabled = hasModel,
         onSave = { onSaved(TestExcludedModel(providerId, model)) },

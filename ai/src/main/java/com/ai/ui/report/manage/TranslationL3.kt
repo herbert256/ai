@@ -83,7 +83,7 @@ internal fun TranslationL3Screen(
     val item = run.items.firstOrNull { it.id == itemId }
     if (item == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-            TitleBar(helpTopic = "translation_run_l3", title = "Translation call", onBackClick = onBack)
+            TitleBar(helpTopic = "translation_run_l3", title = "Translation call", subject = "Source text and its translation", onBackClick = onBack)
             Text("This item no longer exists.", color = AppColors.TextTertiary, fontSize = 14.sp)
         }
         return

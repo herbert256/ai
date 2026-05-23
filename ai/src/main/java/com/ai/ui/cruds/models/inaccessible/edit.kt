@@ -57,6 +57,7 @@ internal fun InaccessibleModelForm(
     val hasModel = providerId.isNotBlank() && model.isNotBlank()
     CrudFormScaffold(
         title = if (isAdd) "Add inaccessible model" else "Edit inaccessible model",
+        subject = "Mark one model as unreachable",
         isAdd = isAdd,
         saveEnabled = hasModel,
         onSave = { onSaved(InaccessibleModel(providerId, model, reason.trim().ifBlank { "Manually added" })) },

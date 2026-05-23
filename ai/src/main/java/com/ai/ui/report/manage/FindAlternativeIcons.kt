@@ -50,7 +50,7 @@ fun AlternativeIconsScreen(
         }.value
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
-            helpTopic = "alternative_icons", title = "Alternative icons", onBackClick = onBack,
+            helpTopic = "alternative_icons", title = "Alternative icons", subject = "Live icon ideas from several models", onBackClick = onBack,
             reportIcon = if (iconGenEnabled) loadedReportIcon?.takeIf { it.isNotBlank() } ?: "📝" else null
         )
 

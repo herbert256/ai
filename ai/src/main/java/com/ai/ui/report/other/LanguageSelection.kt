@@ -154,7 +154,7 @@ internal fun LanguageSelectionScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "translation_language", title = "Pick target language", onBackClick = onBack)
+        TitleBar(helpTopic = "translation_language", title = "Pick target language", subject = "Choose a language to translate into", onBackClick = onBack)
 
         OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search languages...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),

@@ -95,7 +95,7 @@ fun UsageScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "statistics",
-            title = "AI Usage", onBackClick = onBack,
+            title = "AI Usage", subject = "Calls, tokens and cost per provider", onBackClick = onBack,
             onDelete = if (stats.isNotEmpty()) { { confirmClear = true } } else null,
             onHousekeeping = onHousekeeping
         )
@@ -324,6 +324,7 @@ internal fun AddManualOverrideScreen(
         TitleBar(
             helpTopic = "cost_override",
             title = if (isAddMode) "Add Override" else "Edit Override",
+            subject = "Set input/output \$/M for one model",
             onBackClick = onBack,
             onCopyReport = null
         )

@@ -125,6 +125,7 @@ internal fun FanOutL3Screen(
                     FanOutMode.TITLES -> "Fan titles - pair"
                     else -> "Fan out - pair"
                 },
+                subject = "This pair no longer exists",
                 onOpenView = onOpenViewEmptyJump,
                 onBackClick = onBack
             )

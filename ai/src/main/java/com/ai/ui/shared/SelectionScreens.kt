@@ -125,7 +125,7 @@ fun SelectModelScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "model_pick_model", title = "Select Model", onBackClick = onBack)
+        TitleBar(helpTopic = "model_pick_model", title = "Select Model", subject = "Pick a model, with pricing & flags", onBackClick = onBack)
 
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 8.dp)) {
             Text(
@@ -268,7 +268,7 @@ fun SelectProviderScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "model_pick_provider", title = "Select Provider", onBackClick = onBack)
+        TitleBar(helpTopic = "model_pick_provider", title = "Select Provider", subject = "Pick a cloud AI provider", onBackClick = onBack)
 
         Text(
             text = "${allProviders.size} providers",
@@ -346,7 +346,7 @@ fun SelectAgentScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "model_pick_agent", title = "Select Agent", onBackClick = onBack)
+        TitleBar(helpTopic = "model_pick_agent", title = "Select Agent", subject = "Pick one of your saved agents", onBackClick = onBack)
 
         Text(
             text = "${allAgents.size} agents",

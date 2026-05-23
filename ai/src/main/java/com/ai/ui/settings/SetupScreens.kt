@@ -57,7 +57,7 @@ fun SetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_setup", title = "AI Setup", onBackClick = onBackToSettings)
+        TitleBar(helpTopic = "settings_setup", title = "AI Setup", subject = "Providers, models, workers & prompts", onBackClick = onBackToSettings)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SetupNavCard("\u2699\uFE0F", "Providers", "API key, state, and default model per provider", "${AppService.entries.size}",
@@ -139,7 +139,7 @@ fun ModelsSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "setup_models", title = "AI Models setup", onBackClick = onBack, onHousekeeping = onHousekeeping)
+        TitleBar(helpTopic = "setup_models", title = "AI Models setup", subject = "Models, types and manual overrides", onBackClick = onBack, onHousekeeping = onHousekeeping)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🧠", "Models", "Source and model list per active provider", "$modelCount",
@@ -182,7 +182,7 @@ fun WorkersSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "setup_workers", title = "AI Workers", onBackClick = onBack)
+        TitleBar(helpTopic = "setup_workers", title = "AI Workers", subject = "Agents, flocks and swarms", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🤖", "Agents", "Named AI model configurations", "$agentCount",
@@ -218,7 +218,7 @@ fun PromptsSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "setup_prompts", title = "Prompt management", onBackClick = onBack)
+        TitleBar(helpTopic = "setup_prompts", title = "Prompt management", subject = "System, internal and example prompts", onBackClick = onBack)
 
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
         val internalTotal = countByCategory("meta") + countByCategory("fan_out") +
@@ -256,7 +256,7 @@ fun InternalPromptsHubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "internal_prompts_hub", title = "Internal prompts", onBackClick = onBack)
+        TitleBar(helpTopic = "internal_prompts_hub", title = "Internal prompts", subject = "Prompts the app's own flows use", onBackClick = onBack)
 
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
         val fanTotal = countByCategory("fan_out") + countByCategory("fan_in") +
@@ -298,7 +298,7 @@ fun FanInOutPromptsHubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "fan_in_out_prompts_hub", title = "Fan out/in prompts", onBackClick = onBack)
+        TitleBar(helpTopic = "fan_in_out_prompts_hub", title = "Fan out/in prompts", subject = "Prompts for multi-model fan out/in", onBackClick = onBack)
 
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
 
@@ -335,7 +335,7 @@ fun LocalModelsSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "setup_local_models", title = "Local models", onBackClick = onBack)
+        TitleBar(helpTopic = "setup_local_models", title = "Local models", subject = "On-device LLMs and embedders", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("📱", "Local LLMs", "On-device .task chat models that drive the synthetic Local provider", "$localLlmCount",
@@ -419,7 +419,7 @@ fun ProvidersScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "providers", title = "Providers", onBackClick = onBackToAiSetup, onHousekeeping = onHousekeeping)
+        TitleBar(helpTopic = "providers", title = "Providers", subject = "42 built-in plus your own providers", onBackClick = onBackToAiSetup, onHousekeeping = onHousekeeping)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             visibleProviders.forEach { provider ->
@@ -593,7 +593,7 @@ fun ExternalServicesScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "external_services", title = "External Services", onBackClick = onBack)
+        TitleBar(helpTopic = "external_services", title = "External Services", subject = "Keys for search and other extras", onBackClick = onBack)
 
         Column(
             modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),

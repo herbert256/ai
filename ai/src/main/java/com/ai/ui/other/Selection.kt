@@ -64,7 +64,7 @@ internal fun ReportSelectAgentScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_pick_agent", title = "Pick an agent", onBackClick = onBack)
+        TitleBar(helpTopic = "report_pick_agent", title = "Pick an agent", subject = "Add a saved agent to the report", onBackClick = onBack)
 
         OutlinedTextField(
             value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -235,7 +235,7 @@ internal fun ReportSelectModelsScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_pick_model", title = titleText, onBackClick = onBack)
+        TitleBar(helpTopic = "report_pick_model", title = titleText, subject = "Add one model, with live pricing", onBackClick = onBack)
 
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = { providerDropdownExpanded = true }, modifier = Modifier.fillMaxWidth(),
@@ -436,7 +436,7 @@ internal fun ReportSelectFlockScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_pick_flock", title = "Pick a flock", onBackClick = onBack)
+        TitleBar(helpTopic = "report_pick_flock", title = "Pick a flock", subject = "Add a whole group of agents at once", onBackClick = onBack)
 
         OutlinedTextField(
             value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -557,7 +557,7 @@ internal fun ReportSelectSwarmScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_pick_swarm", title = "Pick a swarm", onBackClick = onBack)
+        TitleBar(helpTopic = "report_pick_swarm", title = "Pick a swarm", subject = "Add a multi-agent team to the report", onBackClick = onBack)
 
         OutlinedTextField(
             value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -700,7 +700,7 @@ internal fun ReportSelectInternalPromptScreen(
             "fan_in" -> "secondary_fan_out"
             else -> "secondary_list"
         }
-        TitleBar(helpTopic = helpId, title = titleText, onBackClick = onBack)
+        TitleBar(helpTopic = helpId, title = titleText, subject = "Choose a prompt for this action", onBackClick = onBack)
 
         OutlinedTextField(
             value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -789,7 +789,7 @@ internal fun ReportActionPickerScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = helpTopic, title = titleText, onBackClick = onBack)
+        TitleBar(helpTopic = helpTopic, title = titleText, subject = "Choose what to do with the report", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             options.forEach { opt ->
                 Column(
@@ -864,7 +864,7 @@ internal fun ReportOneTimePromptScreen(
             "fan_in" -> "secondary_fan_out"
             else -> "internal_prompt_edit"
         }
-        TitleBar(helpTopic = helpId, title = "One-time prompt", onBackClick = onBack)
+        TitleBar(helpTopic = helpId, title = "One-time prompt", subject = "Run a prompt without saving it", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -977,7 +977,7 @@ internal fun ReportSelectFromReportScreen(
         }
     }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_pick_previous", title = "Pick previous report", onBackClick = onBack)
+        TitleBar(helpTopic = "report_pick_previous", title = "Pick previous report", subject = "Reuse a past report's model selection", onBackClick = onBack)
 
         OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search title or prompt...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),

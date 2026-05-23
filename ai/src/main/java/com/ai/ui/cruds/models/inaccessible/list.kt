@@ -35,6 +35,7 @@ fun InaccessibleModelsCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Inaccessible models",
+            subject = "Models that returned unreachable",
             helpTopic = "crud_inaccessible_models",
             items = aiSettings.inaccessibleModels.sortedBy { it.key.lowercase() },
             line = { "${it.providerId} · ${it.model}" },

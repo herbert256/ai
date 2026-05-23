@@ -234,7 +234,7 @@ fun ReportGetInfoScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
-            helpTopic = "report_get_info", title = "Report - Get info", onBackClick = onBack,
+            helpTopic = "report_get_info", title = "Report - Get info", subject = "Status of icon, title & language jobs", onBackClick = onBack,
             costText = total.takeIf { it > 0.0 }?.let { formatCents(it, 2) }
         )
         LazyColumn(modifier = Modifier.fillMaxSize()) {

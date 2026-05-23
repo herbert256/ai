@@ -50,6 +50,7 @@ fun DocumentationScreen(
         TitleBar(
             helpTopic = helpTopic,
             title = title,
+            subject = if (docsSubdir == "manual") "End-user guide" else "Developer reference",
             onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )

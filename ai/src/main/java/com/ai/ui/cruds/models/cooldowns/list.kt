@@ -39,6 +39,7 @@ fun ModelCooldownsCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Model cooldowns",
+            subject = "Models paused after rate-limit errors",
             helpTopic = "crud_model_cooldowns",
             items = items,
             line = { "${it.providerId} / ${com.ai.ui.shared.shortModelName(it.model)}" },

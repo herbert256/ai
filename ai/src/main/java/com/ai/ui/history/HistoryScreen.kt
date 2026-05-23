@@ -83,7 +83,7 @@ fun HistoryScreenNav(
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(
                 helpTopic = "history",
-                title = "History", onBackClick = onNavigateBack,
+                title = "History", subject = "All your saved reports, newest first", onBackClick = onNavigateBack,
                 onDelete = if (allReports.isNotEmpty()) { { confirmClearAll = true } } else null,
                 onHousekeeping = onHousekeeping
             )

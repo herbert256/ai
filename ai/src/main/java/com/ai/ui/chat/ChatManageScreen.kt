@@ -54,7 +54,7 @@ fun ChatManageScreen(
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)
         .padding(16.dp)) {
-        TitleBar(helpTopic = "chat_manage", title = "Manage chats", onBackClick = onBack)
+        TitleBar(helpTopic = "chat_manage", title = "Manage chats", subject = "Bulk-delete old chats or export them", onBackClick = onBack)
 
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)) {
             Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {

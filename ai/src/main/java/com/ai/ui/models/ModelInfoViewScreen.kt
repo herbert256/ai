@@ -299,7 +299,11 @@ fun ModelInfoViewScreen(
         // route (settings, model browse, …) the local is null and
         // the title bar stays blank — provider / model name still
         // shows in the HeroCard below.
+        // Prefer the AI Report Title when opened from a report; otherwise
+        // (settings / model browse) fall back to the model name so the
+        // orange line is never blank.
         val reportTitleFromContext = com.ai.ui.shared.LocalReportTitle.current
+            ?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.shortModelName(modelName)
         ViewScreenTitleBar(
             reportTitle = reportTitleFromContext,
             screenTitle = "Model Info",

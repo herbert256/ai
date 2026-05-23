@@ -35,6 +35,7 @@ fun CrudViewPage(
     onEdit: () -> Unit,
     onBack: () -> Unit,
     deleteName: String,
+    subject: String? = deleteName,
     helpTopic: String? = null,
     onCopy: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
@@ -49,7 +50,7 @@ fun CrudViewPage(
             .padding(16.dp)
     ) {
         TitleBar(
-            helpTopic = helpTopic, title = title, onBackClick = onBack,
+            helpTopic = helpTopic, title = title, subject = subject?.takeIf { it.isNotBlank() }, onBackClick = onBack,
             onEdit = onEdit,
             onCopyReport = onCopy,
             onDelete = onDelete?.let { { confirmDelete = true } }

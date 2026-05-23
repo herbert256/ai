@@ -46,6 +46,7 @@ fun ManualOverridesCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Manual model types",
+            subject = "Model types you set by hand",
             helpTopic = "crud_model_types",
             items = aiSettings.modelTypeOverrides.sortedBy { "${it.providerId}/${it.modelId}".lowercase() },
             line = { "${it.providerId} / ${it.modelId} → ${it.type}${flags(it)}" },

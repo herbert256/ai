@@ -61,7 +61,7 @@ fun NewAiReportScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
-            title = "New AI report",
+            title = "New AI report", subject = "Blank, a past prompt, or an example",
             helpTopic = "new_ai_report_screen",
             onBackClick = onNavigateBack
         )

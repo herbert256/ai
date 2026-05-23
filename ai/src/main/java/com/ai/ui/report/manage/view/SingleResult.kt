@@ -120,14 +120,14 @@ fun ReportSingleResultScreen(
 
     if (report == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            TitleBar(helpTopic = "report_single_result", title = "Model response", onBackClick = onBack,
+            TitleBar(helpTopic = "report_single_result", title = "Model response", subject = "Conclusion, motivation and full reply", onBackClick = onBack,
                 modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
         }
         return
     }
     if (agent == null || provider == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-            TitleBar(helpTopic = "report_single_result", title = "Model response", onBackClick = onBack,
+            TitleBar(helpTopic = "report_single_result", title = "Model response", subject = "Conclusion, motivation and full reply", onBackClick = onBack,
                 modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("Result not found", color = AppColors.TextSecondary, fontSize = 16.sp)
@@ -511,7 +511,7 @@ internal fun ContinueInChatPickerScreen(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        TitleBar(helpTopic = "report_continue_in_chat", title = "Continue in chat", onBackClick = onBack,
+        TitleBar(helpTopic = "report_continue_in_chat", title = "Continue in chat", subject = "Send this answer into a new chat", onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
             Text(

@@ -58,7 +58,7 @@ fun ReportManageScreen(
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)
         .padding(16.dp)) {
-        TitleBar(helpTopic = "report_manage", title = "Manage reports", onBackClick = onBack)
+        TitleBar(helpTopic = "report_manage", title = "Manage reports", subject = "Delete old reports or export them all", onBackClick = onBack)
 
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)) {
             Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {

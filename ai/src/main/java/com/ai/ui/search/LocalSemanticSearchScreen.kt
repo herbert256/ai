@@ -74,7 +74,7 @@ fun LocalSemanticSearchScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val tfTop = latestTrace
         TitleBar(
-            helpTopic = "search_local_semantic", title = "Local semantic search", onBackClick = onBack,
+            helpTopic = "search_local_semantic", title = "Local semantic search", subject = "On-device meaning search, no cloud", onBackClick = onBack,
             onTrace = if (com.ai.data.ApiTracer.isTracingEnabled && tfTop != null) {
                 { onNavigateToTraceFile(tfTop) }
             } else null

@@ -64,6 +64,7 @@ internal fun CooldownForm(
 
     CrudFormScaffold(
         title = if (isAdd) "Add cooldown" else "Edit cooldown",
+        subject = "Pause a model until a given time",
         isAdd = isAdd,
         saveEnabled = canSave,
         onSave = {

@@ -48,7 +48,7 @@ fun AboutScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "about",
-            title = "About",
+            title = "About", subject = "Version, build date and credits",
             onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )

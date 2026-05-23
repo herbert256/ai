@@ -37,6 +37,7 @@ fun FlocksCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Flocks",
+            subject = "Named groups of agents",
             helpTopic = "crud_flocks",
             items = aiSettings.flocks.sortedBy { it.name.lowercase() },
             line = { "${it.name} · ${aiSettings.getAgentsForFlock(it).size} agents" },

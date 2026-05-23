@@ -71,7 +71,7 @@ fun AllAiReportsScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
-            title = "All AI reports",
+            title = "All AI reports", subject = "Browse every saved report, newest first",
             helpTopic = "all_ai_reports_screen",
             onBackClick = onNavigateBack
         )

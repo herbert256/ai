@@ -65,6 +65,7 @@ fun CostManualOverridesCrud(
     when (val m = mode) {
         Mode.List -> CrudListPage(
             title = "Manual cost overrides",
+            subject = "Prices you set by hand, beat the catalog",
             helpTopic = "crud_cost_overrides",
             items = rows,
             line = { "${it.providerId} · ${shortModelName(it.model)} · ${formatTokenPricePerMillion(it.promptPrice)} / ${formatTokenPricePerMillion(it.completionPrice)}" },

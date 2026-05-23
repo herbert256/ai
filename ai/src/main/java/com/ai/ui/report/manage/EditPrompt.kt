@@ -40,7 +40,7 @@ fun ReportEditPromptScreen(
     val canUpdate = prompt.trim().isNotBlank()
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_edit_prompt", title = "Edit prompt", onBackClick = onBack)
+        TitleBar(helpTopic = "report_edit_prompt", title = "Edit prompt", subject = "Saving needs a regenerate to apply", onBackClick = onBack)
 
         OutlinedTextField(
             value = prompt, onValueChange = { prompt = it },
@@ -102,7 +102,7 @@ fun ReportEditTitleScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
-            helpTopic = "report_edit_title", title = "Edit title", onBackClick = onBack,
+            helpTopic = "report_edit_title", title = "Edit title", subject = "Metadata only — no regenerate needed", onBackClick = onBack,
             onTrace = titleTraceFilename?.let { fn -> { onNavigateToTraceFile(fn) } }
         )
 
@@ -159,7 +159,7 @@ fun ReportEditModelTitleScreen(
     val canUpdate = title.trim().isNotBlank()
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
-            helpTopic = "report_edit_model_title", title = "Edit model title", onBackClick = onBack,
+            helpTopic = "report_edit_model_title", title = "Edit model title", subject = "Rename one model's answer title", onBackClick = onBack,
             onTrace = traceFilename?.takeIf { it.isNotBlank() }?.let { fn -> { onNavigateToTraceFile(fn) } }
         )
 

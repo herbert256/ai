@@ -629,7 +629,7 @@ fun SettingsScreen(
                 Column(
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
                 ) {
-                    TitleBar(helpTopic = "settings_main", title = "Loading…", onBackClick = goBack)
+                    TitleBar(helpTopic = "settings_main", title = "Loading…", subject = "Loading settings…", onBackClick = goBack)
                 }
             } else {
                 key(ip?.id) {
@@ -760,7 +760,7 @@ private fun SettingsMainScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_main", title = "Settings", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_main", title = "Settings", subject = "App preferences, grouped by topic", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Nav rows into the four preference buckets. Each opens
@@ -916,7 +916,7 @@ private fun NetworkSettingsSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_network", title = "Network settings", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_network", title = "Network settings", subject = "Timeouts, throttling and retry rules", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Nav row to the Maximal API calls sub-screen. Styled like
             // SettingCard (same surface, title weight, chevron) so it
@@ -1073,7 +1073,7 @@ private fun MaximalApiCallsSubScreen(
     ) {
         TitleBar(
             helpTopic = "settings_network_api_calls",
-            title = "Maximal API calls",
+            title = "Maximal API calls", subject = "How many calls run at once",
             onBackClick = onBack
         )
         Column(
@@ -1194,7 +1194,7 @@ private fun UiTweaksSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_ui", title = "UI tweaks", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_ui", title = "UI tweaks", subject = "Visual and layout preferences", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("Model name layout", "How model labels render across rows and pickers.") {
                 Column {
@@ -1280,7 +1280,7 @@ private fun OtherSettingsSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_other", title = "Other settings", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity and report-icon options", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("Identity", "Used as the human side of the conversation in agent prompts; the email pre-fills the export sheet so you don't retype it on every send.") {
                 OutlinedTextField(
@@ -1374,7 +1374,7 @@ private fun LoggingAndTracingSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_logging", title = "Logging and tracing", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_logging", title = "Logging and tracing", subject = "Log level and API call tracing", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ToggleSettingCard(
                 title = "API tracing",

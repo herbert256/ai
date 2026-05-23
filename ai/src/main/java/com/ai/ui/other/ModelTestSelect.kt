@@ -71,7 +71,7 @@ internal fun ModelTestSelectScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "test_all_models_select",
-            title = "Test all models",
+            title = "Test all models", subject = "Choose which providers to test",
             onBackClick = onBack
         )
 

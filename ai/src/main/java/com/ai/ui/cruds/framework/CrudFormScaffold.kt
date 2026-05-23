@@ -33,6 +33,7 @@ fun CrudFormScaffold(
     saveEnabled: Boolean,
     onSave: () -> Unit,
     onBack: () -> Unit,
+    subject: String? = null,
     helpTopic: String? = null,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
@@ -43,7 +44,7 @@ fun CrudFormScaffold(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        TitleBar(helpTopic = helpTopic, title = title, onBackClick = onBack)
+        TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack)
         Button(
             onClick = onSave,
             enabled = saveEnabled,

@@ -234,7 +234,7 @@ fun TraceListScreen(
             TitleBar(
                 helpTopic = "trace_list",
                 title = "API Traces",
-                subject = subHeader,
+                subject = subHeader.ifBlank { "Every captured API request & response" },
                 reportIcon = resolvedReportIcon,
                 onBackClick = onBack,
                 onDelete = if (canClear) { { confirmClearAll = true } } else null,
@@ -460,7 +460,7 @@ private fun TraceModelPickerOverlay(
     BackHandler { onBack() }
     val advisory = com.ai.ui.shared.rememberModelAdvisoryLookup(aiSettings)
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "trace_pick_model", title = "Pick model", onBackClick = onBack)
+        TitleBar(helpTopic = "trace_pick_model", title = "Pick model", subject = "Filter the trace list to one model", onBackClick = onBack)
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
             modifier = Modifier.fillMaxWidth().clickable { onSelect(null) }
         ) {
@@ -777,7 +777,7 @@ fun TraceDetailScreen(
     Column(modifier = Modifier.fillMaxSize().background(bgColor).padding(16.dp)) {
         TitleBar(
             helpTopic = "trace_detail",
-            title = "Trace detail", onBackClick = onBack,
+            title = "Trace detail", subject = "Full request & response of one call", onBackClick = onBack,
             // When the trace belongs to a report, paint that report's
             // AI-generated icon (the "retrieved" icon) as the leftmost
             // glyph. Null when no icon has been generated yet OR the

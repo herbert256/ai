@@ -70,6 +70,7 @@ internal fun ManualOverrideForm(
 
     CrudFormScaffold(
         title = if (isAdd) "Add override" else "Edit override",
+        subject = "Assign one model's API type",
         isAdd = isAdd,
         saveEnabled = canSave,
         onSave = {

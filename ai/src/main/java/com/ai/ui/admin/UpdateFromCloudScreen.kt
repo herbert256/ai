@@ -122,7 +122,7 @@ fun UpdateFromCloudScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "update_from_cloud", title = "Update from cloud", onBackClick = onBack)
+        TitleBar(helpTopic = "update_from_cloud", title = "Update from cloud", subject = "Install the latest APK from a synced file", onBackClick = onBack)
 
         // Primary action lives at the top so the user can install
         // without scrolling once the source file is picked. Repeats
