@@ -698,296 +698,44 @@ fun ReportsScreen(
         )
     ) return
 
-    // Icon-flow overlays. Must sit AFTER the +Add overlays above:
-    // when the Find icons picker is open and the user taps +Model /
-    // +Agent / +Flock / +Swarm / +Report, those overlays flip a
-    // showSelect* flag — that flag's overlay block needs to win the
-    // overlay race so the picker actually appears. If we checked the
-    // icon overlays first, showFindIconsPicker would always win and
-    // every +Add tap would be a silent no-op (the active overlay
-    // would just re-render itself). Innermost (Alternative icons)
-    // checked first so its `return` short-circuits before the parent
-    // picker / icon-detail blocks run.
-    // showAlternativeIcons overlay — extracted to AlternativeIconsRouter
-    // below so the ReportsScreen Composable stays within the JVM
-    // 64 KB per-method bytecode limit.
-    if (showAlternativeIcons && currentReportId != null) {
-        AlternativeIconsOverlayHost(
-            reportId = currentReportId,
-            aiSettings = aiSettings,
-            translationIconLanguageFor = translationIconLanguageFor,
-            promptIconDetailForId = promptIconDetailForId,
-            targetMetaRowId = metaRowIdForPromptIcon,
-            fanOutTargetAgentId = fanOutTargetAgentId,
-            pairIconDetailFor = pairIconDetailFor,
-            targetLanguageIcon = targetLanguageIcon,
+    // Must stay after SelectionOverlayDialogs: the Find-icons picker can
+    // open +Agent/+Flock/+Swarm/+Report overlays, and those overlays need
+    // priority over the picker on the next recomposition.
+    if (ReportIconFlowOverlays(
+            st = st,
+            uiState = uiState,
+            runtime = runtime,
+            iconFanOutByReport = iconFanOutByReport,
             internalPromptIconFanOutByPrompt = internalPromptIconFanOutByPrompt,
             agentIconFanOutByAgent = agentIconFanOutByAgent,
             pairIconFanOutByPair = pairIconFanOutByPair,
-            iconFanOutByReport = iconFanOutByReport,
+            titleFanOutByReport = titleFanOutByReport,
+            titleFanOutByAgent = titleFanOutByAgent,
+            promptIconCallbacks = promptIconCallbacks,
             translationIconCallbacks = translationIconCallbacks,
             languageIconCallbacks = languageIconCallbacks,
-            onPickInternalPromptIcon = promptIconCallbacks.onPick,
-            onPickMetaRowIcon = promptIconCallbacks.onPickRow,
-            onPickAgentIcon = onPickAgentIcon,
-            onPickPairIcon = onPickPairIcon,
+            onStartIconFanOut = onStartIconFanOut,
             onPickAlternativeIcon = onPickAlternativeIcon,
-            onRestartInternalPromptIconFanOut = promptIconCallbacks.onRestartFanOut,
-            onRestartAgentIconFanOut = onRestartAgentIconFanOut,
-            onRestartPairIconFanOut = onRestartPairIconFanOut,
             onRestartIconFanOut = onRestartIconFanOut,
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            onCloseAll = {
-                showAlternativeIcons = false
-                showFindIconsPicker = false
-                showIconDetail = false
-                agentIconDetailFor = null
-                fanOutTargetAgentId = null
-                promptIconDetailForId = null
-                metaRowIdForPromptIcon = null
-                translationIconLanguageFor = null
-                pairIconDetailFor = null
-                targetLanguageIcon = false
-            },
-            onRestartReopenPicker = {
-                findIconsModels = emptyList()
-                showAlternativeIcons = false
-                showFindIconsPicker = true
-            },
-            onClose = { showAlternativeIcons = false }
-        )
-        return
-    }
-    if (showFindIconsPicker && currentReportId != null) {
-        CompositionLocalProvider(
-            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
-            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides {
-                pickerTarget = PickerTarget.NEW_REPORT
-                showFindIconsPicker = false
-                showIconDetail = false
-                agentIconDetailFor = null
-                fanOutTargetAgentId = null
-                promptIconDetailForId = null
-                metaRowIdForPromptIcon = null
-                translationIconLanguageFor = null
-                pairIconDetailFor = null
-                targetLanguageIcon = false
-            }
-        ) {
-            FindIconsPickerRouter(
-                reportId = currentReportId,
-                targetLanguage = translationIconLanguageFor,
-                targetPromptId = promptIconDetailForId,
-                targetAgentId = fanOutTargetAgentId,
-                targetPairId = pairIconDetailFor,
-                targetLanguageIcon = targetLanguageIcon,
-                internalPrompts = aiSettings.internalPrompts,
-                aiSettings = aiSettings,
-                models = findIconsModels,
-                genericPromptText = uiState.genericPromptText,
-                targetTitleFor = findTitlesFor,
-                onStartTitleFanOut = { target, models ->
-                    if (target == "report") onStartReportTitleFanOut(currentReportId, uiState.genericPromptText, models, findTitlesLong)
-                    else onStartModelTitleFanOut(currentReportId, target, models)
-                },
-                translationIconCallbacks = translationIconCallbacks,
-                languageIconCallbacks = languageIconCallbacks,
-                onStartInternalPromptIconFanOut = promptIconCallbacks.onStartFanOut,
-                onStartAgentIconFanOut = onStartAgentIconFanOut,
-                onStartPairIconFanOut = onStartPairIconFanOut,
-                onStartIconFanOut = onStartIconFanOut,
-                onAddAgent = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAgent = true },
-                onAddFlock = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFlock = true },
-                onAddSwarm = { pickerTarget = PickerTarget.FIND_ICONS; showSelectSwarm = true },
-                onAddFromReport = { pickerTarget = PickerTarget.FIND_ICONS; showSelectFromReport = true },
-                onAddAllModels = { pickerTarget = PickerTarget.FIND_ICONS; showSelectAllModels = true },
-                onRemoveModel = { idx -> findIconsModels = findIconsModels.toMutableList().apply { removeAt(idx) } },
-                onClearAll = { findIconsModels = emptyList() },
-                onConfirm = {
-                    findIconsModels = emptyList()
-                    pickerTarget = PickerTarget.NEW_REPORT
-                    showFindIconsPicker = false
-                    if (findTitlesFor != null) showAlternativeTitles = true else showAlternativeIcons = true
-                },
-                onBack = {
-                    pickerTarget = PickerTarget.NEW_REPORT
-                    showFindIconsPicker = false
-                    findTitlesFor = null
-                    findTitlesLong = false
-                }
-            )
-        }
-        return
-    }
-    // Alternative titles — candidate list for the title fan-out. Layered
-    // before the edit-title screens so back returns to the editor; a pick
-    // fills the editor field (no persist until Update).
-    if (showAlternativeTitles && currentReportId != null) {
-        val titleTarget = findTitlesFor
-        val candidates = if (titleTarget == "report") titleFanOutByReport[currentReportId].orEmpty()
-            else titleFanOutByAgent[titleTarget].orEmpty()
-        AlternativeTitlesScreen(
-            candidates = candidates,
-            onPickTitle = { picked ->
-                // Route the picked candidate to the short or long field
-                // depending on which finder button opened the flow.
-                if (findTitlesLong) altPickedTitleLong = picked else altPickedTitle = picked
-                showAlternativeTitles = false
-                showFindIconsPicker = false
-                findTitlesFor = null
-                findTitlesLong = false
-            },
-            onRestart = {
-                if (titleTarget == "report") onRestartReportTitleFanOut(currentReportId)
-                else if (titleTarget != null) onRestartModelTitleFanOut(titleTarget)
-                findIconsModels = emptyList()
-                showAlternativeTitles = false
-                showFindIconsPicker = true
-            },
-            onBack = { showAlternativeTitles = false; findTitlesFor = null; findTitlesLong = false }
-        )
-        return
-    }
-    if (showIconDetail && currentReportId != null) {
-        val rid = currentReportId
-        val handled = ReportIconOrLanguageDetailOverlay(
-            reportId = rid,
-            aiSettings = aiSettings,
-            promptText = uiState.genericPromptText,
-            effectiveReportIcon = effectiveReportIcon,
-            loadedReportTitle = loadedReportTitle,
-            iconRefreshTick = uiState.iconRefreshTick,
-            targetLanguageIcon = targetLanguageIcon,
-            reportIcon = reportIcon,
-            reportIconError = reportIconError,
-            reportIconCost = reportIconCost,
-            reportIconModel = reportIconModel,
-            reportIconTraceFile = reportIconTraceFile,
-            iconFanOutByReport = iconFanOutByReport,
-            languageIconCallbacks = languageIconCallbacks,
+            onStartAgentIconFanOut = onStartAgentIconFanOut,
+            onPickAgentIcon = onPickAgentIcon,
+            onRestartAgentIconFanOut = onRestartAgentIconFanOut,
+            onStartPairIconFanOut = onStartPairIconFanOut,
+            onPickPairIcon = onPickPairIcon,
+            onRestartPairIconFanOut = onRestartPairIconFanOut,
+            onStartReportTitleFanOut = onStartReportTitleFanOut,
+            onStartModelTitleFanOut = onStartModelTitleFanOut,
+            onRestartReportTitleFanOut = onRestartReportTitleFanOut,
+            onRestartModelTitleFanOut = onRestartModelTitleFanOut,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onNavigateToModelInfo = onNavigateToModelInfo,
             continueChat = ContinueChatCallbacks(
                 onCurrent = onContinueWithCurrent,
                 onAgentPicker = onContinueWithAgentPicker,
                 onOnTheFly = onContinueWithOnTheFly,
-            ),
-            onOpenPicker = { showIconDetail = false; showFindIconsPicker = true },
-            // Layer Alt icons on top of the Icon lookup (don't close it),
-            // so Android-back from Alt icons returns to Icon lookup. The
-            // showAlternativeIcons overlay is checked before showIconDetail,
-            // so only Alt icons paints while both are set.
-            onOpenAltIcons = { showAlternativeIcons = true },
-            onClose = { showIconDetail = false; targetLanguageIcon = false }
+            )
         )
-        if (handled) return
-        showIconDetail = false
-    }
-
-    // Per-agent icon detail — reached from the leftmost emoji cell on
-    // a row that Create → Report icons has populated. Same shape as
-    // ReportIconDetailScreen but data is per-agent (the agent's own
-    // (provider, model) ran the call, and the icon-prompt's @PROMPT@
-    // was the agent's responseBody, not the report's prompt).
-    if (agentIconDetailFor != null) {
-        val handled = AgentIconDetailOverlay(
-            agentId = agentIconDetailFor!!,
-            aiSettings = aiSettings,
-            currentReportId = currentReportId,
-            loadedReportPrompt = loadedReportPrompt,
-            effectiveReportIcon = effectiveReportIcon,
-            loadedReportTitle = loadedReportTitle,
-            agentRecordsByAgentId = agentRecordsByAgentId,
-            agentIconFanOutByAgent = agentIconFanOutByAgent,
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            onFindAlternativeIcons = { hasActiveAgentFanOut ->
-                fanOutTargetAgentId = agentIconDetailFor
-                if (hasActiveAgentFanOut) showAlternativeIcons = true
-                else showFindIconsPicker = true
-            },
-            onClose = {
-                agentIconDetailFor = null
-                fanOutTargetAgentId = null
-            }
-        )
-        if (handled) return
-        agentIconDetailFor = null
-    }
-
-    // 6th adapter — per-fan-out-pair icon detail. Triggered by
-    // L2 long-press / L3 big-icon tap inside FanOutScreen; the
-    // SR id is stamped on `pairIconDetailFor` by the
-    // onOpenPairIconLookup callback wired further down.
-    if (pairIconDetailFor != null && currentReportId != null) {
-        val handled = PairIconDetailOverlay(
-            pairId = pairIconDetailFor!!,
-            reportId = currentReportId,
-            aiSettings = aiSettings,
-            iconRefreshTick = uiState.iconRefreshTick,
-            loadedReportPrompt = loadedReportPrompt,
-            effectiveReportIcon = effectiveReportIcon,
-            loadedReportTitle = loadedReportTitle,
-            agentRecordsByAgentId = agentRecordsByAgentId,
-            pairIconFanOutByPair = pairIconFanOutByPair,
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            onFindAlternativeIcons = { hasActive ->
-                if (hasActive) showAlternativeIcons = true
-                else showFindIconsPicker = true
-            },
-            onClose = { pairIconDetailFor = null }
-        )
-        if (handled) return
-        pairIconDetailFor = null
-    }
-
-    // Per-prompt Meta-icon detail — extracted to MetaIconDetailOverlay
-    // below to keep ReportsScreen's bytecode under the JVM 64 KB
-    // per-method limit.
-    if (promptIconDetailForId != null) {
-        val handled = MetaIconDetailOverlay(
-            promptId = promptIconDetailForId!!,
-            iconRefreshTick = uiState.iconRefreshTick,
-            internalPrompts = aiSettings.internalPrompts,
-            fanOutCandidates = internalPromptIconFanOutByPrompt,
-            effectiveReportIcon = effectiveReportIcon,
-            loadedReportTitle = loadedReportTitle,
-            onOpenAlternativeIcons = { hasActive ->
-                if (hasActive) showAlternativeIcons = true
-                else showFindIconsPicker = true
-            },
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            onClose = {
-                promptIconDetailForId = null
-                metaRowIdForPromptIcon = null
-            }
-        )
-        if (handled) return
-        // Prompt was deleted while the overlay was open — drop
-        // the state so we don't sit on a blank screen.
-        promptIconDetailForId = null
-        metaRowIdForPromptIcon = null
-    }
-
-    // Per-translation Translation-icon detail — extracted to a
-    // helper composable below to keep ReportsScreen's bytecode
-    // under the JVM 64 KB per-method limit.
-    if (translationIconLanguageFor != null) {
-        TranslationIconDetailOverlay(
-            language = translationIconLanguageFor!!,
-            iconRefreshTick = uiState.iconRefreshTick,
-            fanOutCandidates = internalPromptIconFanOutByPrompt,
-            effectiveReportIcon = effectiveReportIcon,
-            loadedReportTitle = loadedReportTitle,
-            onOpenAlternativeIcons = { hasActive ->
-                if (hasActive) showAlternativeIcons = true
-                else showFindIconsPicker = true
-            },
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            onClose = { translationIconLanguageFor = null }
-        )
-        return
-    }
+    ) return
 
     // Scope screen — shown before the picker for chat-type Meta
     // prompts. Lets the user pick the input set (all model results /
@@ -1564,403 +1312,45 @@ fun ReportsScreen(
         return
     }
 
-    // Every Meta- and Fan-out launch now routes through
-    // SecondaryScopeScreen — the user picks scope / language /
-    // initiator / responder there before continuing to the Run page.
-    val launchMetaPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
-        secondaryScopeMetaPrompt = mp
-    }
-    val launchFanOutPrompt: (com.ai.model.InternalPrompt) -> Unit = { mp ->
-        secondaryScopeMetaPrompt = mp
-    }
-
-    if (showMetaScreen && currentReportId != null) {
-        val rid = currentReportId
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showMetaScreen = false }) {
-            ReportMetaScreen(
-                reportId = rid,
-                isRunning = uiState.activeSecondaryBatches > 0,
-                metaPrompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
-                onLaunchMetaPrompt = launchMetaPrompt,
-                onDelete = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) },
-                onBack = { showMetaScreen = false },
-                onNavigateHome = onNavigateHome,
-                onNavigateToTraceFile = onNavigateToTraceFile,
-                onNavigateToModelInfo = onNavigateToModelInfo
-            )
-        }
-        return
-    }
-
-    // (Old "Model info" AlertDialog removed — the ℹ️ slot now opens
-    // [ViewAiReportScreen] instead. Per-model info is still reachable
-    // via the model picker / Model Info screen as before.)
-
-    // Share dialog
-    if (showDeleteConfirm && currentReportId != null) {
-        DeleteReportConfirmDialog(
-            reportId = currentReportId,
-            onDismiss = { showDeleteConfirm = false },
-            onDelete = { rid -> showDeleteConfirm = false; onDeleteReport(rid) }
+    if (ReportManageActionOverlays(
+            st = st,
+            uiState = uiState,
+            runtime = runtime,
+            iconGenEnabled = iconGenEnabled,
+            onNavigateHome = onNavigateHome,
+            onDeleteReport = onDeleteReport,
+            onExport = onExport,
+            onExportAll = onExportAll,
+            onAdvancedParametersChange = onAdvancedParametersChange,
+            onMarkParametersChanged = onMarkParametersChanged,
+            onUpdatePrompt = onUpdatePrompt,
+            onUpdateTitle = onUpdateTitle,
+            onUpdateModelTitle = onUpdateModelTitle,
+            onDeleteSecondaryWithRefresh = onDeleteSecondaryWithRefresh,
+            onNavigateToTraceFile = onNavigateToTraceFile,
+            onNavigateToModelInfo = onNavigateToModelInfo,
+            onNavigateToInternalPromptsByCategory = onNavigateToInternalPromptsByCategory
         )
-    }
+    ) return
 
-    if (showExport && currentReportId != null) {
-        val rid = currentReportId
-        // Build the Language picker tabs from the report's TRANSLATE
-        // secondaries (Original is always prepended via buildLangTabs).
-        // Cards in ReportExportScreen render the picker only when more
-        // than one tab is present.
-        val exportLangTabs = remember(translateRows) { buildLangTabs(translateRows) }
-        val sourceLanguageIcon = runtime.languageIcon
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showExport = false }) {
-            ReportExportScreen(
-                onBack = { showExport = false },
-                onNavigateHome = onNavigateHome,
-                onExport = { fmt, det, act, lang, onProgress -> onExport(rid, fmt, det, act, lang, onProgress) },
-                onExportAll = { lang, onProgress -> onExportAll(rid, lang, onProgress) },
-                onViewInApp = { det, lang ->
-                    showExport = false
-                    htmlPreviewLanguage = lang
-                    htmlPreviewDetail = det
-                },
-                availableLanguages = exportLangTabs,
-                sourceLanguageIcon = sourceLanguageIcon
-            )
-        }
-        return
-    }
+    val openViewReportFromManage = rememberOpenViewReportFromManage(st)
 
-    if (htmlPreviewDetail != null && currentReportId != null) {
-        val previewDetail = htmlPreviewDetail!!
-        val previewLanguage = htmlPreviewLanguage
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { htmlPreviewDetail = null; htmlPreviewLanguage = ExportLanguage.All }) {
-            HtmlPreviewScreen(
-                reportId = currentReportId,
-                detail = previewDetail,
-                language = previewLanguage,
-                onBack = { htmlPreviewDetail = null; htmlPreviewLanguage = ExportLanguage.All }
-            )
-        }
-        return
-    }
-
-    if (showEditParameters) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showEditParameters = false }) {
-            ReportAdvancedParametersScreen(
-                currentParameters = uiState.reportAdvancedParameters,
-                onApply = {
-                    onAdvancedParametersChange(it)
-                    onMarkParametersChanged()
-                    showEditParameters = false
-                },
-                onBack = { showEditParameters = false }
-            )
-        }
-        return
-    }
-
-    if (showEditPrompt && currentReportId != null) {
-        val rid = currentReportId
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showEditPrompt = false }) {
-            ReportEditPromptScreen(
-                initialPrompt = uiState.genericPromptText,
-                onBack = { showEditPrompt = false },
-                onNavigateHome = onNavigateHome,
-                onUpdate = { newPrompt ->
-                    showEditPrompt = false
-                    onUpdatePrompt(rid, newPrompt)
-                }
-            )
-        }
-        return
-    }
-    if (showEditTitle && currentReportId != null) {
-        val rid = currentReportId
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showEditTitle = false }) {
-            ReportEditTitleScreen(
-                reportId = rid,
-                initialTitle = uiState.genericPromptTitle,
-                initialTitleLong = uiState.genericPromptTitleLong,
-                onBack = { showEditTitle = false },
-                onNavigateHome = onNavigateHome,
-                onNavigateToTraceFile = onNavigateToTraceFile,
-                onFindAlternativeShortTitle = {
-                    findTitlesFor = "report"; findTitlesLong = false; findIconsModels = emptyList(); showFindIconsPicker = true
-                },
-                onFindAlternativeLongTitle = {
-                    findTitlesFor = "report"; findTitlesLong = true; findIconsModels = emptyList(); showFindIconsPicker = true
-                },
-                injectedShortTitle = altPickedTitle,
-                injectedLongTitle = altPickedTitleLong,
-                onConsumeInjectedShortTitle = { altPickedTitle = null },
-                onConsumeInjectedLongTitle = { altPickedTitleLong = null },
-                onUpdate = { newTitle, newTitleLong ->
-                    showEditTitle = false
-                    onUpdateTitle(rid, newTitle, newTitleLong)
-                }
-            )
-        }
-        return
-    }
-
-    // Per-model title editor — opened from a Get-info model-title row.
-    // Checked before the Get-info block so it layers on top (showGetInfo
-    // stays set) and Android-back returns to Get-info.
-    editModelTitleFor?.let { agentId ->
-        val agent = agentRecordsByAgentId[agentId]
-        if (currentReportId != null && agent != null) {
-            val rid = currentReportId
-            CompositionLocalProvider(
-                com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
-                com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-                LocalNavigateToCurrentReport provides { editModelTitleFor = null }
-            ) {
-                ReportEditModelTitleScreen(
-                    reportId = rid,
-                    agentId = agentId,
-                    modelName = "${agent.provider} · ${com.ai.ui.shared.shortModelName(agent.model)}",
-                    initialTitle = agent.modelTitle.orEmpty(),
-                    traceFilename = agent.modelTitleTraceFile,
-                    onNavigateToTraceFile = onNavigateToTraceFile,
-                    onBack = { editModelTitleFor = null },
-                    onFindAlternativeTitles = {
-                        findTitlesFor = agentId; findTitlesLong = false; findIconsModels = emptyList(); showFindIconsPicker = true
-                    },
-                    injectedTitle = altPickedTitle,
-                    onConsumeInjectedTitle = { altPickedTitle = null },
-                    onUpdate = { newTitle ->
-                        editModelTitleFor = null
-                        onUpdateModelTitle(rid, agentId, newTitle)
-                    }
-                )
-            }
-            return
-        }
-    }
-
-    // "Report - Get info" — the metadata-job status screen. Detail
-    // overlays (icon / language / edit-title / per-agent icon) are all
-    // checked earlier in this dispatcher, so opening one from a Get-info
-    // row layers it on top (showGetInfo stays set) and Android-back
-    // returns here.
-    if (showGetInfo && currentReportId != null) {
-        val rid = currentReportId
-        CompositionLocalProvider(
-            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
-            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides { showGetInfo = false }
-        ) {
-            ReportGetInfoScreen(
-                reportId = rid,
-                settings = aiSettings,
-                iconRefreshTick = uiState.iconRefreshTick,
-                iconGenEnabled = iconGenEnabled,
-                titleModeAi = uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
-                perModelIcon = uiState.generalSettings.perModelIconGenEnabled,
-                perModelTitle = uiState.generalSettings.perModelTitleGenEnabled,
-                onBack = { showGetInfo = false },
-                onOpenIconDetail = { showIconDetail = true },
-                onOpenLanguageDetail = { showIconDetail = true; targetLanguageIcon = true },
-                onEditTitle = { showEditTitle = true },
-                onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
-                onEditModelTitle = { agentId -> editModelTitleFor = agentId }
-            )
-        }
-        return
-    }
-
-    // Action-row picker overlays (Meta / Fan out / View / Edit). These
-    // render at ReportsScreen scope — not inside GenerationPhase —
-    // so the parent TitleBar and the action row don't paint above
-    // them when the user opens a picker.
-    if (showMetaPicker) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showMetaPicker = false }, com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null) {
-            ReportSelectInternalPromptScreen(
-                titleText = "Run a Meta prompt",
-                category = "meta",
-                prompts = aiSettings.internalPrompts.filter { it.category.equals("meta", ignoreCase = true) },
-                onSelectPrompt = {
-                    showMetaPicker = false
-                    launchMetaPrompt(it)
-                },
-                onBack = { showMetaPicker = false },
-                onEditPrompts = {
-                    showMetaPicker = false
-                    onNavigateToInternalPromptsByCategory("meta")
-                }
-            )
-        }
-        return
-    }
-    // Render only if no later step in the fan-out flow is active —
-    // forward navigation now layers state instead of clearing it, so
-    // back from Scope / Run unwinds one screen at a time.
-    // Click handler for the Manage screen's 👁 icon. Always lands on
-    // the View tile grid ("View an AI report"). The render gate at
-    // ReportScreen.kt:3321 only shows ViewAiReportScreen when *every*
-    // competing overlay flag is cleared, so clear them all here —
-    // a leftover showViewer / openMetaResultId / listKind / … from
-    // a previous flow would otherwise win and the user would land
-    // on Model responses / a sub-list / etc.
-    val mainViewResetTickHolder = com.ai.ui.shared.LocalMainViewResetTick.current
-    val openViewReportFromManage: () -> Unit = {
-        showViewer = false
-        showIconsView = false
-        htmlPreviewDetail = null
-        openMetaResultId = null
-        openTranslationRunId = null
-        listKind = null
-        singleResultAgentId = null
-        // Bump the reset tick so ViewAiReportScreen's rememberSaveable
-        // sub-overlay state (Model reports / Costs / Icons / …) is wiped
-        // and the user lands on the "View an AI report" tile grid — not
-        // whatever sub-screen was last open. Mirrors gotoMainView in
-        // PrimaryOverlays.
-        mainViewResetTickHolder?.let { it.value = it.value + 1 }
-        showViewReportScreen = true
-    }
-    if (showFanOutPicker && secondaryScopeMetaPrompt == null && fanOutConfirmMetaPrompt == null) {
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { showFanOutPicker = false }, com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null) {
-            ReportSelectInternalPromptScreen(
-                titleText = "Fan Out - prompt",
-                category = "fan_out",
-                prompts = aiSettings.internalPrompts.filter { it.category == "fan_out" },
-                onSelectPrompt = {
-                    // Forward without clearing the picker flag — back
-                    // from Scope / Run unwinds one step at a time and
-                    // lands here again.
-                    launchFanOutPrompt(it)
-                },
-                onBack = { showFanOutPicker = false },
-                onEditPrompts = {
-                    showFanOutPicker = false
-                    onNavigateToInternalPromptsByCategory("fan_out")
-                }
-            )
-        }
-        return
-    }
-
-    val generationHandlers = GenerationPhaseHandlers(
-        // The 'report' row tap is handled inside GenerationPhase (it opens
-        // the standalone Report-model route via LocalNavigateToReportModel)
-        // — kept out of ReportsScreen, which sits at the 64 KB ceiling.
-        onViewAgent = {},
-        onShare = { showExport = true },
-        onTrace = { currentReportId?.let(onNavigateToTrace) },
-        onDelete = { showDeleteConfirm = true },
-        onCopy = { currentReportId?.let(onCopyReport) },
-        onTogglePin = { currentReportId?.let(onTogglePinReport) },
-        onTranslate = { showTranslateLanguagePicker = true },
-        onOpenMetaPicker = { showMetaPicker = true },
-        onOpenFanOutPicker = { showFanOutPicker = true },
-        onOpenRerankPicker = {
-            // Rerank always runs across every successful agent on the
-            // original language — no scope picker needed. Reset the
-            // pending scope state to the defaults the picker reads on
-            // confirm and jump straight to the model picker.
-            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            showRerankPicker = true
-        },
-        onOpenModerationPicker = {
-            // Same default as rerank — every model, original language.
-            pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
-            pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-            showModerationPicker = true
-        },
-        onOpenHtmlPreview = { htmlPreviewLanguage = ExportLanguage.All; htmlPreviewDetail = ReportExportDetail.COMPLETE },
-        onViewReports = {
-            selectedAgentForViewer = null; viewerSection = null
-            viewerLockedLanguage = null
-            showViewer = true
-        },
-        onViewPrompt = {
-            selectedAgentForViewer = null; viewerSection = "prompt"
-            viewerLockedLanguage = null
-            showViewer = true
-        },
-        onViewCosts = {
-            selectedAgentForViewer = null; viewerSection = "costs"; showViewer = true
-        },
-        onViewIcons = { showIconsView = true },
-        onViewLog = {
-            val rid = currentReportId
-            if (rid != null) {
-                val day = java.time.Instant.ofEpochMilli(loadedReportTimestamp)
-                    .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
-                val filename = "applog_" +
-                    day.format(java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd")) + ".log"
-                onNavigateToAppLog(filename, "#$rid")
-            }
-        },
-        onEditTitle = { showEditTitle = true },
-        onGetInfo = { showGetInfo = true },
-        onEditPromptInline = { showEditPrompt = true },
-        // onEditSystemPromptInline is wired inside [ReportRunScreen]
-        // via a separate `editSystemPromptTrigger` arg on
-        // [GenerationPhase]; keeping the bytecode for that out of
-        // [ReportsScreen] which sits at the JVM 64 KB ceiling. The
-        // default no-op fires when called from non-Run contexts.
-        onEditModelsInline = { currentReportId?.let { onEditModels(it) } },
-        onEditParametersInline = { showEditParameters = true },
-        onRequestRegenerate = { showRegenerateConfirm = true },
-        onRequestDelete = { showDeleteConfirm = true },
-        onRequestExport = { showExport = true },
-        onCancelTranslation = translationLifecycle.onCancelRun,
-        onViewSecondaryName = { name, kind ->
-            listLockedLanguage = null
-            listKind = kind; listFilterByName = name; listIsFanIcons = false; listIsFanTitles = false
-        },
-        onViewFanIcons = { name ->
-            listKind = SecondaryKind.META
-            listFilterByName = name
-            listIsFanIcons = true
-            listIsFanTitles = false
-        },
-        onViewFanTitles = { name ->
-            listKind = SecondaryKind.META
-            listFilterByName = name
-            listIsFanIcons = false
-            listIsFanTitles = true
-        },
-        onOpenSecondaryRun = { id ->
-            secondaryLockedLanguage = null
-            openMetaResultId = id
-        },
-        onOpenTranslationRun = { runId -> openTranslationRunId = runId },
-        onOpenMeta = { showMetaScreen = true },
+    val generationHandlers = buildGenerationPhaseHandlers(
+        st = st,
+        currentReportId = currentReportId,
+        loadedReportTimestamp = loadedReportTimestamp,
+        promptIconCallbacks = promptIconCallbacks,
+        translationIconCallbacks = translationIconCallbacks,
+        translationLifecycle = translationLifecycle,
+        onNavigateToTrace = onNavigateToTrace,
+        onNavigateToAppLog = onNavigateToAppLog,
         onNavigateToTraceFile = onNavigateToTraceFile,
         onNavigateToTraceListFiltered = onNavigateToTraceListFiltered,
-        onOpenIconDetail = { showIconDetail = true },
-        onOpenLanguageDetail = { showIconDetail = true; targetLanguageIcon = true },
-        onOpenAgentIconDetail = { agentId -> agentIconDetailFor = agentId },
+        onEditModels = onEditModels,
+        onCopyReport = onCopyReport,
+        onTogglePinReport = onTogglePinReport,
         onPrevReport = onPrevReport,
-        onNextReport = onNextReport,
-        onMissingPromptIcon = promptIconCallbacks.onKickoff,
-        onOpenInternalPromptIconDetail = { prompt ->
-            // Legacy name-keyed path — no source row stamp, so a
-            // later alt pick writes to the shared cache entry. Kept
-            // for any future call site that still wants that
-            // behaviour; the inline meta-emoji uses the per-row
-            // variant below.
-            metaRowIdForPromptIcon = null
-            promptIconDetailForId = prompt.id
-        },
-        onOpenInternalPromptIconDetailForRow = { prompt, rowId ->
-            // Stamp BOTH state slots so MetaIconDetailOverlay's
-            // Find-alt flow knows to route the pick through
-            // onPickRow → SecondaryResultStorage.setRowIcon instead
-            // of the shared per-(name,title) InternalPromptIconCache.
-            metaRowIdForPromptIcon = rowId
-            promptIconDetailForId = prompt.id
-        },
-        onMissingTranslationIcon = translationIconCallbacks.onKickoff,
-        onOpenTranslationIconDetail = { language -> translationIconLanguageFor = language },
-        // Function reference (no lambda allocation) to keep the
-        // ReportsScreen method under the 64 KB bytecode ceiling.
-        onReconcileStalledTranslation = translationLifecycle.onReconcileStalled
+        onNextReport = onNextReport
     )
     if (!isGenerating) {
         com.ai.ui.report.start.ReportSelectModelsScreen(
@@ -2029,4 +1419,3 @@ fun ReportsScreen(
         )
     }
 }
-
