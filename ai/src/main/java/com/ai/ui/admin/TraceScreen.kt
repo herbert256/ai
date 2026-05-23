@@ -64,6 +64,10 @@ fun TraceListScreen(
      *  launched batch (fan-out, fan-icons, translation, model-test,
      *  report). Wired by the L1 🐞 icon on those screens. */
     runIdFilter: String? = null,
+    /** Navigate to the MAIN AI API Traces list. Wired on scoped lists so
+     *  the left 🐞 / title returns there; null on the main list itself
+     *  (where they go Home instead). */
+    onNavigateToTraceList: (() -> Unit)? = null,
     onHousekeeping: (() -> Unit)? = null,
     onSettings: (() -> Unit)? = null
 ) {
@@ -231,11 +235,19 @@ fun TraceListScreen(
                 else -> ""
             }
             val canClear = reportId == null && modelFilter == null && runIdFilter == null && allTraceFiles.isNotEmpty()
+            // Left glyph: the report's emoji when this list is scoped to a
+            // report ("trace entry from an AI Report"), else the 🐞 ladybug.
+            // Icon + title tap: main list → Home; scoped list → main traces.
+            val isMainTraceList = reportId == null && modelFilter == null && runIdFilter == null
+            val leftGlyph = (if (reportId != null) resolvedReportIcon else null) ?: "🐞"
+            val traceIconClick: () -> Unit = { if (isMainTraceList) onNavigateHome() else (onNavigateToTraceList ?: onNavigateHome)() }
             TitleBar(
                 helpTopic = "trace_list",
                 title = "API Traces",
                 subject = subHeader.ifBlank { "Every captured API request & response" },
-                reportIcon = resolvedReportIcon,
+                reportIcon = leftGlyph,
+                onReportIconClick = traceIconClick,
+                onTitleClick = traceIconClick,
                 onBackClick = onBack,
                 onDelete = if (canClear) { { confirmClearAll = true } } else null,
                 onHousekeeping = onHousekeeping,
@@ -547,7 +559,10 @@ fun TraceDetailScreen(
      *  grid instead of Manage. Same restore + navigate path as
      *  [onOpenReport] but with the AI_REPORTS route's `initialView=true`
      *  query-param appended. */
-    onOpenReportView: (String) -> Unit = onOpenReport
+    onOpenReportView: (String) -> Unit = onOpenReport,
+    /** Navigate to the MAIN AI API Traces list — the left-icon / title tap
+     *  target on this (always non-main) trace screen. */
+    onNavigateToTraceList: () -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -778,12 +793,12 @@ fun TraceDetailScreen(
         TitleBar(
             helpTopic = "trace_detail",
             title = "Trace detail", subject = "Full request & response of one call", onBackClick = onBack,
-            // When the trace belongs to a report, paint that report's
-            // AI-generated icon (the "retrieved" icon) as the leftmost
-            // glyph. Null when no icon has been generated yet OR the
-            // trace isn't report-scoped — the slot is hidden in both
-            // cases (the bottom-bar 📝 is the persistent indicator).
-            reportIcon = reportForTrace?.icon?.takeIf { it.isNotBlank() },
+            // Left glyph: the originating report's icon when this trace is
+            // from an AI Report, else the 🐞 ladybug. Tap (icon or title) →
+            // the main AI API Traces list (this screen is never the main one).
+            reportIcon = reportForTrace?.icon?.takeIf { it.isNotBlank() } ?: "🐞",
+            onReportIconClick = onNavigateToTraceList,
+            onTitleClick = onNavigateToTraceList,
             onInfo = onInfoAction,
             // 🗑: confirm + delete this trace file, then pop back.
             onDelete = if (t != null) { { showDeleteConfirm = true } } else null,

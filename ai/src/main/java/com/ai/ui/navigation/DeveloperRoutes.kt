@@ -281,6 +281,7 @@ internal fun NavGraphBuilder.developerRoutes(
                     onBack = safePopBack, onNavigateHome = navigateHome,
                     onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                     onClearTraces = { appViewModel.clearTraces() }, reportId = reportId,
+                    onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) },
                     onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
             }
@@ -303,6 +304,7 @@ internal fun NavGraphBuilder.developerRoutes(
                     onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                     onClearTraces = { appViewModel.clearTraces() },
                     reportId = reportId, initialCategory = category,
+                    onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) },
                     onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
             }
@@ -314,6 +316,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onClearTraces = { appViewModel.clearTraces() }, modelFilter = model,
+                onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
         }
@@ -324,6 +327,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onClearTraces = { appViewModel.clearTraces() }, runIdFilter = runId,
+                onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
         }
@@ -351,7 +355,8 @@ internal fun NavGraphBuilder.developerRoutes(
                         reportViewModel.restoreCompletedReport(traceDetailContext, reportId)
                         navController.navigate(NavRoutes.aiReportView())
                     }
-                }
+                },
+                onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) }
             )
         }
         composable(NavRoutes.AI_API_TEST) {
