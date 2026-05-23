@@ -106,6 +106,14 @@ fun ReportEditTitleScreen(
             onTrace = titleTraceFilename?.let { fn -> { onNavigateToTraceFile(fn) } }
         )
 
+        Button(
+            onClick = { onUpdate(title.trim()) },
+            enabled = canUpdate,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Update title", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
+
         OutlinedTextField(
             value = title, onValueChange = { title = it },
             label = { Text("Title") }, singleLine = true,
@@ -120,13 +128,6 @@ fun ReportEditTitleScreen(
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
         ) { Text("Find alternative titles", maxLines = 1, softWrap = false) }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = { onUpdate(title.trim()) },
-            enabled = canUpdate,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Update title", maxLines = 1, softWrap = false) }
     }
 }
 
