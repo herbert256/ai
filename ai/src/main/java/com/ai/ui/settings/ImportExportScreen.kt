@@ -54,14 +54,19 @@ import kotlinx.coroutines.withContext
 // Drop-in shape for assets/prompts.json — no id field (the seed
 // loader assigns fresh UUIDs on read). Used by both the standalone
 // prompts.json export and the All-bundle's "prompts" section.
-private fun promptEntry(p: InternalPrompt): Map<String, Any> = linkedMapOf(
+private fun promptEntry(p: InternalPrompt): Map<String, Any> = linkedMapOf<String, Any>(
     "name" to p.name,
     "title" to p.title,
     "reference" to p.reference,
     "category" to p.category,
     "agent" to p.agent,
     "text" to p.text
-)
+).apply {
+    // Only emit the provider/model pin when it's actually set, so
+    // agent-based prompts keep their original two-field shape.
+    p.provider?.takeIf { it.isNotBlank() }?.let { put("provider", it) }
+    p.model?.takeIf { it.isNotBlank() }?.let { put("model", it) }
+}
 
 /** Apply Workers sections (agents / flocks / swarms) from a parsed
  *  bundle root to [working]. Each section upserts by id — existing

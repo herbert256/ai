@@ -416,9 +416,7 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
     val iconPrompt = ai?.internalPrompts?.firstOrNull {
         it.category == "icons" && it.name == "main"
     }
-    val iconAgent = iconPrompt?.let { p ->
-        ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
-    }
+    val iconAgent = iconPrompt?.let { p -> ai.resolvePromptAgent(p) }
     val iconProvider = iconAgent?.provider
     val iconModel = iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
     val iconPricing = iconProvider?.let { PricingCache.getPricing(context, it, iconModel) }

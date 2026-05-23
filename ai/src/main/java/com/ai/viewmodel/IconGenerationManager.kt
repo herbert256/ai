@@ -65,9 +65,7 @@ class IconGenerationManager(
         // as "DeepSeek" still resolves the bundled prompt's
         // (lowercase-tail) "Deepseek" pin without manual editing. Same
         // safety against future bundled-vs-user casing drift.
-        val rawAgent = aiSettings.agents.firstOrNull {
-            it.name.equals(iconPrompt.agent, ignoreCase = true)
-        } ?: return
+        val rawAgent = aiSettings.resolvePromptAgent(iconPrompt) ?: return
         // The Agent stored in aiSettings.agents carries an empty apiKey
         // field — keys live on the Provider. Resolve the same way
         // buildReportTasks does so the dispatch sees a real key (and a
@@ -153,9 +151,7 @@ class IconGenerationManager(
         val titlePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "info" && it.name == "report_title"
         } ?: return
-        val rawAgent = aiSettings.agents.firstOrNull {
-            it.name.equals(titlePrompt.agent, ignoreCase = true)
-        } ?: return
+        val rawAgent = aiSettings.resolvePromptAgent(titlePrompt) ?: return
         val agent = rawAgent.copy(
             apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
@@ -279,9 +275,7 @@ class IconGenerationManager(
         val titlePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "info" && it.name == "model_title"
         } ?: return
-        val rawAgent = aiSettings.agents.firstOrNull {
-            it.name.equals(titlePrompt.agent, ignoreCase = true)
-        } ?: return
+        val rawAgent = aiSettings.resolvePromptAgent(titlePrompt) ?: return
         val agent = rawAgent.copy(
             apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
@@ -376,9 +370,7 @@ class IconGenerationManager(
         val prompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "info" && it.name == "report_title_icon"
         } ?: return false
-        val rawAgent = aiSettings.agents.firstOrNull {
-            it.name.equals(prompt.agent, ignoreCase = true)
-        } ?: return false
+        val rawAgent = aiSettings.resolvePromptAgent(prompt) ?: return false
         val agent = rawAgent.copy(
             apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
@@ -438,9 +430,7 @@ class IconGenerationManager(
         val languagePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "info" && it.name == "language"
         } ?: return
-        val rawAgent = aiSettings.agents.firstOrNull {
-            it.name.equals(languagePrompt.agent, ignoreCase = true)
-        } ?: return
+        val rawAgent = aiSettings.resolvePromptAgent(languagePrompt) ?: return
         val agent = rawAgent.copy(
             apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
@@ -521,9 +511,7 @@ class IconGenerationManager(
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name == "language"
         } ?: return
-        val rawAgent = aiSettings.agents.firstOrNull {
-            it.name.equals(iconPrompt.agent, ignoreCase = true)
-        } ?: return
+        val rawAgent = aiSettings.resolvePromptAgent(iconPrompt) ?: return
         val agent = rawAgent.copy(
             apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
@@ -614,9 +602,7 @@ class IconGenerationManager(
             InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
             return
         }
-        val rawAgent = aiSettings.agents.firstOrNull {
-            it.name.equals(iconPrompt.agent, ignoreCase = true)
-        }
+        val rawAgent = aiSettings.resolvePromptAgent(iconPrompt)
         if (rawAgent == null) {
             AppLog.w("InternalPromptIcon", "agent '${iconPrompt.agent}' not found — skipping")
             InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
@@ -1151,9 +1137,7 @@ class IconGenerationManager(
             InternalPromptIconCache.clearInFlight("translation_icon", language)
             return
         }
-        val rawAgent = aiSettings.agents.firstOrNull {
-            it.name.equals(iconPrompt.agent, ignoreCase = true)
-        }
+        val rawAgent = aiSettings.resolvePromptAgent(iconPrompt)
         if (rawAgent == null) {
             AppLog.w("TranslationIcon", "agent '${iconPrompt.agent}' not found — skipping")
             InternalPromptIconCache.clearInFlight("translation_icon", language)
@@ -2234,9 +2218,7 @@ class IconGenerationManager(
         agentResponse: String, aiSettings: Settings,
         traceSink: java.util.concurrent.atomic.AtomicReference<String?>
     ): String? {
-        val rawAgent = aiSettings.agents.firstOrNull {
-            it.name.equals(tier3Prompt.agent, ignoreCase = true)
-        } ?: run {
+        val rawAgent = aiSettings.resolvePromptAgent(tier3Prompt) ?: run {
             AppLog.w("ReportIcons", "tier 3 skipped — no agent matching '${tier3Prompt.agent}' configured")
             return null
         }
@@ -3202,9 +3184,7 @@ class IconGenerationManager(
         pair: SecondaryResult, tier3Prompt: InternalPrompt,
         pairContent: String, aiSettings: Settings
     ): TierResult {
-        val rawAgent = aiSettings.agents.firstOrNull {
-            it.name.equals(tier3Prompt.agent, ignoreCase = true)
-        } ?: run {
+        val rawAgent = aiSettings.resolvePromptAgent(tier3Prompt) ?: run {
             AppLog.w("FanOutIcons", "tier 3 skipped — no agent matching '${tier3Prompt.agent}' configured")
             return TierResult.Miss
         }

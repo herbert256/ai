@@ -1226,9 +1226,7 @@ private fun kickOffChatTitleGeneration(
     val prompt = aiSettings.internalPrompts.firstOrNull {
         it.category == "internal" && it.name.equals("chat_title", ignoreCase = true)
     } ?: return
-    val rawAgent = aiSettings.agents.firstOrNull {
-        it.name.equals(prompt.agent, ignoreCase = true)
-    } ?: return
+    val rawAgent = aiSettings.resolvePromptAgent(prompt) ?: return
     val agent = rawAgent.copy(
         apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
         model = aiSettings.getEffectiveModelForAgent(rawAgent)

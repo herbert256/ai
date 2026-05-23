@@ -70,6 +70,9 @@ fun InternalPromptEditScreen(
     internalPrompt: InternalPrompt?,
     existingNames: Set<String>,
     agentNames: List<String>,
+    /** Full settings — needed by the Provider / Model pickers offered
+     *  as an alternative to binding the prompt to a named agent. */
+    aiSettings: Settings,
     /** Pin the [InternalPrompt.category] to this value and hide the
      *  Category picker. */
     fixedCategory: String,
@@ -105,6 +108,15 @@ fun InternalPromptEditScreen(
         )
     }
     var text by remember { mutableStateOf(internalPrompt?.text ?: "") }
+    // Either/or alternative to [agent]: pin a provider id + model. The
+    // toggle starts in Provider+Model mode only when both were saved.
+    var useProviderModel by remember {
+        mutableStateOf(!internalPrompt?.provider.isNullOrBlank() && !internalPrompt?.model.isNullOrBlank())
+    }
+    var providerId by remember { mutableStateOf(internalPrompt?.provider ?: "") }
+    var model by remember { mutableStateOf(internalPrompt?.model ?: "") }
+    var providerDialogOpen by remember { mutableStateOf(false) }
+    var modelDialogOpen by remember { mutableStateOf(false) }
 
     // Duplicate-mode is only meaningful for user-editable categories
     // (meta / fan_*); the fixed-list categories (internal / icons)
@@ -113,7 +125,13 @@ fun InternalPromptEditScreen(
         isEditingExisting = internalPrompt != null && !isFixedList,
         onDuplicate = { name = "$name-copy" }
     )
-    val isAddMode = dup.isAddMode
+    // A fixed-list prompt (icons / info / internal) is "Edit-only": it
+    // has no duplicate path (so dup reports add-mode), but editing it
+    // must save back onto the SAME row — otherwise the locked name
+    // collides with itself and Create stays disabled, leaving these
+    // prompts (the ones that actually consume agent / provider+model)
+    // uneditable. So force real-edit semantics for an existing one.
+    val isAddMode = if (internalPrompt != null && isFixedList) false else dup.isAddMode
     val effectiveExistingNames = if (isAddMode && internalPrompt != null) {
         existingNames + internalPrompt.name.lowercase()
     } else existingNames
@@ -144,7 +162,19 @@ fun InternalPromptEditScreen(
         Button(
             onClick = {
                 val id = if (isAddMode) java.util.UUID.randomUUID().toString() else internalPrompt!!.id
-                onSave(InternalPrompt(id, name.trim(), reference, category, agent, text, title.trim()))
+                // Provider+Model mode wins when both are set; otherwise
+                // the prompt is bound to the agent (and provider/model
+                // cleared) so the two are mutually exclusive on disk.
+                val pmActive = useProviderModel && providerId.isNotBlank() && model.isNotBlank()
+                onSave(
+                    InternalPrompt(
+                        id = id, name = name.trim(), reference = reference, category = category,
+                        agent = if (pmActive) AGENT_SELECT else agent,
+                        text = text, title = title.trim(),
+                        provider = if (pmActive) providerId else null,
+                        model = if (pmActive) model else null
+                    )
+                )
             },
             enabled = nameError == null,
             modifier = Modifier.fillMaxWidth(),
@@ -192,46 +222,121 @@ fun InternalPromptEditScreen(
             }
 
             SectionCard {
-                Text("Agent", fontSize = 12.sp, color = AppColors.TextTertiary)
-                Box {
+                Text("Run on", fontSize = 12.sp, color = AppColors.TextTertiary)
+                // Either/or: bind to a named Agent, or pin a Provider +
+                // Model directly. Mutually exclusive — picking one mode
+                // hides the other's controls; only the active one is saved.
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    SegmentedButton(
+                        selected = !useProviderModel,
+                        onClick = { useProviderModel = false },
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                    ) { Text("Agent", fontSize = 13.sp) }
+                    SegmentedButton(
+                        selected = useProviderModel,
+                        onClick = { useProviderModel = true },
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                    ) { Text("Provider + Model", fontSize = 13.sp) }
+                }
+
+                if (!useProviderModel) {
+                    Box {
+                        OutlinedButton(
+                            onClick = { agentMenuOpen = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = AppColors.outlinedButtonColors()
+                        ) {
+                            Text(
+                                agent,
+                                modifier = Modifier.weight(1f),
+                                fontSize = 13.sp,
+                                color = if (agent == AGENT_SELECT) AppColors.TextTertiary else Color.White,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            Text("▾", color = AppColors.TextTertiary)
+                        }
+                        DropdownMenu(
+                            expanded = agentMenuOpen,
+                            onDismissRequest = { agentMenuOpen = false },
+                            modifier = Modifier.background(Color(0xFF2D2D2D))
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(AGENT_SELECT, fontSize = 13.sp,
+                                    color = if (agent == AGENT_SELECT) AppColors.Blue else Color.White) },
+                                onClick = { agent = AGENT_SELECT; agentMenuOpen = false }
+                            )
+                            agentNames.sortedBy { it.lowercase() }.forEach { n ->
+                                DropdownMenuItem(
+                                    text = { Text(n, fontSize = 13.sp,
+                                        color = if (agent == n) AppColors.Blue else Color.White) },
+                                    onClick = { agent = n; agentMenuOpen = false }
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        if (agent == AGENT_SELECT) "*select means the user picks the model at run time."
+                        else "Bound to the agent named '$agent' (resolved from Settings.agents at run time).",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
+                } else {
+                    // Provider picker → resets model when the provider changes.
                     OutlinedButton(
-                        onClick = { agentMenuOpen = true },
+                        onClick = { providerDialogOpen = true },
                         modifier = Modifier.fillMaxWidth(),
                         colors = AppColors.outlinedButtonColors()
                     ) {
                         Text(
-                            agent,
-                            modifier = Modifier.weight(1f),
-                            fontSize = 13.sp,
-                            color = if (agent == AGENT_SELECT) AppColors.TextTertiary else Color.White,
+                            providerId.ifBlank { "Select provider…" },
+                            modifier = Modifier.weight(1f), fontSize = 13.sp,
+                            color = if (providerId.isBlank()) AppColors.TextTertiary else Color.White,
                             fontFamily = FontFamily.Monospace
                         )
                         Text("▾", color = AppColors.TextTertiary)
                     }
-                    DropdownMenu(
-                        expanded = agentMenuOpen,
-                        onDismissRequest = { agentMenuOpen = false },
-                        modifier = Modifier.background(Color(0xFF2D2D2D))
+                    OutlinedButton(
+                        onClick = { modelDialogOpen = true },
+                        enabled = providerId.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedButtonColors()
                     ) {
-                        DropdownMenuItem(
-                            text = { Text(AGENT_SELECT, fontSize = 13.sp,
-                                color = if (agent == AGENT_SELECT) AppColors.Blue else Color.White) },
-                            onClick = { agent = AGENT_SELECT; agentMenuOpen = false }
+                        Text(
+                            model.ifBlank { "Select model…" },
+                            modifier = Modifier.weight(1f), fontSize = 13.sp,
+                            color = if (model.isBlank()) AppColors.TextTertiary else Color.White,
+                            fontFamily = FontFamily.Monospace
                         )
-                        agentNames.sortedBy { it.lowercase() }.forEach { n ->
-                            DropdownMenuItem(
-                                text = { Text(n, fontSize = 13.sp,
-                                    color = if (agent == n) AppColors.Blue else Color.White) },
-                                onClick = { agent = n; agentMenuOpen = false }
-                            )
-                        }
+                        Text("▾", color = AppColors.TextTertiary)
                     }
+                    Text(
+                        if (providerId.isNotBlank() && model.isNotBlank())
+                            "Runs on $providerId / $model (using that provider's API key)."
+                        else "Pick a provider and a model to pin this prompt to.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
                 }
-                Text(
-                    if (agent == AGENT_SELECT) "*select means the user picks the model at run time."
-                    else "Bound to the agent named '$agent' (resolved from Settings.agents at run time).",
-                    fontSize = 11.sp, color = AppColors.TextTertiary
+            }
+            if (providerDialogOpen) {
+                com.ai.ui.report.start.ReportSelectProviderDialog(
+                    aiSettings = aiSettings,
+                    onSelectProvider = { svc ->
+                        if (svc.id != providerId) model = ""   // model belongs to a provider
+                        providerId = svc.id
+                        providerDialogOpen = false
+                    },
+                    onDismiss = { providerDialogOpen = false }
                 )
+            }
+            if (modelDialogOpen) {
+                val svc = com.ai.data.AppService.findById(providerId)
+                if (svc != null) {
+                    com.ai.ui.report.start.ReportSelectModelDialog(
+                        provider = svc,
+                        aiSettings = aiSettings,
+                        onSelectModel = { m -> model = m; modelDialogOpen = false },
+                        onDismiss = { modelDialogOpen = false }
+                    )
+                } else modelDialogOpen = false
             }
 
             SectionCard {

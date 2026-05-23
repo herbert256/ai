@@ -25,7 +25,12 @@ object InternalPromptSeed {
         val reference: Boolean = false,
         val category: String = "internal",
         val agent: String = "*select",
-        val text: String = ""
+        val text: String = "",
+        /** Optional alternative to [agent] — a provider id + model that
+         *  pins the prompt's execution model. Absent in older / agent-
+         *  based entries. */
+        val provider: String? = null,
+        val model: String? = null
     )
 
     /** Read prompts.json and return every row as an [InternalPrompt]
@@ -44,7 +49,9 @@ object InternalPromptSeed {
                     category = it.category.ifBlank { "internal" },
                     agent = it.agent.ifBlank { "*select" },
                     text = it.text,
-                    title = it.title
+                    title = it.title,
+                    provider = it.provider?.takeIf { p -> p.isNotBlank() },
+                    model = it.model?.takeIf { m -> m.isNotBlank() }
                 )
             }
         } catch (e: Exception) {
@@ -99,7 +106,9 @@ object InternalPromptSeed {
                         category = cat,
                         agent = e.agent.ifBlank { "*select" },
                         text = e.text,
-                        title = e.title
+                        title = e.title,
+                        provider = e.provider?.takeIf { p -> p.isNotBlank() },
+                        model = e.model?.takeIf { m -> m.isNotBlank() }
                     )
                 } else {
                     result.add(
@@ -110,7 +119,9 @@ object InternalPromptSeed {
                             category = cat,
                             agent = e.agent.ifBlank { "*select" },
                             text = e.text,
-                            title = e.title
+                            title = e.title,
+                            provider = e.provider?.takeIf { p -> p.isNotBlank() },
+                            model = e.model?.takeIf { m -> m.isNotBlank() }
                         )
                     )
                 }

@@ -188,10 +188,12 @@ data class InaccessibleModel(
  * templates ([category] == "fan_out" / "fan_in"), and the fixed
  * internal templates ([category] == "internal": intro, model_info,
  * translate, rerank, moderation). [reference]: when true, the executor
- * appends a `[N] = Provider / Model` legend to the response. [agent]
- * is either the literal sentinel `"*select"` (ask the user which model
- * to run on) or the name of an [Agent] in [Settings.agents]. [text]
- * is the chat template body (substituted with @QUESTION@ / @RESULTS@ /
+ * appends a `[N] = Provider / Model` legend to the response. The
+ * execution model is pinned **either** by [agent] (the sentinel
+ * `"*select"` = ask the user, or the name of an [Agent] in
+ * [Settings.agents]) **or** by the [provider]+[model] pair; when both
+ * the pair's parts are non-blank they win over [agent]. [text] is the
+ * chat template body (substituted with @QUESTION@ / @RESULTS@ /
  * @COUNT@ / @TITLE@ / @DATE@ and category-specific placeholders).
  */
 data class InternalPrompt(
@@ -205,7 +207,13 @@ data class InternalPrompt(
      *  user-given [name] is the identifier; [title] is a one-line
      *  description shown alongside it on Fan out and the prompt-edit
      *  screen. */
-    val title: String = ""
+    val title: String = "",
+    /** Optional alternative to [agent]: pin the prompt directly to a
+     *  provider id ([AppService.id]) + model. When both are non-blank
+     *  they resolve to a synthetic agent (provider's key + this model)
+     *  and take precedence over [agent]. Null/blank → use [agent]. */
+    val provider: String? = null,
+    val model: String? = null
 )
 
 /** Stand-alone example prompt — pure (title, text) pair the user
@@ -614,6 +622,24 @@ data class Settings(
     fun resolveAgentParameters(agent: Agent) = mergeParameters(agent.paramsIds) ?: AgentParameters()
     fun getEffectiveApiKeyForAgent(agent: Agent) = agent.apiKey.ifBlank { getApiKey(agent.provider) }
     fun getEffectiveModelForAgent(agent: Agent) = agent.model.ifBlank { getModel(agent.provider) }
+
+    /** Resolve an [InternalPrompt] to the [Agent] that should run it.
+     *  A non-blank [InternalPrompt.provider]+[InternalPrompt.model] pair
+     *  wins, yielding a synthetic agent (empty key/id → the provider's
+     *  own key + endpoint resolve downstream via the getEffective* path,
+     *  exactly like a real agent). Otherwise falls back to matching
+     *  [InternalPrompt.agent] by name in [agents]. Returns null when
+     *  neither resolves (unknown provider, or `*select`/`*n/a`/unknown
+     *  agent) — callers already treat that as "no pinned model". */
+    fun resolvePromptAgent(prompt: InternalPrompt): Agent? {
+        val pid = prompt.provider
+        val mdl = prompt.model
+        if (!pid.isNullOrBlank() && !mdl.isNullOrBlank()) {
+            val svc = AppService.findById(pid) ?: return null
+            return Agent(id = "", name = "$pid / $mdl", provider = svc, model = mdl, apiKey = "")
+        }
+        return agents.firstOrNull { it.name.equals(prompt.agent, ignoreCase = true) }
+    }
     fun getConfiguredAgents() = agents.filter { it.apiKey.isNotBlank() || getApiKey(it.provider).isNotBlank() }
 
     fun getFlockById(id: String) = flocks.find { it.id == id }
@@ -727,7 +753,12 @@ data class Settings(
             // longer exist. Same "*select" sentinel removeAgent
             // uses.
             internalPrompts = internalPrompts.map {
-                if (it.agent in removedAgentIds) it.copy(agent = "*select") else it
+                var p = it
+                if (p.agent in removedAgentIds) p = p.copy(agent = "*select")
+                // Also drop a provider+model pin that points at the
+                // provider being removed, so it doesn't dangle.
+                if (p.provider == service.id) p = p.copy(provider = null, model = null)
+                p
             }
         )
     }

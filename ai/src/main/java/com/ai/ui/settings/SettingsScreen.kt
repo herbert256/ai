@@ -643,6 +643,7 @@ fun SettingsScreen(
                             .map { it.name.lowercase(java.util.Locale.ROOT) }
                             .toSet(),
                         agentNames = aiSettings.agents.map { it.name },
+                        aiSettings = aiSettings,
                         fixedCategory = selectedInternalCategory,
                         onSave = { saved ->
                             val updated = if (ip != null) aiSettings.copy(internalPrompts = aiSettings.internalPrompts.map { if (it.id == ip.id) saved else it })

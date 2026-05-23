@@ -63,6 +63,7 @@ fun InternalPromptCrud(
             internalPrompt = initial,
             existingNames = existingNames(initial?.id ?: ""),
             agentNames = aiSettings.agents.map { it.name },
+            aiSettings = aiSettings,
             fixedCategory = category,
             onSave = { saved -> upsert(saved); toList() },
             onBack = toList,
@@ -99,7 +100,9 @@ fun InternalPromptCrud(
             CrudField("Name", m.item.name)
             if (m.item.title.isNotBlank()) CrudField("Title", m.item.title)
             CrudField("Category", categoryDisplayName(m.item.category))
-            if (m.item.agent.isNotBlank() && m.item.agent != "*select" && m.item.agent != "*n/a")
+            if (!m.item.provider.isNullOrBlank() && !m.item.model.isNullOrBlank())
+                CrudField("Provider / Model", "${m.item.provider} / ${m.item.model}")
+            else if (m.item.agent.isNotBlank() && m.item.agent != "*select" && m.item.agent != "*n/a")
                 CrudField("Agent", m.item.agent)
             if (m.item.reference) CrudField("Reference", "Appends reference legend")
             CrudField("Template", m.item.text.ifBlank { "(empty)" })
