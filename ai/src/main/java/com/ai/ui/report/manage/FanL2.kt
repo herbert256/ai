@@ -50,6 +50,7 @@ import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.data.effectiveStatus
 import com.ai.data.iconStatus
+import com.ai.data.titleStatus
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ReloadConfirmationDialog
@@ -82,6 +83,7 @@ internal fun FanOutL2Screen(
     onOpenPair: (String) -> Unit,
     onOpenOnePage: () -> Unit,
     onOpenIcons: () -> Unit,
+    onOpenTitles: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val (activePid, activeMdl) = answererKey.split("|").let {
@@ -101,6 +103,13 @@ internal fun FanOutL2Screen(
     // engine.runs's hydration to have populated answererAgentId
     // for every pair.)
     val isIconsMode = mode == FanOutMode.ICONS
+    val isTitlesMode = mode == FanOutMode.TITLES
+    val isMetaMode = isIconsMode || isTitlesMode
+    fun lens(p: PairState, set: Set<String>): PairStatus = when (mode) {
+        FanOutMode.ICONS -> p.iconStatus(set)
+        FanOutMode.TITLES -> p.titleStatus(set)
+        else -> p.effectiveStatus(set)
+    }
     val rawRows: List<PairState> = remember(run, role, answererKey) {
         when (role) {
             "Initiator" -> run.pairs.values.filter {
@@ -157,11 +166,11 @@ internal fun FanOutL2Screen(
     } else {
         resolveModelLabel("${p.providerId}|${p.model}")
     }
-    val rows: List<PairState> = remember(rawRows, runningSet, isIconsMode, agentLabels, role) {
+    val rows: List<PairState> = remember(rawRows, runningSet, mode, agentLabels, role) {
         rawRows.sortedWith(
             compareBy(
                 { p ->
-                    when (if (isIconsMode) p.iconStatus(runningSet) else p.effectiveStatus(runningSet)) {
+                    when (lens(p, runningSet)) {
                         PairStatus.RUNNING, PairStatus.PENDING -> 0
                         PairStatus.ERROR -> 1
                         PairStatus.DONE -> 2
@@ -184,7 +193,11 @@ internal fun FanOutL2Screen(
         }
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
-            title = if (isIconsMode) "Fan icons - model" else "Fan out - model",
+            title = when (mode) {
+                FanOutMode.ICONS -> "Fan icons - model"
+                FanOutMode.TITLES -> "Fan titles - model"
+                else -> "Fan out - model"
+            },
             subject = subject,
             onBackClick = onBack,
             onOpenView = onOpenViewJump,
@@ -194,7 +207,7 @@ internal fun FanOutL2Screen(
             // same onCreateReportFromFanOut handler that the inline
             // button used to call. Icons mode never had the button
             // (action row is hidden there); hide the icon there too.
-            onCopyReport = if (!isIconsMode) {
+            onCopyReport = if (!isMetaMode) {
                 { actions.onCreateReportFromFanOut(run.key, activePid, activeMdl) }
             } else null
         )
@@ -219,7 +232,7 @@ internal fun FanOutL2Screen(
         // Restart failed, One Page View, Icons), keep just "Switch
         // role" rendered above this comment. Fan out's MAIN mode
         // still shows them all.
-        if (isIconsMode) {
+        if (isMetaMode) {
             Spacer(modifier = Modifier.height(8.dp))
         } else {
 
@@ -233,6 +246,7 @@ internal fun FanOutL2Screen(
         // same width and labels stay short so a 3–5 button row still
         // fits on a phone.
         val hasIcons = remember(rawRows) { rawRows.any { !it.icon.isNullOrBlank() } }
+        val hasTitles = remember(rawRows) { rawRows.any { !it.title.isNullOrBlank() } }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -271,6 +285,14 @@ internal fun FanOutL2Screen(
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
                 ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            }
+            if (hasTitles) {
+                Button(
+                    onClick = onOpenTitles,
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 32.dp)
+                ) { Text("Titles", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
         }
 
@@ -339,13 +361,14 @@ internal fun FanOutL2Screen(
                     color = AppColors.TextTertiary, fontSize = 13.sp
                 )
             }
-        } else if (isIconsMode) {
-            // Fan icons — focused icon list. Big emoji glyphs only;
-            // no labels, no status icons, no progress fills. Tapping
-            // a row opens the L3 Fan icons - pair detail.
+        } else if (isMetaMode) {
+            // Fan icons / titles — focused list. ICONS: big emoji
+            // glyphs. TITLES: the per-pair title text. No status
+            // icons / progress fills. Tapping a row opens the L3
+            // pair detail.
             val rowsTotalCost = rows.sumOf { it.totalCost }
             LazyColumn(modifier = Modifier.weight(1f)) {
-                if (role == "Initiator" && !activeAgentIcon.isNullOrBlank()) {
+                if (isIconsMode && role == "Initiator" && !activeAgentIcon.isNullOrBlank()) {
                     item(key = "icon-initiator-header") {
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
@@ -369,7 +392,25 @@ internal fun FanOutL2Screen(
                             },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (role == "Responder") {
+                        if (isTitlesMode) {
+                            // TITLES: the pair's responder model label +
+                            // its generated title, left-aligned text.
+                            val label = if (role == "Responder")
+                                (agentLabels[p.sourceAgentId] ?: p.sourceAgentId)
+                                else resolveModelLabel("${p.providerId}|${p.model}")
+                            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                                Text(
+                                    p.title ?: "—",
+                                    fontSize = 15.sp, color = Color.White,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2, overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    label, fontSize = 11.sp, color = AppColors.TextTertiary,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        } else if (role == "Responder") {
                             // Initiator's agent-level icon, then the
                             // pair's responder icon (this model's reply
                             // to that source).
@@ -382,7 +423,7 @@ internal fun FanOutL2Screen(
                             // pair.icon (the answerer's reply icon).
                             Text(p.icon ?: "⬜", fontSize = 40.sp, modifier = Modifier.padding(start = 8.dp))
                         }
-                        Spacer(modifier = Modifier.weight(1f))
+                        if (!isTitlesMode) Spacer(modifier = Modifier.weight(1f))
                         if (p.totalCost > 0.0) {
                             Text(
                                 formatCents(p.totalCost), fontSize = 12.sp,

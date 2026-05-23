@@ -506,6 +506,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _throttledFanIconsPairs.update(block)
     }
 
+    /** Pair ids currently mid-title-call. Parallel to
+     *  [runningFanIconsPairs] but for the fan-titles batch — the
+     *  L1 TITLES-mode stats panel reads from this. */
+    private val _runningFanTitlesPairs = MutableStateFlow<Set<String>>(emptySet())
+    val runningFanTitlesPairs: StateFlow<Set<String>> = _runningFanTitlesPairs.asStateFlow()
+    internal fun updateRunningFanTitlesPairs(block: (Set<String>) -> Set<String>) {
+        _runningFanTitlesPairs.update(block)
+    }
+
+    /** Pair ids whose fan-titles attempt is blocked inside
+     *  [com.ai.data.ProviderThrottle.acquire]. Same role as
+     *  [throttledFanIconsPairs] for the titles batch. */
+    private val _throttledFanTitlesPairs = MutableStateFlow<Set<String>>(emptySet())
+    val throttledFanTitlesPairs: StateFlow<Set<String>> = _throttledFanTitlesPairs.asStateFlow()
+    internal fun updateThrottledFanTitlesPairs(block: (Set<String>) -> Set<String>) {
+        _throttledFanTitlesPairs.update(block)
+    }
+
     /** Live state of any "Find alternative icons" fan-out, keyed by
      *  reportId. Lives outside [UiState] for the same reason as
      *  [runningFanOutPairs] — per-call status flips fire faster than

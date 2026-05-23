@@ -2734,6 +2734,302 @@ class IconGenerationManager(
         return runFanIconsBatch(context, reportId, metaPromptId)
     }
 
+    // ============================================================
+    // Fan-titles batch — the "Titles" sibling of the fan-icons
+    // batch. Generates a per-pair title by asking the pair's OWN
+    // model (chat-continuation, like the icons tier 1) to title its
+    // own response. Single tier: no one-shot / fixed-agent fallback,
+    // no glyph fallback — a blank reply is just an error the user can
+    // retry. Shares the [ApiCallCaps.fanIcons] cap (the two batches
+    // rarely overlap).
+    // ============================================================
+
+    fun runFanTitlesBatch(
+        context: Context,
+        reportId: String,
+        metaPromptId: String
+    ): Job? {
+        rvm.fanTitlesJobs[rvm.fanTitlesJobKey(reportId, metaPromptId)]?.let { existing ->
+            if (existing.isActive) return existing
+        }
+        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+        val titleRunId = java.util.UUID.randomUUID().toString()
+        val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            try {
+                val state = appViewModel.uiState.value
+                val aiSettings = state.aiSettings
+                val metaPrompt = aiSettings.internalPrompts.firstOrNull { it.id == metaPromptId }
+                    ?: return@launch
+                val titlePrompt = aiSettings.internalPrompts.firstOrNull {
+                    it.category == "info" && it.name == "fan_out_title"
+                }
+                if (titlePrompt == null) {
+                    AppLog.w("FanTitles", "no fan_out_title prompt configured — skipping")
+                    return@launch
+                }
+                val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                val sourceBodies = report.agents
+                    .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                    .associate { it.agentId to it.responseBody!! }
+                val resolvedBase = resolveSecondaryPrompt(
+                    metaPrompt.text,
+                    question = report.prompt,
+                    results = "",
+                    count = sourceBodies.size,
+                    title = report.title
+                )
+
+                // Pairs to process: same metaPromptId, has fan-out source,
+                // has content, AND no title yet (skip already-done pairs).
+                val pending = SecondaryResultStorage
+                    .listForReport(context, reportId, SecondaryKind.META)
+                    .filter {
+                        it.metaPromptId == metaPromptId &&
+                            it.fanOutSourceAgentId != null &&
+                            it.fanInOf == null &&
+                            !it.content.isNullOrBlank() &&
+                            it.title.isNullOrBlank()
+                    }
+                if (pending.isEmpty()) {
+                    AppLog.i("FanTitles", "no pending pairs for ${metaPrompt.name} on $reportId — nothing to do")
+                    return@launch
+                }
+                AppLog.i("FanTitles", "→ start ${metaPrompt.name} (report=$reportId, ${pending.size} pairs)")
+
+                val perHostCaps: Map<String, kotlinx.coroutines.sync.Semaphore> = pending
+                    .mapNotNull { AppService.findById(it.providerId) }
+                    .map { providerHost(it) }
+                    .distinct()
+                    .associateWith { host ->
+                        val (_, concurrent) = ProviderThrottle.limitsFor(host)
+                        kotlinx.coroutines.sync.Semaphore(concurrent)
+                    }
+                val rateLimitedHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+                withTracerTags(reportId = reportId, category = "title_fan_out", runId = titleRunId) {
+                    coroutineScope {
+                        interleaveByHost(pending) { p ->
+                            AppService.findById(p.providerId)?.let { providerHost(it) }
+                        }.map { pair ->
+                            async(start = CoroutineStart.LAZY) {
+                                val provider = AppService.findById(pair.providerId) ?: return@async
+                                val host = providerHost(provider)
+                                if (host in rateLimitedHosts) {
+                                    AppLog.d("FanTitles", "skip pair ${pair.id} — host $host rate-limited earlier this batch")
+                                    SecondaryResultStorage.setFanOutTitleError(
+                                        context, reportId, pair.id,
+                                        "rate-limited — host $host hit 429 mid-batch, relaunch to retry"
+                                    )
+                                    return@async
+                                }
+                                val hostCap = perHostCaps[host]
+                                    ?: kotlinx.coroutines.sync.Semaphore(1)
+                                val sourceBody = sourceBodies[pair.fanOutSourceAgentId.orEmpty()].orEmpty()
+                                val resolvedMeta = resolvedBase.replace("@RESPONSE@", sourceBody)
+
+                                hostCap.withPermit {
+                                    val releaser = acquireOrRequeue(
+                                        host,
+                                        onThrottled = { appViewModel.updateThrottledFanTitlesPairs { it + pair.id } },
+                                        onCleared = { appViewModel.updateThrottledFanTitlesPairs { it - pair.id } }
+                                    )
+                                    try {
+                                        ApiCallCaps.global.withPermit {
+                                            ApiCallCaps.fanIcons.withPermit {
+                                                if (!SecondaryResultStorage.exists(context, reportId, pair.id)) {
+                                                    AppLog.d("FanTitles", "skip pair ${pair.id} — deleted before launch")
+                                                    return@async
+                                                }
+                                                withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                                    appViewModel.updateRunningFanTitlesPairs { it + pair.id }
+                                                    val pairStart = System.currentTimeMillis()
+                                                    try {
+                                                        runTitleForPair(
+                                                            context, reportId, provider, pair, titlePrompt,
+                                                            metaPromptText = resolvedMeta,
+                                                            pairContent = pair.content!!,
+                                                            titleRunId = titleRunId,
+                                                            aiSettings = aiSettings,
+                                                            rateLimitedHosts = rateLimitedHosts
+                                                        )
+                                                    } finally {
+                                                        appViewModel.updateRunningFanTitlesPairs { it - pair.id }
+                                                        AppLog.d("FanTitles", "← pair ${pair.id} ${System.currentTimeMillis() - pairStart}ms")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } finally {
+                                        releaser.release()
+                                    }
+                                }
+                            }.also { it.start() }
+                        }.awaitAll()
+                    }
+                }
+                AppLog.i("FanTitles", "← end ${metaPrompt.name} (report=$reportId)")
+            } finally {
+                appViewModel.updateUiState {
+                    it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0))
+                }
+            }
+        }
+        rvm.registerFanTitlesJob(reportId, metaPromptId, job)
+        return job
+    }
+
+    /** Re-fire the fan-titles batch on every pair (incl. ones that
+     *  already have a title), clearing prior title state first. */
+    fun relaunchFanTitlesBatch(
+        context: Context, reportId: String, metaPromptId: String
+    ): Job? {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            val existing = SecondaryResultStorage
+                .listForReport(context, reportId, SecondaryKind.META)
+                .filter {
+                    it.metaPromptId == metaPromptId &&
+                        it.fanOutSourceAgentId != null &&
+                        it.fanInOf == null
+                }
+            for (e in existing) SecondaryResultStorage.clearFanOutTitleState(context, reportId, e.id)
+        }
+        return runFanTitlesBatch(context, reportId, metaPromptId)
+    }
+
+    /** Cancel the in-flight fan-titles batch for this fan-out, if any. */
+    fun cancelFanTitlesBatch(reportId: String, metaPromptId: String) {
+        rvm.fanTitlesJobs[rvm.fanTitlesJobKey(reportId, metaPromptId)]?.cancel()
+    }
+
+    private fun isFanTitleError(sr: SecondaryResult): Boolean =
+        !sr.titleErrorMessage.isNullOrBlank() ||
+            (sr.content.isNullOrBlank() && (sr.errorMessage != null || sr.durationMs != null))
+
+    /** Clear title state on every pair of [metaPromptId] whose title
+     *  call failed, so the L1/L2/L3 classifier reads them as "no title
+     *  yet" rather than ❌. No-content pairs (which can never produce a
+     *  title) get a "—" sentinel stamped so they settle to DONE. */
+    fun clearFanTitleErrors(context: Context, reportId: String, metaPromptId: String) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            withContext(Dispatchers.IO) {
+                val errored = SecondaryResultStorage
+                    .listForReport(context, reportId, SecondaryKind.META)
+                    .filter {
+                        it.metaPromptId == metaPromptId &&
+                            it.fanOutSourceAgentId != null &&
+                            it.fanInOf == null &&
+                            isFanTitleError(it)
+                    }
+                for (e in errored) {
+                    if (e.content.isNullOrBlank()) {
+                        SecondaryResultStorage.setFanOutTitle(context, reportId, e.id, title = "—")
+                    } else {
+                        SecondaryResultStorage.clearFanOutTitleState(context, reportId, e.id)
+                    }
+                }
+                AppLog.i("FanTitles", "cleared title state on ${errored.size} errored pair(s) for ${metaPromptId.take(8)}")
+            }
+            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+        }
+    }
+
+    /** Clear title errors then re-fire the fan-titles batch. */
+    fun restartFanTitleErrors(context: Context, reportId: String, metaPromptId: String): Job? {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            withContext(Dispatchers.IO) {
+                val errored = SecondaryResultStorage
+                    .listForReport(context, reportId, SecondaryKind.META)
+                    .filter {
+                        it.metaPromptId == metaPromptId &&
+                            it.fanOutSourceAgentId != null &&
+                            it.fanInOf == null &&
+                            isFanTitleError(it)
+                    }
+                for (e in errored) {
+                    if (e.content.isNullOrBlank()) {
+                        SecondaryResultStorage.setFanOutTitle(context, reportId, e.id, title = "—")
+                    } else {
+                        SecondaryResultStorage.clearFanOutTitleState(context, reportId, e.id)
+                    }
+                }
+            }
+            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+        }
+        return runFanTitlesBatch(context, reportId, metaPromptId)
+    }
+
+    /** Single-tier title call for one fan-out pair — mirror of
+     *  [runFanOutTier1] but produces a title (via [cleanTitle]) rather
+     *  than an emoji, and writes it straight to storage. Reproduces the
+     *  pair's real 1-turn conversation, then appends the [titlePrompt]
+     *  chat-continuation asking the pair's own model to title it. */
+    private suspend fun runTitleForPair(
+        context: Context, reportId: String, provider: AppService,
+        pair: SecondaryResult, titlePrompt: InternalPrompt,
+        metaPromptText: String, pairContent: String,
+        titleRunId: String, aiSettings: Settings,
+        rateLimitedHosts: MutableSet<String>
+    ) {
+        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+            withTracerTags(reportId = reportId, category = "title_fan_out") {
+                val started = System.currentTimeMillis()
+                runCatching {
+                    val messages = listOf(
+                        ChatMessage(role = "user", content = metaPromptText),
+                        ChatMessage(role = "assistant", content = pairContent),
+                        ChatMessage(role = "user", content = titlePrompt.text)
+                    )
+                    val apiKey = aiSettings.getApiKey(provider)
+                    val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
+                    val responseText = appViewModel.repository.sendChat(
+                        service = provider, apiKey = apiKey, model = pair.model,
+                        messages = messages, params = ChatParameters(), baseUrl = baseUrl
+                    )
+                    val inT = messages.sumOf { AppViewModel.estimateTokens(it.content) }
+                    val outT = AppViewModel.estimateTokens(responseText)
+                    if (inT > 0 || outT > 0) {
+                        val pricing = PricingCache.getPricing(context, provider, pair.model)
+                        SecondaryResultStorage.bumpFanOutTitleCost(
+                            context, reportId, pair.id,
+                            inputTokens = inT, outputTokens = outT,
+                            inputCost = inT * pricing.promptPrice,
+                            outputCost = outT * pricing.completionPrice
+                        )
+                        appViewModel.settingsPrefs.updateUsageStatsAsync(
+                            provider, pair.model, inT, outT, kind = "title"
+                        )
+                    }
+                    val title = cleanTitle(responseText)
+                    if (title.isNotBlank()) {
+                        SecondaryResultStorage.setFanOutTitle(
+                            context, reportId, pair.id, title,
+                            titleRunId = titleRunId, promptUsed = "fan_out_title"
+                        )
+                    } else {
+                        SecondaryResultStorage.setFanOutTitleError(
+                            context, reportId, pair.id, "model returned no usable title"
+                        )
+                    }
+                }.getOrElse { e ->
+                    AppLog.w("FanTitles", "title call failed for pair=${pair.id}: ${e.message}")
+                    if (isRateLimitFailure(e)) {
+                        rateLimitedHosts.add(providerHost(provider))
+                        SecondaryResultStorage.setFanOutTitleError(
+                            context, reportId, pair.id,
+                            "rate-limited (429) — relaunch to retry"
+                        )
+                    } else {
+                        SecondaryResultStorage.setFanOutTitleError(
+                            context, reportId, pair.id,
+                            e.message ?: "title generation failed"
+                        )
+                    }
+                }
+                AppLog.d("FanTitles", "title pair=${pair.id} ${System.currentTimeMillis() - started}ms")
+            }
+        }
+    }
+
     private suspend fun runFanOutTier1(
         context: Context, reportId: String, provider: AppService,
         pair: SecondaryResult, chatPrompt: InternalPrompt,

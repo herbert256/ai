@@ -356,6 +356,14 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Long fan-out runs render many MB of text; rendering can be slow on dense reports. Use L2 + tap-into-cell when you only need one pair."),
         )
     ),
+    "fan_titles" to HelpContent(
+        title = "Help - Fan titles",
+        cards = listOf(
+            HelpCard("What you see", "The fan-titles view of a fan-out run — the text sibling of fan-icons. The L1 'Titles' button runs a batch that asks each pair's OWN model to give its reply a short title (a chat-continuation call, single try — no fallback). 'Show titles' then lists, per source model, every responder's generated title as a tappable row."),
+            HelpCard("Status & errors", "While the batch runs, L1/L2/L3 classify pairs by their title status (queued → running → done / error). 'Remove errors' clears failed pairs so they read as 'no title yet'; 'Restart errors' clears and re-fires the batch on them. The 🗑 in Titles mode drops every title for the run, keeping the fan-out responses."),
+            HelpCard("Drill in", "Tap a title to open the pair (L3), where the title shows above the response. The per-model L2 'Titles' button focuses one model's pair titles. Titles and icons are independent — a pair can carry both.")
+        )
+    ),
     "fan_out_view" to HelpContent(
         title = "Help - Fan-out",
         cards = listOf(

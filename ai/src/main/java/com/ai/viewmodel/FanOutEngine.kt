@@ -780,6 +780,21 @@ class FanOutEngine internal constructor(
             hydrate(context, run.reportId)
         }
 
+    /** TITLES-mode 🗑 counterpart of [clearFanIcons]: drops every
+     *  pair's title state (title + error + cost) for this run,
+     *  leaving the fan-out responses intact. No iconCalls-style
+     *  audit log for titles, so just the per-pair clear + re-hydrate. */
+    fun clearFanTitles(context: Context, runKey: FanOutRunKey): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[runKey] ?: return@launch
+            reportViewModel.iconGen.cancelFanTitlesBatch(run.reportId, run.metaPrompt.id)
+            run.pairs.values.forEach { pair ->
+                SecondaryResultStorage.clearFanOutTitleState(context, run.reportId, pair.id)
+            }
+            ReportStorage.bumpReportTimestamp(context, run.reportId)
+            hydrate(context, run.reportId)
+        }
+
     /** Drop every pair where the given (provider, model) is the
      *  answerer OR the source. Cancels per-pair coroutines first
      *  so no zombie writes land after the delete. */

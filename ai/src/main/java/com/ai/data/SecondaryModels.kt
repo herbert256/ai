@@ -138,6 +138,24 @@ data class SecondaryResult(
      *  created the row). Null when no icon sweep has run, or on
      *  legacy rows. */
     val iconRunId: String? = null,
+    /** Per-fan-out-pair title produced by the fan-titles batch
+     *  ([com.ai.viewmodel.IconGenerationManager.runFanTitlesBatch]) —
+     *  a chat-continuation call to the pair's own model titling its
+     *  own response. Parallel to [icon] but single-tier (no fallback
+     *  tiers, no fallback glyph). Null until the batch runs; empty /
+     *  non-fan-out rows leave this null forever. */
+    val title: String? = null,
+    val titleErrorMessage: String? = null,
+    val titleInputTokens: Int = 0,
+    val titleOutputTokens: Int = 0,
+    val titleInputCost: Double = 0.0,
+    val titleOutputCost: Double = 0.0,
+    /** Bundled prompt name that produced the currently-displayed
+     *  [title]. "fan_out_title" on success. Null on legacy rows. */
+    val titlePromptUsed: String? = null,
+    /** UUID of the most recent fan-titles sweep that touched this row
+     *  (parallel to [iconRunId]). Null when no title sweep has run. */
+    val titleRunId: String? = null,
     /** Trace filename captured for the specific API call that
      *  produced this row, when available. Currently populated only
      *  for TRANSLATE rows (the View → Prompt screen wires a 🐞 from

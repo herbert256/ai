@@ -91,11 +91,24 @@ data class PairState(
      *  winning tier; "fan_out_alt" after a Find-alt pick. Null on
      *  legacy rows or when no icon has been generated. Drives the
      *  green subject row on the unified Icon-lookup screen. */
-    val iconPromptUsed: String? = null
+    val iconPromptUsed: String? = null,
+    /** Title produced by the fan-titles batch — a chat-continuation
+     *  call to the pair's own model. Null until the batch runs.
+     *  Parallel to [icon] but single-tier. */
+    val title: String? = null,
+    val titleInputCost: Double = 0.0,
+    val titleOutputCost: Double = 0.0,
+    /** Error message from the last fan-titles attempt for this pair. */
+    val titleErrorMessage: String? = null,
+    /** UUID of the most recent fan-titles sweep on this pair. */
+    val titleRunId: String? = null,
+    /** Bundled prompt name that produced [title] — "fan_out_title". */
+    val titlePromptUsed: String? = null
 ) {
     val key: PairKey get() = pairKey(answererAgentId, sourceAgentId)
     val totalCost: Double get() =
-        (inputCost ?: 0.0) + (outputCost ?: 0.0) + iconInputCost + iconOutputCost
+        (inputCost ?: 0.0) + (outputCost ?: 0.0) +
+            iconInputCost + iconOutputCost + titleInputCost + titleOutputCost
 }
 
 /** Promote a disk-derived [PairStatus] to RUNNING when the pair's
@@ -134,6 +147,16 @@ fun PairState.iconStatus(runningIconsSet: Set<String>): PairStatus = when {
     !iconErrorMessage.isNullOrBlank() -> PairStatus.ERROR
     content.isNullOrBlank() && (!errorMessage.isNullOrBlank() || durationMs != null) -> PairStatus.ERROR
     id in runningIconsSet -> PairStatus.RUNNING
+    else -> PairStatus.PENDING
+}
+
+/** Title-batch lifecycle for this pair — exact parallel of
+ *  [iconStatus] but keyed on [title] / [titleErrorMessage]. */
+fun PairState.titleStatus(runningTitlesSet: Set<String>): PairStatus = when {
+    !title.isNullOrBlank() -> PairStatus.DONE
+    !titleErrorMessage.isNullOrBlank() -> PairStatus.ERROR
+    content.isNullOrBlank() && (!errorMessage.isNullOrBlank() || durationMs != null) -> PairStatus.ERROR
+    id in runningTitlesSet -> PairStatus.RUNNING
     else -> PairStatus.PENDING
 }
 
@@ -262,7 +285,13 @@ fun SecondaryResult.toPairState(answererAgentId: String): PairState? {
         iconErrorMessage = iconErrorMessage,
         runId = runId,
         iconRunId = iconRunId,
-        iconPromptUsed = iconPromptUsed
+        iconPromptUsed = iconPromptUsed,
+        title = title,
+        titleInputCost = titleInputCost,
+        titleOutputCost = titleOutputCost,
+        titleErrorMessage = titleErrorMessage,
+        titleRunId = titleRunId,
+        titlePromptUsed = titlePromptUsed
     )
 }
 

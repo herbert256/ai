@@ -455,6 +455,123 @@ object SecondaryResultStorage {
         }
     }
 
+    // ---- Per-pair TITLE state (single-tier fan-titles batch) ----
+    // Parallel to the icon setters above; no "winning tier" since the
+    // title batch runs a single chat-continuation call per pair.
+
+    /** Add to the per-pair title cost / token counters. No-op when the
+     *  row was deleted mid-call. Mirrors [bumpFanOutIconCost]. */
+    fun bumpFanOutTitleCost(
+        context: Context, reportId: String, resultId: String,
+        inputTokens: Int, outputTokens: Int,
+        inputCost: Double, outputCost: Double
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                titleInputTokens = current.titleInputTokens + inputTokens,
+                titleOutputTokens = current.titleOutputTokens + outputTokens,
+                titleInputCost = current.titleInputCost + inputCost,
+                titleOutputCost = current.titleOutputCost + outputCost
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
+    /** Stamp the generated [title] on the row (clears any prior error),
+     *  leaving cost counters bumped by [bumpFanOutTitleCost] intact.
+     *  No-op when the row was deleted while the batch ran. */
+    fun setFanOutTitle(
+        context: Context, reportId: String, resultId: String,
+        title: String, titleRunId: String? = null, promptUsed: String? = null
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                title = title,
+                titleErrorMessage = null,
+                titleRunId = titleRunId ?: current.titleRunId,
+                titlePromptUsed = promptUsed ?: current.titlePromptUsed
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
+    /** Stamp a title-batch failure on the pair row. Mirrors
+     *  [setFanOutIconError]; retry clears it by writing a title back. */
+    fun setFanOutTitleError(
+        context: Context, reportId: String, resultId: String,
+        errorMessage: String
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(titleErrorMessage = errorMessage)
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
+    /** Regenerate variant — clears [title] + [titleErrorMessage] but
+     *  preserves the title cost / token counters. Mirrors
+     *  [clearFanOutIconStateKeepingCost]. */
+    fun clearFanOutTitleStateKeepingCost(
+        context: Context, reportId: String, resultId: String
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(title = null, titleErrorMessage = null)
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
+    /** Drop any prior title / error / cost so a re-launched fan-titles
+     *  batch starts clean. Mirrors [clearFanOutIconState]. */
+    fun clearFanOutTitleState(
+        context: Context, reportId: String, resultId: String
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                title = null,
+                titleErrorMessage = null,
+                titleInputTokens = 0,
+                titleOutputTokens = 0,
+                titleInputCost = 0.0,
+                titleOutputCost = 0.0
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+    }
+
     /** Reset a row to "stale placeholder" — clear content,
      *  errorMessage, durationMs so the resume-stale path picks
      *  it up and re-dispatches. Preserves cost / tokenUsage —

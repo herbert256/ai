@@ -111,6 +111,8 @@ fun ReportsScreenNav(
     val throttledFanOutPairs by viewModel.throttledFanOutPairs.collectAsState()
     val runningFanIconsPairs by viewModel.runningFanIconsPairs.collectAsState()
     val throttledFanIconsPairs by viewModel.throttledFanIconsPairs.collectAsState()
+    val runningFanTitlesPairs by viewModel.runningFanTitlesPairs.collectAsState()
+    val throttledFanTitlesPairs by viewModel.throttledFanTitlesPairs.collectAsState()
     val iconFanOutByReport by viewModel.iconFanOutByReport.collectAsState()
     val agentIconFanOutByAgent by viewModel.agentIconFanOutByAgent.collectAsState()
     val titleFanOutByReport by viewModel.titleFanOutByReport.collectAsState()
@@ -307,6 +309,17 @@ fun ReportsScreenNav(
             },
             onRestartFanIconErrors = { rid, mp ->
                 reportViewModel.iconGen.restartFanIconErrors(context, rid, mp)
+            },
+            runningFanTitlesPairs = runningFanTitlesPairs,
+            throttledFanTitlesPairs = throttledFanTitlesPairs,
+            onLaunchFanTitlesBatch = { rid, metaPromptId ->
+                reportViewModel.iconGen.runFanTitlesBatch(context, rid, metaPromptId)
+            },
+            onClearFanTitleErrors = { rid, mp ->
+                reportViewModel.iconGen.clearFanTitleErrors(context, rid, mp)
+            },
+            onRestartFanTitleErrors = { rid, mp ->
+                reportViewModel.iconGen.restartFanTitleErrors(context, rid, mp)
             }
         ),
         fanOutEngine = reportViewModel.fanOutEngine,

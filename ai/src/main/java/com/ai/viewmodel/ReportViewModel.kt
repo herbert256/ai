@@ -65,6 +65,15 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         job.invokeOnCompletion { fanIconsJobs.remove(key, job) }
     }
 
+    /** Same role as [fanIconsJobs] but for the fan-titles batch. */
+    internal val fanTitlesJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    internal fun fanTitlesJobKey(reportId: String, metaPromptId: String) = "$reportId|titles|$metaPromptId"
+    internal fun registerFanTitlesJob(reportId: String, metaPromptId: String, job: Job) {
+        val key = fanTitlesJobKey(reportId, metaPromptId)
+        fanTitlesJobs[key] = job
+        job.invokeOnCompletion { fanTitlesJobs.remove(key, job) }
+    }
+
     /** Coroutine context for a report-section launch: `Dispatchers.IO`
      *  plus an [AppLog.currentLogId] context element so every [AppLog]
      *  line written by the coroutine (and its children) is tagged

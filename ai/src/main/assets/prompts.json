@@ -160,6 +160,14 @@
     "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE title — distinct from the most obvious phrasing, max 4 words, max 325 characters including spaces. Only give this title back, nothing more.\n@@@\n@RESPONSE@"
   },
   {
+    "name": "fan_out_title",
+    "title": "Decide a title for a fan-out pair response, chat version",
+    "reference": false,
+    "category": "info",
+    "agent": "*N/A",
+    "text": "For your last response above, reply with a short title that best captures it, max 4 words, max 60 characters. Output only that title, nothing else."
+  },
+  {
     "name": "report_title_icon",
     "title": "Decide the icon for a model, based on the title",
     "reference": false,

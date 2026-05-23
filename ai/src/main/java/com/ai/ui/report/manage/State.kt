@@ -126,6 +126,7 @@ internal class ReportsScreenState(
     val listKind: MutableState<SecondaryKind?>,
     val listFilterByName: MutableState<String?>,
     val listIsFanIcons: MutableState<Boolean>,
+    val listIsFanTitles: MutableState<Boolean>,
 )
 
 @Composable
@@ -201,6 +202,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val listKind = rememberSaveable { mutableStateOf<SecondaryKind?>(null) }
     val listFilterByName = rememberSaveable { mutableStateOf<String?>(null) }
     val listIsFanIcons = rememberSaveable { mutableStateOf(false) }
+    val listIsFanTitles = rememberSaveable { mutableStateOf(false) }
     return remember {
         ReportsScreenState(
         openMetaResultId,
@@ -273,7 +275,8 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         showMetaScreen,
         listKind,
         listFilterByName,
-        listIsFanIcons
+        listIsFanIcons,
+        listIsFanTitles
         )
     }
 }

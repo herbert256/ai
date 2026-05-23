@@ -120,7 +120,11 @@ internal fun FanOutL3Screen(
             }
             TitleBar(
                 helpTopic = "secondary_fan_out_l3",
-                title = if (mode == FanOutMode.ICONS) "Fan icons - pair" else "Fan out - pair",
+                title = when (mode) {
+                    FanOutMode.ICONS -> "Fan icons - pair"
+                    FanOutMode.TITLES -> "Fan titles - pair"
+                    else -> "Fan out - pair"
+                },
                 onOpenView = onOpenViewEmptyJump,
                 onBackClick = onBack
             )
@@ -198,7 +202,11 @@ internal fun FanOutL3Screen(
             }
             TitleBar(
                 helpTopic = "secondary_fan_out_l3",
-                title = if (mode == FanOutMode.ICONS) "Fan icons - pair" else "Fan out - pair",
+                title = when (mode) {
+                    FanOutMode.ICONS -> "Fan icons - pair"
+                    FanOutMode.TITLES -> "Fan titles - pair"
+                    else -> "Fan out - pair"
+                },
                 subject = answererLabel,
                 onBackClick = onBack,
                 onOpenView = onOpenViewJump,
@@ -340,6 +348,22 @@ internal fun FanOutL3Screen(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
+                // TITLES mode: surface the pair's generated title (or
+                // its error) prominently above the response body.
+                if (mode == FanOutMode.TITLES) {
+                    val titleText = pair.title?.takeIf { it.isNotBlank() }
+                    Text(
+                        titleText?.let { "🏷️ $it" }
+                            ?: pair.titleErrorMessage?.let { "❌ $it" }
+                            ?: "🕓 No title yet",
+                        fontSize = 15.sp,
+                        color = if (titleText != null) AppColors.Green
+                            else if (pair.titleErrorMessage != null) AppColors.Red
+                            else AppColors.TextTertiary,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                }
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                     when (pair.effectiveStatus(runningSet)) {
                         PairStatus.ERROR -> Text(

@@ -62,10 +62,14 @@ internal fun SecondaryResultsScreen(
     /** Flip the drill-in back to MAIN mode — the L1 "Responses"
      *  mode-toggle. */
     onShowResponses: () -> Unit = {},
+    /** Flip the drill-in into TITLES mode — the L1 "Titles" toggle. */
+    onShowFanTitles: () -> Unit = {},
     /** When true, the fan-out drill-in mounts in ICONS mode —
      *  L1 / L2 / L3 classify pairs by their icon-chain status.
      *  Wired by the main report's "Fan-icons" View button. */
     isFanIconsDrillIn: Boolean = false,
+    /** When true, the fan-out drill-in mounts in TITLES mode. */
+    isFanTitlesDrillIn: Boolean = false,
     /** Authoritative Fan Out runtime. When non-null and the screen
      *  is in fan-out drill-in mode, the redesigned FanOutScreen
      *  takes over; legacy FanOutDrillInView remains only for the
@@ -568,6 +572,10 @@ internal fun SecondaryResultsScreen(
                     // the fan-out. Job awaited behind the same popup.
                     fanOutEngine.clearFanIcons(context, rk)
                 },
+                onClearFanTitles = { rk ->
+                    // TITLES-mode 🗑 — clears the fan-titles only.
+                    fanOutEngine.clearFanTitles(context, rk)
+                },
                 onRerunComplete = { rk ->
                     fanOutEngine.rerunComplete(context, rk)
                     refreshTick++
@@ -629,6 +637,14 @@ internal fun SecondaryResultsScreen(
                 onRestartFanIconErrors = { rk ->
                     val parts = rk.split("|", limit = 2)
                     if (parts.size == 2) onRestartFanIconErrors(parts[0], parts[1])
+                },
+                onClearFanTitleErrors = { rk ->
+                    val parts = rk.split("|", limit = 2)
+                    if (parts.size == 2) fanRuntime.onClearFanTitleErrors(parts[0], parts[1])
+                },
+                onRestartFanTitleErrors = { rk ->
+                    val parts = rk.split("|", limit = 2)
+                    if (parts.size == 2) fanRuntime.onRestartFanTitleErrors(parts[0], parts[1])
                 }
             )
             FanOutScreen(
@@ -638,7 +654,11 @@ internal fun SecondaryResultsScreen(
                 actions = actions,
                 runningSet = effectiveRunningFanOutPairs,
                 throttledSet = fanRuntime.throttledFanOutPairs,
-                mode = if (isFanIconsDrillIn) FanOutMode.ICONS else FanOutMode.MAIN,
+                mode = when {
+                    isFanTitlesDrillIn -> FanOutMode.TITLES
+                    isFanIconsDrillIn -> FanOutMode.ICONS
+                    else -> FanOutMode.MAIN
+                },
                 runningIconsSet = fanRuntime.runningFanIconsPairs,
                 throttledIconsSet = fanRuntime.throttledFanIconsPairs,
                 onLaunchFanIcons = { _ ->
@@ -647,6 +667,13 @@ internal fun SecondaryResultsScreen(
                 },
                 onShowFanIcons = onShowFanIcons,
                 onShowResponses = onShowResponses,
+                runningTitlesSet = fanRuntime.runningFanTitlesPairs,
+                throttledTitlesSet = fanRuntime.throttledFanTitlesPairs,
+                onLaunchFanTitles = { _ ->
+                    fanRuntime.onLaunchFanTitlesBatch(reportId, fanOutPrompt.id)
+                    onShowFanTitles()
+                },
+                onShowFanTitles = onShowFanTitles,
                 onBack = onBack
             )
             return@Column

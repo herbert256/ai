@@ -120,7 +120,13 @@ data class FanRuntimeBundle(
     /** Clear errors via [onClearFanIconErrors] and re-fire the
      *  fan-icons batch on the just-cleared pairs. Wired to the L1
      *  ICONS "Restart errors" button. */
-    val onRestartFanIconErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> }
+    val onRestartFanIconErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
+    // ---- fan-titles batch (parallel to the fan-icons fields above) ----
+    val runningFanTitlesPairs: Set<String> = emptySet(),
+    val throttledFanTitlesPairs: Set<String> = emptySet(),
+    val onLaunchFanTitlesBatch: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
+    val onClearFanTitleErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
+    val onRestartFanTitleErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> }
 )
 
 // ===== Main Reports Screen =====
