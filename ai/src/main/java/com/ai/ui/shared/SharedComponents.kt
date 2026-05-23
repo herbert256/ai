@@ -1174,6 +1174,23 @@ internal fun AppTopBarChrome(
                         }
                     } else Modifier
                 )
+                // Break ~10dp past the screen's 16dp side padding so the
+                // edge icons sit close to the screen edges (≈6dp) while the
+                // centre column still hugs them (icons use offset 0).
+                .layout { measurable, constraints ->
+                    val outsetPx = 10.dp.roundToPx()
+                    val widenedMax = if (constraints.maxWidth == androidx.compose.ui.unit.Constraints.Infinity)
+                        constraints.maxWidth else constraints.maxWidth + outsetPx * 2
+                    val placeable = measurable.measure(
+                        constraints.copy(
+                            minWidth = (constraints.minWidth + outsetPx * 2).coerceAtMost(widenedMax),
+                            maxWidth = widenedMax
+                        )
+                    )
+                    layout((placeable.width - outsetPx * 2).coerceAtLeast(0), placeable.height) {
+                        placeable.place(-outsetPx, 0)
+                    }
+                }
                 .layout { measurable, constraints ->
                     val placeable = measurable.measure(constraints)
                     val shift = 16.dp.roundToPx()
@@ -1186,21 +1203,21 @@ internal fun AppTopBarChrome(
             // Left — report glyph > section icon > AI logo.
             if (reportIcon != null) {
                 ReportGlyphIcon(
-                    emoji = reportIcon, boxSize = 66.dp,
-                    modifier = Modifier.align(Alignment.Top).offset(x = (-10).dp).padding(top = 4.dp)
+                    emoji = reportIcon, boxSize = 49.5.dp,
+                    modifier = Modifier.align(Alignment.Top).padding(top = 3.dp)
                         .then(if (onReportIconClick != null) Modifier.clickable(onClick = onReportIconClick) else Modifier)
                 )
             } else if (sectionIcon != null) {
                 ReportGlyphIcon(
-                    emoji = sectionIcon.glyph, boxSize = 66.dp,
-                    modifier = Modifier.align(Alignment.Top).offset(x = (-10).dp).padding(top = 4.dp)
+                    emoji = sectionIcon.glyph, boxSize = 49.5.dp,
+                    modifier = Modifier.align(Alignment.Top).padding(top = 3.dp)
                         .clickable(onClick = sectionIcon.onClick)
                 )
             } else {
                 AiLogoButton(
                     onClick = onReportIconClick ?: navigateHome,
-                    modifier = Modifier.align(Alignment.Top).offset(x = (-10).dp).padding(top = 6.dp),
-                    size = 66.dp
+                    modifier = Modifier.align(Alignment.Top).padding(top = 4.dp),
+                    size = 49.5.dp
                 )
             }
             // Centre — white title / orange 2nd line / green 3rd line.
@@ -1214,7 +1231,7 @@ internal fun AppTopBarChrome(
             Column(modifier = colMod, horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = topText, color = Color.White,
-                    fontSize = if (bigSizeFits) 24.sp else 18.sp,
+                    fontSize = if (bigSizeFits) 20.4.sp else 15.3.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1, softWrap = false,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
@@ -1236,7 +1253,7 @@ internal fun AppTopBarChrome(
                             }
                         Text(
                             text = secondLine, color = AppColors.Orange,
-                            fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
+                            fontSize = 15.3.sp, fontWeight = FontWeight.SemiBold,
                             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             textAlign = TextAlign.Center, modifier = textMod
                         )
@@ -1246,7 +1263,7 @@ internal fun AppTopBarChrome(
                 if (!thirdLine.isNullOrBlank()) {
                     Text(
                         text = thirdLine, color = AppColors.Green,
-                        fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                        fontSize = 20.4.sp, fontWeight = FontWeight.Bold,
                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
                     )
@@ -1255,8 +1272,8 @@ internal fun AppTopBarChrome(
             // Right — mirrored AI logo → Home.
             AiLogoButton(
                 onClick = navigateHome,
-                modifier = Modifier.align(Alignment.Top).offset(x = 10.dp).padding(top = 6.dp),
-                size = 66.dp, mirrored = true
+                modifier = Modifier.align(Alignment.Top).padding(top = 4.dp),
+                size = 49.5.dp, mirrored = true
             )
         }
         val status = swipeStatus.value
