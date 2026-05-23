@@ -97,6 +97,15 @@ fun ReportsScreen(
     onStartAgentIconFanOut: (reportId: String, agentId: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
     onPickAgentIcon: (reportId: String, agentId: String, emoji: String) -> Unit = { _, _, _ -> },
     onRestartAgentIconFanOut: (reportId: String, agentId: String) -> Unit = { _, _ -> },
+    /** "Find alternative titles" — live candidates + start/restart for the
+     *  report title (keyed by reportId) and per-model titles (keyed by
+     *  agentId). Transient: a picked title only fills the editor field. */
+    titleFanOutByReport: Map<String, List<com.ai.viewmodel.TitleCandidate>> = emptyMap(),
+    titleFanOutByAgent: Map<String, List<com.ai.viewmodel.TitleCandidate>> = emptyMap(),
+    onStartReportTitleFanOut: (reportId: String, promptText: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
+    onStartModelTitleFanOut: (reportId: String, agentId: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
+    onRestartReportTitleFanOut: (reportId: String) -> Unit = { _ -> },
+    onRestartModelTitleFanOut: (agentId: String) -> Unit = { _ -> },
     /** Bundle of the four per-Internal-Prompt icon callbacks —
      *  bundled into one parameter so the `ReportsScreen` parameter
      *  list stays under the JVM 64 KB per-method bytecode limit. */
@@ -357,6 +366,9 @@ fun ReportsScreen(
     var showIconDetail by st.showIconDetail
     var agentIconDetailFor by st.agentIconDetailFor
     var editModelTitleFor by st.editModelTitleFor
+    var findTitlesFor by st.findTitlesFor
+    var showAlternativeTitles by st.showAlternativeTitles
+    var altPickedTitle by st.altPickedTitle
     var showFindIconsPicker by st.showFindIconsPicker
     var showAlternativeIcons by st.showAlternativeIcons
     // Multiplex flag: when true, the showIconDetail / showFindIconsPicker
@@ -768,6 +780,11 @@ fun ReportsScreen(
                 aiSettings = aiSettings,
                 models = findIconsModels,
                 genericPromptText = uiState.genericPromptText,
+                targetTitleFor = findTitlesFor,
+                onStartTitleFanOut = { target, models ->
+                    if (target == "report") onStartReportTitleFanOut(currentReportId, uiState.genericPromptText, models)
+                    else onStartModelTitleFanOut(currentReportId, target, models)
+                },
                 translationIconCallbacks = translationIconCallbacks,
                 languageIconCallbacks = languageIconCallbacks,
                 onStartInternalPromptIconFanOut = promptIconCallbacks.onStartFanOut,
@@ -785,14 +802,41 @@ fun ReportsScreen(
                     findIconsModels = emptyList()
                     pickerTarget = PickerTarget.NEW_REPORT
                     showFindIconsPicker = false
-                    showAlternativeIcons = true
+                    if (findTitlesFor != null) showAlternativeTitles = true else showAlternativeIcons = true
                 },
                 onBack = {
                     pickerTarget = PickerTarget.NEW_REPORT
                     showFindIconsPicker = false
+                    findTitlesFor = null
                 }
             )
         }
+        return
+    }
+    // Alternative titles — candidate list for the title fan-out. Layered
+    // before the edit-title screens so back returns to the editor; a pick
+    // fills the editor field (no persist until Update).
+    if (showAlternativeTitles && currentReportId != null) {
+        val titleTarget = findTitlesFor
+        val candidates = if (titleTarget == "report") titleFanOutByReport[currentReportId].orEmpty()
+            else titleFanOutByAgent[titleTarget].orEmpty()
+        AlternativeTitlesScreen(
+            candidates = candidates,
+            onPickTitle = { picked ->
+                altPickedTitle = picked
+                showAlternativeTitles = false
+                showFindIconsPicker = false
+                findTitlesFor = null
+            },
+            onRestart = {
+                if (titleTarget == "report") onRestartReportTitleFanOut(currentReportId)
+                else if (titleTarget != null) onRestartModelTitleFanOut(titleTarget)
+                findIconsModels = emptyList()
+                showAlternativeTitles = false
+                showFindIconsPicker = true
+            },
+            onBack = { showAlternativeTitles = false; findTitlesFor = null }
+        )
         return
     }
     if (showIconDetail && currentReportId != null) {
@@ -1626,6 +1670,11 @@ fun ReportsScreen(
                 onBack = { showEditTitle = false },
                 onNavigateHome = onNavigateHome,
                 onNavigateToTraceFile = onNavigateToTraceFile,
+                onFindAlternativeTitles = {
+                    findTitlesFor = "report"; findIconsModels = emptyList(); showFindIconsPicker = true
+                },
+                injectedTitle = altPickedTitle,
+                onConsumeInjectedTitle = { altPickedTitle = null },
                 onUpdate = { newTitle ->
                     showEditTitle = false
                     onUpdateTitle(rid, newTitle)
@@ -1653,6 +1702,11 @@ fun ReportsScreen(
                     modelName = "${agent.provider} · ${com.ai.ui.shared.shortModelName(agent.model)}",
                     initialTitle = agent.modelTitle.orEmpty(),
                     onBack = { editModelTitleFor = null },
+                    onFindAlternativeTitles = {
+                        findTitlesFor = agentId; findIconsModels = emptyList(); showFindIconsPicker = true
+                    },
+                    injectedTitle = altPickedTitle,
+                    onConsumeInjectedTitle = { altPickedTitle = null },
                     onUpdate = { newTitle ->
                         editModelTitleFor = null
                         onUpdateModelTitle(rid, agentId, newTitle)

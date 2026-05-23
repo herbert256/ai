@@ -113,6 +113,8 @@ fun ReportsScreenNav(
     val throttledFanIconsPairs by viewModel.throttledFanIconsPairs.collectAsState()
     val iconFanOutByReport by viewModel.iconFanOutByReport.collectAsState()
     val agentIconFanOutByAgent by viewModel.agentIconFanOutByAgent.collectAsState()
+    val titleFanOutByReport by viewModel.titleFanOutByReport.collectAsState()
+    val titleFanOutByAgent by viewModel.titleFanOutByAgent.collectAsState()
     val pairIconFanOutByPair by viewModel.pairIconFanOutByPair.collectAsState()
     val internalPromptIconFanOutByPrompt by viewModel.internalPromptIconFanOutByPrompt.collectAsState()
     val context = LocalContext.current
@@ -326,6 +328,16 @@ fun ReportsScreenNav(
         onRestartAgentIconFanOut = { rid, agentId ->
             reportViewModel.iconGen.restartAgentIconFanOut(rid, agentId)
         },
+        titleFanOutByReport = titleFanOutByReport,
+        titleFanOutByAgent = titleFanOutByAgent,
+        onStartReportTitleFanOut = { rid, prompt, models ->
+            reportViewModel.iconGen.startReportTitleFanOut(context, rid, prompt, models, aiSettings)
+        },
+        onStartModelTitleFanOut = { rid, agentId, models ->
+            reportViewModel.iconGen.startModelTitleFanOut(context, rid, agentId, models, aiSettings)
+        },
+        onRestartReportTitleFanOut = { rid -> reportViewModel.iconGen.restartReportTitleFanOut(rid) },
+        onRestartModelTitleFanOut = { agentId -> reportViewModel.iconGen.restartModelTitleFanOut(agentId) },
         onStartPairIconFanOut = { rid, pairId, models ->
             reportViewModel.iconGen.startPairIconFanOut(context, rid, pairId, models, aiSettings)
         },

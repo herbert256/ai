@@ -144,6 +144,22 @@
     "text": "Please see the text after the @@@ marker in this request, you must give it a title, max 4 words, max 325 characters, including spaces, only give this title back, nothing more.\n@@@\n@RESPONSE@"
   },
   {
+    "name": "report_title_alt",
+    "title": "Find an ALTERNATIVE report title",
+    "reference": false,
+    "category": "internal",
+    "agent": "*N/A",
+    "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE title — distinct from the most obvious phrasing, max 5 words, max 30 characters including spaces. Only give this title back, nothing more.\n@@@\n@PROMPT@"
+  },
+  {
+    "name": "model_title_alt",
+    "title": "Find an ALTERNATIVE model report title",
+    "reference": false,
+    "category": "internal",
+    "agent": "*N/A",
+    "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE title — distinct from the most obvious phrasing, max 4 words, max 325 characters including spaces. Only give this title back, nothing more.\n@@@\n@RESPONSE@"
+  },
+  {
     "name": "report_title_icon",
     "title": "Decide the icon for a model, based on the title",
     "reference": false,

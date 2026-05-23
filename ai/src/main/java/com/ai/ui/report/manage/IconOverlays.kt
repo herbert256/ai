@@ -124,6 +124,10 @@ internal fun FindIconsPickerRouter(
     aiSettings: Settings,
     models: List<ReportModel>,
     genericPromptText: String,
+    /** Non-null when this run finds alternative TITLES not icons:
+     *  "report" for the report title, else the agentId. */
+    targetTitleFor: String?,
+    onStartTitleFanOut: (String, List<ReportModel>) -> Unit,
     translationIconCallbacks: TranslationIconCallbacks,
     languageIconCallbacks: LanguageIconCallbacks,
     onStartInternalPromptIconFanOut: (com.ai.model.InternalPrompt, List<ReportModel>) -> Unit,
@@ -146,6 +150,8 @@ internal fun FindIconsPickerRouter(
     ModelSelectionScreen(
         models = models,
         aiSettings = aiSettings,
+        title = if (targetTitleFor != null) "Find titles" else "Find icons",
+        actionLabel = if (targetTitleFor != null) "Find Titles" else "Find Icons",
         onAddAgent = onAddAgent,
         onAddFlock = onAddFlock,
         onAddSwarm = onAddSwarm,
@@ -155,6 +161,7 @@ internal fun FindIconsPickerRouter(
         onClearAll = onClearAll,
         onAction = {
             when {
+                targetTitleFor != null -> onStartTitleFanOut(targetTitleFor, models)
                 targetLanguageIcon -> languageIconCallbacks.onStartFanOut(reportId, genericPromptText, models)
                 targetLanguage != null -> translationIconCallbacks.onStartFanOut(targetLanguage, models)
                 targetPrompt != null -> onStartInternalPromptIconFanOut(targetPrompt, models)

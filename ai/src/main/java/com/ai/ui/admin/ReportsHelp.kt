@@ -228,6 +228,16 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Models with no API key set land as errored rows in the run. Pricing tiers stuck on DEFAULT show a Red bracket on the picker row.")
         )
     ),
+    "alternative_titles" to HelpContent(
+        title = "Help - Alternative titles",
+        cards = listOf(
+            HelpCard("Overview", "Live candidate list for a title fan-out, opened from the 'Find alternative titles' button on an Edit-title screen. One row per (provider, model) you picked on the previous screen — each model proposes a title for the same source (the report prompt, or that model's response)."),
+            HelpCard("Row meanings", "⏳ = the call is still running. A title shown = the call returned one; the row is tappable. ❌ = the call failed; the reason shows in red."),
+            HelpCard("Tap to pick", "Tapping a candidate fills that title into the Edit-title field and returns you to the editor — nothing is saved until you tap Update there, so you can tweak it first."),
+            HelpCard("Restart", "Drops the current candidates and re-opens the model picker so you can fan out across a different set of models."),
+            HelpCard("Cost", "Each candidate call's spend posts to Usage statistics (kind=\"title\"); since the flow is transient it is not added to the report's stored title cost.")
+        )
+    ),
     "alternative_icons" to HelpContent(
         title = "Help - Alternative icons",
         cards = listOf(

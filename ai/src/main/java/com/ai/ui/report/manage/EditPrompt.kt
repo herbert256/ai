@@ -72,6 +72,9 @@ fun ReportEditTitleScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
+    onFindAlternativeTitles: () -> Unit = {},
+    injectedTitle: String? = null,
+    onConsumeInjectedTitle: () -> Unit = {},
     onUpdate: (newTitle: String) -> Unit
 ) {
     BackHandler { onBack() }
@@ -79,6 +82,8 @@ fun ReportEditTitleScreen(
     // Same caveat as ReportEditPromptScreen above — key on
     // initialTitle so a stale draft doesn't outlive an external edit.
     var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
+    // A picked "Find alternative titles" candidate fills the field.
+    LaunchedEffect(injectedTitle) { injectedTitle?.let { title = it; onConsumeInjectedTitle() } }
     val canUpdate = title.trim().isNotBlank()
 
     // The report title is filled in dynamically by a one-shot API call
@@ -110,6 +115,12 @@ fun ReportEditTitleScreen(
 
         Spacer(modifier = Modifier.weight(1f))
 
+        OutlinedButton(
+            onClick = onFindAlternativeTitles,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text("Find alternative titles", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,
@@ -133,10 +144,14 @@ fun ReportEditModelTitleScreen(
     modelName: String,
     initialTitle: String,
     onBack: () -> Unit,
+    onFindAlternativeTitles: () -> Unit = {},
+    injectedTitle: String? = null,
+    onConsumeInjectedTitle: () -> Unit = {},
     onUpdate: (newTitle: String) -> Unit
 ) {
     BackHandler { onBack() }
     var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
+    LaunchedEffect(injectedTitle) { injectedTitle?.let { title = it; onConsumeInjectedTitle() } }
     val canUpdate = title.trim().isNotBlank()
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_edit_model_title", title = "Edit model title", onBackClick = onBack)
@@ -148,6 +163,12 @@ fun ReportEditModelTitleScreen(
             colors = AppColors.outlinedFieldColors()
         )
         Spacer(modifier = Modifier.weight(1f))
+        OutlinedButton(
+            onClick = onFindAlternativeTitles,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text("Find alternative titles", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,

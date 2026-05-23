@@ -437,6 +437,16 @@ sealed interface IconCandidate {
     data class Error(override val provider: com.ai.data.AppService, override val model: String, val reason: String, val cost: Double = 0.0) : IconCandidate
 }
 
+/** Live candidate for the "Find alternative titles" fan-out — parallel to
+ *  [IconCandidate] but carries a title string instead of an emoji. */
+sealed interface TitleCandidate {
+    val provider: com.ai.data.AppService
+    val model: String
+    data class Running(override val provider: com.ai.data.AppService, override val model: String) : TitleCandidate
+    data class Done(override val provider: com.ai.data.AppService, override val model: String, val title: String, val cost: Double = 0.0) : TitleCandidate
+    data class Error(override val provider: com.ai.data.AppService, override val model: String, val reason: String, val cost: Double = 0.0) : TitleCandidate
+}
+
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     internal val repository = AnalysisRepository()
     internal val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -553,6 +563,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     internal fun clearAgentIconFanOut(agentId: String) {
         _agentIconFanOutByAgent.update { it - agentId }
     }
+
+    /** Live "Find alternative titles" candidates for the report title
+     *  (keyed by reportId) and per-model titles (keyed by agentId).
+     *  Transient — the picked title only fills the editor field, so
+     *  nothing persists until the user taps Update. */
+    private val _titleFanOutByReport = MutableStateFlow<Map<String, List<TitleCandidate>>>(emptyMap())
+    val titleFanOutByReport: StateFlow<Map<String, List<TitleCandidate>>> = _titleFanOutByReport.asStateFlow()
+    internal fun updateReportTitleFanOut(reportId: String, mutator: (List<TitleCandidate>) -> List<TitleCandidate>) {
+        _titleFanOutByReport.update { current -> current + (reportId to mutator(current[reportId].orEmpty())) }
+    }
+    internal fun clearReportTitleFanOut(reportId: String) { _titleFanOutByReport.update { it - reportId } }
+
+    private val _titleFanOutByAgent = MutableStateFlow<Map<String, List<TitleCandidate>>>(emptyMap())
+    val titleFanOutByAgent: StateFlow<Map<String, List<TitleCandidate>>> = _titleFanOutByAgent.asStateFlow()
+    internal fun updateAgentTitleFanOut(agentId: String, mutator: (List<TitleCandidate>) -> List<TitleCandidate>) {
+        _titleFanOutByAgent.update { current -> current + (agentId to mutator(current[agentId].orEmpty())) }
+    }
+    internal fun clearAgentTitleFanOut(agentId: String) { _titleFanOutByAgent.update { it - agentId } }
 
     /** Live state of any "Find alternative icons" run launched from
      *  the Meta-icon detail screen for an [com.ai.model.InternalPrompt].

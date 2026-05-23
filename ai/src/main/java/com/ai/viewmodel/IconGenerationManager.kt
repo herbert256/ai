@@ -1526,6 +1526,121 @@ class IconGenerationManager(
         appViewModel.clearIconFanOut(reportId)
     }
 
+    // ---- Find alternative TITLES (mirror of the icon fan-out) ----------
+    // Transient: the picked title only fills the editor field, so these
+    // bump no report cost; they post to the global Usage ledger and stash
+    // candidates in titleFanOutByReport / titleFanOutByAgent.
+
+    private fun cleanTitle(raw: String?): String =
+        (raw ?: "").trim()
+            .removePrefix("Title:").trim()
+            .removeSurrounding("\"").trim()
+            .removeSurrounding("'").trim()
+            .lineSequence().firstOrNull { it.isNotBlank() }?.trim().orEmpty()
+            .take(325)
+
+    fun startReportTitleFanOut(
+        context: Context, reportId: String, promptText: String,
+        models: List<ReportModel>, aiSettings: Settings
+    ) {
+        val altPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "report_title_alt"
+        } ?: return
+        val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
+        if (unique.isEmpty()) return
+        val resolved = altPrompt.text.replace("@PROMPT@", promptText)
+        appViewModel.updateReportTitleFanOut(reportId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
+        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            unique.forEach { item ->
+                launch { runTitleCandidate(context, reportId, null, item, resolved, "title_report_alt", aiSettings) }
+            }
+        }
+        rvm.registerIconFanOutJob("rt:$reportId", outer)
+    }
+
+    fun startModelTitleFanOut(
+        context: Context, reportId: String, agentId: String,
+        models: List<ReportModel>, aiSettings: Settings
+    ) {
+        val altPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "internal" && it.name == "model_title_alt"
+        } ?: return
+        val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
+        if (unique.isEmpty()) return
+        appViewModel.updateAgentTitleFanOut(agentId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
+        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@launch
+            val resolved = altPrompt.text.replace("@RESPONSE@", ra.responseBody.orEmpty())
+            unique.forEach { item ->
+                launch { runTitleCandidate(context, reportId, agentId, item, resolved, "title_model_alt", aiSettings) }
+            }
+        }
+        rvm.registerIconFanOutJob("mt:$agentId", outer)
+    }
+
+    /** One title candidate call. [agentId] null = report-title fan-out
+     *  (writes titleFanOutByReport[reportId]); non-null = per-model
+     *  (writes titleFanOutByAgent[agentId]). */
+    private suspend fun runTitleCandidate(
+        context: Context, reportId: String, agentId: String?,
+        item: ReportModel, resolved: String, category: String, aiSettings: Settings
+    ) {
+        fun set(mutator: (List<TitleCandidate>) -> List<TitleCandidate>) {
+            if (agentId == null) appViewModel.updateReportTitleFanOut(reportId, mutator)
+            else appViewModel.updateAgentTitleFanOut(agentId, mutator)
+        }
+        fun place(c: TitleCandidate) = set { list ->
+            list.map { if (it.provider.id == item.provider.id && it.model == item.model) c else it }
+        }
+        val host = providerHost(item.provider)
+        val releaser = ProviderThrottle.acquire(host)
+        try {
+            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                withTracerTags(reportId = reportId, category = category) {
+                    runCatching {
+                        val syntheticAgent = Agent(
+                            id = "title-alt-${item.provider.id}-${item.model}",
+                            name = item.model, provider = item.provider, model = item.model,
+                            apiKey = aiSettings.getApiKey(item.provider)
+                        )
+                        val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                        val response = appViewModel.repository.analyzeWithAgent(
+                            syntheticAgent, "", resolved, AgentParameters(), null, context, baseUrl
+                        )
+                        val tu = response.tokenUsage
+                        val pricing = PricingCache.getPricing(context, item.provider, item.model)
+                        val inT = tu?.inputTokens ?: 0
+                        val outT = tu?.outputTokens ?: 0
+                        val cost = inT * pricing.promptPrice + outT * pricing.completionPrice
+                        if (inT > 0 || outT > 0) {
+                            appViewModel.settingsPrefs.updateUsageStatsAsync(item.provider, item.model, inT, outT, kind = "title")
+                        }
+                        val title = cleanTitle(response.analysis)
+                        if (response.error == null && title.isNotEmpty())
+                            place(TitleCandidate.Done(item.provider, item.model, title, cost))
+                        else
+                            place(TitleCandidate.Error(item.provider, item.model, response.error ?: "empty response", cost))
+                    }.onFailure { e ->
+                        place(TitleCandidate.Error(item.provider, item.model, e.message ?: "title-gen failed", 0.0))
+                    }
+                }
+            }
+        } finally {
+            releaser.release()
+        }
+    }
+
+    fun restartReportTitleFanOut(reportId: String) {
+        rvm.iconFanOutJobs.remove("rt:$reportId")?.cancel()
+        appViewModel.clearReportTitleFanOut(reportId)
+    }
+
+    fun restartModelTitleFanOut(agentId: String) {
+        rvm.iconFanOutJobs.remove("mt:$agentId")?.cancel()
+        appViewModel.clearAgentTitleFanOut(agentId)
+    }
+
     /** Language-icon counterpart of [startIconFanOut]. Runs the
      *  bundled `icons/language` prompt against each picked
      *  (provider, model) and pushes results into
