@@ -408,7 +408,9 @@ internal fun NavGraphBuilder.reportRoutes(
             ) {
                 com.ai.ui.report.info.ReportInfoScreen(
                     reportId = rid,
-                    onBack = safePopBack
+                    onBack = safePopBack,
+                    onOpenTrace = { fn -> navController.navigate(NavRoutes.traceDetail(fn)) },
+                    onOpenModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p, m)) }
                 )
             }
         }

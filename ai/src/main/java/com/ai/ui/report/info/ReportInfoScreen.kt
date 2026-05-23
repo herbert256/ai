@@ -2,6 +2,7 @@ package com.ai.ui.report.info
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -34,6 +35,7 @@ import com.ai.ui.report.manage.view.rememberReportCostData
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
+import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
@@ -56,7 +58,9 @@ import java.util.Locale
 @Composable
 fun ReportInfoScreen(
     reportId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onOpenTrace: (String) -> Unit = {},
+    onOpenModelInfo: (provider: String, model: String) -> Unit = { _, _ -> }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -112,14 +116,19 @@ fun ReportInfoScreen(
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
 
+            // 🐞 next to AI-retrieved fields → the API trace that produced
+            // them (only when a trace filename was captured).
             Section("Identity")
-            InfoRow("Icon", (r.icon?.takeIf { it.isNotBlank() } ?: "—"))
-            InfoRow("Short title", r.title.ifBlank { "—" })
-            InfoRow("Long title", r.titleLong?.takeIf { it.isNotBlank() } ?: "—")
+            InfoRow("Icon", (r.icon?.takeIf { it.isNotBlank() } ?: "—"),
+                traceFile = r.iconTraceFile, onTrace = onOpenTrace)
+            InfoRow("Short title", r.title.ifBlank { "—" },
+                traceFile = r.titleTraceFile, onTrace = onOpenTrace)
+            InfoRow("Long title", r.titleLong?.takeIf { it.isNotBlank() } ?: "—",
+                traceFile = r.titleTraceFile, onTrace = onOpenTrace)
             InfoRow("Language", buildString {
                 append(r.languageName?.takeIf { it.isNotBlank() } ?: "—")
                 r.languageIcon?.takeIf { it.isNotBlank() }?.let { append("  $it") }
-            })
+            }, traceFile = r.languageTraceFile, onTrace = onOpenTrace)
             InfoRow("Report id", r.id, dim = true)
 
             Section("Timing")
@@ -142,9 +151,14 @@ fun ReportInfoScreen(
             if (!costData?.byModel.isNullOrEmpty()) {
                 Section("By model")
                 costData!!.byModel.forEach { g ->
+                    val model = g.model
+                    val provider = g.provider
                     InfoRow(
-                        g.key,
-                        "${g.calls} call${if (g.calls == 1) "" else "s"} · ${formatCents(g.inputCents + g.outputCents, 2)}"
+                        if (model != null) shortModelName(model) else g.key,
+                        "${g.calls} call${if (g.calls == 1) "" else "s"} · ${formatCents(g.inputCents + g.outputCents, 2)}",
+                        onClick = if (provider != null && model != null) {
+                            { onOpenModelInfo(provider, model) }
+                        } else null
                     )
                 }
             }
@@ -161,9 +175,19 @@ private fun Section(title: String) {
 }
 
 @Composable
-private fun InfoRow(label: String, value: String, dim: Boolean = false) {
+private fun InfoRow(
+    label: String,
+    value: String,
+    dim: Boolean = false,
+    traceFile: String? = null,
+    onTrace: ((String) -> Unit)? = null,
+    onClick: (() -> Unit)? = null
+) {
+    val hasTrace = !traceFile.isNullOrBlank() && onTrace != null
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
+        modifier = Modifier.fillMaxWidth()
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+            .padding(vertical = 5.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.Top
     ) {
@@ -175,8 +199,14 @@ private fun InfoRow(label: String, value: String, dim: Boolean = false) {
             textAlign = androidx.compose.ui.text.style.TextAlign.End,
             overflow = TextOverflow.Ellipsis,
             maxLines = 3,
-            modifier = Modifier.weight(0.58f)
+            modifier = Modifier.weight(1f)
         )
+        if (hasTrace) {
+            Text(
+                "🐞", fontSize = 14.sp,
+                modifier = Modifier.padding(start = 8.dp).clickable { onTrace!!(traceFile!!) }
+            )
+        }
     }
 }
 
