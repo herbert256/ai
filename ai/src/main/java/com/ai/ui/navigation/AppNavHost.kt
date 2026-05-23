@@ -269,7 +269,15 @@ fun AppNavHost(
     val housekeepingSubRoutes = setOf(
         NavRoutes.AI_BACKUP_RESTORE, NavRoutes.AI_TRIM_BY_AGE,
         NavRoutes.AI_UPDATE_FROM_CLOUD, NavRoutes.AI_RESET,
-        NavRoutes.AI_APPLOG_LIST, NavRoutes.AI_TEST, NavRoutes.AI_COSTS_MAINTENANCE
+        NavRoutes.AI_APPLOG_LIST, NavRoutes.AI_TEST, NavRoutes.AI_COSTS_MAINTENANCE,
+        // 2-levels-deep, housekeeping-only screens (the 🧹 used to vanish
+        // here). Reset confirmations, Test-all-models, App-log detail.
+        // AI_REFRESH / AI_IMPORT_EXPORT are intentionally absent — shared
+        // with AI Setup, where they must keep the 🤖 icon.
+        NavRoutes.AI_RESET_RUNTIME, NavRoutes.AI_RESET_INFO_PROVIDERS,
+        NavRoutes.AI_RESET_CONFIGURATION, NavRoutes.AI_RESET_ASSETS,
+        NavRoutes.AI_RESET_APPLICATION, NavRoutes.AI_TEST_ALL_MODELS,
+        NavRoutes.AI_APPLOG_DETAIL
     )
     val sectionTopIcon: com.ai.ui.shared.TopBarLeftIcon? = when {
         currentNavRoute == null -> null
