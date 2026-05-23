@@ -351,7 +351,7 @@ fun FanOutViewScreen(
                             val body = translatedBody ?: originalBody
                                 ?: "(initiator response no longer available)"
                             FanOutBodyCard(
-                                reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.MODEL_ICON,
+                                reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon,
                                 body = body,
                                 borderColor = AppColors.Purple.copy(alpha = 0.35f)
                             )
@@ -387,7 +387,7 @@ fun FanOutViewScreen(
                                 ?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim()
                                 ?: "(initiator response no longer available)"
                             CollapsedInitiatorRow(
-                                icon = agent?.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.MODEL_ICON,
+                                icon = agent?.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon,
                                 preview = previewBody,
                                 onToggle = { initiatorExpanded = true }
                             )
@@ -443,7 +443,7 @@ fun FanOutViewScreen(
                         ) { page ->
                             val pair = responders[page.wrapTo(responders.size)]
                             FanOutBodyCard(
-                                reportIcon = pair.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.MODEL_ICON,
+                                reportIcon = pair.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon,
                                 body = responderBody(pair),
                                 borderColor = AppColors.Blue.copy(alpha = 0.35f)
                             )
@@ -570,7 +570,7 @@ private fun FanOutBodyCard(
             .verticalScroll(rememberScrollState())
     ) {
         Text(
-            text = reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.REPORT_ICON,
+            text = reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
             fontSize = 44.sp,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
@@ -592,7 +592,7 @@ private fun FanOutBodyCard(
 @Composable
 private fun FanOutResponderCard(pair: SecondaryResult, body: String) {
     var expanded by rememberSaveable(pair.id) { mutableStateOf(false) }
-    val emoji = pair.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.MODEL_ICON
+    val emoji = pair.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon
     val title = pair.title?.takeIf { it.isNotBlank() } ?: shortModelName(pair.model)
     val provider = com.ai.data.AppService.findById(pair.providerId)
     Column(

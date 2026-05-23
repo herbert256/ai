@@ -554,6 +554,12 @@ val LocalIconGenEnabled = compositionLocalOf { true }
  *  user turns all optional metadata off. Default true keeps everything live. */
 val LocalMetadataEnabled = compositionLocalOf { true }
 
+/** User-editable fallback emoji ([com.ai.data.MetadataIcons]) propagated to the
+ *  composition tree so every view-screen / row fallback renders the configured
+ *  glyph (edited on Settings → Default icons) rather than a hardcoded literal.
+ *  Defaults to the factory set. */
+val LocalMetadataIcons = compositionLocalOf { com.ai.data.MetadataIcons() }
+
 /** Resolved per-report emoji propagated to every TitleBar inside a
  *  report-scoped composition tree. Provided by ReportsScreen at every
  *  inline overlay's CompositionLocalProvider so picker / viewer / etc.

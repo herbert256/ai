@@ -71,7 +71,8 @@ fun buildInfoJobs(
     reportLanguageOn: Boolean,
     titleModeAi: Boolean,
     perModelIcon: Boolean,
-    perModelTitle: Boolean
+    perModelTitle: Boolean,
+    icons: com.ai.data.MetadataIcons = com.ai.data.MetadataIcons()
 ): List<InfoJob> {
     val jobs = mutableListOf<InfoJob>()
 
@@ -103,7 +104,7 @@ fun buildInfoJobs(
             "language", langLabel, langState,
             report.languageInputCost + report.languageOutputCost +
                 report.languageIconInputCost + report.languageIconOutputCost,
-            doneIcon = report.languageIcon ?: "🌐",
+            doneIcon = report.languageIcon ?: icons.languageIcon,
             pending = langState == InfoJobState.RUNNING
         )
     }
@@ -226,10 +227,11 @@ fun ReportGetInfoScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val jobs by produceState(initialValue = emptyList<InfoJob>(), reportId, iconRefreshTick) {
+    val metadataIcons = com.ai.ui.shared.LocalMetadataIcons.current
+    val jobs by produceState(initialValue = emptyList<InfoJob>(), reportId, iconRefreshTick, metadataIcons) {
         value = withContext(Dispatchers.IO) {
             val r = ReportStorage.getReport(context, reportId) ?: return@withContext emptyList()
-            buildInfoJobs(r, settings, iconGenEnabled, reportLanguageOn, titleModeAi, perModelIcon, perModelTitle)
+            buildInfoJobs(r, settings, iconGenEnabled, reportLanguageOn, titleModeAi, perModelIcon, perModelTitle, metadataIcons)
         }
     }
     Column(

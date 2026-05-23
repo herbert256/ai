@@ -404,7 +404,7 @@ internal fun ColumnScope.FanOutDrillInView(
             helpTopic = "secondary_fan_out_l3",
             title = "Fan out - pair",
             subject = sourceLabel,
-            reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
+            reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
             onBackClick = { l3AnswererKey = null; l3SourceAgentId = null },
             onOpenView = onOpenViewPairJump,
             onTrace = if (ApiTracer.isTracingEnabled && srcTrace != null) {
@@ -621,7 +621,7 @@ internal fun ColumnScope.FanOutDrillInView(
             subject = l2Subject,
             subjectProviderService = activeProviderService,
             subjectModel = activeMdl,
-            reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
+            reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
             onBackClick = { selectedModelKey = null },
             onOpenView = onOpenViewL2Jump,
             onInfo = if (activeProviderService != null) {
@@ -1038,7 +1038,7 @@ internal fun ColumnScope.FanOutDrillInView(
         helpTopic = "secondary_fan_out_l1",
         title = "Fan out",
         subject = l1SubHeader.takeIf { it.isNotBlank() },
-        reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
+        reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
         onBackClick = onBack,
         onOpenView = onOpenViewL1Jump,
         onReload = if (fanOutPrompt != null) ({ confirmRerunComplete = true }) else null,
@@ -1540,7 +1540,7 @@ private fun OnePageView(
         TitleBar(
             helpTopic = "secondary_fan_out_onepage",
             title = "One page view",
-            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
+            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
             subject = modelLabel,
             subjectProviderService = activeProviderService,
             subjectModel = activeMdl,

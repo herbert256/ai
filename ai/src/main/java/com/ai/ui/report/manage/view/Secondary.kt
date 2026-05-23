@@ -862,7 +862,7 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
                     ?.let { com.ai.data.InternalPromptIconCache.getByName(it) }
             }
             Text(
-                cachedEmoji ?: com.ai.data.MetadataDefaults.forKind(r.kind),
+                cachedEmoji ?: com.ai.ui.shared.LocalMetadataIcons.current.forKind(r.kind),
                 fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp)
             )
         }

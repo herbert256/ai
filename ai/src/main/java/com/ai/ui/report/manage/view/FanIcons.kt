@@ -68,9 +68,10 @@ internal fun FanOutL1IconsScreen(
     val report by produceState<Report?>(initialValue = null, run.reportId) {
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, run.reportId) }
     }
-    val sourceIconBySource: Map<String, String> = remember(report) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
+    val sourceIconBySource: Map<String, String> = remember(report, mi) {
         report?.agents?.associate {
-            it.agentId to (it.icon?.takeIf { e -> e.isNotBlank() } ?: com.ai.data.MetadataDefaults.MODEL_ICON)
+            it.agentId to (it.icon?.takeIf { e -> e.isNotBlank() } ?: mi.reportModelIcon)
         } ?: emptyMap()
     }
 
@@ -111,7 +112,7 @@ internal fun FanOutL1IconsScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             groups.forEach { (sourceAgentId, pairs) ->
-                val srcGlyph = sourceIconBySource[sourceAgentId] ?: com.ai.data.MetadataDefaults.MODEL_ICON
+                val srcGlyph = sourceIconBySource[sourceAgentId] ?: mi.reportModelIcon
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -132,7 +133,8 @@ internal fun FanOutL1IconsScreen(
                     ) {
                         pairs.forEach { p ->
                             Text(
-                                p.icon!!, fontSize = 28.sp, color = Color.White,
+                                p.icon?.takeIf { it.isNotBlank() } ?: mi.fanIconsResult,
+                                fontSize = 28.sp, color = Color.White,
                                 modifier = Modifier.clickable {
                                     onOpenPair("${p.providerId}|${p.model}", p.sourceAgentId, "Responder")
                                 }
@@ -167,6 +169,7 @@ internal fun FanOutL2IconsScreen(
     val canonPid = AppService.findById(activePid)?.id ?: activePid
     val subject = "$canonPid / $activeMdl"
 
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     val rows: List<PairState> = remember(run, role, answererKey) {
         when (role) {
             "Initiator" -> run.pairs.values.filter {
@@ -236,7 +239,8 @@ internal fun FanOutL2IconsScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        p.icon!!, fontSize = 48.sp, color = Color.White,
+                        p.icon?.takeIf { it.isNotBlank() } ?: mi.fanIconsResult,
+                        fontSize = 48.sp, color = Color.White,
                         fontFamily = FontFamily.Default
                     )
                 }

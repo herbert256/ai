@@ -351,7 +351,7 @@ private fun ModelCreditsStrip(report: Report?) {
             ) {
                 agents.forEach { a ->
                     val prov = AppService.findById(a.provider)?.id ?: a.provider
-                    val icon = a.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.MODEL_ICON
+                    val icon = a.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon
                     Row(
                         modifier = Modifier
                             .clip(RoundedCornerShape(10.dp))

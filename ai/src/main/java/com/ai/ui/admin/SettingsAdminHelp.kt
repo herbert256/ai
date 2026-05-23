@@ -31,6 +31,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("UI tweaks", "Experimental features master toggle, model name layout, full-screen, back-arrow visibility. Tap the row to open the dedicated sub-screen."),
             HelpCard("Logging and tracing", "API tracing master switch and application log level. Tap the row to open the dedicated sub-screen."),
             HelpCard("Metadata & icons", "Grand-master switch for every optional AI-generated extra — report icon / language / title, per-model icons & titles, Fan & meta icons — plus the per-item toggles it gates."),
+            HelpCard("Default icons", "Edit the 11 fallback emoji shown when a report or result has no generated icon of its own (report, model, rerank, moderate, language, translation, meta, fan-out / fan-in / fan-icons rows, fan-icons result)."),
             HelpCard("Other settings", "Identity (Name + Email) used for outbound prompts and email exports."),
             HelpCard("Tips", "Each sub-screen has no Save button on purpose — every keystroke restarts a 400 ms debounce timer. If you tap Back fast, the latest values still flush to disk via a DisposableEffect."),
         )
@@ -52,6 +53,15 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Report title", "Manual keeps the Title field on the New AI Report screen; AI (default) hides it and fills the title from a background call after report start. With the master off the title is always Manual."),
             HelpCard("Report icon / Report language", "Two independent toggles (previously one). Report icon runs a small call to pick a fitting emoji shown in title bars, the hub list, history, and search hits. Report language detects the language and picks a flag emoji shown on the info screen and the language picker."),
             HelpCard("Per-model icons / titles, internal-prompt icons, Autostart Fan", "Per-model icons run the 3-tier per-agent emoji chain; per-model titles add a ≤4-word title per response. Internal-prompt icons add a leading emoji to secondary-result rows. Autostart Fan Icons & Titles kicks those batches off automatically when a clean Fan Out finishes."),
+        )
+    ),
+    "settings_default_icons" to HelpContent(
+        title = "Help - Default icons",
+        cards = listOf(
+            HelpCard("Overview", "Edit the fallback emoji the app shows when a report (or one of its results) has no generated icon of its own. There are 11 entries; each is a small text field — clear it and type a different emoji. Edits autosave with a 400 ms debounce."),
+            HelpCard("When defaults show", "View screens always render whatever a report actually holds; these defaults fill in only when that value is missing. So changing a default updates every report that never had its own icon, and never overrides one that does. The defaults are independent of the Metadata & icons master switch — they apply even when metadata generation is off."),
+            HelpCard("The 11 entries", "Report (📝) and Report model (🧠) are the title-bar / per-model fallbacks. Rerank (🏆), Moderate (🚦), Translation row (🌐) and Meta (🔗) are the leading glyphs on secondary-result rows. Language icon (🌐) is the report's detected-language flag. Fan Out row (🔱), Fan In row (🎯) and Fan Icons row (💭) are the leading glyphs of those rows on the Manage report screen; Fan Icons result (📩) is the per-pair glyph on the Fan out – icons screen."),
+            HelpCard("Reset", "Reset all to defaults returns every entry to its factory emoji. Leaving a field blank also reverts just that entry to its factory value on save, so an icon can never become invisible."),
         )
     ),
     "settings_network" to HelpContent(

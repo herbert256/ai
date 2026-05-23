@@ -54,7 +54,8 @@ enum class SettingsSubScreen {
     SETTINGS_UI,
     SETTINGS_LOGGING,
     SETTINGS_OTHER,
-    SETTINGS_METADATA
+    SETTINGS_METADATA,
+    SETTINGS_DEFAULT_ICONS
 }
 
 @Composable
@@ -242,6 +243,7 @@ fun SettingsScreen(
             SettingsSubScreen.SETTINGS_LOGGING,
             SettingsSubScreen.SETTINGS_OTHER -> currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.SETTINGS_METADATA -> currentSubScreen = SettingsSubScreen.MAIN
+            SettingsSubScreen.SETTINGS_DEFAULT_ICONS -> currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.SETTINGS_NETWORK_API_CALLS ->
                 currentSubScreen = SettingsSubScreen.SETTINGS_NETWORK
         }
@@ -749,6 +751,12 @@ fun SettingsScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
+        SettingsSubScreen.SETTINGS_DEFAULT_ICONS -> {
+            DefaultIconsSubScreen(
+                generalSettings = generalSettings, onSave = onSaveGeneral,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
     }
     }
 }
@@ -800,6 +808,12 @@ private fun SettingsMainScreen(
                 title = "Metadata & icons",
                 description = "Master switch for all optional metadata — report icon / language / title, per-model icons / titles, fan & meta icons.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_METADATA) }
+            )
+            SettingsNavCard(
+                icon = "🎨",
+                title = "Default icons",
+                description = "Edit the fallback emoji shown when a report or result has no generated icon of its own.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_DEFAULT_ICONS) }
             )
             SettingsNavCard(
                 icon = "⚙️",
@@ -1414,6 +1428,121 @@ private fun MetadataSettingsSubScreen(
                 )
             }
         }
+    }
+}
+
+/** "Default icons" — edit the 11 fallback emoji shown when a report /
+ *  secondary result has no generated icon of its own. Always reachable
+ *  (independent of the metadata master switch) since defaults render on
+ *  view screens regardless. Blank field on save → factory default. */
+@Composable
+private fun DefaultIconsSubScreen(
+    generalSettings: GeneralSettings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    val factory = remember { com.ai.data.MetadataIcons() }
+    var reportIcon by remember { mutableStateOf(generalSettings.metadataIcons.reportIcon) }
+    var reportModelIcon by remember { mutableStateOf(generalSettings.metadataIcons.reportModelIcon) }
+    var rerank by remember { mutableStateOf(generalSettings.metadataIcons.rerank) }
+    var moderate by remember { mutableStateOf(generalSettings.metadataIcons.moderate) }
+    var languageIcon by remember { mutableStateOf(generalSettings.metadataIcons.languageIcon) }
+    var translationRow by remember { mutableStateOf(generalSettings.metadataIcons.translationRow) }
+    var meta by remember { mutableStateOf(generalSettings.metadataIcons.meta) }
+    var fanOutRow by remember { mutableStateOf(generalSettings.metadataIcons.fanOutRow) }
+    var fanInRow by remember { mutableStateOf(generalSettings.metadataIcons.fanInRow) }
+    var fanIconsRow by remember { mutableStateOf(generalSettings.metadataIcons.fanIconsRow) }
+    var fanIconsResult by remember { mutableStateOf(generalSettings.metadataIcons.fanIconsResult) }
+
+    fun build(): GeneralSettings {
+        fun f(v: String, d: String) = v.trim().ifBlank { d }
+        return generalSettings.copy(metadataIcons = com.ai.data.MetadataIcons(
+            reportIcon = f(reportIcon, factory.reportIcon),
+            reportModelIcon = f(reportModelIcon, factory.reportModelIcon),
+            rerank = f(rerank, factory.rerank),
+            moderate = f(moderate, factory.moderate),
+            languageIcon = f(languageIcon, factory.languageIcon),
+            translationRow = f(translationRow, factory.translationRow),
+            meta = f(meta, factory.meta),
+            fanOutRow = f(fanOutRow, factory.fanOutRow),
+            fanInRow = f(fanInRow, factory.fanInRow),
+            fanIconsRow = f(fanIconsRow, factory.fanIconsRow),
+            fanIconsResult = f(fanIconsResult, factory.fanIconsResult)
+        ))
+    }
+
+    LaunchedEffect(reportIcon, reportModelIcon, rerank, moderate, languageIcon, translationRow, meta, fanOutRow, fanInRow, fanIconsRow, fanIconsResult) {
+        val updated = build()
+        if (updated != generalSettings) {
+            kotlinx.coroutines.delay(400)
+            onSave(updated)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val updated = build()
+            if (updated != generalSettings) onSave(updated)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(helpTopic = "settings_default_icons", title = "Default icons", subject = "Fallback emoji for reports without their own icon", onBackClick = onBack)
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Shown on view screens when a report or result carries no generated icon. Editing one updates every report that lacks its own.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
+                    )
+                    IconDefaultRow("Report", reportIcon) { reportIcon = it }
+                    IconDefaultRow("Report model", reportModelIcon) { reportModelIcon = it }
+                    IconDefaultRow("Rerank", rerank) { rerank = it }
+                    IconDefaultRow("Moderate", moderate) { moderate = it }
+                    IconDefaultRow("Language icon", languageIcon) { languageIcon = it }
+                    IconDefaultRow("Translation row", translationRow) { translationRow = it }
+                    IconDefaultRow("Meta", meta) { meta = it }
+                    IconDefaultRow("Fan Out row", fanOutRow) { fanOutRow = it }
+                    IconDefaultRow("Fan In row", fanInRow) { fanInRow = it }
+                    IconDefaultRow("Fan Icons row", fanIconsRow) { fanIconsRow = it }
+                    IconDefaultRow("Fan Icons result", fanIconsResult) { fanIconsResult = it }
+                    TextButton(onClick = {
+                        reportIcon = factory.reportIcon
+                        reportModelIcon = factory.reportModelIcon
+                        rerank = factory.rerank
+                        moderate = factory.moderate
+                        languageIcon = factory.languageIcon
+                        translationRow = factory.translationRow
+                        meta = factory.meta
+                        fanOutRow = factory.fanOutRow
+                        fanInRow = factory.fanInRow
+                        fanIconsRow = factory.fanIconsRow
+                        fanIconsResult = factory.fanIconsResult
+                    }) { Text("Reset all to defaults", color = AppColors.Blue) }
+                }
+            }
+        }
+    }
+}
+
+/** One labelled row on the Default icons screen: the item name on the
+ *  left, a narrow single-line emoji field on the right. */
+@Composable
+private fun IconDefaultRow(label: String, value: String, onChange: (String) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
+        OutlinedTextField(
+            value = value, onValueChange = onChange,
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 20.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
+            modifier = Modifier.width(96.dp),
+            colors = AppColors.outlinedFieldColors()
+        )
     }
 }
 

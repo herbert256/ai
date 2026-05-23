@@ -308,6 +308,7 @@ fun AppNavHost(
         com.ai.ui.shared.LocalNavigateToSwarmView provides rootNavigateToSwarmView,
         com.ai.ui.shared.LocalIconGenEnabled provides rootUiStateForLayout.generalSettings.reportIconOn(),
         com.ai.ui.shared.LocalMetadataEnabled provides rootUiStateForLayout.generalSettings.metadataEnabled,
+        com.ai.ui.shared.LocalMetadataIcons provides rootUiStateForLayout.generalSettings.metadataIcons,
         com.ai.ui.shared.LocalBottomIconState provides bottomBarIconState,
         com.ai.ui.shared.LocalNavigateHome provides rootNavigateHome,
         com.ai.ui.shared.LocalNavigateToHelp provides rootNavigateHelp,

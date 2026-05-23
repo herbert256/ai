@@ -183,7 +183,8 @@ internal fun rememberReportRuntimeState(
                 uiState.generalSettings.reportLanguageOn(),
                 uiState.generalSettings.reportTitleAiOn(),
                 uiState.generalSettings.perModelIconOn(),
-                uiState.generalSettings.perModelTitleOn()
+                uiState.generalSettings.perModelTitleOn(),
+                uiState.generalSettings.metadataIcons
             ) else emptyList()
             infoEnabled = infoJobs.isNotEmpty()
             infoState = aggregateInfoState(infoJobs)

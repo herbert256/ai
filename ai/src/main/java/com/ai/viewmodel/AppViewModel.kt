@@ -142,6 +142,11 @@ data class GeneralSettings(
      *  batches — no need to tap the Icons / Titles buttons by hand. A
      *  run with any error pair is left alone. */
     val autostartFanIconsAndTitles: Boolean = true,
+    /** User-editable fallback emoji shown on view screens when a report /
+     *  secondary result has no generated icon of its own. Defaults to the
+     *  [com.ai.data.MetadataDefaults] factory values; edited on Settings →
+     *  Default icons. Persisted as one JSON blob. */
+    val metadataIcons: com.ai.data.MetadataIcons = com.ai.data.MetadataIcons(),
     /** Last 3 (provider, model) pairs the user picked from the Report
      *  section's model pickers, most-recent first. Encoded as
      *  `"providerId|model"` strings for trivial round-trip through

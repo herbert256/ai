@@ -59,6 +59,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val reportTitleMode = titleModeName?.let {
             try { com.ai.viewmodel.ReportTitleMode.valueOf(it) } catch (_: Exception) { null }
         } ?: com.ai.viewmodel.ReportTitleMode.AI
+        val metadataIcons: com.ai.data.MetadataIcons = prefs.getString(KEY_METADATA_ICONS, null)?.let {
+            try { gson.fromJson(it, com.ai.data.MetadataIcons::class.java) } catch (_: Exception) { null }
+        } ?: com.ai.data.MetadataIcons()
         return GeneralSettings(
             userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
@@ -77,6 +80,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             perModelTitleGenEnabled = prefs.getBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, true),
             useInternalPromptsIcons = prefs.getBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, true),
             autostartFanIconsAndTitles = prefs.getBoolean(KEY_AUTOSTART_FAN_ICONS_TITLES, true),
+            metadataIcons = metadataIcons,
             showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false),
             experimentalFeaturesEnabled = prefs.getBoolean(KEY_EXPERIMENTAL_FEATURES, false),
             recentReportModels = prefs.getString(KEY_RECENT_REPORT_MODELS, null)
@@ -133,6 +137,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, settings.perModelTitleGenEnabled)
             putBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, settings.useInternalPromptsIcons)
             putBoolean(KEY_AUTOSTART_FAN_ICONS_TITLES, settings.autostartFanIconsAndTitles)
+            putString(KEY_METADATA_ICONS, gson.toJson(settings.metadataIcons))
             putBoolean(KEY_SHOW_KNOWLEDGE_CARD, settings.showKnowledgeCard)
             putBoolean(KEY_EXPERIMENTAL_FEATURES, settings.experimentalFeaturesEnabled)
             // Newline-joined: entries are "providerId|model" so newline
@@ -518,6 +523,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_PER_MODEL_TITLE_GEN_ENABLED = "per_model_title_gen_enabled"
         private const val KEY_USE_INTERNAL_PROMPTS_ICONS = "use_internal_prompts_icons"
         private const val KEY_AUTOSTART_FAN_ICONS_TITLES = "autostart_fan_icons_titles"
+        private const val KEY_METADATA_ICONS = "metadata_icons"
         private const val KEY_SHOW_KNOWLEDGE_CARD = "show_knowledge_card"
         private const val KEY_EXPERIMENTAL_FEATURES = "experimental_features"
         private const val KEY_RECENT_REPORT_MODELS = "recent_report_models"
