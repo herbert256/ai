@@ -1211,7 +1211,10 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         rows.groupBy {
             when {
                 it.type.startsWith("icon_") -> "icons"
-                it.type == "model_title" -> "model titles"
+                // Find-alt title spend folds into the matching title line
+                // (symmetry with icon alts folding into "icons").
+                it.type == "model_title" || it.type == "title_model_alt" -> "model titles"
+                it.type == "title_report_alt" -> "title"
                 else -> it.type
             }
         }.map { (k, gs) ->

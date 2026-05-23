@@ -1622,9 +1622,27 @@ class IconGenerationManager(
                         val pricing = PricingCache.getPricing(context, item.provider, item.model)
                         val inT = tu?.inputTokens ?: 0
                         val outT = tu?.outputTokens ?: 0
-                        val cost = inT * pricing.promptPrice + outT * pricing.completionPrice
+                        val inC = inT * pricing.promptPrice
+                        val outC = outT * pricing.completionPrice
+                        val cost = inC + outC
                         if (inT > 0 || outT > 0) {
                             appViewModel.settingsPrefs.updateUsageStatsAsync(item.provider, item.model, inT, outT, kind = "title")
+                            // Per-call audit row so this alternative-title
+                            // spend shows in the report cost table + totals
+                            // (mirrors the Find-alt icon fan-out, which
+                            // records into report.iconCalls). agentId is
+                            // left blank so agent/pair icon-clearing never
+                            // sweeps it; [category] is the row's type
+                            // ("title_report_alt" / "title_model_alt").
+                            ReportStorage.appendIconCall(context, reportId, IconCallRecord(
+                                agentId = "", tier = 0,
+                                provider = item.provider.id, model = item.model,
+                                pricingTier = pricing.source,
+                                inputTokens = inT, outputTokens = outT,
+                                inputCost = inC, outputCost = outC,
+                                success = response.error == null,
+                                type = category
+                            ))
                         }
                         val title = cleanTitle(response.analysis)
                         if (response.error == null && title.isNotEmpty())
