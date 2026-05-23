@@ -1531,18 +1531,40 @@ private fun DefaultIconsSubScreen(
 }
 
 /** One labelled row on the Default icons screen: the item name on the
- *  left, a narrow single-line emoji field on the right. */
+ *  left, a tappable emoji box on the right that opens the AndroidX
+ *  EmojiPickerView in a bottom sheet. Picking an emoji writes exactly
+ *  one glyph back, so the value is always a single valid emoji. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun IconDefaultRow(label: String, value: String, onChange: (String) -> Unit) {
+    var showPicker by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
-        OutlinedTextField(
-            value = value, onValueChange = onChange,
-            singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 20.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center),
-            modifier = Modifier.width(96.dp),
-            colors = AppColors.outlinedFieldColors()
-        )
+        Box(
+            modifier = Modifier
+                .width(96.dp)
+                .border(1.dp, AppColors.TextDisabled, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                .clickable { showPicker = true }
+                .padding(vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(value, fontSize = 22.sp)
+        }
+    }
+    if (showPicker) {
+        ModalBottomSheet(onDismissRequest = { showPicker = false }) {
+            androidx.compose.ui.viewinterop.AndroidView(
+                factory = { ctx ->
+                    androidx.emoji2.emojipicker.EmojiPickerView(ctx).apply {
+                        setOnEmojiPickedListener { picked ->
+                            onChange(picked.emoji)
+                            showPicker = false
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(360.dp)
+            )
+        }
     }
 }
 

@@ -58,10 +58,10 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "settings_default_icons" to HelpContent(
         title = "Help - Default icons",
         cards = listOf(
-            HelpCard("Overview", "Edit the fallback emoji the app shows when a report (or one of its results) has no generated icon of its own. There are 11 entries; each is a small text field — clear it and type a different emoji. Edits autosave with a 400 ms debounce."),
+            HelpCard("Overview", "Edit the fallback emoji the app shows when a report (or one of its results) has no generated icon of its own. There are 11 entries; tap an entry's emoji box to open the system emoji picker (search, categories, recents) and pick a replacement. Edits autosave with a 400 ms debounce."),
             HelpCard("When defaults show", "View screens always render whatever a report actually holds; these defaults fill in only when that value is missing. So changing a default updates every report that never had its own icon, and never overrides one that does. The defaults are independent of the Metadata & icons master switch — they apply even when metadata generation is off."),
             HelpCard("The 11 entries", "Report (📝) and Report model (🧠) are the title-bar / per-model fallbacks. Rerank (🏆), Moderate (🚦), Translation row (🌐) and Meta (🔗) are the leading glyphs on secondary-result rows. Language icon (🌐) is the report's detected-language flag. Fan Out row (🔱), Fan In row (🎯) and Fan Icons row (💭) are the leading glyphs of those rows on the Manage report screen; Fan Icons result (📩) is the per-pair glyph on the Fan out – icons screen."),
-            HelpCard("Reset", "Reset all to defaults returns every entry to its factory emoji. Leaving a field blank also reverts just that entry to its factory value on save, so an icon can never become invisible."),
+            HelpCard("Reset", "Reset all to defaults returns every entry to its factory emoji. The picker always yields exactly one glyph, so an icon can never become blank or invalid."),
         )
     ),
     "settings_network" to HelpContent(
