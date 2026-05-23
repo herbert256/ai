@@ -1803,6 +1803,7 @@ fun ReportsScreen(
     // a leftover showViewer / openMetaResultId / listKind / … from
     // a previous flow would otherwise win and the user would land
     // on Model responses / a sub-list / etc.
+    val mainViewResetTickHolder = com.ai.ui.shared.LocalMainViewResetTick.current
     val openViewReportFromManage: () -> Unit = {
         showViewer = false
         showIconsView = false
@@ -1811,6 +1812,12 @@ fun ReportsScreen(
         openTranslationRunId = null
         listKind = null
         singleResultAgentId = null
+        // Bump the reset tick so ViewAiReportScreen's rememberSaveable
+        // sub-overlay state (Model reports / Costs / Icons / …) is wiped
+        // and the user lands on the "View an AI report" tile grid — not
+        // whatever sub-screen was last open. Mirrors gotoMainView in
+        // PrimaryOverlays.
+        mainViewResetTickHolder?.let { it.value = it.value + 1 }
         showViewReportScreen = true
     }
     if (showFanOutPicker && secondaryScopeMetaPrompt == null && fanOutConfirmMetaPrompt == null) {
