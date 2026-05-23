@@ -72,7 +72,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             reportTitleMode = reportTitleMode,
             perModelIconGenEnabled = prefs.getBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, true),
-            perModelTitleGenEnabled = prefs.getBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, false),
+            perModelTitleGenEnabled = prefs.getBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, true),
             useInternalPromptsIcons = prefs.getBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, true),
             showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false),
             experimentalFeaturesEnabled = prefs.getBoolean(KEY_EXPERIMENTAL_FEATURES, false),

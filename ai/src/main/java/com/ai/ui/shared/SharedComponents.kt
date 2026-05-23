@@ -1249,8 +1249,11 @@ internal fun AppTopBarChrome(
                 )
             }
             // Orange 2nd line — full screen width (not boxed by the icons).
+            // Drawn a few dp higher (less gap above the white title) and
+            // followed by a small spacer (more gap below, before the green
+            // line / content).
             if (hasScreenTitle && !secondLine.isNullOrBlank()) {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Row(modifier = Modifier.fillMaxWidth().offset(y = (-3).dp), verticalAlignment = Alignment.CenterVertically) {
                     val textMod = Modifier.weight(1f, fill = true)
                         .let { base ->
                             when {
@@ -1268,6 +1271,7 @@ internal fun AppTopBarChrome(
                     )
                     secondTrailing()
                 }
+                Spacer(modifier = Modifier.height(4.dp))
             }
             // Green 3rd line — full screen width.
             if (!thirdLine.isNullOrBlank()) {

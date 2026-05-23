@@ -102,8 +102,8 @@ data class GeneralSettings(
      *  (internal/model_title) titles that response; the title then
      *  replaces the model name on the Manage-report 'report' row and
      *  its cost folds into that row + a "Model titles" Costs category.
-     *  Default off — it's an extra LLM call per agent. */
-    val perModelTitleGenEnabled: Boolean = false,
+     *  Default on. */
+    val perModelTitleGenEnabled: Boolean = true,
     /** Master switch for the per-internal-prompt icon cache. When true
      *  (default), every secondary-result row on the report result page
      *  whose `metaPromptId` resolves to a known InternalPrompt gets a
