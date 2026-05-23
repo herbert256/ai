@@ -393,6 +393,11 @@ internal fun ColumnScope.GenerationPhase(
      *  [AgentIconRow.icon]) render the default ✅/❌/⏳/🆕 cell. */
     agentIconRows: Map<String, AgentIconRow> = emptyMap(),
     agentModelTitles: Map<String, AgentModelTitle> = emptyMap(),
+    /** Persisted agent records (frozen cost split pinned at run
+     *  completion). The bottom-bar total prefers these over a live
+     *  recompute so it matches the Report-Costs screen, which reads the
+     *  same frozen split. Empty while the report's disk read is pending. */
+    agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent> = emptyMap(),
     // Aggregate of the metadata jobs now shown on "Report - Get info":
     // whether any job is enabled (→ render the info row), the aggregate
     // status, and the summed cost (also folded into the grand total).
@@ -553,7 +558,18 @@ internal fun ColumnScope.GenerationPhase(
     val agentCost = reportsAgentResults.entries
         .filter { (agentId, _) -> activeAgentIds.isEmpty() || agentId in activeAgentIds }
         .sumOf { (agentId, resp) ->
-            resp.tokenUsage?.let {
+            // Prefer the cost split frozen at run completion (the prices in
+            // effect when the report ran) so this total matches the
+            // Report-Costs screen, which reads the same persisted split.
+            // Fall back to a live recompute only while an agent is still
+            // in-flight / not yet persisted (no frozen split yet) — that
+            // path keeps ticking the banner up during generation and, being
+            // un-memoised, still picks up real prices after a cold cache.
+            val frozen = agentRecordsByAgentId[agentId]?.let { ra ->
+                if (ra.inputCost != null || ra.outputCost != null)
+                    (ra.inputCost ?: 0.0) + (ra.outputCost ?: 0.0) else null
+            }
+            frozen ?: resp.tokenUsage?.let {
                 PricingCache.computeCost(it, PricingCache.getPricing(context, resp.service, resolveModelForResult(agentId, resp)))
             } ?: 0.0
         }

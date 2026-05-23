@@ -32,6 +32,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AnalysisResponse
+import com.ai.data.ReportAgent
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
@@ -81,6 +82,7 @@ internal fun ReportRunScreen(
     languageName: String?,
     agentIconRows: Map<String, AgentIconRow>,
     agentModelTitles: Map<String, AgentModelTitle> = emptyMap(),
+    agentRecordsByAgentId: Map<String, ReportAgent> = emptyMap(),
     infoEnabled: Boolean = false,
     infoState: InfoJobState = InfoJobState.DONE,
     infoMetaTotal: Double = 0.0,
@@ -304,6 +306,7 @@ internal fun ReportRunScreen(
             languageName = languageName,
             agentIconRows = agentIconRows,
             agentModelTitles = agentModelTitles,
+            agentRecordsByAgentId = agentRecordsByAgentId,
             infoEnabled = infoEnabled,
             infoState = infoState,
             infoMetaTotal = infoMetaTotal,

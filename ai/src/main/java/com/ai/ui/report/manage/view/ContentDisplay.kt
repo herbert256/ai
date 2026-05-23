@@ -923,7 +923,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val hasLanguageIconCost = report.languageIconInputCost > 0.0 || report.languageIconOutputCost > 0.0
     val hasLanguageCost = hasLanguageDetectCost || hasLanguageIconCost
     val hasModelTitleCost = report.agents.any { it.modelTitleInputCost > 0.0 || it.modelTitleOutputCost > 0.0 }
-    if (agentsWithCosts.isEmpty() && secondary.isEmpty() && !hasIconCost && !hasIconCalls && !hasLanguageCost && !hasModelTitleCost) return null
+    val hasTitleCost = report.titleInputCost > 0.0 || report.titleOutputCost > 0.0
+    if (agentsWithCosts.isEmpty() && secondary.isEmpty() && !hasIconCost && !hasIconCalls && !hasLanguageCost && !hasModelTitleCost && !hasTitleCost) return null
 
     val agentRows = agentsWithCosts.map { agent ->
         val providerEnum = AppService.findById(agent.provider)
@@ -1056,6 +1057,35 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             outputCents = (report.languageIconOutputCost * 100) - languageAltOutCents
         )
     } else null
+    // Report-title row — the one internal/report_title call that names
+    // the whole report (short + long). provider/model come from the
+    // stored Report.titleModel ("provider/model"), else the bundled
+    // report_title agent's default. Folded into the total so this screen
+    // matches Report-Manage's bottom-bar total (which already counts the
+    // title via infoMetaTotal).
+    val titleRow: CostRow? = if (hasTitleCost) {
+        val titlePrompt = ai?.internalPrompts?.firstOrNull {
+            it.category == "info" && it.name == "report_title"
+        }
+        val titleAgent = titlePrompt?.let { p ->
+            ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
+        }
+        val parts = report.titleModel?.split("/", limit = 2)
+        val provider = parts?.firstOrNull()?.let { AppService.findById(it) } ?: titleAgent?.provider
+        val model = parts?.getOrNull(1) ?: titleAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
+        val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
+        CostRow(
+            type = "title",
+            providerDisplay = provider?.id ?: parts?.firstOrNull() ?: "",
+            model = model,
+            tier = pricing?.source ?: "",
+            durationMs = null,
+            inputTokens = report.titleInputTokens,
+            outputTokens = report.titleOutputTokens,
+            inputCents = report.titleInputCost * 100,
+            outputCents = report.titleOutputCost * 100
+        )
+    } else null
     // Per-agent model-title rows — one per agent whose response was
     // titled by the internal/model_title call. provider/model come from
     // the stored "provider/model" string of the (fixed) title agent.
@@ -1163,7 +1193,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     // report.iconCalls (split into the "fan-icons" bucket by
     // iconCallRows above) — no separate pass over SecondaryResult
     // .iconInputCost, which would double-count.
-    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow, languageDetectRow, languageIconRow) + modelTitleRows + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
+    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow, languageDetectRow, languageIconRow, titleRow) + modelTitleRows + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
 
     // GroupTotal carries an optional (provider, model) split so the
     // "By model" table can render the two as separate columns (same

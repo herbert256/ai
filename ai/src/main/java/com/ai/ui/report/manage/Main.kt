@@ -2011,6 +2011,7 @@ fun ReportsScreen(
             languageName = languageName,
             agentIconRows = agentIconRows,
             agentModelTitles = agentModelTitles,
+            agentRecordsByAgentId = agentRecordsByAgentId,
             infoEnabled = infoEnabled,
             infoState = infoState,
             infoMetaTotal = infoMetaTotal,
