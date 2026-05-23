@@ -429,4 +429,5 @@ private val RegeneratePhase.label: String
         RegeneratePhase.FAN_IN -> "Fan-in"
         RegeneratePhase.TRANSLATIONS -> "Translations"
         RegeneratePhase.FAN_ICONS -> "Fan-icons"
+        RegeneratePhase.FAN_TITLES -> "Fan-titles"
     }

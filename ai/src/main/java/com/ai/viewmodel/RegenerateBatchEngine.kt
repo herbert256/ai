@@ -351,6 +351,7 @@ class RegenerateBatchEngine internal constructor(
             RegeneratePhase.LANGUAGE -> readReportLanguageStatus(context, reportId, rowIds)
             RegeneratePhase.AGENTS -> readAgentStatuses(context, reportId, rowIds)
             RegeneratePhase.FAN_ICONS -> readFanIconsStatuses(context, reportId, rowIds)
+            RegeneratePhase.FAN_TITLES -> readFanTitlesStatuses(context, reportId, rowIds)
             else -> readSecondaryStatuses(context, reportId, rowIds)
         }
     }
@@ -435,6 +436,25 @@ class RegenerateBatchEngine internal constructor(
         }
     }
 
+    /** Per-pair title status for the FAN_TITLES phase. Mirrors
+     *  [readFanIconsStatuses] but keyed on [SecondaryResult.title] /
+     *  [SecondaryResult.titleErrorMessage]. */
+    private fun readFanTitlesStatuses(
+        context: Context, reportId: String, rowIds: Set<String>
+    ): Map<String, RowStatus> {
+        val rows = SecondaryResultStorage.listForReport(context, reportId)
+            .filter { it.id in rowIds }
+            .associateBy { it.id }
+        return rowIds.associateWith { id ->
+            val row = rows[id] ?: return@associateWith RowStatus.Pending
+            when {
+                !row.titleErrorMessage.isNullOrBlank() -> RowStatus.Error(row.titleErrorMessage)
+                !row.title.isNullOrBlank() -> RowStatus.Success
+                else -> RowStatus.Pending
+            }
+        }
+    }
+
     // -----------------------------------------------------------------
     // Phase reset + dispatch
     // -----------------------------------------------------------------
@@ -481,6 +501,14 @@ class RegenerateBatchEngine internal constructor(
                 // Per-pair icon state, not main row state.
                 phaseTasks.forEach {
                     SecondaryResultStorage.clearFanOutIconStateKeepingCost(context, reportId, it.rowId)
+                }
+            }
+            RegeneratePhase.FAN_TITLES -> {
+                // Per-pair title state, not main row state. Mirrors
+                // FAN_ICONS — clears title + error but keeps the pair's
+                // content and the accrued title cost.
+                phaseTasks.forEach {
+                    SecondaryResultStorage.clearFanOutTitleStateKeepingCost(context, reportId, it.rowId)
                 }
             }
             else -> {
@@ -547,6 +575,17 @@ class RegenerateBatchEngine internal constructor(
                 val byPrompt = rows.mapNotNull { it.metaPromptId }.distinct()
                 byPrompt.forEach { promptId ->
                     reportViewModel.iconGen.runFanIconsBatch(context, reportId, promptId)
+                }
+            }
+            RegeneratePhase.FAN_TITLES -> {
+                // Mirror FAN_ICONS: resetRowsForPhase already cleared
+                // title+error (keeping cost), so runFanTitlesBatch reads
+                // the now-title-less pairs and re-dispatches additively.
+                val rows = SecondaryResultStorage.listForReport(context, reportId)
+                    .filter { it.id in phaseTasks.map { t -> t.rowId }.toSet() }
+                val byPrompt = rows.mapNotNull { it.metaPromptId }.distinct()
+                byPrompt.forEach { promptId ->
+                    reportViewModel.iconGen.runFanTitlesBatch(context, reportId, promptId)
                 }
             }
         }
@@ -631,6 +670,11 @@ class RegenerateBatchEngine internal constructor(
                 val row = SecondaryResultStorage.listForReport(context, reportId)
                     .firstOrNull { it.id == rowId }
                 row?.iconErrorMessage != null
+            }
+            RegeneratePhase.FAN_TITLES -> {
+                val row = SecondaryResultStorage.listForReport(context, reportId)
+                    .firstOrNull { it.id == rowId }
+                row?.titleErrorMessage != null
             }
             else -> {
                 val row = SecondaryResultStorage.listForReport(context, reportId)
@@ -750,6 +794,21 @@ class RegenerateBatchEngine internal constructor(
                 rowId = row.id,
                 phase = RegeneratePhase.FAN_ICONS,
                 label = "icon: " + shortModelName(row.model),
+                state = RegenerateTaskState.WAITING
+            )
+        }
+
+        // FAN_TITLES — fan-out pair rows that previously had a title
+        // (or title error). Skip pairs that never produced content
+        // (the title call can't run on them). Mirrors FAN_ICONS.
+        val fanTitlesRows = fanOutRows.filter {
+            !it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank()
+        }
+        for (row in fanTitlesRows) {
+            tasks += RegenerateTask(
+                rowId = row.id,
+                phase = RegeneratePhase.FAN_TITLES,
+                label = "title: " + shortModelName(row.model),
                 state = RegenerateTaskState.WAITING
             )
         }
