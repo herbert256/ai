@@ -63,6 +63,10 @@ internal fun ReportRunScreen(
     iconGenEnabled: Boolean,
     showRegenerateConfirm: Boolean,
     models: List<ReportModel>,
+    /** Manage screen state — read for the "Report - Get info" layer
+     *  (st.showGetInfo) drawn on top of this hub, and to set the
+     *  icon / title detail flags its rows open. */
+    st: ReportsScreenState,
     generationHandlers: GenerationPhaseHandlers,
     secondaryCounts: SecondaryResultStorage.Counts,
     costsFromDeletedItems: Double,
@@ -347,6 +351,33 @@ internal fun ReportRunScreen(
                     .background(com.ai.ui.shared.AppColors.SurfaceDark.copy(alpha = 0.95f))
                     .border(1.dp, com.ai.ui.shared.AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
                     .padding(horizontal = 16.dp, vertical = 6.dp)
+            )
+        }
+        // "Report - Get info" drawn as a visual layer ON TOP of this
+        // still-composed hub. Because the hub's TitleBar + GenerationPhase
+        // stay composed underneath, the global bottom bar remains the
+        // hub's (cost above ❓ + every action icon, with the live ✏️/🆕
+        // menus and confirm dialogs) — Get info's own header passes
+        // publishBottomBar=false so it doesn't clobber it. Its opaque
+        // background covers the hub body; Back peels just this layer.
+        if (st.showGetInfo.value && currentReportId != null) {
+            ReportGetInfoScreen(
+                reportId = currentReportId,
+                settings = aiSettings,
+                iconRefreshTick = uiState.iconRefreshTick,
+                iconGenEnabled = iconGenEnabled,
+                titleModeAi = uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
+                perModelIcon = uiState.generalSettings.perModelIconGenEnabled,
+                perModelTitle = uiState.generalSettings.perModelTitleGenEnabled,
+                onBack = { st.showGetInfo.value = false },
+                onOpenIconDetail = { st.showIconDetail.value = true },
+                onOpenLanguageDetail = {
+                    st.showIconDetail.value = true
+                    st.targetLanguageIcon.value = true
+                },
+                onEditTitle = { st.showEditTitle.value = true },
+                onOpenAgentIconDetail = { agentId -> st.agentIconDetailFor.value = agentId },
+                onEditModelTitle = { agentId -> st.editModelTitleFor.value = agentId }
             )
         }
     } // close outer Box

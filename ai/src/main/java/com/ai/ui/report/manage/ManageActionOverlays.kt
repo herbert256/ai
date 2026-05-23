@@ -12,7 +12,6 @@ import com.ai.ui.shared.LocalCurrentReportIdForSwipe
 import com.ai.ui.shared.LocalMainViewResetTick
 import com.ai.ui.shared.LocalNavigateToCurrentReport
 import com.ai.ui.shared.shortModelName
-import com.ai.viewmodel.ReportTitleMode
 import com.ai.viewmodel.UiState
 
 @Composable
@@ -244,36 +243,10 @@ internal fun ReportManageActionOverlays(
         }
     }
 
-    if (st.showGetInfo.value && currentReportId != null) {
-        val rid = currentReportId
-        CompositionLocalProvider(
-            com.ai.ui.shared.LocalReportIcon provides runtime.effectiveReportIcon,
-            com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
-            LocalNavigateToCurrentReport provides { st.showGetInfo.value = false },
-            com.ai.ui.shared.LocalManagePickReport provides
-                { managePick(com.ai.ui.navigation.ManagePickKind.GET_INFO.arg) }
-        ) {
-            ReportGetInfoScreen(
-                reportId = rid,
-                settings = aiSettings,
-                iconRefreshTick = uiState.iconRefreshTick,
-                iconGenEnabled = iconGenEnabled,
-                titleModeAi = uiState.generalSettings.reportTitleMode == ReportTitleMode.AI,
-                perModelIcon = uiState.generalSettings.perModelIconGenEnabled,
-                perModelTitle = uiState.generalSettings.perModelTitleGenEnabled,
-                onBack = { st.showGetInfo.value = false },
-                onOpenIconDetail = { st.showIconDetail.value = true },
-                onOpenLanguageDetail = {
-                    st.showIconDetail.value = true
-                    st.targetLanguageIcon.value = true
-                },
-                onEditTitle = { st.showEditTitle.value = true },
-                onOpenAgentIconDetail = { agentId -> st.agentIconDetailFor.value = agentId },
-                onEditModelTitle = { agentId -> st.editModelTitleFor.value = agentId }
-            )
-        }
-        return true
-    }
+    // NOTE: "Report - Get info" is no longer an early-return overlay —
+    // it renders as a visual layer on top of the still-composed Manage
+    // hub (see ReportRunScreen), so it inherits the hub's full bottom
+    // bar instead of publishing its own minimal one.
 
     if (st.showMetaPicker.value) {
         CompositionLocalProvider(

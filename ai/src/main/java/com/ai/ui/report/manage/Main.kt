@@ -1388,6 +1388,7 @@ fun ReportsScreen(
             iconGenEnabled = iconGenEnabled,
             showRegenerateConfirm = showRegenerateConfirm,
             models = models,
+            st = st,
             generationHandlers = generationHandlers,
             secondaryCounts = secondaryCounts,
             costsFromDeletedItems = costsFromDeletedItems,

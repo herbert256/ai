@@ -54,7 +54,6 @@ enum class ManagePickKind(
     MANAGE("manage", "Pick a report", "Switch to another report"),
     FAN_OUT("fan_out", "Pick a report with a fan-out", "Only reports that have a fan-out"),
     META("meta", "Pick a report with meta results", "Only reports with meta results"),
-    GET_INFO("get_info", "Pick a report", "Switch to another report's info"),
     EDIT_PROMPT("edit_prompt", "Pick a report to edit", "Switch to another report's prompt"),
     EDIT_TITLE("edit_title", "Pick a report to edit", "Switch to another report's title");
 

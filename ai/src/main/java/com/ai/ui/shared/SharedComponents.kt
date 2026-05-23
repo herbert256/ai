@@ -1001,6 +1001,12 @@ fun TitleBar(
     onHousekeeping: (() -> Unit)? = null,
     /** Optional ⚙️ jump-to-AI-Setup/Settings hook. Null → glyph hidden. */
     onSettings: (() -> Unit)? = null,
+    /** When false, this bar renders its top chrome but does NOT publish
+     *  its icons into [LocalBottomIconState]. Used by screens drawn as a
+     *  visual layer ON TOP of a still-composed host (e.g. "Report - Get
+     *  info" over the Manage hub) so the host's already-published bottom
+     *  bar stands instead of being clobbered. */
+    publishBottomBar: Boolean = true,
     /** Applied to the bar's outer Row. */
     modifier: Modifier = Modifier
 ) {
@@ -1060,7 +1066,7 @@ fun TitleBar(
         // top-bar ❓ — see ViewScreenTitleBar.
         onHelp = helpTopic?.let { { navigateHelp(it) } }
     )
-    if (state != null) {
+    if (state != null && publishBottomBar) {
         SideEffect { state.value = captured }
         DisposableEffect(Unit) {
             onDispose { if (state.value === captured) state.value = null }

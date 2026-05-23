@@ -472,7 +472,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Opened from the 🗂️ on the View hub. Lists your reports in the same five buckets as the AI Reports hub (Running, Problems, Pinned, Latest, Examples). Tap any row to open that report straight in View."),
             HelpCard("Cards", "Each card shows up to five at a glance; scroll inside a card for more. Empty buckets are greyed and sink to the bottom. Rows are title-only — no per-row icons here."),
-            HelpCard("From a Manage screen", "The same 🗂️ also appears on several Manage screens (the Manage hub, Fan Out, Meta, Get info, Edit prompt, Edit title). Opened from there, the list is FILTERED to reports relevant to that screen — e.g. from Fan Out only reports that have a fan-out — and picking one returns you to that same screen for the chosen report. The Examples bucket is hidden while a filter is active."),
+            HelpCard("From a Manage screen", "The same 🗂️ also appears on several Manage screens (the Manage hub, Fan Out, Meta, Edit prompt, Edit title). Opened from there, the list is FILTERED to reports relevant to that screen — e.g. from Fan Out only reports that have a fan-out — and picking one returns you to that same screen for the chosen report. The Examples bucket is hidden while a filter is active."),
         )
     ),
     "report_info" to HelpContent(

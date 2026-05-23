@@ -228,14 +228,17 @@ fun ReportGetInfoScreen(
             buildInfoJobs(r, settings, iconGenEnabled, titleModeAi, perModelIcon, perModelTitle)
         }
     }
-    val total = jobs.sumOf { it.cost }
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // publishBottomBar=false: this screen is drawn as a layer on top
+        // of the Manage hub, which keeps publishing its own (full) bottom
+        // bar. We render only the top chrome here. (costText would be
+        // ignored anyway with nothing published.)
         TitleBar(
             helpTopic = "report_get_info", title = "Report - Get info", subject = "Status of icon, title & language jobs", onBackClick = onBack,
-            costText = total.takeIf { it > 0.0 }?.let { formatCents(it, 2) }
+            publishBottomBar = false
         )
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(jobs, key = { "${it.type}-${it.agentId ?: it.label}" }) { job ->
