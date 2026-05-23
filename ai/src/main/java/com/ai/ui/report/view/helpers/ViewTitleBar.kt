@@ -142,26 +142,13 @@ fun ViewTitleBar(
                         }
                     } else Modifier
                 )
-                .layout { measurable, constraints ->
-                    val outsetPx = 16.dp.roundToPx()
-                    val widenedMax = if (constraints.maxWidth == Constraints.Infinity) {
-                        constraints.maxWidth
-                    } else {
-                        constraints.maxWidth + outsetPx * 2
-                    }
-                    val placeable = measurable.measure(
-                        constraints.copy(
-                            minWidth = (constraints.minWidth + outsetPx * 2)
-                                .coerceAtMost(widenedMax),
-                            maxWidth = widenedMax
-                        )
-                    )
-                    layout((placeable.width - outsetPx * 2).coerceAtLeast(0), placeable.height) {
-                        placeable.place(-outsetPx, 0)
-                    }
-                }
+                // No horizontal outset — match the Manage TitleBar exactly:
+                // the Row is plain fillMaxWidth inside the screen's 16dp
+                // padding, and the edge icons sit at offset(±10) just like
+                // Manage. (The old outset pushed the icons ~16dp further
+                // toward the screen edges than Manage.)
                 .fillMaxWidth(),
-            verticalAlignment = Alignment.Top
+            verticalAlignment = Alignment.CenterVertically
         ) {
             val navToCurrentReport = LocalNavigateToCurrentReport.current
             val titleClick: () -> Unit = onTitleClick ?: navToCurrentReport ?: onBack

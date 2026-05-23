@@ -233,31 +233,11 @@ fun ViewScreenTitleBar(
                         }
                     } else Modifier
                 )
-                // Outset 16 dp on each side so the AI logo and help
-                // icon visually break out of the parent screen's
-                // 16 dp horizontal padding and sit flush against the
-                // screen edges — closes the perceived gap between
-                // the three columns inside the bar.
-                .layout { measurable, constraints ->
-                    val outsetPx = 16.dp.roundToPx()
-                    val widenedMax = if (constraints.maxWidth == Constraints.Infinity) {
-                        constraints.maxWidth
-                    } else {
-                        constraints.maxWidth + outsetPx * 2
-                    }
-                    val placeable = measurable.measure(
-                        constraints.copy(
-                            minWidth = (constraints.minWidth + outsetPx * 2)
-                                .coerceAtMost(widenedMax),
-                            maxWidth = widenedMax
-                        )
-                    )
-                    layout((placeable.width - outsetPx * 2).coerceAtLeast(0), placeable.height) {
-                        placeable.place(-outsetPx, 0)
-                    }
-                }
+                // No horizontal outset — match the Manage TitleBar exactly:
+                // plain fillMaxWidth inside the screen's 16dp padding, edge
+                // icons at offset(±10), same as Manage.
                 .fillMaxWidth(),
-            verticalAlignment = Alignment.Top
+            verticalAlignment = Alignment.CenterVertically
         ) {
             val navToCurrentReport = com.ai.ui.shared.LocalNavigateToCurrentReport.current
             val titleClick: () -> Unit = onTitleClick ?: navToCurrentReport ?: onBack
