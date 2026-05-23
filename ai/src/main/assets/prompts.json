@@ -131,7 +131,7 @@
     "name": "report_title",
     "title": "Decide the report title",
     "reference": false,
-    "category": "internal",
+    "category": "info",
     "agent": "Anthropic",
     "text": "Please see the text after the @@@ marker in this request, you must give it a title, max 5 words, max 30 characters, including space, only give this title back, nothing more.\n@@@\n@PROMPT@"
   },
@@ -139,7 +139,7 @@
     "name": "model_title",
     "title": "Decide the model report title",
     "reference": false,
-    "category": "internal",
+    "category": "info",
     "agent": "Anthropic",
     "text": "Please see the text after the @@@ marker in this request, you must give it a title, max 4 words, max 325 characters, including spaces, only give this title back, nothing more.\n@@@\n@RESPONSE@"
   },
@@ -147,7 +147,7 @@
     "name": "report_title_alt",
     "title": "Find an ALTERNATIVE report title",
     "reference": false,
-    "category": "internal",
+    "category": "info",
     "agent": "*N/A",
     "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE title — distinct from the most obvious phrasing, max 5 words, max 30 characters including spaces. Only give this title back, nothing more.\n@@@\n@PROMPT@"
   },
@@ -155,7 +155,7 @@
     "name": "model_title_alt",
     "title": "Find an ALTERNATIVE model report title",
     "reference": false,
-    "category": "internal",
+    "category": "info",
     "agent": "*N/A",
     "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE title — distinct from the most obvious phrasing, max 4 words, max 325 characters including spaces. Only give this title back, nothing more.\n@@@\n@RESPONSE@"
   },
@@ -163,7 +163,7 @@
     "name": "report_title_icon",
     "title": "Decide the icon for a model, based on the title",
     "reference": false,
-    "category": "internal",
+    "category": "info",
     "agent": "Anthropic",
     "text": "Please see the text after the @@@ marker in this request, give a fitting emoji for below text, do not use a 'classic yellow smily, give only this emoji as feedback,@@@\n@TITLE@"
   },
@@ -187,7 +187,7 @@
     "name": "language",
     "title": "Detect a prompt's language + a fitting emoji",
     "reference": false,
-    "category": "internal",
+    "category": "info",
     "agent": "DeepSeek",
     "text": "Identify the language of the text below.\n\nReply with EXACTLY two lines and nothing else:\nlanguage: <English name of the language>\nicon: <single fitting emoji>\n\nTEXT:\n@PROMPT@"
   },
@@ -240,14 +240,6 @@
     "text": "model (b)"
   },
   {
-    "name": "language",
-    "title": "Find a fitting emoji for the report's detected language",
-    "reference": false,
-    "category": "internal",
-    "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
-  },
-  {
     "name": "main_alt",
     "title": "Find an ALTERNATIVE fitting emoji for a report title",
     "reference": false,
@@ -294,22 +286,6 @@
     "category": "icons",
     "agent": "DeepSeek",
     "text": "Do not use a country flag emoji, be creative and find an alternative emoji that fits this text."
-  },
-  {
-    "name": "language",
-    "title": "Find a fitting emoji for the report's detected language",
-    "reference": false,
-    "category": "internal",
-    "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
-  },
-  {
-    "name": "language",
-    "title": "Find a fitting emoji for the report's detected language",
-    "reference": false,
-    "category": "internal",
-    "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
   },
   {
     "name": "language",

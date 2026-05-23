@@ -1105,6 +1105,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // One-shot re-category: the report-title / language-detect /
+        // model-title metadata prompts moved from "internal" to a
+        // dedicated "info" category (their own edit-only CRUD). Re-tag any
+        // persisted row by name so the new lookups (category=="info") find
+        // it and it lands in the Info-prompts CRUD. Must run BEFORE the
+        // delta-merge so ensureAllPresent sees them present and doesn't
+        // re-add the bundled "info" copies as duplicates. The "language"
+        // detection prompt is matched by its text so the legacy
+        // (bogus) internal "language" emoji rows aren't dragged along.
+        // Idempotent.
+        run {
+            val infoNames = setOf("report_title", "report_title_alt", "model_title", "model_title_alt", "report_title_icon")
+            val recat = ai.internalPrompts.map { p ->
+                val isLangDetect = p.name.equals("language", ignoreCase = true) && p.text.startsWith("Identify")
+                if (p.category == "internal" && (p.name.lowercase() in infoNames || isLangDetect)) p.copy(category = "info") else p
+            }
+            if (recat != ai.internalPrompts) {
+                AppLog.i(tag, "Re-categorized ${recat.zip(ai.internalPrompts).count { (a, b) -> a !== b }} metadata prompt(s) to 'info'")
+                ai = ai.copy(internalPrompts = recat)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
         // existing rows. New prompts shipped in an APK upgrade get

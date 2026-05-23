@@ -39,7 +39,7 @@ fun InternalPromptCrud(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
-    val fixedList = category == "internal" || category == "icons"
+    val fixedList = category == "internal" || category == "icons" || category == "info"
     val label = categoryDisplayName(category)
     var mode by remember(category) { mutableStateOf<Mode>(Mode.List) }
     val toList = { mode = Mode.List }

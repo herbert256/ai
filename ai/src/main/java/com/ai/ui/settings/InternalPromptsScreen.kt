@@ -61,6 +61,7 @@ fun categoryDisplayName(category: String): String = when (category) {
     "fan_in" -> "Fan-in prompts"
     "fan-in-model" -> "Fan In, model"
     "internal" -> "Other internal prompts"
+    "info" -> "Info prompts"
     "icons" -> "Icons prompts"
     else -> category
 }
@@ -81,7 +82,7 @@ fun InternalPromptEditScreen(
     val isFanCategory = fixedCategory in FAN_CATEGORIES
     // Other Internal prompts (intro / model_info / translate / rerank
     // / moderation) are a fixed list — name is not user-editable.
-    val isFixedList = fixedCategory == "internal" || fixedCategory == "icons"
+    val isFixedList = fixedCategory == "internal" || fixedCategory == "icons" || fixedCategory == "info"
 
     var name by remember { mutableStateOf(internalPrompt?.name ?: "") }
     var title by remember { mutableStateOf(internalPrompt?.title ?: "") }

@@ -267,6 +267,8 @@ fun InternalPromptsHubScreen(
                 onClick = { onOpenInternalPrompts("meta") })
             ModelsSetupNavCard("🔀", "Fan out/in prompts", "Templates for the Fan out / Fan in flow — across pairs, combined reports, and per-model variants", "$fanTotal",
                 onClick = onOpenFanInOutHub)
+            ModelsSetupNavCard("ℹ️", "Info prompts", "Bundled prompts that derive a report's info — report title, language detection, per-model title, and the title-based icon. Edit-only — can't be removed or added to.", "${countByCategory("info")}",
+                onClick = { onOpenInternalPrompts("info") })
             ModelsSetupNavCard("🎨", "Icons prompts", "Bundled prompts the icon chains use (report icon, fan-out icon, internal-prompt icon, translation icon). Edit-only — can't be removed or added to.", "${countByCategory("icons")}",
                 onClick = { onOpenInternalPrompts("icons") })
             ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Intro)", "${countByCategory("internal")}",

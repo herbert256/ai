@@ -148,7 +148,7 @@ class IconGenerationManager(
         // never run the LLM call.
         if (appViewModel.uiState.value.generalSettings.reportTitleMode != com.ai.viewmodel.ReportTitleMode.AI) return
         val titlePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "report_title"
+            it.category == "info" && it.name == "report_title"
         } ?: return
         val rawAgent = aiSettings.agents.firstOrNull {
             it.name.equals(titlePrompt.agent, ignoreCase = true)
@@ -261,7 +261,7 @@ class IconGenerationManager(
         thenIconFromTitle: Boolean = false
     ) {
         val titlePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "model_title"
+            it.category == "info" && it.name == "model_title"
         } ?: return
         val rawAgent = aiSettings.agents.firstOrNull {
             it.name.equals(titlePrompt.agent, ignoreCase = true)
@@ -355,7 +355,7 @@ class IconGenerationManager(
         title: String, aiSettings: Settings
     ): Boolean {
         val prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "report_title_icon"
+            it.category == "info" && it.name == "report_title_icon"
         } ?: return false
         val rawAgent = aiSettings.agents.firstOrNull {
             it.name.equals(prompt.agent, ignoreCase = true)
@@ -417,7 +417,7 @@ class IconGenerationManager(
     ) {
         if (!appViewModel.uiState.value.generalSettings.iconGenEnabled) return
         val languagePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "language"
+            it.category == "info" && it.name == "language"
         } ?: return
         val rawAgent = aiSettings.agents.firstOrNull {
             it.name.equals(languagePrompt.agent, ignoreCase = true)
@@ -1544,7 +1544,7 @@ class IconGenerationManager(
         models: List<ReportModel>, aiSettings: Settings
     ) {
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "report_title_alt"
+            it.category == "info" && it.name == "report_title_alt"
         } ?: return
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
@@ -1563,7 +1563,7 @@ class IconGenerationManager(
         models: List<ReportModel>, aiSettings: Settings
     ) {
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "internal" && it.name == "model_title_alt"
+            it.category == "info" && it.name == "model_title_alt"
         } ?: return
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return

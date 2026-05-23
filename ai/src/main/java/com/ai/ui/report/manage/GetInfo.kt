@@ -97,7 +97,7 @@ fun buildInfoJobs(
         )
     }
 
-    val titlePrompt = settings.internalPrompts.firstOrNull { it.category == "internal" && it.name == "report_title" }
+    val titlePrompt = settings.internalPrompts.firstOrNull { it.category == "info" && it.name == "report_title" }
     val titleAgent = titlePrompt?.let { p -> settings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) } }
     if (titleModeAi && titlePrompt != null && titleAgent != null) {
         val state = when {
