@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.ui.shared.AppColors
 
 /**
  * Bottom-bar spec published by the View family's [ViewTitleBar] while a
@@ -30,7 +31,10 @@ data class ViewBottomBarSpec(
      *  true = ✋ (showing all items), false = ☝️ (showing one). Null = no
      *  toggle for this screen. The 🔧 manage icon stays centred regardless. */
     val showAll: Boolean? = null,
-    val onToggleOneOrAll: (() -> Unit)? = null
+    val onToggleOneOrAll: (() -> Unit)? = null,
+    /** When non-null, a right-aligned ❓ help icon is shown, opening this
+     *  screen's help topic. The View top bar moved help down here. */
+    val helpTopic: String? = null
 )
 
 /** Set by AppNavHost; written by [ViewTitleBar] while a View screen is
@@ -47,6 +51,7 @@ val LocalViewBottomBar = compositionLocalOf<MutableState<ViewBottomBarSpec?>?> {
 @Composable
 fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
     val onManage = spec.onManage
+    val navigateHelp = com.ai.ui.shared.LocalNavigateToHelp.current
     Box(
         modifier = modifier.fillMaxWidth().padding(bottom = 12.dp),
         contentAlignment = Alignment.Center
@@ -72,6 +77,18 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .clickable(onClick = onManage)
                     .padding(8.dp)
+            )
+        }
+        // Right-aligned ❓ help — moved here from the View top bar.
+        if (spec.helpTopic != null) {
+            Text(
+                text = "❓",
+                fontSize = 28.sp,
+                color = AppColors.Blue,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .clickable { navigateHelp(spec.helpTopic) }
+                    .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 8.dp)
             )
         }
     }

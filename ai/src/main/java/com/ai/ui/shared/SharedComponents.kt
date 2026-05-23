@@ -1253,7 +1253,7 @@ private fun renderTrimmedEmoji(emoji: String, renderPx: Int): android.graphics.B
  *  differing internal transparent padding all land with their visible
  *  centre on the box centre — matching the AI logo on the opposite edge. */
 @Composable
-private fun ReportGlyphIcon(emoji: String, boxSize: Dp, modifier: Modifier = Modifier) {
+internal fun ReportGlyphIcon(emoji: String, boxSize: Dp, modifier: Modifier = Modifier) {
     val boxPx = with(LocalDensity.current) { boxSize.roundToPx() }
     val trimmed = remember(emoji, boxPx) { renderTrimmedEmoji(emoji, boxPx * 2) }
     androidx.compose.foundation.Canvas(modifier = modifier.size(boxSize)) {
@@ -1274,7 +1274,7 @@ private fun ReportGlyphIcon(emoji: String, boxSize: Dp, modifier: Modifier = Mod
 }
 
 @Composable
-private fun AiLogoButton(
+internal fun AiLogoButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     size: Dp = 52.dp,

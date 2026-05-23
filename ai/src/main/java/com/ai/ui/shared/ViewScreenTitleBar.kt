@@ -105,7 +105,6 @@ fun ViewScreenTitleBar(
     onSwipeNext: (() -> Boolean)? = null
 ) {
     val navigateHome = LocalNavigateHome.current
-    val navigateHelp = LocalNavigateToHelp.current
     val logoInteractionSource = remember { MutableInteractionSource() }
     // AI logo always navigates to the app Hub — matches the
     // standard [TitleBar] and the universal rule "top-left AI icon
@@ -128,24 +127,20 @@ fun ViewScreenTitleBar(
     // proactive-null behaviour — without it any parent screen's
     // TitleBar icons would linger at the bottom of an icon-free
     // View screen (help pages, etc.).
-    val bottomIconState = com.ai.ui.shared.LocalBottomIconState.current
-    if (bottomIconState != null) {
-        if (onOpenManage != null) {
-            val capturedIcons = com.ai.ui.shared.TitleBarIcons(
-                helpTopic = helpTopic, onChat = null, onInfo = null,
-                onOpenView = null, onOpenManage = onOpenManage, onCopy = null,
-                onShare = null, onReload = null, onDelete = null, onTrace = null,
-                onTranslationCompare = null, onMemo = null,
-                onCopyReport = null, onPin = null, isPinned = false
+    // Publish the View-owned bottom-bar spec (same channel the report-
+    // View ViewTitleBar uses) so these standalone screens get the
+    // unified View bottom bar: centred 🔧 manage (when onOpenManage is
+    // non-null) + right-aligned ❓ help. AppNavHost prefers ViewBottomBar
+    // whenever this spec is non-null, so the generic strip is replaced.
+    val viewBottomBarState = com.ai.ui.report.view.helpers.LocalViewBottomBar.current
+    if (viewBottomBarState != null) {
+        androidx.compose.runtime.SideEffect {
+            viewBottomBarState.value = com.ai.ui.report.view.helpers.ViewBottomBarSpec(
+                onManage = onOpenManage, helpTopic = helpTopic
             )
-            androidx.compose.runtime.SideEffect { bottomIconState.value = capturedIcons }
-            androidx.compose.runtime.DisposableEffect(Unit) {
-                onDispose { if (bottomIconState.value === capturedIcons) bottomIconState.value = null }
-            }
-        } else {
-            androidx.compose.runtime.SideEffect {
-                if (bottomIconState.value != null) bottomIconState.value = null
-            }
+        }
+        androidx.compose.runtime.DisposableEffect(viewBottomBarState) {
+            onDispose { viewBottomBarState.value = null }
         }
     }
     // Transient pill state ("Loading report" / "No more reports")
@@ -262,18 +257,25 @@ fun ViewScreenTitleBar(
                     }
                 }
                 .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
-            // Left column — AI logo.
-            Image(
-                painter = painterResource(R.drawable.brand_glyph),
-                contentDescription = "Home",
+            val navToCurrentReport = com.ai.ui.shared.LocalNavigateToCurrentReport.current
+            val titleClick: () -> Unit = onTitleClick ?: navToCurrentReport ?: onBack
+            // Left — dynamic report icon (the active / last-viewed report,
+            // provided via LocalReportIcon). Tap opens that report's View
+            // hub (LocalNavigateToCurrentReport). Reuses the Manage
+            // TitleBar's glyph renderer + position/size.
+            ReportGlyphIcon(
+                emoji = LocalReportIcon.current?.takeIf { it.isNotBlank() } ?: "📄",
+                boxSize = 66.dp,
                 modifier = Modifier
-                    .size(76.dp)
+                    .align(Alignment.Top)
+                    .offset(x = (-10).dp)
+                    .padding(top = 4.dp)
                     .clickable(
                         interactionSource = logoInteractionSource,
                         indication = null,
-                        onClick = effectiveLogoClick
+                        onClick = titleClick
                     )
             )
             // Centre column — stacked title texts. All children use
@@ -296,8 +298,6 @@ fun ViewScreenTitleBar(
             // lands on the main View grid. [onBack] is the last-
             // resort safety net for any caller mounted without
             // either local.
-            val navToCurrentReport = com.ai.ui.shared.LocalNavigateToCurrentReport.current
-            val titleClick: () -> Unit = onTitleClick ?: navToCurrentReport ?: onBack
             var bigSizeFits by remember(screenTitle, reportTitle) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else reportTitle.orEmpty()
@@ -363,13 +363,16 @@ fun ViewScreenTitleBar(
             // so the lift doesn't change the bar's height). The +x
             // offset shifts the glyph a little past the row's outset
             // edge so it sits closer to the physical screen edge.
-            Text(
-                text = "❓",
-                fontSize = 52.sp,
-                color = AppColors.Blue,
+            // Right — AI logo → app Home (mirrored), matching the Manage
+            // TitleBar's right-edge logo position/size.
+            AiLogoButton(
+                onClick = effectiveLogoClick,
+                size = 66.dp,
+                mirrored = true,
                 modifier = Modifier
-                    .offset(x = 8.dp, y = (-4).dp)
-                    .clickable { navigateHelp(helpTopic) }
+                    .align(Alignment.Top)
+                    .offset(x = 10.dp)
+                    .padding(top = 6.dp)
             )
         }
         Spacer(modifier = Modifier.height(8.dp))

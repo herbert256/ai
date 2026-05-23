@@ -43,8 +43,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.R
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.AiLogoButton
+import com.ai.ui.shared.ReportGlyphIcon
 import com.ai.ui.shared.LocalNavigateHome
 import com.ai.ui.shared.LocalNavigateToCurrentReport
+import com.ai.ui.shared.LocalReportIcon
 import com.ai.ui.shared.LocalNavigateToHelp
 
 /**
@@ -87,7 +90,6 @@ fun ViewTitleBar(
     onToggleOneOrAll: (() -> Unit)? = null
 ) {
     val navigateHome = LocalNavigateHome.current
-    val navigateHelp = LocalNavigateToHelp.current
     val logoInteractionSource = remember { MutableInteractionSource() }
     val effectiveLogoClick: () -> Unit = { navigateHome() }
     // Publish the View bottom-bar spec while mounted (always non-null so
@@ -101,7 +103,7 @@ fun ViewTitleBar(
         // full-screen overlays), so onDispose of the leaving screen runs
         // before the entering screen's SideEffect in the same apply pass —
         // no stale spec lingers and the next screen's spec always wins.
-        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll) }
+        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll, helpTopic = helpTopic) }
         DisposableEffect(viewBottomBarState) {
             onDispose { viewBottomBarState.value = null }
         }
@@ -159,21 +161,27 @@ fun ViewTitleBar(
                     }
                 }
                 .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.Top
         ) {
-            Image(
-                painter = painterResource(R.drawable.brand_glyph),
-                contentDescription = "Home",
+            val navToCurrentReport = LocalNavigateToCurrentReport.current
+            val titleClick: () -> Unit = onTitleClick ?: navToCurrentReport ?: onBack
+            // Left — dynamic report icon (reuses the Manage TitleBar's
+            // report-glyph renderer + position/size). Tap follows the
+            // same target as the centre title: Manage on the hub, the
+            // View hub on every other screen.
+            ReportGlyphIcon(
+                emoji = LocalReportIcon.current?.takeIf { it.isNotBlank() } ?: "📄",
+                boxSize = 66.dp,
                 modifier = Modifier
-                    .size(76.dp)
+                    .align(Alignment.Top)
+                    .offset(x = (-10).dp)
+                    .padding(top = 4.dp)
                     .clickable(
                         interactionSource = logoInteractionSource,
                         indication = null,
-                        onClick = effectiveLogoClick
+                        onClick = titleClick
                     )
             )
-            val navToCurrentReport = LocalNavigateToCurrentReport.current
-            val titleClick: () -> Unit = onTitleClick ?: navToCurrentReport ?: onBack
             var bigSizeFits by remember(screenTitle, reportTitle) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else reportTitle.orEmpty()
@@ -224,13 +232,16 @@ fun ViewTitleBar(
                     )
                 }
             }
-            Text(
-                text = "❓",
-                fontSize = 52.sp,
-                color = AppColors.Blue,
+            // Right — AI logo → app Home (mirrored, matching the Manage
+            // TitleBar's right-edge logo position/size).
+            AiLogoButton(
+                onClick = effectiveLogoClick,
+                size = 66.dp,
+                mirrored = true,
                 modifier = Modifier
-                    .offset(x = 8.dp, y = (-4).dp)
-                    .clickable { navigateHelp(helpTopic) }
+                    .align(Alignment.Top)
+                    .offset(x = 10.dp)
+                    .padding(top = 6.dp)
             )
         }
         Spacer(modifier = Modifier.height(8.dp))

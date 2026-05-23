@@ -540,8 +540,21 @@ internal fun ViewSubScreenWithTitleNav(
             }
         }
     }
+    // Provide the active/last-viewed report's icon so the View top bar's
+    // left report-glyph has something to show on report-agnostic screens
+    // (Model Info, provider/flock/swarm info, …). Null when no report is
+    // active → the bar falls back to a neutral glyph.
+    val iconCtx = androidx.compose.ui.platform.LocalContext.current
+    val reportIconState = androidx.compose.runtime.produceState<String?>(null, currentReportId) {
+        value = currentReportId?.let { rid ->
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.ai.data.ReportStorage.getReport(iconCtx, rid)?.icon
+            }
+        }
+    }
     androidx.compose.runtime.CompositionLocalProvider(
-        com.ai.ui.shared.LocalNavigateToCurrentReport provides navToActiveView
+        com.ai.ui.shared.LocalNavigateToCurrentReport provides navToActiveView,
+        com.ai.ui.shared.LocalReportIcon provides reportIconState.value
     ) {
         content()
     }
