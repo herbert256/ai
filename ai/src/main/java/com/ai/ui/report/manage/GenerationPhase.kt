@@ -607,25 +607,8 @@ internal fun ColumnScope.GenerationPhase(
         onTotalCostChange(if (showTotals) totalCost else 0.0)
     }
 
-    // ----- Centered green report title — full-row, at the top of the
-    // Manage body so the screen leads with the report's subject before
-    // the action chrome below. Replaces the in-line HardcodedSubjectRow
-    // that used to sit above the progress bar.
-    if (!uiState.genericPromptTitle.isNullOrBlank()) {
-        Text(
-            text = uiState.genericPromptTitle,
-            fontSize = 32.sp,
-            color = AppColors.Green,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth()
-                .offset(y = (-8).dp)
-                .then(if (currentReportId != null) Modifier.clickable(onClick = onOpenViewReport) else Modifier)
-                .padding(bottom = 2.dp)
-        )
-    }
+    // (The report title now renders as the bar's orange second line —
+    // see Run.kt's TitleBar subject = promptTitle.)
 
     // The running total cost is surfaced in the bottom icon bar (via
     // onTotalCostChange → ReportRunScreen → TitleBar costText), not in

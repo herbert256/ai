@@ -241,7 +241,6 @@ fun TraceListScreen(
                 onHousekeeping = onHousekeeping,
                 onSettings = onSettings
             )
-            com.ai.ui.shared.HardcodedSubjectRow(subHeader)
 
             // Category / Provider / Hostname / Model selectors share
             // a single row. Each slot is only emitted when there's

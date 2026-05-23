@@ -271,6 +271,8 @@ fun ReportSingleResultScreen(
             title = "Model response",
             reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = agentLabel,
+            subjectProviderService = provider,
+            subjectModel = agent.model,
             onBackClick = onBack,
             onOpenView = onOpenViewJump,
             onTrace = traceFilename?.let { fn -> { onNavigateToTraceFile(fn) } },
@@ -298,12 +300,6 @@ fun ReportSingleResultScreen(
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 
-        com.ai.ui.shared.HardcodedSubjectRow(
-            agentLabel,
-            providerService = provider,
-            model = agent.model,
-            horizontalPadding = 16.dp
-        )
 
         if (langTabs.size > 1) {
             LanguagePickerRow(

@@ -119,7 +119,6 @@ internal fun SecondaryScopeScreen(
             subject = kindLabel,
             onBackClick = onBack
         )
-        com.ai.ui.shared.HardcodedSubjectRow(kindLabel)
         // Primary CTA hoisted to the top — anchored just below the
         // green subject row so the "advance" affordance stays one
         // tap away regardless of how far the scope list scrolls.

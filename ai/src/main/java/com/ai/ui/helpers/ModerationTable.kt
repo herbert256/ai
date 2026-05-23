@@ -180,7 +180,6 @@ internal fun ModerationCallDetailScreen(
                 { com.ai.ui.shared.shareText(context, agentResponse, "Moderated text — $agentLabel") }
             } else null
         )
-        com.ai.ui.shared.HardcodedSubjectRow(agentLabel)
 
         Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())) {
             // Flag headline + meta line.

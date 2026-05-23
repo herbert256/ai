@@ -843,11 +843,16 @@ fun NonTestableBadge(isNonTestable: Boolean) {
 @Composable
 fun TitleBar(
     title: String? = null,
-    /** Legacy slot — every caller draws its own green subject row via
-     *  [HardcodedSubjectRow] now, so this parameter is accepted-but-
-     *  unused while the call-site sweep finishes. New callers should
-     *  not pass it. */
-    @Suppress("UNUSED_PARAMETER") subject: String? = null,
+    /** The bar's ORANGE second line (centre, under the white title) —
+     *  the former green page subject. Blank/null → no second line. */
+    subject: String? = null,
+    /** When set, the orange subject line is a Model-Info link (matches
+     *  the old clickable [HardcodedSubjectRow]). */
+    subjectProviderService: com.ai.data.AppService? = null,
+    subjectModel: String? = null,
+    /** Optional trailing chip beside the orange subject line (e.g. the
+     *  Fan-out L3 role indicator). */
+    subjectTrailing: @Composable RowScope.() -> Unit = {},
     onBackClick: (() -> Unit)? = null,
     centered: Boolean = false,
     helpTopic: String? = null,
@@ -1003,8 +1008,6 @@ fun TitleBar(
             onDispose { if (state.value === captured) state.value = null }
         }
     }
-    val titleStyle = MaterialTheme.typography.titleLarge
-    val barFontSize = titleStyle.fontSize * 1.35f
     val reportIconTap = LocalNavigateToCurrentReport.current
     // ----- Title-bar swipe (Manage-flow counterpart of ViewScreenTitleBar) -----
     // Resolve the swipe handlers: explicit caller lambdas win;
@@ -1055,10 +1058,66 @@ fun TitleBar(
                 true
             }
         }) else null
-    val swipeEnabled = resolvedOnSwipePrev != null || resolvedOnSwipeNext != null
-    // Transient pill state ("Loading report" / "No more reports")
-    // shown for ~1 second after a swipe. statusTick bumps per swipe
-    // so a fresh swipe restarts the dismissal timer.
+    // The dynamic report icon tap: explicit handler wins, else Home
+    // (Manage-main shortcut) when flagged, else "go to current report"
+    // (which on a Manage sub-overlay lands on Manage main). Title tap
+    // falls back to the same current-report target.
+    val reportIconClick: (() -> Unit)? = onReportIconClick
+        ?: (if (reportIconGoesHome) navigateHome else reportIconTap)
+    val effectiveTitleClick = onTitleClick ?: reportIconTap
+    AppTopBarChrome(
+        screenTitle = title,
+        secondLine = subject,
+        thirdLine = null,
+        reportIcon = resolvedReportIcon,
+        onReportIconClick = reportIconClick,
+        onTitleClick = effectiveTitleClick,
+        onSwipePrev = resolvedOnSwipePrev,
+        onSwipeNext = resolvedOnSwipeNext,
+        secondProviderService = subjectProviderService,
+        secondModel = subjectModel,
+        secondTrailing = subjectTrailing,
+        modifier = modifier
+    )
+}
+
+/**
+ * The single shared top-bar chrome for the whole app (View family +
+ * every standard screen). Purely visual — it never touches any
+ * bottom-bar state; each caller publishes its own bottom bar.
+ *
+ * Layout (matches the Manage TitleBar's perfected icon placement):
+ *  - Left: the dynamic report glyph when [reportIcon] is non-null,
+ *    else the AI logo. 66dp, offset(x=-10), top-aligned.
+ *  - Centre column: white [screenTitle] (auto-shrinks 24→18sp on
+ *    overflow), then orange [secondLine] (18sp), then green [thirdLine]
+ *    (24sp). Tapping the column fires [onTitleClick]. The orange line
+ *    can instead be a Model-Info link ([secondProviderService] +
+ *    [secondModel]) and/or carry a right-edge [secondTrailing] chip.
+ *  - Right: the mirrored AI logo → Home. 66dp, offset(x=+10), top.
+ *  - Optional horizontal swipe (prev/next report) with a transient
+ *    "No more reports" pill.
+ */
+@Composable
+internal fun AppTopBarChrome(
+    screenTitle: String?,
+    secondLine: String?,
+    thirdLine: String?,
+    reportIcon: String?,
+    onReportIconClick: (() -> Unit)?,
+    onTitleClick: (() -> Unit)?,
+    onSwipePrev: (() -> Boolean)?,
+    onSwipeNext: (() -> Boolean)?,
+    secondProviderService: com.ai.data.AppService? = null,
+    secondModel: String? = null,
+    secondTrailing: @Composable RowScope.() -> Unit = {},
+    modifier: Modifier = Modifier
+) {
+    val navigateHome = LocalNavigateHome.current
+    val swipeDensity = LocalDensity.current
+    val swipeThresholdPx = with(swipeDensity) { 80.dp.toPx() }
+    val swipeDragX = remember { mutableFloatStateOf(0f) }
+    val swipeEnabled = onSwipePrev != null || onSwipeNext != null
     val swipeStatus = remember { mutableStateOf<String?>(null) }
     val statusTick = remember { mutableIntStateOf(0) }
     LaunchedEffect(statusTick.intValue) {
@@ -1067,145 +1126,112 @@ fun TitleBar(
             swipeStatus.value = null
         }
     }
-    val swipeDensity = LocalDensity.current
-    val swipeThresholdPx = with(swipeDensity) { 80.dp.toPx() }
-    val swipeDragX = remember { mutableFloatStateOf(0f) }
-    // Outer Box hosts both the title Row and the floating status
-    // pill. Anchoring the pill on the Box (TopCenter) means it can
-    // appear/disappear without pushing the body content below the
-    // bar — same trick used in [ViewScreenTitleBar].
-    Box(modifier = Modifier.fillMaxWidth()) {
-    // Pull the whole bar up 10dp AND shrink its measured height by
-    // the same amount so the next composable starts where the bar
-    // visually ends. Plain Modifier.offset only shifts paint — it
-    // leaves the row's measured height alone, which surfaced as 10dp
-    // of empty space under every title that had no HardcodedSubjectRow
-    // filling it.
-    Row(
-        modifier = modifier.fillMaxWidth()
-            .then(
-                if (swipeEnabled) {
-                    Modifier.pointerInput(resolvedOnSwipePrev, resolvedOnSwipeNext) {
-                        detectHorizontalDragGestures(
-                            onDragStart = { swipeDragX.floatValue = 0f },
-                            onDragEnd = {
-                                val dx = swipeDragX.floatValue
-                                when {
-                                    dx > swipeThresholdPx -> {
-                                        val found = resolvedOnSwipePrev?.invoke() ?: false
-                                        if (!found) {
-                                            swipeStatus.value = "No more reports"
-                                            statusTick.intValue++
+    Box(modifier = modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth()
+                .then(
+                    if (swipeEnabled) {
+                        Modifier.pointerInput(onSwipePrev, onSwipeNext) {
+                            detectHorizontalDragGestures(
+                                onDragStart = { swipeDragX.floatValue = 0f },
+                                onDragEnd = {
+                                    val dx = swipeDragX.floatValue
+                                    when {
+                                        dx > swipeThresholdPx -> {
+                                            val found = onSwipePrev?.invoke() ?: false
+                                            if (!found) { swipeStatus.value = "No more reports"; statusTick.intValue++ }
+                                        }
+                                        dx < -swipeThresholdPx -> {
+                                            val found = onSwipeNext?.invoke() ?: false
+                                            if (!found) { swipeStatus.value = "No more reports"; statusTick.intValue++ }
                                         }
                                     }
-                                    dx < -swipeThresholdPx -> {
-                                        val found = resolvedOnSwipeNext?.invoke() ?: false
-                                        if (!found) {
-                                            swipeStatus.value = "No more reports"
-                                            statusTick.intValue++
-                                        }
-                                    }
-                                }
-                                swipeDragX.floatValue = 0f
-                            },
-                            onDragCancel = { swipeDragX.floatValue = 0f },
-                            onHorizontalDrag = { _, d -> swipeDragX.floatValue += d }
-                        )
-                    }
-                } else Modifier
-            )
-            .layout { measurable, constraints ->
-            val placeable = measurable.measure(constraints)
-            val shift = 16.dp.roundToPx()
-            layout(placeable.width, (placeable.height - shift).coerceAtLeast(0)) {
-                placeable.place(0, -shift)
-            }
-        },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Left edge: the dynamic report icon when one is in scope —
-        // tap → Manage report (via LocalNavigateToCurrentReport, which
-        // on every regular-TitleBar Manage screen lands on Manage
-        // main). Otherwise the AI logo → app Home. The right edge
-        // (below) always carries the AI logo → Home.
-        if (resolvedReportIcon != null) {
-            // Same slot/position as the left AI logo it replaces, sized
-            // to match the (now larger) logos.
-            // Centre the report glyph by its *measured pixel bounds* (not
-            // its font line box) so the visible emoji lands on the same
-            // vertical centre as the right-edge AI logo regardless of how
-            // much transparent padding the particular emoji carries.
-            val reportIconClick = onReportIconClick ?: (if (reportIconGoesHome) navigateHome else (reportIconTap ?: {}))
-            ReportGlyphIcon(
-                emoji = resolvedReportIcon,
-                boxSize = 66.dp,
-                modifier = Modifier.align(Alignment.Top)
-                    .offset(x = (-10).dp)
-                    .padding(top = 4.dp)
-                    .clickable(onClick = reportIconClick)
-            )
-        } else {
-            AiLogoButton(
-                onClick = navigateHome,
-                modifier = Modifier.align(Alignment.Top).offset(x = (-10).dp).padding(top = 6.dp),
-                size = 66.dp
-            )
-        }
-        // Centre: the screen title, centred between the two edge icons.
-        if (title != null) {
-            // Long titles shrink rather than truncate: start at the
-            // normal bar size, drop ~5 % per layout pass whenever the
-            // measured text overflows the available width, with a
-            // floor at half the base size so the label never becomes
-            // illegible. Resets when the title text changes.
-            val minFontSize = (barFontSize.value * 0.55f).sp
-            var titleFontSize by remember(title) { mutableStateOf(barFontSize) }
-            // Title text falls back to the report-icon tap when the
-            // caller doesn't pass an explicit click handler, so on
-            // every Manage sub-overlay both icon and title close the
-            // overlay → land on main Manage. Outside a report
-            // context [LocalNavigateToCurrentReport] is null so the
-            // title stays non-interactive (matches today).
-            val effectiveTitleClick = onTitleClick ?: reportIconTap
-            val titleMod = Modifier.weight(1f).align(Alignment.Top).padding(top = 4.dp)
-                .let { base -> if (effectiveTitleClick != null) base.clickable(onClick = effectiveTitleClick) else base }
-            Text(
-                text = title, style = titleStyle, color = Color.White,
-                fontSize = titleFontSize, fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center,
-                maxLines = 1, softWrap = false,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Visible,
-                onTextLayout = { result ->
-                    if (result.didOverflowWidth && titleFontSize.value > minFontSize.value) {
-                        titleFontSize = (titleFontSize.value * 0.95f).coerceAtLeast(minFontSize.value).sp
+                                    swipeDragX.floatValue = 0f
+                                },
+                                onDragCancel = { swipeDragX.floatValue = 0f },
+                                onHorizontalDrag = { _, d -> swipeDragX.floatValue += d }
+                            )
+                        }
+                    } else Modifier
+                )
+                .layout { measurable, constraints ->
+                    val placeable = measurable.measure(constraints)
+                    val shift = 16.dp.roundToPx()
+                    layout(placeable.width, (placeable.height - shift).coerceAtLeast(0)) {
+                        placeable.place(0, -shift)
                     }
                 },
-                modifier = titleMod
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left — report glyph (when in scope) else AI logo.
+            if (reportIcon != null) {
+                ReportGlyphIcon(
+                    emoji = reportIcon, boxSize = 66.dp,
+                    modifier = Modifier.align(Alignment.Top).offset(x = (-10).dp).padding(top = 4.dp)
+                        .then(if (onReportIconClick != null) Modifier.clickable(onClick = onReportIconClick) else Modifier)
+                )
+            } else {
+                AiLogoButton(
+                    onClick = onReportIconClick ?: navigateHome,
+                    modifier = Modifier.align(Alignment.Top).offset(x = (-10).dp).padding(top = 6.dp),
+                    size = 66.dp
+                )
+            }
+            // Centre — white title / orange 2nd line / green 3rd line.
+            var bigSizeFits by remember(screenTitle, secondLine, thirdLine) { mutableStateOf(true) }
+            val hasScreenTitle = !screenTitle.isNullOrBlank()
+            val topText = if (hasScreenTitle) screenTitle!! else secondLine.orEmpty()
+            val colMod = Modifier.weight(1f)
+                .let { base -> if (onTitleClick != null) base.clickable(onClick = onTitleClick) else base }
+            Column(modifier = colMod, horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = topText, color = Color.White,
+                    fontSize = if (bigSizeFits) 24.sp else 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1, softWrap = false,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
+                    textAlign = TextAlign.Center,
+                    onTextLayout = { result -> if (bigSizeFits && result.hasVisualOverflow) bigSizeFits = false },
+                    modifier = Modifier.fillMaxWidth().offset(y = (-4).dp)
+                )
+                if (hasScreenTitle && !secondLine.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        val textMod = Modifier.weight(1f, fill = true)
+                            .let { base ->
+                                if (secondProviderService != null && !secondModel.isNullOrBlank())
+                                    base.modelInfoClickable(secondProviderService, secondModel) else base
+                            }
+                        Text(
+                            text = secondLine, color = AppColors.Orange,
+                            fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center, modifier = textMod
+                        )
+                        secondTrailing()
+                    }
+                }
+                if (!thirdLine.isNullOrBlank()) {
+                    Text(
+                        text = thirdLine, color = AppColors.Green,
+                        fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+            // Right — mirrored AI logo → Home.
+            AiLogoButton(
+                onClick = navigateHome,
+                modifier = Modifier.align(Alignment.Top).offset(x = 10.dp).padding(top = 6.dp),
+                size = 66.dp, mirrored = true
             )
-        } else {
-            Spacer(modifier = Modifier.weight(1f))
         }
-        // Right edge: AI logo → app Home, at the mirror position of the
-        // left logo and flipped so the two face each other.
-        AiLogoButton(
-            onClick = navigateHome,
-            modifier = Modifier.align(Alignment.Top).offset(x = 10.dp).padding(top = 6.dp),
-            size = 66.dp,
-            mirrored = true
-        )
-    }
-        // Transient pill — floats at TopCenter of the title bar so
-        // it can appear/disappear without nudging the body content
-        // below. Cleared by the LaunchedEffect(statusTick) above.
         val status = swipeStatus.value
         if (status != null) {
             Text(
-                text = status,
-                color = Color.White,
-                fontSize = 13.sp,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .padding(top = 8.dp)
+                text = status, color = Color.White, fontSize = 13.sp,
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
                     .border(1.dp, AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))

@@ -371,7 +371,6 @@ internal fun SecondaryResultDetailScreen(
                 { com.ai.ui.shared.shareText(context, body, "${result.kind.name} — $title") }
             }
         )
-        com.ai.ui.shared.HardcodedSubjectRow(title)
         if (result.kind == SecondaryKind.META && langTabs.size > 1 && forcedLanguage == null) {
             LanguagePickerRow(
                 langTabs, selectedLangKey,

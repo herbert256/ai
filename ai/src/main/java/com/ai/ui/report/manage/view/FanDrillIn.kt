@@ -444,7 +444,6 @@ internal fun ColumnScope.FanOutDrillInView(
                 }
             )
         }
-        com.ai.ui.shared.HardcodedSubjectRow(sourceLabel)
         Spacer(modifier = Modifier.height(4.dp))
         // Walk the L2 list in role-aware order via horizontal swipes —
         // left advances to the next pair, right backs up to the
@@ -620,6 +619,8 @@ internal fun ColumnScope.FanOutDrillInView(
             helpTopic = "secondary_fan_out_l2",
             title = "Fan out - model",
             subject = l2Subject,
+            subjectProviderService = activeProviderService,
+            subjectModel = activeMdl,
             reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             onBackClick = { selectedModelKey = null },
             onOpenView = onOpenViewL2Jump,
@@ -630,11 +631,6 @@ internal fun ColumnScope.FanOutDrillInView(
             onTrace = if (selectedRole == "Initiator" && ApiTracer.isTracingEnabled && l2Trace != null) {
                 { onNavigateToTraceFile(l2Trace) }
             } else null
-        )
-        com.ai.ui.shared.HardcodedSubjectRow(
-            l2Subject,
-            providerService = activeProviderService,
-            model = activeMdl
         )
         // Row 1: role label + Switch role button.
         Row(verticalAlignment = Alignment.CenterVertically,
@@ -1048,7 +1044,6 @@ internal fun ColumnScope.FanOutDrillInView(
         onReload = if (fanOutPrompt != null) ({ confirmRerunComplete = true }) else null,
         onDelete = { confirmFanOutDelete = true }
     )
-    com.ai.ui.shared.HardcodedSubjectRow(l1SubHeader)
     if (fanInPrompts.isNotEmpty() && onRunFanIn != null) {
         Spacer(modifier = Modifier.height(8.dp))
         Button(
@@ -1547,16 +1542,13 @@ private fun OnePageView(
             title = "One page view",
             reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
             subject = modelLabel,
+            subjectProviderService = activeProviderService,
+            subjectModel = activeMdl,
             onBackClick = onBack,
             onOpenView = onOpenViewOnePageJump,
             onInfo = if (activeProviderService != null) {
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
             } else null
-        )
-        com.ai.ui.shared.HardcodedSubjectRow(
-            modelLabel,
-            providerService = activeProviderService,
-            model = activeMdl
         )
         // Role label + Switch role button — same shape as the L2
         // list page, hoisted up so the user can toggle without

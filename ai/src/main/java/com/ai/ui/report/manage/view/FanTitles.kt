@@ -93,7 +93,6 @@ internal fun FanOutL1TitlesScreen(
             subject = subject,
             onBackClick = onBack
         )
-        com.ai.ui.shared.HardcodedSubjectRow(subject)
         Spacer(modifier = Modifier.height(12.dp))
 
         if (groups.isEmpty()) {
@@ -196,7 +195,6 @@ internal fun FanOutL2TitlesScreen(
             subject = subject,
             onBackClick = onBack
         )
-        com.ai.ui.shared.HardcodedSubjectRow(subject)
 
         Row(
             verticalAlignment = Alignment.CenterVertically,

@@ -403,7 +403,6 @@ fun ModelInfoScreen(
                 { onNavigateToTracesForModel(provider, modelName) }
             } else null
         )
-        com.ai.ui.shared.HardcodedSubjectRow(modelName)
 
         run {
             // The page paints immediately — every card uses produceState
@@ -1272,7 +1271,6 @@ private fun ModelRawInfoScreen(
             }
         )
         if (provider != null) {
-            com.ai.ui.shared.HardcodedSubjectRow(provider.displayName)
         }
         if (provider != null) {
             calledUrl?.let { url ->

@@ -51,6 +51,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
         TitleBar(
             helpTopic = ctx.helpTopic,
             title = "Icon lookup",
+            subject = ctx.subject,
             onBackClick = ctx.onBack,
             onChat = ctx.onContinueChat,
             onInfo = ctx.onNavigateToModelInfo,
@@ -66,7 +67,6 @@ fun IconLookupScreen(ctx: IconLookupContext) {
         // suffix after a Find-alt pick). TitleBar's `subject` param
         // is currently unused; the dedicated HardcodedSubjectRow is
         // what actually paints the green line under the title bar.
-        com.ai.ui.shared.HardcodedSubjectRow(ctx.subject)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
 

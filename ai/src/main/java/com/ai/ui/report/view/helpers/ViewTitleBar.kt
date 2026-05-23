@@ -108,129 +108,21 @@ fun ViewTitleBar(
             onDispose { viewBottomBarState.value = null }
         }
     }
-    // Swipe feedback uses the app's standard Android Toast (same as the
-    // shared horizontalSwipeNavigation edge toasts), not a bespoke pill.
-    val swipeDensity = LocalDensity.current
-    val swipeThresholdPx = with(swipeDensity) { 80.dp.toPx() }
-    val swipeDragX = remember { mutableFloatStateOf(0f) }
-    val swipeEnabled = onSwipePrev != null || onSwipeNext != null
-    Column(modifier = Modifier.fillMaxWidth().layout { measurable, constraints ->
-        val placeable = measurable.measure(constraints)
-        val shift = 16.dp.roundToPx()
-        layout(placeable.width, (placeable.height - shift).coerceAtLeast(0)) {
-            placeable.place(0, -shift)
-        }
-    }) {
-        Row(
-            modifier = Modifier
-                .then(
-                    if (swipeEnabled) {
-                        Modifier.pointerInput(onSwipePrev, onSwipeNext) {
-                            detectHorizontalDragGestures(
-                                onDragStart = { swipeDragX.floatValue = 0f },
-                                onDragEnd = {
-                                    val dx = swipeDragX.floatValue
-                                    when {
-                                        dx > swipeThresholdPx -> onSwipePrev?.invoke()
-                                        dx < -swipeThresholdPx -> onSwipeNext?.invoke()
-                                    }
-                                    swipeDragX.floatValue = 0f
-                                },
-                                onDragCancel = { swipeDragX.floatValue = 0f },
-                                onHorizontalDrag = { _, d -> swipeDragX.floatValue += d }
-                            )
-                        }
-                    } else Modifier
-                )
-                // No horizontal outset — match the Manage TitleBar exactly:
-                // the Row is plain fillMaxWidth inside the screen's 16dp
-                // padding, and the edge icons sit at offset(±10) just like
-                // Manage. (The old outset pushed the icons ~16dp further
-                // toward the screen edges than Manage.)
-                .fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val navToCurrentReport = LocalNavigateToCurrentReport.current
-            val titleClick: () -> Unit = onTitleClick ?: navToCurrentReport ?: onBack
-            // Left — dynamic report icon (reuses the Manage TitleBar's
-            // report-glyph renderer + position/size). Tap follows the
-            // same target as the centre title: Manage on the hub, the
-            // View hub on every other screen.
-            ReportGlyphIcon(
-                emoji = LocalReportIcon.current?.takeIf { it.isNotBlank() } ?: "📄",
-                boxSize = 66.dp,
-                modifier = Modifier
-                    .align(Alignment.Top)
-                    .offset(x = (-10).dp)
-                    .padding(top = 4.dp)
-                    .clickable(
-                        interactionSource = logoInteractionSource,
-                        indication = null,
-                        onClick = titleClick
-                    )
-            )
-            var bigSizeFits by remember(screenTitle, reportTitle) { mutableStateOf(true) }
-            val hasScreenTitle = !screenTitle.isNullOrBlank()
-            val topText = if (hasScreenTitle) screenTitle!! else reportTitle.orEmpty()
-            Column(
-                modifier = Modifier.weight(1f).clickable { titleClick() },
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = topText,
-                    color = Color.White,
-                    fontSize = if (bigSizeFits) 24.sp else 18.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    softWrap = false,
-                    overflow = TextOverflow.Clip,
-                    textAlign = TextAlign.Center,
-                    onTextLayout = { result ->
-                        if (bigSizeFits && result.hasVisualOverflow) {
-                            bigSizeFits = false
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                        .offset(y = (-4).dp)
-                )
-                if (hasScreenTitle && !reportTitle.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = reportTitle.orEmpty(),
-                        color = AppColors.Orange,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Clip,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                if (!subject.isNullOrBlank()) {
-                    Text(
-                        text = subject,
-                        color = AppColors.Green,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-            // Right — AI logo → app Home (mirrored, matching the Manage
-            // TitleBar's right-edge logo position/size).
-            AiLogoButton(
-                onClick = effectiveLogoClick,
-                size = 66.dp,
-                mirrored = true,
-                modifier = Modifier
-                    .align(Alignment.Top)
-                    .offset(x = 10.dp)
-                    .padding(top = 6.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-    }
+    // Report-icon + title tap follow the same target: Manage on the
+    // hub, the View hub on every other screen (resolved via
+    // LocalNavigateToCurrentReport / onTitleClick).
+    val navToCurrentReport = LocalNavigateToCurrentReport.current
+    val titleClick: () -> Unit = onTitleClick ?: navToCurrentReport ?: onBack
+    // The single shared chrome: report glyph left, white screen title /
+    // orange report title / green subject centre, AI logo right.
+    com.ai.ui.shared.AppTopBarChrome(
+        screenTitle = screenTitle,
+        secondLine = reportTitle,
+        thirdLine = subject,
+        reportIcon = LocalReportIcon.current?.takeIf { it.isNotBlank() } ?: "📄",
+        onReportIconClick = titleClick,
+        onTitleClick = titleClick,
+        onSwipePrev = onSwipePrev,
+        onSwipeNext = onSwipeNext
+    )
 }

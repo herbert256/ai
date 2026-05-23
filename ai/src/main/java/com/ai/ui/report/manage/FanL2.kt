@@ -211,7 +211,6 @@ internal fun FanOutL2Screen(
                 { actions.onCreateReportFromFanOut(run.key, activePid, activeMdl) }
             } else null
         )
-        com.ai.ui.shared.HardcodedSubjectRow(subject)
 
         // Row 1: role label + Switch role button.
         Row(
@@ -710,7 +709,6 @@ internal fun FanOutL2OnePageScreen(
             onOpenView = onOpenViewOnePageJump,
             onBackClick = onBack
         )
-        com.ai.ui.shared.HardcodedSubjectRow(subject)
         // Active role + Switch role — mirrors the L2 list screen so
         // the one-page view can flip Initiator ⇄ Responder in place.
         Row(

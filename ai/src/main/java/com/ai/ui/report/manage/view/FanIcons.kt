@@ -93,7 +93,6 @@ internal fun FanOutL1IconsScreen(
             subject = subject,
             onBackClick = onBack
         )
-        com.ai.ui.shared.HardcodedSubjectRow(subject)
         Spacer(modifier = Modifier.height(12.dp))
 
         if (groups.isEmpty()) {
@@ -189,7 +188,6 @@ internal fun FanOutL2IconsScreen(
             subject = subject,
             onBackClick = onBack
         )
-        com.ai.ui.shared.HardcodedSubjectRow(subject)
 
         Row(
             verticalAlignment = Alignment.CenterVertically,

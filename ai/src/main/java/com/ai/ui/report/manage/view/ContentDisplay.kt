@@ -834,7 +834,6 @@ private fun OnePageReportView(
             onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
-        com.ai.ui.shared.HardcodedSubjectRow(titleText, horizontalPadding = 16.dp, maxLines = 2)
         if (forcedLanguage == null) {
             LanguagePickerRow(langTabs, selectedLangKey, onSelect = onSelectLang)
         }

@@ -183,7 +183,6 @@ internal fun TranslationL1Screen(
             }) else null,
             onDelete = { confirmDelete = true }
         )
-        com.ai.ui.shared.HardcodedSubjectRow(subject)
 
         // Mode toggle — switches the cost-aware hesitation in the
         // worker loop. Mid-run interactive: workers re-read the

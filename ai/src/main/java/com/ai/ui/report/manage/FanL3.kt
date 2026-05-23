@@ -208,6 +208,14 @@ internal fun FanOutL3Screen(
                     else -> "Fan out - pair"
                 },
                 subject = answererLabel,
+                subjectTrailing = {
+                    Text(
+                        text = role,
+                        fontSize = 13.sp, color = AppColors.TextSecondary,
+                        maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(start = 8.dp)
+                    )
+                },
                 onBackClick = onBack,
                 onOpenView = onOpenViewJump,
                 onInfo = answererProviderService?.let { svc ->
@@ -223,14 +231,6 @@ internal fun FanOutL3Screen(
             // this screen also surfaces the role next to the answerer
             // label. top = 4.dp matches HardcodedSubjectRow so the y-
             // position lines up with every other HARDCODED screen.
-            com.ai.ui.shared.HardcodedSubjectRow(answererLabel) {
-                Text(
-                    text = role,
-                    fontSize = 13.sp, color = AppColors.TextSecondary,
-                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(start = 8.dp)
-                )
-            }
             Spacer(Modifier.height(16.dp))
             HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
 

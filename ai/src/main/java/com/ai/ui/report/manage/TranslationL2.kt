@@ -101,7 +101,6 @@ internal fun TranslationL2Screen(
                 { actions.onNavigateToModelInfo(providerService, modelName) }
             } else null
         )
-        com.ai.ui.shared.HardcodedSubjectRow(modelLabel)
 
         Spacer(modifier = Modifier.height(4.dp))
         Row(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {

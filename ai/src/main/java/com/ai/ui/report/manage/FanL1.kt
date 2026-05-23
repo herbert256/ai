@@ -172,7 +172,6 @@ internal fun FanOutL1Screen(
                 { { actions.onNavigateToTraceRunList(l1RunId) } } else null,
             onDelete = { confirmDelete = true }
         )
-        com.ai.ui.shared.HardcodedSubjectRow(subject)
 
         // Status counts + cost — pinned at the top of the page so
         // they stay put as the model list scrolls; kept visible even

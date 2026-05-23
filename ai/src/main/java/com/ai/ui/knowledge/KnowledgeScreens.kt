@@ -354,7 +354,6 @@ fun KnowledgeDetailScreen(
             onDelete = if (kb != null) { { showDeleteConfirm = true } } else null
         )
         kb?.let {
-            com.ai.ui.shared.HardcodedSubjectRow(it.name)
             Text(embedderLabel(it), fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
             Text("${it.sources.size} sources · ${it.totalChunks} chunks", fontSize = 11.sp, color = AppColors.TextTertiary)
         }

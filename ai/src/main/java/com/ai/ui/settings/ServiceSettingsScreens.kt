@@ -350,7 +350,6 @@ fun ProviderModelSettingsScreen(
             subject = service.id,
             onBackClick = onBack
         )
-        com.ai.ui.shared.HardcodedSubjectRow(service.id)
         Spacer(modifier = Modifier.height(12.dp))
 
         Column(
@@ -875,7 +874,6 @@ fun ProviderSettingsScreen(
             onTrace = testTraceFile?.takeIf { com.ai.data.ApiTracer.isTracingEnabled && onNavigateToTrace != null }
                 ?.let { tf -> { onNavigateToTrace!!(tf) } }
         )
-        com.ai.ui.shared.HardcodedSubjectRow(service.id)
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

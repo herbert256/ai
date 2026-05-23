@@ -77,7 +77,6 @@ internal fun TranslationCompareScreen(
             onDelete = onDelete,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
-        com.ai.ui.shared.HardcodedSubjectRow(title, horizontalPadding = 16.dp)
 
         // Top pane — original.
         Column(

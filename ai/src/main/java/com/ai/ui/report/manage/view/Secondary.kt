@@ -482,7 +482,6 @@ internal fun SecondaryResultsScreen(
                     { pickerConfirmDelete = true }
                 } else null
             )
-            com.ai.ui.shared.HardcodedSubjectRow(baseTitle)
             Spacer(modifier = Modifier.height(8.dp))
         }
 

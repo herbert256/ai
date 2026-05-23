@@ -190,7 +190,6 @@ internal fun TranslationL3Screen(
             },
             onDelete = { confirmDelete = true }
         )
-        com.ai.ui.shared.HardcodedSubjectRow(titleLang)
         if (item.costDollars > 0.0) {
             Text(
                 "Cost: ${formatCents(item.costDollars)} ¢",

@@ -87,7 +87,6 @@ fun ApiTestScreen(
                 subject = selectedProvider.id,
                 onBackClick = { showModelDialog = false }
             )
-            com.ai.ui.shared.HardcodedSubjectRow(selectedProvider.id)
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedTextField(
                 value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -148,7 +147,6 @@ fun ApiTestScreen(
                 subject = selectedProvider.id,
                 onBackClick = { showEndpointDialog = false }
             )
-            com.ai.ui.shared.HardcodedSubjectRow(selectedProvider.id)
             Spacer(modifier = Modifier.height(8.dp))
             Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
                 Column(
