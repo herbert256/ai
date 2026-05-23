@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -148,19 +149,56 @@ fun ReportInfoScreen(
             InfoRow("Secondary results", secKinds)
             InfoRow("Pinned", if (r.pinned) "Yes" else "No")
 
-            if (!costData?.byModel.isNullOrEmpty()) {
-                Section("By model")
-                costData!!.byModel.forEach { g ->
-                    val model = g.model
-                    val provider = g.provider
-                    InfoRow(
-                        if (model != null) shortModelName(model) else g.key,
-                        "${g.calls} call${if (g.calls == 1) "" else "s"} · ${formatCents(g.inputCents + g.outputCents, 2)}",
-                        onClick = if (provider != null && model != null) {
-                            { onOpenModelInfo(provider, model) }
-                        } else null
-                    )
+            if (costData != null && costData.byModel.isNotEmpty()) {
+                val durationByModel = remember(costData) {
+                    costData.rows.groupBy { it.providerDisplay to it.model }
+                        .mapValues { entry -> entry.value.sumOf { it.durationMs ?: 0L } }
                 }
+                val modelRows = remember(costData, durationByModel) {
+                    costData.byModel.map { g ->
+                        val provider = g.provider
+                        val model = g.model
+                        ReportInfoTableRow(
+                            label = model?.let(::shortModelName) ?: g.key,
+                            calls = g.calls,
+                            durationMs = if (provider != null && model != null) {
+                                durationByModel[provider to model] ?: 0L
+                            } else 0L,
+                            cents = g.inputCents + g.outputCents,
+                            provider = provider,
+                            model = model
+                        )
+                    }
+                }
+                Section("By model")
+                ReportInfoCostTable(
+                    firstHeader = "Model",
+                    rows = modelRows,
+                    onModelClick = { row ->
+                        val provider = row.provider
+                        val model = row.model
+                        if (provider != null && model != null) onOpenModelInfo(provider, model)
+                    }
+                )
+            }
+
+            if (costData != null && costData.byType.isNotEmpty()) {
+                val durationByType = remember(costData) {
+                    costData.rows.groupBy { reportInfoCostType(it.type) }
+                        .mapValues { entry -> entry.value.sumOf { it.durationMs ?: 0L } }
+                }
+                val typeRows = remember(costData, durationByType) {
+                    costData.byType.map { g ->
+                        ReportInfoTableRow(
+                            label = g.key,
+                            calls = g.calls,
+                            durationMs = durationByType[g.key] ?: 0L,
+                            cents = g.inputCents + g.outputCents
+                        )
+                    }
+                }
+                Section("By type")
+                ReportInfoCostTable(firstHeader = "Type", rows = typeRows)
             }
             Spacer(Modifier.height(24.dp))
         }
@@ -208,6 +246,107 @@ private fun InfoRow(
             )
         }
     }
+}
+
+private data class ReportInfoTableRow(
+    val label: String,
+    val calls: Int,
+    val durationMs: Long,
+    val cents: Double,
+    val provider: String? = null,
+    val model: String? = null
+)
+
+@Composable
+private fun ReportInfoCostTable(
+    firstHeader: String,
+    rows: List<ReportInfoTableRow>,
+    onModelClick: ((ReportInfoTableRow) -> Unit)? = null
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        ReportInfoTableLine(
+            first = firstHeader,
+            calls = "Calls",
+            duration = "Duration",
+            costs = "Costs",
+            header = true
+        )
+        rows.forEach { row ->
+            ReportInfoTableLine(
+                first = row.label,
+                calls = row.calls.toString(),
+                duration = formatDuration(row.durationMs),
+                costs = formatCents(row.cents, 2),
+                onFirstClick = if (onModelClick != null && row.provider != null && row.model != null) {
+                    { onModelClick(row) }
+                } else null
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReportInfoTableLine(
+    first: String,
+    calls: String,
+    duration: String,
+    costs: String,
+    header: Boolean = false,
+    onFirstClick: (() -> Unit)? = null
+) {
+    val color = if (header) AppColors.TextTertiary else androidx.compose.ui.graphics.Color.White
+    val weight = if (header) FontWeight.Bold else FontWeight.Normal
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = if (header) 4.dp else 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            first,
+            color = if (onFirstClick != null) AppColors.Blue else color,
+            fontSize = if (header) 11.sp else 13.sp,
+            fontWeight = weight,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1.55f)
+                .let { if (onFirstClick != null) it.clickable(onClick = onFirstClick) else it }
+        )
+        Text(
+            calls,
+            color = color,
+            fontSize = if (header) 11.sp else 13.sp,
+            fontWeight = weight,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(0.58f)
+        )
+        Text(
+            duration,
+            color = color,
+            fontSize = if (header) 11.sp else 13.sp,
+            fontWeight = weight,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(0.92f)
+        )
+        Text(
+            costs,
+            color = if (header) AppColors.TextTertiary else AppColors.Blue,
+            fontSize = if (header) 11.sp else 13.sp,
+            fontWeight = weight,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(0.78f)
+        )
+    }
+}
+
+private fun reportInfoCostType(type: String): String = when {
+    type.startsWith("icon_") -> "icons"
+    type == "model_title" -> "model titles"
+    else -> type
 }
 
 /** Sum of every persisted per-call duration on the report — agents,
