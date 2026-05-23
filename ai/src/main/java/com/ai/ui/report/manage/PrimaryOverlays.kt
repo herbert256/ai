@@ -249,10 +249,33 @@ internal fun ReportPrimaryOverlays(
         val rid = currentReportId
         val name = fanOutViewName
         val lang = fanOutViewLanguage
+        // The content-only fan-out view is its own overlay branch
+        // (returns before the ViewAiReportScreen block below), so it
+        // doesn't inherit that block's LocalOpenManage — without this
+        // the FanOutViewScreen's 🔧 manage button has no handler and
+        // stays hidden. Provide one here: ManageJump.Main closes both
+        // this overlay and the View-report screen to reveal Report -
+        // manage; the other jumps mirror the ViewAiReportScreen handler.
+        val fanOutOpenManageJump: (com.ai.ui.shared.ManageJump) -> Unit = { jump ->
+            when (jump) {
+                is com.ai.ui.shared.ManageJump.Main -> {
+                    onCloseFanOutView()
+                    onShowViewReportScreenChange(false)
+                }
+                is com.ai.ui.shared.ManageJump.MetaResult -> onOpenMetaResultIdChange(jump.id)
+                is com.ai.ui.shared.ManageJump.TranslationRun -> onOpenTranslationRunIdChange(jump.id)
+                is com.ai.ui.shared.ManageJump.ReportsViewer -> {
+                    onSelectedAgentForViewerChange(jump.initialAgentId)
+                    onViewerSectionChange(jump.section)
+                    onShowViewerChange(true)
+                }
+            }
+        }
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides { onCloseFanOutView() }
+            LocalNavigateToCurrentReport provides { onCloseFanOutView() },
+            com.ai.ui.shared.LocalOpenManage provides fanOutOpenManageJump
         ) {
             FanOutViewScreen(
                 reportId = rid,
