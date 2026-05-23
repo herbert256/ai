@@ -711,6 +711,38 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     /**
+     * Regenerate only the report's **metadata** — the jobs shown on the
+     * "Report - Get info" screen: report icon, language, title, and the
+     * per-model icon / title for each completed agent. Re-runs the same
+     * kick-offs the initial generation fires (each gated by its own
+     * enabled flag), leaving the model responses, costs and secondary
+     * results untouched. Wired to the 🔄 on the Get-info layer.
+     */
+    fun regenerateReportInfo(context: Context, reportId: String) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val ai = appViewModel.uiState.value.aiSettings
+            val g = appViewModel.uiState.value.generalSettings
+            withTracerTags(reportId = reportId, category = "Report info regenerate") {
+                iconGen.kickOffIconGeneration(context, reportId, report.prompt, ai)
+                iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
+                iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai)
+                if (g.perModelIconGenEnabled || g.perModelTitleGenEnabled) {
+                    report.agents
+                        .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                        .forEach { ra ->
+                            iconGen.runPerModelEnrichment(
+                                context, reportId, ra, report.prompt, ai,
+                                g.perModelIconGenEnabled, g.perModelTitleGenEnabled
+                            )
+                        }
+                }
+                appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+            }
+        }
+    }
+
+    /**
      * Re-run a previously generated report end-to-end with the same prompt, agent set,
      * and parameter selections.
      */

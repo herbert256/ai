@@ -500,6 +500,7 @@ fun ReportsScreenNav(
         // batch job (app-restart-survivable, phased through every
         // category) instead of the legacy one-shot regenerateReport.
         onRegenerate = { rid -> reportViewModel.regenerateBatchEngine.enqueueAndStart(context, rid) },
+        onRegenerateInfo = { rid -> reportViewModel.regenerateReportInfo(context, rid) },
         onUpdatePrompt = { rid, prompt ->
             scope.launch { reportViewModel.updateReportPrompt(context, rid, prompt) }
         },

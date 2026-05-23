@@ -97,6 +97,9 @@ internal fun ReportRunScreen(
     onRequestRegenerate: () -> Unit,
     onDismissRegenerateConfirm: () -> Unit,
     onRegenerate: (String) -> Unit,
+    /** Metadata-only regenerate — used by the 🔄 while the Get-info
+     *  layer is open (re-runs the page's icon/title/language jobs). */
+    onRegenerateInfo: (String) -> Unit = {},
     onChatWithReportPrompt: (String) -> Unit
 ) {
     val aiSettings = uiState.aiSettings
@@ -279,18 +282,35 @@ internal fun ReportRunScreen(
 
         if (showRegenerateConfirm && currentReportId != null) {
             val rid = currentReportId
-            val agentCount = models.size
-            com.ai.ui.shared.ReloadConfirmationDialog(
-                target = "",
-                title = "Regenerate every agent?",
-                message = "Re-fire the API call for all $agentCount model${if (agentCount == 1) "" else "s"} on this report. The existing responses, costs, and traces are replaced. Secondary results (Meta, Fan out, Translate) are kept.",
-                confirmLabel = "Regenerate",
-                onConfirm = {
-                    onDismissRegenerateConfirm()
-                    onRegenerate(rid)
-                },
-                onDismiss = onDismissRegenerateConfirm
-            )
+            // On the Get-info layer the 🔄 regenerates only this page's
+            // metadata jobs (icon / title / language / per-model), not
+            // the whole report.
+            if (st.showGetInfo.value) {
+                com.ai.ui.shared.ReloadConfirmationDialog(
+                    target = "",
+                    title = "Regenerate report info?",
+                    message = "Re-run the icon, language, title and per-model icon / title jobs shown here. The model responses, costs, and secondary results are left untouched.",
+                    confirmLabel = "Regenerate info",
+                    onConfirm = {
+                        onDismissRegenerateConfirm()
+                        onRegenerateInfo(rid)
+                    },
+                    onDismiss = onDismissRegenerateConfirm
+                )
+            } else {
+                val agentCount = models.size
+                com.ai.ui.shared.ReloadConfirmationDialog(
+                    target = "",
+                    title = "Regenerate every agent?",
+                    message = "Re-fire the API call for all $agentCount model${if (agentCount == 1) "" else "s"} on this report. The existing responses, costs, and traces are replaced. Secondary results (Meta, Fan out, Translate) are kept.",
+                    confirmLabel = "Regenerate",
+                    onConfirm = {
+                        onDismissRegenerateConfirm()
+                        onRegenerate(rid)
+                    },
+                    onDismiss = onDismissRegenerateConfirm
+                )
+            }
         }
 
         GenerationPhase(
@@ -361,24 +381,34 @@ internal fun ReportRunScreen(
         // publishBottomBar=false so it doesn't clobber it. Its opaque
         // background covers the hub body; Back peels just this layer.
         if (st.showGetInfo.value && currentReportId != null) {
-            ReportGetInfoScreen(
-                reportId = currentReportId,
-                settings = aiSettings,
-                iconRefreshTick = uiState.iconRefreshTick,
-                iconGenEnabled = iconGenEnabled,
-                titleModeAi = uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
-                perModelIcon = uiState.generalSettings.perModelIconGenEnabled,
-                perModelTitle = uiState.generalSettings.perModelTitleGenEnabled,
-                onBack = { st.showGetInfo.value = false },
-                onOpenIconDetail = { st.showIconDetail.value = true },
-                onOpenLanguageDetail = {
-                    st.showIconDetail.value = true
-                    st.targetLanguageIcon.value = true
-                },
-                onEditTitle = { st.showEditTitle.value = true },
-                onOpenAgentIconDetail = { agentId -> st.agentIconDetailFor.value = agentId },
-                onEditModelTitle = { agentId -> st.editModelTitleFor.value = agentId }
-            )
+            // Provide the report-context locals the screen's TitleBar
+            // reads: the dynamic report icon (top-left), and the
+            // "current report" target so tapping the icon / title peels
+            // this layer back to the Manage hub.
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides { st.showGetInfo.value = false }
+            ) {
+                ReportGetInfoScreen(
+                    reportId = currentReportId,
+                    settings = aiSettings,
+                    iconRefreshTick = uiState.iconRefreshTick,
+                    iconGenEnabled = iconGenEnabled,
+                    titleModeAi = uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
+                    perModelIcon = uiState.generalSettings.perModelIconGenEnabled,
+                    perModelTitle = uiState.generalSettings.perModelTitleGenEnabled,
+                    onBack = { st.showGetInfo.value = false },
+                    onOpenIconDetail = { st.showIconDetail.value = true },
+                    onOpenLanguageDetail = {
+                        st.showIconDetail.value = true
+                        st.targetLanguageIcon.value = true
+                    },
+                    onEditTitle = { st.showEditTitle.value = true },
+                    onOpenAgentIconDetail = { agentId -> st.agentIconDetailFor.value = agentId },
+                    onEditModelTitle = { agentId -> st.editModelTitleFor.value = agentId }
+                )
+            }
         }
     } // close outer Box
 }

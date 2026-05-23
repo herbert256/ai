@@ -168,6 +168,9 @@ fun ReportsScreen(
     onUpdateModelList: (String, List<ReportModel>) -> Unit = { _, _ -> },
     onMarkParametersChanged: () -> Unit = {},
     onRegenerate: (String) -> Unit = {},
+    /** Regenerate only the metadata jobs (icon / title / language /
+     *  per-model) — wired to the 🔄 while the Get-info layer is open. */
+    onRegenerateInfo: (String) -> Unit = {},
     onUpdatePrompt: (String, String) -> Unit = { _, _ -> },
     onUpdateTitle: (String, String, String) -> Unit = { _, _, _ -> },
     onUpdateModelTitle: (String, String, String) -> Unit = { _, _, _ -> },
@@ -1417,6 +1420,7 @@ fun ReportsScreen(
             onDismiss = onDismiss,
             onOpenViewReport = openViewReportFromManage,
             onRequestRegenerate = { showRegenerateConfirm = true },
+            onRegenerateInfo = onRegenerateInfo,
             onDismissRegenerateConfirm = { showRegenerateConfirm = false },
             onRegenerate = onRegenerate,
             onChatWithReportPrompt = onChatWithReportPrompt
