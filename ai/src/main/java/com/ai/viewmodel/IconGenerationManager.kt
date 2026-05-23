@@ -1551,10 +1551,11 @@ class IconGenerationManager(
 
     fun startReportTitleFanOut(
         context: Context, reportId: String, promptText: String,
-        models: List<ReportModel>, aiSettings: Settings
+        models: List<ReportModel>, aiSettings: Settings, long: Boolean = false
     ) {
+        val altPromptName = if (long) "report_title_alt_long" else "report_title_alt"
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "info" && it.name == "report_title_alt"
+            it.category == "info" && it.name == altPromptName
         } ?: return
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return

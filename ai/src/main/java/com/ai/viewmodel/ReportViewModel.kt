@@ -682,14 +682,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * [com.ai.model.UiState.hasPendingPromptChange] and the user does
      * not need to regenerate to see the new title applied.
      */
-    suspend fun updateReportTitle(context: Context, reportId: String, newTitle: String) {
+    suspend fun updateReportTitle(context: Context, reportId: String, newTitle: String, newTitleLong: String) {
         withContext(Dispatchers.IO) {
-            ReportStorage.updateReportTitle(context, reportId, newTitle)
+            ReportStorage.updateReportTitle(context, reportId, newTitle, newTitleLong)
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
-        // Manual edit clears the long title (storage cleared it too) so the
-        // orange line falls back to the short title.
-        appViewModel.updateUiState { it.copy(genericPromptTitle = newTitle, genericPromptTitleLong = "") }
+        // Edit title now sets both: short drives list cards, long drives the
+        // orange line (blank long → falls back to short via barTitle).
+        appViewModel.updateUiState { it.copy(genericPromptTitle = newTitle, genericPromptTitleLong = newTitleLong) }
     }
 
     /** Manually set one agent's per-model title (Get-info → Edit model

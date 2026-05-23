@@ -152,6 +152,14 @@
     "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE title — distinct from the most obvious phrasing, max 5 words, max 30 characters including spaces. Only give this title back, nothing more.\n@@@\n@PROMPT@"
   },
   {
+    "name": "report_title_alt_long",
+    "title": "Find an ALTERNATIVE long report title",
+    "reference": false,
+    "category": "info",
+    "agent": "*N/A",
+    "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE long title — distinct from the most obvious phrasing, max 50 characters including spaces. Only give this long title back, nothing more.\n@@@\n@PROMPT@"
+  },
+  {
     "name": "model_title_alt",
     "title": "Find an ALTERNATIVE model report title",
     "reference": false,

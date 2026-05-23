@@ -328,11 +328,14 @@ object ReportStorage {
         }
     }
 
-    fun updateReportTitle(context: Context, reportId: String, newTitle: String): Boolean {
+    /** Manual title edit — writes both the short [Report.title] and the
+     *  long [Report.titleLong]. A blank long title stores null so the
+     *  orange line falls back to the short title via [barTitle]. */
+    fun updateReportTitle(context: Context, reportId: String, newTitle: String, newTitleLong: String?): Boolean {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
-            saveReport(report.copy(title = newTitle, titleLong = null))
+            saveReport(report.copy(title = newTitle, titleLong = newTitleLong?.takeIf { it.isNotBlank() }))
             true
         }
     }

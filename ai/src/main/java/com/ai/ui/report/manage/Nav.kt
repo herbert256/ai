@@ -343,8 +343,8 @@ fun ReportsScreenNav(
         },
         titleFanOutByReport = titleFanOutByReport,
         titleFanOutByAgent = titleFanOutByAgent,
-        onStartReportTitleFanOut = { rid, prompt, models ->
-            reportViewModel.iconGen.startReportTitleFanOut(context, rid, prompt, models, aiSettings)
+        onStartReportTitleFanOut = { rid, prompt, models, long ->
+            reportViewModel.iconGen.startReportTitleFanOut(context, rid, prompt, models, aiSettings, long)
         },
         onStartModelTitleFanOut = { rid, agentId, models ->
             reportViewModel.iconGen.startModelTitleFanOut(context, rid, agentId, models, aiSettings)
@@ -496,8 +496,8 @@ fun ReportsScreenNav(
         onUpdatePrompt = { rid, prompt ->
             scope.launch { reportViewModel.updateReportPrompt(context, rid, prompt) }
         },
-        onUpdateTitle = { rid, title ->
-            scope.launch { reportViewModel.updateReportTitle(context, rid, title) }
+        onUpdateTitle = { rid, title, titleLong ->
+            scope.launch { reportViewModel.updateReportTitle(context, rid, title, titleLong) }
         },
         onUpdateModelTitle = { rid, agentId, title ->
             scope.launch { reportViewModel.updateModelTitle(context, rid, agentId, title) }

@@ -102,7 +102,7 @@ fun ReportsScreen(
      *  agentId). Transient: a picked title only fills the editor field. */
     titleFanOutByReport: Map<String, List<com.ai.viewmodel.TitleCandidate>> = emptyMap(),
     titleFanOutByAgent: Map<String, List<com.ai.viewmodel.TitleCandidate>> = emptyMap(),
-    onStartReportTitleFanOut: (reportId: String, promptText: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
+    onStartReportTitleFanOut: (reportId: String, promptText: String, models: List<ReportModel>, long: Boolean) -> Unit = { _, _, _, _ -> },
     onStartModelTitleFanOut: (reportId: String, agentId: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
     onRestartReportTitleFanOut: (reportId: String) -> Unit = { _ -> },
     onRestartModelTitleFanOut: (agentId: String) -> Unit = { _ -> },
@@ -169,7 +169,7 @@ fun ReportsScreen(
     onMarkParametersChanged: () -> Unit = {},
     onRegenerate: (String) -> Unit = {},
     onUpdatePrompt: (String, String) -> Unit = { _, _ -> },
-    onUpdateTitle: (String, String) -> Unit = { _, _ -> },
+    onUpdateTitle: (String, String, String) -> Unit = { _, _, _ -> },
     onUpdateModelTitle: (String, String, String) -> Unit = { _, _, _ -> },
     onAttachKnowledgeBases: (List<String>) -> Unit = {},
     onDeleteReport: (String) -> Unit = {},
@@ -367,8 +367,10 @@ fun ReportsScreen(
     var agentIconDetailFor by st.agentIconDetailFor
     var editModelTitleFor by st.editModelTitleFor
     var findTitlesFor by st.findTitlesFor
+    var findTitlesLong by st.findTitlesLong
     var showAlternativeTitles by st.showAlternativeTitles
     var altPickedTitle by st.altPickedTitle
+    var altPickedTitleLong by st.altPickedTitleLong
     var showFindIconsPicker by st.showFindIconsPicker
     var showAlternativeIcons by st.showAlternativeIcons
     // Multiplex flag: when true, the showIconDetail / showFindIconsPicker
@@ -786,7 +788,7 @@ fun ReportsScreen(
                 genericPromptText = uiState.genericPromptText,
                 targetTitleFor = findTitlesFor,
                 onStartTitleFanOut = { target, models ->
-                    if (target == "report") onStartReportTitleFanOut(currentReportId, uiState.genericPromptText, models)
+                    if (target == "report") onStartReportTitleFanOut(currentReportId, uiState.genericPromptText, models, findTitlesLong)
                     else onStartModelTitleFanOut(currentReportId, target, models)
                 },
                 translationIconCallbacks = translationIconCallbacks,
@@ -812,6 +814,7 @@ fun ReportsScreen(
                     pickerTarget = PickerTarget.NEW_REPORT
                     showFindIconsPicker = false
                     findTitlesFor = null
+                    findTitlesLong = false
                 }
             )
         }
@@ -827,10 +830,13 @@ fun ReportsScreen(
         AlternativeTitlesScreen(
             candidates = candidates,
             onPickTitle = { picked ->
-                altPickedTitle = picked
+                // Route the picked candidate to the short or long field
+                // depending on which finder button opened the flow.
+                if (findTitlesLong) altPickedTitleLong = picked else altPickedTitle = picked
                 showAlternativeTitles = false
                 showFindIconsPicker = false
                 findTitlesFor = null
+                findTitlesLong = false
             },
             onRestart = {
                 if (titleTarget == "report") onRestartReportTitleFanOut(currentReportId)
@@ -839,7 +845,7 @@ fun ReportsScreen(
                 showAlternativeTitles = false
                 showFindIconsPicker = true
             },
-            onBack = { showAlternativeTitles = false; findTitlesFor = null }
+            onBack = { showAlternativeTitles = false; findTitlesFor = null; findTitlesLong = false }
         )
         return
     }
@@ -1675,17 +1681,23 @@ fun ReportsScreen(
             ReportEditTitleScreen(
                 reportId = rid,
                 initialTitle = uiState.genericPromptTitle,
+                initialTitleLong = uiState.genericPromptTitleLong,
                 onBack = { showEditTitle = false },
                 onNavigateHome = onNavigateHome,
                 onNavigateToTraceFile = onNavigateToTraceFile,
-                onFindAlternativeTitles = {
-                    findTitlesFor = "report"; findIconsModels = emptyList(); showFindIconsPicker = true
+                onFindAlternativeShortTitle = {
+                    findTitlesFor = "report"; findTitlesLong = false; findIconsModels = emptyList(); showFindIconsPicker = true
                 },
-                injectedTitle = altPickedTitle,
-                onConsumeInjectedTitle = { altPickedTitle = null },
-                onUpdate = { newTitle ->
+                onFindAlternativeLongTitle = {
+                    findTitlesFor = "report"; findTitlesLong = true; findIconsModels = emptyList(); showFindIconsPicker = true
+                },
+                injectedShortTitle = altPickedTitle,
+                injectedLongTitle = altPickedTitleLong,
+                onConsumeInjectedShortTitle = { altPickedTitle = null },
+                onConsumeInjectedLongTitle = { altPickedTitleLong = null },
+                onUpdate = { newTitle, newTitleLong ->
                     showEditTitle = false
-                    onUpdateTitle(rid, newTitle)
+                    onUpdateTitle(rid, newTitle, newTitleLong)
                 }
             )
         }
@@ -1713,7 +1725,7 @@ fun ReportsScreen(
                     onNavigateToTraceFile = onNavigateToTraceFile,
                     onBack = { editModelTitleFor = null },
                     onFindAlternativeTitles = {
-                        findTitlesFor = agentId; findIconsModels = emptyList(); showFindIconsPicker = true
+                        findTitlesFor = agentId; findTitlesLong = false; findIconsModels = emptyList(); showFindIconsPicker = true
                     },
                     injectedTitle = altPickedTitle,
                     onConsumeInjectedTitle = { altPickedTitle = null },

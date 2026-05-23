@@ -69,21 +69,27 @@ fun ReportEditPromptScreen(
 fun ReportEditTitleScreen(
     reportId: String,
     initialTitle: String,
+    initialTitleLong: String,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
-    onFindAlternativeTitles: () -> Unit = {},
-    injectedTitle: String? = null,
-    onConsumeInjectedTitle: () -> Unit = {},
-    onUpdate: (newTitle: String) -> Unit
+    onFindAlternativeShortTitle: () -> Unit = {},
+    onFindAlternativeLongTitle: () -> Unit = {},
+    injectedShortTitle: String? = null,
+    injectedLongTitle: String? = null,
+    onConsumeInjectedShortTitle: () -> Unit = {},
+    onConsumeInjectedLongTitle: () -> Unit = {},
+    onUpdate: (newTitle: String, newTitleLong: String) -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    // Same caveat as ReportEditPromptScreen above — key on
-    // initialTitle so a stale draft doesn't outlive an external edit.
+    // Same caveat as ReportEditPromptScreen above — key on the initial
+    // values so a stale draft doesn't outlive an external edit.
     var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
-    // A picked "Find alternative titles" candidate fills the field.
-    LaunchedEffect(injectedTitle) { injectedTitle?.let { title = it; onConsumeInjectedTitle() } }
+    var titleLong by rememberSaveable(initialTitleLong) { mutableStateOf(initialTitleLong) }
+    // A picked "Find alternative …" candidate fills the matching field.
+    LaunchedEffect(injectedShortTitle) { injectedShortTitle?.let { title = it; onConsumeInjectedShortTitle() } }
+    LaunchedEffect(injectedLongTitle) { injectedLongTitle?.let { titleLong = it; onConsumeInjectedLongTitle() } }
     val canUpdate = title.trim().isNotBlank()
 
     // The report title is filled in dynamically by a one-shot API call
@@ -107,7 +113,7 @@ fun ReportEditTitleScreen(
         )
 
         Button(
-            onClick = { onUpdate(title.trim()) },
+            onClick = { onUpdate(title.trim(), titleLong.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
@@ -116,7 +122,14 @@ fun ReportEditTitleScreen(
 
         OutlinedTextField(
             value = title, onValueChange = { title = it },
-            label = { Text("Title") }, singleLine = true,
+            label = { Text("Short title (list cards)") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedFieldColors()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedTextField(
+            value = titleLong, onValueChange = { titleLong = it },
+            label = { Text("Long title (top-bar line)") }, singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedFieldColors()
         )
@@ -124,10 +137,16 @@ fun ReportEditTitleScreen(
         Spacer(modifier = Modifier.weight(1f))
 
         OutlinedButton(
-            onClick = onFindAlternativeTitles,
+            onClick = onFindAlternativeShortTitle,
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
-        ) { Text("Find alternative titles", maxLines = 1, softWrap = false) }
+        ) { Text("Find alternative short title", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = onFindAlternativeLongTitle,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text("Find alternative long title", maxLines = 1, softWrap = false) }
     }
 }
 

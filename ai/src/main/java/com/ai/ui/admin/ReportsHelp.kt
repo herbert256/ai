@@ -470,9 +470,10 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "report_edit_title" to HelpContent(
         title = "Help - Edit title",
         cards = listOf(
-            HelpCard("Overview", "Rename the report. Title is metadata only — no outbound API call references it, so this never sets hasPendingPromptChange and you don't need to regenerate to see the new title applied."),
-            HelpCard("Title field", "Single-line. Update title is disabled when the body trims to blank."),
-            HelpCard("Saver scoping", "rememberSaveable is keyed on initialTitle so re-opening the overlay with a fresh seed doesn't restore a stale draft."),
+            HelpCard("Overview", "Rename the report. Titles are metadata only — no outbound API call references them, so this never sets hasPendingPromptChange and you don't need to regenerate to see the new titles applied."),
+            HelpCard("Short vs long title", "Two fields. The short title shows on the AI Reports list cards; the long title shows on the top-bar orange line of the View and Manage screens. Leave the long title blank to fall back to the short one. Update title is disabled when the short title trims to blank."),
+            HelpCard("Find alternative short / long title", "Each button fans out to models you pick and lists candidate titles — short ones (≤25 chars) or long ones (≤50 chars). Tapping a candidate drops it into the matching field; nothing is saved until you tap Update title."),
+            HelpCard("Saver scoping", "rememberSaveable is keyed on the initial short / long values so re-opening the overlay with a fresh seed doesn't restore a stale draft."),
         )
     ),
     "report_parameters" to HelpContent(
