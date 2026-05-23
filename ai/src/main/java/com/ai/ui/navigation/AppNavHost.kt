@@ -259,7 +259,38 @@ fun AppNavHost(
     val viewBottomBarState = androidx.compose.runtime.remember {
         androidx.compose.runtime.mutableStateOf<com.ai.ui.report.view.helpers.ViewBottomBarSpec?>(null)
     }
+    // Section icon for the shared top bar's left slot, by current route:
+    // 💬 on the AI Chat routes, 🧹 on the Housekeeping routes. Tapping
+    // the icon (or screen title) goes Home from the section's main
+    // screen, else to the section's main screen. Settings / AI Setup
+    // supply their own via SettingsScreen; every other route → null
+    // (AI logo / report glyph).
+    val currentNavRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    val housekeepingSubRoutes = setOf(
+        NavRoutes.AI_BACKUP_RESTORE, NavRoutes.AI_TRIM_BY_AGE,
+        NavRoutes.AI_UPDATE_FROM_CLOUD, NavRoutes.AI_RESET,
+        NavRoutes.AI_APPLOG_LIST, NavRoutes.AI_TEST, NavRoutes.AI_COSTS_MAINTENANCE
+    )
+    val sectionTopIcon: com.ai.ui.shared.TopBarLeftIcon? = when {
+        currentNavRoute == null -> null
+        currentNavRoute == NavRoutes.AI_CHATS_HUB ->
+            com.ai.ui.shared.TopBarLeftIcon("💬", navigateHome)
+        currentNavRoute.startsWith("ai_chat") || currentNavRoute.startsWith("ai_dual_chat") ->
+            com.ai.ui.shared.TopBarLeftIcon("💬") {
+                if (!navController.popBackStack(NavRoutes.AI_CHATS_HUB, false))
+                    navController.navigate(NavRoutes.AI_CHATS_HUB)
+            }
+        currentNavRoute == NavRoutes.AI_HOUSEKEEPING ->
+            com.ai.ui.shared.TopBarLeftIcon("🧹", navigateHome)
+        currentNavRoute in housekeepingSubRoutes ->
+            com.ai.ui.shared.TopBarLeftIcon("🧹") {
+                if (!navController.popBackStack(NavRoutes.AI_HOUSEKEEPING, false))
+                    navController.navigate(NavRoutes.AI_HOUSEKEEPING)
+            }
+        else -> null
+    }
     androidx.compose.runtime.CompositionLocalProvider(
+        com.ai.ui.shared.LocalTopBarLeftIcon provides sectionTopIcon,
         com.ai.ui.report.view.helpers.LocalViewBottomBar provides viewBottomBarState,
         com.ai.ui.shared.LocalModelNameLayout provides rootUiStateForLayout.generalSettings.modelNameLayout,
         com.ai.ui.shared.LocalNavigateToModelInfo provides rootNavigateToModelInfo,

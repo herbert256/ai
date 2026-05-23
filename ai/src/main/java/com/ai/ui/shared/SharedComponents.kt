@@ -520,6 +520,15 @@ val LocalIconGenEnabled = compositionLocalOf { true }
  *  report-scoped screen. */
 val LocalReportIcon = compositionLocalOf<String?> { null }
 
+/** A section's top-left icon + tap target. When set (and no report
+ *  icon is in scope) the shared top bar swaps its left AI logo for
+ *  [glyph], and tapping the icon OR the screen title fires [onClick]
+ *  (home from a section's main screen, or the section's main screen
+ *  from a sub-screen). Provided per-section (Settings/AI Setup inside
+ *  SettingsScreen; Housekeeping/Chat by route in AppNavHost). */
+data class TopBarLeftIcon(val glyph: String, val onClick: () -> Unit)
+val LocalTopBarLeftIcon = compositionLocalOf<TopBarLeftIcon?> { null }
+
 /** Title of the active AI Report. Provided by ReportsScreen at every
  *  inline overlay's CompositionLocalProvider, alongside [LocalReportIcon].
  *  TitleBar reads this as a subject fallback in BOTH mode when the
@@ -1114,6 +1123,10 @@ internal fun AppTopBarChrome(
     modifier: Modifier = Modifier
 ) {
     val navigateHome = LocalNavigateHome.current
+    // A section icon (Settings/AI Setup/Housekeeping/Chat) takes the
+    // left slot when no report glyph is in scope; its onClick also
+    // backs the screen-title tap.
+    val sectionIcon = LocalTopBarLeftIcon.current
     val swipeDensity = LocalDensity.current
     val swipeThresholdPx = with(swipeDensity) { 80.dp.toPx() }
     val swipeDragX = remember { mutableFloatStateOf(0f) }
@@ -1163,12 +1176,18 @@ internal fun AppTopBarChrome(
                 },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Left — report glyph (when in scope) else AI logo.
+            // Left — report glyph > section icon > AI logo.
             if (reportIcon != null) {
                 ReportGlyphIcon(
                     emoji = reportIcon, boxSize = 66.dp,
                     modifier = Modifier.align(Alignment.Top).offset(x = (-10).dp).padding(top = 4.dp)
                         .then(if (onReportIconClick != null) Modifier.clickable(onClick = onReportIconClick) else Modifier)
+                )
+            } else if (sectionIcon != null) {
+                ReportGlyphIcon(
+                    emoji = sectionIcon.glyph, boxSize = 66.dp,
+                    modifier = Modifier.align(Alignment.Top).offset(x = (-10).dp).padding(top = 4.dp)
+                        .clickable(onClick = sectionIcon.onClick)
                 )
             } else {
                 AiLogoButton(
@@ -1181,8 +1200,10 @@ internal fun AppTopBarChrome(
             var bigSizeFits by remember(screenTitle, secondLine, thirdLine) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else secondLine.orEmpty()
+            // Screen-title tap: explicit handler, else the section nav.
+            val titleClick = onTitleClick ?: sectionIcon?.onClick
             val colMod = Modifier.weight(1f)
-                .let { base -> if (onTitleClick != null) base.clickable(onClick = onTitleClick) else base }
+                .let { base -> if (titleClick != null) base.clickable(onClick = titleClick) else base }
             Column(modifier = colMod, horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = topText, color = Color.White,

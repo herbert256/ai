@@ -257,6 +257,28 @@ fun SettingsScreen(
     val hkTest = { navRoute(com.ai.ui.navigation.NavRoutes.AI_TEST) }
     val settingsModelsSetup = { navRoute(com.ai.ui.navigation.NavRoutes.SETTINGS_MODELS_SETUP) }
 
+    // Section icon for the shared top bar: ⚙️ on the Settings subtree
+    // (root MAIN), 🤖 on the AI Setup subtree (root AI_SETUP). Tap the
+    // icon or the screen title → app Home from the section's main
+    // screen, else the section's main screen.
+    val inSettingsSubtree = currentSubScreen in setOf(
+        SettingsSubScreen.MAIN,
+        SettingsSubScreen.SETTINGS_NETWORK,
+        SettingsSubScreen.SETTINGS_NETWORK_API_CALLS,
+        SettingsSubScreen.SETTINGS_UI,
+        SettingsSubScreen.SETTINGS_LOGGING,
+        SettingsSubScreen.SETTINGS_OTHER
+    )
+    val sectionMain = if (inSettingsSubtree) SettingsSubScreen.MAIN else SettingsSubScreen.AI_SETUP
+    androidx.compose.runtime.CompositionLocalProvider(
+        com.ai.ui.shared.LocalTopBarLeftIcon provides com.ai.ui.shared.TopBarLeftIcon(
+            glyph = if (inSettingsSubtree) "⚙️" else "🤖",
+            onClick = {
+                if (currentSubScreen == sectionMain) onNavigateHome()
+                else currentSubScreen = sectionMain
+            }
+        )
+    ) {
     when (currentSubScreen) {
         SettingsSubScreen.MAIN -> {
             SettingsMainScreen(
@@ -718,6 +740,7 @@ fun SettingsScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
+    }
     }
 }
 
