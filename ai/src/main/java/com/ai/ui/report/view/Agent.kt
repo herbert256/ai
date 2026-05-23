@@ -360,7 +360,8 @@ fun ReportsViewScreen(
                     ) {
                         HorizontalPager(
                             state = pagerState,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            verticalAlignment = Alignment.Top
                         ) { page ->
                             val agent = agents[page.wrapTo(agents.size)]
                             AgentResponseCard(
