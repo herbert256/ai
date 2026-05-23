@@ -43,7 +43,13 @@ data class InfoJob(
     val agentId: String? = null,
     /** Emoji to show in the status cell when [state] is DONE (the generated
      *  icon for this job) — falls back to ✅ when null/blank. */
-    val doneIcon: String? = null
+    val doneIcon: String? = null,
+    /** True when this job is genuinely still in progress / will yet proceed
+     *  (report-level RUNNING, or a per-model job whose model is still
+     *  pending/running). A per-model CLOCK left by an **ERRORed** model is
+     *  terminal — it can never run — so it is *not* pending and must not keep
+     *  the Manage info-row hourglass spinning. */
+    val pending: Boolean = false
 )
 
 /**
@@ -79,7 +85,8 @@ fun buildInfoJobs(
             else -> InfoJobState.RUNNING
         }
         val label = report.iconErrorMessage ?: report.icon ?: "Generating…"
-        jobs += InfoJob("icon", label, state, report.iconInputCost + report.iconOutputCost, doneIcon = report.icon)
+        jobs += InfoJob("icon", label, state, report.iconInputCost + report.iconOutputCost,
+            doneIcon = report.icon, pending = state == InfoJobState.RUNNING)
 
         // Language detection shares the icon-gen gate (same as the old
         // Manage row, which nested the language row inside the icon gate).
@@ -93,7 +100,8 @@ fun buildInfoJobs(
             "language", langLabel, langState,
             report.languageInputCost + report.languageOutputCost +
                 report.languageIconInputCost + report.languageIconOutputCost,
-            doneIcon = report.languageIcon ?: "🌐"
+            doneIcon = report.languageIcon ?: "🌐",
+            pending = langState == InfoJobState.RUNNING
         )
     }
 
@@ -108,7 +116,8 @@ fun buildInfoJobs(
         val label = report.titleErrorMessage
             ?: report.title.takeIf { report.titlePromptUsed != null }
             ?: "Generating…"
-        jobs += InfoJob("title", label, state, report.titleInputCost + report.titleOutputCost, doneIcon = "🏷️")
+        jobs += InfoJob("title", label, state, report.titleInputCost + report.titleOutputCost,
+            doneIcon = "🏷️", pending = state == InfoJobState.RUNNING)
     }
 
     // Per-agent title state — agent must succeed first; when both jobs are
@@ -122,14 +131,23 @@ fun buildInfoJobs(
 
     // All model-title rows first, then all model-icon rows (after the
     // three report-level rows above).
+    // A per-model job is "pending" (keeps the aggregate spinning) only while
+    // it can still proceed: RUNNING, or CLOCK with the model still
+    // pending/running. A CLOCK left by an ERRORed model is terminal.
+    fun perModelPending(a: com.ai.data.ReportAgent, state: InfoJobState): Boolean =
+        state == InfoJobState.RUNNING ||
+            (state == InfoJobState.CLOCK && a.reportStatus != ReportStatus.ERROR)
+
     if (perModelTitle) {
         report.agents.forEach { a ->
             val modelName = "${a.provider} · ${shortModelName(a.model)}"
+            val titleState = titleStateFor(a)
             jobs += InfoJob(
-                "model-title", modelName, titleStateFor(a),
+                "model-title", modelName, titleState,
                 a.modelTitleInputCost + a.modelTitleOutputCost, a.agentId,
                 // Show the model's found icon when there is one, else 🏷️.
-                doneIcon = a.icon?.takeIf { it.isNotBlank() } ?: "🏷️"
+                doneIcon = a.icon?.takeIf { it.isNotBlank() } ?: "🏷️",
+                pending = perModelPending(a, titleState)
             )
         }
     }
@@ -148,17 +166,20 @@ fun buildInfoJobs(
             // Label shows the found title (the icon is derived from it);
             // falls back to the model name when there's no title.
             jobs += InfoJob("model-icon", foundTitle ?: modelName, iconState,
-                a.iconInputCost + a.iconOutputCost, a.agentId, doneIcon = a.icon)
+                a.iconInputCost + a.iconOutputCost, a.agentId, doneIcon = a.icon,
+                pending = perModelPending(a, iconState))
         }
     }
     return jobs
 }
 
 /** Aggregate state for the Manage **info** row: ❌ if any job failed, else
- *  ⏳ if any job is clock/running, else ✅. */
+ *  ⏳ while any job is still genuinely in progress ([InfoJob.pending]), else
+ *  ✅. A CLOCK left by an ERRORed model is *not* pending, so a finished report
+ *  with a failed model settles to ✅ rather than spinning forever. */
 fun aggregateInfoState(jobs: List<InfoJob>): InfoJobState = when {
     jobs.any { it.state == InfoJobState.FAILED } -> InfoJobState.FAILED
-    jobs.any { it.state == InfoJobState.CLOCK || it.state == InfoJobState.RUNNING } -> InfoJobState.RUNNING
+    jobs.any { it.pending } -> InfoJobState.RUNNING
     else -> InfoJobState.DONE
 }
 
