@@ -81,6 +81,9 @@ data class ReportAgent(
     var modelTitleInputCost: Double = 0.0,
     var modelTitleOutputCost: Double = 0.0,
     var modelTitleTraceFile: String? = null,
+    /** Wall-clock duration (ms) of the per-model title call, for the
+     *  Report-info screen's total-API-time tally. Null before it ran. */
+    var modelTitleDurationMs: Long? = null,
     /** Bundled prompt name that produced [modelTitle] — "model_title". */
     var modelTitlePromptUsed: String? = null
 )
@@ -132,7 +135,13 @@ enum class ReportStatus { PENDING, RUNNING, SUCCESS, ERROR, STOPPED }
 
 data class Report(
     val id: String,
+    /** Last-changed time — bumped on (almost) every mutation. NOT a
+     *  stable creation time; use [createdAt] for that. */
     val timestamp: Long,
+    /** Stable creation time, set once when the report is first created
+     *  and never bumped. 0 on legacy reports written before this field
+     *  existed (the Report info screen falls back to [timestamp]). */
+    val createdAt: Long = 0L,
     val title: String,
     val prompt: String,
     val agents: MutableList<ReportAgent>,
@@ -254,6 +263,14 @@ data class Report(
      *  AI title-gen alongside the short [title]; null/blank for manually-set
      *  titles, which fall back to [title] via [barTitle]. */
     var titleLong: String? = null,
+    /** Wall-clock duration (ms) of each report-level metadata API call,
+     *  for the Report-info screen's total-API-time tally. Null on legacy
+     *  reports / before the call ran. The agent + secondary + icon-chain
+     *  calls carry their own durationMs already. */
+    var iconDurationMs: Long? = null,
+    var languageDurationMs: Long? = null,
+    var languageIconDurationMs: Long? = null,
+    var titleDurationMs: Long? = null,
     /** Per-call audit log for the 3-tier Create → Report icons
      *  chain. Cleared whenever a fresh chain run starts; otherwise
      *  every tier appends one [IconCallRecord]. The export's per-

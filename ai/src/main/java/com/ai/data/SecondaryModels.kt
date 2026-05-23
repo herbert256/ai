@@ -150,6 +150,9 @@ data class SecondaryResult(
     val titleOutputTokens: Int = 0,
     val titleInputCost: Double = 0.0,
     val titleOutputCost: Double = 0.0,
+    /** Wall-clock duration (ms) of the fan-out pair title call, for the
+     *  Report-info screen's total-API-time tally. Null before it ran. */
+    val titleDurationMs: Long? = null,
     /** Bundled prompt name that produced the currently-displayed
      *  [title]. "fan_out_title" on success. Null on legacy rows. */
     val titlePromptUsed: String? = null,

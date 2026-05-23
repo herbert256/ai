@@ -365,6 +365,12 @@ val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
  *  surface the function to nested screens. Default no-op. */
 val LocalSystemPromptChange = compositionLocalOf<(String?) -> Unit> { {} }
 
+/** Opens the standalone "Report information" screen for a reportId.
+ *  Provided around the AI_REPORTS composable; the Manage hub's ℹ️ icon
+ *  reads it. A CompositionLocal (not a threaded arg) for the same
+ *  64 KB-ceiling reason as [LocalSystemPromptChange]. Default no-op. */
+val LocalNavigateToReportInfo = compositionLocalOf<(String) -> Unit> { {} }
+
 /** Prev / next callbacks for the chronologically surrounding reports
  *  on disk. Provided by [ReportsScreenNav] (it builds the lambdas
  *  alongside the same callbacks ReportsScreen uses for its < / >

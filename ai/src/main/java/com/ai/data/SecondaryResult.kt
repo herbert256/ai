@@ -489,7 +489,8 @@ object SecondaryResultStorage {
      *  No-op when the row was deleted while the batch ran. */
     fun setFanOutTitle(
         context: Context, reportId: String, resultId: String,
-        title: String, titleRunId: String? = null, promptUsed: String? = null
+        title: String, titleRunId: String? = null, promptUsed: String? = null,
+        durationMs: Long? = null
     ) {
         init(context)
         lock.withLock {
@@ -502,7 +503,8 @@ object SecondaryResultStorage {
                 title = title,
                 titleErrorMessage = null,
                 titleRunId = titleRunId ?: current.titleRunId,
-                titlePromptUsed = promptUsed ?: current.titlePromptUsed
+                titlePromptUsed = promptUsed ?: current.titlePromptUsed,
+                titleDurationMs = durationMs ?: current.titleDurationMs
             )
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)

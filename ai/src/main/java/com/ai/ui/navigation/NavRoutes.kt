@@ -117,6 +117,7 @@ object NavRoutes {
     const val AI_FLOCK_VIEW = "ai_flock_view/{flockId}"
     const val AI_SWARM_VIEW = "ai_swarm_view/{swarmId}"
     const val AI_PROVIDER_VIEW = "ai_provider_view/{provider}"
+    const val AI_REPORT_INFO = "ai_report_info/{reportId}"
     const val AI_MANUAL_OVERRIDE_ADD = "ai_manual_override_add/{provider}/{model}"
     const val AI_MANUAL_COST_OVERRIDE_ADD = "ai_manual_cost_override_add/{provider}/{model}"
     const val AI_API_TEST = "ai_api_test"
@@ -126,6 +127,8 @@ object NavRoutes {
     const val DEVELOPER_OPTIONS = "developer_options"
 
     private fun encode(s: String) = URLEncoder.encode(s, "UTF-8").replace("+", "%20")
+
+    fun aiReportInfo(reportId: String) = "ai_report_info/$reportId"
 
     fun traceDetail(filename: String) = "trace_detail/$filename"
     fun aiAppLogDetail(filename: String, search: String = "") =

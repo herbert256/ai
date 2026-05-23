@@ -97,6 +97,7 @@ internal fun ReportRunScreen(
 ) {
     val aiSettings = uiState.aiSettings
     val context = LocalContext.current
+    val navigateToReportInfo = com.ai.ui.shared.LocalNavigateToReportInfo.current
     // Bumped every time the user taps the bottom-bar 📌 icon so the
     // isPinned produceState re-reads from disk and the 📌 tint flips
     // immediately (orange when pinned). Keyed on currentReportId so
@@ -238,6 +239,10 @@ internal fun ReportRunScreen(
             // View hub ("View an AI report") — same target as the green
             // report-name line and the bottom-bar 👁.
             onReportIconClick = onOpenViewReport,
+            // ℹ️ → the standalone "Report information" screen (real route).
+            // Read from a CompositionLocal rather than a threaded arg —
+            // ReportsScreen is at the JVM 64 KB method ceiling.
+            onInfo = currentReportId?.let { rid -> { navigateToReportInfo(rid) } },
             onBackClick = onDismiss,
             onReload = if (currentReportId != null && isComplete) onRequestRegenerate else null,
             onTrace = if (currentReportId != null) generationHandlers.onTrace else null,

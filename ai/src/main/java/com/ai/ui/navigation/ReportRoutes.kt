@@ -267,7 +267,10 @@ internal fun NavGraphBuilder.reportRoutes(
                 com.ai.ui.shared.LocalSystemPromptChange provides { id ->
                     appViewModel.setReportSystemPromptId(id)
                 },
-                com.ai.ui.shared.LocalActiveTranslationReportIds provides activeTranslationReportIds
+                com.ai.ui.shared.LocalActiveTranslationReportIds provides activeTranslationReportIds,
+                com.ai.ui.shared.LocalNavigateToReportInfo provides { rid ->
+                    navController.navigate(NavRoutes.aiReportInfo(rid))
+                }
             ) {
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
                 initialView = initialView,
@@ -394,5 +397,19 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateToTrace = { tf -> navController.navigate(NavRoutes.traceDetail(tf)) },
                 initialSearch = search
             )
+        }
+        // Standalone "Report information" screen — a real route (not the
+        // Manage/View overlay pattern), opened from the Manage hub ℹ️.
+        composable(NavRoutes.AI_REPORT_INFO) { entry ->
+            val rid = entry.arguments?.getString("reportId") ?: ""
+            com.ai.ui.navigation.ViewSubScreenWithTitleNav(
+                navController = navController,
+                currentReportId = rid
+            ) {
+                com.ai.ui.report.info.ReportInfoScreen(
+                    reportId = rid,
+                    onBack = safePopBack
+                )
+            }
         }
 }

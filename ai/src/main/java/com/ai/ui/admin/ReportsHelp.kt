@@ -467,6 +467,16 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Editing the prompt alone doesn't re-run agents — the existing responses stay on screen until you Regenerate."),
         )
     ),
+    "report_info" to HelpContent(
+        title = "Help - Report information",
+        cards = listOf(
+            HelpCard("Overview", "A read-only summary of one report, opened from the ℹ️ icon on the Manage hub. Unlike the rest of Manage/View it is its own real screen, so Android-back returns to Manage."),
+            HelpCard("Identity", "The report's icon, short title (list cards) and long title (top-bar line), plus the detected language + its emoji, and the report id."),
+            HelpCard("Timing", "Created is a stable creation time; Last changed bumps on every edit. Status reflects whether the run completed (and how many models errored)."),
+            HelpCard("Totals", "API calls, total API time (sums every recorded call duration — agents, secondaries, the icon chain and the metadata calls), total cost (the same figure as Report - costs), distinct models used, and token totals."),
+            HelpCard("By model", "Per provider/model breakdown: how many calls each made and what they cost."),
+        )
+    ),
     "report_edit_title" to HelpContent(
         title = "Help - Edit title",
         cards = listOf(

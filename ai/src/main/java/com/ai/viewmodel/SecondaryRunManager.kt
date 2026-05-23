@@ -1734,6 +1734,7 @@ class SecondaryRunManager(
         val newReport = Report(
             id = java.util.UUID.randomUUID().toString(),
             timestamp = now,
+            createdAt = now,
             title = newTitle,
             prompt = active.responseBody.orEmpty(),
             agents = newAgents.toMutableList(),

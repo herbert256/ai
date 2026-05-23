@@ -82,12 +82,14 @@ class IconGenerationManager(
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                    val started = System.currentTimeMillis()
                     val response = withTraceFilenameSink(traceSink) {
                         appViewModel.repository.analyzeWithAgent(
                             agent, "", resolved, AgentParameters(),
                             null, context, baseUrl
                         )
                     }
+                    val durationMs = System.currentTimeMillis() - started
                     // Always end with exactly one emoji glyph:
                     //  - many emojis: pick the first one.
                     //  - emoji + extra text: strip the prose.
@@ -106,7 +108,8 @@ class IconGenerationManager(
                             inputTokens = inT, outputTokens = outT,
                             inputCost = inC, outputCost = outC,
                             traceFile = traceSink.get(),
-                            promptUsed = "main"
+                            promptUsed = "main",
+                            durationMs = durationMs
                         )
                     } else {
                         ReportStorage.updateReportIconError(
@@ -163,12 +166,14 @@ class IconGenerationManager(
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                    val started = System.currentTimeMillis()
                     val response = withTraceFilenameSink(traceSink) {
                         appViewModel.repository.analyzeWithAgent(
                             agent, "", resolved, AgentParameters(),
                             null, context, baseUrl
                         )
                     }
+                    val durationMs = System.currentTimeMillis() - started
                     if (response.error == null) {
                         // The prompt asks for two lines — a short title then a
                         // long one. Clean each line defensively (some models
@@ -198,6 +203,7 @@ class IconGenerationManager(
                         ReportStorage.updateReportTitleFromAi(
                             context, reportId, generated,
                             titleLong = generatedLong.ifBlank { null },
+                            durationMs = durationMs,
                             inputTokens = inT, outputTokens = outT,
                             inputCost = inC, outputCost = outC,
                             traceFile = traceSink.get(),
@@ -289,12 +295,14 @@ class IconGenerationManager(
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                    val started = System.currentTimeMillis()
                     val response = withTraceFilenameSink(traceSink) {
                         appViewModel.repository.analyzeWithAgent(
                             agent, "", resolved, AgentParameters(),
                             null, context, baseUrl
                         )
                     }
+                    val durationMs = System.currentTimeMillis() - started
                     if (response.error == null) {
                         val raw = (response.analysis ?: "").trim()
                             .removePrefix("Title:").trim()
@@ -321,7 +329,8 @@ class IconGenerationManager(
                                 inputTokens = inT, outputTokens = outT,
                                 inputCost = inC, outputCost = outC,
                                 traceFile = traceSink.get(),
-                                promptUsed = "model_title"
+                                promptUsed = "model_title",
+                                durationMs = durationMs
                             )
                             if (inT > 0 || outT > 0) {
                                 appViewModel.settingsPrefs.updateUsageStatsAsync(
@@ -442,12 +451,14 @@ class IconGenerationManager(
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 val detectedName = runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                    val started = System.currentTimeMillis()
                     val response = withTraceFilenameSink(traceSink) {
                         appViewModel.repository.analyzeWithAgent(
                             agent, "", resolved, AgentParameters(),
                             null, context, baseUrl
                         )
                     }
+                    val durationMs = System.currentTimeMillis() - started
                     if (response.error != null) {
                         ReportStorage.updateReportLanguageError(
                             context, reportId, response.error
@@ -467,7 +478,8 @@ class IconGenerationManager(
                         inputTokens = inT, outputTokens = outT,
                         inputCost = inC, outputCost = outC,
                         traceFile = traceSink.get(),
-                        rawResponse = response.analysis
+                        rawResponse = response.analysis,
+                        durationMs = durationMs
                     )
                     if (name.isNullOrBlank()) {
                         ReportStorage.updateReportLanguageError(
@@ -521,12 +533,14 @@ class IconGenerationManager(
             val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
             runCatching {
                 val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
+                val started = System.currentTimeMillis()
                 val response = withTraceFilenameSink(traceSink) {
                     appViewModel.repository.analyzeWithAgent(
                         agent, "", resolved, AgentParameters(),
                         null, context, baseUrl
                     )
                 }
+                val durationMs = System.currentTimeMillis() - started
                 if (response.error != null) {
                     ReportStorage.updateReportLanguageError(
                         context, reportId, response.error
@@ -546,6 +560,7 @@ class IconGenerationManager(
                     inputTokens = inT, outputTokens = outT,
                     inputCost = inC, outputCost = outC,
                     traceFile = traceSink.get(),
+                    durationMs = durationMs,
                     rawResponse = response.analysis,
                     promptUsed = "language"
                 )
@@ -3014,7 +3029,8 @@ class IconGenerationManager(
                     if (title.isNotBlank()) {
                         SecondaryResultStorage.setFanOutTitle(
                             context, reportId, pair.id, title,
-                            titleRunId = titleRunId, promptUsed = "fan_out_title"
+                            titleRunId = titleRunId, promptUsed = "fan_out_title",
+                            durationMs = System.currentTimeMillis() - started
                         )
                     } else {
                         SecondaryResultStorage.setFanOutTitleError(

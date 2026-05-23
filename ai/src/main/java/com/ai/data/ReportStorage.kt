@@ -44,8 +44,9 @@ object ReportStorage {
         runId: String? = null
     ): Report {
         init(context)
-        val report = Report(explicitId ?: UUID.randomUUID().toString(), System.currentTimeMillis(), title, prompt,
-            agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText,
+        val now = System.currentTimeMillis()
+        val report = Report(explicitId ?: UUID.randomUUID().toString(), now, createdAt = now, title = title, prompt = prompt,
+            agents = agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText,
             imageBase64 = imageBase64, imageMime = imageMime, webSearchTool = webSearchTool,
             reasoningEffort = reasoningEffort, sourceReportId = sourceReportId,
             knowledgeBaseIds = knowledgeBaseIds, runId = runId)
@@ -363,7 +364,8 @@ object ReportStorage {
         traceFile: String? = null,
         /** Bundled prompt name that produced [icon] — "main" on the
          *  bundled initial-gen path, "main_alt" after a Find-alt pick. */
-        promptUsed: String? = null
+        promptUsed: String? = null,
+        durationMs: Long? = null
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -377,6 +379,7 @@ object ReportStorage {
                 iconOutputCost = report.iconOutputCost + outputCost,
                 iconTraceFile = traceFile,
                 iconPromptUsed = promptUsed ?: report.iconPromptUsed,
+                iconDurationMs = durationMs ?: report.iconDurationMs,
                 timestamp = System.currentTimeMillis()
             ))
             true
@@ -404,6 +407,7 @@ object ReportStorage {
     fun updateReportTitleFromAi(
         context: Context, reportId: String, newTitle: String,
         titleLong: String? = null,
+        durationMs: Long? = null,
         inputTokens: Int, outputTokens: Int,
         inputCost: Double, outputCost: Double,
         traceFile: String? = null,
@@ -422,6 +426,7 @@ object ReportStorage {
                 titleTraceFile = traceFile,
                 titleModel = model,
                 titlePromptUsed = promptUsed ?: report.titlePromptUsed,
+                titleDurationMs = durationMs ?: report.titleDurationMs,
                 timestamp = System.currentTimeMillis()
             ))
             true
@@ -503,7 +508,8 @@ object ReportStorage {
         inputTokens: Int = 0, outputTokens: Int = 0,
         inputCost: Double = 0.0, outputCost: Double = 0.0,
         traceFile: String? = null,
-        rawResponse: String? = null
+        rawResponse: String? = null,
+        durationMs: Long? = null
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -518,6 +524,7 @@ object ReportStorage {
                 languageOutputCost = report.languageOutputCost + outputCost,
                 languageTraceFile = traceFile,
                 languageRawResponse = rawResponse,
+                languageDurationMs = durationMs ?: report.languageDurationMs,
                 timestamp = System.currentTimeMillis()
             ))
             true
@@ -540,7 +547,8 @@ object ReportStorage {
         /** Bundled prompt name that produced [icon] — "language" on
          *  the initial second-call gen, "language_alt" after a
          *  Find-alt pick. Surfaces on the Icon lookup screen. */
-        promptUsed: String? = null
+        promptUsed: String? = null,
+        durationMs: Long? = null
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -557,6 +565,7 @@ object ReportStorage {
                 languageIconTraceFile = traceFile,
                 languageIconRawResponse = rawResponse,
                 languageIconPromptUsed = promptUsed ?: report.languageIconPromptUsed,
+                languageIconDurationMs = durationMs ?: report.languageIconDurationMs,
                 timestamp = System.currentTimeMillis()
             ))
             true
@@ -852,7 +861,8 @@ object ReportStorage {
         inputTokens: Int, outputTokens: Int,
         inputCost: Double, outputCost: Double,
         traceFile: String? = null,
-        promptUsed: String? = null
+        promptUsed: String? = null,
+        durationMs: Long? = null
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -868,6 +878,7 @@ object ReportStorage {
                 modelTitleInputCost = prev.modelTitleInputCost + inputCost,
                 modelTitleOutputCost = prev.modelTitleOutputCost + outputCost,
                 modelTitleTraceFile = traceFile ?: prev.modelTitleTraceFile,
+                modelTitleDurationMs = durationMs ?: prev.modelTitleDurationMs,
                 modelTitlePromptUsed = promptUsed ?: prev.modelTitlePromptUsed
             )
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }
@@ -1173,6 +1184,7 @@ object ReportStorage {
             val copy = Report(
                 id = newId,
                 timestamp = System.currentTimeMillis(),
+                createdAt = System.currentTimeMillis(),
                 title = if (src.title.endsWith("(Copy)")) src.title else "${src.title} (Copy)",
                 titleLong = src.titleLong,
                 prompt = src.prompt,
