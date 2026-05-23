@@ -413,7 +413,13 @@ internal fun ColumnScope.GenerationPhase(
 ) {
     // Local aliases so the existing body keeps reading short names
     // — avoids touching every call site inside this 1000-line phase.
-    val onViewAgent = handlers.onViewAgent
+    // The 'report' row tap opens the standalone Report-model route. Read
+    // the navigator here (not in ReportsScreen, which is at the JVM 64 KB
+    // method ceiling) and resolve at the click site.
+    val navigateToReportModel = com.ai.ui.shared.LocalNavigateToReportModel.current
+    val onViewAgent: (String) -> Unit = { agentId ->
+        currentReportId?.let { rid -> navigateToReportModel(rid, agentId) }
+    }
     val onShare = handlers.onShare
     val onTrace = handlers.onTrace
     val onDelete = handlers.onDelete

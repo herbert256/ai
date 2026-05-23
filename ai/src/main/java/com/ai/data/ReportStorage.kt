@@ -62,7 +62,7 @@ object ReportStorage {
         inputCost: Double? = null, outputCost: Double? = null,
         citations: List<String>? = null,
         searchResults: List<SearchResult>? = null, relatedQuestions: List<String>? = null,
-        rawUsageJson: String? = null, durationMs: Long? = null
+        rawUsageJson: String? = null, durationMs: Long? = null, traceFile: String? = null
     ) {
         init(context)
         lock.withLock {
@@ -116,6 +116,7 @@ object ReportStorage {
             if (inputCost != null) agent.inputCost = (agent.inputCost ?: 0.0) + inputCost
             if (outputCost != null) agent.outputCost = (agent.outputCost ?: 0.0) + outputCost
             if (durationMs != null) agent.durationMs = durationMs
+            if (traceFile != null) agent.traceFile = traceFile
             if (report.agents.all { it.reportStatus in listOf(ReportStatus.SUCCESS, ReportStatus.ERROR, ReportStatus.STOPPED) }) {
                 report.completedAt = System.currentTimeMillis()
             }
@@ -131,18 +132,22 @@ object ReportStorage {
         responseHeaders: String?, responseBody: String?, tokenUsage: TokenUsage?, cost: Double?,
         inputCost: Double? = null, outputCost: Double? = null,
         citations: List<String>? = null, searchResults: List<SearchResult>? = null,
-        relatedQuestions: List<String>? = null, rawUsageJson: String? = null, durationMs: Long? = null
+        relatedQuestions: List<String>? = null, rawUsageJson: String? = null, durationMs: Long? = null,
+        traceFile: String? = null
     ) = updateAgentStatus(context, reportId, agentId, ReportStatus.SUCCESS, httpStatus,
         responseHeaders = responseHeaders, responseBody = responseBody, tokenUsage = tokenUsage,
         cost = cost, inputCost = inputCost, outputCost = outputCost,
         citations = citations, searchResults = searchResults,
-        relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, durationMs = durationMs)
+        relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, durationMs = durationMs,
+        traceFile = traceFile)
 
     fun markAgentError(
         context: Context, reportId: String, agentId: String, httpStatus: Int?,
-        errorMessage: String?, responseHeaders: String? = null, responseBody: String? = null, durationMs: Long? = null
+        errorMessage: String?, responseHeaders: String? = null, responseBody: String? = null, durationMs: Long? = null,
+        traceFile: String? = null
     ) = updateAgentStatus(context, reportId, agentId, ReportStatus.ERROR, httpStatus,
-        errorMessage = errorMessage, responseHeaders = responseHeaders, responseBody = responseBody, durationMs = durationMs)
+        errorMessage = errorMessage, responseHeaders = responseHeaders, responseBody = responseBody, durationMs = durationMs,
+        traceFile = traceFile)
 
     fun markAgentStopped(context: Context, reportId: String, agentId: String) =
         updateAgentStatus(context, reportId, agentId, ReportStatus.STOPPED, errorMessage = "Stopped by user")
@@ -168,19 +173,21 @@ object ReportStorage {
         responseHeaders: String?, responseBody: String?, tokenUsage: TokenUsage?, cost: Double?,
         inputCost: Double? = null, outputCost: Double? = null,
         citations: List<String>? = null, searchResults: List<SearchResult>? = null,
-        relatedQuestions: List<String>? = null, rawUsageJson: String? = null, durationMs: Long? = null
+        relatedQuestions: List<String>? = null, rawUsageJson: String? = null, durationMs: Long? = null,
+        traceFile: String? = null
     ) = withContext(Dispatchers.IO) {
         markAgentSuccess(
             context, reportId, agentId, httpStatus, responseHeaders, responseBody, tokenUsage, cost,
             inputCost, outputCost,
-            citations, searchResults, relatedQuestions, rawUsageJson, durationMs
+            citations, searchResults, relatedQuestions, rawUsageJson, durationMs, traceFile
         )
     }
 
     suspend fun markAgentErrorAsync(
         context: Context, reportId: String, agentId: String, httpStatus: Int?,
-        errorMessage: String?, responseHeaders: String? = null, responseBody: String? = null, durationMs: Long? = null
-    ) = withContext(Dispatchers.IO) { markAgentError(context, reportId, agentId, httpStatus, errorMessage, responseHeaders, responseBody, durationMs) }
+        errorMessage: String?, responseHeaders: String? = null, responseBody: String? = null, durationMs: Long? = null,
+        traceFile: String? = null
+    ) = withContext(Dispatchers.IO) { markAgentError(context, reportId, agentId, httpStatus, errorMessage, responseHeaders, responseBody, durationMs, traceFile) }
 
     suspend fun markAgentStoppedAsync(context: Context, reportId: String, agentId: String) =
         withContext(Dispatchers.IO) { markAgentStopped(context, reportId, agentId) }
@@ -830,7 +837,8 @@ object ReportStorage {
         /** Bundled prompt that produced [icon] — "report_2" for
          *  tier 1, "report" for tier 2, "report_3" for tier 3.
          *  Surfaces on the Icon lookup screen. */
-        promptUsed: String? = null
+        promptUsed: String? = null,
+        traceFile: String? = null
     ): Boolean {
         init(context)
         return lock.withLock {
@@ -841,6 +849,7 @@ object ReportStorage {
             val updated = prev.copy(
                 icon = icon, iconErrorMessage = null,
                 iconWinningTier = winningTier,
+                iconTraceFile = traceFile ?: prev.iconTraceFile,
                 iconPromptUsed = promptUsed ?: prev.iconPromptUsed
             )
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }

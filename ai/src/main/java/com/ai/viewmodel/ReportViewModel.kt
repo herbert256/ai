@@ -534,21 +534,27 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // area than payoff.
         val knowledgeBaseIds = ReportStorage.getReport(context, reportId)?.knowledgeBaseIds.orEmpty()
         val startTime = System.currentTimeMillis()
+        // Capture the primary call's trace filename so it can be stored on
+        // the agent row (read directly by the per-model viewer's 🐞 instead
+        // of a fragile ApiTracer time-based guess).
+        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
         val response = try {
             val baseUrl = appViewModel.uiState.value.aiSettings.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
-            appViewModel.repository.analyzeWithAgent(
-                task.runtimeAgent,
-                "",
-                aiPrompt,
-                task.resolvedParams,
-                overrideParams,
-                context,
-                baseUrl,
-                imageBase64,
-                imageMime,
-                knowledgeBaseIds = knowledgeBaseIds,
-                aiSettings = appViewModel.uiState.value.aiSettings
-            )
+            com.ai.data.withTraceFilenameSink(traceSink) {
+                appViewModel.repository.analyzeWithAgent(
+                    task.runtimeAgent,
+                    "",
+                    aiPrompt,
+                    task.resolvedParams,
+                    overrideParams,
+                    context,
+                    baseUrl,
+                    imageBase64,
+                    imageMime,
+                    knowledgeBaseIds = knowledgeBaseIds,
+                    aiSettings = appViewModel.uiState.value.aiSettings
+                )
+            }
         } catch (e: kotlinx.coroutines.CancellationException) {
             // Honor structured cancellation (Stop / nav-away) instead of
             // persisting a fake error onto the agent row.
@@ -589,10 +595,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     response.tokenUsage?.let { frozenInputCost },
                     response.tokenUsage?.let { frozenOutputCost },
                     response.citations, response.searchResults,
-                    response.relatedQuestions, response.rawUsageJson, durationMs)
+                    response.relatedQuestions, response.rawUsageJson, durationMs,
+                    traceFile = traceSink.get())
             } else {
                 ReportStorage.markAgentErrorAsync(context, reportId, task.resultId,
-                    response.httpStatusCode, response.error, response.httpHeaders, response.analysis, durationMs)
+                    response.httpStatusCode, response.error, response.httpHeaders, response.analysis, durationMs,
+                    traceFile = traceSink.get())
             }
         }
 

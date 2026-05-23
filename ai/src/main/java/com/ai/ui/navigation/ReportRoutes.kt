@@ -458,6 +458,7 @@ internal fun NavGraphBuilder.reportRoutes(
                     onNavigateHome = navigateHome,
                     onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                     onNavigateToTraceFile = { fn -> navController.navigate(NavRoutes.traceDetail(fn)) },
+                    onNavigateToViewReports = { aid -> navController.navigate(NavRoutes.aiReportViewAtAgent(aid)) },
                     onRemoveAgent = { r, a -> reportViewModel.removeAgentFromReport(rmContext, r, a) },
                     onRegenerateAgent = { r, a -> reportViewModel.regenerateAgent(rmContext, r, a) },
                     onContinueWithCurrent = { r, a ->

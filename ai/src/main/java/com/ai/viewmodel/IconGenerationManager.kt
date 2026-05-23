@@ -2073,35 +2073,39 @@ class IconGenerationManager(
             appViewModel.updateUiState {
                 it.copy(iconRefreshTick = it.iconRefreshTick + 1)
             }
+            // Each tier overwrites this sink; the winning (last-run) tier
+            // leaves its trace filename here, stored on the agent so the
+            // per-model viewer's icon 🐞 points at the exact call.
+            val iconTraceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
 
             // Tier 1 — chat continuation.
             val tier1Emoji = chatPrompt?.let { p ->
-                runTier1(context, reportId, agentProvider, ra, p, reportPrompt, agentResponse, aiSettings)
+                runTier1(context, reportId, agentProvider, ra, p, reportPrompt, agentResponse, aiSettings, iconTraceSink)
             }
             if (tier1Emoji != null) {
-                commitChainResult(context, reportId, ra.agentId, tier1Emoji, winningTier = 1)
+                commitChainResult(context, reportId, ra.agentId, tier1Emoji, winningTier = 1, traceFile = iconTraceSink.get())
                 return@launch
             }
 
             // Tier 2 — one-shot report_icon template.
             val tier2Emoji = tier2Prompt?.let { p ->
-                runTier2(context, reportId, agentProvider, ra, p, reportPrompt, agentResponse, aiSettings)
+                runTier2(context, reportId, agentProvider, ra, p, reportPrompt, agentResponse, aiSettings, iconTraceSink)
             }
             if (tier2Emoji != null) {
-                commitChainResult(context, reportId, ra.agentId, tier2Emoji, winningTier = 2)
+                commitChainResult(context, reportId, ra.agentId, tier2Emoji, winningTier = 2, traceFile = iconTraceSink.get())
                 return@launch
             }
 
             // Tier 3 — fixed bundled-agent fallback.
             val tier3Emoji = tier3Prompt?.let { p ->
-                runTier3(context, reportId, ra, p, agentResponse, aiSettings)
+                runTier3(context, reportId, ra, p, agentResponse, aiSettings, iconTraceSink)
             }
             if (tier3Emoji != null) {
-                commitChainResult(context, reportId, ra.agentId, tier3Emoji, winningTier = 3)
+                commitChainResult(context, reportId, ra.agentId, tier3Emoji, winningTier = 3, traceFile = iconTraceSink.get())
                 return@launch
             }
 
-            // All three tiers failed — final 📝 fallback.
+            // All three tiers failed — final 📝 fallback (no real call trace).
             commitChainResult(context, reportId, ra.agentId, "📝", winningTier = null)
         }
         rvm.registerReportIconForAgentJob(reportId, ra.agentId, outer)
@@ -2115,7 +2119,8 @@ class IconGenerationManager(
     private suspend fun runTier1(
         context: Context, reportId: String, provider: AppService,
         ra: ReportAgent, chatPrompt: InternalPrompt,
-        reportPrompt: String, agentResponse: String, aiSettings: Settings
+        reportPrompt: String, agentResponse: String, aiSettings: Settings,
+        traceSink: java.util.concurrent.atomic.AtomicReference<String?>
     ): String? {
         val host = providerHost(provider)
         val releaser = ProviderThrottle.acquire(host)
@@ -2131,10 +2136,12 @@ class IconGenerationManager(
                         )
                         val apiKey = aiSettings.getApiKey(provider)
                         val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
-                        val responseText = appViewModel.repository.sendChat(
-                            service = provider, apiKey = apiKey, model = ra.model,
-                            messages = messages, params = ChatParameters(), baseUrl = baseUrl
-                        )
+                        val responseText = withTraceFilenameSink(traceSink) {
+                            appViewModel.repository.sendChat(
+                                service = provider, apiKey = apiKey, model = ra.model,
+                                messages = messages, params = ChatParameters(), baseUrl = baseUrl
+                            )
+                        }
                         val durationMs = System.currentTimeMillis() - started
                         // sendChat returns plain text — no wire token
                         // counts. Char-length heuristic, same one
@@ -2166,7 +2173,8 @@ class IconGenerationManager(
     private suspend fun runTier2(
         context: Context, reportId: String, provider: AppService,
         ra: ReportAgent, tier2Prompt: InternalPrompt,
-        reportPrompt: String, agentResponse: String, aiSettings: Settings
+        reportPrompt: String, agentResponse: String, aiSettings: Settings,
+        traceSink: java.util.concurrent.atomic.AtomicReference<String?>
     ): String? {
         val host = providerHost(provider)
         val releaser = ProviderThrottle.acquire(host)
@@ -2186,10 +2194,12 @@ class IconGenerationManager(
                         val resolved = tier2Prompt.text
                             .replace("@PROMPT@", reportPrompt)
                             .replace("@RESPONSE@", agentResponse)
-                        val response = appViewModel.repository.analyzeWithAgent(
-                            syntheticAgent, "", resolved, AgentParameters(),
-                            null, context, baseUrl
-                        )
+                        val response = withTraceFilenameSink(traceSink) {
+                            appViewModel.repository.analyzeWithAgent(
+                                syntheticAgent, "", resolved, AgentParameters(),
+                                null, context, baseUrl
+                            )
+                        }
                         val durationMs = System.currentTimeMillis() - started
                         val tu = response.tokenUsage
                         val inT = tu?.inputTokens ?: 0
@@ -2221,7 +2231,8 @@ class IconGenerationManager(
     private suspend fun runTier3(
         context: Context, reportId: String,
         ra: ReportAgent, tier3Prompt: InternalPrompt,
-        agentResponse: String, aiSettings: Settings
+        agentResponse: String, aiSettings: Settings,
+        traceSink: java.util.concurrent.atomic.AtomicReference<String?>
     ): String? {
         val rawAgent = aiSettings.agents.firstOrNull {
             it.name.equals(tier3Prompt.agent, ignoreCase = true)
@@ -2242,10 +2253,12 @@ class IconGenerationManager(
                     runCatching {
                         val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(effectiveAgent)
                         val resolved = tier3Prompt.text.replace("@RESPONSE@", agentResponse)
-                        val response = appViewModel.repository.analyzeWithAgent(
-                            effectiveAgent, "", resolved, AgentParameters(),
-                            null, context, baseUrl
-                        )
+                        val response = withTraceFilenameSink(traceSink) {
+                            appViewModel.repository.analyzeWithAgent(
+                                effectiveAgent, "", resolved, AgentParameters(),
+                                null, context, baseUrl
+                            )
+                        }
                         val durationMs = System.currentTimeMillis() - started
                         val tu = response.tokenUsage
                         val inT = tu?.inputTokens ?: 0
@@ -2316,7 +2329,7 @@ class IconGenerationManager(
      *  result-screen row picks up the new value. */
     private suspend fun commitChainResult(
         context: Context, reportId: String, agentId: String,
-        emoji: String, winningTier: Int?
+        emoji: String, winningTier: Int?, traceFile: String? = null
     ) {
         // Map tier number to the bundled prompt name that produced
         // the icon — surfaces on the Icon lookup screen's subject row.
@@ -2327,7 +2340,7 @@ class IconGenerationManager(
             else -> null
         }
         ReportStorage.setReportAgentIconAndTier(
-            context, reportId, agentId, emoji, winningTier, promptUsed = promptUsed
+            context, reportId, agentId, emoji, winningTier, promptUsed = promptUsed, traceFile = traceFile
         )
         appViewModel.updateUiState {
             it.copy(iconRefreshTick = it.iconRefreshTick + 1)

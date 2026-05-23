@@ -80,7 +80,11 @@ fun ReportModelScreen(
      *  below the response taps through here so a user can land
      *  directly on the Agent Icon screen without backing out to
      *  the report's agent grid. */
-    onOpenAgentIcon: (String) -> Unit = {}
+    onOpenAgentIcon: (String) -> Unit = {},
+    /** Real-route 👁 target: open the View "Model reports" screen for this
+     *  report seeded at the given agent. Used when there's no overlay
+     *  [LocalPendingViewOverManage] holder (the standalone route). */
+    onNavigateToViewReports: (String) -> Unit = {}
 ) {
     // Track which agent is currently shown locally so the Previous /
     // Next buttons at the bottom can step through report.agents
@@ -138,28 +142,11 @@ fun ReportModelScreen(
         return
     }
 
-    val agentTraceFilenameState = produceState<String?>(initialValue = null, reportId, agent.model, agent.agentId) {
-        value = withContext(Dispatchers.IO) {
-            ApiTracer.getTraceFiles()
-                .filter { it.reportId == reportId && it.model == agent.model }
-                .maxByOrNull { it.timestamp }?.filename
-        }
-    }
-    val agentTraceFilename = agentTraceFilenameState.value
-
-    // Best-effort trace for the per-model ICON chain (reportId + this
-    // model + an "icon" category, newest). Null when tracing was off or
-    // the chain billed a different model (tier-3 fallback) — the 🐞 is
-    // simply hidden then.
-    val iconTraceState = produceState<String?>(initialValue = null, reportId, agent.model, agent.agentId) {
-        value = withContext(Dispatchers.IO) {
-            ApiTracer.getTraceFiles()
-                .filter { it.reportId == reportId && it.model == agent.model &&
-                    (it.category?.contains("icon", ignoreCase = true) == true) }
-                .maxByOrNull { it.timestamp }?.filename
-        }
-    }
-    val iconTraceFilename = iconTraceState.value
+    // Trace filenames stored on the agent at call time (no fragile
+    // ApiTracer time-based guessing): primary response, per-model icon
+    // chain, per-model title.
+    val agentTraceFilename = agent.traceFile?.takeIf { it.isNotBlank() }
+    val iconTraceFilename = agent.iconTraceFile?.takeIf { it.isNotBlank() }
     val titleTraceFilename = agent.modelTitleTraceFile?.takeIf { it.isNotBlank() }
 
     // Load this report's TRANSLATE secondaries — drives the language
@@ -278,11 +265,13 @@ fun ReportModelScreen(
     }
     val agentIdx = orderedAgents.indexOfFirst { it.agentId == currentAgentId }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        // 👁 → matching View Reports at this agent.
+        // 👁 → the View "Model reports" screen at this agent. Overlay
+        // path uses the pending-jump holder; the standalone route (holder
+        // null) navigates via onNavigateToViewReports.
         val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
         val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
             { holder.value = com.ai.ui.shared.ViewJump.Reports(currentAgentId) }
-        }
+        } ?: { onNavigateToViewReports(currentAgentId) }
         TitleBar(
             helpTopic = "report_single_result",
             title = "Model response",

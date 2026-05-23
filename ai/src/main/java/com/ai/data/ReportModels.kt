@@ -36,6 +36,13 @@ data class ReportAgent(
     var relatedQuestions: List<String>? = null,
     var rawUsageJson: String? = null,
     var durationMs: Long? = null,
+    /** Trace filename of THIS agent's primary response call. Stored at
+     *  completion so 🐞 affordances point at the exact call instead of
+     *  guessing via ApiTracer. Null when tracing was off / legacy rows. */
+    var traceFile: String? = null,
+    /** Trace filename of the WINNING per-model icon-chain tier (the call
+     *  that produced [icon]). Mirrors [modelTitleTraceFile]. */
+    var iconTraceFile: String? = null,
     /** Per-agent icon produced by Create → Report icons. Filled
      *  by [ReportViewModel.runReportIcons] which fires the
      *  internal/icon prompt against this agent's own (provider,

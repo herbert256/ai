@@ -1842,11 +1842,11 @@ fun ReportsScreen(
         return
     }
 
-    val navigateToReportModel = com.ai.ui.shared.LocalNavigateToReportModel.current
     val generationHandlers = GenerationPhaseHandlers(
-        // Tapping a 'report' row opens the standalone Report-model screen
-        // (real route) instead of the old in-screen overlay.
-        onViewAgent = { agentId -> currentReportId?.let { rid -> navigateToReportModel(rid, agentId) } },
+        // The 'report' row tap is handled inside GenerationPhase (it opens
+        // the standalone Report-model route via LocalNavigateToReportModel)
+        // — kept out of ReportsScreen, which sits at the 64 KB ceiling.
+        onViewAgent = {},
         onShare = { showExport = true },
         onTrace = { currentReportId?.let(onNavigateToTrace) },
         onDelete = { showDeleteConfirm = true },
