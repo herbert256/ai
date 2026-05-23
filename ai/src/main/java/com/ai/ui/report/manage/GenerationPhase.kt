@@ -280,6 +280,9 @@ internal data class GenerationPhaseHandlers(
      *  name. Routes to SecondaryResultsScreen with the icon-mode
      *  flag, which mounts FanOutScreen in ICONS mode. */
     val onViewFanIcons: (String) -> Unit = { _ -> },
+    /** Title counterpart of [onViewFanIcons] — opens the fan-out
+     *  drill-in in TITLES mode for a fan-out's metaPrompt name. */
+    val onViewFanTitles: (String) -> Unit = { _ -> },
     val onOpenSecondaryRun: (String) -> Unit = { _ -> },
     val onOpenTranslationRun: (String) -> Unit = { _ -> },
     val onOpenMeta: () -> Unit = {},
@@ -431,6 +434,7 @@ internal fun ColumnScope.GenerationPhase(
     val onCancelTranslation = handlers.onCancelTranslation
     val onViewSecondaryName = handlers.onViewSecondaryName
     val onViewFanIcons = handlers.onViewFanIcons
+    val onViewFanTitles = handlers.onViewFanTitles
     val onOpenSecondaryRun = handlers.onOpenSecondaryRun
     val onOpenTranslationRun = handlers.onOpenTranslationRun
     val onOpenMeta = handlers.onOpenMeta
@@ -1154,6 +1158,40 @@ internal fun ColumnScope.GenerationPhase(
                     }
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }
+
+                // Sibling "fan-titles" row — mirror of the fan-icons
+                // row above, shown once a Fan Out Titles batch has
+                // landed at least one title / title error on this run's
+                // pairs. Tap opens the same pair drill-in in TITLES mode.
+                if (run.titleCount > 0) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
+                            onViewFanTitles(run.metaPromptName)
+                        },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        when {
+                            run.titlePendingCount > 0 -> Box(
+                                modifier = Modifier.width(24.dp),
+                                contentAlignment = Alignment.Center
+                            ) { AnimatedHourglass(fontSize = 16.sp) }
+                            else -> Text("🏷️", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        }
+                        RowTypeCell("fan-titles")
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "${run.metaPromptName} · ${run.titleCount} title${if (run.titleCount == 1) "" else "s"}",
+                                fontSize = 13.sp, color = Color.White,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (run.titleCost > 0.0) {
+                            Text(formatCents(run.titleCost), fontSize = 10.sp,
+                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+                }
             }
         }
 
@@ -1624,6 +1662,11 @@ internal data class FanOutRunSummary(
      *  pairs — rendered on the sibling "fan-icons" row. Separate from
      *  [totalCost], which covers only the fan-out pair calls. */
     val iconCost: Double,
+    /** Title counterparts of [iconCount] / [iconPendingCount] /
+     *  [iconCost] — drive the sibling "fan-titles" row. */
+    val titleCount: Int,
+    val titlePendingCount: Int,
+    val titleCost: Double,
     val totalCost: Double,
     /** Latest timestamp across the run; used to sort against the other
      *  meta rows. */
@@ -1661,6 +1704,14 @@ internal fun buildFanOutSummaries(rows: List<com.ai.data.SecondaryResult>): List
                         it.icon.isNullOrBlank() && it.iconErrorMessage.isNullOrBlank()
                 },
                 iconCost = items.sumOf { it.iconInputCost + it.iconOutputCost },
+                titleCount = items.count {
+                    !it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank()
+                },
+                titlePendingCount = items.count {
+                    !it.content.isNullOrBlank() &&
+                        it.title.isNullOrBlank() && it.titleErrorMessage.isNullOrBlank()
+                },
+                titleCost = items.sumOf { it.titleInputCost + it.titleOutputCost },
                 totalCost = items.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) },
                 timestamp = items.maxOf { it.timestamp }
             )

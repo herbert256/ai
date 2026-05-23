@@ -1897,6 +1897,12 @@ fun ReportsScreen(
             listIsFanIcons = true
             listIsFanTitles = false
         },
+        onViewFanTitles = { name ->
+            listKind = SecondaryKind.META
+            listFilterByName = name
+            listIsFanIcons = false
+            listIsFanTitles = true
+        },
         onOpenSecondaryRun = { id ->
             secondaryLockedLanguage = null
             openMetaResultId = id
