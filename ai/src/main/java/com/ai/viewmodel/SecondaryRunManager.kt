@@ -851,6 +851,22 @@ class SecondaryRunManager(
             }
         }
 
+        // 2b. Fan-out TITLE batches: relaunch any fan-titles sweep the
+        //     user started (some pair already carries a title / title
+        //     error / titleRunId) so a batch interrupted by an app kill
+        //     resumes from this same app-start / periodic / report-open
+        //     orchestrator — exactly like the fan-out pairs above and the
+        //     fan-icons relaunch on report open. runFanTitlesBatch dedupes
+        //     in-flight jobs and is a no-op when no pair is pending a title.
+        rows.filter {
+            it.kind == SecondaryKind.META && it.fanOutSourceAgentId != null && it.fanInOf == null &&
+                (!it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank() || it.titleRunId != null)
+        }
+            .mapNotNull { it.metaPromptId }
+            .distinct()
+            .filter { pid -> aiSettings.internalPrompts.any { it.id == pid } }
+            .forEach { promptId -> rvm.iconGen.runFanTitlesBatch(context, reportId, promptId) }
+
         // 3. Single-call Meta/Rerank/Moderation: re-issue each stale
         //    placeholder via executeSecondaryTask. Fan-in single
         //    (fanInOf != null) and model-fan-in (scopeProviderId != null)

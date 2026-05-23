@@ -214,8 +214,15 @@ internal fun rememberReportRuntimeState(
         pairs.groupBy { it.metaPromptId }
             .forEach { (metaPromptId, rows) ->
                 if (metaPromptId == null) return@forEach
-                val started = rows.any { !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() }
-                if (started) fanRuntime.onLaunchFanIconsBatch(rid, metaPromptId)
+                val iconStarted = rows.any { !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() }
+                if (iconStarted) fanRuntime.onLaunchFanIconsBatch(rid, metaPromptId)
+                // Same treatment for the fan-titles batch: relaunch any
+                // titles sweep the user started (a pair already carries a
+                // title / title error / titleRunId) so an interrupted batch
+                // resumes on report open, exactly like fan-icons. The batch
+                // is a no-op when no pair is pending a title.
+                val titleStarted = rows.any { !it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank() || it.titleRunId != null }
+                if (titleStarted) fanRuntime.onLaunchFanTitlesBatch(rid, metaPromptId)
             }
     }
 
