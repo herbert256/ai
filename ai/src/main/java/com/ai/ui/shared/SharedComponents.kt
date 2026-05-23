@@ -1147,7 +1147,7 @@ internal fun AppTopBarChrome(
         }
     }
     Box(modifier = modifier.fillMaxWidth()) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth()
                 .then(
                     if (swipeEnabled) {
@@ -1175,8 +1175,8 @@ internal fun AppTopBarChrome(
                     } else Modifier
                 )
                 // Break ~10dp past the screen's 16dp side padding so the
-                // edge icons sit close to the screen edges (≈6dp) while the
-                // centre column still hugs them (icons use offset 0).
+                // edge icons + the full-width orange line reach close to
+                // the screen edges.
                 .layout { measurable, constraints ->
                     val outsetPx = 10.dp.roundToPx()
                     val widenedMax = if (constraints.maxWidth == androidx.compose.ui.unit.Constraints.Infinity)
@@ -1197,38 +1197,33 @@ internal fun AppTopBarChrome(
                     layout(placeable.width, (placeable.height - shift).coerceAtLeast(0)) {
                         placeable.place(0, -shift)
                     }
-                },
-            verticalAlignment = Alignment.CenterVertically
+                }
         ) {
-            // Left — report glyph > section icon > AI logo.
-            if (reportIcon != null) {
-                ReportGlyphIcon(
-                    emoji = reportIcon, boxSize = 49.5.dp,
-                    modifier = Modifier.align(Alignment.Top).padding(top = 3.dp)
-                        .then(if (onReportIconClick != null) Modifier.clickable(onClick = onReportIconClick) else Modifier)
-                )
-            } else if (sectionIcon != null) {
-                ReportGlyphIcon(
-                    emoji = sectionIcon.glyph, boxSize = 49.5.dp,
-                    modifier = Modifier.align(Alignment.Top).padding(top = 3.dp)
-                        .clickable(onClick = sectionIcon.onClick)
-                )
-            } else {
-                AiLogoButton(
-                    onClick = onReportIconClick ?: navigateHome,
-                    modifier = Modifier.align(Alignment.Top).padding(top = 4.dp),
-                    size = 49.5.dp
-                )
-            }
-            // Centre — white title / orange 2nd line / green 3rd line.
+            val titleClick = onTitleClick ?: sectionIcon?.onClick
             var bigSizeFits by remember(screenTitle, secondLine, thirdLine) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else secondLine.orEmpty()
-            // Screen-title tap: explicit handler, else the section nav.
-            val titleClick = onTitleClick ?: sectionIcon?.onClick
-            val colMod = Modifier.weight(1f)
-                .let { base -> if (titleClick != null) base.clickable(onClick = titleClick) else base }
-            Column(modifier = colMod, horizontalAlignment = Alignment.CenterHorizontally) {
+            // Top row: left icon · white screen title · right icon.
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                // Left — report glyph > section icon > AI logo.
+                if (reportIcon != null) {
+                    ReportGlyphIcon(
+                        emoji = reportIcon, boxSize = 44.dp,
+                        modifier = Modifier.align(Alignment.Top)
+                            .then(if (onReportIconClick != null) Modifier.clickable(onClick = onReportIconClick) else Modifier)
+                    )
+                } else if (sectionIcon != null) {
+                    ReportGlyphIcon(
+                        emoji = sectionIcon.glyph, boxSize = 44.dp,
+                        modifier = Modifier.align(Alignment.Top).clickable(onClick = sectionIcon.onClick)
+                    )
+                } else {
+                    AiLogoButton(
+                        onClick = onReportIconClick ?: navigateHome,
+                        modifier = Modifier.align(Alignment.Top),
+                        size = 44.dp
+                    )
+                }
                 Text(
                     text = topText, color = Color.White,
                     fontSize = if (bigSizeFits) 20.4.sp else 15.3.sp,
@@ -1237,44 +1232,46 @@ internal fun AppTopBarChrome(
                     overflow = androidx.compose.ui.text.style.TextOverflow.Clip,
                     textAlign = TextAlign.Center,
                     onTextLayout = { result -> if (bigSizeFits && result.hasVisualOverflow) bigSizeFits = false },
-                    modifier = Modifier.fillMaxWidth().offset(y = (-4).dp)
+                    modifier = Modifier.weight(1f)
+                        .let { base -> if (titleClick != null) base.clickable(onClick = titleClick) else base }
                 )
-                if (hasScreenTitle && !secondLine.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        val textMod = Modifier.weight(1f, fill = true)
-                            .let { base ->
-                                when {
-                                    secondProviderService != null && !secondModel.isNullOrBlank() ->
-                                        base.modelInfoClickable(secondProviderService, secondModel)
-                                    secondLineOnClick != null -> base.clickable(onClick = secondLineOnClick)
-                                    else -> base
-                                }
+                // Right — mirrored AI logo → Home.
+                AiLogoButton(
+                    onClick = navigateHome,
+                    modifier = Modifier.align(Alignment.Top),
+                    size = 44.dp, mirrored = true
+                )
+            }
+            // Orange 2nd line — full screen width (not boxed by the icons).
+            if (hasScreenTitle && !secondLine.isNullOrBlank()) {
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    val textMod = Modifier.weight(1f, fill = true)
+                        .let { base ->
+                            when {
+                                secondProviderService != null && !secondModel.isNullOrBlank() ->
+                                    base.modelInfoClickable(secondProviderService, secondModel)
+                                secondLineOnClick != null -> base.clickable(onClick = secondLineOnClick)
+                                else -> base
                             }
-                        Text(
-                            text = secondLine, color = AppColors.Orange,
-                            fontSize = 15.3.sp, fontWeight = FontWeight.SemiBold,
-                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center, modifier = textMod
-                        )
-                        secondTrailing()
-                    }
-                }
-                if (!thirdLine.isNullOrBlank()) {
+                        }
                     Text(
-                        text = thirdLine, color = AppColors.Green,
-                        fontSize = 20.4.sp, fontWeight = FontWeight.Bold,
+                        text = secondLine, color = AppColors.Orange,
+                        fontSize = 15.3.sp, fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+                        textAlign = TextAlign.Center, modifier = textMod
                     )
+                    secondTrailing()
                 }
             }
-            // Right — mirrored AI logo → Home.
-            AiLogoButton(
-                onClick = navigateHome,
-                modifier = Modifier.align(Alignment.Top).padding(top = 4.dp),
-                size = 49.5.dp, mirrored = true
-            )
+            // Green 3rd line — full screen width.
+            if (!thirdLine.isNullOrBlank()) {
+                Text(
+                    text = thirdLine, color = AppColors.Green,
+                    fontSize = 20.4.sp, fontWeight = FontWeight.Bold,
+                    maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
         val status = swipeStatus.value
         if (status != null) {
