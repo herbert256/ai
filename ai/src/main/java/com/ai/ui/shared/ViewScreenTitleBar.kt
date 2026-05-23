@@ -36,13 +36,17 @@ fun ViewScreenTitleBar(
     // prefers ViewBottomBar whenever this spec is non-null.
     val viewBottomBarState = com.ai.ui.report.view.helpers.LocalViewBottomBar.current
     if (viewBottomBarState != null) {
+        val ownerToken = androidx.compose.runtime.remember { Any() }
         androidx.compose.runtime.SideEffect {
             viewBottomBarState.value = com.ai.ui.report.view.helpers.ViewBottomBarSpec(
-                onManage = onOpenManage, helpTopic = helpTopic
+                onManage = onOpenManage, helpTopic = helpTopic, owner = ownerToken
             )
         }
         androidx.compose.runtime.DisposableEffect(viewBottomBarState) {
-            onDispose { viewBottomBarState.value = null }
+            // Only clear if a newer screen hasn't already taken ownership
+            // (cross-route navigation can run this onDispose after the
+            // entering screen's SideEffect).
+            onDispose { if (viewBottomBarState.value?.owner === ownerToken) viewBottomBarState.value = null }
         }
     }
     val navToCurrentReport = LocalNavigateToCurrentReport.current

@@ -100,15 +100,16 @@ fun ViewTitleBar(
     // 🔧 itself only shows when onOpenManage is non-null).
     val viewBottomBarState = LocalViewBottomBar.current
     if (viewBottomBarState != null) {
-        // Republish every recomposition (onOpenManage may change), and
-        // clear unconditionally on dispose. Only one ViewTitleBar is ever
-        // composed at a time (View screens are mutually exclusive
-        // full-screen overlays), so onDispose of the leaving screen runs
-        // before the entering screen's SideEffect in the same apply pass —
-        // no stale spec lingers and the next screen's spec always wins.
-        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll, onViewList = onViewList, helpTopic = helpTopic) }
+        // Republish every recomposition (onOpenManage may change). The
+        // clear-on-dispose is OWNERSHIP-GUARDED: across a Navigation route
+        // change (e.g. the report picker → the AI_REPORTS View), the
+        // leaving screen's onDispose can run AFTER the entering screen's
+        // SideEffect, so an unconditional null would wipe the new screen's
+        // spec and the bar would vanish. We only null it when we still own it.
+        val ownerToken = remember { Any() }
+        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll, onViewList = onViewList, helpTopic = helpTopic, owner = ownerToken) }
         DisposableEffect(viewBottomBarState) {
-            onDispose { viewBottomBarState.value = null }
+            onDispose { if (viewBottomBarState.value?.owner === ownerToken) viewBottomBarState.value = null }
         }
     }
     // Report-icon + title tap follow the same target: Manage on the

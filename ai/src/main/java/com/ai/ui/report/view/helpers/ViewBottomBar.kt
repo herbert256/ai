@@ -37,7 +37,13 @@ data class ViewBottomBarSpec(
     val onViewList: (() -> Unit)? = null,
     /** When non-null, a right-aligned ❓ help icon is shown, opening this
      *  screen's help topic. The View top bar moved help down here. */
-    val helpTopic: String? = null
+    val helpTopic: String? = null,
+    /** Identity token of the title-bar instance that published this spec.
+     *  A leaving screen clears the shared state only when it still owns it
+     *  — without this, the leaving screen's onDispose can null the spec the
+     *  *entering* screen just published when navigating between View screens
+     *  on different Navigation routes (the bottom bar then vanishes). */
+    val owner: Any? = null
 )
 
 /** Set by AppNavHost; written by [ViewTitleBar] while a View screen is
