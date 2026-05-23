@@ -1842,8 +1842,11 @@ fun ReportsScreen(
         return
     }
 
+    val navigateToReportModel = com.ai.ui.shared.LocalNavigateToReportModel.current
     val generationHandlers = GenerationPhaseHandlers(
-        onViewAgent = { agentId -> singleResultAgentId = agentId },
+        // Tapping a 'report' row opens the standalone Report-model screen
+        // (real route) instead of the old in-screen overlay.
+        onViewAgent = { agentId -> currentReportId?.let { rid -> navigateToReportModel(rid, agentId) } },
         onShare = { showExport = true },
         onTrace = { currentReportId?.let(onNavigateToTrace) },
         onDelete = { showDeleteConfirm = true },

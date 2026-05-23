@@ -270,6 +270,9 @@ internal fun NavGraphBuilder.reportRoutes(
                 com.ai.ui.shared.LocalActiveTranslationReportIds provides activeTranslationReportIds,
                 com.ai.ui.shared.LocalNavigateToReportInfo provides { rid ->
                     navController.navigate(NavRoutes.aiReportInfo(rid))
+                },
+                com.ai.ui.shared.LocalNavigateToReportModel provides { rid, aid ->
+                    navController.navigate(NavRoutes.aiReportModel(rid, aid))
                 }
             ) {
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
@@ -411,6 +414,50 @@ internal fun NavGraphBuilder.reportRoutes(
                     onBack = safePopBack,
                     onOpenTrace = { fn -> navController.navigate(NavRoutes.traceDetail(fn)) },
                     onOpenModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p, m)) }
+                )
+            }
+        }
+        // Standalone per-model "Report model" screen — replaces the old
+        // single-result overlay (real route, opened from a Manage 'report' row).
+        composable(NavRoutes.AI_REPORT_MODEL) { entry ->
+            val rid = entry.arguments?.getString("reportId") ?: ""
+            val aid = entry.arguments?.getString("agentId") ?: ""
+            val rmContext = LocalContext.current
+            val rmScope = rememberCoroutineScope()
+            com.ai.ui.navigation.ViewSubScreenWithTitleNav(
+                navController = navController,
+                currentReportId = rid
+            ) {
+                com.ai.ui.report.manage.view.ReportModelScreen(
+                    reportId = rid,
+                    agentId = aid,
+                    onBack = safePopBack,
+                    onNavigateHome = navigateHome,
+                    onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                    onNavigateToTraceFile = { fn -> navController.navigate(NavRoutes.traceDetail(fn)) },
+                    onRemoveAgent = { r, a -> reportViewModel.removeAgentFromReport(rmContext, r, a) },
+                    onRegenerateAgent = { r, a -> reportViewModel.regenerateAgent(rmContext, r, a) },
+                    onContinueWithCurrent = { r, a ->
+                        rmScope.launch {
+                            val sessionId = continueReportInChat(rmContext, r, a,
+                                aiSettings = appViewModel.uiState.value.aiSettings) ?: return@launch
+                            navController.navigate(NavRoutes.aiChatContinue(sessionId))
+                        }
+                    },
+                    onContinueWithAgentPicker = { r, a ->
+                        rmScope.launch {
+                            val response = readReportAgentResponse(rmContext, r, a) ?: return@launch
+                            appViewModel.updateUiState { it.copy(chatStarterText = response, chatStarterImageBase64 = null, chatStarterImageMime = null) }
+                            navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT)
+                        }
+                    },
+                    onContinueWithOnTheFly = { r, a ->
+                        rmScope.launch {
+                            val response = readReportAgentResponse(rmContext, r, a) ?: return@launch
+                            appViewModel.updateUiState { it.copy(chatStarterText = response, chatStarterImageBase64 = null, chatStarterImageMime = null) }
+                            navController.navigate(NavRoutes.AI_CHAT_PROVIDER)
+                        }
+                    }
                 )
             }
         }

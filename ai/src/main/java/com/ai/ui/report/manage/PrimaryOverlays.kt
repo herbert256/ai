@@ -462,7 +462,7 @@ internal fun ReportPrimaryOverlays(
                 onShowIconsViewChange(false)
             }
         ) {
-            ReportSingleResultScreen(
+            ReportModelScreen(
                 reportId = currentReportId,
                 agentId = singleResultAgentId,
                 onBack = { onSingleResultAgentIdChange(null) },

@@ -371,6 +371,12 @@ val LocalSystemPromptChange = compositionLocalOf<(String?) -> Unit> { {} }
  *  64 KB-ceiling reason as [LocalSystemPromptChange]. Default no-op. */
 val LocalNavigateToReportInfo = compositionLocalOf<(String) -> Unit> { {} }
 
+/** Opens the standalone per-model "Report model" screen for a
+ *  (reportId, agentId). Provided around the AI_REPORTS composable; the
+ *  Manage hub's 'report' row tap reads it. A CompositionLocal (not a
+ *  threaded arg) for the 64 KB-ceiling reason. Default no-op. */
+val LocalNavigateToReportModel = compositionLocalOf<(String, String) -> Unit> { { _, _ -> } }
+
 /** Prev / next callbacks for the chronologically surrounding reports
  *  on disk. Provided by [ReportsScreenNav] (it builds the lambdas
  *  alongside the same callbacks ReportsScreen uses for its < / >

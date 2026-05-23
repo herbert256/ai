@@ -5,6 +5,8 @@ import com.ai.ui.helpers.*
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -45,7 +47,7 @@ private val singleMotivationTagRegex = Regex("<motivation>.*?</motivation>", Reg
  * reached from the View → Results button.
  */
 @Composable
-fun ReportSingleResultScreen(
+fun ReportModelScreen(
     reportId: String,
     agentId: String,
     onBack: () -> Unit,
@@ -144,6 +146,21 @@ fun ReportSingleResultScreen(
         }
     }
     val agentTraceFilename = agentTraceFilenameState.value
+
+    // Best-effort trace for the per-model ICON chain (reportId + this
+    // model + an "icon" category, newest). Null when tracing was off or
+    // the chain billed a different model (tier-3 fallback) — the 🐞 is
+    // simply hidden then.
+    val iconTraceState = produceState<String?>(initialValue = null, reportId, agent.model, agent.agentId) {
+        value = withContext(Dispatchers.IO) {
+            ApiTracer.getTraceFiles()
+                .filter { it.reportId == reportId && it.model == agent.model &&
+                    (it.category?.contains("icon", ignoreCase = true) == true) }
+                .maxByOrNull { it.timestamp }?.filename
+        }
+    }
+    val iconTraceFilename = iconTraceState.value
+    val titleTraceFilename = agent.modelTitleTraceFile?.takeIf { it.isNotBlank() }
 
     // Load this report's TRANSLATE secondaries — drives the language
     // icon picker below (same UX as View → Prompt / Model response).
@@ -344,45 +361,78 @@ fun ReportSingleResultScreen(
                 }
                 else -> {
                     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-                        val conclusion = extractTagContent(rawBody, "conclusion")
-                        val motivation = extractTagContent(rawBody, "motivation")
-                        val strippedBody = if (conclusion != null || motivation != null)
-                            rawBody.replace(singleConclusionTagRegex, "").replace(singleMotivationTagRegex, "").trim()
-                        else rawBody
-
-                        if (conclusion != null) {
-                            Text("Conclusion", fontSize = 18.sp, color = AppColors.Green, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            ContentWithThinkSections(analysis = conclusion)
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-                        if (motivation != null) {
-                            Text("Motivation", fontSize = 18.sp, color = AppColors.Green, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            ContentWithThinkSections(analysis = motivation)
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-                        if (strippedBody.isNotBlank()) {
-                            if (conclusion != null || motivation != null) {
-                                HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
-                                Spacer(modifier = Modifier.height(12.dp))
-                            }
-                            ContentWithThinkSections(analysis = strippedBody)
-                        }
-                        // Per-agent icon from the 3-tier chain — centered
-                        // under the response in a very large emoji so the
-                        // glyph the user picked / the chain resolved is
-                        // unmistakable on the per-model view. Tap routes
-                        // to the Agent Icon detail screen so the user can
-                        // inspect / replace / fan-out alternatives.
+                        Spacer(modifier = Modifier.height(8.dp))
+                        // Big centred model-response icon (the per-model
+                        // chain's emoji) with a 🐞 to its trace (best-effort).
                         agent.icon?.takeIf { it.isNotBlank() }?.let { glyph ->
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Box(
-                                modifier = Modifier.fillMaxWidth()
-                                    .clickable { onOpenAgentIcon(currentAgentId) },
-                                contentAlignment = Alignment.Center
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(glyph, fontSize = 96.sp, color = Color.White)
+                                Text(glyph, fontSize = 80.sp, color = Color.White)
+                                iconTraceFilename?.let { fn ->
+                                    Text("🐞", fontSize = 20.sp,
+                                        modifier = Modifier.padding(start = 12.dp)
+                                            .clickable { onNavigateToTraceFile(fn) })
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        // Centred model-response title with a 🐞 to its trace.
+                        agent.modelTitle?.takeIf { it.isNotBlank() }?.let { mt ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(mt, fontSize = 18.sp, color = AppColors.Green,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                titleTraceFilename?.let { fn ->
+                                    Text("🐞", fontSize = 16.sp,
+                                        modifier = Modifier.padding(start = 10.dp)
+                                            .clickable { onNavigateToTraceFile(fn) })
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
+                        }
+                        // The response in a card; corner 🐞 → response trace.
+                        Box(modifier = Modifier.fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(AppColors.CardBackground)
+                            .padding(14.dp)
+                        ) {
+                            Column(modifier = Modifier.fillMaxWidth().padding(end = 22.dp)) {
+                                val conclusion = extractTagContent(rawBody, "conclusion")
+                                val motivation = extractTagContent(rawBody, "motivation")
+                                val strippedBody = if (conclusion != null || motivation != null)
+                                    rawBody.replace(singleConclusionTagRegex, "").replace(singleMotivationTagRegex, "").trim()
+                                else rawBody
+
+                                if (conclusion != null) {
+                                    Text("Conclusion", fontSize = 18.sp, color = AppColors.Green, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    ContentWithThinkSections(analysis = conclusion)
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
+                                if (motivation != null) {
+                                    Text("Motivation", fontSize = 18.sp, color = AppColors.Green, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    ContentWithThinkSections(analysis = motivation)
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
+                                if (strippedBody.isNotBlank()) {
+                                    if (conclusion != null || motivation != null) {
+                                        HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                    }
+                                    ContentWithThinkSections(analysis = strippedBody)
+                                }
+                            }
+                            traceFilename?.let { fn ->
+                                Text("🐞", fontSize = 16.sp,
+                                    modifier = Modifier.align(Alignment.TopEnd).clickable { onNavigateToTraceFile(fn) })
                             }
                         }
                         Spacer(modifier = Modifier.height(16.dp))
