@@ -489,6 +489,9 @@ fun ReportsScreen(
     // [ReportsScreen], which already sits at the JVM 64 KB
     // per-method ceiling.
     SeedInitialViewReportScreen { showViewReportScreen = true }
+    // Sibling seed for the 🗂️-pick re-entry: opens the Manage sub-overlay
+    // the report was picked from. Helper-hosted for the same 64 KB reason.
+    SeedInitialManageOverlay(st)
     // Track the user's CURRENT mode (Manage vs View) in real-time so
     // the Hub's big-AI-logo "resume" knob lands them back where
     // they actually were. Extracted out of [ReportsScreen] for the

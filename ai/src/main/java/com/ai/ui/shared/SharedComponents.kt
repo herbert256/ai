@@ -381,6 +381,21 @@ val LocalNavigateToReportModel = compositionLocalOf<(String, String) -> Unit> { 
  *  Provided around the AI_REPORTS composable. Default no-op. */
 val LocalNavigateToReportPicker = compositionLocalOf<() -> Unit> { {} }
 
+/** Opens the filtered "pick a report" screen from a Manage screen's
+ *  🗂️ bottom-bar icon, carrying the source screen's [ManagePickKind]
+ *  so the picker can filter the list and return to that same screen
+ *  for the chosen report. Provided around the AI_REPORTS composable.
+ *  Default no-op. (Typed as a String arg — the kind's route token —
+ *  to avoid a navigation-package dependency from this shared file.) */
+val LocalNavigateToManagePicker = compositionLocalOf<(String) -> Unit> { {} }
+
+/** The fully-formed 🗂️ "pick another report" action for the active
+ *  Manage screen — `{ navigateToManagePicker(kind) }`. Each Manage
+ *  screen that wants the icon provides this (with its own kind) around
+ *  its [TitleBar]; the bar auto-captures it into the bottom bar. Null
+ *  (default) → no 🗂️, so every non-Manage screen is unaffected. */
+val LocalManagePickReport = compositionLocalOf<(() -> Unit)?> { null }
+
 /** Prev / next callbacks for the chronologically surrounding reports
  *  on disk. Provided by [ReportsScreenNav] (it builds the lambdas
  *  alongside the same callbacks ReportsScreen uses for its < / >
@@ -514,7 +529,13 @@ data class ReportListIconBundle(
      *  ([initialView] == true). Without this, back from the View
      *  overlay would fall through to the underlying Manage screen
      *  instead of returning to the list the user tapped from. */
-    val onExitToList: (() -> Unit)? = null
+    val onExitToList: (() -> Unit)? = null,
+    /** Route token (a [ManagePickKind.arg]) seeding a Manage overlay on
+     *  first composition, set when a report is picked from a Manage
+     *  screen's 🗂️ so the user lands back on that same overlay for the
+     *  chosen report. Null = land on the Manage hub. Consumed once by
+     *  [SeedInitialManageOverlay]. */
+    val initialManageOverlay: String? = null
 )
 val LocalReportListIconBundle = compositionLocalOf { ReportListIconBundle() }
 
@@ -611,6 +632,11 @@ data class TitleBarIcons(
      *  Manage sub-overlay (via [LocalOpenManage]). Null → glyph
      *  hidden. */
     val onOpenManage: (() -> Unit)? = null,
+    /** Optional 🗂️ pick-another-report hook. Wired (via
+     *  [LocalManagePickReport]) by the Manage screens that support
+     *  switching to a different report while staying on the same
+     *  screen. Opens a filtered report picker. Null → glyph hidden. */
+    val onPickReport: (() -> Unit)? = null,
     val onCopy: (() -> Unit)?,
     val onShare: (() -> Unit)?,
     val onReload: (() -> Unit)?,
@@ -1008,6 +1034,10 @@ fun TitleBar(
         onInfo = onInfo,
         onOpenView = onOpenView,
         onOpenManage = onOpenManage,
+        // 🗂️ pick-another-report — auto-captured from the per-screen
+        // CompositionLocal so Manage screens needn't thread it through
+        // their TitleBar signatures. Null on every other screen.
+        onPickReport = LocalManagePickReport.current,
         onCopy = onCopy,
         onShare = onShare,
         onReload = onReload,
@@ -1453,6 +1483,9 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // stays in the trailing copy/edit/delete/new group below.
     if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
     icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
+    // 🗂️ pick another report (same glyph as the View hub's picker) —
+    // leads the nav group on the Manage screens that support it.
+    icons.onPickReport?.let { add(BottomBarIcon("🗂️", Color.Unspecified, it, 28)) }
     // 🔧 manage — rendered a touch smaller so 👁 leads on View screens.
     icons.onOpenManage?.let { add(BottomBarIcon("🔧", Color.Unspecified, it, 28, fontSize = 15.sp)) }
     // 🧹 jump to the related Housekeeping screen, ⚙️ jump to the related

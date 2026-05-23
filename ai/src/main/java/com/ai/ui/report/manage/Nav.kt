@@ -66,6 +66,12 @@ fun ReportsScreenNav(
      *  at this agent's page. Used by Model Info View's Last-Usage
      *  rows ([NavRoutes.aiReportViewAtAgent]). */
     initialReportsAgentId: String? = null,
+    /** Optional Manage sub-overlay to open on first composition, set
+     *  when a report was picked from a Manage screen's 🗂️ so the user
+     *  returns to that same screen for the chosen report. A
+     *  [com.ai.ui.navigation.ManagePickKind] arg token; consumed once
+     *  by [SeedInitialManageOverlay]. */
+    initialManageOverlay: String? = null,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
     /** Explicit navigation to the AI Reports hub. Used after a
@@ -267,6 +273,7 @@ fun ReportsScreenNav(
             onOpenView = onOpenReportView,
             initialView = initialView,
             initialReportsAgentId = initialReportsAgentId,
+            initialManageOverlay = initialManageOverlay,
             // Route-pop hook used by the View overlay's onBack when the
             // user arrived here via the per-row 👁 icon — pops AI_REPORTS
             // so back returns to the list instead of falling through to
@@ -619,6 +626,29 @@ internal fun SeedInitialViewReportScreen(onSeed: () -> Unit) {
     val bundle = com.ai.ui.shared.LocalReportListIconBundle.current
     LaunchedEffect(Unit) {
         if (bundle.initialView) onSeed()
+    }
+}
+
+/** One-shot seed for a Manage sub-overlay, set when a report was picked
+ *  from a Manage screen's 🗂️ ([com.ai.ui.navigation.ManagePickKind]).
+ *  Reads the `initialManageOverlay` token bundled into
+ *  [com.ai.ui.shared.LocalReportListIconBundle] by [ReportsScreenNav];
+ *  flips the matching `st.show*` flag exactly once on first composition.
+ *  Hosted here (not inline in [ReportsScreen]) so the `when` block's
+ *  bytecode stays out of that 64 KB-ceiling method. MANAGE / FAN_OUT
+ *  carry no overlay token (the picker routes them to the hub / View
+ *  grid), so they never reach here. */
+@Composable
+internal fun SeedInitialManageOverlay(st: ReportsScreenState) {
+    val bundle = com.ai.ui.shared.LocalReportListIconBundle.current
+    LaunchedEffect(Unit) {
+        when (com.ai.ui.navigation.ManagePickKind.fromArg(bundle.initialManageOverlay)) {
+            com.ai.ui.navigation.ManagePickKind.META -> st.showMetaScreen.value = true
+            com.ai.ui.navigation.ManagePickKind.GET_INFO -> st.showGetInfo.value = true
+            com.ai.ui.navigation.ManagePickKind.EDIT_PROMPT -> st.showEditPrompt.value = true
+            com.ai.ui.navigation.ManagePickKind.EDIT_TITLE -> st.showEditTitle.value = true
+            else -> { /* MANAGE / FAN_OUT / null — nothing to seed */ }
+        }
     }
 }
 

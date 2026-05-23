@@ -224,6 +224,14 @@ internal fun ReportRunScreen(
         // Running total cost, reported up from GenerationPhase, shown in
         // the bottom icon bar (top row, right, above ❓).
         var totalCostForBar by remember { mutableStateOf(0.0) }
+        // 🗂️ pick-another-report on the Manage hub → the unfiltered picker,
+        // returning to the hub for the chosen report. Provided only around
+        // the TitleBar so the auto-captured bottom-bar icon appears here.
+        val managePick = com.ai.ui.shared.LocalNavigateToManagePicker.current
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalManagePickReport provides
+                { managePick(com.ai.ui.navigation.ManagePickKind.MANAGE.arg) }
+        ) {
         TitleBar(
             helpTopic = "report_run",
             title = "Manage an AI report",
@@ -263,6 +271,7 @@ internal fun ReportRunScreen(
             onAdd = { editCreateMenu.value = if (editCreateMenu.value == "create") null else "create" },
             addFirst = true
         )
+        }
 
         if (showRegenerateConfirm && currentReportId != null) {
             val rid = currentReportId

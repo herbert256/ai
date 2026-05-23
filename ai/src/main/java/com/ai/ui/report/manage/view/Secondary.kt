@@ -646,6 +646,22 @@ internal fun SecondaryResultsScreen(
                     if (parts.size == 2) fanRuntime.onRestartFanTitleErrors(parts[0], parts[1])
                 }
             )
+            val fanMode = when {
+                isFanTitlesDrillIn -> FanOutMode.TITLES
+                isFanIconsDrillIn -> FanOutMode.ICONS
+                else -> FanOutMode.MAIN
+            }
+            // 🗂️ pick-another-report → the picker filtered to reports that
+            // have a fan-out, returning to the View grid (where the new
+            // report's fan-out is chosen). MAIN mode only — not the Fan
+            // icons / Fan titles drill-ins.
+            val managePick = com.ai.ui.shared.LocalNavigateToManagePicker.current
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalManagePickReport provides
+                    (if (fanMode == FanOutMode.MAIN)
+                        ({ managePick(com.ai.ui.navigation.ManagePickKind.FAN_OUT.arg) })
+                     else null)
+            ) {
             FanOutScreen(
                 engine = fanOutEngine,
                 reportId = reportId,
@@ -653,11 +669,7 @@ internal fun SecondaryResultsScreen(
                 actions = actions,
                 runningSet = effectiveRunningFanOutPairs,
                 throttledSet = fanRuntime.throttledFanOutPairs,
-                mode = when {
-                    isFanTitlesDrillIn -> FanOutMode.TITLES
-                    isFanIconsDrillIn -> FanOutMode.ICONS
-                    else -> FanOutMode.MAIN
-                },
+                mode = fanMode,
                 runningIconsSet = fanRuntime.runningFanIconsPairs,
                 throttledIconsSet = fanRuntime.throttledFanIconsPairs,
                 onLaunchFanIcons = { _ ->
@@ -675,6 +687,7 @@ internal fun SecondaryResultsScreen(
                 onShowFanTitles = onShowFanTitles,
                 onBack = onBack
             )
+            }
             return@Column
         }
         if (isFanOutDrillIn) {
