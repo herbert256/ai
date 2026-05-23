@@ -289,7 +289,7 @@ internal fun ReportRunScreen(
                 com.ai.ui.shared.ReloadConfirmationDialog(
                     target = "",
                     title = "Regenerate report info?",
-                    message = "Re-run the icon, language, title and per-model icon / title jobs shown here. The model responses, costs, and secondary results are left untouched.",
+                    message = "Re-run the icon, language, title and per-model icon / title jobs shown here. Each new call's cost is ADDED on top of the report's existing cost; the model responses and secondary results are left untouched.",
                     confirmLabel = "Regenerate info",
                     onConfirm = {
                         onDismissRegenerateConfirm()

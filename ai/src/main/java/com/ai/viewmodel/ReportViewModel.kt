@@ -715,8 +715,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * "Report - Get info" screen: report icon, language, title, and the
      * per-model icon / title for each completed agent. Re-runs the same
      * kick-offs the initial generation fires (each gated by its own
-     * enabled flag), leaving the model responses, costs and secondary
-     * results untouched. Wired to the 🔄 on the Get-info layer.
+     * enabled flag), leaving the model responses and secondary results
+     * untouched. Nothing is cleared first, so the ReportStorage cost
+     * writers (which are additive) ADD this run's token cost on top of
+     * the first run's — both runs count. Wired to the 🔄 on Get-info.
      */
     fun regenerateReportInfo(context: Context, reportId: String) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
