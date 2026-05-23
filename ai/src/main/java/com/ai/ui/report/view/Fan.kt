@@ -228,6 +228,10 @@ fun FanOutViewScreen(
         val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, filter)
         if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
     } }
+    // ☝️ (one responder per page, swipe) vs ✋ (all responders to the
+    // active initiator as collapsible cards). Keyed per report / prompt
+    // so it resets when the fan-out run changes.
+    var showAll by rememberSaveable(currentReportId, currentPromptName) { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -255,7 +259,9 @@ fun FanOutViewScreen(
             onOpenManage = onOpenManageJump,
             onBack = onBack,
             onSwipePrev = onSwipePrevAction,
-            onSwipeNext = onSwipeNextAction
+            onSwipeNext = onSwipeNextAction,
+            oneOrAll = showAll,
+            onToggleOneOrAll = { showAll = !showAll }
         )
         if (report == null) {
             Box(
@@ -388,13 +394,29 @@ fun FanOutViewScreen(
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
-                CounterRow(
-                    counter = if (responders.isEmpty()) "0 / 0"
-                        else "${responderPagerState.currentPage.wrapTo(responders.size) + 1} / ${responders.size}",
-                    modelLabel = activeResponder?.let { shortModelName(it.model) }.orEmpty(),
-                    providerService = activeResponder?.let { com.ai.data.AppService.findById(it.providerId) },
-                    modelId = activeResponder?.model.orEmpty()
-                )
+                // ☝️ mode names the single active responder; ✋ mode
+                // lists every responder so the per-responder counter
+                // has no meaning there.
+                if (!showAll) {
+                    CounterRow(
+                        counter = if (responders.isEmpty()) "0 / 0"
+                            else "${responderPagerState.currentPage.wrapTo(responders.size) + 1} / ${responders.size}",
+                        modelLabel = activeResponder?.let { shortModelName(it.model) }.orEmpty(),
+                        providerService = activeResponder?.let { com.ai.data.AppService.findById(it.providerId) },
+                        modelId = activeResponder?.model.orEmpty()
+                    )
+                }
+                // Resolve a responder pair's body, honouring the active
+                // translation language (META translates keyed on pair.id).
+                fun responderBody(pair: SecondaryResult): String {
+                    val translated = if (!language.isNullOrEmpty()) {
+                        translates.firstOrNull {
+                            it.translateSourceTargetId == pair.id &&
+                                it.targetLanguage == language
+                        }?.content?.takeIf { it.isNotBlank() }
+                    } else null
+                    return translated ?: pair.content.orEmpty()
+                }
                 if (responders.isEmpty()) {
                     Box(
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
@@ -405,7 +427,7 @@ fun FanOutViewScreen(
                             color = AppColors.TextTertiary, fontSize = 13.sp
                         )
                     }
-                } else {
+                } else if (!showAll) {
                     com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
                         pagerState = responderPagerState,
                         noMoreLabel = "No more responders",
@@ -418,19 +440,26 @@ fun FanOutViewScreen(
                                 .wrapContentHeight()
                         ) { page ->
                             val pair = responders[page.wrapTo(responders.size)]
-                            val translated = if (!language.isNullOrEmpty()) {
-                                translates.firstOrNull {
-                                    it.translateSourceTargetId == pair.id &&
-                                        it.targetLanguage == language
-                                }?.content?.takeIf { it.isNotBlank() }
-                            } else null
-                            val body = translated ?: pair.content.orEmpty()
                             FanOutBodyCard(
                                 reportIcon = pair.icon?.takeIf { it.isNotBlank() } ?: "🤖",
-                                body = body,
+                                body = responderBody(pair),
                                 borderColor = AppColors.Blue.copy(alpha = 0.35f)
                             )
                         }
+                    }
+                } else {
+                    // ✋ — every responder to the active initiator as a
+                    // default-collapsed card (mirrors Model reports' ✋).
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                            .heightIn(max = respCap)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        responders.forEach { pair ->
+                            FanOutResponderCard(pair = pair, body = responderBody(pair))
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
             }
@@ -549,6 +578,53 @@ private fun FanOutBodyCard(
             Text(text = "(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
         } else {
             ContentWithThinkSections(analysis = body)
+        }
+    }
+}
+
+/** ✋-mode card: one per responder of the active initiator, default
+ *  collapsed. Collapsed shows the responder's fan-out icon + its
+ *  generated title (or model name) on one line; tapping expands to add
+ *  the model name and the full reply. Mirrors `ModelReportCard` on the
+ *  Model reports screen but for a fan-out pair ([SecondaryResult]). */
+@Composable
+private fun FanOutResponderCard(pair: SecondaryResult, body: String) {
+    var expanded by rememberSaveable(pair.id) { mutableStateOf(false) }
+    val emoji = pair.icon?.takeIf { it.isNotBlank() } ?: "🤖"
+    val title = pair.title?.takeIf { it.isNotBlank() } ?: shortModelName(pair.model)
+    val provider = com.ai.data.AppService.findById(pair.providerId)
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(AppColors.CardBackground)
+            .border(1.dp, AppColors.Blue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .clickable { expanded = !expanded }
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text = emoji, fontSize = 22.sp)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = title,
+                color = AppColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = if (expanded) 3 else 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (expanded) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = shortModelName(pair.model),
+                color = AppColors.Green, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.modelInfoViewClickable(provider, pair.model)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            if (body.isBlank()) {
+                Text(text = "(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
+            } else {
+                ContentWithThinkSections(analysis = body)
+            }
         }
     }
 }
