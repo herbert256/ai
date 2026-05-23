@@ -481,7 +481,9 @@ private fun ReportsViewerScreenLoaded(
         report.agents.filter { it.reportStatus == ReportStatus.SUCCESS }.sortedBy { it.agentName.lowercase() }
     }
     var selectedAgentId by rememberSaveable { mutableStateOf(initialSelectedAgentId ?: agentsWithResults.firstOrNull()?.agentId) }
-    var showOnePage by rememberSaveable { mutableStateOf(false) }
+    // Land directly on the one-page view when the Manage jump asked for it
+    // (the View ✋ all-models 🔧). Keyed on initialSection so re-entry honors it.
+    var showOnePage by rememberSaveable(initialSection) { mutableStateOf(initialSection == "onepage") }
     if (showOnePage) {
         OnePageReportView(
             report = report,

@@ -198,7 +198,13 @@ fun ReportsViewScreen(
         // which would land 🔧 back on the grid instead of Manage.
         val openManage = com.ai.ui.shared.LocalOpenManage.current
         val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
-            { dispatch(com.ai.ui.shared.ManageJump.ReportsViewer(activeAgent?.agentId, null)) }
+            {
+                // ✋ all-models mode → jump straight to Manage's "View in
+                // one page"; ☝️ single mode → the Reports viewer at the
+                // current model.
+                if (showAll) dispatch(com.ai.ui.shared.ManageJump.ReportsViewer(null, "onepage"))
+                else dispatch(com.ai.ui.shared.ManageJump.ReportsViewer(activeAgent?.agentId, null))
+            }
         }
         ViewTitleBar(
             reportTitle = report?.barTitle,
