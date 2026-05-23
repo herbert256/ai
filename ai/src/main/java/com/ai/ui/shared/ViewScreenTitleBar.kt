@@ -55,7 +55,7 @@ fun ViewScreenTitleBar(
         screenTitle = screenTitle,
         secondLine = reportTitle,
         thirdLine = subject,
-        reportIcon = LocalReportIcon.current?.takeIf { it.isNotBlank() } ?: "📄",
+        reportIcon = LocalReportIcon.current?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.REPORT_ICON,
         onReportIconClick = titleClick,
         onTitleClick = titleClick,
         onSwipePrev = onSwipePrev,

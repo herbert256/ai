@@ -53,7 +53,8 @@ enum class SettingsSubScreen {
     SETTINGS_NETWORK_API_CALLS,
     SETTINGS_UI,
     SETTINGS_LOGGING,
-    SETTINGS_OTHER
+    SETTINGS_OTHER,
+    SETTINGS_METADATA
 }
 
 @Composable
@@ -240,6 +241,7 @@ fun SettingsScreen(
             SettingsSubScreen.SETTINGS_UI,
             SettingsSubScreen.SETTINGS_LOGGING,
             SettingsSubScreen.SETTINGS_OTHER -> currentSubScreen = SettingsSubScreen.MAIN
+            SettingsSubScreen.SETTINGS_METADATA -> currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.SETTINGS_NETWORK_API_CALLS ->
                 currentSubScreen = SettingsSubScreen.SETTINGS_NETWORK
         }
@@ -741,6 +743,12 @@ fun SettingsScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
+        SettingsSubScreen.SETTINGS_METADATA -> {
+            MetadataSettingsSubScreen(
+                generalSettings = generalSettings, onSave = onSaveGeneral,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
     }
     }
 }
@@ -788,9 +796,15 @@ private fun SettingsMainScreen(
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_LOGGING) }
             )
             SettingsNavCard(
+                icon = "🏷️",
+                title = "Metadata & icons",
+                description = "Master switch for all optional metadata — report icon / language / title, per-model icons / titles, fan & meta icons.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_METADATA) }
+            )
+            SettingsNavCard(
                 icon = "⚙️",
                 title = "Other settings",
-                description = "Identity (Name + Email) and Generate report icons.",
+                description = "Identity (Name + Email).",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_OTHER) }
             )
         }
@@ -1248,25 +1262,13 @@ private fun OtherSettingsSubScreen(
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
-    var reportTitleMode by remember { mutableStateOf(generalSettings.reportTitleMode) }
-    var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
-    var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
-    var perModelTitleGenEnabled by remember { mutableStateOf(generalSettings.perModelTitleGenEnabled) }
-    var useInternalPromptsIcons by remember { mutableStateOf(generalSettings.useInternalPromptsIcons) }
-    var autostartFanIconsAndTitles by remember { mutableStateOf(generalSettings.autostartFanIconsAndTitles) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         userName = userName,
-        defaultEmail = defaultEmail,
-        reportTitleMode = reportTitleMode,
-        iconGenEnabled = iconGenEnabled,
-        perModelIconGenEnabled = perModelIconGenEnabled,
-        perModelTitleGenEnabled = perModelTitleGenEnabled,
-        useInternalPromptsIcons = useInternalPromptsIcons,
-        autostartFanIconsAndTitles = autostartFanIconsAndTitles
+        defaultEmail = defaultEmail
     )
 
-    LaunchedEffect(userName, defaultEmail, reportTitleMode, iconGenEnabled, perModelIconGenEnabled, perModelTitleGenEnabled, useInternalPromptsIcons, autostartFanIconsAndTitles) {
+    LaunchedEffect(userName, defaultEmail) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1283,7 +1285,7 @@ private fun OtherSettingsSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity and report-icon options", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("Identity", "Used as the human side of the conversation in agent prompts; the email pre-fills the export sheet so you don't retype it on every send.") {
                 OutlinedTextField(
@@ -1299,50 +1301,118 @@ private fun OtherSettingsSubScreen(
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
             }
-            SettingCard("Report title", "How a new report's title is decided. Manual keeps the Title input field on the New AI Report screen. AI (default) hides the field and runs a background LLM call after report start that fills the title from the prompt body — the resolved title shows on the 'title' row of the Manage report screen, alongside the icon and language rows.") {
-                Column {
-                    RadioRow(
-                        selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual,
-                        label = "Manual — type a title yourself",
-                        onClick = { reportTitleMode = com.ai.viewmodel.ReportTitleMode.Manual }
-                    )
-                    RadioRow(
-                        selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
-                        label = "AI — generate from the prompt",
-                        onClick = { reportTitleMode = com.ai.viewmodel.ReportTitleMode.AI }
-                    )
+        }
+    }
+}
+
+/** "Metadata & icons" — the grand-master switch for every optional
+ *  metadata item plus the per-item sub-toggles it gates. When the master
+ *  is off the sub-toggles are hidden (and every item is treated as off
+ *  app-wide). Default on, mirroring the old per-item defaults. */
+@Composable
+private fun MetadataSettingsSubScreen(
+    generalSettings: GeneralSettings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    var metadataEnabled by remember { mutableStateOf(generalSettings.metadataEnabled) }
+    var reportTitleMode by remember { mutableStateOf(generalSettings.reportTitleMode) }
+    var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
+    var reportLanguageGenEnabled by remember { mutableStateOf(generalSettings.reportLanguageGenEnabled) }
+    var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
+    var perModelTitleGenEnabled by remember { mutableStateOf(generalSettings.perModelTitleGenEnabled) }
+    var useInternalPromptsIcons by remember { mutableStateOf(generalSettings.useInternalPromptsIcons) }
+    var autostartFanIconsAndTitles by remember { mutableStateOf(generalSettings.autostartFanIconsAndTitles) }
+
+    fun build(): GeneralSettings = generalSettings.copy(
+        metadataEnabled = metadataEnabled,
+        reportTitleMode = reportTitleMode,
+        iconGenEnabled = iconGenEnabled,
+        reportLanguageGenEnabled = reportLanguageGenEnabled,
+        perModelIconGenEnabled = perModelIconGenEnabled,
+        perModelTitleGenEnabled = perModelTitleGenEnabled,
+        useInternalPromptsIcons = useInternalPromptsIcons,
+        autostartFanIconsAndTitles = autostartFanIconsAndTitles
+    )
+
+    LaunchedEffect(metadataEnabled, reportTitleMode, iconGenEnabled, reportLanguageGenEnabled, perModelIconGenEnabled, perModelTitleGenEnabled, useInternalPromptsIcons, autostartFanIconsAndTitles) {
+        val updated = build()
+        if (updated != generalSettings) {
+            kotlinx.coroutines.delay(400)
+            onSave(updated)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val updated = build()
+            if (updated != generalSettings) onSave(updated)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(helpTopic = "settings_metadata", title = "Metadata & icons", subject = "Master switch and per-item options for optional report metadata", onBackClick = onBack)
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ToggleSettingCard(
+                title = "Generate metadata & icons",
+                description = "Grand-master switch for every optional metadata item: report icon, report language, AI report title, per-model icons & titles, Fan Out icons & titles, and the meta / rerank / moderate / translate row icons. When off, none of it is generated and all of its UI disappears — the Fan Out Icons / Titles buttons, the Manage report 'info' row — and a new report must be given a manual title. View screens are unaffected: a report that already has icons keeps showing them. Turn it on to reveal the per-item toggles below.",
+                checked = metadataEnabled,
+                onCheckedChange = { metadataEnabled = it }
+            )
+            if (metadataEnabled) {
+                SettingCard("Report title", "How a new report's title is decided. Manual keeps the Title input field on the New AI Report screen. AI (default) hides the field and runs a background LLM call after report start that fills the title from the prompt body — the resolved title shows on the 'title' row of the Manage report screen, alongside the icon and language rows.") {
+                    Column {
+                        RadioRow(
+                            selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual,
+                            label = "Manual — type a title yourself",
+                            onClick = { reportTitleMode = com.ai.viewmodel.ReportTitleMode.Manual }
+                        )
+                        RadioRow(
+                            selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
+                            label = "AI — generate from the prompt",
+                            onClick = { reportTitleMode = com.ai.viewmodel.ReportTitleMode.AI }
+                        )
+                    }
                 }
+                ToggleSettingCard(
+                    title = "Generate report icon",
+                    description = "Run a small LLM call at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. Turn this off to skip the call and hide every report-icon affordance.",
+                    checked = iconGenEnabled,
+                    onCheckedChange = { iconGenEnabled = it }
+                )
+                ToggleSettingCard(
+                    title = "Generate report language",
+                    description = "Detect the report's language and pick a flag emoji for it (a two-step LLM call after report start). Surfaces as the 'language' row on the info screen and as a flag on the language picker. Independent of the report icon.",
+                    checked = reportLanguageGenEnabled,
+                    onCheckedChange = { reportLanguageGenEnabled = it }
+                )
+                ToggleSettingCard(
+                    title = "Generate per model icons",
+                    description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ✅ flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
+                    checked = perModelIconGenEnabled,
+                    onCheckedChange = { perModelIconGenEnabled = it }
+                )
+                ToggleSettingCard(
+                    title = "Generate per model titles",
+                    description = "After each model response, run a short Anthropic call (internal/model_title) to title that response in ≤4 words. The title replaces the model name on the Manage report 'report' row; its cost folds into that row and into a 'Model titles' category on the Costs screen. Off by default — it's one extra LLM call per model.",
+                    checked = perModelTitleGenEnabled,
+                    onCheckedChange = { perModelTitleGenEnabled = it }
+                )
+                ToggleSettingCard(
+                    title = "Use internal prompts icons",
+                    description = "Generate a small emoji for each Internal Prompt and show it as a leading glyph on the secondary-result rows of the report result page (compare / critique / rerank / fan-out / …). One LLM call per (name, title) — results cached persistently and reused across reports. Renaming a prompt or editing its title invalidates only that entry.",
+                    checked = useInternalPromptsIcons,
+                    onCheckedChange = { useInternalPromptsIcons = it }
+                )
+                ToggleSettingCard(
+                    title = "Autostart Fan Icons & Titles",
+                    description = "When a Fan Out finishes with no errored pairs, automatically kick off its Fan Icons and Fan Titles batches — so you don't have to tap the Icons / Titles buttons by hand. A run with any error pair is left alone; you can still start the batches manually.",
+                    checked = autostartFanIconsAndTitles,
+                    onCheckedChange = { autostartFanIconsAndTitles = it }
+                )
             }
-            ToggleSettingCard(
-                title = "Generate report icons",
-                description = "Run a small LLM call at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. Turn this off to skip the call and hide every report-icon affordance.",
-                checked = iconGenEnabled,
-                onCheckedChange = { iconGenEnabled = it }
-            )
-            ToggleSettingCard(
-                title = "Generate per model icons",
-                description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ✅ flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
-                checked = perModelIconGenEnabled,
-                onCheckedChange = { perModelIconGenEnabled = it }
-            )
-            ToggleSettingCard(
-                title = "Generate per model titles",
-                description = "After each model response, run a short Anthropic call (internal/model_title) to title that response in ≤4 words. The title replaces the model name on the Manage report 'report' row; its cost folds into that row and into a 'Model titles' category on the Costs screen. Off by default — it's one extra LLM call per model.",
-                checked = perModelTitleGenEnabled,
-                onCheckedChange = { perModelTitleGenEnabled = it }
-            )
-            ToggleSettingCard(
-                title = "Use internal prompts icons",
-                description = "Generate a small emoji for each Internal Prompt and show it as a leading glyph on the secondary-result rows of the report result page (compare / critique / rerank / fan-out / …). One LLM call per (name, title) — results cached persistently and reused across reports. Renaming a prompt or editing its title invalidates only that entry.",
-                checked = useInternalPromptsIcons,
-                onCheckedChange = { useInternalPromptsIcons = it }
-            )
-            ToggleSettingCard(
-                title = "Autostart Fan Icons & Titles",
-                description = "When a Fan Out finishes with no errored pairs, automatically kick off its Fan Icons and Fan Titles batches — so you don't have to tap the Icons / Titles buttons by hand. A run with any error pair is left alone; you can still start the batches manually.",
-                checked = autostartFanIconsAndTitles,
-                onCheckedChange = { autostartFanIconsAndTitles = it }
-            )
         }
     }
 }

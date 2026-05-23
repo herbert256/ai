@@ -403,12 +403,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 // title per the two toggles. When both are on,
                                 // title runs first and the icon is derived from it.
                                 val g = appViewModel.uiState.value.generalSettings
-                                if (g.perModelIconGenEnabled || g.perModelTitleGenEnabled) {
+                                if (g.perModelIconOn() || g.perModelTitleOn()) {
                                     val ra = ReportStorage.getReport(context, reportId)
                                         ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
                                     if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
                                         iconGen.runPerModelEnrichment(context, reportId, ra, aiPrompt, aiSettings,
-                                            g.perModelIconGenEnabled, g.perModelTitleGenEnabled)
+                                            g.perModelIconOn(), g.perModelTitleOn())
                                     }
                                 }
                             }
@@ -729,13 +729,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 iconGen.kickOffIconGeneration(context, reportId, report.prompt, ai)
                 iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
                 iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai)
-                if (g.perModelIconGenEnabled || g.perModelTitleGenEnabled) {
+                if (g.perModelIconOn() || g.perModelTitleOn()) {
                     report.agents
                         .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                         .forEach { ra ->
                             iconGen.runPerModelEnrichment(
                                 context, reportId, ra, report.prompt, ai,
-                                g.perModelIconGenEnabled, g.perModelTitleGenEnabled
+                                g.perModelIconOn(), g.perModelTitleOn()
                             )
                         }
                 }
@@ -886,12 +886,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 // any stale icon + iconCalls rows so
                                 // the re-fire is clean.
                                 val g = appViewModel.uiState.value.generalSettings
-                                if (g.perModelIconGenEnabled || g.perModelTitleGenEnabled) {
+                                if (g.perModelIconOn() || g.perModelTitleOn()) {
                                     val ra = ReportStorage.getReport(context, reportId)
                                         ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
                                     if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
                                         iconGen.runPerModelEnrichment(context, reportId, ra, finalReport.prompt, ai,
-                                            g.perModelIconGenEnabled, g.perModelTitleGenEnabled)
+                                            g.perModelIconOn(), g.perModelTitleOn())
                                     }
                                 }
                             }
@@ -995,12 +995,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             }
                             // Per-agent enrichment auto-fire — same shape as regenerateReport.
                             val g = appViewModel.uiState.value.generalSettings
-                            if (g.perModelIconGenEnabled || g.perModelTitleGenEnabled) {
+                            if (g.perModelIconOn() || g.perModelTitleOn()) {
                                 val ra = ReportStorage.getReport(context, reportId)
                                     ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
                                 if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
                                     iconGen.runPerModelEnrichment(context, reportId, ra, report.prompt, ai,
-                                        g.perModelIconGenEnabled, g.perModelTitleGenEnabled)
+                                        g.perModelIconOn(), g.perModelTitleOn())
                                 }
                             }
                         }

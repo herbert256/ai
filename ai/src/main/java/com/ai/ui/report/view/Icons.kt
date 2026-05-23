@@ -183,7 +183,7 @@ fun IconsViewScreen(reportId: String, onBack: () -> Unit) {
             )
             // Report icon — large, centred.
             Text(
-                text = report.icon?.takeIf { it.isNotBlank() } ?: "📄",
+                text = report.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.REPORT_ICON,
                 fontSize = 80.sp,
                 modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
             )
@@ -263,7 +263,7 @@ private fun NoFanOutGrid(
     ) {
         visible.forEach { agent ->
             AgentIconButton(
-                glyph = agent.icon?.takeIf { it.isNotBlank() } ?: "🤖",
+                glyph = agent.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.MODEL_ICON,
                 onClick = { onAgentClick(agent.agentId) }
             )
         }
@@ -319,7 +319,7 @@ private fun FanOutSection(
             // initiator sits in its own bracketed band.
             HorizontalDivider(color = AppColors.BorderUnfocused, thickness = 1.dp)
             val initiator = agents.firstOrNull { it.agentId == sourceAgentId }
-            val initiatorGlyph = initiator?.icon?.takeIf { it.isNotBlank() } ?: "🤖"
+            val initiatorGlyph = initiator?.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.MODEL_ICON
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
@@ -343,7 +343,7 @@ private fun FanOutSection(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     responderRows.forEach { row ->
-                        val glyph = row.icon?.takeIf { it.isNotBlank() } ?: "🤖"
+                        val glyph = row.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.MODEL_ICON
                         AgentIconButton(
                             glyph = glyph,
                             onClick = {

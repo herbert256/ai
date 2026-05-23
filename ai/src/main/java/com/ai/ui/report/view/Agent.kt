@@ -407,7 +407,7 @@ fun ReportsViewScreen(
 @Composable
 private fun CollapsedPromptRow(report: Report, preview: String, onExpand: () -> Unit) {
     val liveIcon = com.ai.ui.shared.LocalReportIcon.current?.takeIf { it.isNotBlank() }
-    val icon = liveIcon ?: report.icon?.takeIf { it.isNotBlank() } ?: "📄"
+    val icon = liveIcon ?: report.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.REPORT_ICON
     val firstLine = preview.lineSequence().firstOrNull { it.isNotBlank() }?.trim()
         ?: "(no prompt recorded)"
     Row(
@@ -451,7 +451,7 @@ private fun PromptCard(
     // completion updates this card without waiting for the screen to
     // remount. Falls back to the report's persisted icon, then "📄".
     val liveIcon = com.ai.ui.shared.LocalReportIcon.current?.takeIf { it.isNotBlank() }
-    val displayedIcon = liveIcon ?: report.icon?.takeIf { it.isNotBlank() } ?: "📄"
+    val displayedIcon = liveIcon ?: report.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.REPORT_ICON
     // Per-page prompt body — caller passes a non-null override on
     // non-Original language pages (the matching TRANSLATE/PROMPT
     // row's content). Original / single-language renders fall back
@@ -526,7 +526,7 @@ private fun AgentResponseCard(
     overrideBody: String?
 ) {
     val body = overrideBody ?: agent.responseBody.orEmpty()
-    val emoji = agent.icon?.takeIf { it.isNotBlank() } ?: "🤖"
+    val emoji = agent.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.MODEL_ICON
     // wrapContentHeight so the card sits exactly as tall as its
     // content; verticalScroll kicks in only when the response
     // overflows the pager's remaining slot.
@@ -565,7 +565,7 @@ private fun ModelReportCard(
     overrideBody: String?
 ) {
     var expanded by rememberSaveable(agent.agentId) { mutableStateOf(false) }
-    val emoji = agent.icon?.takeIf { it.isNotBlank() } ?: "🤖"
+    val emoji = agent.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.MODEL_ICON
     val title = agent.modelTitle?.takeIf { it.isNotBlank() } ?: shortModelName(agent.model)
     val provider = com.ai.data.AppService.findById(agent.provider)
     Column(

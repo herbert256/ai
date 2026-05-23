@@ -67,6 +67,20 @@ data class GeneralSettings(
      *  chat headers, …) show only the model or both. Provided to the
      *  composition tree via LocalModelNameLayout in the AppNavHost. */
     val modelNameLayout: ModelNameLayout = ModelNameLayout.MODEL_ONLY,
+    /** Grand master switch for every optional metadata item — report
+     *  icon, report language, AI title, per-model icons / titles, fan
+     *  icons / titles, and internal-prompt (meta / rerank / moderate /
+     *  translate) icons. When true (default) each individual sub-toggle
+     *  below governs its own item as before. When false, ALL of them are
+     *  off regardless of the sub-toggles: no generation calls fire, the
+     *  sub-toggles are hidden in Settings, the Fan Out Icons / Titles
+     *  buttons and the Manage `info` row disappear, and a new report
+     *  must be given a manual title. View screens ignore this flag
+     *  entirely — they render whatever a report already holds, falling
+     *  back to [com.ai.data.MetadataDefaults]. The [reportIconOn] /
+     *  [reportLanguageOn] / … helpers fold this master AND each
+     *  sub-flag so call sites ask one question. */
+    val metadataEnabled: Boolean = true,
     /** Master switch for the per-report icon-gen feature. When true
      *  (default) every new report kicks off a background LLM call that
      *  generates a fitting emoji, the icon-row appears on the result
@@ -78,6 +92,13 @@ data class GeneralSettings(
      *  iconCost values on existing reports stay on disk — re-enabling
      *  brings them back. */
     val iconGenEnabled: Boolean = true,
+    /** Master switch for report language detection (+ its flag emoji),
+     *  split out of [iconGenEnabled] so the report icon and the language
+     *  row can be toggled independently. When true (default) every new
+     *  report fires the bundled `info/language` two-step call; when false
+     *  the call is skipped and the language row drops from the info
+     *  screen. Gated behind [metadataEnabled] via [reportLanguageOn]. */
+    val reportLanguageGenEnabled: Boolean = true,
     /** How the title of a new report is decided. `Manual` keeps the
      *  Title input field on the New AI Report screen; `AI` (default)
      *  hides it and fires a background LLM call after report start
@@ -233,7 +254,21 @@ data class GeneralSettings(
      *  reports keep sending context at API time even while the
      *  attach UI is hidden. */
     val experimentalFeaturesEnabled: Boolean = false
-)
+) {
+    /** Effective gates — the grand-master [metadataEnabled] ANDed with
+     *  each per-item sub-flag. Every generation call site and every
+     *  control-surface (Manage info row, Fan Out Icons / Titles buttons,
+     *  New report title requirement) asks one of these instead of
+     *  re-deriving the AND. View screens must NOT call these — they read
+     *  report data directly with [com.ai.data.MetadataDefaults]. */
+    fun reportIconOn() = metadataEnabled && iconGenEnabled
+    fun reportLanguageOn() = metadataEnabled && reportLanguageGenEnabled
+    fun reportTitleAiOn() = metadataEnabled && reportTitleMode == ReportTitleMode.AI
+    fun perModelIconOn() = metadataEnabled && perModelIconGenEnabled
+    fun perModelTitleOn() = metadataEnabled && perModelTitleGenEnabled
+    fun metaIconsOn() = metadataEnabled && useInternalPromptsIcons
+    fun fanIconsTitlesOn() = metadataEnabled
+}
 
 // Prompt history entry
 data class PromptHistoryEntry(

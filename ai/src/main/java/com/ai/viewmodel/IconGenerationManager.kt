@@ -57,7 +57,7 @@ class IconGenerationManager(
         // Master switch — when the user disabled per-report icon-gen
         // in Settings, skip the LLM call entirely. Existing on-disk
         // icon values stay intact.
-        if (!appViewModel.uiState.value.generalSettings.iconGenEnabled) return
+        if (!appViewModel.uiState.value.generalSettings.reportIconOn()) return
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name == "main"
         } ?: return
@@ -147,7 +147,7 @@ class IconGenerationManager(
     ) {
         // Master switch — MANUAL mode = user typed a title themselves;
         // never run the LLM call.
-        if (appViewModel.uiState.value.generalSettings.reportTitleMode != com.ai.viewmodel.ReportTitleMode.AI) return
+        if (!appViewModel.uiState.value.generalSettings.reportTitleAiOn()) return
         val titlePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "info" && it.name == "report_title"
         } ?: return
@@ -426,7 +426,7 @@ class IconGenerationManager(
         promptText: String,
         aiSettings: Settings
     ) {
-        if (!appViewModel.uiState.value.generalSettings.iconGenEnabled) return
+        if (!appViewModel.uiState.value.generalSettings.reportLanguageOn()) return
         val languagePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "info" && it.name == "language"
         } ?: return
@@ -587,7 +587,7 @@ class IconGenerationManager(
         prompt: InternalPrompt,
         aiSettings: Settings
     ) {
-        if (!appViewModel.uiState.value.generalSettings.useInternalPromptsIcons) return
+        if (!appViewModel.uiState.value.generalSettings.metaIconsOn()) return
         if (prompt.name.isBlank()) return
         if (InternalPromptIconCache.get(prompt.name, prompt.title) != null) return
         // Atomically claim the slot; if another caller is already
@@ -1124,7 +1124,7 @@ class IconGenerationManager(
         language: String,
         aiSettings: Settings
     ) {
-        if (!appViewModel.uiState.value.generalSettings.useInternalPromptsIcons) return
+        if (!appViewModel.uiState.value.generalSettings.metaIconsOn()) return
         if (language.isBlank()) return
         if (InternalPromptIconCache.get("translation_icon", language) != null) return
         if (!InternalPromptIconCache.markInFlight("translation_icon", language)) return
@@ -2504,6 +2504,9 @@ class IconGenerationManager(
         reportId: String,
         metaPromptId: String
     ): Job? {
+        // Master metadata switch off → fan icons are neither shown nor
+        // generated.
+        if (!appViewModel.uiState.value.generalSettings.fanIconsTitlesOn()) return null
         rvm.fanIconsJobs[rvm.fanIconsJobKey(reportId, metaPromptId)]?.let { existing ->
             if (existing.isActive) return existing
         }
@@ -2788,6 +2791,9 @@ class IconGenerationManager(
         reportId: String,
         metaPromptId: String
     ): Job? {
+        // Master metadata switch off → fan titles are neither shown nor
+        // generated.
+        if (!appViewModel.uiState.value.generalSettings.fanIconsTitlesOn()) return null
         rvm.fanTitlesJobs[rvm.fanTitlesJobKey(reportId, metaPromptId)]?.let { existing ->
             if (existing.isActive) return existing
         }

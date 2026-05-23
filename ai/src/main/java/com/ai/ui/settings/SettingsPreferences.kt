@@ -69,7 +69,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
             fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, false),
             modelNameLayout = modelNameLayout,
+            metadataEnabled = prefs.getBoolean(KEY_METADATA_ENABLED, true),
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
+            reportLanguageGenEnabled = prefs.getBoolean(KEY_REPORT_LANGUAGE_GEN_ENABLED, true),
             reportTitleMode = reportTitleMode,
             perModelIconGenEnabled = prefs.getBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, true),
             perModelTitleGenEnabled = prefs.getBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, true),
@@ -123,7 +125,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
             putBoolean(KEY_FULL_SCREEN, settings.fullScreen)
             putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
+            putBoolean(KEY_METADATA_ENABLED, settings.metadataEnabled)
             putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
+            putBoolean(KEY_REPORT_LANGUAGE_GEN_ENABLED, settings.reportLanguageGenEnabled)
             putString(KEY_REPORT_TITLE_MODE, settings.reportTitleMode.name)
             putBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, settings.perModelIconGenEnabled)
             putBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, settings.perModelTitleGenEnabled)
@@ -506,7 +510,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_TRACING_ENABLED = "tracing_enabled"
         private const val KEY_FULL_SCREEN = "full_screen"
         private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
+        private const val KEY_METADATA_ENABLED = "metadata_enabled"
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
+        private const val KEY_REPORT_LANGUAGE_GEN_ENABLED = "report_language_gen_enabled"
         private const val KEY_REPORT_TITLE_MODE = "report_title_mode"
         private const val KEY_PER_MODEL_ICON_GEN_ENABLED = "per_model_icon_gen_enabled"
         private const val KEY_PER_MODEL_TITLE_GEN_ENABLED = "per_model_title_gen_enabled"

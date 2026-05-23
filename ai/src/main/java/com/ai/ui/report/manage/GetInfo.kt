@@ -68,6 +68,7 @@ fun buildInfoJobs(
     report: Report,
     settings: Settings,
     iconGenEnabled: Boolean,
+    reportLanguageOn: Boolean,
     titleModeAi: Boolean,
     perModelIcon: Boolean,
     perModelTitle: Boolean
@@ -87,9 +88,11 @@ fun buildInfoJobs(
         val label = report.iconErrorMessage ?: report.icon ?: "Generating…"
         jobs += InfoJob("icon", label, state, report.iconInputCost + report.iconOutputCost,
             doneIcon = report.icon, pending = state == InfoJobState.RUNNING)
+    }
 
-        // Language detection shares the icon-gen gate (same as the old
-        // Manage row, which nested the language row inside the icon gate).
+    // Language detection has its own gate now (split from the icon gate)
+    // so report icon and report language can be toggled independently.
+    if (reportLanguageOn) {
         val langState = when {
             report.languageIconErrorMessage != null -> InfoJobState.FAILED
             report.languageName != null -> InfoJobState.DONE
@@ -210,6 +213,7 @@ fun ReportGetInfoScreen(
     settings: Settings,
     iconRefreshTick: Int,
     iconGenEnabled: Boolean,
+    reportLanguageOn: Boolean,
     titleModeAi: Boolean,
     perModelIcon: Boolean,
     perModelTitle: Boolean,
@@ -225,7 +229,7 @@ fun ReportGetInfoScreen(
     val jobs by produceState(initialValue = emptyList<InfoJob>(), reportId, iconRefreshTick) {
         value = withContext(Dispatchers.IO) {
             val r = ReportStorage.getReport(context, reportId) ?: return@withContext emptyList()
-            buildInfoJobs(r, settings, iconGenEnabled, titleModeAi, perModelIcon, perModelTitle)
+            buildInfoJobs(r, settings, iconGenEnabled, reportLanguageOn, titleModeAi, perModelIcon, perModelTitle)
         }
     }
     Column(

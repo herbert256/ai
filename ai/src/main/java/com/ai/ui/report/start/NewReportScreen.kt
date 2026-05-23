@@ -215,7 +215,7 @@ fun NewReportScreen(
         // it out of the Clear / 📎 row.
         Button(
             onClick = next@{
-                    val titleRequired = uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual
+                    val titleRequired = !uiState.generalSettings.reportTitleAiOn()
                     if ((titleRequired && title.isBlank()) || prompt.isBlank() || isModerating) return@next
                     val fullPrompt = if (userTagBlock.isNotEmpty()) "$prompt\n$userTagBlock" else prompt
                     prefs.edit().putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
@@ -262,7 +262,7 @@ fun NewReportScreen(
                         }
                     }
                 },
-            enabled = (uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI || title.isNotBlank())
+            enabled = (uiState.generalSettings.reportTitleAiOn() || title.isNotBlank())
                 && prompt.isNotBlank() && !isModerating,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
@@ -387,7 +387,7 @@ fun NewReportScreen(
         // post-creation by [ReportViewModel.kickOffReportTitleGeneration]
         // via the bundled `internal/report_title` prompt and surfaced
         // on Manage report's new `title` row.
-        if (uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual) {
+        if (!uiState.generalSettings.reportTitleAiOn()) {
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(
                 value = title, onValueChange = { title = it }, label = { Text("Title") },

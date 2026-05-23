@@ -30,17 +30,28 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Network settings", "Read timeouts, per-provider throttling, and 429 / 529 retry policies. Tap the row to open the dedicated sub-screen."),
             HelpCard("UI tweaks", "Experimental features master toggle, model name layout, full-screen, back-arrow visibility. Tap the row to open the dedicated sub-screen."),
             HelpCard("Logging and tracing", "API tracing master switch and application log level. Tap the row to open the dedicated sub-screen."),
-            HelpCard("Other settings", "Identity (Name + Email) used for outbound prompts and email exports, plus the master switch for per-report icon generation."),
+            HelpCard("Metadata & icons", "Grand-master switch for every optional AI-generated extra — report icon / language / title, per-model icons & titles, Fan & meta icons — plus the per-item toggles it gates."),
+            HelpCard("Other settings", "Identity (Name + Email) used for outbound prompts and email exports."),
             HelpCard("Tips", "Each sub-screen has no Save button on purpose — every keystroke restarts a 400 ms debounce timer. If you tap Back fast, the latest values still flush to disk via a DisposableEffect."),
         )
     ),
     "settings_other" to HelpContent(
         title = "Help - Other settings",
         cards = listOf(
-            HelpCard("Overview", "Catch-all bucket for the few preferences that don't fit the network / UI / logging buckets. Two cards — Identity and Generate report icons. Both autosave with a 400 ms debounce."),
+            HelpCard("Overview", "Holds your Identity (Name + Email). The optional report-metadata toggles that used to live here now have their own screen — Settings → Metadata & icons. Autosaves with a 400 ms debounce."),
             HelpCard("Identity", "Two text fields — Name and Email address — combined in one card. Name surfaces wherever the app addresses you and defaults the From: header on email-style exports. Email address pre-fills the To: field on report email exports; leave blank to be prompted each time."),
-            HelpCard("Generate report icons", "Master switch for the per-report icon-gen feature. When on, a small LLM call fires at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. When off, the icon row on the result page is hidden, the leftmost report icon (and its tied 📝 memo) drops from every title bar, and per-row icon prefixes on the hub / history / search hits / pickers fall back to the static 🕘 / 📌 (or no prefix). Persisted icon values stay on disk — turning the setting back on brings them back."),
             HelpCard("Tips", "Renaming yourself mid-conversation has no retroactive effect on already-saved chats / reports — the Name field only shapes outbound prompts going forward."),
+        )
+    ),
+    "settings_metadata" to HelpContent(
+        title = "Help - Metadata & icons",
+        cards = listOf(
+            HelpCard("Overview", "One screen for every optional, AI-generated extra a report can carry — its icon, detected language, AI title, per-model icons & titles, Fan Out icons & titles, and the meta / rerank / moderate / translate row icons. A single grand-master toggle at the top turns the whole category on or off; the per-item toggles below it appear only while the master is on. Everything autosaves with a 400 ms debounce."),
+            HelpCard("Generate metadata & icons (master)", "The grand-master switch. When OFF: no metadata LLM calls fire, the per-item toggles are hidden, the Fan Out Icons / Titles buttons and the Manage report 'info' row disappear, and a new report must be given a manual title (the AI-title option is suppressed). When ON: each per-item toggle governs its own item exactly as before. Default ON."),
+            HelpCard("View screens are never gated", "The master switch only affects generation and the controls that trigger it. Screens that display a finished report always show whatever that report already holds, and fall back to fixed defaults when it holds nothing — 📝 report, 🧠 model, 🏆 rerank, 🚦 moderate, 🌐 translate, 🔗 meta, 🔱 Fan Out, 🎯 Fan In. So switching the master off never blanks out icons on reports that already have them."),
+            HelpCard("Report title", "Manual keeps the Title field on the New AI Report screen; AI (default) hides it and fills the title from a background call after report start. With the master off the title is always Manual."),
+            HelpCard("Report icon / Report language", "Two independent toggles (previously one). Report icon runs a small call to pick a fitting emoji shown in title bars, the hub list, history, and search hits. Report language detects the language and picks a flag emoji shown on the info screen and the language picker."),
+            HelpCard("Per-model icons / titles, internal-prompt icons, Autostart Fan", "Per-model icons run the 3-tier per-agent emoji chain; per-model titles add a ≤4-word title per response. Internal-prompt icons add a leading emoji to secondary-result rows. Autostart Fan Icons & Titles kicks those batches off automatically when a clean Fan Out finishes."),
         )
     ),
     "settings_network" to HelpContent(

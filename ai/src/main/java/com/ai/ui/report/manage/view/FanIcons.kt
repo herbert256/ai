@@ -70,7 +70,7 @@ internal fun FanOutL1IconsScreen(
     }
     val sourceIconBySource: Map<String, String> = remember(report) {
         report?.agents?.associate {
-            it.agentId to (it.icon?.takeIf { e -> e.isNotBlank() } ?: "📝")
+            it.agentId to (it.icon?.takeIf { e -> e.isNotBlank() } ?: com.ai.data.MetadataDefaults.MODEL_ICON)
         } ?: emptyMap()
     }
 
@@ -111,7 +111,7 @@ internal fun FanOutL1IconsScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             groups.forEach { (sourceAgentId, pairs) ->
-                val srcGlyph = sourceIconBySource[sourceAgentId] ?: "📝"
+                val srcGlyph = sourceIconBySource[sourceAgentId] ?: com.ai.data.MetadataDefaults.MODEL_ICON
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier

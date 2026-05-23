@@ -298,7 +298,7 @@ fun ReportsScreen(
     val isComplete = reportsProgress >= reportsTotal && reportsTotal > 0
     val currentReportId = uiState.currentReportId
 
-    val iconGenEnabled = uiState.generalSettings.iconGenEnabled
+    val iconGenEnabled = uiState.generalSettings.reportIconOn()
     val runtime = rememberReportRuntimeState(
         context = context,
         currentReportId = currentReportId,

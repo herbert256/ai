@@ -547,6 +547,13 @@ val LocalReportListIconBundle = compositionLocalOf { ReportListIconBundle() }
  *  circuit when false. Default true keeps the feature live. */
 val LocalIconGenEnabled = compositionLocalOf { true }
 
+/** Grand-master metadata switch
+ *  ([com.ai.viewmodel.GeneralSettings.metadataEnabled]) propagated to the
+ *  composition tree so control surfaces that have no per-item sub-flag — the
+ *  Fan Out **Icons** / **Titles** entry buttons — can hide themselves when the
+ *  user turns all optional metadata off. Default true keeps everything live. */
+val LocalMetadataEnabled = compositionLocalOf { true }
+
 /** Resolved per-report emoji propagated to every TitleBar inside a
  *  report-scoped composition tree. Provided by ReportsScreen at every
  *  inline overlay's CompositionLocalProvider so picker / viewer / etc.

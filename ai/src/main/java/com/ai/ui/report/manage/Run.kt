@@ -395,9 +395,10 @@ internal fun ReportRunScreen(
                     settings = aiSettings,
                     iconRefreshTick = uiState.iconRefreshTick,
                     iconGenEnabled = iconGenEnabled,
-                    titleModeAi = uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
-                    perModelIcon = uiState.generalSettings.perModelIconGenEnabled,
-                    perModelTitle = uiState.generalSettings.perModelTitleGenEnabled,
+                    reportLanguageOn = uiState.generalSettings.reportLanguageOn(),
+                    titleModeAi = uiState.generalSettings.reportTitleAiOn(),
+                    perModelIcon = uiState.generalSettings.perModelIconOn(),
+                    perModelTitle = uiState.generalSettings.perModelTitleOn(),
                     onBack = { st.showGetInfo.value = false },
                     onOpenIconDetail = { st.showIconDetail.value = true },
                     onOpenLanguageDetail = {

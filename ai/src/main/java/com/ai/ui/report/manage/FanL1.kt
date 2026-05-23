@@ -617,17 +617,20 @@ internal fun FanOutL1Screen(
             } else {
                 // MAIN: the two metadata-mode entry buttons. Tapping
                 // shows the existing batch (mode flip) or confirms a
-                // fresh job when none exists yet.
-                Button(
-                    onClick = { if (hasFanIcons) onShowFanIcons() else confirmStartIcons = true },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                Button(
-                    onClick = { if (hasFanTitles) onShowFanTitles() else confirmStartTitles = true },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                ) { Text("Titles", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                // fresh job when none exists yet. Hidden entirely when the
+                // grand-master metadata switch is off.
+                if (com.ai.ui.shared.LocalMetadataEnabled.current) {
+                    Button(
+                        onClick = { if (hasFanIcons) onShowFanIcons() else confirmStartIcons = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                    ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    Button(
+                        onClick = { if (hasFanTitles) onShowFanTitles() else confirmStartTitles = true },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                    ) { Text("Titles", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                }
             }
         }
         // MAIN-only: the fan-in launcher gets its own full-width row so
