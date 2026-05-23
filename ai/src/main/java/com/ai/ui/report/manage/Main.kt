@@ -1701,6 +1701,8 @@ fun ReportsScreen(
                     agentId = agentId,
                     modelName = "${agent.provider} · ${com.ai.ui.shared.shortModelName(agent.model)}",
                     initialTitle = agent.modelTitle.orEmpty(),
+                    traceFilename = agent.modelTitleTraceFile,
+                    onNavigateToTraceFile = onNavigateToTraceFile,
                     onBack = { editModelTitleFor = null },
                     onFindAlternativeTitles = {
                         findTitlesFor = agentId; findIconsModels = emptyList(); showFindIconsPicker = true

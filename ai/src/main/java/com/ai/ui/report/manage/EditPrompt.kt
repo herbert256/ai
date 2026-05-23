@@ -135,8 +135,9 @@ fun ReportEditTitleScreen(
  * Edit one model's per-model title (the title generated from that model's
  * response). Like [ReportEditTitleScreen] but per-agent: saving updates the
  * [com.ai.data.ReportAgent.modelTitle] in place — it doesn't re-run anything.
- * No 🐞 trace icon: model_title traces don't carry the agent id, so the
- * per-agent trace can't be matched reliably.
+ * The 🐞 trace icon opens this agent's model_title call trace, looked up from
+ * the stored [com.ai.data.ReportAgent.modelTitleTraceFile] (reliable per-agent,
+ * unlike scanning the shared "model_title" trace category).
  */
 @Composable
 fun ReportEditModelTitleScreen(
@@ -144,6 +145,8 @@ fun ReportEditModelTitleScreen(
     agentId: String,
     modelName: String,
     initialTitle: String,
+    traceFilename: String? = null,
+    onNavigateToTraceFile: (String) -> Unit = {},
     onBack: () -> Unit,
     onFindAlternativeTitles: () -> Unit = {},
     injectedTitle: String? = null,
@@ -155,7 +158,19 @@ fun ReportEditModelTitleScreen(
     LaunchedEffect(injectedTitle) { injectedTitle?.let { title = it; onConsumeInjectedTitle() } }
     val canUpdate = title.trim().isNotBlank()
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_edit_model_title", title = "Edit model title", onBackClick = onBack)
+        TitleBar(
+            helpTopic = "report_edit_model_title", title = "Edit model title", onBackClick = onBack,
+            onTrace = traceFilename?.takeIf { it.isNotBlank() }?.let { fn -> { onNavigateToTraceFile(fn) } }
+        )
+
+        Button(
+            onClick = { onUpdate(title.trim()) },
+            enabled = canUpdate,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Update title", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
+
         Text(modelName, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(bottom = 8.dp))
         OutlinedTextField(
             value = title, onValueChange = { title = it },
@@ -169,12 +184,5 @@ fun ReportEditModelTitleScreen(
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
         ) { Text("Find alternative titles", maxLines = 1, softWrap = false) }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = { onUpdate(title.trim()) },
-            enabled = canUpdate,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Update title", maxLines = 1, softWrap = false) }
     }
 }
