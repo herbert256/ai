@@ -1252,6 +1252,7 @@ private fun OtherSettingsSubScreen(
     var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
     var perModelTitleGenEnabled by remember { mutableStateOf(generalSettings.perModelTitleGenEnabled) }
     var useInternalPromptsIcons by remember { mutableStateOf(generalSettings.useInternalPromptsIcons) }
+    var autostartFanIconsAndTitles by remember { mutableStateOf(generalSettings.autostartFanIconsAndTitles) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         userName = userName,
@@ -1260,10 +1261,11 @@ private fun OtherSettingsSubScreen(
         iconGenEnabled = iconGenEnabled,
         perModelIconGenEnabled = perModelIconGenEnabled,
         perModelTitleGenEnabled = perModelTitleGenEnabled,
-        useInternalPromptsIcons = useInternalPromptsIcons
+        useInternalPromptsIcons = useInternalPromptsIcons,
+        autostartFanIconsAndTitles = autostartFanIconsAndTitles
     )
 
-    LaunchedEffect(userName, defaultEmail, reportTitleMode, iconGenEnabled, perModelIconGenEnabled, perModelTitleGenEnabled, useInternalPromptsIcons) {
+    LaunchedEffect(userName, defaultEmail, reportTitleMode, iconGenEnabled, perModelIconGenEnabled, perModelTitleGenEnabled, useInternalPromptsIcons, autostartFanIconsAndTitles) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1333,6 +1335,12 @@ private fun OtherSettingsSubScreen(
                 description = "Generate a small emoji for each Internal Prompt and show it as a leading glyph on the secondary-result rows of the report result page (compare / critique / rerank / fan-out / …). One LLM call per (name, title) — results cached persistently and reused across reports. Renaming a prompt or editing its title invalidates only that entry.",
                 checked = useInternalPromptsIcons,
                 onCheckedChange = { useInternalPromptsIcons = it }
+            )
+            ToggleSettingCard(
+                title = "Autostart Fan Icons & Titles",
+                description = "When a Fan Out finishes with no errored pairs, automatically kick off its Fan Icons and Fan Titles batches — so you don't have to tap the Icons / Titles buttons by hand. A run with any error pair is left alone; you can still start the batches manually.",
+                checked = autostartFanIconsAndTitles,
+                onCheckedChange = { autostartFanIconsAndTitles = it }
             )
         }
     }

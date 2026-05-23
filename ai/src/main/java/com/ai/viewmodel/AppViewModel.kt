@@ -116,6 +116,11 @@ data class GeneralSettings(
      *  the plain text type label; already-cached entries stay on disk
      *  for re-enable. */
     val useInternalPromptsIcons: Boolean = true,
+    /** When true (default), finishing a Fan Out run with no errored pairs
+     *  automatically kicks off that run's Fan Icons and Fan Titles
+     *  batches — no need to tap the Icons / Titles buttons by hand. A
+     *  run with any error pair is left alone. */
+    val autostartFanIconsAndTitles: Boolean = true,
     /** Last 3 (provider, model) pairs the user picked from the Report
      *  section's model pickers, most-recent first. Encoded as
      *  `"providerId|model"` strings for trivial round-trip through

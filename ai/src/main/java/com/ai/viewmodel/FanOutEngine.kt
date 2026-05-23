@@ -369,6 +369,21 @@ class FanOutEngine internal constructor(
                         }.awaitAll()
                     }
                     AppLog.i("FanOut", "← engine.startRun done \"${metaPrompt.name}\" (${pending.size} pairs)")
+
+                    // Autostart Fan Icons & Titles when the setting is on and
+                    // the run finished cleanly (every pair DONE — no ERROR).
+                    // The two batches read the now-persisted pairs off disk,
+                    // dedupe in-flight jobs and no-op when nothing is pending.
+                    if (appViewModel.uiState.value.generalSettings.autostartFanIconsAndTitles) {
+                        val finishedPairs = _runs.value[key]?.pairs?.values.orEmpty()
+                        val clean = finishedPairs.isNotEmpty() &&
+                            finishedPairs.none { it.status == PairStatus.ERROR }
+                        if (clean) {
+                            AppLog.i("FanOut", "autostart icons+titles for \"${metaPrompt.name}\"")
+                            reportViewModel.iconGen.runFanIconsBatch(context, reportId, metaPrompt.id)
+                            reportViewModel.iconGen.runFanTitlesBatch(context, reportId, metaPrompt.id)
+                        }
+                    }
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
