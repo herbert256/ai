@@ -859,6 +859,9 @@ fun TitleBar(
      *  the old clickable [HardcodedSubjectRow]). */
     subjectProviderService: com.ai.data.AppService? = null,
     subjectModel: String? = null,
+    /** Independent tap target for the orange subject line, distinct from
+     *  the icon/title click. Used by Help (orange → originating screen). */
+    subjectOnClick: (() -> Unit)? = null,
     /** Optional trailing chip beside the orange subject line (e.g. the
      *  Fan-out L3 role indicator). */
     subjectTrailing: @Composable RowScope.() -> Unit = {},
@@ -1085,6 +1088,7 @@ fun TitleBar(
         onSwipeNext = resolvedOnSwipeNext,
         secondProviderService = subjectProviderService,
         secondModel = subjectModel,
+        secondLineOnClick = subjectOnClick,
         secondTrailing = subjectTrailing,
         modifier = modifier
     )
@@ -1119,6 +1123,9 @@ internal fun AppTopBarChrome(
     onSwipeNext: (() -> Boolean)?,
     secondProviderService: com.ai.data.AppService? = null,
     secondModel: String? = null,
+    /** Independent tap target for the orange 2nd line (overrides the
+     *  column/title click for that line). Used by Help: orange → origin. */
+    secondLineOnClick: (() -> Unit)? = null,
     secondTrailing: @Composable RowScope.() -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -1220,8 +1227,12 @@ internal fun AppTopBarChrome(
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         val textMod = Modifier.weight(1f, fill = true)
                             .let { base ->
-                                if (secondProviderService != null && !secondModel.isNullOrBlank())
-                                    base.modelInfoClickable(secondProviderService, secondModel) else base
+                                when {
+                                    secondProviderService != null && !secondModel.isNullOrBlank() ->
+                                        base.modelInfoClickable(secondProviderService, secondModel)
+                                    secondLineOnClick != null -> base.clickable(onClick = secondLineOnClick)
+                                    else -> base
+                                }
                             }
                         Text(
                             text = secondLine, color = AppColors.Orange,

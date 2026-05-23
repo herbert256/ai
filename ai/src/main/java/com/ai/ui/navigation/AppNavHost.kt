@@ -327,7 +327,11 @@ fun AppNavHost(
     if (viewBar != null) {
         // A View screen is active → render the View-owned bottom bar.
         com.ai.ui.report.view.helpers.ViewBottomBar(spec = viewBar)
-    } else if (currentRoute != NavRoutes.AI) {
+    } else if (currentRoute != NavRoutes.AI &&
+        currentRoute != NavRoutes.HELP &&
+        currentRoute != NavRoutes.HELP_FOR_TOPIC
+    ) {
+        // Help screens never have a bottom bar.
         com.ai.ui.shared.BottomIconBar(icons = bottomBarIconState.value)
     }
     } // end Column

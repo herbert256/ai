@@ -98,50 +98,24 @@ fun HelpScreen(
 ) {
     BackHandler { onBack() }
     val topic = topicId?.takeIf { it.isNotBlank() }?.let { HELP_TOPICS[it] }
-    // ❓ on a per-topic help page opens the meta-topic that describes
-    // the help-screen UI itself (so tapping ❓ doesn't bounce back to
-    // the generic Help home — which is the parent screen, not "help
-    // for this screen"). The meta-topic's own page hides ❓ so it
-    // doesn't loop. The bare Help home (topicId == null) leaves ❓
-    // off because the home view IS the general help.
-    //
-    // Help-home subpages (the icons / info providers / AI providers
-    // tables that used to render inline, plus the "concepts" how-it-
-    // works page) get a ❓ that returns to Help home instead — the
-    // user already came from there, so a second-tier "help for
-    // help" page would be more confusing than useful. Empty string
-    // routes through rootNavigateHelp → NavRoutes.HELP, which is
-    // the topic-less landing page.
-    // ❓ on a help page now always falls back to the bare Help home
-    // (empty string → NavRoutes.HELP) — except for View-family pages,
-    // which redirect to the View grid's help. The old "Help - Help
-    // (this screen)" meta-topic (`help_topic_view`) was removed, so
-    // any path that used to point at it now opens Help home instead.
-    val titleBarHelpTopic = when {
-        topicId.isNullOrBlank() -> null
-        topicId in VIEW_CHILD_HELP_TOPICS -> "view_ai_report"
-        else -> ""
-    }
-    // Help pages that describe a View-family screen render with the
-    // same ViewScreenTitleBar the View screens themselves use — keeps
-    // the visual cue consistent (you're in the View family). Per the
-    // user's spec the matching View screen's name lives in the orange
-    // screen-title slot; the green subject row is unused on these.
-    val isViewFamilyHelp =
-        topicId != null && (topicId == "view_ai_report" || topicId in VIEW_CHILD_HELP_TOPICS)
-    val viewFamilyTitle = topic?.title?.removePrefix("Help - ")?.takeIf { it.isNotBlank() }
+    // Standard top bar for every help screen: ❓ glyph left, white
+    // "Help" always, orange = this page's subject (the topic title with
+    // the leading "Help …" stripped; null on the bare index → no orange
+    // line). ❓ icon + "Help" → the main help page; the orange subject →
+    // back to the screen that opened this help page.
+    val subject = topic?.title
+        ?.removePrefix("Help")?.trimStart(' ', '-', '—', '–', ':')
+        ?.takeIf { it.isNotBlank() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        if (isViewFamilyHelp) {
-            ViewScreenTitleBar(
-                reportTitle = "Help",
-                screenTitle = viewFamilyTitle,
-                subject = null,
-                helpTopic = titleBarHelpTopic ?: "view_ai_report",
-                onBack = onBack
-            )
-        } else {
-            TitleBar(helpTopic = titleBarHelpTopic, title = topic?.title ?: "Help", onBackClick = onBack)
-        }
+        TitleBar(
+            title = "Help",
+            subject = subject,
+            reportIcon = "❓",
+            onReportIconClick = onNavigateToHelpHome,
+            onTitleClick = onNavigateToHelpHome,
+            subjectOnClick = onBack,
+            onBackClick = onBack
+        )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (topic != null) {
                 topic.cards.forEach { HelpSection(it.title, it.body) }
