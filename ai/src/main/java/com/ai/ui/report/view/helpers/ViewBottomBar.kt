@@ -24,7 +24,14 @@ import androidx.compose.ui.unit.sp
  * renders [ViewBottomBar] in place of the generic bar). [onManage] null
  * = a drill-deeper View screen with no manage affordance (empty bar).
  */
-data class ViewBottomBarSpec(val onManage: (() -> Unit)?)
+data class ViewBottomBarSpec(
+    val onManage: (() -> Unit)?,
+    /** When non-null, a left-aligned ☝️/✋ "one vs all" toggle is shown:
+     *  true = ✋ (showing all items), false = ☝️ (showing one). Null = no
+     *  toggle for this screen. The 🔧 manage icon stays centred regardless. */
+    val showAll: Boolean? = null,
+    val onToggleOneOrAll: (() -> Unit)? = null
+)
 
 /** Set by AppNavHost; written by [ViewTitleBar] while a View screen is
  *  on screen. Null when no View screen is active. */
@@ -44,6 +51,19 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
         modifier = modifier.fillMaxWidth().padding(bottom = 12.dp),
         contentAlignment = Alignment.Center
     ) {
+        // Left-aligned ☝️/✋ "one vs all" toggle — shows the current mode;
+        // tapping flips it. Independent of the centred 🔧.
+        if (spec.showAll != null && spec.onToggleOneOrAll != null) {
+            Text(
+                text = if (spec.showAll) "✋" else "☝️",
+                fontSize = 28.sp,
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .clickable(onClick = spec.onToggleOneOrAll)
+                    .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 8.dp)
+            )
+        }
         if (onManage != null) {
             Text(
                 text = "🔧",

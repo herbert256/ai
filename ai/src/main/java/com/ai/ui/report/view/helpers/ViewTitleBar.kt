@@ -79,7 +79,12 @@ fun ViewTitleBar(
     /** Horizontal swipe handlers; return true if a matching prev/next
      *  report was found. Null disables the swipe (drill-deeper screens). */
     onSwipePrev: (() -> Boolean)? = null,
-    onSwipeNext: (() -> Boolean)? = null
+    onSwipeNext: (() -> Boolean)? = null,
+    /** Optional left-aligned ☝️/✋ "one vs all" bottom-bar toggle.
+     *  [oneOrAll] = current state (true = ✋ all, false = ☝️ one); null =
+     *  no toggle. [onToggleOneOrAll] flips it. */
+    oneOrAll: Boolean? = null,
+    onToggleOneOrAll: (() -> Unit)? = null
 ) {
     val navigateHome = LocalNavigateHome.current
     val navigateHelp = LocalNavigateToHelp.current
@@ -96,7 +101,7 @@ fun ViewTitleBar(
         // full-screen overlays), so onDispose of the leaving screen runs
         // before the entering screen's SideEffect in the same apply pass —
         // no stale spec lingers and the next screen's spec always wins.
-        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage) }
+        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll) }
         DisposableEffect(viewBottomBarState) {
             onDispose { viewBottomBarState.value = null }
         }

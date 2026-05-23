@@ -177,6 +177,9 @@ fun ReportsViewScreen(
         }
     }
     val activeAgent = agents.getOrNull(pagerState.currentPage.wrapTo(agents.size))
+    // ☝️ (one model per swipe page, default) vs ✋ (all models as
+    // collapsible cards). Toggled from the View bottom bar.
+    var showAll by rememberSaveable(reportId) { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -209,7 +212,9 @@ fun ReportsViewScreen(
             onSwipeNext = {
                 val m = findSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Next, ViewSwipeFilter.Any)
                 if (m != null) { currentReportId = m.reportId; switchReport?.invoke(m.reportId); true } else false
-            }
+            },
+            oneOrAll = showAll,
+            onToggleOneOrAll = { showAll = !showAll }
         )
         if (report == null) {
             Box(
@@ -320,46 +325,64 @@ fun ReportsViewScreen(
                     )
                 }
                 Spacer(modifier = Modifier.height(12.dp))
-                val activeProvider = activeAgent?.let { com.ai.data.AppService.findById(it.provider) }
-                val activeModelId = activeAgent?.model.orEmpty()
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = activeAgent?.let { shortModelName(it.model) }.orEmpty(),
-                        color = AppColors.Green,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                            .modelInfoViewClickable(activeProvider, activeModelId)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "${pagerState.currentPage.wrapTo(agents.size) + 1} / ${agents.size}",
-                        color = AppColors.TextTertiary, fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                // Fill the leftover height so the swipe region extends
-                // below the (wrap-content, top-aligned) card — swiping in
-                // the empty space under the last card navigates models
-                // exactly as swiping on the card does.
-                com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
-                    pagerState = pagerState,
-                    noMoreLabel = "No more models",
-                    modifier = Modifier.fillMaxWidth().weight(1f)
-                ) {
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier.fillMaxSize()
-                    ) { page ->
-                        val agent = agents[page.wrapTo(agents.size)]
-                        AgentResponseCard(
-                            agent = agent,
-                            overrideBody = translatedByAgentId[agent.agentId]
+                if (!showAll) {
+                    // ☝️ — one model per page, swipe to navigate.
+                    val activeProvider = activeAgent?.let { com.ai.data.AppService.findById(it.provider) }
+                    val activeModelId = activeAgent?.model.orEmpty()
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = activeAgent?.let { shortModelName(it.model) }.orEmpty(),
+                            color = AppColors.Green,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                                .modelInfoViewClickable(activeProvider, activeModelId)
                         )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "${pagerState.currentPage.wrapTo(agents.size) + 1} / ${agents.size}",
+                            color = AppColors.TextTertiary, fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    // Fill the leftover height so the swipe region extends
+                    // below the (wrap-content, top-aligned) card — swiping in
+                    // the empty space under the last card navigates models
+                    // exactly as swiping on the card does.
+                    com.ai.ui.shared.SwipeEdgeNoMoreOverlay(
+                        pagerState = pagerState,
+                        noMoreLabel = "No more models",
+                        modifier = Modifier.fillMaxWidth().weight(1f)
+                    ) {
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.fillMaxSize()
+                        ) { page ->
+                            val agent = agents[page.wrapTo(agents.size)]
+                            AgentResponseCard(
+                                agent = agent,
+                                overrideBody = translatedByAgentId[agent.agentId]
+                            )
+                        }
+                    }
+                } else {
+                    // ✋ — all models as collapsible cards.
+                    Column(
+                        modifier = Modifier.fillMaxWidth().weight(1f)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        agents.forEach { agent ->
+                            ModelReportCard(
+                                agent = agent,
+                                overrideBody = translatedByAgentId[agent.agentId]
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
             }
@@ -520,6 +543,55 @@ private fun AgentResponseCard(
             Text(text = "(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
         } else {
             ContentWithThinkSections(analysis = body)
+        }
+    }
+}
+
+/** ✋-mode card: one per model, default collapsed. Collapsed shows the
+ *  model's response icon + its title on one line; tapping expands to add
+ *  the model name and the full response. */
+@Composable
+private fun ModelReportCard(
+    agent: ReportAgent,
+    overrideBody: String?
+) {
+    var expanded by rememberSaveable(agent.agentId) { mutableStateOf(false) }
+    val emoji = agent.icon?.takeIf { it.isNotBlank() } ?: "🤖"
+    val title = agent.modelTitle?.takeIf { it.isNotBlank() } ?: shortModelName(agent.model)
+    val provider = com.ai.data.AppService.findById(agent.provider)
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(AppColors.CardBackground)
+            .border(1.dp, AppColors.Blue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .clickable { expanded = !expanded }
+            .padding(horizontal = 14.dp, vertical = 10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(text = emoji, fontSize = 22.sp)
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = title,
+                color = AppColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = if (expanded) 3 else 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        if (expanded) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = shortModelName(agent.model),
+                color = AppColors.Green, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.modelInfoViewClickable(provider, agent.model)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            val body = overrideBody ?: agent.responseBody.orEmpty()
+            if (body.isBlank()) {
+                Text(text = "(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
+            } else {
+                ContentWithThinkSections(analysis = body)
+            }
         }
     }
 }
