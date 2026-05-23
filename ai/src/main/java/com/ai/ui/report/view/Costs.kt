@@ -548,30 +548,46 @@ private fun CostsDrillL3Screen(
     ) {
         ViewTitleBar(
             reportTitle = reportTitle, screenTitle = "Costs",
-            subject = "$bucketKey · $modelKey", helpTopic = "costs_view",
+            subject = null, helpTopic = "costs_view",
             onOpenManage = onOpenManage, onBack = onBack
         )
+        // Bucket + model named once, as two green lines — every card
+        // below shares them, so they're not repeated per card.
         Text(
-            text = "${entries.size} call${if (entries.size == 1) "" else "s"} · ${formatCentsValue(entriesTotal, 4)}",
-            color = AppColors.TextTertiary, fontSize = 12.sp,
-            modifier = Modifier.padding(bottom = 8.dp)
+            text = bucketKey, color = AppColors.Green, fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = modelKey, color = AppColors.Green, fontSize = 15.sp,
+            fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(bottom = 6.dp)
         )
         if (entries.isEmpty()) {
             Text("No calls.", color = AppColors.TextTertiary, fontSize = 13.sp)
             return@Column
         }
         androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val perPage = (maxHeight.value / 72f).toInt().coerceAtLeast(1)
+            val perPage = (maxHeight.value / 52f).toInt().coerceAtLeast(1)
             val pages = entries.chunked(perPage)
             val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { pages.size })
             Column(modifier = Modifier.fillMaxSize()) {
-                if (pages.size > 1) {
+                // "N calls · total" left-aligned; page indicator right.
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = "Page ${pagerState.currentPage + 1} / ${pages.size}  ·  swipe ⇄",
-                        color = AppColors.TextTertiary, fontSize = 11.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
+                        text = "${entries.size} call${if (entries.size == 1) "" else "s"} · ${formatCentsValue(entriesTotal, 4)}",
+                        color = AppColors.TextTertiary, fontSize = 12.sp,
+                        modifier = Modifier.weight(1f)
                     )
+                    if (pages.size > 1) {
+                        Text(
+                            text = "Page ${pagerState.currentPage + 1} / ${pages.size}  ·  swipe ⇄",
+                            color = AppColors.TextTertiary, fontSize = 11.sp,
+                            textAlign = TextAlign.End
+                        )
+                    }
                 }
                 androidx.compose.foundation.pager.HorizontalPager(
                     state = pagerState,
@@ -586,33 +602,27 @@ private fun CostsDrillL3Screen(
     }
 }
 
-/** One raw call on the L3 page: provider · model + cost, then a quiet
- *  type / token line. */
+/** One raw call on the L3 page. Bucket + model are named once at the
+ *  top of the screen, so each card is a single compact line: the token
+ *  / tier detail on the left, the call's cost on the right. */
 @Composable
 private fun CostEntryRow(row: CostRow) {
-    Column(
+    Row(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(AppColors.CardBackground)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = listOf(row.providerDisplay, com.ai.ui.shared.shortModelName(row.model))
-                    .filter { it.isNotBlank() }.joinToString(" · ").ifBlank { row.type },
-                color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = formatCentsValue(row.inputCents + row.outputCents, 4),
-                color = AppColors.Yellow, fontSize = 13.sp, fontWeight = FontWeight.Bold
-            )
-        }
         Text(
-            text = "${row.type} · in ${row.inputTokens} / out ${row.outputTokens} tok" +
+            text = "in ${row.inputTokens} / out ${row.outputTokens} tok" +
                 (row.tier.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
-            color = AppColors.TextTertiary, fontSize = 11.sp,
-            maxLines = 1, overflow = TextOverflow.Ellipsis
+            color = AppColors.TextTertiary, fontSize = 12.sp,
+            modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = formatCentsValue(row.inputCents + row.outputCents, 4),
+            color = AppColors.Yellow, fontSize = 13.sp, fontWeight = FontWeight.Bold
         )
     }
 }
