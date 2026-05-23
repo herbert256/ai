@@ -470,7 +470,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "report_picker" to HelpContent(
         title = "Help - Pick a report",
         cards = listOf(
-            HelpCard("Overview", "Opened from the 📋 on the View hub. Lists your reports in the same five buckets as the AI Reports hub (Running, Problems, Pinned, Latest, Examples). Tap any row to open that report straight in View."),
+            HelpCard("Overview", "Opened from the 🗂️ on the View hub. Lists your reports in the same five buckets as the AI Reports hub (Running, Problems, Pinned, Latest, Examples). Tap any row to open that report straight in View."),
             HelpCard("Cards", "Each card shows up to five at a glance; scroll inside a card for more. Empty buckets are greyed and sink to the bottom. Rows are title-only — no per-row icons here."),
         )
     ),

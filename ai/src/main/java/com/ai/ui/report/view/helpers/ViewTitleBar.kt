@@ -88,7 +88,7 @@ fun ViewTitleBar(
      *  no toggle. [onToggleOneOrAll] flips it. */
     oneOrAll: Boolean? = null,
     onToggleOneOrAll: (() -> Unit)? = null,
-    /** Optional left-aligned 📋 bottom-bar icon → pick-a-report-to-view
+    /** Optional left-aligned 🗂️ bottom-bar icon → pick-a-report-to-view
      *  (View hub only). */
     onViewList: (() -> Unit)? = null
 ) {
