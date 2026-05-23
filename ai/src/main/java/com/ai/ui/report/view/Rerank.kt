@@ -1,4 +1,6 @@
 package com.ai.ui.report.view
+
+import com.ai.data.barTitle
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 
@@ -106,7 +108,7 @@ fun RerankViewScreen(
                     (idx + 1) to AgentLabel(shortModelName(agent.model), agent.agentId)
                 }?.toMap()
                 ?: emptyMap()
-            Loaded(r, labels, report?.title)
+            Loaded(r, labels, report?.barTitle)
         }
     }
     val loaded = loadedState.value

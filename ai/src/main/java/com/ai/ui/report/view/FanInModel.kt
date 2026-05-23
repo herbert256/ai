@@ -1,4 +1,6 @@
 package com.ai.ui.report.view
+
+import com.ai.data.barTitle
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 
@@ -124,7 +126,7 @@ fun FanInModelViewScreen(
             { dispatch(com.ai.ui.shared.ManageJump.MetaResult(resultId)) }
         }
         ViewTitleBar(
-            reportTitle = report?.title,
+            reportTitle = report?.barTitle,
             screenTitle = "Fan-in-model",
             subject = rows.firstOrNull()?.metaPromptName?.takeIf { it.isNotBlank() },
             helpTopic = "fan_in_model_view",

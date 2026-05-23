@@ -1,4 +1,6 @@
 package com.ai.ui.report.view
+
+import com.ai.data.barTitle
 import com.ai.ui.report.manage.view.*
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
@@ -113,13 +115,13 @@ fun CostsViewScreen(
             val l3 = l3Key
             if (l3 != null) {
                 CostsDrillL3Screen(
-                    reportTitle = report.title, mode = mode, l2Key = l2, l3Key = l3,
+                    reportTitle = report.barTitle, mode = mode, l2Key = l2, l3Key = l3,
                     data = drillData, onOpenManage = onOpenManageJump, onBack = { l3Key = null }
                 )
                 return
             }
             CostsDrillL2Screen(
-                reportTitle = report.title, mode = mode, l2Key = l2,
+                reportTitle = report.barTitle, mode = mode, l2Key = l2,
                 data = drillData, onOpenManage = onOpenManageJump,
                 onPick = { l3Key = it }, onBack = { l2Key = null }
             )
@@ -135,7 +137,7 @@ fun CostsViewScreen(
             .viewBodySwipe(mode, onPrev = flipMode, onNext = flipMode)
     ) {
         ViewTitleBar(
-            reportTitle = report?.title,
+            reportTitle = report?.barTitle,
             screenTitle = "Costs",
             subject = null,
             helpTopic = "costs_view",

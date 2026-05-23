@@ -1,4 +1,6 @@
 package com.ai.ui.report.view
+
+import com.ai.data.barTitle
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 
@@ -252,7 +254,7 @@ fun FanOutViewScreen(
         }
         val titleText = "Fan-out" + currentPromptName.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty()
         ViewTitleBar(
-            reportTitle = report?.title,
+            reportTitle = report?.barTitle,
             screenTitle = titleText,
             subject = null,
             helpTopic = "fan_out_view",

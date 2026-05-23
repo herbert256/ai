@@ -1,4 +1,6 @@
 package com.ai.ui.report.view
+
+import com.ai.data.barTitle
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 
@@ -171,7 +173,7 @@ fun FanInViewScreen(
         // dropped so the header reads on a single line.
         val screenTitleLabel = if (metaPromptName != null) "Fan In - $metaPromptName" else "Fan In"
         ViewTitleBar(
-            reportTitle = report?.title,
+            reportTitle = report?.barTitle,
             screenTitle = screenTitleLabel,
             subject = null,
             helpTopic = "fan_in_view",

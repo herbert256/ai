@@ -1,4 +1,6 @@
 package com.ai.ui.report.view
+
+import com.ai.data.barTitle
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 
@@ -178,7 +180,7 @@ fun MetaViewScreen(
         }
         val screenTitleLabel = if (metaPromptName != null) "Meta - $metaPromptName" else "Meta"
         ViewTitleBar(
-            reportTitle = report?.title,
+            reportTitle = report?.barTitle,
             screenTitle = screenTitleLabel,
             subject = null,
             helpTopic = "meta_view",

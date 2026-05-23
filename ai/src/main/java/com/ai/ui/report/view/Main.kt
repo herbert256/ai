@@ -1,4 +1,6 @@
 package com.ai.ui.report.view
+
+import com.ai.data.barTitle
 import com.ai.ui.report.manage.view.*
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
@@ -1054,7 +1056,7 @@ internal fun ViewAiReportScreen(
             { dispatch(com.ai.ui.shared.ManageJump.Main) }
         } ?: navToManageMain
         ViewTitleBar(
-            reportTitle = loadedReport?.title ?: promptTitle,
+            reportTitle = loadedReport?.barTitle ?: promptTitle,
             screenTitle = "View an AI report",
             subject = null,
             helpTopic = "view_ai_report",

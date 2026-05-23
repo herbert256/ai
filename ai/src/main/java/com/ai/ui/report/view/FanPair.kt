@@ -1,4 +1,6 @@
 package com.ai.ui.report.view
+
+import com.ai.data.barTitle
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 
@@ -122,7 +124,7 @@ fun FanOutPairViewScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewTitleBar(
-            reportTitle = report?.title,
+            reportTitle = report?.barTitle,
             screenTitle = "Fan-out pair",
             subject = metaPromptName.takeIf { it.isNotBlank() },
             helpTopic = "fan_out_pair_view",

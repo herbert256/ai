@@ -322,7 +322,7 @@ object ReportStorage {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
-            val updated = report.copy(title = newTitle, prompt = newPrompt)
+            val updated = report.copy(title = newTitle, titleLong = null, prompt = newPrompt)
             saveReport(updated)
             true
         }
@@ -332,7 +332,7 @@ object ReportStorage {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
-            saveReport(report.copy(title = newTitle))
+            saveReport(report.copy(title = newTitle, titleLong = null))
             true
         }
     }
@@ -400,6 +400,7 @@ object ReportStorage {
      *  [updateReportIcon]. */
     fun updateReportTitleFromAi(
         context: Context, reportId: String, newTitle: String,
+        titleLong: String? = null,
         inputTokens: Int, outputTokens: Int,
         inputCost: Double, outputCost: Double,
         traceFile: String? = null,
@@ -410,7 +411,7 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             saveReport(report.copy(
-                title = newTitle, titleErrorMessage = null,
+                title = newTitle, titleLong = titleLong, titleErrorMessage = null,
                 titleInputTokens = report.titleInputTokens + inputTokens,
                 titleOutputTokens = report.titleOutputTokens + outputTokens,
                 titleInputCost = report.titleInputCost + inputCost,
@@ -1170,6 +1171,7 @@ object ReportStorage {
                 id = newId,
                 timestamp = System.currentTimeMillis(),
                 title = if (src.title.endsWith("(Copy)")) src.title else "${src.title} (Copy)",
+                titleLong = src.titleLong,
                 prompt = src.prompt,
                 // Deep-copy each agent so further mutations on the
                 // original don't leak into the copy through the shared

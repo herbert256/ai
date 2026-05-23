@@ -1,4 +1,6 @@
 package com.ai.ui.report.view
+
+import com.ai.data.barTitle
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 
@@ -106,7 +108,7 @@ fun ModerationViewScreen(
             val responses = successful.mapIndexed { idx, agent ->
                 (idx + 1) to (agent.responseBody ?: "")
             }.toMap()
-            Loaded(r, labels, responses, report?.title)
+            Loaded(r, labels, responses, report?.barTitle)
         }
     }
     val loaded = loadedState.value

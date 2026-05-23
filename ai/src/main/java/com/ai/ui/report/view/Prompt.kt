@@ -1,4 +1,6 @@
 package com.ai.ui.report.view
+
+import com.ai.data.barTitle
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 
@@ -158,7 +160,7 @@ fun PromptViewScreen(
             { dispatch(com.ai.ui.shared.ManageJump.Main) }
         }
         ViewTitleBar(
-            reportTitle = report?.title,
+            reportTitle = report?.barTitle,
             screenTitle = "Prompt",
             // Language flag moved to the top-right of the prompt card
             // (see PromptPageCard). Leaving the title bar's subject

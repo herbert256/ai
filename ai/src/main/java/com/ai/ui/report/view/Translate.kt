@@ -1,4 +1,6 @@
 package com.ai.ui.report.view
+
+import com.ai.data.barTitle
 import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 
@@ -133,7 +135,7 @@ fun TranslateViewScreen(
             { dispatch(com.ai.ui.shared.ManageJump.TranslationRun(currentTranslationRunId)) }
         }
         ViewTitleBar(
-            reportTitle = report?.title,
+            reportTitle = report?.barTitle,
             screenTitle = "Translate",
             subject = rows.firstOrNull()?.let { it.targetLanguageNative ?: it.targetLanguage }?.takeIf { it.isNotBlank() },
             helpTopic = "translate_view",

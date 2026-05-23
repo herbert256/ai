@@ -250,6 +250,10 @@ data class Report(
      *  succeeded" sentinel that drives the 🏷️ status icon on the
      *  Manage `title` row (null while running, non-null = success). */
     var titlePromptUsed: String? = null,
+    /** Longer report title (≤50 chars) for the top-bar orange line. Set by
+     *  AI title-gen alongside the short [title]; null/blank for manually-set
+     *  titles, which fall back to [title] via [barTitle]. */
+    var titleLong: String? = null,
     /** Per-call audit log for the 3-tier Create → Report icons
      *  chain. Cleared whenever a fresh chain run starts; otherwise
      *  every tier appends one [IconCallRecord]. The export's per-
@@ -335,4 +339,10 @@ data class Report(
      *  reports / before the call returned. */
     var languageRawResponse: String? = null
 )
+
+/** Title for the top-bar orange line: the long title when present, else the
+ *  short [Report.title]. Manual edits clear [Report.titleLong], so a
+ *  manually-set report shows its short title here. List cards / search /
+ *  exports keep using [Report.title] directly. */
+val Report.barTitle: String get() = titleLong?.takeIf { it.isNotBlank() } ?: title
 

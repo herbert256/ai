@@ -133,7 +133,7 @@
     "reference": false,
     "category": "info",
     "agent": "Anthropic",
-    "text": "Please see the text after the @@@ marker in this request, you must give it a title, max 5 words, max 30 characters, including space, only give this title back, nothing more.\n@@@\n@PROMPT@"
+    "text": "Read the text after the blank line below and create two titles for it: a short title of at most 25 characters (including spaces) and a long title of at most 50 characters (including spaces). Put the short title on the first line and the long title on the second line. Return only those two lines and nothing else.\n\n@PROMPT@"
   },
   {
     "name": "model_title",

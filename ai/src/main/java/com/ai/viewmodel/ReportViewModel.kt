@@ -199,7 +199,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ) {
         _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
-            genericPromptTitle = title, genericPromptText = prompt,
+            genericPromptTitle = title, genericPromptTitleLong = "", genericPromptText = prompt,
             reportImageBase64 = imageBase64, reportImageMime = imageMime,
             reportWebSearchTool = webSearchTool,
             reportReasoningEffort = reasoningEffort,
@@ -635,7 +635,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
             showGenericReportsDialog = false,
-            genericPromptTitle = report.title, genericPromptText = report.prompt,
+            genericPromptTitle = report.title, genericPromptTitleLong = report.titleLong.orEmpty(),
+            genericPromptText = report.prompt,
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
             currentReportId = null,
@@ -686,7 +687,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             ReportStorage.updateReportTitle(context, reportId, newTitle)
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
-        appViewModel.updateUiState { it.copy(genericPromptTitle = newTitle) }
+        // Manual edit clears the long title (storage cleared it too) so the
+        // orange line falls back to the short title.
+        appViewModel.updateUiState { it.copy(genericPromptTitle = newTitle, genericPromptTitleLong = "") }
     }
 
     /** Manually set one agent's per-model title (Get-info → Edit model
@@ -1139,6 +1142,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             genericReportsProgress = report.agents.size,
             genericReportsSelectedAgents = report.agents.map { ra -> ra.agentId }.toSet(),
             genericPromptTitle = report.title,
+            genericPromptTitleLong = report.titleLong.orEmpty(),
             genericPromptText = report.prompt,
             showGenericReportsDialog = true
         ) }
@@ -1195,7 +1199,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // own when the job ends or is cancelled — no manual clear here.
         _agentResults.value = emptyMap()
         appViewModel.updateUiState { it.copy(
-            showGenericReportsDialog = false, genericPromptTitle = "", genericPromptText = "",
+            showGenericReportsDialog = false, genericPromptTitle = "", genericPromptTitleLong = "", genericPromptText = "",
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
             currentReportId = null, reportAdvancedParameters = null,

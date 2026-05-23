@@ -188,7 +188,7 @@ internal fun rememberReportRuntimeState(
             infoState = aggregateInfoState(infoJobs)
             infoMetaTotal = infoJobs.sumOf { it.cost }
             loadedReportPrompt = r?.prompt.orEmpty()
-            loadedReportTitle = r?.title
+            loadedReportTitle = r?.barTitle
             loadedReportTimestamp = r?.timestamp ?: 0L
             loadedReportId = rid
         }

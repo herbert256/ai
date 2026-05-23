@@ -170,16 +170,25 @@ class IconGenerationManager(
                         )
                     }
                     if (response.error == null) {
-                        // Defensive trims — some models wrap output in
-                        // quotes or include a "Title: " prefix even
-                        // when told not to.
-                        val raw = (response.analysis ?: "").trim()
-                            .removePrefix("Title:").trim()
-                            .removeSurrounding("\"").trim()
-                            .removeSurrounding("'").trim()
-                            .lineSequence().firstOrNull { it.isNotBlank() }
-                            ?.trim().orEmpty()
-                        val generated = raw.take(30).ifBlank { "AI Report" }
+                        // The prompt asks for two lines — a short title then a
+                        // long one. Clean each line defensively (some models
+                        // wrap output in quotes or add a "Title: " prefix even
+                        // when told not to), then take the first two non-blank.
+                        val lines = (response.analysis ?: "")
+                            .lineSequence()
+                            .map {
+                                it.trim()
+                                    .removePrefix("Title:").trim()
+                                    .removeSurrounding("\"").trim()
+                                    .removeSurrounding("'").trim()
+                            }
+                            .filter { it.isNotBlank() }
+                            .toList()
+                        // Short title (≤25) drives list cards; long title (≤50)
+                        // the orange line. Single-line replies leave long blank
+                        // → barTitle falls back to the short title.
+                        val generated = lines.getOrNull(0).orEmpty().take(25).ifBlank { "AI Report" }
+                        val generatedLong = lines.getOrNull(1).orEmpty().take(50)
                         val tu = response.tokenUsage
                         val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
                         val inT = tu?.inputTokens ?: 0
@@ -188,6 +197,7 @@ class IconGenerationManager(
                         val outC = outT * pricing.completionPrice
                         ReportStorage.updateReportTitleFromAi(
                             context, reportId, generated,
+                            titleLong = generatedLong.ifBlank { null },
                             inputTokens = inT, outputTokens = outT,
                             inputCost = inC, outputCost = outC,
                             traceFile = traceSink.get(),
@@ -195,12 +205,12 @@ class IconGenerationManager(
                             promptUsed = "report_title"
                         )
                         // Keep the in-memory UiState in sync so the
-                        // green title row on Manage report updates the
-                        // moment the call returns, without waiting for
-                        // a navigation event to re-read from disk.
+                        // title row on Manage report updates the moment
+                        // the call returns, without waiting for a
+                        // navigation event to re-read from disk.
                         appViewModel.updateUiState { st ->
                             if (st.currentReportId == reportId) {
-                                st.copy(genericPromptTitle = generated)
+                                st.copy(genericPromptTitle = generated, genericPromptTitleLong = generatedLong)
                             } else st
                         }
                     } else {

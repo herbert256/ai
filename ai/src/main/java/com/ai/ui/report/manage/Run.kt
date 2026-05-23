@@ -208,6 +208,9 @@ internal fun ReportRunScreen(
             )
     ) {
         val promptTitle = uiState.genericPromptTitle
+        // Orange line shows the AI long title when present, else the short
+        // working title. The short title still drives editing / saving.
+        val promptTitleForBar = uiState.genericPromptTitleLong.ifBlank { promptTitle }
         // Main Manage screen: the report icon, the "Manage report" screen
         // title and the green report-name in GenerationPhase all open the
         // View hub (same target as the bottom-bar 👁).
@@ -227,7 +230,7 @@ internal fun ReportRunScreen(
             // View hub ("View an AI report") — same target as the report
             // icon, the green report-name and the bottom-bar 👁.
             onTitleClick = onOpenViewReport,
-            subject = promptTitle,
+            subject = promptTitleForBar,
             reportIcon = if (iconGenEnabled) reportIcon?.takeIf { it.isNotEmpty() } ?: "📝" else null,
             // On the Manage report screen the report icon opens the main
             // View hub ("View an AI report") — same target as the green

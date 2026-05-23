@@ -260,6 +260,11 @@ data class UiState(
     val showGenericAgentSelection: Boolean = false,
     val showGenericReportsDialog: Boolean = false,
     val genericPromptTitle: String = "",
+    /** Display-only long title for the Manage report orange line; mirrors
+     *  [genericPromptTitle] but holds the AI-generated long title (≤50).
+     *  Blank for manual / new-report titles → orange line falls back to
+     *  [genericPromptTitle]. */
+    val genericPromptTitleLong: String = "",
     val genericPromptText: String = "",
     // Optional image attachment for the next report — set on NewReportScreen
     // by the 📎 button, consumed once by generateGenericReports, then cleared.
