@@ -377,6 +377,10 @@ val LocalNavigateToReportInfo = compositionLocalOf<(String) -> Unit> { {} }
  *  threaded arg) for the 64 KB-ceiling reason. Default no-op. */
 val LocalNavigateToReportModel = compositionLocalOf<(String, String) -> Unit> { { _, _ -> } }
 
+/** Opens the "pick a report to view" screen from the View hub's 📋.
+ *  Provided around the AI_REPORTS composable. Default no-op. */
+val LocalNavigateToReportPicker = compositionLocalOf<() -> Unit> { {} }
+
 /** Prev / next callbacks for the chronologically surrounding reports
  *  on disk. Provided by [ReportsScreenNav] (it builds the lambdas
  *  alongside the same callbacks ReportsScreen uses for its < / >

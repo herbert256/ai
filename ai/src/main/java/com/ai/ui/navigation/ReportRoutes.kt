@@ -273,6 +273,9 @@ internal fun NavGraphBuilder.reportRoutes(
                 },
                 com.ai.ui.shared.LocalNavigateToReportModel provides { rid, aid ->
                     navController.navigate(NavRoutes.aiReportModel(rid, aid))
+                },
+                com.ai.ui.shared.LocalNavigateToReportPicker provides {
+                    navController.navigate(NavRoutes.AI_VIEW_PICK_REPORT)
                 }
             ) {
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
@@ -414,6 +417,26 @@ internal fun NavGraphBuilder.reportRoutes(
                     onBack = safePopBack,
                     onOpenTrace = { fn -> navController.navigate(NavRoutes.traceDetail(fn)) },
                     onOpenModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p, m)) }
+                )
+            }
+        }
+        // View-styled "pick a report to view" screen (from the View hub 📋).
+        composable(NavRoutes.AI_VIEW_PICK_REPORT) {
+            val pickContext = LocalContext.current
+            val pickScope = rememberCoroutineScope()
+            com.ai.ui.navigation.ViewSubScreenWithTitleNav(
+                navController = navController,
+                currentReportId = null
+            ) {
+                com.ai.ui.report.view.ReportPickerScreen(
+                    reportViewModel = reportViewModel,
+                    onBack = safePopBack,
+                    onOpenReportView = { rid ->
+                        pickScope.launch {
+                            reportViewModel.restoreCompletedReport(pickContext, rid)
+                            navController.navigate(NavRoutes.aiReportView())
+                        }
+                    }
                 )
             }
         }

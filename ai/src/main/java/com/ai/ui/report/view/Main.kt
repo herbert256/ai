@@ -1077,7 +1077,9 @@ internal fun ViewAiReportScreen(
             },
             onSwipeNext = swipeNav?.let { nav ->
                 { if (nav.hasNext) { nav.onNext(); true } else false }
-            }
+            },
+            // 📋 (hub only) → the "pick a report to view" screen.
+            onViewList = com.ai.ui.shared.LocalNavigateToReportPicker.current
         )
 
         // One picker for the whole View screen; tile clicks below

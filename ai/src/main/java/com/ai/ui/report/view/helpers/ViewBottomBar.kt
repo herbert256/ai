@@ -32,6 +32,9 @@ data class ViewBottomBarSpec(
      *  toggle for this screen. The 🔧 manage icon stays centred regardless. */
     val showAll: Boolean? = null,
     val onToggleOneOrAll: (() -> Unit)? = null,
+    /** When non-null, a left-aligned 📋 icon is shown (View hub only) →
+     *  the "pick a report to view" screen. */
+    val onViewList: (() -> Unit)? = null,
     /** When non-null, a right-aligned ❓ help icon is shown, opening this
      *  screen's help topic. The View top bar moved help down here. */
     val helpTopic: String? = null
@@ -66,6 +69,19 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .clickable(onClick = spec.onToggleOneOrAll)
+                    .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 8.dp)
+            )
+        }
+        // Left-aligned 📋 → pick-a-report-to-view (View hub only; the hub
+        // has no ☝️/✋ toggle, so CenterStart is free).
+        if (spec.onViewList != null) {
+            Text(
+                text = "📋",
+                fontSize = 27.sp,
+                color = Color.White,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .clickable(onClick = spec.onViewList)
                     .padding(start = 8.dp, top = 8.dp, bottom = 8.dp, end = 8.dp)
             )
         }

@@ -119,6 +119,7 @@ object NavRoutes {
     const val AI_PROVIDER_VIEW = "ai_provider_view/{provider}"
     const val AI_REPORT_INFO = "ai_report_info/{reportId}"
     const val AI_REPORT_MODEL = "ai_report_model/{reportId}/{agentId}"
+    const val AI_VIEW_PICK_REPORT = "ai_view_pick_report"
     const val AI_MANUAL_OVERRIDE_ADD = "ai_manual_override_add/{provider}/{model}"
     const val AI_MANUAL_COST_OVERRIDE_ADD = "ai_manual_cost_override_add/{provider}/{model}"
     const val AI_API_TEST = "ai_api_test"

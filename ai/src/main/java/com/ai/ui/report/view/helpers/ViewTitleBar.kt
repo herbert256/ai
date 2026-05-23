@@ -87,7 +87,10 @@ fun ViewTitleBar(
      *  [oneOrAll] = current state (true = ✋ all, false = ☝️ one); null =
      *  no toggle. [onToggleOneOrAll] flips it. */
     oneOrAll: Boolean? = null,
-    onToggleOneOrAll: (() -> Unit)? = null
+    onToggleOneOrAll: (() -> Unit)? = null,
+    /** Optional left-aligned 📋 bottom-bar icon → pick-a-report-to-view
+     *  (View hub only). */
+    onViewList: (() -> Unit)? = null
 ) {
     val navigateHome = LocalNavigateHome.current
     val logoInteractionSource = remember { MutableInteractionSource() }
@@ -103,7 +106,7 @@ fun ViewTitleBar(
         // full-screen overlays), so onDispose of the leaving screen runs
         // before the entering screen's SideEffect in the same apply pass —
         // no stale spec lingers and the next screen's spec always wins.
-        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll, helpTopic = helpTopic) }
+        SideEffect { viewBottomBarState.value = ViewBottomBarSpec(onManage = onOpenManage, showAll = oneOrAll, onToggleOneOrAll = onToggleOneOrAll, onViewList = onViewList, helpTopic = helpTopic) }
         DisposableEffect(viewBottomBarState) {
             onDispose { viewBottomBarState.value = null }
         }
