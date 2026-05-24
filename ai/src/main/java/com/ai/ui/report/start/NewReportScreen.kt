@@ -111,6 +111,10 @@ fun NewReportScreen(
     // models drop the field).
     var reasoningEffort by remember { mutableStateOf("") }
     var reasoningMenuExpanded by remember { mutableStateOf(false) }
+    // Report-level Parameters / System prompt, set from the bottom-bar
+    // 🌡️ / 🎭 icons and carried into the report via UiState.
+    var showAdvancedParams by remember { mutableStateOf(false) }
+    var showSystemPromptDialog by remember { mutableStateOf(false) }
     // Optional moderation pre-check — when set, the prompt runs through
     // the chosen moderation model before any agent fires. Mirrors the
     // chat session screen.
@@ -178,8 +182,28 @@ fun NewReportScreen(
         }
     }
 
+    // 🌡️ report-level Advanced Parameters — full-screen overlay; the
+    // early return preserves this screen's remember state underneath.
+    if (showAdvancedParams) {
+        com.ai.ui.report.other.ReportAdvancedParametersScreen(
+            currentParameters = uiState.reportAdvancedParameters,
+            onApply = { viewModel.setReportAdvancedParameters(it); showAdvancedParams = false },
+            onBack = { showAdvancedParams = false }
+        )
+        return
+    }
+    if (showSystemPromptDialog) {
+        com.ai.ui.chat.SystemPromptSelectorDialog(
+            aiSettings = uiState.aiSettings,
+            selectedId = uiState.reportSystemPromptId,
+            onSelect = { viewModel.setReportSystemPromptId(it); showSystemPromptDialog = false },
+            onDismiss = { showSystemPromptDialog = false }
+        )
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_new", title = "New AI Report", subject = "Write your prompt, then pick models", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "report_new", title = "New AI Report", subject = "Write your prompt, then pick models", onBackClick = onNavigateBack,
+            onParameters = { showAdvancedParams = true }, onSystemPrompt = { showSystemPromptDialog = true })
 
         if (sharedKbUris.isNotEmpty() && sharedKbState !is SharedKbBannerState.Skipped) {
             SharedKbBanner(
@@ -291,48 +315,6 @@ fun NewReportScreen(
         Spacer(modifier = Modifier.height(8.dp))
         @OptIn(ExperimentalLayoutApi::class)
         FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilterChip(
-                selected = useWebSearch,
-                onClick = { useWebSearch = !useWebSearch },
-                label = { Text("🌐 Web search", fontSize = 12.sp) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = AppColors.Blue.copy(alpha = 0.2f),
-                    selectedLabelColor = AppColors.Blue
-                )
-            )
-            // 🧠 Thinking pulldown — same low/medium/high set as chat.
-            // Always shown on the report screen since the report fans out
-            // to many models with mixed reasoning support; the dispatch
-            // layer's per-format helper drops the field on non-thinking
-            // models so showing the chip universally is harmless.
-            Box {
-                val levelLabel = if (reasoningEffort.isBlank()) "none"
-                    else reasoningEffort.replaceFirstChar { it.uppercase() }
-                FilterChip(
-                    selected = reasoningEffort.isNotBlank(),
-                    onClick = { reasoningMenuExpanded = true },
-                    label = { Text("🧠 $levelLabel", fontSize = 12.sp) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AppColors.Purple.copy(alpha = 0.2f),
-                        selectedLabelColor = AppColors.Purple
-                    )
-                )
-                DropdownMenu(
-                    expanded = reasoningMenuExpanded,
-                    onDismissRequest = { reasoningMenuExpanded = false },
-                    modifier = Modifier.background(Color(0xFF2D2D2D))
-                ) {
-                    listOf("" to "None", "low" to "Low", "medium" to "Medium", "high" to "High").forEach { (value, label) ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(label, fontSize = 13.sp,
-                                    color = if (reasoningEffort == value) AppColors.Blue else Color.White)
-                            },
-                            onClick = { reasoningEffort = value; reasoningMenuExpanded = false }
-                        )
-                    }
-                }
-            }
             // 🛡 Moderation chip — tap when off opens the model picker;
             // tap when on clears the selection. With a model set, the
             // prompt is validated before generation kicks off.
