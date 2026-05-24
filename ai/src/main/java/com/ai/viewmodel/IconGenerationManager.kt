@@ -707,9 +707,14 @@ class IconGenerationManager(
          *  first row on the report whose metaPromptName / metaPromptId
          *  matches [prompt]. Null skips both — keeps legacy
          *  call-sites compiling. */
-        reportId: String? = null
+        reportId: String? = null,
+        paramsIds: List<String> = emptyList(),
+        systemPromptId: String? = null
     ) {
         if (prompt.name.isBlank()) return
+        val altSecondaryParams = resolveSecondaryParams(
+            appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId
+        )
         // Find-alternative-icons composes the `_alt` variant's text
         // FIRST, then a blank line, then the base prompt's text —
         // the alt carries the "give me a different emoji" nudge up
@@ -769,7 +774,7 @@ class IconGenerationManager(
                         val baseUrl = aiSettings.getEffectiveEndpointUrl(item.provider)
                         runCatching {
                             val response = appViewModel.repository.analyzeWithAgent(
-                                agent, "", resolved, AgentParameters(),
+                                agent, "", resolved, altSecondaryParams,
                                 null, context, baseUrl
                             )
                             val tu = response.tokenUsage
@@ -1550,7 +1555,8 @@ class IconGenerationManager(
 
     fun startReportTitleFanOut(
         context: Context, reportId: String, promptText: String,
-        models: List<ReportModel>, aiSettings: Settings, long: Boolean = false
+        models: List<ReportModel>, aiSettings: Settings, long: Boolean = false,
+        paramsIds: List<String> = emptyList(), systemPromptId: String? = null
     ) {
         val altPromptName = if (long) "report_title_alt_long" else "report_title_alt"
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
@@ -1562,7 +1568,7 @@ class IconGenerationManager(
         appViewModel.updateReportTitleFanOut(reportId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             unique.forEach { item ->
-                launch { runTitleCandidate(context, reportId, null, item, resolved, "title_report_alt", aiSettings) }
+                launch { runTitleCandidate(context, reportId, null, item, resolved, "title_report_alt", aiSettings, paramsIds, systemPromptId) }
             }
         }
         rvm.registerIconFanOutJob("rt:$reportId", outer)
@@ -1570,7 +1576,8 @@ class IconGenerationManager(
 
     fun startModelTitleFanOut(
         context: Context, reportId: String, agentId: String,
-        models: List<ReportModel>, aiSettings: Settings
+        models: List<ReportModel>, aiSettings: Settings,
+        paramsIds: List<String> = emptyList(), systemPromptId: String? = null
     ) {
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "info" && it.name == "model_title_alt"
@@ -1583,7 +1590,7 @@ class IconGenerationManager(
             val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@launch
             val resolved = altPrompt.text.replace("@RESPONSE@", ra.responseBody.orEmpty())
             unique.forEach { item ->
-                launch { runTitleCandidate(context, reportId, agentId, item, resolved, "title_model_alt", aiSettings) }
+                launch { runTitleCandidate(context, reportId, agentId, item, resolved, "title_model_alt", aiSettings, paramsIds, systemPromptId) }
             }
         }
         rvm.registerIconFanOutJob("mt:$agentId", outer)
@@ -1594,7 +1601,8 @@ class IconGenerationManager(
      *  (writes titleFanOutByAgent[agentId]). */
     private suspend fun runTitleCandidate(
         context: Context, reportId: String, agentId: String?,
-        item: ReportModel, resolved: String, category: String, aiSettings: Settings
+        item: ReportModel, resolved: String, category: String, aiSettings: Settings,
+        paramsIds: List<String> = emptyList(), systemPromptId: String? = null
     ) {
         fun set(mutator: (List<TitleCandidate>) -> List<TitleCandidate>) {
             if (agentId == null) appViewModel.updateReportTitleFanOut(reportId, mutator)
@@ -1615,8 +1623,11 @@ class IconGenerationManager(
                             apiKey = aiSettings.getApiKey(item.provider)
                         )
                         val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                        val titleParams = resolveSecondaryParams(
+                            appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId
+                        )
                         val response = appViewModel.repository.analyzeWithAgent(
-                            syntheticAgent, "", resolved, AgentParameters(), null, context, baseUrl
+                            syntheticAgent, "", resolved, titleParams, null, context, baseUrl
                         )
                         val tu = response.tokenUsage
                         val pricing = PricingCache.getPricing(context, item.provider, item.model)

@@ -62,7 +62,9 @@ class TranslationRunManager(
         sourceReportId: String,
         targetLanguageName: String,
         targetLanguageNative: String,
-        models: List<Pair<AppService, String>>
+        models: List<Pair<AppService, String>>,
+        paramsIds: List<String> = emptyList(),
+        systemPromptId: String? = null
     ): Job {
         if (models.isEmpty()) {
             AppLog.w("Translation", "startTranslation called with empty models — skipping")
@@ -72,6 +74,7 @@ class TranslationRunManager(
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
+            val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, paramsIds, systemPromptId)
             val generalSettings = state.generalSettings
             val sourceReport = ReportStorage.getReport(context, sourceReportId) ?: run {
                 _translationRuns.update { it - runId }
@@ -407,7 +410,8 @@ class TranslationRunManager(
                                                         runOneTranslation(
                                                             runId, context, ctx.provider, ctx.apiKey,
                                                             ctx.model, ctx.baseUrl, template,
-                                                            targetLanguageName, item, ctx.pricing
+                                                            targetLanguageName, item, ctx.pricing,
+                                                            secondaryParams
                                                         )
                                                     } ?: run {
                                                         AppLog.w("Translation", "item ${item.id} timed out on ${ctx.provider.id}/${ctx.model} after ${callBudgetMs / 1000}s — reassigning")
@@ -564,7 +568,8 @@ class TranslationRunManager(
         template: String,
         targetLanguageName: String,
         item: TranslationItem,
-        pricing: PricingCache.ModelPricing
+        pricing: PricingCache.ModelPricing,
+        secondaryParams: AgentParameters = AgentParameters()
     ): TranslationOutcome {
         // Model benched on a >1h 429 by an earlier call — report it as
         // a failed attempt without touching state or persisting. The
@@ -609,7 +614,7 @@ class TranslationRunManager(
             val response = try {
                 withTraceFilenameSink(traceSink) {
                     appViewModel.repository.analyzeWithAgent(
-                        agent, "", resolved, AgentParameters(), null, context, baseUrl
+                        agent, "", resolved, secondaryParams, null, context, baseUrl
                     )
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -1366,6 +1371,9 @@ class TranslationRunManager(
 
         val state = appViewModel.uiState.value
         val aiSettings = state.aiSettings
+        // Retries/resumes honour the App-wide default (the original
+        // per-launch 🌡️/🎭 pick isn't re-threaded through this path).
+        val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, emptyList(), null)
         val template = aiSettings.getInternalPromptByName("Translate")?.text.orEmpty()
 
         // Pre-resolve per-(provider, model) context — mirrors
@@ -1515,7 +1523,8 @@ class TranslationRunManager(
                                                     runOneTranslation(
                                                         runId, context, ctx.provider, ctx.apiKey,
                                                         ctx.model, ctx.baseUrl, template,
-                                                        targetLanguageName, item, ctx.pricing
+                                                        targetLanguageName, item, ctx.pricing,
+                                                        secondaryParams
                                                     )
                                                 } ?: run {
                                                     AppLog.w("Translation", "item ${item.id} timed out on ${ctx.provider.id}/${ctx.model} after ${callBudgetMs / 1000}s")

@@ -102,8 +102,8 @@ fun ReportsScreen(
      *  agentId). Transient: a picked title only fills the editor field. */
     titleFanOutByReport: Map<String, List<com.ai.viewmodel.TitleCandidate>> = emptyMap(),
     titleFanOutByAgent: Map<String, List<com.ai.viewmodel.TitleCandidate>> = emptyMap(),
-    onStartReportTitleFanOut: (reportId: String, promptText: String, models: List<ReportModel>, long: Boolean) -> Unit = { _, _, _, _ -> },
-    onStartModelTitleFanOut: (reportId: String, agentId: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
+    onStartReportTitleFanOut: (reportId: String, promptText: String, models: List<ReportModel>, long: Boolean, paramsIds: List<String>, systemPromptId: String?) -> Unit = { _, _, _, _, _, _ -> },
+    onStartModelTitleFanOut: (reportId: String, agentId: String, models: List<ReportModel>, paramsIds: List<String>, systemPromptId: String?) -> Unit = { _, _, _, _, _ -> },
     onRestartReportTitleFanOut: (reportId: String) -> Unit = { _ -> },
     onRestartModelTitleFanOut: (agentId: String) -> Unit = { _ -> },
     /** Bundle of the four per-Internal-Prompt icon callbacks —
@@ -179,22 +179,22 @@ fun ReportsScreen(
     onCopyReport: (String) -> Unit = {},
     onTogglePinReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
-    onRunSecondary: (String, com.ai.model.InternalPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
+    onRunSecondary: (String, com.ai.model.InternalPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _, _, _, _ -> },
     /** Fired by the View screen's "Language missing" popup. Routes
      *  to ReportViewModel.translateMissingItems. */
     onTranslateMissingItems: (String, List<com.ai.viewmodel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
-    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?) -> Unit = { _, _, _, _, _ -> },
-    onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String?) -> Unit = { _, _, _, _ -> },
+    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?, List<String>, String?) -> Unit = { _, _, _, _, _, _, _ -> },
+    onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String?, List<String>, String?) -> Unit = { _, _, _, _, _, _ -> },
     /** Model-scoped fan-in run path. Args: reportId, prompt, picked
      *  model, active provider id (the L2 page's), active model name. */
-    onRunModelFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String, String, String?) -> Unit = { _, _, _, _, _, _ -> },
+    onRunModelFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String, String, String?, List<String>, String?) -> Unit = { _, _, _, _, _, _, _, _ -> },
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Args: source reportId, active provider id,
      *  active model. The new report's id is built inside the
      *  ReportViewModel; this lambda navigates after the save. */
     onCreateReportFromFanOut: (String, String, String) -> Unit = { _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
-    onRunRerank: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _ -> },
+    onRunRerank: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _, _ -> },
     onRunModeration: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     /** Bulk delete on the report VM's viewModelScope so a Stop /
@@ -212,7 +212,7 @@ fun ReportsScreen(
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
     onExportAll: suspend (String, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _ -> },
     translationRuns: List<com.ai.viewmodel.TranslationRunState> = emptyList(),
-    onStartTranslation: (String, String, String, List<Pair<AppService, String>>) -> Unit = { _, _, _, _ -> },
+    onStartTranslation: (String, String, String, List<Pair<AppService, String>>, List<String>, String?) -> Unit = { _, _, _, _, _, _ -> },
     translationLifecycle: TranslationLifecycleCallbacks = TranslationLifecycleCallbacks(),
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
@@ -877,7 +877,8 @@ fun ReportsScreen(
                         currentReportId, mp,
                         com.ai.data.SecondaryScope.Manual(initiators),
                         responders,
-                        sourceLanguage
+                        sourceLanguage,
+                        emptyList(), null
                     )
                     // Land on the Fan Out L1 page so the user watches the
                     // run progress instead of the report screen.
@@ -937,8 +938,9 @@ fun ReportsScreen(
                 titleText = "${pickerMetaPrompt.name} — pick model",
                 recentEntries = recentReportPairs,
                 onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-                onConfirm = { pick ->
-                    onRunSecondary(rid, pickerMetaPrompt, listOf(pick), pendingSecondaryScope, pendingLanguageScope)
+                onConfirm = { /* secondary picker uses onSecondaryParamsConfirm */ },
+                onSecondaryParamsConfirm = { pick, pIds, spId ->
+                    onRunSecondary(rid, pickerMetaPrompt, listOf(pick), pendingSecondaryScope, pendingLanguageScope, pIds, spId)
                     // Clear the WHOLE meta-creation stack — picker + scope —
                     // so the user lands back on the report once the run
                     // kicks off. Without clearing `secondaryScopeMetaPrompt`
@@ -973,8 +975,9 @@ fun ReportsScreen(
             modelTypeFilter = null,
             recentEntries = recentReportPairs,
             onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-            onConfirm = { pick ->
-                onRunFanIn(rid, fanInPicker, pick, fanInPickerSourceLanguage)
+            onConfirm = { /* secondary picker uses onSecondaryParamsConfirm */ },
+            onSecondaryParamsConfirm = { pick, pIds, spId ->
+                onRunFanIn(rid, fanInPicker, pick, fanInPickerSourceLanguage, pIds, spId)
                 fanInPickerPrompt = null
                 fanInPickerSourceLanguage = null
             },
@@ -1036,8 +1039,9 @@ fun ReportsScreen(
                 modelTypeFilter = null,
                 recentEntries = recentReportPairs,
                 onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-                onConfirm = { pick ->
-                    onRunModelFanIn(rid, modelFanInPicker, pick, activePid, activeMdl, fanInPickerSourceLanguage)
+                onConfirm = { /* secondary picker uses onSecondaryParamsConfirm */ },
+                onSecondaryParamsConfirm = { pick, pIds, spId ->
+                    onRunModelFanIn(rid, modelFanInPicker, pick, activePid, activeMdl, fanInPickerSourceLanguage, pIds, spId)
                     modelFanInActivePid = null
                     modelFanInActiveMdl = null
                     modelFanInPickerPrompt = null
@@ -1096,12 +1100,14 @@ fun ReportsScreen(
                 onAddAllModels = { pickerTarget = PickerTarget.TRANSLATION; showSelectAllModels = true },
                 onRemoveModel = { idx -> translationModels = translationModels.toMutableList().apply { removeAt(idx) } },
                 onClearAll = { translationModels = emptyList() },
-                onAction = {
+                onAction = { },
+                onActionWithParams = { pIds, spId ->
                     onStartTranslation(
                         currentReportId,
                         pickingTranslateModelFor.name,
                         pickingTranslateModelFor.native,
-                        translationModels.map { it.provider to it.model }
+                        translationModels.map { it.provider to it.model },
+                        pIds, spId
                     )
                     translationModels = emptyList()
                     pickerTarget = PickerTarget.NEW_REPORT
@@ -1124,13 +1130,14 @@ fun ReportsScreen(
                 titleText = "Pick rerank model",
                 recentEntries = recentReportPairs,
                 onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-                onConfirm = { pick ->
+                onConfirm = { /* secondary picker uses onSecondaryParamsConfirm */ },
+                onSecondaryParamsConfirm = { pick, pIds, spId ->
                     val ls = pendingLanguageScope
                     showRerankPicker = false
                     secondaryScopeMetaPrompt = null
                     pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                     pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-                    onRunRerank(rid, pick, ls)
+                    onRunRerank(rid, pick, ls, pIds, spId)
                 },
                 onBack = { showRerankPicker = false },
                 onNavigateHome = onNavigateHome,

@@ -350,11 +350,11 @@ fun ReportsScreenNav(
         },
         titleFanOutByReport = titleFanOutByReport,
         titleFanOutByAgent = titleFanOutByAgent,
-        onStartReportTitleFanOut = { rid, prompt, models, long ->
-            reportViewModel.iconGen.startReportTitleFanOut(context, rid, prompt, models, aiSettings, long)
+        onStartReportTitleFanOut = { rid, prompt, models, long, paramsIds, systemPromptId ->
+            reportViewModel.iconGen.startReportTitleFanOut(context, rid, prompt, models, aiSettings, long, paramsIds, systemPromptId)
         },
-        onStartModelTitleFanOut = { rid, agentId, models ->
-            reportViewModel.iconGen.startModelTitleFanOut(context, rid, agentId, models, aiSettings)
+        onStartModelTitleFanOut = { rid, agentId, models, paramsIds, systemPromptId ->
+            reportViewModel.iconGen.startModelTitleFanOut(context, rid, agentId, models, aiSettings, paramsIds, systemPromptId)
         },
         onRestartReportTitleFanOut = { rid -> reportViewModel.iconGen.restartReportTitleFanOut(rid) },
         onRestartModelTitleFanOut = { agentId -> reportViewModel.iconGen.restartModelTitleFanOut(agentId) },
@@ -372,10 +372,11 @@ fun ReportsScreenNav(
             onKickoff = { prompt ->
                 reportViewModel.iconGen.kickOffInternalPromptIcon(context, prompt, aiSettings)
             },
-            onStartFanOut = { prompt, picks ->
+            onStartFanOut = { prompt, picks, paramsIds, systemPromptId ->
                 reportViewModel.iconGen.startInternalPromptIconFanOut(
                     context, prompt, picks, aiSettings,
-                    reportId = uiState.currentReportId
+                    reportId = uiState.currentReportId,
+                    paramsIds = paramsIds, systemPromptId = systemPromptId
                 )
             },
             onPick = { prompt, cand ->
@@ -424,20 +425,20 @@ fun ReportsScreenNav(
         hasPrevReport = hasPrevReport,
         hasNextReport = hasNextReport,
         initialModels = initialModels,
-        onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
-            reportViewModel.secondary.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
+        onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope, paramsIds, systemPromptId)
         },
         onTranslateMissingItems = { reportId, items, target, targetNative ->
             reportViewModel.translation.translateMissingItems(context, reportId, items, target, targetNative)
         },
-        onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage ->
-            reportViewModel.secondary.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage)
+        onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds = paramsIds, systemPromptId = systemPromptId)
         },
-        onRunFanIn = { reportId, metaPrompt, pick, sourceLanguage ->
-            reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, pick, sourceLanguage)
+        onRunFanIn = { reportId, metaPrompt, pick, sourceLanguage, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, pick, sourceLanguage, paramsIds, systemPromptId)
         },
-        onRunModelFanIn = { reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage ->
-            reportViewModel.secondary.runModelFanInPrompt(context, reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage)
+        onRunModelFanIn = { reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runModelFanInPrompt(context, reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage, paramsIds, systemPromptId)
         },
         onCreateReportFromFanOut = { sourceRid, activePid, activeMdl ->
             scope.launch {
@@ -452,8 +453,8 @@ fun ReportsScreenNav(
         onRunLocalRerank = { reportId, modelName ->
             reportViewModel.secondary.runLocalRerank(context, reportId, modelName)
         },
-        onRunRerank = { reportId, pick, languageScope ->
-            reportViewModel.secondary.runRerank(context, reportId, pick, languageScope)
+        onRunRerank = { reportId, pick, languageScope, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runRerank(context, reportId, pick, languageScope, paramsIds, systemPromptId)
         },
         onRunModeration = { reportId, pick, languageScope ->
             reportViewModel.secondary.runModeration(context, reportId, pick, languageScope)
@@ -541,8 +542,8 @@ fun ReportsScreenNav(
         translationRuns = reportViewModel.translation.translationRuns.collectAsState().value.values
             .filter { it.sourceReportId == uiState.currentReportId }
             .toList(),
-        onStartTranslation = { sourceId, langName, langNative, models ->
-            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, models)
+        onStartTranslation = { sourceId, langName, langNative, models, paramsIds, systemPromptId ->
+            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, models, paramsIds, systemPromptId)
         },
         translationLifecycle = TranslationLifecycleCallbacks(
             onCancelRun = { runId -> reportViewModel.translation.cancelTranslation(runId) },

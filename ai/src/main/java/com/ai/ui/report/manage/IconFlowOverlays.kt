@@ -32,8 +32,8 @@ internal fun ReportIconFlowOverlays(
     onStartPairIconFanOut: (reportId: String, pairId: String, models: List<ReportModel>) -> Unit,
     onPickPairIcon: (reportId: String, pairId: String, emoji: String) -> Unit,
     onRestartPairIconFanOut: (reportId: String, pairId: String) -> Unit,
-    onStartReportTitleFanOut: (reportId: String, promptText: String, models: List<ReportModel>, long: Boolean) -> Unit,
-    onStartModelTitleFanOut: (reportId: String, agentId: String, models: List<ReportModel>) -> Unit,
+    onStartReportTitleFanOut: (reportId: String, promptText: String, models: List<ReportModel>, long: Boolean, paramsIds: List<String>, systemPromptId: String?) -> Unit,
+    onStartModelTitleFanOut: (reportId: String, agentId: String, models: List<ReportModel>, paramsIds: List<String>, systemPromptId: String?) -> Unit,
     onRestartReportTitleFanOut: (reportId: String) -> Unit,
     onRestartModelTitleFanOut: (agentId: String) -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
@@ -120,11 +120,11 @@ internal fun ReportIconFlowOverlays(
                 models = st.findIconsModels.value,
                 genericPromptText = uiState.genericPromptText,
                 targetTitleFor = st.findTitlesFor.value,
-                onStartTitleFanOut = { target, models ->
+                onStartTitleFanOut = { target, models, pIds, spId ->
                     if (target == "report") {
-                        onStartReportTitleFanOut(currentReportId, uiState.genericPromptText, models, st.findTitlesLong.value)
+                        onStartReportTitleFanOut(currentReportId, uiState.genericPromptText, models, st.findTitlesLong.value, pIds, spId)
                     } else {
-                        onStartModelTitleFanOut(currentReportId, target, models)
+                        onStartModelTitleFanOut(currentReportId, target, models, pIds, spId)
                     }
                 },
                 translationIconCallbacks = translationIconCallbacks,

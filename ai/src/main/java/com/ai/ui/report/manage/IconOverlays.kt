@@ -127,10 +127,10 @@ internal fun FindIconsPickerRouter(
     /** Non-null when this run finds alternative TITLES not icons:
      *  "report" for the report title, else the agentId. */
     targetTitleFor: String?,
-    onStartTitleFanOut: (String, List<ReportModel>) -> Unit,
+    onStartTitleFanOut: (String, List<ReportModel>, List<String>, String?) -> Unit,
     translationIconCallbacks: TranslationIconCallbacks,
     languageIconCallbacks: LanguageIconCallbacks,
-    onStartInternalPromptIconFanOut: (com.ai.model.InternalPrompt, List<ReportModel>) -> Unit,
+    onStartInternalPromptIconFanOut: (com.ai.model.InternalPrompt, List<ReportModel>, List<String>, String?) -> Unit,
     onStartAgentIconFanOut: (String, String, List<ReportModel>) -> Unit,
     onStartPairIconFanOut: (String, String, List<ReportModel>) -> Unit,
     onStartIconFanOut: (String, String, List<ReportModel>) -> Unit,
@@ -161,16 +161,24 @@ internal fun FindIconsPickerRouter(
         onClearAll = onClearAll,
         onAction = {
             when {
-                targetTitleFor != null -> onStartTitleFanOut(targetTitleFor, models)
                 targetLanguageIcon -> languageIconCallbacks.onStartFanOut(reportId, genericPromptText, models)
                 targetLanguage != null -> translationIconCallbacks.onStartFanOut(targetLanguage, models)
-                targetPrompt != null -> onStartInternalPromptIconFanOut(targetPrompt, models)
                 targetPairId != null -> onStartPairIconFanOut(reportId, targetPairId, models)
                 targetAgentId != null -> onStartAgentIconFanOut(reportId, targetAgentId, models)
                 else -> onStartIconFanOut(reportId, genericPromptText, models)
             }
             onConfirm()
         },
+        // Alt icons / Alt titles get the per-launch 🌡️ / 🎭 pick.
+        onActionWithParams = if (targetTitleFor != null || targetPrompt != null) {
+            { pIds, spId ->
+                when {
+                    targetTitleFor != null -> onStartTitleFanOut(targetTitleFor, models, pIds, spId)
+                    targetPrompt != null -> onStartInternalPromptIconFanOut(targetPrompt, models, pIds, spId)
+                }
+                onConfirm()
+            }
+        } else null,
         onBack = onBack
     )
 }

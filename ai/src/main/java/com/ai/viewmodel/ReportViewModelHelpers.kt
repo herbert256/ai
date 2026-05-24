@@ -1,6 +1,7 @@
 package com.ai.viewmodel
 
 import android.content.Context
+import com.ai.data.AgentParameters
 import com.ai.data.AppService
 import com.ai.data.PricingCache
 import com.ai.data.Report
@@ -28,6 +29,24 @@ import com.ai.model.toReportModel
  *  the agent runs inside that group. */
 internal fun resolveSystemPromptText(aiSettings: Settings, agentSpId: String?, groupSpId: String?): String? {
     return (groupSpId ?: agentSpId)?.let { aiSettings.getSystemPromptById(it)?.prompt }
+}
+
+/** Resolve the effective AgentParameters (incl. system prompt) for a
+ *  SECONDARY operation (Fan out / Fan in / Rerank / Meta / Translate /
+ *  Alt icons / Alt titles). The per-launch 🌡️ / 🎭 pick wins; when it's
+ *  empty the App-wide default (GeneralSettings) fills in. Returns empty
+ *  defaults when neither is set. */
+internal fun resolveSecondaryParams(
+    general: GeneralSettings,
+    aiSettings: Settings,
+    paramsIds: List<String>,
+    systemPromptId: String?
+): AgentParameters {
+    val ids = paramsIds.ifEmpty { general.appWideParametersIds }
+    val base = aiSettings.mergeParameters(ids) ?: AgentParameters()
+    val spId = systemPromptId ?: general.appWideSystemPromptId
+    val sp = spId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+    return if (sp != null) base.copy(systemPrompt = sp) else base
 }
 
 /** First Flock the agent is a member of with a still-resolvable
