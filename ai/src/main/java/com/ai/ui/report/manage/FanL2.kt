@@ -166,19 +166,11 @@ internal fun FanOutL2Screen(
     } else {
         resolveModelLabel("${p.providerId}|${p.model}")
     }
-    val rows: List<PairState> = remember(rawRows, runningSet, mode, agentLabels, role) {
-        rawRows.sortedWith(
-            compareBy(
-                { p ->
-                    when (lens(p, runningSet)) {
-                        PairStatus.RUNNING, PairStatus.PENDING -> 0
-                        PairStatus.ERROR -> 1
-                        PairStatus.DONE -> 2
-                    }
-                },
-                { p -> rowLabel(p).lowercase() }
-            )
-        )
+    // Stable order by label only — deliberately NOT by status, so a row
+    // keeps its place as it finishes instead of jumping to the bottom of
+    // the list mid-run.
+    val rows: List<PairState> = remember(rawRows, agentLabels, role) {
+        rawRows.sortedWith(compareBy { p -> rowLabel(p).lowercase() })
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {

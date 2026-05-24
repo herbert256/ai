@@ -472,29 +472,11 @@ internal fun FanOutL1Screen(
         // Re-derives on every runningSet change so a row sinks the
         // moment its last pair lands.
         val answererKeys = run.answererKeys
-        val sortedKeys = remember(run, runningSet, mode) {
-            answererKeys.sortedWith(
-                compareBy(
-                    { ak ->
-                        val pairs = run.pairs.values.filter { "${it.providerId}|${it.model}" == ak }
-                        val total = pairs.size
-                        val ok = if (isMetaMode) pairs.count { metaDone(it) }
-                            else pairs.count { it.status == PairStatus.DONE }
-                        val err = if (isMetaMode) pairs.count { lens(it, runningSet) == PairStatus.ERROR }
-                            else pairs.count { it.status == PairStatus.ERROR }
-                        val running = if (isMetaMode) pairs.count { lens(it, runningSet) == PairStatus.RUNNING }
-                            else pairs.count { it.effectiveStatus(runningSet) == PairStatus.RUNNING }
-                        when {
-                            running > 0 -> 0
-                            total == 0 -> 0
-                            ok == total -> 2
-                            err > 0 -> 1
-                            else -> 0
-                        }
-                    },
-                    { ak -> ak.substringAfter('|').lowercase() }
-                )
-            )
+        // Stable order by model name only — deliberately NOT by status, so
+        // a row keeps its place as it finishes instead of jumping to the
+        // bottom of the list mid-run.
+        val sortedKeys = remember(run) {
+            answererKeys.sortedWith(compareBy { ak -> ak.substringAfter('|').lowercase() })
         }
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(sortedKeys, key = { it }) { ak ->
