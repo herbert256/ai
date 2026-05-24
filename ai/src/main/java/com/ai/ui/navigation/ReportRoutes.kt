@@ -475,6 +475,7 @@ internal fun NavGraphBuilder.reportRoutes(
                 com.ai.ui.report.view.ReportPickerScreen(
                     reportViewModel = reportViewModel,
                     onBack = safePopBack,
+                    currentReportId = appViewModel.uiState.value.currentReportId,
                     onOpenReportView = { rid ->
                         pickScope.launch {
                             reportViewModel.restoreCompletedReport(pickContext, rid)
@@ -505,6 +506,7 @@ internal fun NavGraphBuilder.reportRoutes(
                     screenTitle = kind.screenTitle,
                     subject = kind.subject,
                     filter = kind.reportFilter(),
+                    currentReportId = appViewModel.uiState.value.currentReportId,
                     onOpenReportView = { rid ->
                         pickScope.launch {
                             reportViewModel.restoreCompletedReport(pickContext, rid)

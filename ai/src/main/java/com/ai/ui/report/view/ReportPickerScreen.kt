@@ -75,7 +75,11 @@ fun ReportPickerScreen(
     onOpenReportView: (String) -> Unit,
     screenTitle: String = "Pick a report",
     subject: String = "Open any report in View",
-    filter: ((Report, List<SecondaryResult>) -> Boolean)? = null
+    filter: ((Report, List<SecondaryResult>) -> Boolean)? = null,
+    /** When set, this report (the one the 🗂️ was tapped on) is omitted
+     *  from every bucket — you can't "pick another report" and land back
+     *  on the one you're already on. */
+    currentReportId: String? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -109,9 +113,11 @@ fun ReportPickerScreen(
 
     val ids = allowedIds
     fun reportEntries(reports: List<Report>) =
-        (if (ids == null) reports else reports.filter { it.id in ids }).map { r ->
-            PickerEntry(r.title.ifBlank { "Untitled" }) { onOpenReportView(r.id) }
-        }
+        (if (ids == null) reports else reports.filter { it.id in ids })
+            .filter { it.id != currentReportId }
+            .map { r ->
+                PickerEntry(r.title.ifBlank { "Untitled" }) { onOpenReportView(r.id) }
+            }
 
     val cards = listOf(
         PickerCardData("⏳", AppColors.Orange, "Running AI reports", reportEntries(homeLists.running)),
