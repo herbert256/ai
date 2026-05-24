@@ -26,5 +26,53 @@
   {
     "title": "Simple math",
     "text": "Please ask me a simple match question, just the question, no more text. Something like \"How much is 72 divide by 8?\""
+  },
+  {
+    "title": "Strawberry r's",
+    "text": "How many times does the letter \"r\" appear in the word \"strawberry\"? Answer with just the number, nothing else."
+  },
+  {
+    "title": "Bat and ball",
+    "text": "A bat and a ball cost €1.10 together. The bat costs €1.00 more than the ball. How much does the ball cost? Give the number first, then one sentence of reasoning."
+  },
+  {
+    "title": "100 days from Tuesday",
+    "text": "If today is a Tuesday, what day of the week is it 100 days from now? One sentence of reasoning, then the answer on its own line."
+  },
+  {
+    "title": "Exactly five words",
+    "text": "Reply with a sentence that is exactly five words long. Nothing else."
+  },
+  {
+    "title": "Animal as JSON",
+    "text": "Pick any animal and return ONLY a JSON object with the keys name, type and fact. No markdown, no code fence, no extra text."
+  },
+  {
+    "title": "Dutch towns ending in -lo",
+    "text": "Name five real towns in the Netherlands whose names end in \"lo\". Just a numbered list of the names, no extra text. Do not invent any."
+  },
+  {
+    "title": "Piano tuners",
+    "text": "Roughly how many piano tuners work in the Netherlands? Show your estimate in three short steps, then give a single number."
+  },
+  {
+    "title": "Best first language",
+    "text": "What is the single best programming language for an absolute beginner in 2026? Don't say it depends. One name, then a single paragraph of 3 sentences."
+  },
+  {
+    "title": "Invent a proverb",
+    "text": "Make up a brand-new proverb that sounds ancient but isn't real. Give just the proverb, one line."
+  },
+  {
+    "title": "Rain poem",
+    "text": "Write a 4-line poem about rain on a tin roof. No title, no explanation — just the four lines."
+  },
+  {
+    "title": "Proverb in 3 languages",
+    "text": "Translate \"The early bird catches the worm\" into Dutch, German and French. One line per language, formatted \"Language: translation\", nothing else."
+  },
+  {
+    "title": "What might you get wrong",
+    "text": "Name one kind of question you, as an AI, are likely to answer wrong, and why. Three sentences, no disclaimer."
   }
 ]
