@@ -575,6 +575,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _runningFanIconsPairs.update(block)
     }
 
+    /** Keys of report-level info jobs (report icon / language / title) whose
+     *  API call is ACTIVELY in flight. Keyed "<reportId>|<type>". The
+     *  Report - Get info rows read this so a job shows the clock (queued)
+     *  until its call really starts, then the animated hourglass. Cleared
+     *  when the call finishes (success or error). */
+    private val _runningInfoJobs = MutableStateFlow<Set<String>>(emptySet())
+    val runningInfoJobs: StateFlow<Set<String>> = _runningInfoJobs.asStateFlow()
+    internal fun updateRunningInfoJobs(block: (Set<String>) -> Set<String>) {
+        _runningInfoJobs.update(block)
+    }
+
     /** Pair ids whose fan-icons attempt is blocked inside
      *  [com.ai.data.ProviderThrottle.acquire]. Same role as
      *  [throttledFanOutPairs] for the icons batch. */

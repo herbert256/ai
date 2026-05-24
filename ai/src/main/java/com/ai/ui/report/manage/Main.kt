@@ -171,6 +171,11 @@ fun ReportsScreen(
     /** Regenerate only the metadata jobs (icon / title / language /
      *  per-model) — wired to the 🔄 while the Get-info layer is open. */
     onRegenerateInfo: (String) -> Unit = {},
+    /** "Restart errors" on Get-info — re-fire only the errored info jobs. */
+    onRestartInfoErrors: (String) -> Unit = {},
+    /** Report-level info jobs whose call is actively in flight (clock vs
+     *  hourglass on the Get-info rows). */
+    runningInfoJobs: Set<String> = emptySet(),
     onUpdatePrompt: (String, String) -> Unit = { _, _ -> },
     onUpdateTitle: (String, String, String) -> Unit = { _, _, _ -> },
     onUpdateModelTitle: (String, String, String) -> Unit = { _, _, _ -> },
@@ -1431,6 +1436,8 @@ fun ReportsScreen(
             onOpenViewReport = openViewReportFromManage,
             onRequestRegenerate = { showRegenerateConfirm = true },
             onRegenerateInfo = onRegenerateInfo,
+            onRestartInfoErrors = onRestartInfoErrors,
+            runningInfoJobs = runningInfoJobs,
             onDismissRegenerateConfirm = { showRegenerateConfirm = false },
             onRegenerate = onRegenerate,
             onChatWithReportPrompt = onChatWithReportPrompt

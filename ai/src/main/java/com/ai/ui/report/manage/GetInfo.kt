@@ -6,6 +6,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -72,7 +74,13 @@ fun buildInfoJobs(
     titleModeAi: Boolean,
     perModelIcon: Boolean,
     perModelTitle: Boolean,
-    icons: com.ai.data.MetadataIcons = com.ai.data.MetadataIcons()
+    icons: com.ai.data.MetadataIcons = com.ai.data.MetadataIcons(),
+    // Keys ("<reportId>|icon" / "|language" / "|title") of report-level jobs
+    // whose call is ACTIVELY in flight. A report-level job with no result and
+    // no error shows the clock (queued) unless its key is here — then the
+    // animated hourglass (really running). Empty = the aggregate caller
+    // (Manage info row) doesn't care about the clock/hourglass split.
+    running: Set<String> = emptySet()
 ): List<InfoJob> {
     val jobs = mutableListOf<InfoJob>()
 
@@ -97,12 +105,14 @@ fun buildInfoJobs(
         val state = when {
             !report.iconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
             !report.icon.isNullOrBlank() -> InfoJobState.DONE
-            else -> InfoJobState.RUNNING
+            "${report.id}|icon" in running -> InfoJobState.RUNNING
+            else -> InfoJobState.CLOCK
         }
         val label = report.iconErrorMessage?.takeIf { it.isNotBlank() }
-            ?: report.icon?.takeIf { it.isNotBlank() } ?: "Generating…"
+            ?: report.icon?.takeIf { it.isNotBlank() }
+            ?: if (state == InfoJobState.RUNNING) "Generating…" else "Queued…"
         jobs += InfoJob("icon", label, state, report.iconInputCost + report.iconOutputCost,
-            doneIcon = report.icon, pending = state == InfoJobState.RUNNING)
+            doneIcon = report.icon, pending = state == InfoJobState.RUNNING || state == InfoJobState.CLOCK)
     }
 
     // Language detection has its own gate now (split from the icon gate)
@@ -111,16 +121,18 @@ fun buildInfoJobs(
         val langState = when {
             !report.languageIconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
             !report.languageName.isNullOrBlank() -> InfoJobState.DONE
-            else -> InfoJobState.RUNNING
+            "${report.id}|language" in running -> InfoJobState.RUNNING
+            else -> InfoJobState.CLOCK
         }
         val langLabel = report.languageIconErrorMessage?.takeIf { it.isNotBlank() }
-            ?: report.languageName?.takeIf { it.isNotBlank() } ?: "Detecting…"
+            ?: report.languageName?.takeIf { it.isNotBlank() }
+            ?: if (langState == InfoJobState.RUNNING) "Detecting…" else "Queued…"
         jobs += InfoJob(
             "language", langLabel, langState,
             report.languageInputCost + report.languageOutputCost +
                 report.languageIconInputCost + report.languageIconOutputCost,
             doneIcon = report.languageIcon ?: icons.languageIcon,
-            pending = langState == InfoJobState.RUNNING
+            pending = langState == InfoJobState.RUNNING || langState == InfoJobState.CLOCK
         )
     }
 
@@ -130,13 +142,14 @@ fun buildInfoJobs(
         val state = when {
             !report.titleErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
             !report.titlePromptUsed.isNullOrBlank() -> InfoJobState.DONE
-            else -> InfoJobState.RUNNING
+            "${report.id}|title" in running -> InfoJobState.RUNNING
+            else -> InfoJobState.CLOCK
         }
         val label = report.titleErrorMessage?.takeIf { it.isNotBlank() }
             ?: report.title.takeIf { !report.titlePromptUsed.isNullOrBlank() }
-            ?: "Generating…"
+            ?: if (state == InfoJobState.RUNNING) "Generating…" else "Queued…"
         jobs += InfoJob("title", label, state, report.titleInputCost + report.titleOutputCost,
-            doneIcon = "🏷️", pending = state == InfoJobState.RUNNING)
+            doneIcon = "🏷️", pending = state == InfoJobState.RUNNING || state == InfoJobState.CLOCK)
     }
 
     // Per-agent title state — agent must succeed first; when both jobs are
@@ -233,20 +246,22 @@ fun ReportGetInfoScreen(
     titleModeAi: Boolean,
     perModelIcon: Boolean,
     perModelTitle: Boolean,
+    runningInfoJobs: Set<String>,
     onBack: () -> Unit,
     onOpenIconDetail: () -> Unit,
     onOpenLanguageDetail: () -> Unit,
     onEditTitle: () -> Unit,
     onOpenAgentIconDetail: (String) -> Unit,
-    onEditModelTitle: (String) -> Unit
+    onEditModelTitle: (String) -> Unit,
+    onRestartErrors: () -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
     val metadataIcons = com.ai.ui.shared.LocalMetadataIcons.current
-    val jobs by produceState(initialValue = emptyList<InfoJob>(), reportId, iconRefreshTick, metadataIcons) {
+    val jobs by produceState(initialValue = emptyList<InfoJob>(), reportId, iconRefreshTick, metadataIcons, runningInfoJobs) {
         value = withContext(Dispatchers.IO) {
             val r = ReportStorage.getReport(context, reportId) ?: return@withContext emptyList()
-            buildInfoJobs(r, settings, iconGenEnabled, reportLanguageOn, titleModeAi, perModelIcon, perModelTitle, metadataIcons)
+            buildInfoJobs(r, settings, iconGenEnabled, reportLanguageOn, titleModeAi, perModelIcon, perModelTitle, metadataIcons, runningInfoJobs)
         }
     }
     Column(
@@ -261,7 +276,7 @@ fun ReportGetInfoScreen(
             helpTopic = "report_get_info", title = "Report - Get info", subject = "Status of icon, title & language jobs", onBackClick = onBack,
             publishBottomBar = false
         )
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(modifier = Modifier.weight(1f)) {
             items(jobs, key = { "${it.type}-${it.agentId ?: it.label}" }) { job ->
                 val click: (() -> Unit)? = when (job.type) {
                     "icon" -> onOpenIconDetail
@@ -294,6 +309,15 @@ fun ReportGetInfoScreen(
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
+        }
+        // Restart errors — shown only when at least one job failed (red ❌).
+        // Clears the errored jobs' error state and re-fires just those.
+        if (jobs.any { it.state == InfoJobState.FAILED }) {
+            Button(
+                onClick = onRestartErrors,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+            ) { Text("Restart errors", maxLines = 1, softWrap = false) }
         }
     }
 }

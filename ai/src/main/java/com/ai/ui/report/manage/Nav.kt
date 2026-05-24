@@ -121,6 +121,7 @@ fun ReportsScreenNav(
     val throttledFanTitlesPairs by viewModel.throttledFanTitlesPairs.collectAsState()
     val iconFanOutByReport by viewModel.iconFanOutByReport.collectAsState()
     val agentIconFanOutByAgent by viewModel.agentIconFanOutByAgent.collectAsState()
+    val runningInfoJobs by viewModel.runningInfoJobs.collectAsState()
     val titleFanOutByReport by viewModel.titleFanOutByReport.collectAsState()
     val titleFanOutByAgent by viewModel.titleFanOutByAgent.collectAsState()
     val pairIconFanOutByPair by viewModel.pairIconFanOutByPair.collectAsState()
@@ -508,6 +509,8 @@ fun ReportsScreenNav(
         // category) instead of the legacy one-shot regenerateReport.
         onRegenerate = { rid -> reportViewModel.regenerateBatchEngine.enqueueAndStart(context, rid) },
         onRegenerateInfo = { rid -> reportViewModel.regenerateReportInfo(context, rid) },
+        onRestartInfoErrors = { rid -> reportViewModel.restartReportInfoErrors(context, rid) },
+        runningInfoJobs = runningInfoJobs,
         onUpdatePrompt = { rid, prompt ->
             scope.launch { reportViewModel.updateReportPrompt(context, rid, prompt) }
         },

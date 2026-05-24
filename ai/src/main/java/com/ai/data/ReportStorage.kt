@@ -458,6 +458,18 @@ object ReportStorage {
         }
     }
 
+    /** Clear a prior report-title error so a "Restart errors" re-run reads
+     *  the row as pending/running again instead of ❌. */
+    fun clearReportTitleError(context: Context, reportId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            if (report.titleErrorMessage == null) return@withLock false
+            saveReport(report.copy(titleErrorMessage = null, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
     /** Additive update for "Find alternative icons" fan-out calls.
      *  Every per-(provider, model) call bumps the report's icon
      *  cost regardless of whether the user later picks that result —
@@ -912,6 +924,21 @@ object ReportStorage {
             val idx = report.agents.indexOfFirst { it.agentId == agentId }
             if (idx < 0) return@withLock false
             val updated = report.agents[idx].copy(modelTitleErrorMessage = error)
+            val newAgents = report.agents.toMutableList().also { it[idx] = updated }
+            saveReport(report.copy(agents = newAgents, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Clear a per-agent model-title error so a "Restart errors" re-run reads
+     *  the row as pending/running again instead of ❌. */
+    fun clearReportAgentModelTitleError(context: Context, reportId: String, agentId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val idx = report.agents.indexOfFirst { it.agentId == agentId }
+            if (idx < 0 || report.agents[idx].modelTitleErrorMessage == null) return@withLock false
+            val updated = report.agents[idx].copy(modelTitleErrorMessage = null)
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }
             saveReport(report.copy(agents = newAgents, timestamp = System.currentTimeMillis()))
             true

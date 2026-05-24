@@ -79,6 +79,7 @@ class IconGenerationManager(
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withTracerTags(reportId = reportId, category = "icon_main") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                appViewModel.updateRunningInfoJobs { it + "$reportId|icon" }
                 runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
                     val started = System.currentTimeMillis()
@@ -121,6 +122,7 @@ class IconGenerationManager(
                         it.message ?: "icon-gen failed"
                     )
                 }
+                appViewModel.updateRunningInfoJobs { it - "$reportId|icon" }
                 appViewModel.updateUiState {
                     it.copy(iconRefreshTick = it.iconRefreshTick + 1)
                 }
@@ -162,6 +164,7 @@ class IconGenerationManager(
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withTracerTags(reportId = reportId, category = "report_title") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                appViewModel.updateRunningInfoJobs { it + "$reportId|title" }
                 runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
                     val started = System.currentTimeMillis()
@@ -228,6 +231,7 @@ class IconGenerationManager(
                         it.message ?: "title-gen failed"
                     )
                 }
+                appViewModel.updateRunningInfoJobs { it - "$reportId|title" }
                 appViewModel.updateUiState {
                     it.copy(iconRefreshTick = it.iconRefreshTick + 1)
                 }
@@ -444,6 +448,7 @@ class IconGenerationManager(
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withTracerTags(reportId = reportId, category = "Language") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                appViewModel.updateRunningInfoJobs { it + "$reportId|language" }
                 val detectedName = runCatching {
                     val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
                     val started = System.currentTimeMillis()
@@ -494,6 +499,7 @@ class IconGenerationManager(
                 if (!detectedName.isNullOrBlank()) {
                     kickOffLanguageIconForDetected(context, reportId, detectedName, aiSettings)
                 }
+                appViewModel.updateRunningInfoJobs { it - "$reportId|language" }
             }
         }
     }

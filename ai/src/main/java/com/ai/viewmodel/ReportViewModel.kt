@@ -919,6 +919,47 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      * writers (which are additive) ADD this run's token cost on top of
      * the first run's — both runs count. Wired to the 🔄 on Get-info.
      */
+    /** "Restart errors" on Report - Get info: re-fire ONLY the info jobs that
+     *  ended in an error (red ❌), clearing each one's error first so its row
+     *  flips from ❌ back to pending/running. Successful jobs are left alone. */
+    fun restartReportInfoErrors(context: Context, reportId: String) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val ai = appViewModel.uiState.value.aiSettings
+            val g = appViewModel.uiState.value.generalSettings
+            withTracerTags(reportId = reportId, category = "Report info restart errors") {
+                // Report-level rows.
+                if (!report.iconErrorMessage.isNullOrBlank()) {
+                    ReportStorage.clearReportIcon(context, reportId)
+                    iconGen.kickOffIconGeneration(context, reportId, report.prompt, ai)
+                }
+                if (!report.languageIconErrorMessage.isNullOrBlank()) {
+                    ReportStorage.clearReportLanguage(context, reportId)
+                    iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
+                }
+                if (!report.titleErrorMessage.isNullOrBlank()) {
+                    ReportStorage.clearReportTitleError(context, reportId)
+                    iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai)
+                }
+                // Per-model rows: re-run just the agents whose icon or model-title
+                // errored (and only the side that failed).
+                report.agents.forEach { ra ->
+                    val iconErr = !ra.iconErrorMessage.isNullOrBlank()
+                    val titleErr = !ra.modelTitleErrorMessage.isNullOrBlank()
+                    if (!iconErr && !titleErr) return@forEach
+                    if (ra.reportStatus != ReportStatus.SUCCESS || ra.responseBody.isNullOrBlank()) return@forEach
+                    if (iconErr) ReportStorage.clearReportAgentIconState(context, reportId, ra.agentId)
+                    if (titleErr) ReportStorage.clearReportAgentModelTitleError(context, reportId, ra.agentId)
+                    iconGen.runPerModelEnrichment(
+                        context, reportId, ra, report.prompt, ai,
+                        iconOn = iconErr, titleOn = titleErr
+                    )
+                }
+                appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+            }
+        }
+    }
+
     fun regenerateReportInfo(context: Context, reportId: String) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch

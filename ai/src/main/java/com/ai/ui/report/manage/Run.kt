@@ -101,6 +101,10 @@ internal fun ReportRunScreen(
     /** Metadata-only regenerate — used by the 🔄 while the Get-info
      *  layer is open (re-runs the page's icon/title/language jobs). */
     onRegenerateInfo: (String) -> Unit = {},
+    /** "Restart errors" on Get-info — re-fire only the errored info jobs. */
+    onRestartInfoErrors: (String) -> Unit = {},
+    /** Report-level info jobs whose call is actively in flight. */
+    runningInfoJobs: Set<String> = emptySet(),
     onChatWithReportPrompt: (String) -> Unit
 ) {
     val aiSettings = uiState.aiSettings
@@ -411,6 +415,7 @@ internal fun ReportRunScreen(
                     titleModeAi = uiState.generalSettings.reportTitleAiOn(),
                     perModelIcon = uiState.generalSettings.perModelIconOn(),
                     perModelTitle = uiState.generalSettings.perModelTitleOn(),
+                    runningInfoJobs = runningInfoJobs,
                     onBack = { st.showGetInfo.value = false },
                     onOpenIconDetail = { st.showIconDetail.value = true },
                     onOpenLanguageDetail = {
@@ -419,7 +424,8 @@ internal fun ReportRunScreen(
                     },
                     onEditTitle = { st.showEditTitle.value = true },
                     onOpenAgentIconDetail = { agentId -> st.agentIconDetailFor.value = agentId },
-                    onEditModelTitle = { agentId -> st.editModelTitleFor.value = agentId }
+                    onEditModelTitle = { agentId -> st.editModelTitleFor.value = agentId },
+                    onRestartErrors = { onRestartInfoErrors(currentReportId) }
                 )
             }
         }
