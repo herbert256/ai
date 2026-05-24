@@ -472,6 +472,7 @@ class SecondaryRunManager(
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
+                finalizeLeftoverPairs(context, reportId, metaPrompt.id)
             }
         }
         rvm.registerFanOutJob(reportId, metaPrompt.id, job)
@@ -585,6 +586,7 @@ class SecondaryRunManager(
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
+                finalizeLeftoverPairs(context, reportId, metaPrompt.id)
             }
         }
         rvm.registerFanOutJob(reportId, metaPrompt.id, job)
@@ -883,6 +885,33 @@ class SecondaryRunManager(
             // spawns are fire-and-forget inside their own
             // viewModelScope launches.
             resumeStaleRunsForReport(context, report.id).join()
+        }
+    }
+
+    /** Run-end finalizer for one fan-out run: terminalize (❌) every pair
+     *  for [metaPromptId] still in PENDING (no content / error / durationMs)
+     *  and not currently in flight. Called from runFanOutPrompt /
+     *  rerunFanOutPlaceholders' finally, so it fires on **normal completion**
+     *  (catching pairs skipped because their provider didn't resolve) and on
+     *  **in-app cancellation** (the user stopped the run) — giving a stopped
+     *  run an honest done+errors total immediately instead of leaving silent
+     *  PENDING rows for the 30s resume sweep. A **process kill** skips the
+     *  finally entirely, so a genuinely-killed run's leftovers still get the
+     *  background-resume safety net. NonCancellable so the disk writes land
+     *  even when the run coroutine was cancelled. */
+    private suspend fun finalizeLeftoverPairs(context: Context, reportId: String, metaPromptId: String) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+            val running = appViewModel.runningFanOutPairs.value
+            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+                .filter {
+                    it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null &&
+                        it.fanInOf == null && it.content.isNullOrBlank() &&
+                        it.errorMessage == null && it.durationMs == null && it.id !in running
+                }
+                .forEach {
+                    markRowAsInterrupted(context, reportId, it.id, "Interrupted — run stopped before this pair finished")
+                    resumeAttempts.remove(it.id)
+                }
         }
     }
 
