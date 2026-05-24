@@ -1664,7 +1664,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
 
     androidx.compose.foundation.layout.BoxWithConstraints(
         // Bottom padding lifts the bar a touch above the gesture pill.
-        modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 0.dp, bottom = 12.dp)
+        modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 2.dp, bottom = 12.dp)
     ) {
         val available = maxWidth.value
 
