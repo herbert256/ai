@@ -2687,9 +2687,8 @@ class IconGenerationManager(
     /** Cancel the in-flight fan-icons batch for this fan-out, if
      *  any. The currently-running per-pair chains finish their
      *  HTTP call; queued pairs are dropped. */
-    fun cancelFanIconsBatch(reportId: String, metaPromptId: String) {
-        rvm.fanIconsJobs[rvm.fanIconsJobKey(reportId, metaPromptId)]?.cancel()
-    }
+    fun cancelFanIconsBatch(reportId: String, metaPromptId: String): Job? =
+        rvm.fanIconsJobs[rvm.fanIconsJobKey(reportId, metaPromptId)]?.also { it.cancel() }
 
     /** Wipe the icon state on every fan-out pair of [metaPromptId]
      *  whose icon-chain failed (iconErrorMessage != null). Doesn't
@@ -2926,9 +2925,8 @@ class IconGenerationManager(
     }
 
     /** Cancel the in-flight fan-titles batch for this fan-out, if any. */
-    fun cancelFanTitlesBatch(reportId: String, metaPromptId: String) {
-        rvm.fanTitlesJobs[rvm.fanTitlesJobKey(reportId, metaPromptId)]?.cancel()
-    }
+    fun cancelFanTitlesBatch(reportId: String, metaPromptId: String): Job? =
+        rvm.fanTitlesJobs[rvm.fanTitlesJobKey(reportId, metaPromptId)]?.also { it.cancel() }
 
     private fun isFanTitleError(sr: SecondaryResult): Boolean =
         !sr.titleErrorMessage.isNullOrBlank() ||

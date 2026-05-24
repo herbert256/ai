@@ -635,8 +635,11 @@ class FanOutEngine internal constructor(
             val run = _runs.value[runKey] ?: return@launch
             // Stop any in-flight fan-icons batch first so a tier call
             // mid-flight doesn't write an icon back onto a row we're
-            // about to clear.
-            reportViewModel.iconGen.cancelFanIconsBatch(run.reportId, run.metaPrompt.id)
+            // about to clear. join() (not just cancel()) is load-bearing:
+            // a pair whose HTTP call already returned would otherwise run
+            // its setFanOutIcon write AFTER the clear, leaving a marker
+            // the 30s resume sweep treats as "in progress" and relaunches.
+            reportViewModel.iconGen.cancelFanIconsBatch(run.reportId, run.metaPrompt.id)?.join()
             val pairIds = run.pairs.values.map { it.id }.toSet()
             run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.clearFanOutIconState(context, run.reportId, pair.id)
@@ -655,7 +658,11 @@ class FanOutEngine internal constructor(
     fun clearFanTitles(context: Context, runKey: FanOutRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[runKey] ?: return@launch
-            reportViewModel.iconGen.cancelFanTitlesBatch(run.reportId, run.metaPrompt.id)
+            // join() (not just cancel()) so an in-flight title call whose
+            // HTTP request already returned can't run its setFanOutTitle
+            // write AFTER the clear — that surviving marker is what made a
+            // deleted fan-titles batch reappear on the next resume sweep.
+            reportViewModel.iconGen.cancelFanTitlesBatch(run.reportId, run.metaPrompt.id)?.join()
             run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.clearFanOutTitleState(context, run.reportId, pair.id)
             }
