@@ -39,18 +39,6 @@ class SecondaryRunManager(
     private val appViewModel: AppViewModel,
     private val rvm: ReportViewModel
 ) {
-    /** Per-row resume-attempt counter (keyed by SecondaryResult id),
-     *  bounding [resumeStaleRunsForReport]. A stale fan-out pair / single
-     *  Meta whose re-dispatch never lands a terminal state (content or
-     *  errorMessage) would otherwise be re-run by the 30 s background
-     *  sweep forever — re-billing every cycle. After [MAX_RESUME_ATTEMPTS]
-     *  failed re-dispatches the row is terminalized to an errored row
-     *  instead. A row that's mid-flight (`id in running`) is never counted,
-     *  so genuinely-slow pairs don't burn attempts. In-memory / per-session
-     *  is sufficient — the runaway is the 30 s loop within one live run. */
-    private val resumeAttempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
-    private val MAX_RESUME_ATTEMPTS = 3
-
     // ===== Meta prompt results =====
 
     /** Kick off a Rerank or Summarize run for [reportId] across [picks]
@@ -723,19 +711,13 @@ class SecondaryRunManager(
             it.errorMessage == null &&
             it.durationMs == null &&
             it.id !in running }
-        // Give up on a pair whose re-dispatch has already failed to land a
-        // terminal state MAX_RESUME_ATTEMPTS times — terminalize it so the
-        // 30s sweep can't re-run (and re-bill) it forever. Terminalize
-        // FIRST so resumeStaleFanOutPairs's own disk re-scan skips the
-        // now-errored rows; count the rest as one more attempt.
-        val (giveUpPairs, retryPairs) = stalePairs.partition {
-            (resumeAttempts[it.id] ?: 0) >= MAX_RESUME_ATTEMPTS
+        // Bound re-dispatches via the shared resume guard: a pair retried
+        // MAX_ATTEMPTS times without landing a terminal state is terminalized
+        // here (FIRST, so resumeStaleFanOutPairs's own disk re-scan skips the
+        // now-errored rows) instead of re-run forever.
+        val retryPairs = BatchResume.capForRetry(stalePairs) {
+            markRowAsInterrupted(context, reportId, it.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
         }
-        giveUpPairs.forEach {
-            markRowAsInterrupted(context, reportId, it.id, "Interrupted — no result after $MAX_RESUME_ATTEMPTS resume attempts")
-            resumeAttempts.remove(it.id)
-        }
-        retryPairs.forEach { resumeAttempts.merge(it.id, 1, Int::plus) }
         val stalePairsByPromptId = retryPairs.groupBy { it.metaPromptId }
         stalePairsByPromptId.forEach { (promptId, pairs) ->
             val prompt = promptId?.let { pid ->
@@ -749,7 +731,6 @@ class SecondaryRunManager(
                 // prompt from scratch.
                 pairs.forEach {
                     markRowAsInterrupted(context, reportId, it.id, "Interrupted — fan-out prompt deleted")
-                    resumeAttempts.remove(it.id)
                 }
             }
         }
@@ -791,14 +772,10 @@ class SecondaryRunManager(
                 aiSettings.internalPrompts.any { p -> p.id == it.metaPromptId } &&
                 AppService.findById(it.providerId) != null
         }
-        staleSingleMeta.forEach { row ->
-            if ((resumeAttempts[row.id] ?: 0) >= MAX_RESUME_ATTEMPTS) {
-                markRowAsInterrupted(context, reportId, row.id, "Interrupted — no result after $MAX_RESUME_ATTEMPTS resume attempts")
-                resumeAttempts.remove(row.id)
-            } else {
-                resumeAttempts.merge(row.id, 1, Int::plus)
-                resumeStaleMetaPlaceholder(context, reportId, row)
-            }
+        BatchResume.capForRetry(staleSingleMeta) {
+            markRowAsInterrupted(context, reportId, it.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
+        }.forEach { row ->
+            resumeStaleMetaPlaceholder(context, reportId, row)
         }
 
         // 5. Regenerate batch: ask the engine to reconcile any
@@ -902,16 +879,15 @@ class SecondaryRunManager(
     private suspend fun finalizeLeftoverPairs(context: Context, reportId: String, metaPromptId: String) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
             val running = appViewModel.runningFanOutPairs.value
-            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+            val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                 .filter {
                     it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null &&
                         it.fanInOf == null && it.content.isNullOrBlank() &&
                         it.errorMessage == null && it.durationMs == null && it.id !in running
                 }
-                .forEach {
-                    markRowAsInterrupted(context, reportId, it.id, "Interrupted — run stopped before this pair finished")
-                    resumeAttempts.remove(it.id)
-                }
+            BatchResume.finalizeLeftover(leftover) {
+                markRowAsInterrupted(context, reportId, it.id, "Interrupted — run stopped before this pair finished")
+            }
         }
     }
 

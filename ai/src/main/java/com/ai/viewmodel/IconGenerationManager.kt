@@ -2635,6 +2635,24 @@ class IconGenerationManager(
                 appViewModel.updateUiState {
                     it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0))
                 }
+                // Run-end finalize (shared guard): any pair with content but
+                // still no icon and not in flight (skipped because its
+                // provider didn't resolve, or the run was stopped) gets a
+                // terminal ❌ now, so it stops being re-picked on every
+                // report-open relaunch. "content but no icon" is never a
+                // valid done state, so this can't mislabel a real result.
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    val running = appViewModel.runningFanIconsPairs.value
+                    val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+                        .filter {
+                            it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null &&
+                                it.fanInOf == null && !it.content.isNullOrBlank() &&
+                                it.icon.isNullOrBlank() && it.id !in running
+                        }
+                    BatchResume.finalizeLeftover(leftover) {
+                        SecondaryResultStorage.setFanOutIconError(context, reportId, it.id, "Interrupted — run stopped before this icon finished")
+                    }
+                }
             }
         }
         rvm.registerFanIconsJob(reportId, metaPromptId, job)

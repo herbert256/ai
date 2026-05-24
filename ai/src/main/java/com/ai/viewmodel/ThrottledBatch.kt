@@ -99,3 +99,46 @@ internal suspend fun <T> runThrottledBatch(
         }.awaitAll()
     }
 }
+
+/**
+ * Shared resume/rerun guard for the per-row batch flows (fan-out pairs,
+ * fan-in reruns, fan-icons, fan-titles, single Meta). The 30 s background
+ * sweep / report-open relaunch re-dispatches any row still missing its
+ * result (content / icon / title); without a bound, a row that can *never*
+ * complete (provider since removed, etc.) would be re-run — and re-billed —
+ * every cycle. This object owns the only shared part of that: the per-row
+ * attempt counter and the give-up policy. Each caller still supplies its own
+ * "incomplete" filter and its own [terminalize] action (errorMessage /
+ * setFanOutIconError / setFanOutTitleError) — only the counting is here.
+ */
+internal object BatchResume {
+    /** Re-dispatch attempts a row gets before it's terminalized instead. */
+    const val MAX_ATTEMPTS = 3
+
+    // rowId -> failed re-dispatch count. In-memory / per-session is enough:
+    // the runaway being bounded is the 30s sweep loop within a live session.
+    private val attempts = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+    /** Of [incomplete] rows, [terminalize] (and forget) the ones already
+     *  retried [MAX_ATTEMPTS] times; count the rest as one more attempt and
+     *  return them for re-dispatch. Terminalize FIRST so a caller's own disk
+     *  re-scan skips the now-errored rows. */
+    fun capForRetry(
+        incomplete: List<com.ai.data.SecondaryResult>,
+        terminalize: (com.ai.data.SecondaryResult) -> Unit,
+    ): List<com.ai.data.SecondaryResult> {
+        val (giveUp, retry) = incomplete.partition { (attempts[it.id] ?: 0) >= MAX_ATTEMPTS }
+        giveUp.forEach { terminalize(it); attempts.remove(it.id) }
+        retry.forEach { attempts.merge(it.id, 1, Int::plus) }
+        return retry
+    }
+
+    /** Run-end finalizer: [terminalize] (and forget) every leftover row.
+     *  Caller filters to its own "incomplete & not in flight" set first. */
+    fun finalizeLeftover(
+        leftover: List<com.ai.data.SecondaryResult>,
+        terminalize: (com.ai.data.SecondaryResult) -> Unit,
+    ) {
+        leftover.forEach { terminalize(it); attempts.remove(it.id) }
+    }
+}
