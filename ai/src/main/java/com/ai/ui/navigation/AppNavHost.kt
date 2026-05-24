@@ -285,8 +285,28 @@ fun AppNavHost(
         NavRoutes.AI_RESET_APPLICATION, NavRoutes.AI_TEST_ALL_MODELS,
         NavRoutes.AI_APPLOG_DETAIL
     )
+    // Every AI Reports screen that has no dynamic report glyph of its own
+    // shows the report default icon (📝) in the left slot instead of the
+    // AI logo. Tapping it goes to the AI Reports hub — except on the hub,
+    // where it goes Home. Screens that DO carry a report icon (Manage /
+    // View with a generated icon) pass it via reportIcon, which takes
+    // precedence over this section icon, so they're unaffected.
+    val reportSectionRoutes = setOf(
+        NavRoutes.AI_NEW_REPORT_HUB, NavRoutes.AI_NEW_REPORT, NavRoutes.AI_NEW_REPORT_WITH_PARAMS,
+        NavRoutes.AI_SEARCH_REPORTS, NavRoutes.AI_ALL_REPORTS, NavRoutes.AI_EXAMPLES,
+        NavRoutes.AI_PROMPT_HISTORY, NavRoutes.AI_EXAMPLE_PROMPT_PICKER,
+        NavRoutes.AI_SEARCH, NavRoutes.AI_LOCAL_SEARCH, NavRoutes.AI_QUICK_LOCAL_SEARCH,
+        NavRoutes.AI_LOCAL_SEMANTIC_SEARCH,
+        NavRoutes.AI_REPORTS, NavRoutes.AI_REPORT_INFO, NavRoutes.AI_REPORT_MODEL,
+        NavRoutes.AI_VIEW_PICK_REPORT, NavRoutes.AI_MANAGE_PICK_REPORT
+    )
+    val reportDefaultIcon = rootUiStateForLayout.generalSettings.metadataIcons.reportIcon
     val sectionTopIcon: com.ai.ui.shared.TopBarLeftIcon? = when {
         currentNavRoute == null -> null
+        currentNavRoute == NavRoutes.AI_REPORTS_HUB ->
+            com.ai.ui.shared.TopBarLeftIcon(reportDefaultIcon, rootNavigateHome)
+        currentNavRoute in reportSectionRoutes ->
+            com.ai.ui.shared.TopBarLeftIcon(reportDefaultIcon, rootNavigateToReportsHub)
         currentNavRoute == NavRoutes.AI_CHATS_HUB ->
             com.ai.ui.shared.TopBarLeftIcon("💬", navigateHome)
         currentNavRoute.startsWith("ai_chat") || currentNavRoute.startsWith("ai_dual_chat") ->

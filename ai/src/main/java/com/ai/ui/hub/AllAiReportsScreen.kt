@@ -73,9 +73,7 @@ fun AllAiReportsScreen(
         TitleBar(
             title = "All AI reports", subject = "Browse every saved report, newest first",
             helpTopic = "all_ai_reports_screen",
-            onBackClick = onNavigateBack,
-            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
-            onReportIconClick = com.ai.ui.shared.LocalNavigateToReportsHub.current
+            onBackClick = onNavigateBack
         )
         if (reports.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
