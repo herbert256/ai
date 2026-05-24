@@ -238,7 +238,21 @@ object ApiFactory {
             java.util.concurrent.Executors.newCachedThreadPool { r ->
                 Thread(r, "OkHttp Dispatcher").apply { isDaemon = false }
             }
-        )))
+        )).apply {
+            // The app's ProviderThrottle (per-host concurrency + per-minute
+            // window + global cap) is the SOLE intended throttle. OkHttp's
+            // dispatcher must never be the binding limit — its default
+            // maxRequestsPerHost=5 deadlocked against ProviderThrottle:
+            // the per-host throttle is acquired INSIDE the interceptor, so a
+            // call waiting for an app permit still occupies an OkHttp per-host
+            // slot. Metadata/secondary calls (no pre-acquire) filled all 5
+            // slots blocked on the app permit, while pre-acquired report calls
+            // HELD the app permits but couldn't get an OkHttp slot to run —
+            // a cross-layer deadlock. Set both ceilings well above the global
+            // cap so OkHttp gates nothing.
+            maxRequests = 512
+            maxRequestsPerHost = 512
+        })
         .connectTimeout(com.ai.BuildConfig.NETWORK_CONNECT_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)
         .readTimeout(com.ai.BuildConfig.NETWORK_READ_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)
         .writeTimeout(com.ai.BuildConfig.NETWORK_WRITE_TIMEOUT_SEC.toLong(), TimeUnit.SECONDS)
