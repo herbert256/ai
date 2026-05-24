@@ -480,6 +480,7 @@ fun ReportsScreenNav(
         onNavigateHome = handleNavigateHome,
         advancedParameters = uiState.reportAdvancedParameters,
         onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
+        onParametersIdsChange = { viewModel.setReportParametersIds(it) },
         onSystemPromptChange = { viewModel.setReportSystemPromptId(it) },
         onNavigateToTrace = onNavigateToTrace,
         onNavigateToTraceFile = onNavigateToTraceFile,

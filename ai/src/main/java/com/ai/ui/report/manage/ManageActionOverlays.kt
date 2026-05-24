@@ -7,7 +7,6 @@ import com.ai.data.AgentParameters
 import com.ai.ui.helpers.*
 import com.ai.ui.other.ReportSelectInternalPromptScreen
 import com.ai.ui.report.manage.view.buildLangTabs
-import com.ai.ui.report.other.ReportAdvancedParametersScreen
 import com.ai.ui.shared.LocalCurrentReportIdForSwipe
 import com.ai.ui.shared.LocalMainViewResetTick
 import com.ai.ui.shared.LocalNavigateToCurrentReport
@@ -25,6 +24,7 @@ internal fun ReportManageActionOverlays(
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, ExportLanguage, (Int, Int) -> Unit) -> Unit,
     onExportAll: suspend (String, ExportLanguage, (Int, Int) -> Unit) -> Unit,
     onAdvancedParametersChange: (AgentParameters?) -> Unit,
+    onParametersIdsChange: (List<String>) -> Unit,
     onMarkParametersChanged: () -> Unit,
     onUpdatePrompt: (String, String) -> Unit,
     onUpdateTitle: (String, String, String) -> Unit,
@@ -131,14 +131,12 @@ internal fun ReportManageActionOverlays(
             com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
             LocalNavigateToCurrentReport provides { st.showEditParameters.value = false }
         ) {
-            ReportAdvancedParametersScreen(
-                currentParameters = uiState.reportAdvancedParameters,
-                onApply = {
-                    onAdvancedParametersChange(it)
-                    onMarkParametersChanged()
-                    st.showEditParameters.value = false
-                },
-                onBack = { st.showEditParameters.value = false }
+            com.ai.ui.shared.ParametersSelectScreen(
+                aiSettings = aiSettings,
+                selectedIds = uiState.reportParametersIds,
+                onConfirm = { onParametersIdsChange(it); onMarkParametersChanged() },
+                onBack = { st.showEditParameters.value = false },
+                onNavigateHome = onNavigateHome
             )
         }
         return true

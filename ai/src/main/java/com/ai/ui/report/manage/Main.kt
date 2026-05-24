@@ -1,7 +1,6 @@
 package com.ai.ui.report.manage
 import com.ai.ui.report.manage.view.*
 import com.ai.ui.report.other.TargetLanguage
-import com.ai.ui.report.other.ReportAdvancedParametersScreen
 import com.ai.ui.report.other.LanguageSelectionScreen
 import com.ai.ui.report.start.ModelSelectionScreen
 import com.ai.ui.report.start.SelectionOverlayDialogs
@@ -155,6 +154,7 @@ fun ReportsScreen(
     onNavigateHome: () -> Unit = onDismiss,
     advancedParameters: AgentParameters? = null,
     onAdvancedParametersChange: (AgentParameters?) -> Unit = {},
+    onParametersIdsChange: (List<String>) -> Unit = {},
     /** Persist the per-report system prompt picked in SelectionPhase
      *  onto UiState so the dispatch sees it at generation time. */
     onSystemPromptChange: (String?) -> Unit = {},
@@ -673,6 +673,7 @@ fun ReportsScreen(
             reportLanguageName = languageName,
             onDeleteSecondaryRowById = onDeleteSecondaryWithRefresh,
             onAdvancedParametersChange = onAdvancedParametersChange,
+            onParametersIdsChange = onParametersIdsChange,
             onShowAdvancedParametersChange = { showAdvancedParameters = it },
             onTranslateMissingItems = onTranslateMissingItems,
             fanOutViewName = fanOutViewName,
@@ -1336,6 +1337,7 @@ fun ReportsScreen(
             onExport = onExport,
             onExportAll = onExportAll,
             onAdvancedParametersChange = onAdvancedParametersChange,
+            onParametersIdsChange = onParametersIdsChange,
             onMarkParametersChanged = onMarkParametersChanged,
             onUpdatePrompt = onUpdatePrompt,
             onUpdateTitle = onUpdateTitle,

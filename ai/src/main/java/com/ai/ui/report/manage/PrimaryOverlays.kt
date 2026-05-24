@@ -1,6 +1,5 @@
 package com.ai.ui.report.manage
 import com.ai.ui.report.manage.view.*
-import com.ai.ui.report.other.ReportAdvancedParametersScreen
 import com.ai.ui.report.view.*
 import com.ai.ui.helpers.*
 
@@ -118,6 +117,7 @@ internal fun ReportPrimaryOverlays(
      *  at the ReportsScreen call site. */
     onDeleteSecondaryRowById: (reportId: String, resultId: String) -> Unit,
     onAdvancedParametersChange: (AgentParameters?) -> Unit,
+    onParametersIdsChange: (List<String>) -> Unit,
     onShowAdvancedParametersChange: (Boolean) -> Unit,
     /** Wired by ReportsScreenNav to ReportViewModel.translateMissingItems.
      *  Fired when the View screen's "Language missing" popup picks a
@@ -487,13 +487,12 @@ internal fun ReportPrimaryOverlays(
     }
 
     if (showAdvancedParameters) {
-        ReportAdvancedParametersScreen(
-            currentParameters = advancedParameters,
-            onApply = {
-                onAdvancedParametersChange(it)
-                onShowAdvancedParametersChange(false)
-            },
-            onBack = { onShowAdvancedParametersChange(false) }
+        com.ai.ui.shared.ParametersSelectScreen(
+            aiSettings = aiSettings,
+            selectedIds = uiState.reportParametersIds,
+            onConfirm = { onParametersIdsChange(it) },
+            onBack = { onShowAdvancedParametersChange(false) },
+            onNavigateHome = onNavigateHome
         )
         return true
     }
