@@ -95,11 +95,12 @@ fun buildInfoJobs(
 
     if (iconRowOn && !iconNeverRan) {
         val state = when {
-            report.iconErrorMessage != null -> InfoJobState.FAILED
-            report.icon != null -> InfoJobState.DONE
+            !report.iconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
+            !report.icon.isNullOrBlank() -> InfoJobState.DONE
             else -> InfoJobState.RUNNING
         }
-        val label = report.iconErrorMessage ?: report.icon ?: "Generating…"
+        val label = report.iconErrorMessage?.takeIf { it.isNotBlank() }
+            ?: report.icon?.takeIf { it.isNotBlank() } ?: "Generating…"
         jobs += InfoJob("icon", label, state, report.iconInputCost + report.iconOutputCost,
             doneIcon = report.icon, pending = state == InfoJobState.RUNNING)
     }
@@ -108,11 +109,12 @@ fun buildInfoJobs(
     // so report icon and report language can be toggled independently.
     if (reportLanguageOn) {
         val langState = when {
-            report.languageIconErrorMessage != null -> InfoJobState.FAILED
-            report.languageName != null -> InfoJobState.DONE
+            !report.languageIconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
+            !report.languageName.isNullOrBlank() -> InfoJobState.DONE
             else -> InfoJobState.RUNNING
         }
-        val langLabel = report.languageIconErrorMessage ?: report.languageName ?: "Detecting…"
+        val langLabel = report.languageIconErrorMessage?.takeIf { it.isNotBlank() }
+            ?: report.languageName?.takeIf { it.isNotBlank() } ?: "Detecting…"
         jobs += InfoJob(
             "language", langLabel, langState,
             report.languageInputCost + report.languageOutputCost +
@@ -126,12 +128,12 @@ fun buildInfoJobs(
     val titleAgent = titlePrompt?.let { p -> settings.resolvePromptAgent(p) }
     if (titleModeAi && titlePrompt != null && titleAgent != null) {
         val state = when {
-            report.titleErrorMessage != null -> InfoJobState.FAILED
-            report.titlePromptUsed != null -> InfoJobState.DONE
+            !report.titleErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
+            !report.titlePromptUsed.isNullOrBlank() -> InfoJobState.DONE
             else -> InfoJobState.RUNNING
         }
-        val label = report.titleErrorMessage
-            ?: report.title.takeIf { report.titlePromptUsed != null }
+        val label = report.titleErrorMessage?.takeIf { it.isNotBlank() }
+            ?: report.title.takeIf { !report.titlePromptUsed.isNullOrBlank() }
             ?: "Generating…"
         jobs += InfoJob("title", label, state, report.titleInputCost + report.titleOutputCost,
             doneIcon = "🏷️", pending = state == InfoJobState.RUNNING)
@@ -141,8 +143,8 @@ fun buildInfoJobs(
     // on the icon is derived from the title, so the icon waits for it.
     fun titleStateFor(a: com.ai.data.ReportAgent): InfoJobState =
         if (a.reportStatus != ReportStatus.SUCCESS) InfoJobState.CLOCK else when {
-            a.modelTitleErrorMessage != null -> InfoJobState.FAILED
-            a.modelTitle != null -> InfoJobState.DONE
+            !a.modelTitleErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
+            !a.modelTitle.isNullOrBlank() -> InfoJobState.DONE
             else -> InfoJobState.RUNNING
         }
 
@@ -176,8 +178,8 @@ fun buildInfoJobs(
             val iconState = when {
                 a.reportStatus != ReportStatus.SUCCESS -> InfoJobState.CLOCK
                 titleState == InfoJobState.CLOCK || titleState == InfoJobState.RUNNING -> InfoJobState.CLOCK
-                a.iconErrorMessage != null -> InfoJobState.FAILED
-                a.icon != null -> InfoJobState.DONE
+                !a.iconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
+                !a.icon.isNullOrBlank() -> InfoJobState.DONE
                 else -> InfoJobState.RUNNING
             }
             // Label shows the found title (the icon is derived from it);

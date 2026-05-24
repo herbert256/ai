@@ -27,11 +27,21 @@ import java.lang.reflect.Type
  * trusts the declared type (Bug 1).
  *
  * This factory wraps the reflective delegate adapter and, after reading,
- * coerces any still-null reference field of a known "non-null-with-sane-empty"
- * type to its empty default: String → "", List/Set/Collection → empty,
- * Map → empty. Primitive/boxed-number/boolean nulls are left to Gson's own
- * primitive defaulting. This is a best-effort safety net so a partial or
- * hand-edited JSON loads instead of crashing the app.
+ * coerces any still-null **collection** field to its empty default
+ * (List/Set/Collection → empty, Map → empty) so iteration of a missing
+ * non-null collection (e.g. `Report.agents`) can't NPE. A best-effort
+ * safety net so a partial / hand-edited JSON loads instead of crashing.
+ *
+ * IMPORTANT: it does NOT coerce String. Java reflection can't distinguish
+ * a Kotlin non-null `String` from a nullable `String?`, and a great many
+ * model fields use `String? = null` as a meaningful sentinel — e.g. the
+ * `*ErrorMessage` fields (null = "no error"), `icon` / `languageName` /
+ * `titlePromptUsed` (null = "not generated yet"). Coercing those to ""
+ * silently turns "absent" into a present-but-empty value and breaks every
+ * `!= null` check (it once made the whole Get-info screen show a red ✗ on
+ * every row). Non-null String fields that are genuinely missing are rare
+ * and handled with field-specific defaults at their load site instead
+ * (e.g. InternalPrompt.parameters in SettingsPreferences).
  */
 private class NullSafeFieldAdapterFactory : TypeAdapterFactory {
     override fun <T : Any?> create(gson: Gson, type: TypeToken<T>): TypeAdapter<T>? {
@@ -43,8 +53,8 @@ private class NullSafeFieldAdapterFactory : TypeAdapterFactory {
         val delegate = gson.getDelegateAdapter(this, type)
         val coercibleFields = raw.declaredFields.filter { f ->
             !Modifier.isStatic(f.modifiers) && !Modifier.isTransient(f.modifiers) &&
-                (f.type == String::class.java ||
-                    List::class.java.isAssignableFrom(f.type) ||
+                // Collections only — NOT String (see class doc: String? sentinels).
+                (List::class.java.isAssignableFrom(f.type) ||
                     Set::class.java.isAssignableFrom(f.type) ||
                     Map::class.java.isAssignableFrom(f.type) ||
                     Collection::class.java.isAssignableFrom(f.type))
@@ -58,7 +68,6 @@ private class NullSafeFieldAdapterFactory : TypeAdapterFactory {
                 for (f in coercibleFields) {
                     if (f.get(value) == null) {
                         val empty: Any = when {
-                            f.type == String::class.java -> ""
                             Set::class.java.isAssignableFrom(f.type) -> emptySet<Any>()
                             Map::class.java.isAssignableFrom(f.type) -> emptyMap<Any, Any>()
                             else -> emptyList<Any>()
