@@ -18,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.*
 import com.ai.model.*
-import com.ai.ui.chat.SystemPromptSelectorDialog
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.modelInfoClickable
 import kotlinx.coroutines.Dispatchers

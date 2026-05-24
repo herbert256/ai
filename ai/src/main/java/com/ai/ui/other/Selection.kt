@@ -177,18 +177,20 @@ internal fun ReportSelectModelsScreen(
     var showSecParamsDialog by remember { mutableStateOf(false) }
     var showSecSystemPromptDialog by remember { mutableStateOf(false) }
     if (showSecParamsDialog) {
-        com.ai.ui.chat.ParametersSelectorDialog(
+        com.ai.ui.shared.ParametersSelectScreen(
             aiSettings = aiSettings, selectedIds = pickedParamsIds,
-            onConfirm = { pickedParamsIds = it; showSecParamsDialog = false },
-            onDismiss = { showSecParamsDialog = false }
+            onConfirm = { pickedParamsIds = it },
+            onBack = { showSecParamsDialog = false }, onNavigateHome = onNavigateHome
         )
+        return
     }
     if (showSecSystemPromptDialog) {
-        com.ai.ui.chat.SystemPromptSelectorDialog(
+        com.ai.ui.shared.SystemPromptSelectScreen(
             aiSettings = aiSettings, selectedId = pickedSystemPromptId,
-            onSelect = { pickedSystemPromptId = it; showSecSystemPromptDialog = false },
-            onDismiss = { showSecSystemPromptDialog = false }
+            onSelect = { pickedSystemPromptId = it },
+            onBack = { showSecSystemPromptDialog = false }, onNavigateHome = onNavigateHome
         )
+        return
     }
     // Route a picked model either to the secondary-params callback (with
     // the per-launch 🌡️/🎭 picks) or to the plain onConfirm.

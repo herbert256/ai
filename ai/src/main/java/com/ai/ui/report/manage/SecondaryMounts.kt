@@ -304,18 +304,20 @@ internal fun FanOutConfirmScreen(
     var showSecParamsDialog by remember { mutableStateOf(false) }
     var showSecSystemPromptDialog by remember { mutableStateOf(false) }
     if (showSecParamsDialog) {
-        com.ai.ui.chat.ParametersSelectorDialog(
+        com.ai.ui.shared.ParametersSelectScreen(
             aiSettings = aiSettings, selectedIds = pickedParamsIds,
-            onConfirm = { pickedParamsIds = it; showSecParamsDialog = false },
-            onDismiss = { showSecParamsDialog = false }
+            onConfirm = { pickedParamsIds = it },
+            onBack = { showSecParamsDialog = false }, onNavigateHome = onCancel
         )
+        return
     }
     if (showSecSystemPromptDialog) {
-        com.ai.ui.chat.SystemPromptSelectorDialog(
+        com.ai.ui.shared.SystemPromptSelectScreen(
             aiSettings = aiSettings, selectedId = pickedSystemPromptId,
-            onSelect = { pickedSystemPromptId = it; showSecSystemPromptDialog = false },
-            onDismiss = { showSecSystemPromptDialog = false }
+            onSelect = { pickedSystemPromptId = it },
+            onBack = { showSecSystemPromptDialog = false }, onNavigateHome = onCancel
         )
+        return
     }
     val successfulState = produceState<List<com.ai.data.ReportAgent>?>(initialValue = null, reportId) {
         value = withContext(Dispatchers.IO) {

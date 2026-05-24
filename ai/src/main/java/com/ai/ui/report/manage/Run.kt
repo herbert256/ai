@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -115,19 +116,23 @@ internal fun ReportRunScreen(
             withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
         } ?: false
     }
-    // Per-report system-prompt picker — owns its visibility state +
-    // renders the SystemPromptSelectorDialog. Returns the trigger
-    // lambda that Edit Row 2's "System prompt" button fires. Lives
-    // here (not in ReportScreen) so its bytecode stays out of the
-    // 64 KB-ceiling-hugging ReportsScreen. The select callback is
-    // pulled from LocalSystemPromptChange so we don't need to thread
-    // it through the call site as another arg.
+    // The select callback is pulled from LocalSystemPromptChange so we
+    // don't thread it through the call site as another arg.
     val systemPromptChange = com.ai.ui.shared.LocalSystemPromptChange.current
-    val editSystemPromptTrigger = rememberEditSystemPromptDialog(
-        aiSettings = aiSettings,
-        selectedId = uiState.reportSystemPromptId,
-        onSelect = systemPromptChange
-    )
+    // Per-report system-prompt picker — opens the full-screen
+    // "Define AI model system prompt" overlay. The early return keeps
+    // this screen's remember state underneath.
+    var showEditSystemPrompt by rememberSaveable { mutableStateOf(false) }
+    val editSystemPromptTrigger: () -> Unit = { showEditSystemPrompt = true }
+    if (showEditSystemPrompt) {
+        com.ai.ui.shared.SystemPromptSelectScreen(
+            aiSettings = aiSettings,
+            selectedId = uiState.reportSystemPromptId,
+            onSelect = systemPromptChange,
+            onBack = { showEditSystemPrompt = false }, onNavigateHome = onDismiss
+        )
+        return
+    }
     // 👯 duplicate-report tap shows a yes/no first so an accidental
     // hit on the bottom bar doesn't silently spawn a "(Copy)" report.
     var showCopyConfirm by remember { mutableStateOf(false) }

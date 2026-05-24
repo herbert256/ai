@@ -668,32 +668,6 @@ internal fun TrackLastReportMode(reportId: String?, viewMode: Boolean) {
     }
 }
 
-/** Per-report system-prompt picker — owns its own visibility state
- *  and renders the shared [com.ai.ui.chat.SystemPromptSelectorDialog]
- *  when the parent triggers it via the returned `show` lambda. The
- *  state lives inside this helper so the rememberSaveable, the if-
- *  block, and every dispatched lambda stay out of [ReportsScreen]'s
- *  bytecode — which already sits at the JVM 64 KB per-method
- *  ceiling. */
-@Composable
-internal fun rememberEditSystemPromptDialog(
-    aiSettings: com.ai.model.Settings,
-    selectedId: String?,
-    onSelect: (String?) -> Unit
-): () -> Unit {
-    var show by rememberSaveable { mutableStateOf(false) }
-    if (show) {
-        com.ai.ui.chat.SystemPromptSelectorDialog(
-            aiSettings = aiSettings,
-            selectedId = selectedId,
-            onSelect = { id -> onSelect(id); show = false },
-            onDismiss = { show = false }
-        )
-    }
-    return { show = true }
-}
-
-
 internal fun loadSavedReportModels(viewModel: AppViewModel, aiSettings: Settings): List<ReportModel> {
     val agentIds = viewModel.loadReportAgents()
     val agentModels = agentIds.mapNotNull { id -> aiSettings.getAgentById(id)?.let { expandAgentToModel(it, aiSettings) } }

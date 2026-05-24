@@ -10,6 +10,8 @@ object NavRoutes {
     const val SETTINGS_FLOCK_EDIT = "settings_flock_edit/{flockId}"
     const val SETTINGS_SWARM_EDIT = "settings_swarm_edit/{swarmId}"
     const val SETTINGS_INTERNAL_PROMPT_EDIT = "settings_internal_prompt_edit/{promptId}"
+    const val SETTINGS_PARAMETERS = "settings_parameters"
+    const val SETTINGS_SYSTEM_PROMPTS = "settings_system_prompts"
     const val SETTINGS_AGENTS = "settings_agents"
     const val SETTINGS_FLOCKS = "settings_flocks"
     const val SETTINGS_SWARMS = "settings_swarms"

@@ -1,6 +1,24 @@
 package com.ai.ui.admin
 
 internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
+    "select_parameters" to HelpContent(
+        title = "Help - Configure API parameters",
+        cards = listOf(
+            HelpCard("Overview", "Opened from the 🌡️ icon. Picks which saved Parameters preset(s) — temperature, max tokens, top-p and the rest — apply to whatever you're configuring (a report model, an agent, a chat, an internal prompt, the app-wide default, …)."),
+            HelpCard("Current active", "When at least one preset is selected, the orange line under the title lists the active preset name(s). Nothing there means no preset is set and the next level down (agent / provider / app-wide) decides."),
+            HelpCard("Selecting", "Tap a row to toggle it. This is multi-select — pick several and their settings merge. The list pages when it doesn't fit; swipe left / right (or up / down) to move between pages."),
+            HelpCard("Icons", "🗑 clears the whole selection (back to none). ✏️ opens the Parameters management screen where you create, edit and delete presets."),
+        )
+    ),
+    "select_system_prompt" to HelpContent(
+        title = "Help - Define AI model system prompt",
+        cards = listOf(
+            HelpCard("Overview", "Opened from the 🎭 icon. Picks the saved System prompt — the standing instruction that sets the model's role or tone — for whatever you're configuring."),
+            HelpCard("Current active", "When a prompt is selected, the orange line under the title shows its name. Nothing there means no system prompt is set at this level."),
+            HelpCard("Selecting", "Tap a row to select it (single choice). The list pages when it doesn't fit; swipe to move between pages."),
+            HelpCard("Icons", "🗑 clears the selection (back to none). ✏️ opens the System prompts management screen where you create, edit and delete prompts."),
+        )
+    ),
     "update_from_cloud" to HelpContent(
         title = "Help - Update from cloud",
         cards = listOf(

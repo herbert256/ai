@@ -54,12 +54,13 @@ internal fun ReportSelectModelsScreen(
     val aiSettings = uiState.aiSettings
     var showSystemPromptDialog by remember { mutableStateOf(false) }
     if (showSystemPromptDialog) {
-        com.ai.ui.chat.SystemPromptSelectorDialog(
+        com.ai.ui.shared.SystemPromptSelectScreen(
             aiSettings = aiSettings,
             selectedId = uiState.reportSystemPromptId,
-            onSelect = { id -> onSystemPromptChange(id); showSystemPromptDialog = false },
-            onDismiss = { showSystemPromptDialog = false }
+            onSelect = { id -> onSystemPromptChange(id) },
+            onBack = { showSystemPromptDialog = false }, onNavigateHome = onDismiss
         )
+        return
     }
     Column(
         modifier = Modifier

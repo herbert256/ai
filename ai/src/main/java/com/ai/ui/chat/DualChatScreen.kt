@@ -28,6 +28,8 @@ import com.ai.model.Settings
 import com.ai.ui.shared.AppColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.ai.ui.shared.ParametersSelectScreen
+import com.ai.ui.shared.SystemPromptSelectScreen
 import com.ai.ui.shared.SelectModelScreen
 import com.ai.ui.shared.SelectProviderScreen
 import com.ai.ui.shared.TitleBar
@@ -176,34 +178,38 @@ fun DualChatSetupScreen(
         4 -> if (model2Provider != null) { SelectModelScreen(provider = model2Provider!!, aiSettings = aiSettings, currentModel = model2Name, onSelectModel = { model2Name = it; overlayMode = 0 }, onBack = { overlayMode = 3 }, onNavigateHome = onNavigateHome); return }
     }
 
+    // 🌡️ / 🎭 ask which model first (this screen configures two), then
+    // open the matching full-screen picker as an overlay.
+    var paramsForModel by remember { mutableStateOf<Int?>(null) }
+    var sysPromptForModel by remember { mutableStateOf<Int?>(null) }
+    var showParamsChooser by remember { mutableStateOf(false) }
+    var showSysPromptChooser by remember { mutableStateOf(false) }
+    ModelPickDialog(showParamsChooser, "Parameters for which model?", { showParamsChooser = false }) { paramsForModel = it; showParamsChooser = false }
+    ModelPickDialog(showSysPromptChooser, "System prompt for which model?", { showSysPromptChooser = false }) { sysPromptForModel = it; showSysPromptChooser = false }
+    if (paramsForModel != null) {
+        val m = paramsForModel!!
+        ParametersSelectScreen(
+            aiSettings = aiSettings, selectedIds = if (m == 1) model1ParamsIds else model2ParamsIds,
+            onConfirm = { if (m == 1) model1ParamsIds = it else model2ParamsIds = it },
+            onBack = { paramsForModel = null }, onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    if (sysPromptForModel != null) {
+        val m = sysPromptForModel!!
+        SystemPromptSelectScreen(
+            aiSettings = aiSettings, selectedId = if (m == 1) model1SystemPromptId else model2SystemPromptId,
+            onSelect = { if (m == 1) model1SystemPromptId = it else model2SystemPromptId = it },
+            onBack = { sysPromptForModel = null }, onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     val canStart = model1Provider != null && model1Name.isNotBlank() && model2Provider != null && model2Name.isNotBlank() && subject.isNotBlank() && (interactionCount.toIntOrNull() ?: 0) > 0
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        // 🌡️ / 🎭 ask which model first (this screen configures two).
-        var paramsForModel by remember { mutableStateOf<Int?>(null) }
-        var sysPromptForModel by remember { mutableStateOf<Int?>(null) }
-        var showParamsChooser by remember { mutableStateOf(false) }
-        var showSysPromptChooser by remember { mutableStateOf(false) }
-        ModelPickDialog(showParamsChooser, "Parameters for which model?", { showParamsChooser = false }) { paramsForModel = it; showParamsChooser = false }
-        ModelPickDialog(showSysPromptChooser, "System prompt for which model?", { showSysPromptChooser = false }) { sysPromptForModel = it; showSysPromptChooser = false }
-        if (paramsForModel != null) {
-            val m = paramsForModel!!
-            ParametersSelectorDialog(
-                aiSettings = aiSettings, selectedIds = if (m == 1) model1ParamsIds else model2ParamsIds,
-                onConfirm = { if (m == 1) model1ParamsIds = it else model2ParamsIds = it; paramsForModel = null },
-                onDismiss = { paramsForModel = null }
-            )
-        }
-        if (sysPromptForModel != null) {
-            val m = sysPromptForModel!!
-            SystemPromptSelectorDialog(
-                aiSettings = aiSettings, selectedId = if (m == 1) model1SystemPromptId else model2SystemPromptId,
-                onSelect = { if (m == 1) model1SystemPromptId = it else model2SystemPromptId = it; sysPromptForModel = null },
-                onDismiss = { sysPromptForModel = null }
-            )
-        }
         TitleBar(helpTopic = "dual_chat_setup", title = "Dual AI Chat", subject = "Set up two models to debate a topic", onBackClick = onNavigateBack,
             onParameters = { showParamsChooser = true }, onSystemPrompt = { showSysPromptChooser = true })
 

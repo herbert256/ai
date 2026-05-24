@@ -1617,19 +1617,21 @@ private fun AppSettingsScreen(
     var parDialog by remember { mutableStateOf<String?>(null) }  // "app" | "rm"
     if (spDialog != null) {
         val app = spDialog == "app"
-        com.ai.ui.chat.SystemPromptSelectorDialog(
+        com.ai.ui.shared.SystemPromptSelectScreen(
             aiSettings = aiSettings, selectedId = if (app) appSp else rmSp,
-            onSelect = { if (app) appSp = it else rmSp = it; spDialog = null },
-            onDismiss = { spDialog = null }
+            onSelect = { if (app) appSp = it else rmSp = it },
+            onBack = { spDialog = null }, onNavigateHome = onBack
         )
+        return
     }
     if (parDialog != null) {
         val app = parDialog == "app"
-        com.ai.ui.chat.ParametersSelectorDialog(
+        com.ai.ui.shared.ParametersSelectScreen(
             aiSettings = aiSettings, selectedIds = if (app) appPar else rmPar,
-            onConfirm = { if (app) appPar = it else rmPar = it; parDialog = null },
-            onDismiss = { parDialog = null }
+            onConfirm = { if (app) appPar = it else rmPar = it },
+            onBack = { parDialog = null }, onNavigateHome = onBack
         )
+        return
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {

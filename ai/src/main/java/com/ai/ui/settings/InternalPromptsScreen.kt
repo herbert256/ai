@@ -123,26 +123,28 @@ fun InternalPromptEditScreen(
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSysPromptDialog by remember { mutableStateOf(false) }
     if (showParamsDialog) {
-        com.ai.ui.chat.ParametersSelectorDialog(
+        // The prompt stores a single preset NAME; the multi-select
+        // screen hands back ids — take the first → its name.
+        com.ai.ui.shared.ParametersSelectScreen(
             aiSettings = aiSettings,
             selectedIds = aiSettings.parameters.firstOrNull { it.name == selectedParametersName }?.id?.let { listOf(it) } ?: emptyList(),
             onConfirm = { ids ->
                 selectedParametersName = ids.firstNotNullOfOrNull { id -> aiSettings.parameters.firstOrNull { it.id == id }?.name } ?: "*NONE"
-                showParamsDialog = false
             },
-            onDismiss = { showParamsDialog = false }
+            onBack = { showParamsDialog = false }, onNavigateHome = onNavigateHome
         )
+        return
     }
     if (showSysPromptDialog) {
-        com.ai.ui.chat.SystemPromptSelectorDialog(
+        com.ai.ui.shared.SystemPromptSelectScreen(
             aiSettings = aiSettings,
             selectedId = aiSettings.systemPrompts.firstOrNull { it.name == selectedSystemPromptName }?.id,
             onSelect = { id ->
                 selectedSystemPromptName = id?.let { sid -> aiSettings.systemPrompts.firstOrNull { it.id == sid }?.name } ?: "*NONE"
-                showSysPromptDialog = false
             },
-            onDismiss = { showSysPromptDialog = false }
+            onBack = { showSysPromptDialog = false }, onNavigateHome = onNavigateHome
         )
+        return
     }
 
     // Duplicate-mode is only meaningful for user-editable categories

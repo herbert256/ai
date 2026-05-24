@@ -193,12 +193,13 @@ fun NewReportScreen(
         return
     }
     if (showSystemPromptDialog) {
-        com.ai.ui.chat.SystemPromptSelectorDialog(
+        com.ai.ui.shared.SystemPromptSelectScreen(
             aiSettings = uiState.aiSettings,
             selectedId = uiState.reportSystemPromptId,
-            onSelect = { viewModel.setReportSystemPromptId(it); showSystemPromptDialog = false },
-            onDismiss = { showSystemPromptDialog = false }
+            onSelect = { viewModel.setReportSystemPromptId(it) },
+            onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome
         )
+        return
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {

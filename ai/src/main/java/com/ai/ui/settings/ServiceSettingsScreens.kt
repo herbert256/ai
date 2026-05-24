@@ -826,19 +826,21 @@ fun ProviderSettingsScreen(
     }
 
     if (showParamsDialog) {
-        com.ai.ui.chat.ParametersSelectorDialog(
+        com.ai.ui.shared.ParametersSelectScreen(
             aiSettings = aiSettings, selectedIds = selectedParametersIds,
-            onConfirm = { selectedParametersIds = it; showParamsDialog = false },
-            onDismiss = { showParamsDialog = false }
+            onConfirm = { selectedParametersIds = it },
+            onBack = { showParamsDialog = false }, onNavigateHome = onBackToHome
         )
+        return
     }
     if (showSystemPromptDialog) {
-        com.ai.ui.chat.SystemPromptSelectorDialog(
+        com.ai.ui.shared.SystemPromptSelectScreen(
             aiSettings = aiSettings,
             selectedId = selectedSystemPromptId,
-            onSelect = { selectedSystemPromptId = it; showSystemPromptDialog = false },
-            onDismiss = { showSystemPromptDialog = false }
+            onSelect = { selectedSystemPromptId = it },
+            onBack = { showSystemPromptDialog = false }, onNavigateHome = onBackToHome
         )
+        return
     }
 
     // Full-screen overlay for model selection. Using the full-screen overlay pattern (early

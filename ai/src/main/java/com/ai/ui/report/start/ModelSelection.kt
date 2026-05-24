@@ -61,18 +61,20 @@ fun ModelSelectionScreen(
     var showSecParamsDialog by remember { mutableStateOf(false) }
     var showSecSystemPromptDialog by remember { mutableStateOf(false) }
     if (showSecParamsDialog) {
-        com.ai.ui.chat.ParametersSelectorDialog(
+        com.ai.ui.shared.ParametersSelectScreen(
             aiSettings = aiSettings, selectedIds = pickedParamsIds,
-            onConfirm = { pickedParamsIds = it; showSecParamsDialog = false },
-            onDismiss = { showSecParamsDialog = false }
+            onConfirm = { pickedParamsIds = it },
+            onBack = { showSecParamsDialog = false }, onNavigateHome = onBack
         )
+        return
     }
     if (showSecSystemPromptDialog) {
-        com.ai.ui.chat.SystemPromptSelectorDialog(
+        com.ai.ui.shared.SystemPromptSelectScreen(
             aiSettings = aiSettings, selectedId = pickedSystemPromptId,
-            onSelect = { pickedSystemPromptId = it; showSecSystemPromptDialog = false },
-            onDismiss = { showSecSystemPromptDialog = false }
+            onSelect = { pickedSystemPromptId = it },
+            onBack = { showSecSystemPromptDialog = false }, onNavigateHome = onBack
         )
+        return
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {

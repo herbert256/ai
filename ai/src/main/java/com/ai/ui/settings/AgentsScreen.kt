@@ -15,8 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.model.*
-import com.ai.ui.chat.ParametersSelectorDialog
-import com.ai.ui.chat.SystemPromptSelectorDialog
+import com.ai.ui.shared.ParametersSelectScreen
+import com.ai.ui.shared.SystemPromptSelectScreen
 import com.ai.ui.shared.*
 import kotlinx.coroutines.launch
 
@@ -104,16 +104,18 @@ fun AgentEditScreen(
     }
 
     if (showParamsDialog) {
-        ParametersSelectorDialog(aiSettings = aiSettings, selectedIds = selectedParamsIds,
-            // Dedupe in case the dialog handed back the same id twice
-            // (the picker has no internal de-duplication on Confirm,
-            // and a duplicate-id list silently double-applies the
-            // same preset at runtime).
-            onConfirm = { selectedParamsIds = it.distinct(); showParamsDialog = false }, onDismiss = { showParamsDialog = false })
+        // Dedupe in case the picker handed back the same id twice — a
+        // duplicate-id list silently double-applies the same preset.
+        ParametersSelectScreen(aiSettings = aiSettings, selectedIds = selectedParamsIds,
+            onConfirm = { selectedParamsIds = it.distinct() },
+            onBack = { showParamsDialog = false }, onNavigateHome = onNavigateHome)
+        return
     }
     if (showSystemPromptDialog) {
-        SystemPromptSelectorDialog(aiSettings = aiSettings, selectedId = selectedSystemPromptId,
-            onSelect = { selectedSystemPromptId = it; showSystemPromptDialog = false }, onDismiss = { showSystemPromptDialog = false })
+        SystemPromptSelectScreen(aiSettings = aiSettings, selectedId = selectedSystemPromptId,
+            onSelect = { selectedSystemPromptId = it },
+            onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome)
+        return
     }
 
     // Full-screen overlays

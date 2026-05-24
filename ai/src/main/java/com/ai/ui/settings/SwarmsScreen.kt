@@ -15,8 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.model.*
-import com.ai.ui.chat.ParametersSelectorDialog
-import com.ai.ui.chat.SystemPromptSelectorDialog
+import com.ai.ui.shared.ParametersSelectScreen
+import com.ai.ui.shared.SystemPromptSelectScreen
 import com.ai.ui.shared.*
 
 @Composable
@@ -89,12 +89,16 @@ fun SwarmEditScreen(
     }
 
     if (showParamsDialog) {
-        ParametersSelectorDialog(aiSettings = aiSettings, selectedIds = selectedParamsIds,
-            onConfirm = { selectedParamsIds = it; showParamsDialog = false }, onDismiss = { showParamsDialog = false })
+        ParametersSelectScreen(aiSettings = aiSettings, selectedIds = selectedParamsIds,
+            onConfirm = { selectedParamsIds = it },
+            onBack = { showParamsDialog = false }, onNavigateHome = onNavigateHome)
+        return
     }
     if (showSystemPromptDialog) {
-        SystemPromptSelectorDialog(aiSettings = aiSettings, selectedId = selectedSystemPromptId,
-            onSelect = { selectedSystemPromptId = it; showSystemPromptDialog = false }, onDismiss = { showSystemPromptDialog = false })
+        SystemPromptSelectScreen(aiSettings = aiSettings, selectedId = selectedSystemPromptId,
+            onSelect = { selectedSystemPromptId = it },
+            onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome)
+        return
     }
 
     Column(
