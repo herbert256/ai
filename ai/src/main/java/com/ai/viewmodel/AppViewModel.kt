@@ -1363,6 +1363,28 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← inaccessible.json delta-merge failed in ${System.currentTimeMillis() - tInaccessible}ms", it)
         }
 
+        AppLog.d(tag, "→ meta.json delta-merge")
+        val tMeta = System.currentTimeMillis()
+        runCatching {
+            val bundled = com.ai.data.DefaultMetaItemSeed.loadFromAssets(application)
+            AppLog.v(tag, "  bundled meta.json entries: ${bundled.size}")
+            if (bundled.isNotEmpty()) {
+                val before = ai.defaultMetaItems.size
+                val merged = com.ai.data.DefaultMetaItemSeed.ensureAllPresent(ai.defaultMetaItems, bundled)
+                val added = merged.size - before
+                if (added != 0) {
+                    ai = ai.copy(defaultMetaItems = merged)
+                    settingsPrefs.saveSettings(ai)
+                    AppLog.v(tag, "  settings saved with $added new default meta items")
+                }
+                AppLog.d(tag, "← meta.json delta-merge done in ${System.currentTimeMillis() - tMeta}ms (added=$added)")
+            } else {
+                AppLog.d(tag, "← meta.json delta-merge done in ${System.currentTimeMillis() - tMeta}ms (empty asset)")
+            }
+        }.onFailure {
+            AppLog.w(tag, "← meta.json delta-merge failed in ${System.currentTimeMillis() - tMeta}ms", it)
+        }
+
         // One-time migration: pre-existing Together entries in
         // testExcludedModels came from the old non-serverless
         // auto-exclude rule (commit e928b8e8). Move them to
@@ -1461,6 +1483,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (bundled.isEmpty()) return 0
         val current = _uiState.value.aiSettings
         updateSettings(current.copy(systemPrompts = bundled))
+        return bundled.size
+    }
+
+    /** Append every bundled default meta item from `assets/meta.json`
+     *  not already present (by composite key). Returns rows added. */
+    fun loadBundledDefaultMetaItems(): Int {
+        val ctx = getApplication<Application>()
+        val bundled = com.ai.data.DefaultMetaItemSeed.loadFromAssets(ctx)
+        if (bundled.isEmpty()) return 0
+        val current = _uiState.value.aiSettings
+        val merged = com.ai.data.DefaultMetaItemSeed.ensureAllPresent(current.defaultMetaItems, bundled)
+        val added = merged.size - current.defaultMetaItems.size
+        if (added > 0) updateSettings(current.copy(defaultMetaItems = merged))
+        return added
+    }
+
+    /** Drop every default meta item and replace with a fresh load of
+     *  `assets/meta.json`. Returns rows loaded (0 leaves the list as-is). */
+    fun resetDefaultMetaItemsFromAssets(): Int {
+        val ctx = getApplication<Application>()
+        val bundled = com.ai.data.DefaultMetaItemSeed.loadFromAssets(ctx)
+        if (bundled.isEmpty()) return 0
+        val current = _uiState.value.aiSettings
+        updateSettings(current.copy(defaultMetaItems = bundled))
         return bundled.size
     }
 
@@ -1587,9 +1633,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // Persist the reset Settings synchronously before the
                 // import step reads _uiState — updateSettings's IO save
                 // is fire-and-forget but the StateFlow update is sync.
-                // 7. Reload prompts.json + system-prompts.json from assets
+                // 7. Reload prompts.json + system-prompts.json + meta.json from assets
                 loadBundledInternalPrompts()
                 loadBundledSystemPrompts()
+                loadBundledDefaultMetaItems()
                 // 8. Re-import keys from temp file
                 val readBack = tempFile.readText()
                 val result = com.ai.ui.settings.applyApiKeysJson(readBack, _uiState.value.aiSettings)

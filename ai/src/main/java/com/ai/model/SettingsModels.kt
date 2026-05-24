@@ -189,6 +189,24 @@ data class InaccessibleModel(
     val key: String get() = "$providerId:$model"
 }
 
+/** A bundled/user-defined "default meta item": pins a category-`meta`
+ *  Internal Prompt (by [metaName]) to a target — either an agent
+ *  ([agentName]) or a direct provider+model ([providerName]+[modelName],
+ *  which win when both are set). When a report's agents all finish, one
+ *  META secondary is auto-created per item (see ReportViewModel
+ *  `maybeAutoCreateDefaultMetas`). Seeded from `assets/meta.json`. */
+data class DefaultMetaItem(
+    val id: String,
+    val metaName: String,
+    val agentName: String = "",
+    val providerName: String = "",
+    val modelName: String = ""
+) {
+    /** Composite identity for append-only seed de-duplication. */
+    val seedKey: String
+        get() = "$metaName|$agentName|$providerName|$modelName".lowercase(java.util.Locale.ROOT)
+}
+
 /**
  * User-managed Internal prompt — covers Meta-prompt launchers on the
  * Report Result screen ([category] == "meta"), Fan-out / Fan-in
@@ -277,7 +295,8 @@ data class Settings(
     val modelTypeOverrides: List<ModelTypeOverride> = emptyList(),
     val blockedModels: List<BlockedModel> = emptyList(),
     val testExcludedModels: List<TestExcludedModel> = emptyList(),
-    val inaccessibleModels: List<InaccessibleModel> = emptyList()
+    val inaccessibleModels: List<InaccessibleModel> = emptyList(),
+    val defaultMetaItems: List<DefaultMetaItem> = emptyList()
 ) {
     fun getProviderState(service: AppService): String {
         val stored = providerStates[service.id]

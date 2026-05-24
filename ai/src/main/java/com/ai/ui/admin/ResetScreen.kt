@@ -185,6 +185,7 @@ fun ResetAssetsScreen(
     onResetInternalPromptsFromAsset: () -> Int,
     onResetExamplePromptsFromAsset: () -> Int,
     onResetSystemPromptsFromAsset: () -> Int,
+    onResetDefaultMetaItemsFromAsset: () -> Int,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -205,6 +206,7 @@ fun ResetAssetsScreen(
                             AssetReset.PROMPTS -> onResetInternalPromptsFromAsset()
                             AssetReset.EXAMPLES -> onResetExamplePromptsFromAsset()
                             AssetReset.SYSTEM_PROMPTS -> onResetSystemPromptsFromAsset()
+                            AssetReset.DEFAULT_META -> onResetDefaultMetaItemsFromAsset()
                         }
                         pending = null
                         val msg = when {
@@ -249,6 +251,11 @@ fun ResetAssetsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
             ) { Text("back to assets/system-prompts.json", maxLines = 1, softWrap = false) }
+            Button(
+                onClick = { pending = AssetReset.DEFAULT_META },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+            ) { Text("back to assets/meta.json", maxLines = 1, softWrap = false) }
         }
     }
 }
@@ -403,5 +410,9 @@ private enum class AssetReset(val assetPath: String, val itemNoun: String, val d
     SYSTEM_PROMPTS(
         "assets/system-prompts.json", "system prompts",
         "Drops every System prompt (including any you authored) and reloads the bundled assets/system-prompts.json fresh."
+    ),
+    DEFAULT_META(
+        "assets/meta.json", "default meta items",
+        "Drops every Default meta item (including any you authored) and reloads the bundled assets/meta.json fresh."
     )
 }

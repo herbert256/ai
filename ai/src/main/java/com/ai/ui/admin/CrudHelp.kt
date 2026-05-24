@@ -85,6 +85,29 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
                 "give the model another chance once you think it should work again."
         )
     ),
+    "crud_default_meta_items" to crud(
+        "Default meta items",
+        HelpCard(
+            "What this manages",
+            "A list of meta prompts that run automatically. Each row pins one " +
+                "Meta prompt (from Prompt management → Meta) to a target — either an " +
+                "Agent, or a specific Provider + Model."
+        ),
+        HelpCard(
+            "When they run",
+            "Whenever a report's models all finish, one meta result is created for " +
+                "every row here — no need to start it by hand. A row is skipped if its " +
+                "meta prompt no longer exists, its target can't be resolved, or that " +
+                "report already has a result for that meta prompt."
+        ),
+        HelpCard(
+            "Target precedence",
+            "If both Provider + Model are set they win; otherwise the named Agent is " +
+                "used. An agent name that matches a provider falls back to that " +
+                "provider's default model. Bundled defaults come from assets/meta.json " +
+                "and reappear after a delete on the next launch."
+        )
+    ),
     "crud_model_types" to crud(
         "Manual model types",
         HelpCard(

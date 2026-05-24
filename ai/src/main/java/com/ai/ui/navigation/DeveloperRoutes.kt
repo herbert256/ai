@@ -158,6 +158,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onResetInternalPromptsFromAsset = { appViewModel.resetInternalPromptsFromAssets() },
                 onResetExamplePromptsFromAsset = { appViewModel.resetExamplePromptsFromAssets() },
                 onResetSystemPromptsFromAsset = { appViewModel.resetSystemPromptsFromAssets() },
+                onResetDefaultMetaItemsFromAsset = { appViewModel.resetDefaultMetaItemsFromAssets() },
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome
             )

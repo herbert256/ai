@@ -425,6 +425,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val fail = finalReport?.agents?.count { it.reportStatus == ReportStatus.ERROR } ?: 0
                     AppLog.i("Report", "← end \"${title.ifBlank { "AI Report" }}\" ok=$ok fail=$fail in ${System.currentTimeMillis() - reportStartMs}ms")
                     maybeAutoCreateSecondaries(context, reportId, aiSettings, ok)
+                    maybeAutoCreateDefaultMetas(context, reportId, aiSettings, ok)
                     if (reportRunningInBackground) {
                         reportRunningInBackground = false
                         withContext(Dispatchers.Main) {
@@ -569,6 +570,53 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val modPick = firstModelOfType(aiSettings, ModelType.MODERATION)
         if (modPick == null) AppLog.i("Report", "auto-moderation skipped: no moderation-capable model")
         else if (!hasKind(SecondaryKind.MODERATION)) secondary.runModeration(context, reportId, modPick)
+    }
+
+    /** Resolve a [DefaultMetaItem]'s target to a (provider, model) pick:
+     *  a non-blank provider+model wins; otherwise the named agent; and as
+     *  a convenience, an agentName that is actually a provider id falls
+     *  back to that provider's default model. Null when unresolvable. */
+    private fun resolveMetaTarget(s: Settings, item: com.ai.model.DefaultMetaItem): Pair<AppService, String>? {
+        if (item.providerName.isNotBlank() && item.modelName.isNotBlank())
+            return AppService.findById(item.providerName)?.let { it to item.modelName }
+        if (item.agentName.isNotBlank()) {
+            s.agents.firstOrNull { it.name.equals(item.agentName, ignoreCase = true) }
+                ?.let { return it.provider to s.getEffectiveModelForAgent(it) }
+            AppService.findById(item.agentName)?.let { if (s.isProviderActive(it)) return it to s.getModel(it) }
+        }
+        return null
+    }
+
+    /** On a normal report completion, auto-create one META secondary per
+     *  configured [Settings.defaultMetaItems] row. Driven purely by the
+     *  list (no settings toggle): each row names a category-`meta` Internal
+     *  Prompt and a target. Idempotent — a meta prompt that already has a
+     *  result for this report is skipped, and rows with no resolvable
+     *  prompt/model are logged and skipped. Uses the same
+     *  [SecondaryRunManager.runMetaPrompt] the manual UI calls. */
+    private fun maybeAutoCreateDefaultMetas(
+        context: Context, reportId: String, aiSettings: Settings, successCount: Int
+    ) {
+        if (successCount < 1) return
+        val items = aiSettings.defaultMetaItems
+        if (items.isEmpty()) return
+        val existingMetaNames = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+            .mapNotNull { it.metaPromptName?.lowercase() }.toMutableSet()
+        for (item in items) {
+            val prompt = aiSettings.internalPrompts.firstOrNull {
+                it.category == "meta" && it.name.equals(item.metaName, ignoreCase = true)
+            }
+            if (prompt == null) {
+                AppLog.i("Report", "auto-meta skipped: no meta prompt '${item.metaName}'"); continue
+            }
+            if (prompt.name.lowercase() in existingMetaNames) continue  // idempotent
+            val pick = resolveMetaTarget(aiSettings, item)
+            if (pick == null) {
+                AppLog.i("Report", "auto-meta '${item.metaName}': no resolvable model"); continue
+            }
+            secondary.runMetaPrompt(context, reportId, prompt, listOf(pick))
+            existingMetaNames += prompt.name.lowercase()  // guard against duplicate rows in one pass
+        }
     }
 
     private suspend fun executeReportTask(

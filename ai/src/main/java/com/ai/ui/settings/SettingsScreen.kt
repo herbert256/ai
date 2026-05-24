@@ -36,6 +36,7 @@ enum class SettingsSubScreen {
     AI_EXAMPLE_PROMPTS, AI_EXAMPLE_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
     AI_APP_SETTINGS,
+    AI_DEFAULT_META_ITEMS,
     AI_PROMPTS_SETUP,
     AI_INTERNAL_PROMPTS_HUB,
     AI_LOCAL_MODELS_SETUP,
@@ -235,6 +236,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_EXTERNAL_SERVICES,
             SettingsSubScreen.AI_APP_SETTINGS,
+            SettingsSubScreen.AI_DEFAULT_META_ITEMS,
             SettingsSubScreen.AI_MODEL_COOLDOWNS,
             SettingsSubScreen.AI_BLOCKED_MODELS,
             SettingsSubScreen.AI_TEST_EXCLUDED_MODELS,
@@ -697,6 +699,12 @@ fun SettingsScreen(
             AppSettingsScreen(
                 generalSettings = generalSettings, aiSettings = aiSettings,
                 onSave = onSaveGeneral, onBack = goBack
+            )
+        }
+        SettingsSubScreen.AI_DEFAULT_META_ITEMS -> {
+            com.ai.ui.cruds.defaultmetaitems.DefaultMetaItemsCrud(
+                aiSettings = aiSettings, onSave = onSaveAi,
+                onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
         SettingsSubScreen.AI_LOCAL_LITERT_MODELS -> {

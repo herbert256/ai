@@ -1,0 +1,4 @@
+[
+  { "metaName": "Compare", "agentName": "Anthropic", "providerName": "", "modelName": "" },
+  { "metaName": "Summarize", "agentName": "Anthropic", "providerName": "", "modelName": "" }
+]

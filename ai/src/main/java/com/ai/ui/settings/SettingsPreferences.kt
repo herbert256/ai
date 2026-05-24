@@ -35,6 +35,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val listBlockedModelType: Type = object : TypeToken<List<BlockedModel>>() {}.type
         val listTestExcludedModelType: Type = object : TypeToken<List<TestExcludedModel>>() {}.type
         val listInaccessibleModelType: Type = object : TypeToken<List<InaccessibleModel>>() {}.type
+        val listDefaultMetaItemType: Type = object : TypeToken<List<DefaultMetaItem>>() {}.type
         val mapEndpointsType: Type = object : TypeToken<Map<String, List<Endpoint>>>() {}.type
         val mapStringStringType: Type = object : TypeToken<Map<String, String>>() {}.type
         val listPromptHistoryType: Type = object : TypeToken<List<PromptHistoryEntry>>() {}.type
@@ -219,7 +220,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             modelTypeOverrides = loadList(KEY_AI_MODEL_TYPE_OVERRIDES, TypeTokens.listModelTypeOverrideType),
             blockedModels = loadList(KEY_AI_BLOCKED_MODELS, TypeTokens.listBlockedModelType),
             testExcludedModels = loadList(KEY_AI_TEST_EXCLUDED_MODELS, TypeTokens.listTestExcludedModelType),
-            inaccessibleModels = loadList(KEY_AI_INACCESSIBLE_MODELS, TypeTokens.listInaccessibleModelType)
+            inaccessibleModels = loadList(KEY_AI_INACCESSIBLE_MODELS, TypeTokens.listInaccessibleModelType),
+            defaultMetaItems = loadList(KEY_AI_DEFAULT_META_ITEMS, TypeTokens.listDefaultMetaItemType)
         )
     }
 
@@ -329,6 +331,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_AI_BLOCKED_MODELS, if (settings.blockedModels.isEmpty()) null else gson.toJson(settings.blockedModels))
             putString(KEY_AI_TEST_EXCLUDED_MODELS, if (settings.testExcludedModels.isEmpty()) null else gson.toJson(settings.testExcludedModels))
             putString(KEY_AI_INACCESSIBLE_MODELS, if (settings.inaccessibleModels.isEmpty()) null else gson.toJson(settings.inaccessibleModels))
+            putString(KEY_AI_DEFAULT_META_ITEMS, if (settings.defaultMetaItems.isEmpty()) null else gson.toJson(settings.defaultMetaItems))
         }
     }
 
@@ -594,6 +597,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_AI_BLOCKED_MODELS = "ai_blocked_models"
         private const val KEY_AI_TEST_EXCLUDED_MODELS = "ai_test_excluded_models"
         private const val KEY_AI_INACCESSIBLE_MODELS = "ai_inaccessible_models"
+        private const val KEY_AI_DEFAULT_META_ITEMS = "ai_default_meta_items"
 
         const val MAX_PROMPT_HISTORY = 100
         const val KEY_LAST_AI_REPORT_TITLE = "last_ai_report_title"

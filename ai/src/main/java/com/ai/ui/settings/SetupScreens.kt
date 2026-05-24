@@ -82,6 +82,8 @@ fun SetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })
             SetupNavCard("\uD83E\uDDE9", "App settings", "App-wide & report-model default system prompt / parameters", "",
                 onClick = { onNavigate(SettingsSubScreen.AI_APP_SETTINGS) })
+            SetupNavCard("\uD83C\uDFAF", "Default meta items", "Meta prompts auto-run when a report finishes", "${aiSettings.defaultMetaItems.size}",
+                onClick = { onNavigate(SettingsSubScreen.AI_DEFAULT_META_ITEMS) })
             // Local Models / Model cooldowns / Blocked models /
             // Test-excluded models all live one level deeper under
             // "AI Models setup" \u2014 see ModelsSetupScreen.
