@@ -370,6 +370,13 @@ data class UiState(
     val genericReportsSelectedAgents: Set<String> = emptySet(),
     val currentReportId: String? = null,
     val reportAdvancedParameters: AgentParameters? = null,
+    /** Report-level Parameters PRESET ids picked via the New-Report 🌡️
+     *  "Configure API parameters" screen. Kept only so that picker can
+     *  show its current selection; the chosen presets are resolved into
+     *  [reportAdvancedParameters] (the pre-gen override) by
+     *  setReportParametersIds, so generation reads them through the
+     *  existing path. */
+    val reportParametersIds: List<String> = emptyList(),
     /** Per-report system prompt override picked on the model-selection
      *  screen. When non-null, replaces the per-agent / per-flock /
      *  external-intent system prompt at dispatch (see
@@ -2359,6 +2366,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setChatParameters(params: ChatParameters) { _uiState.update { it.copy(chatParameters = params) } }
     fun setDualChatConfig(config: DualChatConfig?) { _uiState.update { it.copy(dualChatConfig = config) } }
     fun setReportAdvancedParameters(params: AgentParameters?) { _uiState.update { it.copy(reportAdvancedParameters = params) } }
+    /** Set the report-level Parameters preset ids and resolve them into
+     *  the pre-gen override so generation honours them through the
+     *  existing [reportAdvancedParameters] path. Empty → clears both. */
+    fun setReportParametersIds(ids: List<String>) {
+        _uiState.update { it.copy(reportParametersIds = ids, reportAdvancedParameters = it.aiSettings.mergeParameters(ids)) }
+    }
     fun setReportSystemPromptId(id: String?) { _uiState.update { it.copy(reportSystemPromptId = id) } }
 
     // ===== Internal helpers =====

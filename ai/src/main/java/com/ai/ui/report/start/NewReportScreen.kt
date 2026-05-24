@@ -182,13 +182,15 @@ fun NewReportScreen(
         }
     }
 
-    // 🌡️ report-level Advanced Parameters — full-screen overlay; the
-    // early return preserves this screen's remember state underneath.
+    // 🌡️ report-level Parameters preset picker — full-screen overlay;
+    // the early return preserves this screen's remember state underneath.
+    // The picked presets resolve into the pre-gen override.
     if (showAdvancedParams) {
-        com.ai.ui.report.other.ReportAdvancedParametersScreen(
-            currentParameters = uiState.reportAdvancedParameters,
-            onApply = { viewModel.setReportAdvancedParameters(it); showAdvancedParams = false },
-            onBack = { showAdvancedParams = false }
+        com.ai.ui.shared.ParametersSelectScreen(
+            aiSettings = uiState.aiSettings,
+            selectedIds = uiState.reportParametersIds,
+            onConfirm = { viewModel.setReportParametersIds(it) },
+            onBack = { showAdvancedParams = false }, onNavigateHome = onNavigateHome
         )
         return
     }

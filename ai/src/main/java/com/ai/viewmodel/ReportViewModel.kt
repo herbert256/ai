@@ -1295,6 +1295,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
             currentReportId = null, reportAdvancedParameters = null,
+            reportParametersIds = emptyList(),
             reportSystemPromptId = null,
             stagedReportModels = emptyList(), editModeReportId = null,
             pendingReportModels = emptyList(),
