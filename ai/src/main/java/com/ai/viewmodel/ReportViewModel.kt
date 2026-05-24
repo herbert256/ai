@@ -1362,7 +1362,21 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      */
     suspend fun restoreCompletedReport(context: Context, reportId: String) {
         val report = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) } ?: return
-        val rebuilt = report.agents.mapNotNull { ra ->
+        // Only rebuild entries for agents that actually FINISHED
+        // (SUCCESS / ERROR / STOPPED). A report opened while it's still
+        // generating — now common since background/stress reports let you
+        // open one mid-run — has PENDING / RUNNING agents with a null
+        // responseBody; mapping those would yield AnalysisResponse(
+        // analysis=null, error=null) → isSuccess=false → a spurious ❌ on
+        // every not-yet-finished model. Omitting them leaves the row's
+        // result null so it renders the spinner. (Mirrors the terminal-only
+        // filter in hydrateAgentResultsFromStorage.)
+        val terminal = report.agents.filter {
+            it.reportStatus == ReportStatus.SUCCESS ||
+                it.reportStatus == ReportStatus.ERROR ||
+                it.reportStatus == ReportStatus.STOPPED
+        }
+        val rebuilt = terminal.mapNotNull { ra ->
             val service = AppService.findById(ra.provider) ?: return@mapNotNull null
             ra.agentId to AnalysisResponse(
                 service = service, analysis = ra.responseBody, error = ra.errorMessage,
@@ -1376,7 +1390,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.updateUiState { it.copy(
             currentReportId = report.id,
             genericReportsTotal = report.agents.size,
-            genericReportsProgress = report.agents.size,
+            // Progress = finished agents only, so a still-generating report
+            // opened mid-run shows the real X/Y, not a premature 100%.
+            genericReportsProgress = terminal.size,
             genericReportsSelectedAgents = report.agents.map { ra -> ra.agentId }.toSet(),
             genericPromptTitle = report.title,
             genericPromptTitleLong = report.titleLong.orEmpty(),
