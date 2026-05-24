@@ -74,7 +74,7 @@ class TranslationRunManager(
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
-            val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, paramsIds, systemPromptId)
+            val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, paramsIds, systemPromptId, aiSettings.getInternalPromptByName("Translate"))
             val generalSettings = state.generalSettings
             val sourceReport = ReportStorage.getReport(context, sourceReportId) ?: run {
                 _translationRuns.update { it - runId }
@@ -1373,7 +1373,7 @@ class TranslationRunManager(
         val aiSettings = state.aiSettings
         // Retries/resumes honour the App-wide default (the original
         // per-launch 🌡️/🎭 pick isn't re-threaded through this path).
-        val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, emptyList(), null)
+        val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, emptyList(), null, aiSettings.getInternalPromptByName("Translate"))
         val template = aiSettings.getInternalPromptByName("Translate")?.text.orEmpty()
 
         // Pre-resolve per-(provider, model) context — mirrors

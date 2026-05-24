@@ -2110,7 +2110,7 @@ class SecondaryRunManager(
         val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
         val start = System.currentTimeMillis()
         val secondaryParams = resolveSecondaryParams(
-            appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId
+            appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, metaPrompt
         )
         val response = try {
             appViewModel.repository.analyzeWithAgent(

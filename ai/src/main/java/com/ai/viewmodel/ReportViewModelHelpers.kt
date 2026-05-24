@@ -40,11 +40,21 @@ internal fun resolveSecondaryParams(
     general: GeneralSettings,
     aiSettings: Settings,
     paramsIds: List<String>,
-    systemPromptId: String?
+    systemPromptId: String?,
+    /** The InternalPrompt driving the call. Its own parameters /
+     *  system-prompt (referenced by NAME) sit between the runtime pick
+     *  and the App-wide default: runtime pick → prompt's own → app-wide. */
+    prompt: com.ai.model.InternalPrompt? = null
 ): AgentParameters {
-    val ids = paramsIds.ifEmpty { general.appWideParametersIds }
+    fun nm(n: String?) = n?.takeIf { it.isNotBlank() && it != "*NONE" }
+    val promptParamIds = nm(prompt?.parameters)
+        ?.let { name -> aiSettings.parameters.firstOrNull { it.name == name }?.id }
+        ?.let { listOf(it) } ?: emptyList()
+    val ids = paramsIds.ifEmpty { promptParamIds.ifEmpty { general.appWideParametersIds } }
     val base = aiSettings.mergeParameters(ids) ?: AgentParameters()
-    val spId = systemPromptId ?: general.appWideSystemPromptId
+    val promptSpId = nm(prompt?.systemPrompt)
+        ?.let { name -> aiSettings.systemPrompts.firstOrNull { it.name == name }?.id }
+    val spId = systemPromptId ?: promptSpId ?: general.appWideSystemPromptId
     val sp = spId?.let { aiSettings.getSystemPromptById(it)?.prompt }
     return if (sp != null) base.copy(systemPrompt = sp) else base
 }

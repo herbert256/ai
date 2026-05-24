@@ -105,6 +105,8 @@ fun InternalPromptCrud(
             else if (m.item.agent.isNotBlank() && m.item.agent != "*select" && m.item.agent != "*n/a")
                 CrudField("Agent", m.item.agent)
             if (m.item.reference) CrudField("Reference", "Appends reference legend")
+            if (m.item.parameters != "*NONE") CrudField("Parameters", m.item.parameters)
+            if (m.item.systemPrompt != "*NONE") CrudField("System prompt", m.item.systemPrompt)
             CrudField("Template", m.item.text.ifBlank { "(empty)" })
         }
         is Mode.Edit -> form(m.item)

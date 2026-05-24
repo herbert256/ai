@@ -117,6 +117,33 @@ fun InternalPromptEditScreen(
     var model by remember { mutableStateOf(internalPrompt?.model ?: "") }
     var providerDialogOpen by remember { mutableStateOf(false) }
     var modelDialogOpen by remember { mutableStateOf(false) }
+    // Per-prompt Parameters / System-prompt preset NAMES ("*NONE" = unset).
+    var selectedParametersName by remember { mutableStateOf(internalPrompt?.parameters ?: "*NONE") }
+    var selectedSystemPromptName by remember { mutableStateOf(internalPrompt?.systemPrompt ?: "*NONE") }
+    var showParamsDialog by remember { mutableStateOf(false) }
+    var showSysPromptDialog by remember { mutableStateOf(false) }
+    if (showParamsDialog) {
+        com.ai.ui.chat.ParametersSelectorDialog(
+            aiSettings = aiSettings,
+            selectedIds = aiSettings.parameters.firstOrNull { it.name == selectedParametersName }?.id?.let { listOf(it) } ?: emptyList(),
+            onConfirm = { ids ->
+                selectedParametersName = ids.firstNotNullOfOrNull { id -> aiSettings.parameters.firstOrNull { it.id == id }?.name } ?: "*NONE"
+                showParamsDialog = false
+            },
+            onDismiss = { showParamsDialog = false }
+        )
+    }
+    if (showSysPromptDialog) {
+        com.ai.ui.chat.SystemPromptSelectorDialog(
+            aiSettings = aiSettings,
+            selectedId = aiSettings.systemPrompts.firstOrNull { it.name == selectedSystemPromptName }?.id,
+            onSelect = { id ->
+                selectedSystemPromptName = id?.let { sid -> aiSettings.systemPrompts.firstOrNull { it.id == sid }?.name } ?: "*NONE"
+                showSysPromptDialog = false
+            },
+            onDismiss = { showSysPromptDialog = false }
+        )
+    }
 
     // Duplicate-mode is only meaningful for user-editable categories
     // (meta / fan_*); the fixed-list categories (internal / icons)
@@ -153,7 +180,9 @@ fun InternalPromptEditScreen(
             title = if (isAddMode) "Add $singular" else "Edit $singular",
             subject = name,
             onBackClick = onBack,
-            onCopyReport = null
+            onCopyReport = null,
+            onParameters = { showParamsDialog = true },
+            onSystemPrompt = { showSysPromptDialog = true }
         )
         // Save / Create CTA hoisted to the top — these forms can be
         // long (especially with the prompt-text editor) so a bottom
@@ -172,7 +201,9 @@ fun InternalPromptEditScreen(
                         agent = if (pmActive) AGENT_SELECT else agent,
                         text = text, title = title.trim(),
                         provider = if (pmActive) providerId else null,
-                        model = if (pmActive) model else null
+                        model = if (pmActive) model else null,
+                        parameters = selectedParametersName,
+                        systemPrompt = selectedSystemPromptName
                     )
                 )
             },
@@ -337,6 +368,44 @@ fun InternalPromptEditScreen(
                         onDismiss = { modelDialogOpen = false }
                     )
                 } else modelDialogOpen = false
+            }
+
+            // Per-prompt Parameters / System-prompt presets. When set,
+            // these override the agent/flock/swarm/provider/app-wide
+            // levels for THIS prompt's API call — unless a runtime
+            // 🌡️/🎭 pick is made on the model-selection screen.
+            SectionCard {
+                Text("Parameters & System prompt", fontSize = 12.sp, color = AppColors.TextTertiary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🌡️ ", fontSize = 14.sp)
+                    Text(
+                        if (selectedParametersName == "*NONE") "No parameters preset" else selectedParametersName,
+                        modifier = Modifier.weight(1f), fontSize = 13.sp,
+                        color = if (selectedParametersName == "*NONE") AppColors.TextTertiary else Color.White,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    if (selectedParametersName != "*NONE") {
+                        Text("✕", color = AppColors.Red, fontSize = 16.sp,
+                            modifier = Modifier.clickable { selectedParametersName = "*NONE" }.padding(horizontal = 8.dp))
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🎭 ", fontSize = 14.sp)
+                    Text(
+                        if (selectedSystemPromptName == "*NONE") "No system prompt" else selectedSystemPromptName,
+                        modifier = Modifier.weight(1f), fontSize = 13.sp,
+                        color = if (selectedSystemPromptName == "*NONE") AppColors.TextTertiary else Color.White,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    if (selectedSystemPromptName != "*NONE") {
+                        Text("✕", color = AppColors.Red, fontSize = 16.sp,
+                            modifier = Modifier.clickable { selectedSystemPromptName = "*NONE" }.padding(horizontal = 8.dp))
+                    }
+                }
+                Text(
+                    "Use 🌡️ / 🎭 in the bottom bar to set these. When set they override agent / provider / app-wide for this prompt — unless picked at run time.",
+                    fontSize = 11.sp, color = AppColors.TextTertiary
+                )
             }
 
             SectionCard {

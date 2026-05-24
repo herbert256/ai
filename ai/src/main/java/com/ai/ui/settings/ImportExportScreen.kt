@@ -66,6 +66,9 @@ private fun promptEntry(p: InternalPrompt): Map<String, Any> = linkedMapOf<Strin
     // agent-based prompts keep their original two-field shape.
     p.provider?.takeIf { it.isNotBlank() }?.let { put("provider", it) }
     p.model?.takeIf { it.isNotBlank() }?.let { put("model", it) }
+    // Per-prompt Parameters / System-prompt preset NAMES (skip "*NONE").
+    p.parameters.takeIf { it != "*NONE" && it.isNotBlank() }?.let { put("parameters", it) }
+    p.systemPrompt.takeIf { it != "*NONE" && it.isNotBlank() }?.let { put("systemPrompt", it) }
 }
 
 /** Apply Workers sections (agents / flocks / swarms) from a parsed

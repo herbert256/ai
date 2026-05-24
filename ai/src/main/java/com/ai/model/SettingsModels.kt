@@ -220,7 +220,14 @@ data class InternalPrompt(
      *  they resolve to a synthetic agent (provider's key + this model)
      *  and take precedence over [agent]. Null/blank → use [agent]. */
     val provider: String? = null,
-    val model: String? = null
+    val model: String? = null,
+    /** Optional per-prompt Parameters preset NAME / System-prompt NAME
+     *  (the labels shown in AI Setup). "*NONE" = not set. When set, they
+     *  are used for THIS prompt's API call, overriding the
+     *  agent/flock/swarm/provider/app-wide levels — unless a runtime
+     *  🌡️/🎭 pick was made on the model-selection screen. */
+    val parameters: String = "*NONE",
+    val systemPrompt: String = "*NONE"
 )
 
 /** Stand-alone example prompt — pure (title, text) pair the user
@@ -770,13 +777,18 @@ data class Settings(
         )
     }
 
-    fun removeSystemPrompt(systemPromptId: String) = copy(
-        systemPrompts = systemPrompts.filter { it.id != systemPromptId },
-        agents = agents.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it },
-        flocks = flocks.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it },
-        swarms = swarms.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it },
-        providers = providers.mapValues { (_, c) -> if (c.systemPromptId == systemPromptId) c.copy(systemPromptId = null) else c }
-    )
+    fun removeSystemPrompt(systemPromptId: String): Settings {
+        val removedName = systemPrompts.firstOrNull { it.id == systemPromptId }?.name
+        return copy(
+            systemPrompts = systemPrompts.filter { it.id != systemPromptId },
+            agents = agents.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it },
+            flocks = flocks.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it },
+            swarms = swarms.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it },
+            providers = providers.mapValues { (_, c) -> if (c.systemPromptId == systemPromptId) c.copy(systemPromptId = null) else c },
+            // Internal prompts reference presets by NAME → reset matches.
+            internalPrompts = internalPrompts.map { if (removedName != null && it.systemPrompt == removedName) it.copy(systemPrompt = "*NONE") else it }
+        )
+    }
 
     fun removeInternalPrompt(internalPromptId: String) = copy(
         internalPrompts = internalPrompts.filter { it.id != internalPromptId }
@@ -826,13 +838,18 @@ data class Settings(
         }
     }
 
-    fun removeParameters(parametersId: String) = copy(
-        parameters = parameters.filter { it.id != parametersId },
-        agents = agents.map { it.copy(paramsIds = it.paramsIds.filter { id -> id != parametersId }) },
-        flocks = flocks.map { it.copy(paramsIds = it.paramsIds.filter { id -> id != parametersId }) },
-        swarms = swarms.map { it.copy(paramsIds = it.paramsIds.filter { id -> id != parametersId }) },
-        providers = providers.mapValues { (_, c) -> c.copy(parametersIds = c.parametersIds.filter { it != parametersId }) }
-    )
+    fun removeParameters(parametersId: String): Settings {
+        val removedName = parameters.firstOrNull { it.id == parametersId }?.name
+        return copy(
+            parameters = parameters.filter { it.id != parametersId },
+            agents = agents.map { it.copy(paramsIds = it.paramsIds.filter { id -> id != parametersId }) },
+            flocks = flocks.map { it.copy(paramsIds = it.paramsIds.filter { id -> id != parametersId }) },
+            swarms = swarms.map { it.copy(paramsIds = it.paramsIds.filter { id -> id != parametersId }) },
+            providers = providers.mapValues { (_, c) -> c.copy(parametersIds = c.parametersIds.filter { it != parametersId }) },
+            // Internal prompts reference presets by NAME → reset matches.
+            internalPrompts = internalPrompts.map { if (removedName != null && it.parameters == removedName) it.copy(parameters = "*NONE") else it }
+        )
+    }
 
     fun removeAgent(agentId: String) = copy(
         agents = agents.filter { it.id != agentId },
