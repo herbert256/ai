@@ -383,23 +383,27 @@ class TranslationRunManager(
                                 val host = providerHost(ctx.provider)
                                 val cap = perHostCaps[host]
                                     ?: kotlinx.coroutines.sync.Semaphore(1)
-                                // Acquire order: per-host first, then outer
-                                // global + translation. An item waiting on a
-                                // saturated per-host cap suspends without
-                                // holding the outer caps idle.
-                                val outcome = cap.withPermit {
-                                    // Non-blocking ProviderThrottle gate — a capped
-                                    // host yields the coroutine (delay, not
-                                    // Thread.sleep) so other items proceed; the
-                                    // OkHttp interceptor skips its own acquire via
-                                    // permitPreAcquired. callContext also pins the
-                                    // 429/529 suppress flag when the swarm is
-                                    // big enough that cross-model requeue beats
-                                    // in-place retry.
-                                    val releaser = acquireOrRequeue(host)
-                                    try {
-                                        ApiCallCaps.global.withPermit {
-                                            ApiCallCaps.translation.withPermit {
+                                // Canonical order: global → translation →
+                                // per-host (cap + acquireOrRequeue INSIDE the
+                                // outer caps). The host gate MUST sit inside
+                                // global, never before it — the metadata /
+                                // interceptor path holds global then
+                                // blocking-acquires the per-host permit
+                                // (global→host), so taking the host first here
+                                // would invert the order and deadlock.
+                                val outcome = ApiCallCaps.global.withPermit {
+                                    ApiCallCaps.translation.withPermit {
+                                        cap.withPermit {
+                                            // Non-blocking ProviderThrottle gate — a capped
+                                            // host yields the coroutine (delay, not
+                                            // Thread.sleep) so other items proceed; the
+                                            // OkHttp interceptor skips its own acquire via
+                                            // permitPreAcquired. callContext also pins the
+                                            // 429/529 suppress flag when the swarm is
+                                            // big enough that cross-model requeue beats
+                                            // in-place retry.
+                                            val releaser = acquireOrRequeue(host)
+                                            try {
                                                 withContext(callContext) {
                                                     // withTimeoutOrNull cancels just this
                                                     // call on budget overrun (the HTTP call
@@ -418,10 +422,10 @@ class TranslationRunManager(
                                                         TranslationOutcome.Failed("${ctx.provider.id}/${ctx.model} timed out after ${callBudgetMs / 1000}s")
                                                     }
                                                 }
+                                            } finally {
+                                                releaser.release()
                                             }
                                         }
-                                    } finally {
-                                        releaser.release()
                                     }
                                 }
                                 when (outcome) {
@@ -1501,9 +1505,12 @@ class TranslationRunManager(
                             val host = providerHost(ctx.provider)
                             val cap = perHostCaps[host]
                                 ?: kotlinx.coroutines.sync.Semaphore(1)
-                            // Acquire order: per-host first (see
-                            // startTranslation for the rationale).
-                            cap.withPermit {
+                            // Canonical order: global → translation → per-host
+                            // (cap + acquireOrRequeue INSIDE global) to avoid the
+                            // global↔host deadlock vs the interceptor path.
+                            ApiCallCaps.global.withPermit {
+                              ApiCallCaps.translation.withPermit {
+                                cap.withPermit {
                                 // Non-blocking ProviderThrottle gate — a capped
                                 // host yields the coroutine (delay, not
                                 // Thread.sleep) so other items proceed; the
@@ -1511,8 +1518,6 @@ class TranslationRunManager(
                                 // permitPreAcquired.
                                 val releaser = acquireOrRequeue(host)
                                 try {
-                                    ApiCallCaps.global.withPermit {
-                                        ApiCallCaps.translation.withPermit {
                                             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                                 // restart-failed / start-missing path:
                                                 // no cross-model retry — a failed call
@@ -1538,11 +1543,11 @@ class TranslationRunManager(
                                                     )
                                                 }
                                             }
-                                        }
-                                    }
                                 } finally {
                                     releaser.release()
                                 }
+                                }
+                              }
                             }
                         }
                     }.awaitAll()

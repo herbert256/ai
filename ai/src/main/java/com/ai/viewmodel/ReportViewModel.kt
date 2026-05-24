@@ -735,22 +735,31 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // holding outer cap permits idle.
             interleaveByHost(reportTasks) { providerHost(it.runtimeAgent.provider) }.map { task ->
                 async {
-                    // Non-blocking per-host gate, outside the outer caps — a
-                    // capped host yields the coroutine (delay, not
-                    // Thread.sleep). The interceptor skips its own acquire
-                    // via permitPreAcquired.
-                    val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
-                    try {
-                        ApiCallCaps.global.withPermit {
-                            ApiCallCaps.report.withPermit {
+                    // Canonical acquire order: global → report → per-host
+                    // (acquireOrRequeue). The per-host gate MUST be acquired
+                    // INSIDE global, never before it: the metadata / secondary
+                    // calls (auto rerank/moderation/meta, per-model enrichment,
+                    // report title/icon) hold the coroutine `global` permit and
+                    // then the OkHttp interceptor blocking-acquires the per-host
+                    // permit — i.e. global→host. If a report agent took the host
+                    // permit FIRST and then waited for global, that inverts the
+                    // order and deadlocks (agent holds host, waits global; meta
+                    // holds global, waits host) — observed freezing whole runs
+                    // on the busiest hosts. acquireOrRequeue is the non-blocking
+                    // gate (delay, not Thread.sleep); the interceptor skips its
+                    // own acquire via permitPreAcquired.
+                    ApiCallCaps.global.withPermit {
+                        ApiCallCaps.report.withPermit {
+                            val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                            try {
                                 withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                     executeReportTask(context, reportId, aiPrompt, overrideParams, task,
                                         imageBase64, imageMime, headless = headless)
                                 }
+                            } finally {
+                                releaser.release()
                             }
                         }
-                    } finally {
-                        releaser.release()
                     }
                     // Per-agent enrichment auto-fire — icon and/or title per
                     // the two toggles; launches independently (fire-and-forget),
@@ -1058,20 +1067,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         // outer cap permits idle.
                         interleaveByHost(tasksToRun) { providerHost(it.runtimeAgent.provider) }.map { task ->
                             async {
-                                // Non-blocking per-host gate — see
-                                // generateGenericReports for the rationale.
-                                val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
-                                try {
-                                    ApiCallCaps.global.withPermit {
-                                        ApiCallCaps.report.withPermit {
+                                // Canonical order global → report → per-host
+                                // (host gate INSIDE global), else it deadlocks
+                                // against the global→host metadata/interceptor
+                                // path. See runReportPrimaryCalls for the full
+                                // rationale.
+                                ApiCallCaps.global.withPermit {
+                                    ApiCallCaps.report.withPermit {
+                                        val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                        try {
                                             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                                 executeReportTask(context, reportId, finalReport.prompt, overrideParams, task,
                                                     finalReport.imageBase64, finalReport.imageMime, isRegeneration = false)
                                             }
+                                        } finally {
+                                            releaser.release()
                                         }
                                     }
-                                } finally {
-                                    releaser.release()
                                 }
                                 // Per-task auto-fire — same shape as
                                 // generateGenericReports. Each agent's
@@ -1177,10 +1189,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 coroutineScope {
                     interleaveByHost(tasks) { providerHost(it.runtimeAgent.provider) }.map { task ->
                         async {
-                            val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
-                            try {
-                                ApiCallCaps.global.withPermit {
-                                    ApiCallCaps.report.withPermit {
+                            // Canonical order global → report → per-host (host
+                            // gate INSIDE global) to avoid the global↔host
+                            // deadlock vs the metadata/interceptor path.
+                            ApiCallCaps.global.withPermit {
+                                ApiCallCaps.report.withPermit {
+                                    val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                    try {
                                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                             executeReportTask(
                                                 context, reportId, report.prompt, overrideParams, task,
@@ -1188,10 +1203,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                                 isRegeneration = true
                                             )
                                         }
+                                    } finally {
+                                        releaser.release()
                                     }
                                 }
-                            } finally {
-                                releaser.release()
                             }
                             // Per-agent enrichment auto-fire — same shape as regenerateReport.
                             val g = appViewModel.uiState.value.generalSettings
