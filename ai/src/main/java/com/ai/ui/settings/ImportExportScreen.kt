@@ -263,6 +263,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("iconGenEnabled", g.iconGenEnabled)
     addProperty("reportTitleMode", g.reportTitleMode.name)
     addProperty("showKnowledgeCard", g.showKnowledgeCard)
+    addProperty("autoCreateRerankAndModeration", g.autoCreateRerankAndModeration)
     addProperty("experimentalFeaturesEnabled", g.experimentalFeaturesEnabled)
     context.getSharedPreferences("view_screen_prefs", Context.MODE_PRIVATE)
         .getString("tile_order", null)
@@ -305,6 +306,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled,
         reportTitleMode = titleMode ?: current.reportTitleMode,
         showKnowledgeCard = bool("showKnowledgeCard") ?: current.showKnowledgeCard,
+        autoCreateRerankAndModeration = bool("autoCreateRerankAndModeration") ?: current.autoCreateRerankAndModeration,
         experimentalFeaturesEnabled = bool("experimentalFeaturesEnabled") ?: current.experimentalFeaturesEnabled
     )
 }

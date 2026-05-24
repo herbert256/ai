@@ -80,6 +80,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             perModelTitleGenEnabled = prefs.getBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, true),
             useInternalPromptsIcons = prefs.getBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, true),
             autostartFanIconsAndTitles = prefs.getBoolean(KEY_AUTOSTART_FAN_ICONS_TITLES, true),
+            autoCreateRerankAndModeration = prefs.getBoolean(KEY_AUTO_CREATE_RERANK_MODERATION, true),
             metadataIcons = metadataIcons,
             appWideSystemPromptId = prefs.getString(KEY_APP_WIDE_SYSTEM_PROMPT_ID, null),
             appWideParametersIds = loadJsonList(KEY_APP_WIDE_PARAMETERS_IDS) ?: emptyList(),
@@ -141,6 +142,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, settings.perModelTitleGenEnabled)
             putBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, settings.useInternalPromptsIcons)
             putBoolean(KEY_AUTOSTART_FAN_ICONS_TITLES, settings.autostartFanIconsAndTitles)
+            putBoolean(KEY_AUTO_CREATE_RERANK_MODERATION, settings.autoCreateRerankAndModeration)
             putString(KEY_METADATA_ICONS, gson.toJson(settings.metadataIcons))
             putString(KEY_APP_WIDE_SYSTEM_PROMPT_ID, settings.appWideSystemPromptId)
             putString(KEY_APP_WIDE_PARAMETERS_IDS, if (settings.appWideParametersIds.isEmpty()) null else gson.toJson(settings.appWideParametersIds))
@@ -533,6 +535,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_PER_MODEL_TITLE_GEN_ENABLED = "per_model_title_gen_enabled"
         private const val KEY_USE_INTERNAL_PROMPTS_ICONS = "use_internal_prompts_icons"
         private const val KEY_AUTOSTART_FAN_ICONS_TITLES = "autostart_fan_icons_titles"
+        private const val KEY_AUTO_CREATE_RERANK_MODERATION = "auto_create_rerank_moderation"
         private const val KEY_METADATA_ICONS = "metadata_icons"
         private const val KEY_APP_WIDE_SYSTEM_PROMPT_ID = "app_wide_system_prompt_id"
         private const val KEY_APP_WIDE_PARAMETERS_IDS = "app_wide_parameters_ids"

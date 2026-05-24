@@ -834,7 +834,7 @@ private fun SettingsMainScreen(
             SettingsNavCard(
                 icon = "⚙️",
                 title = "Other settings",
-                description = "Identity (Name + Email).",
+                description = "Identity (Name + Email), auto-create Rerank & Moderation.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_OTHER) }
             )
         }
@@ -1292,13 +1292,15 @@ private fun OtherSettingsSubScreen(
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
+    var autoCreateRerankAndModeration by remember { mutableStateOf(generalSettings.autoCreateRerankAndModeration) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         userName = userName,
-        defaultEmail = defaultEmail
+        defaultEmail = defaultEmail,
+        autoCreateRerankAndModeration = autoCreateRerankAndModeration
     )
 
-    LaunchedEffect(userName, defaultEmail) {
+    LaunchedEffect(userName, defaultEmail, autoCreateRerankAndModeration) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1315,7 +1317,7 @@ private fun OtherSettingsSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity and report automation", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("Identity", "Used as the human side of the conversation in agent prompts; the email pre-fills the export sheet so you don't retype it on every send.") {
                 OutlinedTextField(
@@ -1331,6 +1333,12 @@ private fun OtherSettingsSubScreen(
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
             }
+            ToggleSettingCard(
+                title = "Auto create Rerank and Moderation",
+                description = "When a report's models all finish, automatically create one Rerank and one Moderation — each using the first rerank- / moderation-capable model found among your active providers. A kind is skipped when no capable model exists or one is already present. Manual Rerank / Moderation still lets you pick the model.",
+                checked = autoCreateRerankAndModeration,
+                onCheckedChange = { autoCreateRerankAndModeration = it }
+            )
         }
     }
 }

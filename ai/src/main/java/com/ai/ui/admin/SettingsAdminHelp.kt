@@ -57,8 +57,9 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "settings_other" to HelpContent(
         title = "Help - Other settings",
         cards = listOf(
-            HelpCard("Overview", "Holds your Identity (Name + Email). The optional report-metadata toggles that used to live here now have their own screen — Settings → Metadata & icons. Autosaves with a 400 ms debounce."),
+            HelpCard("Overview", "Holds your Identity (Name + Email) and the 'Auto create Rerank and Moderation' toggle. The optional report-metadata toggles that used to live here now have their own screen — Settings → Metadata & icons. Autosaves with a 400 ms debounce."),
             HelpCard("Identity", "Two text fields — Name and Email address — combined in one card. Name surfaces wherever the app addresses you and defaults the From: header on email-style exports. Email address pre-fills the To: field on report email exports; leave blank to be prompted each time."),
+            HelpCard("Auto create Rerank and Moderation", "Default ON. When a report's models all finish, the app automatically creates one Rerank and one Moderation secondary result, each using the first rerank- / moderation-capable model it finds across your active providers (first provider in order, first model of that type). A kind is skipped when you have no capable model for it, or when that report already has one. Turning it off leaves report completion untouched. Either way, creating a Rerank or Moderation by hand still opens the model picker so you choose the model."),
             HelpCard("Tips", "Renaming yourself mid-conversation has no retroactive effect on already-saved chats / reports — the Name field only shapes outbound prompts going forward."),
         )
     ),

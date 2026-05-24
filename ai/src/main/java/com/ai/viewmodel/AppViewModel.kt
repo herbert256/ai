@@ -142,6 +142,14 @@ data class GeneralSettings(
      *  batches — no need to tap the Icons / Titles buttons by hand. A
      *  run with any error pair is left alone. */
     val autostartFanIconsAndTitles: Boolean = true,
+    /** When true (default), finishing a report's agent run automatically
+     *  creates one Rerank and one Moderation secondary result, each using
+     *  the first rerank- / moderation-capable model found across active
+     *  providers. Independent of [metadataEnabled] (these are secondary
+     *  results, not metadata icons). Skips a kind when no capable model
+     *  exists or one is already present; manual creation (with its model
+     *  picker) is unaffected. */
+    val autoCreateRerankAndModeration: Boolean = true,
     /** User-editable fallback emoji shown on view screens when a report /
      *  secondary result has no generated icon of its own. Defaults to the
      *  [com.ai.data.MetadataDefaults] factory values; edited on Settings →

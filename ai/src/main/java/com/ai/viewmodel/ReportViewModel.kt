@@ -424,6 +424,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val ok = finalReport?.agents?.count { it.reportStatus == ReportStatus.SUCCESS } ?: 0
                     val fail = finalReport?.agents?.count { it.reportStatus == ReportStatus.ERROR } ?: 0
                     AppLog.i("Report", "← end \"${title.ifBlank { "AI Report" }}\" ok=$ok fail=$fail in ${System.currentTimeMillis() - reportStartMs}ms")
+                    maybeAutoCreateSecondaries(context, reportId, aiSettings, ok)
                     if (reportRunningInBackground) {
                         reportRunningInBackground = false
                         withContext(Dispatchers.Main) {
@@ -535,6 +536,40 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     internal fun isBenched(provider: AppService, model: String): Boolean =
         provider.apiFormat == com.ai.data.ApiFormat.GOOGLE &&
             com.ai.data.ModelCooldownStore.isUnavailable(provider.id, model)
+
+    /** First (provider, model) pair across active providers whose resolved
+     *  model type matches [type] (e.g. [ModelType.RERANK] / [ModelType.MODERATION]).
+     *  "First found" = first active provider in [AppService.entries] order,
+     *  first matching model in that provider's list. Null when none. */
+    private fun firstModelOfType(s: Settings, type: String): Pair<AppService, String>? {
+        for (svc in s.getActiveServices()) {
+            s.getModels(svc).firstOrNull { s.getModelType(svc, it) == type }?.let { return svc to it }
+        }
+        return null
+    }
+
+    /** On a normal report completion, auto-create one Rerank and one
+     *  Moderation when the "Auto create Rerank and Moderation" setting is on
+     *  (default). Each uses the first capable model found; a kind is skipped
+     *  when no capable model exists or that report already has one of that
+     *  kind. Calls the same [SecondaryRunManager] entry points the manual UI
+     *  uses — which launch their own jobs on viewModelScope, so this is
+     *  non-blocking. Only invoked from the fresh-generation path. */
+    private fun maybeAutoCreateSecondaries(
+        context: Context, reportId: String, aiSettings: Settings, successCount: Int
+    ) {
+        if (!appViewModel.uiState.value.generalSettings.autoCreateRerankAndModeration) return
+        if (successCount < 1) return  // nothing to rank / moderate
+        val hasKind = { k: SecondaryKind ->
+            SecondaryResultStorage.listForReport(context, reportId, k).isNotEmpty()
+        }
+        val rerankPick = firstModelOfType(aiSettings, ModelType.RERANK)
+        if (rerankPick == null) AppLog.i("Report", "auto-rerank skipped: no rerank-capable model")
+        else if (!hasKind(SecondaryKind.RERANK)) secondary.runRerank(context, reportId, rerankPick)
+        val modPick = firstModelOfType(aiSettings, ModelType.MODERATION)
+        if (modPick == null) AppLog.i("Report", "auto-moderation skipped: no moderation-capable model")
+        else if (!hasKind(SecondaryKind.MODERATION)) secondary.runModeration(context, reportId, modPick)
+    }
 
     private suspend fun executeReportTask(
         context: Context, reportId: String, aiPrompt: String, overrideParams: AgentParameters?, task: ReportTask,
