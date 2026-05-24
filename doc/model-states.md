@@ -104,11 +104,9 @@ or OpenRouter non-serverless catalog entries). Carries a `reason`
   blank-reason seed rows default to "Unable to access non-serverless
   (bundled)". Hand-curable via the `inaccessible/` CRUD.
 - **Picker effect**: dimmed with a tertiary `🔒 Inaccessible: …`
-  caption (`inaccessibleReasonByKey`). Note: older docstrings/cards
-  (e.g. `ModelsSetupScreen`'s card, the `InaccessibleModel` data-class
-  comment) still say "hidden from every model picker" — that's stale.
-  Per the current `Selection.kt` (line ~204) inaccessible rows
-  **dim and stay selectable** like the other two advisory states.
+  caption (`inaccessibleReasonByKey`). Per `Selection.kt` (line ~204)
+  inaccessible rows **dim and stay selectable** like the other two
+  advisory states — they are not hidden.
 - **Stored** in `Settings.inaccessibleModels`, prefs key
   `ai_inaccessible_models`.
 

@@ -176,7 +176,7 @@ data class TestExcludedModel(
 
 /** A provider/model pair the user can't actually call on their tier
  *  (Together non-serverless catalog entries, etc.). Distinct from
- *  [TestExcludedModel]: entries here are *hidden* from model pickers
+ *  [TestExcludedModel]: entries here are *dimmed* in model pickers
  *  (the model is genuinely unreachable) and dropped from sweep results
  *  rather than counted as FAIL. Auto-populated by the test engine when
  *  a probe returns "Unable to access non-serverless" (or similar
