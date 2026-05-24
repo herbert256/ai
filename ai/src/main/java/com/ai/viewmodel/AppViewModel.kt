@@ -575,6 +575,19 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _runningFanIconsPairs.update(block)
     }
 
+    /** Row ids of single-call secondaries (auto/manual Meta, Rerank,
+     *  Moderation) whose call is actively in flight (incl. waiting in the
+     *  per-provider rate gate). The resume sweep unions this with
+     *  [runningFanOutPairs] so a slow-but-running single meta isn't mistaken
+     *  for "stale" and falsely terminalized as "Interrupted". Kept separate
+     *  from [runningFanOutPairs] so the fan-out UI's running-pair count
+     *  isn't polluted. */
+    private val _runningSingleSecondaries = MutableStateFlow<Set<String>>(emptySet())
+    val runningSingleSecondaries: StateFlow<Set<String>> = _runningSingleSecondaries.asStateFlow()
+    internal fun updateRunningSingleSecondaries(block: (Set<String>) -> Set<String>) {
+        _runningSingleSecondaries.update(block)
+    }
+
     /** Keys of report-level info jobs (report icon / language / title) whose
      *  API call is ACTIVELY in flight. Keyed "<reportId>|<type>". The
      *  Report - Get info rows read this so a job shows the clock (queued)

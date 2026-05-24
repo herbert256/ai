@@ -645,7 +645,11 @@ class SecondaryRunManager(
         context: Context,
         reportId: String
     ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-        val running = appViewModel.runningFanOutPairs.value
+        // Union with single-secondary in-flight ids so a slow-but-running
+        // auto Meta/Rerank/Moderation isn't re-dispatched + terminalized as
+        // stale (the fan-out filter ignores these ids anyway).
+        val running = appViewModel.runningFanOutPairs.value +
+            appViewModel.runningSingleSecondaries.value
         // Only runs that are actually in flight block step 1 — a
         // run that previously finished (or one a reconcile rebuilt
         // with finished=true) can still have disk placeholders that
@@ -1913,6 +1917,13 @@ class SecondaryRunManager(
             )
         }
 
+        // Mark this single-secondary row in flight for the whole call
+        // (incl. its wait in the per-provider rate gate) so the resume
+        // sweep doesn't see a slow-but-running meta/rerank/moderation as
+        // "stale" and terminalize it after 3 attempts. Cleared in finally.
+        appViewModel.updateRunningSingleSecondaries { it + placeholder.id }
+        try {
+
         // Model benched on a >1h 429 by an earlier call — skip the
         // doomed call but keep the row as a visible red error (don't
         // delete it). runOnePair re-reads the row, sees the
@@ -2090,6 +2101,9 @@ class SecondaryRunManager(
                     SecondaryKind.TRANSLATE -> "translate"
                 }
             )
+        }
+        } finally {
+            appViewModel.updateRunningSingleSecondaries { it - placeholder.id }
         }
     }
 
