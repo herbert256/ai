@@ -226,42 +226,9 @@ internal fun ColumnScope.SelectionPhase(
         )
     }
 
-    // Secondary row — Params + System prompt sit side-by-side above
-    // the final action row. The System prompt dialog mirrors the
-    // chat session screen's selector so a single picker shape is
-    // reused across the app.
-    var showSystemPromptDialog by remember { mutableStateOf(false) }
-    if (showSystemPromptDialog) {
-        SystemPromptSelectorDialog(
-            aiSettings = aiSettings,
-            selectedId = selectedSystemPromptId,
-            onSelect = { id -> onSystemPromptChange(id); showSystemPromptDialog = false },
-            onDismiss = { showSystemPromptDialog = false }
-        )
-    }
-    val selectedSystemPromptName = selectedSystemPromptId?.let { id ->
-        aiSettings.systemPrompts.firstOrNull { it.id == id }?.name
-    }
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedButton(onClick = onAdvancedParams, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-            Text(if (advancedParameters != null) "Parameters ✓" else "Parameters", fontSize = 13.sp, maxLines = 1, softWrap = false)
-        }
-        OutlinedButton(onClick = { showSystemPromptDialog = true }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-            Text(
-                if (selectedSystemPromptName != null) "System prompt ✓" else "System prompt",
-                fontSize = 13.sp, maxLines = 1, softWrap = false
-            )
-        }
-    }
-    if (selectedSystemPromptName != null) {
-        Text(
-            selectedSystemPromptName,
-            fontSize = 10.sp, color = AppColors.TextTertiary,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 2.dp)
-        )
-    }
+    // Parameters + System prompt preset selectors now live on the
+    // bottom-bar 🌡️ / 🎭 icons (wired on this screen's TitleBar in
+    // SelectModels.kt); the inline buttons were removed.
 
     Spacer(modifier = Modifier.height(8.dp))
 

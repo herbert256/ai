@@ -883,7 +883,9 @@ fun ProviderSettingsScreen(
             // button and a trace was captured. Hidden until then so
             // the bar isn't claiming a trace exists when one doesn't.
             onTrace = testTraceFile?.takeIf { com.ai.data.ApiTracer.isTracingEnabled && onNavigateToTrace != null }
-                ?.let { tf -> { onNavigateToTrace!!(tf) } }
+                ?.let { tf -> { onNavigateToTrace!!(tf) } },
+            onParameters = { showParamsDialog = true },
+            onSystemPrompt = { showSystemPromptDialog = true }
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1441,54 +1443,9 @@ fun ProviderSettingsScreen(
                 )
             }
 
-            // Parameters — same blue-card pattern as Default Model / Models so a long
-            // list of selected presets wraps onto a second line instead of overflowing
-            // the row width. Sits at the bottom because it's a power-user preset
-            // (not part of the basic API-key + model setup flow).
-            val pNames = selectedParametersIds.mapNotNull { aiSettings.getParametersById(it)?.name }
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { showParamsDialog = true },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Parameters", fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(
-                            text = if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Tap to select",
-                            fontSize = 12.sp,
-                            color = if (pNames.isEmpty()) AppColors.TextTertiary else AppColors.Blue
-                        )
-                    }
-                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
-                }
-            }
-
-            // System prompt — paired with Parameters above. Same provider-
-            // level default: applied to a bare provider+model selection at
-            // report generation when nothing more specific is set.
-            val spName = selectedSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { showSystemPromptDialog = true },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("System prompt", fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(
-                            text = spName ?: "Tap to select",
-                            fontSize = 12.sp,
-                            color = if (spName == null) AppColors.TextTertiary else AppColors.Blue
-                        )
-                    }
-                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
-                }
-            }
+            // Provider-level Parameters + System prompt presets now live on
+            // the bottom-bar 🌡️ / 🎭 icons (wired on the TitleBar above);
+            // their selector dialogs open from there.
         }
     }
 }

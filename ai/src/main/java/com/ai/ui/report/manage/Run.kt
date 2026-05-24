@@ -275,6 +275,10 @@ internal fun ReportRunScreen(
             } else null,
             isPinned = isPinned,
             onEdit = { editCreateMenu.value = if (editCreateMenu.value == "edit") null else "edit" },
+            // 🌡️ parameters / 🎭 system prompt — pulled out of the Edit
+            // pop-up onto their own bottom-bar icons.
+            onParameters = if (currentReportId != null) { { st.showEditParameters.value = true } } else null,
+            onSystemPrompt = if (currentReportId != null) editSystemPromptTrigger else null,
             onAdd = { editCreateMenu.value = if (editCreateMenu.value == "create") null else "create" },
             addFirst = true
         )

@@ -97,29 +97,16 @@ fun ChatParametersScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "chat_parameters", title = "Chat Parameters", subject = "Set model & options before chatting", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "chat_parameters", title = "Chat Parameters", subject = "Set model & options before chatting", onBackClick = onNavigateBack,
+            onParameters = { showParamsDialog = true }, onSystemPrompt = { showSystemPromptDialog = true })
         Text(com.ai.ui.shared.modelLabel(provider.id, model, separator = " / "),
             fontSize = 12.sp, color = AppColors.TextTertiary,
             modifier = Modifier.modelInfoClickable(provider, model))
         Spacer(modifier = Modifier.height(16.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val spName = selectedSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
-                OutlinedButton(
-                    onClick = { showSystemPromptDialog = true },
-                    modifier = Modifier.weight(1f),
-                    colors = if (spName != null) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-                ) { Text(spName ?: "System Prompt", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-
-                val pNames = selectedParametersIds.mapNotNull { aiSettings.getParametersById(it)?.name }
-                OutlinedButton(
-                    onClick = { showParamsDialog = true },
-                    modifier = Modifier.weight(1f),
-                    colors = if (pNames.isNotEmpty()) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-                ) { Text(if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Parameters", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            }
-
+            // System-prompt / parameters preset selectors now live on the
+            // bottom-bar 🎭 / 🌡️ icons (wired on the TitleBar above).
             OutlinedTextField(
                 value = systemPrompt, onValueChange = { systemPrompt = it; selectedSystemPromptId = null },
                 label = { Text("System prompt") }, modifier = Modifier.fillMaxWidth(),

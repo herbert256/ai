@@ -145,7 +145,9 @@ fun AgentEditScreen(
             // 👁 only visible on Edit (the View screen needs an
             // existing agent id) — null in Add mode.
             onOpenView = if (!isAddMode) onOpenView else null,
-            onCopyReport = null
+            onCopyReport = null,
+            onParameters = { showParamsDialog = true },
+            onSystemPrompt = { showSystemPromptDialog = true }
         )
         // Save / Create CTA hoisted to the top — the form below can
         // be long enough to push a bottom button out of reach.
@@ -245,19 +247,9 @@ fun AgentEditScreen(
                 }
             }
 
-            // System prompt + parameters
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val spName = selectedSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
-                OutlinedButton(
-                    onClick = { showSystemPromptDialog = true }, modifier = Modifier.weight(1f),
-                    colors = if (spName != null) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-                ) { Text(spName ?: "System Prompt", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                val pNames = selectedParamsIds.mapNotNull { aiSettings.getParametersById(it)?.name }
-                OutlinedButton(
-                    onClick = { showParamsDialog = true }, modifier = Modifier.weight(1f),
-                    colors = if (pNames.isNotEmpty()) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-                ) { Text(if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Parameters", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            }
+            // System prompt + parameters now live on the bottom-bar
+            // 🎭 / 🌡️ icons (wired on the TitleBar above) — the inline
+            // buttons were removed.
             // Per-litellm: warn when the model is known not to accept system
             // messages — anything chosen on either the System Prompt button
             // above or via the Parameters preset's systemPrompt field would

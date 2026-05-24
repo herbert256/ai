@@ -85,7 +85,9 @@ fun FlockEditScreen(
             subject = name,
             onBackClick = onBack,
             onOpenView = if (!isAddMode) onOpenView else null,
-            onCopyReport = null
+            onCopyReport = null,
+            onParameters = { showParamsDialog = true },
+            onSystemPrompt = { showSystemPromptDialog = true }
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
@@ -106,18 +108,7 @@ fun FlockEditScreen(
             isError = name.isNotBlank() && nameError != null
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val spName = selectedSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
-            OutlinedButton(onClick = { showSystemPromptDialog = true }, modifier = Modifier.weight(1f),
-                colors = if (spName != null) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-            ) { Text(spName ?: "System Prompt", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            val pNames = selectedParamsIds.mapNotNull { aiSettings.getParametersById(it)?.name }
-            OutlinedButton(onClick = { showParamsDialog = true }, modifier = Modifier.weight(1f),
-                colors = if (pNames.isNotEmpty()) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-            ) { Text(if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Parameters", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        }
-
+        // System prompt + parameters now live on the bottom-bar 🎭 / 🌡️ icons.
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
             value = searchQuery, onValueChange = { searchQuery = it },

@@ -8,6 +8,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ai.data.AgentParameters
@@ -48,6 +52,15 @@ internal fun ReportSelectModelsScreen(
     onSystemPromptChange: (String?) -> Unit
 ) {
     val aiSettings = uiState.aiSettings
+    var showSystemPromptDialog by remember { mutableStateOf(false) }
+    if (showSystemPromptDialog) {
+        com.ai.ui.chat.SystemPromptSelectorDialog(
+            aiSettings = aiSettings,
+            selectedId = uiState.reportSystemPromptId,
+            onSelect = { id -> onSystemPromptChange(id); showSystemPromptDialog = false },
+            onDismiss = { showSystemPromptDialog = false }
+        )
+    }
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -57,7 +70,9 @@ internal fun ReportSelectModelsScreen(
         TitleBar(
             helpTopic = "report_select_models",
             title = "Report - select models", subject = "Add agents, flocks, swarms or models",
-            onBackClick = onDismiss
+            onBackClick = onDismiss,
+            onParameters = onAdvancedParams,
+            onSystemPrompt = { showSystemPromptDialog = true }
         )
         SelectionPhase(
             models = models,

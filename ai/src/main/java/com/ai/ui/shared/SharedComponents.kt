@@ -716,7 +716,14 @@ data class TitleBarIcons(
      *  row (above the ❓). Set by the Manage report screen. Null → hidden. */
     val costText: String? = null,
     /** Tap handler for [costText] — opens the costs screen. */
-    val onCostClick: (() -> Unit)? = null
+    val onCostClick: (() -> Unit)? = null,
+    /** Optional 🌡️ parameters hook. Screens that let you attach a
+     *  Parameters preset publish it so the bottom bar carries the action
+     *  (replacing the old inline "Parameters" button). Null → glyph hidden. */
+    val onParameters: (() -> Unit)? = null,
+    /** Optional 🎭 system-prompt hook — the paired sibling of
+     *  [onParameters]. Opens the system-prompt selector. Null → glyph hidden. */
+    val onSystemPrompt: (() -> Unit)? = null
 )
 
 /** Make a model-name Text clickable so tapping it opens the Model
@@ -1017,6 +1024,10 @@ fun TitleBar(
     onCostClick: (() -> Unit)? = null,
     /** Optional ✏️ edit hook (CRUD view pages). Null → glyph hidden. */
     onEdit: (() -> Unit)? = null,
+    /** Optional 🌡️ parameters / 🎭 system-prompt hooks — paired config
+     *  actions surfaced in the bottom bar (replacing inline buttons). */
+    onParameters: (() -> Unit)? = null,
+    onSystemPrompt: (() -> Unit)? = null,
     /** Optional 🧹 jump-to-Housekeeping hook. Null → glyph hidden. */
     onHousekeeping: (() -> Unit)? = null,
     /** Optional ⚙️ jump-to-AI-Setup/Settings hook. Null → glyph hidden. */
@@ -1079,6 +1090,8 @@ fun TitleBar(
         costText = costText,
         onCostClick = onCostClick,
         onEdit = onEdit,
+        onParameters = onParameters,
+        onSystemPrompt = onSystemPrompt,
         onHousekeeping = onHousekeeping,
         onSettings = onSettings,
         // ❓ help moved out of the top bar into the bottom icons bar
@@ -1519,6 +1532,10 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onHousekeeping?.let { add(BottomBarIcon("🧹", Color.Unspecified, it, 28)) }
     icons.onSettings?.let { add(BottomBarIcon("⚙️", Color.Unspecified, it, 28)) }
     icons.onInfo?.let { add(BottomBarIcon("ℹ️", Color.Unspecified, it, 28)) }
+    // 🌡️ parameters + 🎭 system prompt — paired config actions, kept
+    // adjacent so they read as a couple wherever a screen exposes them.
+    icons.onParameters?.let { add(BottomBarIcon("🌡️", Color.Unspecified, it, 28)) }
+    icons.onSystemPrompt?.let { add(BottomBarIcon("🎭", Color.Unspecified, it, 28)) }
     icons.onCopy?.let { add(BottomBarIcon("📋", Color.Unspecified, it, 28)) }
     icons.onPin?.let { add(BottomBarIcon("📌", Color.Unspecified, it, 28, alpha = if (icons.isPinned) 1f else 0.35f)) }
     icons.onShare?.let { add(BottomBarIcon("📤", Color.Unspecified, it, 28)) }

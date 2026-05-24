@@ -642,13 +642,12 @@ internal fun ColumnScope.GenerationPhase(
             ActionRow {
                 CompactButton(onClick = { close(); onEditTitle() }, color = editColor, text = "Title")
                 CompactButton(onClick = { close(); onEditPromptInline() }, color = editColor, text = "Prompt")
-                CompactButton(onClick = { close(); editSystemPromptTrigger() }, color = editColor, text = "System prompt")
+                // System prompt + Parameters moved to the bottom-bar 🎭 / 🌡️ icons.
                 CompactButton(
                     onClick = { close(); onEditModelsInline() },
                     color = editColor, text = "Models",
                     enabled = currentReportId != null
                 )
-                CompactButton(onClick = { close(); onEditParametersInline() }, color = editColor, text = "Parameters")
             }
         }
     }
