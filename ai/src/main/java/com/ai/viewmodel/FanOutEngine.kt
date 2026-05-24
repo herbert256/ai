@@ -640,11 +640,16 @@ class FanOutEngine internal constructor(
             // its setFanOutIcon write AFTER the clear, leaving a marker
             // the 30s resume sweep treats as "in progress" and relaunches.
             reportViewModel.iconGen.cancelFanIconsBatch(run.reportId, run.metaPrompt.id)?.join()
+            // Roll the icon-chain spend we're about to wipe into the
+            // report's Deleted-items tally so the cost view stays whole
+            // (clearFanOutIconState zeroes the per-pair icon cost fields).
+            val costDelta = run.pairs.values.sumOf { it.iconInputCost + it.iconOutputCost }
             val pairIds = run.pairs.values.map { it.id }.toSet()
             run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.clearFanOutIconState(context, run.reportId, pair.id)
             }
             ReportStorage.removeFanOutIconCalls(context, run.reportId, pairIds)
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, run.reportId)
             // Re-hydrate so the engine's in-memory pairs lose their
             // icons too — unlike deleteRun, the run itself stays.
@@ -663,9 +668,14 @@ class FanOutEngine internal constructor(
             // write AFTER the clear — that surviving marker is what made a
             // deleted fan-titles batch reappear on the next resume sweep.
             reportViewModel.iconGen.cancelFanTitlesBatch(run.reportId, run.metaPrompt.id)?.join()
+            // Roll the title spend we're about to wipe into the report's
+            // Deleted-items tally so the cost view stays whole
+            // (clearFanOutTitleState zeroes the per-pair title cost fields).
+            val costDelta = run.pairs.values.sumOf { it.titleInputCost + it.titleOutputCost }
             run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.clearFanOutTitleState(context, run.reportId, pair.id)
             }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, run.reportId)
             hydrate(context, run.reportId)
         }
