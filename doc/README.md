@@ -42,6 +42,10 @@ into one resolved view per `(provider, model)` pair.
   daily-rotated files under `<filesDir>/applog/`, the AppLog
   viewer screens, threshold/level settings, filter UX, and
   Copy / Share dialog options.
+- **[log-details.md](log-details.md)** — Generated reference of
+  every `AppLog` call site that writes to the application log,
+  grouped by severity (ERROR / WARN / INFO / DEBUG / TRACE) then
+  by source file, with each line, tag, and message.
 - **[report-icons.md](report-icons.md)** — The per-report emoji
   + per-agent 3-tier icon chain: bundled prompts
   (`internal/icon`, `internal/report_icon`, `report_icon_chat`,
