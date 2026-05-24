@@ -1,6 +1,7 @@
 package com.ai.data
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -58,6 +59,34 @@ internal suspend fun <T> withApiCallTimeout(block: suspend () -> T): T {
 }
 
 /**
+ * Acquire the per-host throttle gate at the COROUTINE layer for [dispatch],
+ * unless the caller already pre-acquired it (report / fan / translation flows
+ * set `permitPreAcquired`). Two reasons this belongs here, not in the OkHttp
+ * interceptor:
+ *  1. The rate-limit WAIT (per-minute window) happens OUTSIDE [withApiCallTimeout],
+ *     so a call legitimately queued behind a saturated provider window no longer
+ *     trips the DNS-hang timeout (which then made it retry → a self-sustaining
+ *     storm on shared metadata models like the title/icon agent).
+ *  2. It uses the non-blocking suspend [ProviderThrottle.acquireOrWait] (delay,
+ *     not Thread.sleep), so a waiting call doesn't occupy an OkHttp dispatcher
+ *     per-host slot — which is what deadlocked OkHttp's maxRequestsPerHost
+ *     against this throttle.
+ * Marks `permitPreAcquired` so the interceptor skips its own (thread-blocking)
+ * acquire for this call.
+ */
+private suspend fun <T> withHostGate(baseUrl: String, dispatch: suspend () -> T): T {
+    if (ProviderThrottle.permitPreAcquired.get() == true) return dispatch()
+    val host = runCatching { java.net.URI(baseUrl).host ?: "" }.getOrDefault("")
+    if (host.isBlank()) return dispatch()
+    val releaser = ProviderThrottle.acquireOrWait(host)
+    return try {
+        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) { dispatch() }
+    } finally {
+        releaser.release()
+    }
+}
+
+/**
  * Analyze a prompt using the appropriate API format.
  */
 suspend fun AnalysisRepository.analyze(
@@ -71,11 +100,13 @@ suspend fun AnalysisRepository.analyze(
     imageMime: String? = null
 ): AnalysisResponse = withContext(Dispatchers.IO) {
     AppLog.d("ApiDispatch", "analyze ${service.id}/$model fmt=${service.apiFormat} promptLen=${prompt.length} img=${imageBase64 != null}")
-    withApiCallTimeout {
-        when (service.apiFormat) {
-            ApiFormat.ANTHROPIC -> analyzeAnthropic(service, apiKey, prompt, model, params, imageBase64, imageMime)
-            ApiFormat.GOOGLE -> analyzeGemini(service, apiKey, prompt, model, params, imageBase64, imageMime)
-            ApiFormat.OPENAI_COMPATIBLE -> analyzeOpenAi(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
+    withHostGate(baseUrl) {
+        withApiCallTimeout {
+            when (service.apiFormat) {
+                ApiFormat.ANTHROPIC -> analyzeAnthropic(service, apiKey, prompt, model, params, imageBase64, imageMime)
+                ApiFormat.GOOGLE -> analyzeGemini(service, apiKey, prompt, model, params, imageBase64, imageMime)
+                ApiFormat.OPENAI_COMPATIBLE -> analyzeOpenAi(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
+            }
         }
     }
 }
@@ -92,11 +123,13 @@ suspend fun AnalysisRepository.sendChat(
     baseUrl: String = service.baseUrl
 ): String = withContext(Dispatchers.IO) {
     AppLog.d("ApiDispatch", "sendChat ${service.id}/$model fmt=${service.apiFormat} msgs=${messages.size}")
-    withApiCallTimeout {
-        when (service.apiFormat) {
-            ApiFormat.ANTHROPIC -> chatAnthropic(service, apiKey, model, messages, params)
-            ApiFormat.GOOGLE -> chatGemini(service, apiKey, model, messages, params)
-            ApiFormat.OPENAI_COMPATIBLE -> chatOpenAi(service, apiKey, model, messages, params, baseUrl)
+    withHostGate(baseUrl) {
+        withApiCallTimeout {
+            when (service.apiFormat) {
+                ApiFormat.ANTHROPIC -> chatAnthropic(service, apiKey, model, messages, params)
+                ApiFormat.GOOGLE -> chatGemini(service, apiKey, model, messages, params)
+                ApiFormat.OPENAI_COMPATIBLE -> chatOpenAi(service, apiKey, model, messages, params, baseUrl)
+            }
         }
     }
 }

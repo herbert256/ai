@@ -254,6 +254,26 @@ object ProviderThrottle {
         }
     }
 
+    /** Suspending per-host gate for the dispatch layer: polls [tryAcquire]
+     *  and `delay`s (coroutine suspension — never Thread.sleep, never blocks
+     *  a thread) until it claims a slot, then returns the [Releaser]. Lets
+     *  the rate-limit WAIT happen at the coroutine layer — outside the
+     *  network-call timeout and without occupying an OkHttp dispatcher slot —
+     *  instead of the thread-blocking [acquire] inside the OkHttp
+     *  interceptor (which is what deadlocked the dispatcher per-host limit
+     *  against this throttle, and made a legit queue wait trip the DNS-hang
+     *  timeout). Cancellation-aware via `delay`. */
+    suspend fun acquireOrWait(host: String): Releaser {
+        while (true) {
+            when (val o = tryAcquire(host)) {
+                is Outcome.Acquired -> return o.releaser
+                is Outcome.Blocked -> kotlinx.coroutines.delay(
+                    (o.availableAtMs - System.currentTimeMillis()).coerceIn(50L, 5_000L)
+                )
+            }
+        }
+    }
+
     /** Drop the per-host semaphore + window maps so the next call to
      *  [acquire] builds fresh ones at the current
      *  [NetworkSettings.maxConcurrentCallsPerProvider]. Called from

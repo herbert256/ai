@@ -85,7 +85,7 @@ class IconGenerationManager(
                     val response = withTraceFilenameSink(traceSink) {
                         appViewModel.repository.analyzeWithAgent(
                             agent, "", resolved, secParams,
-                            null, context, baseUrl
+                            null, context, baseUrl, retry = false
                         )
                     }
                     val durationMs = System.currentTimeMillis() - started
@@ -168,7 +168,7 @@ class IconGenerationManager(
                     val response = withTraceFilenameSink(traceSink) {
                         appViewModel.repository.analyzeWithAgent(
                             agent, "", resolved, secParams,
-                            null, context, baseUrl
+                            null, context, baseUrl, retry = false
                         )
                     }
                     val durationMs = System.currentTimeMillis() - started
@@ -296,7 +296,7 @@ class IconGenerationManager(
                     val response = withTraceFilenameSink(traceSink) {
                         appViewModel.repository.analyzeWithAgent(
                             agent, "", resolved, secParams,
-                            null, context, baseUrl
+                            null, context, baseUrl, retry = false
                         )
                     }
                     val durationMs = System.currentTimeMillis() - started
@@ -389,7 +389,7 @@ class IconGenerationManager(
                 val resolved = prompt.text.replace("@TITLE@", title)
                 val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, prompt, agent)
                 val response = appViewModel.repository.analyzeWithAgent(
-                    agent, "", resolved, secParams, null, context, baseUrl
+                    agent, "", resolved, secParams, null, context, baseUrl, retry = false
                 )
                 val durationMs = System.currentTimeMillis() - started
                 val tu = response.tokenUsage
@@ -450,7 +450,7 @@ class IconGenerationManager(
                     val response = withTraceFilenameSink(traceSink) {
                         appViewModel.repository.analyzeWithAgent(
                             agent, "", resolved, secParams,
-                            null, context, baseUrl
+                            null, context, baseUrl, retry = false
                         )
                     }
                     val durationMs = System.currentTimeMillis() - started
@@ -531,7 +531,7 @@ class IconGenerationManager(
                 val response = withTraceFilenameSink(traceSink) {
                     appViewModel.repository.analyzeWithAgent(
                         agent, "", resolved, secParams,
-                        null, context, baseUrl
+                        null, context, baseUrl, retry = false
                     )
                 }
                 val durationMs = System.currentTimeMillis() - started

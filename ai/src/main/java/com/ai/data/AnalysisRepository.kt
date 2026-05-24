@@ -3,6 +3,7 @@ package com.ai.data
 import android.content.Context
 import com.ai.data.local.LocalLlm
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.Headers
@@ -231,7 +232,14 @@ class AnalysisRepository {
         // prompt before dispatch. aiSettings is needed for remote
         // embedders' API keys.
         knowledgeBaseIds: List<String> = emptyList(),
-        aiSettings: com.ai.model.Settings? = null
+        aiSettings: com.ai.model.Settings? = null,
+        // Best-effort callers (report title / icon / language, per-model
+        // enrichment, auto-metas) pass false: a single attempt, no withRetry
+        // and no in-line 429/529 retry. These all share one cheap metadata
+        // model, so retrying a failed/queued call just re-floods that model's
+        // rate window — a self-sustaining storm. A failed best-effort call is
+        // simply skipped (the user can regenerate info).
+        retry: Boolean = true
     ): AnalysisResponse = withContext(Dispatchers.IO) {
         // Local on-device path — no API key, no HTTP, no retry. The
         // sentinel AppService.LOCAL is the marker. Embedding-style
@@ -323,6 +331,18 @@ class AnalysisRepository {
                 retried
             } else first
             return response.copy(agentName = agent.name, promptUsed = finalPrompt)
+        }
+        if (!retry) {
+            // Single attempt, no in-line 429/529 retry — see the `retry` param.
+            return@withContext withContext(ProviderThrottle.suppressInlineRetry.asContextElement(true)) {
+                try {
+                    makeApiCall()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    AnalysisResponse(agent.provider, null, "Network error: ${e.message}", agentName = agent.name)
+                }
+            }
         }
         withRetry(
             label = "Agent ${agent.name}",
