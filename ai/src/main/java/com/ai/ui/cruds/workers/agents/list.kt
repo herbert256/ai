@@ -38,6 +38,16 @@ fun AgentsCrud(
                       else list + saved
         onSave(aiSettings.copy(agents = updated))
     }
+    // Resolve a copy name that doesn't already exist up front ("-copy",
+    // then "-copy 2", …) so the user lands on a save-able form rather than
+    // discovering the collision only at Save time.
+    val uniqueCopyName: (String) -> String = { base ->
+        val taken = aiSettings.agents.map { it.name.lowercase() }.toSet()
+        var candidate = "$base-copy"
+        var n = 2
+        while (candidate.lowercase() in taken) { candidate = "$base-copy $n"; n++ }
+        candidate
+    }
 
     when (val m = mode) {
         Mode.List -> CrudListPage(
@@ -59,7 +69,7 @@ fun AgentsCrud(
         is Mode.View -> AgentView(
             agent = m.item, aiSettings = aiSettings,
             onEdit = { mode = Mode.Edit(m.item) },
-            onCopy = { mode = Mode.Edit(m.item.copy(id = UUID.randomUUID().toString(), name = "${m.item.name}-copy")) },
+            onCopy = { mode = Mode.Edit(m.item.copy(id = UUID.randomUUID().toString(), name = uniqueCopyName(m.item.name))) },
             onDelete = { onSave(aiSettings.removeAgent(m.item.id)); toList() },
             onBack = toList
         )

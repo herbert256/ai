@@ -29,7 +29,11 @@ internal fun AgentView(
     ) {
         CrudField("Name", agent.name)
         CrudField("Provider", agent.provider.id)
-        CrudField("Model", shortModelName(aiSettings.getEffectiveModelForAgent(agent)))
+        // Distinguish a pinned model from one inherited from the provider
+        // default (agent.model blank) so the displayed value isn't mistaken
+        // for the agent's own setting.
+        val effectiveModel = shortModelName(aiSettings.getEffectiveModelForAgent(agent))
+        CrudField("Model", if (agent.model.isBlank()) "$effectiveModel (provider default)" else effectiveModel)
         if (!agent.endpointId.isNullOrBlank()) CrudField("Endpoint", agent.endpointId!!)
         if (agent.apiKey.isNotBlank()) CrudField("API key", "•••• (set)")
         WorkerSharedCards(

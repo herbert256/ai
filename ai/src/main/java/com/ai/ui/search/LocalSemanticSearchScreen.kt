@@ -53,21 +53,33 @@ fun LocalSemanticSearchScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val availableModels = remember { LocalEmbedder.availableModels(context) }
+    // Re-list installed models on resume so a model added/removed in
+    // Housekeeping is reflected on return (was an unkeyed remember).
+    val resumeTick = com.ai.ui.shared.resumeRefreshTick()
+    val availableModels = remember(resumeTick) { LocalEmbedder.availableModels(context) }
     var picked by remember { mutableStateOf(availableModels.firstOrNull()) }
+    // Drop a stale pick when the installed-model set changes.
+    LaunchedEffect(availableModels) {
+        if (picked != null && picked !in availableModels) picked = availableModels.firstOrNull()
+    }
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<LocalSemanticHit>>(emptyList()) }
     var status by remember { mutableStateOf<String?>(null) }
     var running by remember { mutableStateOf(false) }
     var pickerOpen by remember { mutableStateOf(false) }
+    // Timestamp captured when the current search starts; the 🐞 only opens a
+    // trace produced by this run (timestamp >= start), not the newest one of
+    // the category globally.
+    var searchStartedAt by remember { mutableStateOf(0L) }
     // Latest "Local semantic search" trace — drives the 🐞 next to the
     // status text after a search completes. Refreshed each time
     // running flips back to false.
     val latestTrace by produceState<String?>(initialValue = null, running) {
         if (running) return@produceState
+        val startedAt = searchStartedAt
         value = withContext(Dispatchers.IO) {
             com.ai.data.ApiTracer.getTraceFiles()
-                .firstOrNull { it.category == "Local semantic search" }?.filename
+                .firstOrNull { it.category == "Local semantic search" && it.timestamp >= startedAt }?.filename
         }
     }
 
@@ -128,12 +140,15 @@ fun LocalSemanticSearchScreen(
                 val q = query.trim()
                 if (q.isBlank()) return@Button
                 running = true
+                searchStartedAt = System.currentTimeMillis()
                 status = "Indexing reports…"
                 results = emptyList()
                 scope.launch {
                     val hits = withContext(Dispatchers.IO) {
                         runLocalEmbedSearch(context, model, q) { msg ->
-                            scope.launch(Dispatchers.Main) { status = msg }
+                            // Hop to Main on the same coroutine so progress writes are
+                            // lifecycle-bound rather than fire-and-forget launches.
+                            withContext(Dispatchers.Main) { status = msg }
                         }
                     }
                     results = hits
@@ -193,23 +208,26 @@ private suspend fun runLocalEmbedSearch(
     context: Context,
     modelName: String,
     query: String,
-    onProgress: (String) -> Unit
+    onProgress: suspend (String) -> Unit
 ): List<LocalSemanticHit> = withTracerTags(category = "Local semantic search") {
     val queryVec = LocalEmbedder.embed(context, modelName, listOf(query))?.firstOrNull() ?: return@withTracerTags emptyList()
     val reports: List<Report> = ReportStorage.getAllReports(context)
     val iconById = reports.associate { it.id to it.icon }
     val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
-    val toEmbed = mutableListOf<Triple<String, String, String>>()
-    val cached = mutableListOf<Triple<String, List<Double>, String>>()
+    // (reportId, repText, displayTitle, displayTimestamp)
+    val toEmbed = mutableListOf<EmbedCandidate>()
+    // already-embedded: (reportId, vec, displayTitle, displayTimestamp)
+    val cached = mutableListOf<CachedCandidate>()
 
     val providerKey = "LOCAL"
     for ((i, r) in reports.withIndex()) {
         if (i % 10 == 0) onProgress("Indexing reports… ${i + 1} / ${reports.size}")
         val rep = "${r.title}\n${r.prompt}\n${r.agents.firstOrNull { !it.responseBody.isNullOrBlank() }?.responseBody?.take(2000) ?: ""}"
-        val title = r.title.ifBlank { "(untitled)" } + " — " + df.format(Date(r.timestamp))
+        val title = r.title.ifBlank { "(untitled)" }
+        val ts = df.format(Date(r.timestamp))
         val existing = EmbeddingsStore.get(context, r.id, providerKey, modelName, rep)
-        if (existing != null) cached += Triple(r.id, existing, title)
-        else toEmbed += Triple(r.id, rep, title)
+        if (existing != null) cached += CachedCandidate(r.id, existing, title, ts)
+        else toEmbed += EmbedCandidate(r.id, rep, title, ts)
     }
 
     // MediaPipe TextEmbedder embeds one string per call internally
@@ -217,16 +235,20 @@ private suspend fun runLocalEmbedSearch(
     val batched = toEmbed.chunked(50)
     for ((batchIdx, batch) in batched.withIndex()) {
         onProgress("Embedding batch ${batchIdx + 1} / ${batched.size} (${batch.size} reports)")
-        val vecs = LocalEmbedder.embed(context, modelName, batch.map { it.second }) ?: return@withTracerTags emptyList()
+        val vecs = LocalEmbedder.embed(context, modelName, batch.map { it.repText }) ?: return@withTracerTags emptyList()
         for ((j, item) in batch.withIndex()) {
-            val v = vecs[j]
-            EmbeddingsStore.put(context, item.first, providerKey, modelName, item.second, v)
-            cached += Triple(item.first, v, item.third)
+            // Embedder may return fewer vectors than inputs; never index past it.
+            val v = vecs.getOrNull(j) ?: continue
+            EmbeddingsStore.put(context, item.reportId, providerKey, modelName, item.repText, v)
+            cached += CachedCandidate(item.reportId, v, item.title, item.timestamp)
         }
     }
 
-    cached.map { (id, vec, title) ->
-        LocalSemanticHit(id, title.substringBefore(" — "), title.substringAfter(" — ", ""),
-            EmbeddingsStore.cosine(queryVec, vec), iconById[id])
+    cached.map { c ->
+        LocalSemanticHit(c.reportId, c.title, c.timestamp,
+            EmbeddingsStore.cosine(queryVec, c.vec), iconById[c.reportId])
     }.sortedByDescending { it.score }.take(10).filter { it.score > 0.0 }
 }
+
+private data class EmbedCandidate(val reportId: String, val repText: String, val title: String, val timestamp: String)
+private data class CachedCandidate(val reportId: String, val vec: List<Double>, val title: String, val timestamp: String)

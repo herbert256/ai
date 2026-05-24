@@ -363,7 +363,14 @@ fun SettingsScreen(
                     },
                     onNavigateToHelpTopic = onNavigateToHelpTopic
                 )
-            } ?: goBack()
+            } ?: run {
+                // Provider id no longer resolves (removed/renamed in the
+                // registry, or a cold-launch race before bootstrap). Navigate
+                // away exactly once via a LaunchedEffect — calling goBack()
+                // directly in the composable body re-fires every frame and
+                // spins a recomposition loop if the id never resolves.
+                androidx.compose.runtime.LaunchedEffect(selectedProviderId) { goBack() }
+            }
         }
         SettingsSubScreen.AI_MODELS -> {
             ModelsListScreen(
@@ -646,6 +653,13 @@ fun SettingsScreen(
                     TitleBar(helpTopic = "settings_main", title = "Loading…", subject = "Loading settings…", onBackClick = goBack)
                 }
             } else {
+                // Derive the category synchronously from the resolved prompt
+                // when editing an existing one — selectedInternalCategory is
+                // corrected by a LaunchedEffect that can lag this first
+                // composition, which (for a very fast user) could otherwise
+                // pin a save to the wrong category. Fall back to the selected
+                // category only when adding a brand-new prompt (ip == null).
+                val effectiveCategory = ip?.category ?: selectedInternalCategory
                 key(ip?.id) {
                     InternalPromptEditScreen(
                         internalPrompt = ip,
@@ -653,12 +667,12 @@ fun SettingsScreen(
                         // internal prompts — so "Compare" under meta and
                         // "Compare" under fan_in can coexist.
                         existingNames = aiSettings.internalPrompts
-                            .filter { it.id != (ip?.id ?: "") && it.category == selectedInternalCategory }
+                            .filter { it.id != (ip?.id ?: "") && it.category == effectiveCategory }
                             .map { it.name.lowercase(java.util.Locale.ROOT) }
                             .toSet(),
                         agentNames = aiSettings.agents.map { it.name },
                         aiSettings = aiSettings,
-                        fixedCategory = selectedInternalCategory,
+                        fixedCategory = effectiveCategory,
                         onSave = { saved ->
                             val updated = if (ip != null) aiSettings.copy(internalPrompts = aiSettings.internalPrompts.map { if (it.id == ip.id) saved else it })
                             else aiSettings.copy(internalPrompts = aiSettings.internalPrompts + saved)

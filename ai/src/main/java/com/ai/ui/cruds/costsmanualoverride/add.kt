@@ -23,7 +23,7 @@ internal fun CostOverrideAdd(
         initialModel = prefill?.model,
         initialInputPerMillion = prefill?.promptPrice?.times(1_000_000),
         initialOutputPerMillion = prefill?.completionPrice?.times(1_000_000),
-        onSave = { provider, model, inp, outp ->
+        onSave = { provider, model, inp, outp, _ ->
             PricingCache.setManualPricing(context, provider, model, inp, outp); onSaved()
         },
         onBack = onBack,

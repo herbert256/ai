@@ -261,7 +261,14 @@ fun ManualCostOverrideEntryScreen(
         isEditingExisting = existing != null,
         originalProviderId = providerId.takeIf { existing != null },
         originalModel = modelId.takeIf { existing != null },
-        onSave = { provider, model, inp, outp ->
+        onSave = { provider, model, inp, outp, isAddMode ->
+            // Plain edit (not duplicate) that repointed to a new key:
+            // prune the original so the edit is a MOVE, not a duplicate.
+            if (!isAddMode && existing != null && (provider.id != providerId || model != modelId)) {
+                AppService.findById(providerId)?.let {
+                    PricingCache.removeManualPricing(context, it, modelId)
+                }
+            }
             PricingCache.setManualPricing(context, provider, model, inp, outp)
             onBack()
         },
@@ -273,7 +280,11 @@ fun ManualCostOverrideEntryScreen(
 @Composable
 internal fun AddManualOverrideScreen(
     aiSettings: Settings,
-    onSave: (AppService, String, Double, Double) -> Unit,
+    /** Save callback. The trailing Boolean is `isAddMode` — true when
+     *  the form is in add/duplicate mode (caller should KEEP any original
+     *  override as a parallel entry), false on a plain edit (caller should
+     *  MOVE: prune the original key when the user repointed). */
+    onSave: (AppService, String, Double, Double, Boolean) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     initialProviderId: String? = null,
@@ -335,7 +346,7 @@ internal fun AddManualOverrideScreen(
         Button(onClick = {
             val inp = inputPrice.toDoubleOrNull()?.div(1_000_000)
             val outp = outputPrice.toDoubleOrNull()?.div(1_000_000)
-            if (inp != null && outp != null && selectedProvider != null && model.isNotBlank()) onSave(selectedProvider!!, model, inp, outp)
+            if (inp != null && outp != null && selectedProvider != null && model.isNotBlank()) onSave(selectedProvider!!, model, inp, outp, isAddMode)
         }, enabled = selectedProvider != null && model.isNotBlank() && inputPrice.toDoubleOrNull() != null && outputPrice.toDoubleOrNull() != null &&
             !(isAddMode && keyMatchesOriginal),
             modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)

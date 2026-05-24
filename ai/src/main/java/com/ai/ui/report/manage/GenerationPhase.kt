@@ -409,7 +409,12 @@ internal fun ColumnScope.GenerationPhase(
     /** Shared Edit/Create menu trigger, hoisted to [ReportRunScreen] so
      *  the bottom-bar ✏️ / 🆕 icons (published by the Manage TitleBar)
      *  can toggle it. "edit" / "create" / null. */
-    editCreateMenu: androidx.compose.runtime.MutableState<String?> = androidx.compose.runtime.mutableStateOf(null)
+    editCreateMenu: androidx.compose.runtime.MutableState<String?> = androidx.compose.runtime.mutableStateOf(null),
+    /** True while a full-screen overlay (e.g. Get-info) is layered on top
+     *  of the still-composed hub. Pauses the hub's background effects (the
+     *  10 s stalled-translation reconcile + the scroll-to-top anchor) so
+     *  the hidden list doesn't keep doing disk reads / scroll itself. */
+    paused: Boolean = false
 ) {
     // Local aliases so the existing body keeps reading short names
     // — avoids touching every call site inside this 1000-line phase.
@@ -527,7 +532,7 @@ internal fun ColumnScope.GenerationPhase(
     //  fanOutSummary — see the items(fanOutSummaries) block —
     //  not as a View-row group, since the fan-out pair rows that
     //  carry the icons never enter `secondaryRuns`.)
-    val everyItems = remember(secondaryRuns, translateRows, aiSettings) {
+    val everyItems = remember(secondaryRuns, translateRows, aiSettings.internalPrompts) {
         // Report - Manage path doesn't lock languages — discard the
         // trailing String? from buildEveryItems' new signature.
         buildEveryItems(secondaryRuns, aiSettings,
@@ -596,10 +601,15 @@ internal fun ColumnScope.GenerationPhase(
     // rows persist and the live row is consumed within ~200ms (no
     // double-count window worth worrying about). Single pass — was
     // three separate filter+sum walks before.
-    val liveTranslation = remember(translationRuns) {
+    val liveTranslation = remember(translationRuns, translationRunSummaries) {
+        // Exclude runs whose rows already persisted (a summary exists for
+        // the runId) so the ~200ms window between rows-persisted and
+        // live-state-evicted doesn't count the run's cost twice — once here
+        // and once via secondaryTotals (computed from the persisted rows).
+        val persistedRunIds = translationRunSummaries.map { it.runId }.toSet()
         var input = 0; var output = 0; var cost = 0.0
         translationRuns.forEach { run ->
-            if (run.isFinished) return@forEach
+            if (run.isFinished || run.runId in persistedRunIds) return@forEach
             cost += run.totalCostDollars
             run.items.forEach { item ->
                 item.tokenUsage?.let {
@@ -777,11 +787,20 @@ internal fun ColumnScope.GenerationPhase(
     // launch.
     val latestActiveRuns = rememberUpdatedState(activeTranslationRuns)
     LaunchedEffect(currentReportId) {
+        // Per-runId guard so a reconcile that cannot flip a genuinely
+        // stuck run to finished is attempted once (per report open),
+        // not re-fired forever every 10 s — repeated reconciles do disk
+        // reads / state rebuilds with no progress.
+        val reconciled = mutableSetOf<String>()
         while (true) {
             val rid = currentReportId
-            if (rid != null) {
+            // Skip the reconcile sweep while a Get-info overlay is layered
+            // on top — the hub is hidden, so there's nothing to self-heal
+            // for the user right now.
+            if (rid != null && !paused) {
                 latestActiveRuns.value.forEach { run ->
-                    if (run.total > 0 && run.completed == run.total) {
+                    if (run.total > 0 && run.completed == run.total && run.runId !in reconciled) {
+                        reconciled.add(run.runId)
                         handlers.onReconcileStalledTranslation(rid, run.runId)
                     }
                 }
@@ -826,8 +845,8 @@ internal fun ColumnScope.GenerationPhase(
     // changes and we re-anchor to the top, which is what the user
     // wants to see.
     val newRowTrigger = "${secondaryRuns.size}|${fanOutSummaries.size}|${activeTranslationRuns.size}|${visibleTranslationSummaries.size}"
-    LaunchedEffect(currentReportId, newRowTrigger) {
-        if (currentReportId == null) return@LaunchedEffect
+    LaunchedEffect(currentReportId, newRowTrigger, paused) {
+        if (currentReportId == null || paused) return@LaunchedEffect
         resultListState.scrollToItem(0)
     }
     // Capture the icon-gen-enabled flag here (Composable scope) so the
@@ -878,9 +897,12 @@ internal fun ColumnScope.GenerationPhase(
                     // Cached emoji + miss-side kick-off live inside
                     // the `else` (success) branch below so failed
                     // and running rows keep ❌ / ⏳ unchanged.
+                    // Key on the prompts' id+name+title signature (not just
+                    // list size) so a rename/retitle that keeps the count
+                    // still refreshes the cached resolved prompt + emoji.
                     val resolvedPrompt = androidx.compose.runtime.remember(
                         run.fanInOf, run.metaPromptId,
-                        aiSettings.internalPrompts.size
+                        aiSettings.internalPrompts.map { "${it.id}|${it.name}|${it.title}" }
                     ) {
                         aiSettings.internalPrompts.firstOrNull {
                             it.id == run.fanInOf || it.id == run.metaPromptId
@@ -1067,7 +1089,8 @@ internal fun ColumnScope.GenerationPhase(
                     // promptId on the summary itself), so we walk the
                     // user's fan_out prompts and match by name.
                     val fanOutPrompt = androidx.compose.runtime.remember(
-                        run.metaPromptName, aiSettings.internalPrompts.size
+                        run.metaPromptName,
+                        aiSettings.internalPrompts.map { "${it.id}|${it.name}|${it.title}" }
                     ) {
                         aiSettings.internalPrompts.firstOrNull {
                             it.category == "fan_out" && it.name == run.metaPromptName
@@ -1372,7 +1395,10 @@ internal fun ColumnScope.GenerationPhase(
                 }
                 RowTypeCell("report")
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(com.ai.ui.shared.modelLabel(row.providerDisplay, displayName),
+                    // A generated per-model title (when present) replaces the
+                    // model name on the 'report' row — see [AgentModelTitle].
+                    val modelTitle = agentModelTitles[agentId]?.title?.takeIf { it.isNotBlank() }
+                    Text(modelTitle ?: com.ai.ui.shared.modelLabel(row.providerDisplay, displayName),
                         fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (result?.tokenUsage != null) {

@@ -125,11 +125,18 @@ fun ChatManageScreen(
 
     if (confirmDelete) {
         val days = daysText.toIntOrNull() ?: 0
-        val cutoff = System.currentTimeMillis() - days * 24L * 3600L * 1000L
+        // Freeze the cutoff against a single "now" captured per (open, daysText)
+        // rather than recomputing System.currentTimeMillis() every composition:
+        // otherwise the displayed count (candidates) and the actual delete set
+        // could drift across a minute boundary while the dialog sits open, and
+        // the cutoff used for the count wouldn't match the produceState key.
+        val cutoff = remember(daysText) {
+            System.currentTimeMillis() - days * 24L * 3600L * 1000L
+        }
         // Off the UI thread — getAllSessions() reads + parses every
         // chat-history JSON synchronously and could hitch / ANR for
         // long histories.
-        val candidates by produceState<List<com.ai.data.ChatSession>?>(initialValue = null, daysText) {
+        val candidates by produceState<List<com.ai.data.ChatSession>?>(initialValue = null, cutoff) {
             value = withContext(Dispatchers.IO) {
                 ChatHistoryManager.getAllSessions().filter { !it.pinned && it.updatedAt < cutoff }
             }
@@ -168,18 +175,23 @@ fun ChatManageScreen(
 }
 
 private fun zipAllChats(context: android.content.Context): Pair<File?, Int> {
-    val sessions = ChatHistoryManager.getAllSessions()
-    if (sessions.isEmpty()) return null to 0
     val ts = SimpleDateFormat("yyMMdd_HHmmss", Locale.US).format(Date())
     val outDir = File(context.cacheDir, "chat_backup").also { it.mkdirs() }
     val outFile = File(outDir, "ai_chats_backup_$ts.zip")
     val historyDir = File(context.filesDir, "chat-history")
+    // Only zip .json session files (skip any stray/foreign file a restore
+    // would choke on), and count the entries actually written so the
+    // "Bundled N chats" status matches the zip rather than the parsed list.
+    val files = historyDir.listFiles { f -> f.extension == "json" }?.toList().orEmpty()
+    if (files.isEmpty()) return null to 0
+    var written = 0
     ZipOutputStream(FileOutputStream(outFile)).use { zip ->
-        historyDir.listFiles()?.forEach { f ->
+        files.forEach { f ->
             zip.putNextEntry(ZipEntry("chat-history/${f.name}"))
             f.inputStream().use { it.copyTo(zip) }
             zip.closeEntry()
+            written++
         }
     }
-    return outFile to sessions.size
+    return outFile to written
 }

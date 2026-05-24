@@ -150,15 +150,23 @@ object KnowledgeStore {
         )
         val dir = File(rootDir!!, kb.id).also { it.mkdirs() }
         File(dir, CHUNKS_DIR).mkdirs()
-        saveManifest(dir, kb)
+        // Serialize the manifest write under the shared lock (Bug 39) so it
+        // can't interleave with a concurrent saveSource/renameKnowledgeBase
+        // read-modify-write on the same KB.
+        lock.withLock { saveManifest(dir, kb) }
         return kb
     }
 
     fun renameKnowledgeBase(context: Context, kbId: String, newName: String) {
         init(context)
         val kbDir = kbDirOrNull(kbId) ?: return
-        val current = loadKb(kbDir)
-        saveManifest(kbDir, current.copy(name = newName.ifBlank { current.name }))
+        // Take the lock around the manifest read-modify-write (Bug 39):
+        // an unlocked rename racing a locked saveSource could otherwise
+        // drop the just-added source or lose the rename.
+        lock.withLock {
+            val current = runCatching { loadKb(kbDir) }.getOrNull() ?: return
+            saveManifest(kbDir, current.copy(name = newName.ifBlank { current.name }))
+        }
     }
 
     fun deleteKnowledgeBase(context: Context, kbId: String) {
@@ -204,7 +212,10 @@ object KnowledgeStore {
                 return
             }
             chunkFile.writeTextAtomic(gson.toJson(chunks))
-            val current = loadKb(kbDir)
+            // A corrupt/missing manifest shouldn't throw out of the public
+            // API (Bug 40); the other public mutators wrap loadKb, so do the
+            // same here and bail rather than crash the index flow.
+            val current = runCatching { loadKb(kbDir) }.getOrNull() ?: return
             val replaced = current.sources.filter { it.id != source.id } + source.copy(
                 chunkCount = chunks.size,
                 charCount = chunks.sumOf { it.text.length }
@@ -247,7 +258,7 @@ object KnowledgeStore {
                 return@withLock
             }
             chunkFile.delete()
-            val current = loadKb(kbDir)
+            val current = runCatching { loadKb(kbDir) }.getOrNull() ?: return@withLock
             saveManifest(kbDir, current.copy(sources = current.sources.filter { it.id != sourceId }))
         }
     }

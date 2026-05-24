@@ -41,7 +41,10 @@ private data class ModelUsageEntry(
     val timestamp: Long,
     val typeLabel: String,
     val title: String,
-    val onOpen: () -> Unit
+    val onOpen: () -> Unit,
+    /** Whether tapping the row navigates anywhere. Chat rows have no
+     *  deep-link, so their row shouldn't appear clickable (no ripple). */
+    val navigable: Boolean = true
 )
 
 /** Walk every chat session, report, and per-report secondary result;
@@ -62,14 +65,22 @@ private fun computeModelUsages(
         return if (firstLine.length > 80) firstLine.take(80) + "…" else firstLine
     }
     ChatHistoryManager.init(context)
-    ChatHistoryManager.getAllSessions().forEach { s ->
-        if (s.provider.id == provider.id && s.model == model) {
+    // Bound chat collection to the newest matching sessions: the final list is
+    // take(10) after a cross-source sort, but if chats were added unbounded a
+    // user with >30 sessions on this model would exhaust the candidate cap
+    // before any report/secondary candidate was even considered, dropping a
+    // recent report that should have ranked top-10.
+    ChatHistoryManager.getAllSessions()
+        .filter { it.provider.id == provider.id && it.model == model }
+        .sortedByDescending { it.updatedAt }
+        .take(30)
+        .forEach { s ->
             out += ModelUsageEntry(
                 timestamp = s.updatedAt, typeLabel = "Chat", title = chatTitle(s),
-                onOpen = {} // chat session deep-link not supported; row is informational
+                onOpen = {}, // chat session deep-link not supported; row is informational
+                navigable = false
             )
         }
-    }
     // Walk reports newest-first and stop once we have a comfortable
     // surplus of candidates — the final list is take(10) after a
     // fan out-source sort, so a 3× cap (30) covers chat / report / per-
@@ -80,8 +91,12 @@ private fun computeModelUsages(
     // dozen reports on disk.
     val reports = ReportStorage.getAllReports(context).sortedByDescending { it.timestamp }
     val candidateCap = 30
+    // Cap only the report/secondary candidates (the chat candidates above are
+    // already capped separately), so reports are always considered regardless
+    // of how many chat sessions exist.
+    val reportStartSize = out.size
     for (report in reports) {
-        if (out.size >= candidateCap) break
+        if (out.size - reportStartSize >= candidateCap) break
         report.agents.forEach { agent ->
             if (agent.provider == provider.id && agent.model == model) {
                 out += ModelUsageEntry(
@@ -119,10 +134,15 @@ private data class ModelInfoData(
 private object ModelInfoCache {
     @Volatile private var apiKey: String? = null
     @Volatile private var openRouterModels: List<OpenRouterModelInfo>? = null
+    @Volatile private var fetchedAt: Long = 0L
+    // Refresh at most once per 6h within a process: keying solely on apiKey
+    // meant a stale catalog was served for the whole process lifetime.
+    private const val TTL_MS = 6L * 60 * 60 * 1000
 
     suspend fun getOpenRouterModels(apiKey: String): List<OpenRouterModelInfo> {
         if (apiKey.isBlank()) return emptyList()
-        if (this.apiKey == apiKey) {
+        val fresh = System.currentTimeMillis() - fetchedAt < TTL_MS
+        if (this.apiKey == apiKey && fresh) {
             openRouterModels?.let { return it }
         }
         val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
@@ -130,6 +150,7 @@ private object ModelInfoCache {
         val models = if (response.isSuccessful) response.body()?.data ?: emptyList() else emptyList()
         this.apiKey = apiKey
         openRouterModels = models
+        fetchedAt = System.currentTimeMillis()
         return models
     }
 }
@@ -212,9 +233,13 @@ fun ModelInfoScreen(
             // across providers (gpt-4o exists on OpenAI / Azure / OpenRouter
             // proxies / etc.), so the previous count conflated calls to the
             // same model name on every provider into the per-provider total.
-            val providerHost = runCatching {
-                java.net.URI(provider.baseUrl).host?.lowercase()
-            }.getOrNull()
+            // The synthetic LOCAL provider has a blank baseUrl, so derive its
+            // host explicitly ("local", matching LocalLlm/LocalEmbedder traces)
+            // rather than falling back to model-name-only matching — which would
+            // conflate same-name models across providers, the exact bug the host
+            // match exists to prevent.
+            val providerHost = if (provider.id == "LOCAL") "local"
+                else runCatching { java.net.URI(provider.baseUrl).host?.lowercase() }.getOrNull()
             ApiTracer.getTraceFiles().count { tf ->
                 tf.model == modelName &&
                     (providerHost == null || tf.hostname.equals(providerHost, ignoreCase = true))
@@ -223,8 +248,23 @@ fun ModelInfoScreen(
     }
     val usageEntry by produceState<com.ai.model.UsageStats?>(initialValue = null, provider, modelName) {
         value = withContext(Dispatchers.IO) {
+            // Usage stats are keyed "${provider.id}::$model::$kind" (3-part).
+            // A 2-part lookup never matched, so the AI Usage card always read
+            // "No usage recorded yet". Aggregate across kinds via the same
+            // prefix match the View screen uses.
             val prefs = context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE)
-            SettingsPreferences(prefs, context.filesDir).loadUsageStats()["${provider.id}::$modelName"]
+            val all = SettingsPreferences(prefs, context.filesDir).loadUsageStats()
+            val prefix = "${provider.id}::$modelName::"
+            val matching = all.filterKeys { it.startsWith(prefix) }.values
+            if (matching.isEmpty()) null
+            else com.ai.model.UsageStats(
+                provider = provider, model = modelName,
+                callCount = matching.sumOf { it.callCount },
+                inputTokens = matching.sumOf { it.inputTokens },
+                outputTokens = matching.sumOf { it.outputTokens },
+                kind = "all",
+                searchUnits = matching.sumOf { it.searchUnits }
+            )
         }
     }
     val usageCost by produceState<Double?>(initialValue = null, usageEntry) {
@@ -300,6 +340,10 @@ fun ModelInfoScreen(
     // in its own background coroutine so a DNS timeout on huggingface.co
     // can't stall the rest of the page; the HF-dependent cards just
     // appear when the call returns (or never, for a cached miss).
+    // The HF model id that actually resolved (a "-"/"." variant may match
+    // instead of the literal modelName). Surfaced as the raw-source "called
+    // URL" so the displayed URL reflects the request that succeeded.
+    var hfMatchedId by remember(provider, modelName) { mutableStateOf<String?>(null) }
     val hfInfo by produceState<HuggingFaceModelInfo?>(initialValue = null, provider, modelName) {
         value = withContext(Dispatchers.IO) {
             val cached = HuggingFaceCache.get(context, provider.id, modelName)
@@ -320,7 +364,7 @@ fun ModelInfoScreen(
             for (cand in variants) {
                 try {
                     val resp = ApiFactory.createHuggingFaceApi().getModelInfo(cand, "Bearer $huggingFaceApiKey")
-                    if (resp.isSuccessful) { found = resp.body(); break }
+                    if (resp.isSuccessful) { found = resp.body(); hfMatchedId = cand; break }
                 } catch (_: Exception) { /* swallow; cache the miss below */ }
             }
             HuggingFaceCache.put(context, provider.id, modelName, found)
@@ -364,7 +408,10 @@ fun ModelInfoScreen(
     }
     val canRequestIntro = pageApiKey.isNotBlank()
     LaunchedEffect(introCacheKey) {
-        PromptCache.get(introCacheKey)?.let { aiDescription = it }
+        // Read via getRaw (no destructive 48h TTL) like the View screen, so a
+        // cached intro doesn't silently disappear after 48h and re-prompt an
+        // "Ask" on the same model the user already introduced.
+        withContext(Dispatchers.IO) { PromptCache.getRaw(introCacheKey) }?.let { aiDescription = it.response }
     }
     val requestIntroduction: () -> Unit = req@{
         if (!canRequestIntro || isAiLoading) return@req
@@ -643,7 +690,7 @@ fun ModelInfoScreen(
                                             rawView = RawView(
                                                 title = "HuggingFace · $modelName", body = body,
                                                 provider = com.ai.ui.admin.INFO_PROVIDERS_BY_TOPIC["info_provider_huggingface"],
-                                                calledUrl = "https://huggingface.co/api/models/$modelName"
+                                                calledUrl = "https://huggingface.co/api/models/${hfMatchedId ?: modelName}"
                                             )
                                         },
                                         modifier = Modifier.weight(1f),
@@ -1114,7 +1161,9 @@ fun ModelInfoScreen(
                                     val dateFormat = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US) }
                                     recentUsages.forEach { entry ->
                                         Row(
-                                            modifier = Modifier.fillMaxWidth().clickable { entry.onOpen() }.padding(vertical = 4.dp),
+                                            modifier = Modifier.fillMaxWidth()
+                                                .let { if (entry.navigable) it.clickable { entry.onOpen() } else it }
+                                                .padding(vertical = 4.dp),
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(

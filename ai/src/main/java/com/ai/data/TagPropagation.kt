@@ -139,15 +139,18 @@ class TagPropagatingExecutor(
             val previousSuppressRetry = ProviderThrottle.suppressInlineRetry.get() == true
             val previousSink = ApiTracer.traceFilenameSink.get()
             ApiTracer.currentTags.set(captured)
-            if (capturedPreAcquired) ProviderThrottle.permitPreAcquired.set(true)
-            if (capturedSuppressRetry) ProviderThrottle.suppressInlineRetry.set(true)
+            // Always set the captured value (even when false) so a stale `true`
+            // left by a prior Runnable on this pooled cached-thread cannot leak
+            // into this call's throttle/retry decisions (Bug 12).
+            ProviderThrottle.permitPreAcquired.set(capturedPreAcquired)
+            ProviderThrottle.suppressInlineRetry.set(capturedSuppressRetry)
             ApiTracer.traceFilenameSink.set(capturedSink)
             try {
                 command.run()
             } finally {
                 ApiTracer.currentTags.set(previousTags)
-                if (capturedPreAcquired) ProviderThrottle.permitPreAcquired.set(previousPreAcquired)
-                if (capturedSuppressRetry) ProviderThrottle.suppressInlineRetry.set(previousSuppressRetry)
+                ProviderThrottle.permitPreAcquired.set(previousPreAcquired)
+                ProviderThrottle.suppressInlineRetry.set(previousSuppressRetry)
                 ApiTracer.traceFilenameSink.set(previousSink)
             }
         }

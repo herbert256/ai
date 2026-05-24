@@ -271,7 +271,12 @@ fun CostsViewScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(text = "💰", fontSize = 30.sp, modifier = Modifier.padding(end = 8.dp))
                 Text(
-                    text = "Total",
+                    // This screen deliberately omits the "costs from deleted
+                    // items" line (see header doc), so the figure is the
+                    // total for the *current* items only — label it as such
+                    // so it doesn't read as the report's grand total (which
+                    // the Manage bottom bar / HTML export include deleted in).
+                    text = "Current items total",
                     color = AppColors.TextPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.SemiBold
@@ -435,7 +440,7 @@ private fun BucketBar(bucket: BucketTotal, totalCents: Double, onClick: (() -> U
                 .clip(RoundedCornerShape(5.dp))
                 .background(Color(0x33000000))
         ) {
-            val frac = pct.coerceAtLeast(0.01f.toDouble()).coerceAtMost(1.0)
+            val frac = pct.coerceAtLeast(0.01).coerceAtMost(1.0)
             Box(
                 modifier = Modifier
                     .fillMaxWidth(fraction = frac.toFloat())

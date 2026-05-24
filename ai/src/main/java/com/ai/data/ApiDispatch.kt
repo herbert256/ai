@@ -580,7 +580,15 @@ private suspend fun AnalysisRepository.chatGemini(
     )
     val response = api.generateContent(model, apiKey, request)
     if (response.isSuccessful) {
-        return response.body()?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text ?: throw Exception("No response content")
+        val body = response.body()
+        val joined = body?.candidates
+            ?.flatMap { it.content?.parts ?: emptyList() }
+            ?.mapNotNull { it.text }
+            ?.joinToString(separator = "")
+            ?.takeIf { it.isNotEmpty() }
+        val content = joined
+            ?: body?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text
+        return content ?: throw Exception("No response content")
     } else {
         val errorBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
         throw Exception("API error: ${response.code()} ${response.message()} - $errorBody")
@@ -971,10 +979,27 @@ suspend fun AnalysisRepository.testApiConnectionWithJson(
             if (response.isSuccessful) {
                 val responseBody = response.body?.string()
                 try {
-                    val oaiResponse = createAppGson().fromJson(responseBody, OpenAiResponse::class.java)
-                    val content = oaiResponse?.choices?.firstOrNull()?.message?.contentAsString()
-                    val usage = oaiResponse?.usage?.toTokenUsage(service)
-                    if (content != null) AnalysisResponse(service, content, null, usage, httpHeaders = headers, httpStatusCode = statusCode)
+                    // Parse the success body by the provider's API format
+                    // (Bug 11): a Gemini/Anthropic provider returns a shape
+                    // that OpenAiResponse can't match, which previously fell
+                    // through to the raw-body branch and could mislabel a
+                    // working provider.
+                    val content: String? = when (service.apiFormat) {
+                        ApiFormat.GOOGLE -> {
+                            val g = createAppGson().fromJson(responseBody, GeminiResponse::class.java)
+                            g?.candidates?.flatMap { it.content?.parts ?: emptyList() }
+                                ?.mapNotNull { it.text }?.joinToString(separator = "")?.takeIf { it.isNotEmpty() }
+                        }
+                        ApiFormat.ANTHROPIC -> {
+                            val c = createAppGson().fromJson(responseBody, ClaudeResponse::class.java)
+                            c?.content?.mapNotNull { it.text }?.joinToString(separator = "")?.takeIf { it.isNotEmpty() }
+                        }
+                        else -> {
+                            val oaiResponse = createAppGson().fromJson(responseBody, OpenAiResponse::class.java)
+                            oaiResponse?.choices?.firstOrNull()?.message?.contentAsString()
+                        }
+                    }
+                    if (content != null) AnalysisResponse(service, content, null, null, httpHeaders = headers, httpStatusCode = statusCode)
                     else AnalysisResponse(service, responseBody, null, httpHeaders = headers, httpStatusCode = statusCode)
                 } catch (_: Exception) { AnalysisResponse(service, responseBody, null, httpHeaders = headers, httpStatusCode = statusCode) }
             } else {
@@ -1107,7 +1132,11 @@ internal fun buildChatUrl(
     val cleanedChatPath = chatPath.trim('/')
     if (cleanedChatPath.isEmpty()) return baseUrl
     var trimmedUrl = baseUrl.trimEnd('/')
-    if (trimmedUrl.endsWith("/$cleanedChatPath") || trimmedUrl.endsWith(cleanedChatPath)) {
+    // Require a `/` boundary (Bug 79): the bare `endsWith(cleanedChatPath)`
+    // branch matched a base whose path merely ends with the chat-path
+    // substring (e.g. ".../myv1/chat/completions" vs "v1/chat/completions"),
+    // wrongly treating it as already-terminated.
+    if (trimmedUrl.endsWith("/$cleanedChatPath")) {
         return trimmedUrl
     }
     for (alt in alternatePaths) {

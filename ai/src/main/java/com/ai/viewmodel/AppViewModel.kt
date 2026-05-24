@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.updateAndGet
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -2017,9 +2018,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                             // pricing / capability lookups (see
                             // ModelListCache).
                             ModelListCache.save(getApplication(), service, fetched.rawResponse)
-                            _uiState.update { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities, fetched.rawResponse)) }
+                            // Use updateAndGet so the provider config we
+                            // persist comes from the exact post-update
+                            // snapshot this lambda produced, not a later
+                            // _uiState.value that a concurrent provider's
+                            // update may have replaced (Bug 54).
+                            val updated = _uiState.updateAndGet { state -> state.copy(aiSettings = state.aiSettings.withModels(service, fetched.ids, fetched.types, fetched.visionModels, fetched.capabilities, fetched.rawResponse)) }
                             // Persist with the freshly-merged visionModels (auto + user override), capability map, and raw response snapshot.
-                            val cfg = _uiState.value.aiSettings.getProvider(service)
+                            val cfg = updated.aiSettings.getProvider(service)
                             settingsPrefs.saveModelsForProvider(service, fetched.ids, fetched.types, cfg.visionModels, cfg.modelCapabilities, cfg.modelListRawJson)
                             service to fetched.ids.size
                         } catch (e: kotlinx.coroutines.CancellationException) {

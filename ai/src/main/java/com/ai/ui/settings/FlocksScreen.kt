@@ -35,7 +35,12 @@ fun FlockEditScreen(
 
     var resetTick by remember { mutableStateOf(0) }
     var name by remember(resetTick) { mutableStateOf(flock?.name ?: "") }
-    var selectedAgentIds by remember(resetTick) { mutableStateOf((flock?.agentIds ?: emptyList()).toSet()) }
+    // LinkedHashSet so membership keeps insertion order (parity with the
+    // Swarm path's ordered member list) — a plain Set yielded arbitrary
+    // save order.
+    var selectedAgentIds by remember(resetTick) {
+        mutableStateOf<Set<String>>(LinkedHashSet(flock?.agentIds ?: emptyList()))
+    }
     var searchQuery by remember { mutableStateOf("") }
     var selectedParamsIds by remember(resetTick) { mutableStateOf(flock?.paramsIds ?: emptyList()) }
     var selectedSystemPromptId by remember(resetTick) { mutableStateOf(flock?.systemPromptId) }
@@ -57,8 +62,11 @@ fun FlockEditScreen(
         else -> null
     }
 
-    val availableAgents = remember(aiSettings.agents) {
-        aiSettings.agents.filter { aiSettings.isProviderActive(it.provider) }
+    // Show active agents PLUS any already-selected agent whose provider
+    // later went inactive — otherwise a hidden member is silently kept on
+    // save and the "N selected of M" count can exceed M (Bug 3).
+    val availableAgents = remember(aiSettings.agents, selectedAgentIds) {
+        aiSettings.agents.filter { aiSettings.isProviderActive(it.provider) || it.id in selectedAgentIds }
     }
     val filteredAgents = remember(searchQuery, availableAgents) {
         if (searchQuery.isBlank()) availableAgents
@@ -99,7 +107,7 @@ fun FlockEditScreen(
         Button(
             onClick = {
                 val id = if (isAddMode) java.util.UUID.randomUUID().toString() else flock!!.id
-                onSave(Flock(id, name.trim(), selectedAgentIds.toList(), selectedParamsIds, selectedSystemPromptId))
+                onSave(Flock(id, name.trim(), selectedAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId))
             },
             enabled = nameError == null && selectedAgentIds.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
@@ -138,8 +146,14 @@ fun FlockEditScreen(
                         selectedAgentIds = if (isChecked) selectedAgentIds - agent.id else selectedAgentIds + agent.id
                     })
                     Spacer(modifier = Modifier.width(8.dp))
+                    val inactive = !aiSettings.isProviderActive(agent.provider)
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(agent.name, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            if (inactive) "${agent.name} (inactive)" else agent.name,
+                            fontSize = 14.sp,
+                            color = if (inactive) AppColors.TextTertiary else Color.White,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis
+                        )
                         Text(com.ai.ui.shared.modelLabel(agent.provider.id, effectiveModel),
                             fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }

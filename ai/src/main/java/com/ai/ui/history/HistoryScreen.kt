@@ -56,19 +56,32 @@ fun HistoryScreenNav(
     var searchPrompt by remember { mutableStateOf("") }
     var searchReport by remember { mutableStateOf("") }
     var searchExpanded by remember { mutableStateOf(false) }
-    var currentPage by remember { mutableIntStateOf(0) }
+    // rememberSaveable so the user's place survives rotation (like
+    // PromptHistoryScreen / ChatHistoryScreen).
+    var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
     val isSearchActive = searchTitle.isNotBlank() || searchPrompt.isNotBlank() || searchReport.isNotBlank()
-    val filteredReports = remember(allReports, searchTitle, searchPrompt, searchReport) {
-        if (!isSearchActive) allReports
-        else allReports.filter { report ->
-            (searchTitle.isBlank() || report.title.contains(searchTitle, ignoreCase = true)) &&
-            (searchPrompt.isBlank() || report.prompt.contains(searchPrompt, ignoreCase = true)) &&
-            (searchReport.isBlank() || report.agents.any { it.responseBody?.contains(searchReport, ignoreCase = true) == true })
+    // Debounce + off-main-thread filtering: the Response filter scans every
+    // agent's responseBody (potentially MB each); doing it synchronously in
+    // composition per keystroke hitched the UI on large histories. While the
+    // debounce is pending we keep showing the previous result.
+    val filteredReports by produceState(initialValue = allReports, allReports, searchTitle, searchPrompt, searchReport) {
+        if (!isSearchActive) { value = allReports; return@produceState }
+        kotlinx.coroutines.delay(250)
+        value = withContext(Dispatchers.Default) {
+            allReports.filter { report ->
+                (searchTitle.isBlank() || report.title.contains(searchTitle, ignoreCase = true)) &&
+                (searchPrompt.isBlank() || report.prompt.contains(searchPrompt, ignoreCase = true)) &&
+                (searchReport.isBlank() || report.agents.any { it.responseBody?.contains(searchReport, ignoreCase = true) == true })
+            }
         }
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        // Defer paging until the constraints are actually measured — during the
+        // pre-measure frame maxHeight is 0, which would compute pageSize=1 and
+        // flicker the page count / momentarily clamp currentPage.
+        if (maxHeight.value <= 0f) return@BoxWithConstraints
         val rowHeight = 56
         val overhead = if (searchExpanded) 280 else 150
         val pageSize = maxOf(1, ((maxHeight.value - overhead) / rowHeight).toInt())
@@ -138,6 +151,12 @@ fun HistoryScreenNav(
                             // every report file on every delete — an
                             // O(N²) cost when the user deleted in bulk.
                             allReports = allReports.filterNot { it.id == report.id }
+                            // Clamp the page in the same handler that shrinks the
+                            // list so the last page can't momentarily render empty
+                            // before the reactive LaunchedEffect(totalPages) fires.
+                            val remaining = filteredReports.size - 1
+                            val newTotalPages = if (remaining <= 0) 1 else (remaining + pageSize - 1) / pageSize
+                            if (currentPage >= newTotalPages) currentPage = (newTotalPages - 1).coerceAtLeast(0)
                             scope.launch(Dispatchers.IO) {
                                 ReportStorage.deleteReport(context, report.id)
                             }

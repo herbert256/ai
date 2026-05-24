@@ -291,16 +291,29 @@ fun ChatSessionScreen(
         val b64 = initialUserImageBase64
         if (mime != null && b64 != null) mime to b64 else null
     }
-    LaunchedEffect(Unit) { onConsumeStarter() }
+    // Gate the one-time starter seed on a saveable flag so a second
+    // composition (config change before the parent clears the staged
+    // starter from UiState) can't re-seed and overwrite typed text.
+    var starterConsumed by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (!starterConsumed) { onConsumeStarter(); starterConsumed = true }
+    }
     // rememberSaveable so a rotation / process-recreation between
     // staging the prompt (or an attached image) and tapping Send
-    // doesn't drop the user's typed text and image. The starter is
-    // already consumed at this point so the saved state takes over.
-    var userInput by rememberSaveable { mutableStateOf(starter ?: "") }
+    // doesn't drop the user's typed text and image. Once the starter is
+    // consumed the saved state takes over; the seed only applies on the
+    // very first composition.
+    var userInput by rememberSaveable { mutableStateOf(if (starterConsumed) "" else (starter ?: "")) }
     var error by remember { mutableStateOf<String?>(null) }
     var isStreaming by remember { mutableStateOf(false) }
     val streamingContentState = remember { mutableStateOf("") }
-    var totalCost by remember { mutableDoubleStateOf(0.0) }
+    // Accumulate per-turn token counts rather than a baked-in cost sum so the
+    // running total is always priced at the CURRENT pricing tier. This fixes
+    // the cold-pricing window: turns that completed before PricingCache primed
+    // used to stay frozen at default rates in the accumulator; now they re-price
+    // once `pricing` recomputes (matching DualChatScreen's convention).
+    var totalInputTokens by remember { mutableIntStateOf(0) }
+    var totalOutputTokens by remember { mutableIntStateOf(0) }
     // (mime, base64) of an image attached to the next user message.
     // rememberSaveable via a Saver so a rotation / process-recreation
     // between picking the image and tapping Send doesn't drop it.
@@ -387,17 +400,29 @@ fun ChatSessionScreen(
     // finished loading. Same pattern as DualChatScreen.
     val pricingTick = com.ai.ui.shared.resumeRefreshTick()
     val pricing = remember(provider, model, pricingTick) { PricingCache.getPricing(context, provider, model) }
+    // Running cost in cents, always priced at the current tier (re-derives when
+    // pricing primes or token totals change).
+    val totalCost by remember {
+        derivedStateOf {
+            (totalInputTokens * pricing.promptPrice + totalOutputTokens * pricing.completionPrice) * 100
+        }
+    }
 
+    // Load the persisted session record ONCE on entry rather than calling
+    // loadSession three separate times (pinned / KB ids / title) during
+    // composition — for an image-heavy session that was three multi-MB
+    // JSON parses on the main thread per recomposition.
+    val persistedSession = remember(currentSessionId) { ChatHistoryManager.loadSession(currentSessionId) }
     // Read the persisted pinned flag once on entry so subsequent saves
     // preserve it. Toggled below by the 📌 pill next to the model line.
     var pinned by remember(currentSessionId) {
-        mutableStateOf(ChatHistoryManager.loadSession(currentSessionId)?.pinned == true)
+        mutableStateOf(persistedSession?.pinned == true)
     }
     // Knowledge bases attached to this session — read once on entry,
     // toggled by the 📚 chip below the model line. Persisted with
     // every saveSession so resume keeps the attachment.
     var attachedKnowledgeBaseIds by remember(currentSessionId) {
-        mutableStateOf(ChatHistoryManager.loadSession(currentSessionId)?.knowledgeBaseIds.orEmpty())
+        mutableStateOf(persistedSession?.knowledgeBaseIds.orEmpty())
     }
     var showKbDialog by remember { mutableStateOf(false) }
     val kbRefreshTick = com.ai.ui.shared.resumeRefreshTick()
@@ -409,7 +434,7 @@ fun ChatSessionScreen(
     // the first 10 words of the user's prompt and then replaced
     // asynchronously by the chat_title internal prompt.
     var sessionTitle by rememberSaveable(currentSessionId) {
-        mutableStateOf(ChatHistoryManager.loadSession(currentSessionId)?.title.orEmpty())
+        mutableStateOf(persistedSession?.title.orEmpty())
     }
 
     fun saveSession(msgs: List<ChatMessage>) {
@@ -423,9 +448,12 @@ fun ChatSessionScreen(
             webSearchTool = useWebSearch,
             reasoningEffort = reasoningEffort.ifBlank { null }
         )
-        ChatHistoryManager.saveSession(
-            ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = persistedParams, updatedAt = System.currentTimeMillis(), pinned = pinned, knowledgeBaseIds = attachedKnowledgeBaseIds, title = sessionTitle)
-        )
+        // Build the record on the (cheap) caller thread but push the
+        // atomic file write off the main thread — a large image-heavy
+        // session JSON write otherwise blocks the UI on every send /
+        // system-prompt change / pin-or-KB toggle.
+        val session = ChatSession(id = currentSessionId, provider = provider, model = model, messages = msgs, parameters = persistedParams, updatedAt = System.currentTimeMillis(), pinned = pinned, knowledgeBaseIds = attachedKnowledgeBaseIds, title = sessionTitle)
+        scope.launch(Dispatchers.IO) { ChatHistoryManager.saveSession(session) }
     }
 
     // System prompt initialization. Replace any existing system
@@ -524,15 +552,25 @@ fun ChatSessionScreen(
             isStreaming = true; streamingContentState.value = ""
             val sb = StringBuilder()
             try {
-                com.ai.data.withTraceCategory("Chat") {
+                // Tag chat traces with this session's id (reportId slot) so the
+                // per-bubble 🐞 lookup can filter to THIS session's traces — a
+                // model-name + closest-timestamp match alone pulled in traces
+                // from other chat sessions using the same model.
+                com.ai.data.withTracerTags(reportId = currentSessionId, category = "Chat") {
                     onSendMessageStream(sentMessages, sentWebSearch, sentReasoning, sentKbIds).collect { chunk -> sb.append(chunk); streamingContentState.value = sb.toString() }
                 }
-                val assistantMsg = ChatMessage(role = "assistant", content = streamingContentState.value)
+                // Build the saved message and token count from the local
+                // StringBuilder that actually accumulated the chunks, not from
+                // the mutable UI state (which the finally block clears) — these
+                // can diverge if an exception lands between append and assign.
+                val finalContent = sb.toString()
+                val assistantMsg = ChatMessage(role = "assistant", content = finalContent)
                 val isFirstAssistantTurn = messages.none { it.role == "assistant" }
                 messages = messages + assistantMsg
                 saveSession(messages)
-                val outputTokens = AppViewModel.estimateTokens(streamingContentState.value)
-                totalCost += inputTokens * pricing.promptPrice * 100 + outputTokens * pricing.completionPrice * 100
+                val outputTokens = AppViewModel.estimateTokens(finalContent)
+                totalInputTokens += inputTokens
+                totalOutputTokens += outputTokens
                 onRecordStatistics(inputTokens, outputTokens)
                 // After the very first assistant response, kick off a
                 // background DeepSeek call (chat_title internal prompt)
@@ -665,10 +703,12 @@ fun ChatSessionScreen(
                 modifier = Modifier
                     .clickable {
                         pinned = !pinned
-                        // Touch the persisted record immediately so the
-                        // hub picks the new state up without waiting for
-                        // the next message save.
-                        ChatHistoryManager.setSessionPinned(currentSessionId, pinned)
+                        // Touch the persisted record so the hub picks up the
+                        // new state without waiting for the next message save.
+                        // setSessionPinned does a load+rewrite, so push it off
+                        // the main thread.
+                        val newPinned = pinned
+                        scope.launch(Dispatchers.IO) { ChatHistoryManager.setSessionPinned(currentSessionId, newPinned) }
                     }
                     .padding(horizontal = 8.dp, vertical = 2.dp)
             )
@@ -706,9 +746,18 @@ fun ChatSessionScreen(
                     modifier = Modifier.fillMaxSize().padding(8.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom)
                 ) {
-                    items(displayMessages.size, key = { "${displayMessages[it].role}_${displayMessages[it].timestamp}_$it" }) { idx ->
+                    items(
+                        displayMessages.size,
+                        // Stable, non-positional key: role + timestamp + content
+                        // hash. Including the list index made the key positional,
+                        // so any insertion re-keyed every following item and forced
+                        // full re-composition. The content hash disambiguates two
+                        // messages that share role+timestamp (system + first user
+                        // seeded in the same ms).
+                        key = { "${displayMessages[it].role}_${displayMessages[it].timestamp}_${displayMessages[it].content.hashCode()}" }
+                    ) { idx ->
                         val msg = displayMessages[idx]
-                        ChatMessageBubble(msg, userName, model, onNavigateToTraceFile)
+                        ChatMessageBubble(msg, userName, model, onNavigateToTraceFile, currentSessionId)
                     }
                     if (isStreaming) {
                         item(key = "streaming") {
@@ -952,21 +1001,24 @@ private fun ChatMessageBubble(
     message: ChatMessage,
     userName: String = "You",
     model: String = "",
-    onNavigateToTraceFile: (String) -> Unit = {}
+    onNavigateToTraceFile: (String) -> Unit = {},
+    sessionId: String = ""
 ) {
     val isUser = message.role == "user"
     // For assistant messages, look up the trace file recorded by the
     // OkHttp interceptor for this session's model. Match heuristic:
-    // same model, no reportId (chat traces aren't tagged with one),
-    // closest timestamp to the message. Off the UI thread because
-    // ApiTracer.getTraceFiles parses every JSON.
+    // traces are now tagged with this session's id (reportId slot), so
+    // filter on it + model, then pick the closest timestamp to the
+    // message — this keeps the match within the session instead of
+    // pulling in another session's trace for the same model. Falls back
+    // to untagged (reportId == null) traces from before this fix.
     val traceFilenameState = if (isUser || model.isBlank()) null
-        else produceState<String?>(initialValue = null, message.timestamp, model) {
+        else produceState<String?>(initialValue = null, message.timestamp, model, sessionId) {
             value = withContext(Dispatchers.IO) {
-                com.ai.data.ApiTracer.getTraceFiles()
-                    .filter { it.reportId == null && it.model == model }
-                    .minByOrNull { kotlin.math.abs(it.timestamp - message.timestamp) }
-                    ?.filename
+                val all = com.ai.data.ApiTracer.getTraceFiles().filter { it.model == model }
+                val scoped = all.filter { it.reportId == sessionId }
+                val candidates = scoped.ifEmpty { all.filter { it.reportId == null } }
+                candidates.minByOrNull { kotlin.math.abs(it.timestamp - message.timestamp) }?.filename
             }
         }
     Card(
@@ -1049,21 +1101,22 @@ private fun StreamingMessageBubble(content: String) {
 @Composable
 private fun AnimatedTextLines(content: String) {
     val lines = content.split("\n")
+    val targetLineCount = lines.size
     var visibleLineCount by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(content) {
-        if (lines.size < visibleLineCount) visibleLineCount = lines.size
-        // Fade lines in at ~80ms per line for normal-length responses,
-        // and snap to fully-visible when there are too many to reveal
-        // gracefully — a 100-line response was previously taking 50
-        // seconds at the old 500ms cadence.
-        if (lines.size > 30) {
-            visibleLineCount = lines.size
+    // Key on the line-count target, not on `content`: keying on content
+    // restarted the delay loop on EVERY chunk, which made the reveal flicker
+    // and oscillate. The target only grows during streaming, so the loop walks
+    // monotonically up to it. Snap when there are too many lines to reveal
+    // gracefully (a 100-line response used to take ~50s at the old cadence).
+    LaunchedEffect(targetLineCount) {
+        if (targetLineCount > 30) {
+            visibleLineCount = targetLineCount
             return@LaunchedEffect
         }
-        while (visibleLineCount < lines.size) {
+        while (visibleLineCount < targetLineCount) {
             kotlinx.coroutines.delay(80)
-            visibleLineCount = minOf(visibleLineCount + 1, lines.size)
+            visibleLineCount = minOf(visibleLineCount + 1, targetLineCount)
         }
     }
 

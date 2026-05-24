@@ -66,6 +66,12 @@ fun SemanticSearchScreen(
     // time and overridden by the user via Manual model types overrides.
     val embeddingChoices = remember(aiSettings) { supportedEmbeddingChoices(aiSettings) }
     var picked by remember { mutableStateOf(embeddingChoices.firstOrNull()) }
+    // Reconcile selection when the choice set changes (e.g. provider deactivated):
+    // drop a stale pick to the first valid choice so searches never run against
+    // an inactive provider's blank key.
+    LaunchedEffect(embeddingChoices) {
+        if (picked != null && picked !in embeddingChoices) picked = embeddingChoices.firstOrNull()
+    }
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<SearchHit>>(emptyList()) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -141,7 +147,10 @@ fun SemanticSearchScreen(
                 scope.launch {
                     val hits = withContext(Dispatchers.IO) {
                         runEmbeddingSearch(context, repository, svc, key, model, q) { msg ->
-                            scope.launch(Dispatchers.Main) { status = msg }
+                            // Hop to Main on the same coroutine so progress writes
+                            // are lifecycle-bound (cancelled with the search) rather
+                            // than fire-and-forget Main launches that outlive disposal.
+                            withContext(Dispatchers.Main) { status = msg }
                         }
                     }
                     results = hits
@@ -214,22 +223,23 @@ private suspend fun runEmbeddingSearch(
     apiKey: String,
     model: String,
     query: String,
-    onProgress: (String) -> Unit
+    onProgress: suspend (String) -> Unit
 ): List<SearchHit> {
     val queryVec = repository.embed(service, apiKey, model, listOf(query))?.firstOrNull() ?: return emptyList()
     val reports: List<Report> = ReportStorage.getAllReports(context)
     val iconById = reports.associate { it.id to it.icon }
     val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
-    val toEmbed = mutableListOf<Triple<String, String, String>>() // (reportId, repText, displayTitle)
-    val cached = mutableListOf<Triple<String, List<Double>, String>>() // already-embedded: id, vec, title
+    val toEmbed = mutableListOf<CloudEmbedCandidate>() // (reportId, repText, displayTitle, timestamp)
+    val cached = mutableListOf<CloudCachedCandidate>() // already-embedded: id, vec, title, timestamp
 
     for ((i, r) in reports.withIndex()) {
         if (i % 10 == 0) onProgress("Indexing reports… ${i + 1} / ${reports.size}")
         val rep = "${r.title}\n${r.prompt}\n${r.agents.firstOrNull { !it.responseBody.isNullOrBlank() }?.responseBody?.take(2000) ?: ""}"
-        val title = r.title.ifBlank { "(untitled)" } + " — " + df.format(Date(r.timestamp))
+        val title = r.title.ifBlank { "(untitled)" }
+        val ts = df.format(Date(r.timestamp))
         val existing = EmbeddingsStore.get(context, r.id, service.id, model, rep)
-        if (existing != null) cached += Triple(r.id, existing, title)
-        else toEmbed += Triple(r.id, rep, title)
+        if (existing != null) cached += CloudCachedCandidate(r.id, existing, title, ts)
+        else toEmbed += CloudEmbedCandidate(r.id, rep, title, ts)
     }
 
     // Batch the new ones up to 50 at a time — most providers allow at least
@@ -237,16 +247,21 @@ private suspend fun runEmbeddingSearch(
     val batched = toEmbed.chunked(50)
     for ((batchIdx, batch) in batched.withIndex()) {
         onProgress("Embedding batch ${batchIdx + 1} / ${batched.size} (${batch.size} reports)")
-        val vecs = repository.embed(service, apiKey, model, batch.map { it.second }) ?: return emptyList()
+        val vecs = repository.embed(service, apiKey, model, batch.map { it.repText }) ?: return emptyList()
         for ((j, item) in batch.withIndex()) {
-            val v = vecs[j]
-            EmbeddingsStore.put(context, item.first, service.id, model, item.second, v)
-            cached += Triple(item.first, v, item.third)
+            // Provider may return fewer vectors than inputs (dedup / partial batch);
+            // never index past the returned list.
+            val v = vecs.getOrNull(j) ?: continue
+            EmbeddingsStore.put(context, item.reportId, service.id, model, item.repText, v)
+            cached += CloudCachedCandidate(item.reportId, v, item.title, item.timestamp)
         }
     }
 
-    return cached.map { (id, vec, title) ->
-        SearchHit(id, title.substringBefore(" — "), title.substringAfter(" — ", ""),
-            EmbeddingsStore.cosine(queryVec, vec), iconById[id])
+    return cached.map { c ->
+        SearchHit(c.reportId, c.title, c.timestamp,
+            EmbeddingsStore.cosine(queryVec, c.vec), iconById[c.reportId])
     }.sortedByDescending { it.score }.take(10).filter { it.score > 0.0 }
 }
+
+private data class CloudEmbedCandidate(val reportId: String, val repText: String, val title: String, val timestamp: String)
+private data class CloudCachedCandidate(val reportId: String, val vec: List<Double>, val title: String, val timestamp: String)

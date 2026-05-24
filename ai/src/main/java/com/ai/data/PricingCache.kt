@@ -297,7 +297,18 @@ object PricingCache {
             return if (baseTotal > 0.0) {
                 val ratioIn = baseIn / baseTotal
                 (total * ratioIn) to (total * (1 - ratioIn))
-            } else (0.0 to total)
+            } else {
+                // Baseline rates are all zero (free / DEFAULT pricing) but
+                // the API still shipped a total. Split by token ratio rather
+                // than attributing 100% to output (Bug 38).
+                val totalTokens = (usage.inputTokens + usage.cachedInputTokens +
+                    usage.cacheCreationTokens + usage.outputTokens).toDouble()
+                if (totalTokens > 0.0) {
+                    val ratioIn = (usage.inputTokens + usage.cachedInputTokens +
+                        usage.cacheCreationTokens).toDouble() / totalTokens
+                    (total * ratioIn) to (total * (1 - ratioIn))
+                } else (0.0 to total)
+            }
         }
         return inCost to outCost
     }
@@ -428,11 +439,16 @@ object PricingCache {
         val isTogether = provider.pricingFromModelList
         if (isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         if (isTogether) findTogetherPricing(provider, model)?.let { return it }
+        // Mirror getPricing's precedence exactly: user OVERRIDE wins over
+        // every curated bulk source (Bug 35). The previous order put the
+        // override after LITELLM/MODELSDEV/etc., so the cached capability
+        // snapshot showed a curated price while live cost computation used
+        // the override — a persistent picker-vs-billed disagreement.
+        manualPricing?.get("${provider.id}:$model")?.let { return it }
         findLiteLLMPricing(provider, model)?.let { return it }
         findModelsDevPricing(provider, model)?.let { return it }
         findLLMPricesPricing(provider, model)?.let { return it }
         findArtificialAnalysisPricing(provider, model)?.let { return it }
-        manualPricing?.get("${provider.id}:$model")?.let { return it }
         if (!isOpenRouter) findOpenRouterPricing(provider, model)?.let { return it }
         findHeliconePricing(provider, model)?.let { return it }
         return DEFAULT_PRICING
@@ -1316,6 +1332,13 @@ object PricingCache {
                     modelsDevMeta = gson.fromJson(json, type)
                 } catch (_: Exception) {}
             }
+            // Memoize a missing tier as "loaded-empty" (Bug 36) so the
+            // `== null` guard short-circuits next time — otherwise every
+            // getPricing (per cost-table / picker row) re-ran loadBlob,
+            // which on a never-refreshed install means a File.exists() +
+            // failing assets.open() per call while scrolling a list.
+            if (modelsDevPricing == null) modelsDevPricing = emptyMap()
+            if (modelsDevMeta == null) modelsDevMeta = emptyMap()
             modelsDevMetaLookupCache.clear()
         }
         // Helicone — exact map plus pattern list. Both are network-only
@@ -1331,6 +1354,8 @@ object PricingCache {
                     heliconePatterns = gson.fromJson(json, type)
                 } catch (_: Exception) {}
             }
+            if (heliconePricing == null) heliconePricing = emptyMap()
+            if (heliconePatterns == null) heliconePatterns = emptyList()
         }
         // llm-prices.com — single combined map.
         if (llmPricesPricing == null) {
@@ -1338,6 +1363,7 @@ object PricingCache {
             loadBlob(context, KEY_LLMPRICES_PRICING)?.let { json ->
                 try { llmPricesPricing = gson.fromJson(json, mapModelPricingType) } catch (_: Exception) {}
             }
+            if (llmPricesPricing == null) llmPricesPricing = emptyMap()
         }
         // Artificial Analysis — pricing + sidecar.
         if (aaPricing == null || aaMeta == null) {
@@ -1351,6 +1377,8 @@ object PricingCache {
                     aaMeta = gson.fromJson(json, type)
                 } catch (_: Exception) {}
             }
+            if (aaPricing == null) aaPricing = emptyMap()
+            if (aaMeta == null) aaMeta = emptyMap()
         }
         // Once we've finished loading every tier, mark the cache
         // primed so the main-thread guard in ensureLoaded() stops

@@ -69,10 +69,14 @@ fun findSwipeMatch(
     val currentIdx = reportIdsNewestFirst.indexOf(currentReportId)
     if (currentIdx < 0) return null
     val step = if (direction == SwipeDirection.Prev) +1 else -1
-    // Walk all n positions, wrapping modulo the list size. The k = n step
-    // lands back on the current report, so a lone match wraps to itself
-    // instead of dead-ending — swipe forever, no "No more reports".
-    for (k in 1..n) {
+    // Walk all n positions, wrapping modulo the list size. For the
+    // unfiltered [ViewSwipeFilter.Any] mode the k = n step lands back on
+    // the current report so a lone report wraps to itself instead of
+    // dead-ending. For FILTERED modes we stop before k = n: if the only
+    // matching report is the current one, return null so the swipe is a
+    // genuine no-op (no needless restoreCompletedReport reload + flash).
+    val lastK = if (filter is ViewSwipeFilter.Any) n else n - 1
+    for (k in 1..lastK) {
         val i = (((currentIdx + step * k) % n) + n) % n
         val match = matchOn(context, reportIdsNewestFirst[i], filter)
         if (match != null) return match
@@ -106,7 +110,11 @@ private fun matchOn(
             SwipeMatch(
                 reportId = reportId,
                 resultId = it.id,
-                translationRunId = it.translationRunId,
+                // Always hand back a usable grouping id — for a legacy row
+                // with a null translationRunId, the synthetic "lang:<lang>"
+                // id; otherwise the caller would skip the update and leave a
+                // stale cross-report run id pointing at the old report.
+                translationRunId = translationRunGroupingId(it),
             )
         }
     }

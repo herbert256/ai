@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -263,15 +264,15 @@ fun ModelInfoViewScreen(
             }
         }
     }
-    // Auto-load cached body + auto-refresh when stale. 1-week TTL
-    // is window-specific — PromptCache's hardcoded 48 h destructive
-    // TTL doesn't apply here because we read via getRaw.
+    // Auto-load the cached body. Only auto-fire the (paid) self-intro when
+    // there is NO cached intro at all — a merely-stale one is shown as-is and
+    // the user refreshes it via the "Ask again" affordance. Auto-refreshing on
+    // every stale open silently spent money while browsing already-introduced
+    // models. getRaw avoids PromptCache's destructive 48h TTL.
     LaunchedEffect(introCacheKey) {
         val raw = withContext(Dispatchers.IO) { PromptCache.getRaw(introCacheKey) }
         if (raw != null) aiIntro = raw.response
-        val oneWeekMs = 7L * 24 * 60 * 60 * 1000
-        val needsRefresh = raw == null || (System.currentTimeMillis() - raw.timestamp) > oneWeekMs
-        if (needsRefresh && canRequestIntro) requestIntroduction()
+        if (raw == null && canRequestIntro) requestIntroduction()
     }
 
     // When a source overlay is open we mount it as a full-screen
@@ -854,8 +855,34 @@ private fun ParsedSourceOverlay(
     }
 }
 
+private const val MAX_JSON_RENDER_DEPTH = 12
+
 @Composable
 private fun ParsedJsonValue(element: JsonElement, depth: Int) {
+    // Cap composition recursion + cumulative indent: pathologically deep
+    // catalog records would otherwise blow the composition depth and push
+    // content off-screen. Show a raw, expandable-on-tap blob past the cap.
+    if (depth > MAX_JSON_RENDER_DEPTH && (element is JsonArray || element is JsonObject)) {
+        var expanded by remember { mutableStateOf(false) }
+        if (!expanded) {
+            Text(
+                "… (deeply nested — tap to show raw)",
+                fontSize = 12.sp, color = AppColors.TextTertiary,
+                fontFamily = FontFamily.Monospace,
+                modifier = Modifier.clickable { expanded = true }
+            )
+            return
+        }
+        Text(
+            element.toString(), fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+            color = AppColors.TextSecondary,
+            modifier = Modifier.horizontalScroll(rememberScrollState())
+        )
+        return
+    }
+    // Clamp the indent so very deep (but under the cap) nesting doesn't push
+    // content off the right edge.
+    val indentDp = (minOf(depth, MAX_JSON_RENDER_DEPTH) * 12).dp
     when {
         element.isJsonNull -> Text("null", fontSize = 13.sp, color = AppColors.TextTertiary)
         element is JsonPrimitive -> Text(
@@ -871,7 +898,7 @@ private fun ParsedJsonValue(element: JsonElement, depth: Int) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     element.forEachIndexed { idx, child ->
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(start = (depth * 12).dp),
+                            modifier = Modifier.fillMaxWidth().padding(start = indentDp),
                             verticalAlignment = Alignment.Top
                         ) {
                             Text(
@@ -896,7 +923,7 @@ private fun ParsedJsonValue(element: JsonElement, depth: Int) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     for ((key, child) in element.entrySet()) {
                         Row(
-                            modifier = Modifier.fillMaxWidth().padding(start = (depth * 12).dp),
+                            modifier = Modifier.fillMaxWidth().padding(start = indentDp),
                             verticalAlignment = Alignment.Top
                         ) {
                             Text(
@@ -962,7 +989,7 @@ private fun computeUsages(
             timestamp = report.timestamp,
             typeLabel = "Report",
             title = report.title.ifBlank { report.prompt.take(80) }
-        ) { onOpenReportAtAgent(report.id, matchingAgent.agentId) }
+        ) { onOpenReportAtAgent(report.id, matchingAgent.agentId.ifBlank { matchingAgent.agentName }) }
     }
     return out
 }
@@ -973,10 +1000,13 @@ private fun computeUsages(
 private object ModelInfoLookupCache {
     @Volatile private var apiKey: String? = null
     @Volatile private var openRouterModels: List<OpenRouterModelInfo>? = null
+    @Volatile private var fetchedAt: Long = 0L
+    private const val TTL_MS = 6L * 60 * 60 * 1000
 
     suspend fun getOpenRouterModels(apiKey: String): List<OpenRouterModelInfo> {
         if (apiKey.isBlank()) return emptyList()
-        if (this.apiKey == apiKey) {
+        val fresh = System.currentTimeMillis() - fetchedAt < TTL_MS
+        if (this.apiKey == apiKey && fresh) {
             openRouterModels?.let { return it }
         }
         val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
@@ -984,6 +1014,7 @@ private object ModelInfoLookupCache {
         val models = if (response.isSuccessful) response.body()?.data ?: emptyList() else emptyList()
         this.apiKey = apiKey
         openRouterModels = models
+        fetchedAt = System.currentTimeMillis()
         return models
     }
 }

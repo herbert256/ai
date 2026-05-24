@@ -5,20 +5,79 @@ import com.google.gson.GsonBuilder
 import com.google.gson.JsonDeserializationContext
 import com.google.gson.JsonDeserializer
 import com.google.gson.JsonElement
+import com.google.gson.TypeAdapter
+import com.google.gson.TypeAdapterFactory
 import com.google.gson.annotations.JsonAdapter
 import com.google.gson.annotations.SerializedName
+import com.google.gson.reflect.TypeToken
+import com.google.gson.stream.JsonReader
+import com.google.gson.stream.JsonWriter
+import java.lang.reflect.Modifier
 import java.lang.reflect.Type
 
 // ============================================================================
 // Gson factory
 // ============================================================================
 
-private val aiGson: Gson by lazy {
-    GsonBuilder().registerTypeAdapter(AppService::class.java, AppServiceAdapter()).create()
+/**
+ * Gson constructs Kotlin objects via UnsafeAllocator, bypassing the primary
+ * constructor and its default values. A JSON document missing a non-null
+ * Kotlin field therefore leaves that field at the JVM zero value (null),
+ * silently violating the non-null contract and NPE-ing later code that
+ * trusts the declared type (Bug 1).
+ *
+ * This factory wraps the reflective delegate adapter and, after reading,
+ * coerces any still-null reference field of a known "non-null-with-sane-empty"
+ * type to its empty default: String → "", List/Set/Collection → empty,
+ * Map → empty. Primitive/boxed-number/boolean nulls are left to Gson's own
+ * primitive defaulting. This is a best-effort safety net so a partial or
+ * hand-edited JSON loads instead of crashing the app.
+ */
+private class NullSafeFieldAdapterFactory : TypeAdapterFactory {
+    override fun <T : Any?> create(gson: Gson, type: TypeToken<T>): TypeAdapter<T>? {
+        val raw = type.rawType
+        // Only post-process plain data/model holders in our own packages.
+        if (!raw.name.startsWith("com.ai.")) return null
+        if (raw.isEnum || raw.isInterface || raw.isArray || raw.isPrimitive) return null
+
+        val delegate = gson.getDelegateAdapter(this, type)
+        val coercibleFields = raw.declaredFields.filter { f ->
+            !Modifier.isStatic(f.modifiers) && !Modifier.isTransient(f.modifiers) &&
+                (f.type == String::class.java ||
+                    List::class.java.isAssignableFrom(f.type) ||
+                    Set::class.java.isAssignableFrom(f.type) ||
+                    Map::class.java.isAssignableFrom(f.type) ||
+                    Collection::class.java.isAssignableFrom(f.type))
+        }.onEach { it.isAccessible = true }
+        if (coercibleFields.isEmpty()) return delegate
+
+        return object : TypeAdapter<T>() {
+            override fun write(out: JsonWriter, value: T?) = delegate.write(out, value)
+            override fun read(reader: JsonReader): T? {
+                val value = delegate.read(reader) ?: return null
+                for (f in coercibleFields) {
+                    if (f.get(value) == null) {
+                        val empty: Any = when {
+                            f.type == String::class.java -> ""
+                            Set::class.java.isAssignableFrom(f.type) -> emptySet<Any>()
+                            Map::class.java.isAssignableFrom(f.type) -> emptyMap<Any, Any>()
+                            else -> emptyList<Any>()
+                        }
+                        runCatching { f.set(value, empty) }
+                    }
+                }
+                return value
+            }
+        }
+    }
 }
-private val aiGsonPretty: Gson by lazy {
-    GsonBuilder().registerTypeAdapter(AppService::class.java, AppServiceAdapter()).setPrettyPrinting().create()
-}
+
+private fun baseGsonBuilder(): GsonBuilder = GsonBuilder()
+    .registerTypeAdapter(AppService::class.java, AppServiceAdapter())
+    .registerTypeAdapterFactory(NullSafeFieldAdapterFactory())
+
+private val aiGson: Gson by lazy { baseGsonBuilder().create() }
+private val aiGsonPretty: Gson by lazy { baseGsonBuilder().setPrettyPrinting().create() }
 fun createAppGson(prettyPrint: Boolean = false): Gson = if (prettyPrint) aiGsonPretty else aiGson
 
 // ============================================================================

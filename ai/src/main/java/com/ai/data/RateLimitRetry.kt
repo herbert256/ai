@@ -78,15 +78,19 @@ class RateLimitRetryInterceptor : Interceptor {
             // gated on the host resolving to the "Cohere" provider id,
             // which a renamed entry or the api.cohere.ai vs .com host
             // split could break.
-            val cohereTrialCap = cohereTrialQuotaExhausted(response)
+            // Read the 64 KiB error-body peek ONCE and share the decoded
+            // string across every predicate (Bug 13) instead of peeking
+            // four separate times per 429.
+            val peekedBody = runCatching { response.peekBody(64L * 1024L).string() }.getOrNull()
+            val cohereTrialCap = cohereTrialQuotaExhausted(peekedBody)
             val benchUntil: Long? = when {
-                isGemini && googleDailyQuotaExhausted(response) ->
-                    retryAfterHintMs(response)?.let { System.currentTimeMillis() + it }
+                isGemini && googleDailyQuotaExhausted(peekedBody) ->
+                    retryAfterHintMs(response, peekedBody)?.let { System.currentTimeMillis() + it }
                         ?: nextPacificMidnightMs()
                 cohereTrialCap -> nextMonthStartMs()
-                creditOrSpendingLimitExhausted(response) ->
+                creditOrSpendingLimitExhausted(peekedBody) ->
                     System.currentTimeMillis() + 6L * 60L * 60L * 1000L
-                else -> retryAfterHintMs(response)
+                else -> retryAfterHintMs(response, peekedBody)
                     ?.takeIf { it > ModelCooldownStore.LONG_RETRY_THRESHOLD_MS }
                     ?.let { System.currentTimeMillis() + it }
             }
@@ -133,8 +137,11 @@ class RateLimitRetryInterceptor : Interceptor {
             // so a burst all re-collides. Doubling per attempt spreads a
             // sustained burst; the random half de-syncs sibling calls.
             val expBackoff = (backoffMs shl attempt.coerceAtMost(16)).coerceAtMost(30_000L)
-            val jittered = expBackoff / 2 +
-                java.util.concurrent.ThreadLocalRandom.current().nextLong(expBackoff / 2 + 1)
+            // Guard the jitter division/bound against a zero backoff
+            // (Bug 14): nextLong(0+1) is safe, but an expBackoff of 0 would
+            // otherwise make the half-jitter math degenerate.
+            val jittered = if (expBackoff <= 0) 0L else
+                expBackoff / 2 + java.util.concurrent.ThreadLocalRandom.current().nextLong(expBackoff / 2 + 1)
             val sleepMs = resolveRetryAfter(current, defaultMs = jittered, hostForLog = request.url.host)
             // Always close the previous response before reissuing — leaving
             // the body open leaks an OkHttp connection.
@@ -196,7 +203,7 @@ internal fun resolveRetryAfter(response: Response, defaultMs: Long, hostForLog: 
  *  harmless no-op there). Returns null when neither is present
  *  or parseable. `peekBody` leaves the real response body
  *  untouched for the downstream parser. */
-private fun retryAfterHintMs(response: Response): Long? {
+private fun retryAfterHintMs(response: Response, peekedBody: String?): Long? {
     val raw = response.header("Retry-After") ?: response.header("retry-after")
     if (!raw.isNullOrBlank()) {
         val trimmed = raw.trim()
@@ -211,8 +218,8 @@ private fun retryAfterHintMs(response: Response): Long? {
             if (delta > 0) return delta
         }
     }
+    val body = peekedBody ?: return null
     return runCatching {
-        val body = response.peekBody(64L * 1024L).string()
         val details = com.google.gson.JsonParser.parseString(body).asJsonObject
             .getAsJsonObject("error")?.getAsJsonArray("details") ?: return null
         for (d in details) {
@@ -256,8 +263,8 @@ private fun modelForRequest(request: okhttp3.Request): String? {
  *  reset instead. Per-minute quotas (`*_per_minute`) are
  *  deliberately not matched — the in-line retry loop clears
  *  those within a minute. */
-private fun googleDailyQuotaExhausted(response: Response): Boolean = runCatching {
-    val body = response.peekBody(64L * 1024L).string()
+private fun googleDailyQuotaExhausted(peekedBody: String?): Boolean = runCatching {
+    val body = peekedBody ?: return false
     val details = com.google.gson.JsonParser.parseString(body).asJsonObject
         .getAsJsonObject("error")?.getAsJsonArray("details") ?: return false
     for (d in details) {
@@ -290,8 +297,8 @@ private fun nextPacificMidnightMs(): Long {
  *  ("…using a Trial key, which is limited to N API calls /
  *  month…"). Cohere ships no Retry-After header and no structured
  *  reset time, so this text match is the only signal. */
-private fun cohereTrialQuotaExhausted(response: Response): Boolean = runCatching {
-    val body = response.peekBody(64L * 1024L).string()
+private fun cohereTrialQuotaExhausted(peekedBody: String?): Boolean = runCatching {
+    val body = peekedBody ?: return false
     val msg = com.google.gson.JsonParser.parseString(body).asJsonObject
         .get("message")?.asString ?: return false
     msg.contains("Trial key", ignoreCase = true) && msg.contains("month", ignoreCase = true)
@@ -305,8 +312,8 @@ private fun cohereTrialQuotaExhausted(response: Response): Boolean = runCatching
  *  type/code first (e.g. OpenAI's `insufficient_quota`), then a
  *  phrase fallback — all billing-specific wording that never
  *  appears in a plain "slow down" 429. */
-private fun creditOrSpendingLimitExhausted(response: Response): Boolean = runCatching {
-    val body = response.peekBody(64L * 1024L).string()
+private fun creditOrSpendingLimitExhausted(peekedBody: String?): Boolean = runCatching {
+    val body = peekedBody ?: return false
     val typeOrCode = runCatching {
         val obj = com.google.gson.JsonParser.parseString(body).asJsonObject
         val err = obj.getAsJsonObject("error")

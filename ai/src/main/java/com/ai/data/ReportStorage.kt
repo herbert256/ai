@@ -110,11 +110,16 @@ object ReportStorage {
             }
             if (cost != null) {
                 agent.cost = (agent.cost ?: 0.0) + cost
-                report.totalCost = report.agents.mapNotNull { it.cost }.sum() +
-                    report.agents.sumOf { it.iconInputCost + it.iconOutputCost }
             }
             if (inputCost != null) agent.inputCost = (agent.inputCost ?: 0.0) + inputCost
             if (outputCost != null) agent.outputCost = (agent.outputCost ?: 0.0) + outputCost
+            // Recompute the report total whenever any cost field changed,
+            // not only on the primary-cost path (Bug 28): an icon-cost bump
+            // arriving with cost=null would otherwise leave totalCost stale.
+            if (cost != null || inputCost != null || outputCost != null) {
+                report.totalCost = report.agents.mapNotNull { it.cost }.sum() +
+                    report.agents.sumOf { it.iconInputCost + it.iconOutputCost }
+            }
             if (durationMs != null) agent.durationMs = durationMs
             if (traceFile != null) agent.traceFile = traceFile
             if (report.agents.all { it.reportStatus in listOf(ReportStatus.SUCCESS, ReportStatus.ERROR, ReportStatus.STOPPED) }) {

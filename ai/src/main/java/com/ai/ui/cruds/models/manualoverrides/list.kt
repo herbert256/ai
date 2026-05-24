@@ -28,12 +28,19 @@ fun ManualOverridesCrud(
     val remove: (ModelTypeOverride) -> Unit = { o ->
         onSave(aiSettings.withModelTypeOverrides(aiSettings.modelTypeOverrides.filter { it.id != o.id }))
     }
-    // Upsert by id: replace existing, else append.
+    // Upsert by id, then dedup on the (providerId, modelId) composite so
+    // two overrides can't target the same model (which would give the
+    // resolver an order-dependent ambiguous entry). Drop any OTHER row
+    // sharing the saved row's (provider, model) — mirrors the
+    // composite-keyed blocked/test-excluded CRUDs.
     val upsert: (ModelTypeOverride) -> Unit = { saved ->
         val list = aiSettings.modelTypeOverrides
-        val updated = if (list.any { it.id == saved.id }) list.map { if (it.id == saved.id) saved else it }
-                      else list + saved
-        onSave(aiSettings.withModelTypeOverrides(updated))
+        val replaced = if (list.any { it.id == saved.id }) list.map { if (it.id == saved.id) saved else it }
+                       else list + saved
+        val deduped = replaced.filter {
+            it.id == saved.id || it.providerId != saved.providerId || it.modelId != saved.modelId
+        }
+        onSave(aiSettings.withModelTypeOverrides(deduped))
     }
     val flags: (ModelTypeOverride) -> String = {
         buildString {

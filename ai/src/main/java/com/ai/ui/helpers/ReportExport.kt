@@ -495,6 +495,18 @@ internal fun buildLanguageViews(base: HtmlReportData): List<HtmlLanguageView> {
     if (languageOrder.isEmpty()) return listOf(original)
 
     val views = mutableListOf(original)
+    // Track keys already emitted so two distinct display names that reduce
+    // to the same alnum key (e.g. "Chinese (Simplified)" vs
+    // "Chinese — Simplified") don't collide and overwrite each other's
+    // slice / zip directory. Collisions get a numeric suffix.
+    val usedKeys = mutableSetOf("original")
+    fun uniqueLanguageKey(lang: String): String {
+        val base = languageKey(lang)
+        if (usedKeys.add(base)) return base
+        var n = 2
+        while (!usedKeys.add("$base$n")) n++
+        return "$base$n"
+    }
     for ((lang, native) in languageOrder) {
         // Index the translations for this language by source target so
         // the overlay can substitute in O(1) per item.
@@ -523,7 +535,7 @@ internal fun buildLanguageViews(base: HtmlReportData): List<HtmlLanguageView> {
         }
         val translatedSecondary = perLangMeta + overlaidOriginalMeta
         views += HtmlLanguageView(
-            key = languageKey(lang),
+            key = uniqueLanguageKey(lang),
             displayName = lang,
             nativeName = native?.takeIf { it != lang },
             data = base.copy(
@@ -856,11 +868,19 @@ private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor
  *  translate) as separate rows. */
 private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
     data class Row(val type: String, val providerDisplay: String, val model: String, val tier: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
-    val agentRows = data.agents.filter { it.inputCost != null }.map {
+    // Include a row when EITHER token usage OR a persisted cost is present
+    // — the same lenient predicate for agents and secondaries, so the
+    // export Costs table matches the in-app one (which recomputes from
+    // tokens when cost is null and shows cost-only legacy rows).
+    val agentRows = data.agents.filter {
+        it.inputCost != null || it.outputCost != null || it.inputTokens != null || it.outputTokens != null
+    }.map {
         Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
             (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
-    val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
+    val secondaryRows = data.secondary.filter {
+        it.inputTokens != null || it.outputTokens != null || it.inputCost != null || it.outputCost != null
+    }.map {
         // Match the in-app cost table's row-type label rules: fan-out
         // / fan-in rows always read "fan-out" / "fan-in" so the
         // grouping reflects scope-of-the-call. Other secondaries

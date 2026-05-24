@@ -75,7 +75,10 @@ internal fun TranslationL2Screen(
                             TranslationStatus.DONE -> 2
                         }
                     },
-                    { it.label.lowercase() }
+                    { it.label.lowercase() },
+                    // Stable tiebreaker — keeps L2 order (and the L3
+                    // Prev/Next derived from it) stable across recompositions.
+                    { it.id }
                 )
             )
     }

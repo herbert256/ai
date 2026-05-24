@@ -52,7 +52,10 @@ fun BlockedModelsCrud(
         is Mode.View -> BlockedModelView(
             item = m.item,
             onEdit = { mode = Mode.Edit(m.item) },
-            onCopy = { mode = Mode.Add(m.item) },
+            // Clear the model on copy so the user re-points: blocked models
+            // are keyed by (provider, model), so an unchanged copy would
+            // collapse back onto its source instead of adding a new row.
+            onCopy = { mode = Mode.Add(m.item.copy(model = "")) },
             onDelete = { remove(m.item); toList() },
             onBack = toList
         )

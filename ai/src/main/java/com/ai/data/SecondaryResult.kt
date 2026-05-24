@@ -64,6 +64,28 @@ object SecondaryResultStorage {
         return dir
     }
 
+    /** Read-side validated resolver (Bug 32): the list/get/bump/count
+     *  paths previously resolved `File(rootDir, reportId)` directly,
+     *  bypassing the traversal guard that only [reportDir] (the write
+     *  path) applied. Mirrors [reportDir]'s flat-id + canonical
+     *  containment checks but does NOT mkdirs — a read of a non-existent
+     *  report shouldn't create an empty directory. Returns null on an
+     *  unsafe id or when the root isn't initialised. */
+    private fun resolveReportDirForRead(reportId: String): File? {
+        val root = rootDir ?: return null
+        if (reportId.isBlank() || reportId == "." || reportId == ".."
+                || reportId.contains('/') || reportId.contains('\\')) {
+            AppLog.e("SecondaryResultStorage", "Refusing to resolve report dir for suspect id $reportId")
+            return null
+        }
+        val dir = File(root, reportId)
+        if (!dir.canonicalPath.startsWith(root.canonicalPath + File.separator)) {
+            AppLog.e("SecondaryResultStorage", "Refusing to resolve report dir that escapes root: $reportId")
+            return null
+        }
+        return dir
+    }
+
     fun save(context: Context, result: SecondaryResult): SecondaryResult {
         init(context)
         // Defence in depth: every caller today uses UUIDs, but a future
@@ -119,7 +141,7 @@ object SecondaryResultStorage {
     fun listForReport(context: Context, reportId: String, kind: SecondaryKind? = null): List<SecondaryResult> {
         init(context)
         return lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock emptyList()
+            val dir = resolveReportDirForRead(reportId) ?: return@withLock emptyList()
             if (!dir.exists()) return@withLock emptyList()
             val files = dir.listFiles { f -> f.extension == "json" } ?: return@withLock emptyList()
             val cacheForReport = listCache.getOrPut(reportId) { HashMap(files.size.coerceAtLeast(16)) }
@@ -163,7 +185,7 @@ object SecondaryResultStorage {
     fun get(context: Context, reportId: String, resultId: String): SecondaryResult? {
         init(context)
         return lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock null
+            val dir = resolveReportDirForRead(reportId) ?: return@withLock null
             val file = File(dir, "$resultId.json")
             if (!file.exists()) return@withLock null
             try { gson.fromJson(file.readText(), SecondaryResult::class.java) } catch (_: Exception) { null }
@@ -177,7 +199,7 @@ object SecondaryResultStorage {
     fun exists(context: Context, reportId: String, resultId: String): Boolean {
         init(context)
         return lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock false
+            val dir = resolveReportDirForRead(reportId) ?: return@withLock false
             File(dir, "$resultId.json").exists()
         }
     }
@@ -197,7 +219,7 @@ object SecondaryResultStorage {
             return false
         }
         lock.withLock {
-            val dir = rootDir?.let { File(it, result.reportId) } ?: return false
+            val dir = resolveReportDirForRead(result.reportId) ?: return false
             val target = File(dir, "${result.id}.json")
             if (!target.exists()) {
                 // Row was deleted while the caller was running. Skip
@@ -270,7 +292,7 @@ object SecondaryResultStorage {
     ) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -308,7 +330,7 @@ object SecondaryResultStorage {
     ) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -339,7 +361,7 @@ object SecondaryResultStorage {
     ) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -367,7 +389,7 @@ object SecondaryResultStorage {
     ) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -391,7 +413,7 @@ object SecondaryResultStorage {
     ) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -413,7 +435,7 @@ object SecondaryResultStorage {
     ) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -436,7 +458,7 @@ object SecondaryResultStorage {
     ) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -468,7 +490,7 @@ object SecondaryResultStorage {
     ) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -494,7 +516,7 @@ object SecondaryResultStorage {
     ) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -519,7 +541,7 @@ object SecondaryResultStorage {
     ) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -538,7 +560,7 @@ object SecondaryResultStorage {
     ) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -556,7 +578,7 @@ object SecondaryResultStorage {
     ) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -586,7 +608,7 @@ object SecondaryResultStorage {
     fun resetRowToPlaceholder(context: Context, reportId: String, resultId: String) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
@@ -606,7 +628,7 @@ object SecondaryResultStorage {
     fun delete(context: Context, reportId: String, resultId: String) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             val target = File(dir, "$resultId.json")
             target.delete()
             // Drop only this file's cache entry — the remaining files
@@ -618,7 +640,7 @@ object SecondaryResultStorage {
     fun deleteAllForReport(context: Context, reportId: String) {
         init(context)
         lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return
+            val dir = resolveReportDirForRead(reportId) ?: return
             dir.listFiles()?.forEach { it.delete() }
             dir.delete()
             // Whole report gone — drop the entire per-report bucket.
@@ -655,21 +677,16 @@ object SecondaryResultStorage {
      *  before metaPromptName existed) fall back to a kind-derived
      *  label so the View card keeps a stable history. */
     fun countByMetaName(context: Context, reportId: String): Map<String, Int> {
-        init(context)
-        return lock.withLock {
-            val dir = rootDir?.let { File(it, reportId) } ?: return@withLock emptyMap()
-            if (!dir.exists()) return@withLock emptyMap()
-            val tally = LinkedHashMap<String, Int>()
-            dir.listFiles { f -> f.extension == "json" }?.forEach { file ->
-                try {
-                    val r = gson.fromJson(file.readText(), SecondaryResult::class.java)
-                    if (r.kind == SecondaryKind.TRANSLATE) return@forEach
-                    val name = r.metaPromptName?.takeIf { it.isNotBlank() } ?: legacyKindDisplayName(r.kind)
-                    tally[name] = (tally[name] ?: 0) + 1
-                } catch (_: Exception) {}
-            }
-            tally
+        // Build the tally from listForReport so it shares the per-report
+        // fingerprint cache (Bug 33) instead of re-parsing every JSON file
+        // on each call — fan-out drill-in polls this frequently.
+        val tally = LinkedHashMap<String, Int>()
+        for (r in listForReport(context, reportId)) {
+            if (r.kind == SecondaryKind.TRANSLATE) continue
+            val name = r.metaPromptName?.takeIf { it.isNotBlank() } ?: legacyKindDisplayName(r.kind)
+            tally[name] = (tally[name] ?: 0) + 1
         }
+        return tally
     }
 }
 

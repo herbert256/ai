@@ -247,14 +247,18 @@ internal fun ViewAiReportScreen(
     // ensures we only seed on the first frame even though the
     // bundle is read every recomposition.
     val seedBundle = com.ai.ui.shared.LocalReportListIconBundle.current
-    var seedConsumed by rememberSaveable { mutableStateOf(false) }
-    androidx.compose.runtime.LaunchedEffect(Unit) {
-        if (!seedConsumed) {
-            seedBundle.initialReportsAgentId?.takeIf { it.isNotBlank() }?.let { aid ->
-                reportsViewInitialAgentId = aid
-                reportsViewOpen = true
-            }
-            seedConsumed = true
+    // Track the agent id we last seeded from so a *new* external
+    // navigation (different initialReportsAgentId) re-seeds even though
+    // this composable stayed mounted across a report swipe. Keying the
+    // effect on the id (rather than Unit + a one-shot flag) makes the
+    // consume fire once per distinct seed value.
+    var lastSeededAgentId by rememberSaveable { mutableStateOf<String?>(null) }
+    androidx.compose.runtime.LaunchedEffect(seedBundle.initialReportsAgentId) {
+        val aid = seedBundle.initialReportsAgentId?.takeIf { it.isNotBlank() }
+        if (aid != null && aid != lastSeededAgentId) {
+            reportsViewInitialAgentId = aid
+            reportsViewOpen = true
+            lastSeededAgentId = aid
         }
     }
     // Rerank "View" overlay — keyed by the RERANK row id.
@@ -632,10 +636,21 @@ internal fun ViewAiReportScreen(
     // Original tab we translate INTO reportLanguageName (back-
     // translation); when on a non-Original tab we translate INTO
     // that tab's language.
+    // Shown when the user taps a grayed tile on the Original tab but
+    // language detection never ran, so there's no back-translation
+    // target — without this the tap silently no-ops.
+    fun noBackTranslationTarget() {
+        android.widget.Toast.makeText(
+            viewPrefsCtx,
+            "No source language detected for this report — nothing to back-translate into.",
+            android.widget.Toast.LENGTH_SHORT
+        ).show()
+    }
+
     fun openPromptMissing() {
         val target = currentLanguageState.value ?: ""
         val effectiveTarget = if (target.isEmpty()) {
-            reportLanguageName ?: return
+            reportLanguageName ?: run { noBackTranslationTarget(); return }
         } else target
         val effectiveTargetNative = nativeNameForLang(effectiveTarget)
         val sourceLangs = promptAvailableLangs.filter { it != effectiveTarget && (target.isNotEmpty() || it.isNotEmpty()) }
@@ -676,7 +691,7 @@ internal fun ViewAiReportScreen(
     fun openReportsMissing() {
         val target = currentLanguageState.value ?: ""
         val effectiveTarget = if (target.isEmpty()) {
-            reportLanguageName ?: return
+            reportLanguageName ?: run { noBackTranslationTarget(); return }
         } else target
         val effectiveTargetNative = nativeNameForLang(effectiveTarget)
         val sourceLangs = reportsAvailableLangs.filter { it != effectiveTarget && (target.isNotEmpty() || it.isNotEmpty()) }
@@ -727,7 +742,7 @@ internal fun ViewAiReportScreen(
         // there's no sensible Original-as-target to translate into —
         // skip silently.
         val effectiveTarget = if (target.isEmpty()) {
-            reportLanguageName ?: return
+            reportLanguageName ?: run { noBackTranslationTarget(); return }
         } else target
         val effectiveTargetNative = nativeNameForLang(effectiveTarget)
         val avail = item.availableLanguages ?: return
@@ -1158,7 +1173,13 @@ internal fun ViewAiReportScreen(
                             // in their previous relative positions at
                             // the tail.
                             val currentSet = current.toSet()
-                            val newSaved = current + savedOrder.filter { it !in currentSet }
+                            // Keep non-current ids (from other reports) at the
+                            // tail so their relative order survives a round-trip,
+                            // but bound the tail so report-specific ids (per-meta
+                            // / per-fan-out) can't accumulate unbounded across
+                            // many reports — only the most recent ones are kept.
+                            val carriedTail = savedOrder.filter { it !in currentSet }.takeLast(64)
+                            val newSaved = current + carriedTail
                             savedOrder = newSaved
                             tileOrderPrefs.edit()
                                 .putString("tile_order", newSaved.joinToString(","))
@@ -1330,16 +1351,6 @@ private data class MissingPopupCtx(
     val onPick: (sourceLanguageId: String) -> Unit
 )
 
-@Composable
-private fun SectionLabel(text: String) {
-    Text(
-        text = text,
-        color = AppColors.Blue,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.SemiBold
-    )
-}
-
 /** Read the persisted comma-separated tile-order list from
  *  SharedPreferences. Blank / missing → empty list (every tile
  *  falls back to its declaration order). */
@@ -1440,102 +1451,6 @@ private fun ReorderableTileFlow(
                         }
                         .then(dragModifier)
                 ) { TileCard(item.tile) }
-            }
-        }
-    }
-}
-
-/** Compact one-row-per-tile list view — the alternate rendering
- *  toggled from the subject-row icon. Each row carries the tile's
- *  accent as a coloured emoji on the left, label in the middle, the
- *  count badge (when N≥2) and a chevron on the right; the whole row
- *  is clickable and fires the same onClick the grid tile would. No
- *  drag-reorder in list mode (reorder lives in grid mode only). */
-@Composable
-private fun ListTileColumn(items: List<IdentifiedTile>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            items.forEachIndexed { idx, item ->
-                if (idx > 0) HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
-                val tile = item.tile
-                val effectiveClick: (() -> Unit)? = when {
-                    tile.enabled -> tile.onClick
-                    tile.onMissingClick != null -> tile.onMissingClick
-                    else -> null
-                }
-                val clickMod = if (effectiveClick != null) Modifier.clickable(onClick = effectiveClick) else Modifier
-                val dimMod = if (tile.enabled) Modifier else Modifier.alpha(0.22f)
-                Row(
-                    modifier = Modifier.fillMaxWidth()
-                        .then(dimMod)
-                        .then(clickMod)
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        tile.emoji, fontSize = 22.sp,
-                        modifier = Modifier.padding(end = 12.dp)
-                    )
-                    Text(
-                        tile.label, color = Color.White, fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
-                    if (tile.count >= 2) {
-                        Box(
-                            modifier = Modifier.padding(end = 8.dp)
-                                .size(22.dp).clip(CircleShape)
-                                .background(tile.accent.copy(alpha = 0.55f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                tile.count.toString(),
-                                color = Color.White, fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                    Text("›", color = AppColors.TextTertiary, fontSize = 18.sp)
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun TileFlow(tiles: List<ViewTile>) {
-    // Every tile is rendered at the SAME fixed width regardless of
-    // how many sit in the last row — previously each tile inside
-    // FlowRow used weight(1f), which spread the trailing row's
-    // tiles across the full container width and made them visibly
-    // larger than tiles in fully-packed rows. Compute the per-tile
-    // width once from the container's maxWidth + a target column
-    // count (2 on a typical phone, 3 on wider screens), then hand
-    // that fixed width to every TileCard.
-    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val spacing = 10.dp
-        val cols = 3
-        // Subtract a sub-pixel safety margin from the ideal tile
-        // width: pixel rounding (Dp → px) on an exact-fit 3-up
-        // layout can land 1 px over the container on certain
-        // densities, which makes FlowRow wrap to 2 tiles per row
-        // even though we asked for 3. 0.5 dp of slack absorbs that
-        // rounding without being visible.
-        val tileWidth = ((maxWidth - spacing * (cols - 1)) / cols) - 0.5.dp
-        FlowRow(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(spacing),
-            verticalArrangement = Arrangement.spacedBy(spacing),
-            maxItemsInEachRow = cols
-        ) {
-            tiles.forEach { tile ->
-                Box(modifier = Modifier.width(tileWidth)) { TileCard(tile) }
             }
         }
     }
@@ -1678,9 +1593,11 @@ private fun openComputedItem(
         "translate" -> {
             // Translate items key by translationRunId (or a synthesised
             // lang:<name> sentinel for legacy rows missing a runId).
-            // Same scheme buildEveryItems uses for grouping; the
-            // TranslateViewScreen then loads every row sharing this id.
-            val runKey = seed?.translationRunId ?: seed?.targetLanguage?.let { "lang:$it" }
+            // Use the shared [translationRunGroupingId] so this matches
+            // buildEveryItems' grouping exactly even when both runId and
+            // targetLanguage are null (→ "lang:"); the TranslateViewScreen
+            // then loads every row sharing this id.
+            val runKey = seed?.let { com.ai.ui.helpers.translationRunGroupingId(it) }
             if (runKey != null) openTranslate(runKey) else item.open(language)
         }
         else -> item.open(language)

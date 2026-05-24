@@ -26,17 +26,12 @@ data class ApiKeysImportResult(
 class ConfigBundleMistakenForKeysException : RuntimeException()
 
 /** Build the JSON payload written by the "Export API keys" button. The
- *  shape is a flat object: `{"OpenAI": "sk-...", "EXT_HUGGINGFACE":
- *  "hf_..."}`. Provider keys use the catalog [AppService.displayName]
- *  (the human-readable label shown in the UI), so a manually-edited
- *  keys.json reads naturally. EXT_-prefixed keys are external-service
- *  keys (HF / OpenRouter / Artificial Analysis) — the prefix keeps
- *  them separate from any provider that happens to share the name.
- *
- *  If two providers share a displayName the later-iterated entry
- *  wins (the JSON object can only carry one value per key). The
- *  registry doesn't enforce displayName uniqueness; rename one of
- *  the duplicates before exporting if both keys matter. */
+ *  shape is a flat object: `{"OPENAI": "sk-...", "EXT_HUGGINGFACE":
+ *  "hf_..."}`. Provider keys are keyed by [AppService.id] (the stable
+ *  catalog id, also what import matches on) — not the display label.
+ *  EXT_-prefixed keys are external-service keys (HF / OpenRouter /
+ *  Artificial Analysis) — the prefix keeps them separate from any
+ *  provider that happens to share the id. */
 fun buildApiKeysJson(
     settings: Settings,
     huggingFaceApiKey: String,

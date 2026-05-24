@@ -72,7 +72,11 @@ import java.util.Locale
 fun RegenerateBatchScreen(
     reportId: String,
     engine: RegenerateBatchEngine,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** Bumped whenever an icon/title/language metadata write lands; keys
+     *  the title-bar icon re-read so a freshly-generated/picked icon shows
+     *  while this overlay stays open. */
+    iconRefreshTick: Int = 0
 ) {
     val context = LocalContext.current
     val jobs by engine.jobs.collectAsState()
@@ -88,7 +92,7 @@ fun RegenerateBatchScreen(
     // level, before LocalReportIcon is provided, so we can't rely
     // on the CompositionLocal here.
     val reportIcon by androidx.compose.runtime.produceState<String?>(
-        initialValue = null, reportId
+        initialValue = null, reportId, iconRefreshTick
     ) {
         value = withContext(kotlinx.coroutines.Dispatchers.IO) {
             com.ai.data.ReportStorage.getReport(context, reportId)?.icon
@@ -160,6 +164,8 @@ private fun StatusBanner(job: RegenerateJob) {
     val done = job.tasks.count { it.state == RegenerateTaskState.SUCCESS }
     val errored = job.tasks.count { it.state == RegenerateTaskState.ERROR }
     val running = job.tasks.count { it.state == RegenerateTaskState.RUNNING }
+    val waiting = job.tasks.count { it.state == RegenerateTaskState.WAITING }
+    val cancelled = job.tasks.count { it.state == RegenerateTaskState.CANCELLED }
     val statusText = when (job.status) {
         RegenerateJobStatus.RUNNING -> "Running — phase ${job.currentPhase?.label ?: "?"}"
         RegenerateJobStatus.PAUSED_ON_ERROR -> "Paused on error"
@@ -181,8 +187,16 @@ private fun StatusBanner(job: RegenerateJob) {
     ) {
         Text(statusText, color = statusColor, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         Spacer(modifier = Modifier.height(4.dp))
+        // Surface every state so the numbers always add up to total —
+        // a partially-cancelled / still-queued job otherwise reads as
+        // data loss (done + running + errored < total). WAITING +
+        // CANCELLED are shown only when non-zero to keep the line short.
         Text(
-            "$done / $total done · $running running · $errored errored",
+            buildString {
+                append("$done / $total done · $running running · $errored errored")
+                if (waiting > 0) append(" · $waiting waiting")
+                if (cancelled > 0) append(" · $cancelled cancelled")
+            },
             color = AppColors.TextSecondary, fontSize = 13.sp
         )
         if (job.status == RegenerateJobStatus.PAUSED_ON_ERROR && !job.pausedOnRowId.isNullOrBlank()) {
@@ -333,7 +347,8 @@ private fun formatDuration(ms: Long): String = when {
 fun RegenerateBatchOverlay(
     reportId: String,
     engine: RegenerateBatchEngine,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    iconRefreshTick: Int = 0
 ) {
     CompositionLocalProvider(
         com.ai.ui.shared.LocalNavigateToCurrentReport provides onClose
@@ -341,7 +356,8 @@ fun RegenerateBatchOverlay(
         RegenerateBatchScreen(
             reportId = reportId,
             engine = engine,
-            onBack = onClose
+            onBack = onClose,
+            iconRefreshTick = iconRefreshTick
         )
     }
 }

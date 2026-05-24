@@ -102,7 +102,11 @@ internal fun TranslationL3Screen(
                             TranslationStatus.DONE -> 2
                         }
                     },
-                    { it.label.lowercase() }
+                    { it.label.lowercase() },
+                    // Stable tiebreaker so Prev/Next stepping doesn't jump
+                    // when two items share status + label and live status
+                    // flips reorder the list.
+                    { it.id }
                 )
             )
     }
@@ -153,9 +157,14 @@ internal fun TranslationL3Screen(
     val translationLabel = item.model?.takeIf { it.isNotBlank() } ?: "Translation"
     val translationProviderService = item.providerId?.let { AppService.findById(it) }
 
-    // Trace for this translation call — most recent Translation-tagged
-    // trace on this report for the item's model.
-    val traceFilename by produceState<String?>(initialValue = null, reportId, item.id, item.model) {
+    // Trace for this translation call. Prefer the exact trace filename
+    // the item captured at call time ([TranslationItem.traceFile]) so a
+    // model that translated several items in one run links each item to
+    // its own call. Fall back to the most-recent Translation-tagged trace
+    // for the model only for legacy rows reconstructed from disk that
+    // carry no traceFile.
+    val traceFilename by produceState<String?>(initialValue = null, reportId, item.id, item.model, item.traceFile) {
+        item.traceFile?.takeIf { it.isNotBlank() }?.let { value = it; return@produceState }
         value = withContext(Dispatchers.IO) {
             val m = item.model ?: return@withContext null
             ApiTracer.getTraceFiles()

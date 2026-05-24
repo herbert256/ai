@@ -66,6 +66,28 @@ object RegenerateBatchStorage {
         }
     }
 
+    /** Compound read-modify-write under a single lock acquisition (Bug
+     *  73/58): get → [mutator] → save atomically, so a concurrent
+     *  cancel + orchestrator update can't lost-update each other (e.g.
+     *  resurrect a CANCELLED job back to RUNNING from a stale snapshot).
+     *  Returns the persisted job, or null when no job exists. */
+    fun update(context: Context, reportId: String, mutator: (RegenerateJob) -> RegenerateJob): RegenerateJob? {
+        init(context)
+        return lock.withLock {
+            val file = fileFor(reportId) ?: return@withLock null
+            if (!file.exists()) return@withLock null
+            val current = try {
+                gson.fromJson(file.readText(), RegenerateJob::class.java)
+            } catch (e: Exception) {
+                AppLog.w("RegenerateBatchStorage", "parse failed for $reportId: ${e.message}")
+                null
+            } ?: return@withLock null
+            val updated = mutator(current)
+            file.writeTextAtomic(gson.toJson(updated))
+            updated
+        }
+    }
+
     fun delete(context: Context, reportId: String) {
         init(context)
         lock.withLock {

@@ -52,7 +52,10 @@ fun ModelCooldownsCrud(
         is Mode.View -> CooldownView(
             item = m.item,
             onEdit = { mode = Mode.Edit(m.item) },
-            onCopy = { mode = Mode.Add(m.item) },
+            // Clear the model on copy so the user must re-point: cooldowns
+            // are keyed by (provider, model), so an unchanged copy would
+            // overwrite the source via markUnavailable rather than add a row.
+            onCopy = { mode = Mode.Add(m.item.copy(model = "")) },
             onDelete = { ModelCooldownStore.remove(m.item.providerId, m.item.model); toList() },
             onBack = toList,
             onNavigateToTrace = onNavigateToTrace

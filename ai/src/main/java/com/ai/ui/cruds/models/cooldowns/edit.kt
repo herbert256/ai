@@ -45,15 +45,14 @@ internal fun CooldownForm(
     var resetTick by remember { mutableStateOf(0) }
     var providerId by remember(resetTick) { mutableStateOf(initial?.providerId ?: allProviders.firstOrNull()?.id ?: "") }
     var model by remember(resetTick) { mutableStateOf(initial?.model ?: "") }
-    var hoursText by remember(resetTick) {
-        mutableStateOf(
-            if (initial == null) "24"
-            else {
-                val remainMs = initial.availableAtMs - System.currentTimeMillis()
-                ((remainMs + 3_600_000L - 1) / 3_600_000L).coerceAtLeast(1).toString()
-            }
-        )
+    val initialHoursText = remember(resetTick) {
+        if (initial == null) "24"
+        else {
+            val remainMs = initial.availableAtMs - System.currentTimeMillis()
+            ((remainMs + 3_600_000L - 1) / 3_600_000L).coerceAtLeast(1).toString()
+        }
     }
+    var hoursText by remember(resetTick) { mutableStateOf(initialHoursText) }
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
 
@@ -70,7 +69,16 @@ internal fun CooldownForm(
         saveEnabled = canSave,
         onSave = {
             val h = hoursText.trim().toLongOrNull() ?: return@CrudFormScaffold
-            onSaved(providerId, model.trim(), System.currentTimeMillis() + h * 3_600_000L)
+            // When editing and the (ceiling-rounded) hours field wasn't
+            // touched, keep the original absolute expiry instead of
+            // recomputing now + rounded-hours — otherwise an unchanged
+            // edit could extend the cooldown by up to ~1 hour.
+            val untilMs = if (initial != null && hoursText.trim() == initialHoursText.trim()) {
+                initial.availableAtMs
+            } else {
+                System.currentTimeMillis() + h * 3_600_000L
+            }
+            onSaved(providerId, model.trim(), untilMs)
         },
         onBack = onBack,
         helpTopic = "crud_model_cooldowns",

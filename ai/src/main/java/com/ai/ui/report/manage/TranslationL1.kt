@@ -128,7 +128,7 @@ internal fun TranslationL1Screen(
     // zero-progress row at the bottom instead of staying invisible
     // until its first item lands.
     val runModels = run.models
-    val modelRows = remember(items, runModels) {
+    val modelRows = remember(items, runModels, cooldowns) {
         val byKey = items.mapNotNull { item -> translationModelKey(item)?.let { it to item } }
             .groupBy({ it.first }, { it.second })
         val seen = byKey.keys.toMutableSet()
@@ -137,7 +137,12 @@ internal fun TranslationL1Screen(
                 modelKey = key,
                 total = its.size,
                 done = its.count { it.status == TranslationStatus.DONE },
-                err = its.count { it.status == TranslationStatus.ERROR },
+                // Match the headline split: a benched (cooldown) ERROR
+                // item recovers later, so it isn't counted as a hard error
+                // here either.
+                err = its.count {
+                    it.status == TranslationStatus.ERROR && !benched(it.providerId, it.model)
+                },
                 running = its.count { it.status == TranslationStatus.RUNNING },
                 cost = its.sumOf { it.costDollars }
             )
@@ -282,7 +287,11 @@ internal fun TranslationL1Screen(
         // there's still pending or running work. Hidden on a cancelled
         // run so it doesn't sit stuck.
         val pending = queuedCount + runningCount
-        if (pending > 0 && total > 0 && !run.cancelled) {
+        // Keep the bar up while benched (cooldown) items are still
+        // outstanding — they're excluded from errorCount, so without this
+        // the bar would hide with doneCount + errorCount < total, reading
+        // as a complete run while benched rows wait for their cooldown.
+        if ((pending > 0 || benchCount > 0) && total > 0 && !run.cancelled) {
             val finished = (doneCount + errorCount).toFloat() / total
             LinearProgressIndicator(
                 progress = { finished },
@@ -298,7 +307,7 @@ internal fun TranslationL1Screen(
         // relative to the busiest model. Once the run finishes (no
         // queued or running items) the bars are dropped — a completed
         // run shouldn't keep wearing in-flight progress chrome.
-        val showModelBars = pending > 0 && !run.cancelled
+        val showModelBars = (pending > 0 || benchCount > 0) && !run.cancelled
         if (modelRows.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(

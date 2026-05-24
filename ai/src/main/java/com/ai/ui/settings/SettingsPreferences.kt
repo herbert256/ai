@@ -47,8 +47,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val typePathsJson = prefs.getString(KEY_DEFAULT_TYPE_PATHS, null)
         val defaultTypePaths: Map<String, String> = typePathsJson?.let {
             try {
-                @Suppress("UNCHECKED_CAST")
-                (gson.fromJson(it, Map::class.java) as? Map<String, String>) ?: emptyMap()
+                // Use a concrete TypeToken<Map<String,String>> so Gson
+                // coerces values to String at parse time, instead of the
+                // unchecked Map::class.java cast that defers a possible
+                // ClassCastException to first use.
+                gson.fromJson<Map<String, String>>(it, TypeTokens.mapStringStringType) ?: emptyMap()
             } catch (_: Exception) { emptyMap() }
         } ?: emptyMap()
         val layoutName = prefs.getString(KEY_MODEL_NAME_LAYOUT, null)

@@ -601,7 +601,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             return
         }
-        ReportStorage.markAgentRunningAsync(context, reportId, task.resultId, aiPrompt)
+        // The resolved prompt is the request BODY, not headers — passing it
+        // positionally landed it in requestHeaders (Bug 57). Name the arg.
+        ReportStorage.markAgentRunningAsync(context, reportId, task.resultId, requestBody = aiPrompt)
 
         // Pull the report's attached KB ids so analyzeWithAgent can
         // do RAG retrieval on this turn. Cheap re-read; the

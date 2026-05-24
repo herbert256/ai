@@ -13,6 +13,7 @@ import com.ai.ui.cruds.framework.CrudListPage
 import com.ai.ui.cruds.framework.CrudViewPage
 import com.ai.ui.settings.InternalPromptEditScreen
 import com.ai.ui.settings.categoryDisplayName
+import com.ai.ui.settings.categorySingularName
 import java.util.Locale
 import java.util.UUID
 
@@ -39,7 +40,7 @@ fun InternalPromptCrud(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
-    val fixedList = category == "internal" || category == "icons" || category == "info"
+    val fixedList = com.ai.ui.settings.isFixedListCategory(category)
     val label = categoryDisplayName(category)
     var mode by remember(category) { mutableStateOf<Mode>(Mode.List) }
     val toList = { mode = Mode.List }
@@ -89,7 +90,7 @@ fun InternalPromptCrud(
             emptyMessage = "No ${label.lowercase()} configured"
         )
         is Mode.View -> CrudViewPage(
-            title = label.removeSuffix("s"),
+            title = categorySingularName(category),
             onEdit = { mode = Mode.Edit(m.item) },
             onCopy = if (fixedList) null else ({ mode = Mode.Edit(m.item.copy(id = UUID.randomUUID().toString(), name = "${m.item.name}-copy")) }),
             onDelete = if (fixedList) null else ({ remove(m.item); toList() }),

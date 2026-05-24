@@ -34,8 +34,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -78,8 +81,10 @@ fun UpdateFromCloudScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
 
+    val scope = rememberCoroutineScope()
     var apkUriString by remember { mutableStateOf(prefs.getString(KEY_URI, null)) }
     var lastStatus by remember { mutableStateOf<String?>(null) }
+    var isInstalling by remember { mutableStateOf(false) }
     // 5-second polling tick — drives the Source-file card to
     // re-query the DocumentsProvider so a freshly-synced APK
     // surfaces its new mtime without the user touching anything.
@@ -135,14 +140,25 @@ fun UpdateFromCloudScreen(
                     Toast.makeText(context, "Pick a source file first", Toast.LENGTH_SHORT).show()
                     return@Button
                 }
-                val ok = installFromUri(context, Uri.parse(uriStr))
-                lastStatus = if (ok) "Update launched — confirm in the system dialog."
-                             else "Couldn't read the source file — re-pick required."
+                // Copy the (potentially tens-of-MB, cloud-fetched) APK off
+                // the main thread to avoid ANRs, then fire the install
+                // intent back on the main thread.
+                isInstalling = true
+                lastStatus = "Preparing update…"
+                scope.launch {
+                    val cacheFile = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        copyApkToCache(context, Uri.parse(uriStr))
+                    }
+                    val ok = cacheFile != null && fireInstallIntent(context, cacheFile)
+                    lastStatus = if (ok) "Update launched — confirm in the system dialog."
+                                 else "Couldn't read the source file — re-pick required."
+                    isInstalling = false
+                }
             },
-            enabled = apkUriString != null,
+            enabled = apkUriString != null && !isInstalling,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text("Update", maxLines = 1, softWrap = false) }
+        ) { Text(if (isInstalling) "Preparing…" else "Update", maxLines = 1, softWrap = false) }
 
         Column(
             modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()),
@@ -305,22 +321,33 @@ private fun queryDocumentInfo(context: Context, uri: Uri): DocInfo? {
     } catch (_: Exception) { null }
 }
 
-/** Read the APK bytes from [sourceUri] into our cache dir, then fire
- *  the system PackageInstaller. Returns false when the source can't
- *  be opened (typical cause: persisted URI no longer valid). The
- *  system Install dialog handles the rest. */
-private fun installFromUri(context: Context, sourceUri: Uri): Boolean {
+/** Read the APK bytes from [sourceUri] into our cache dir. Returns the
+ *  cache file on success, null when the source can't be opened (typical
+ *  cause: persisted URI no longer valid). Writes to a `.tmp` first and
+ *  renames on success so a process kill mid-copy can't leave a
+ *  truncated `update.apk` behind. MUST run off the main thread — the
+ *  copy can pull tens of MB from a cloud DocumentsProvider. */
+private fun copyApkToCache(context: Context, sourceUri: Uri): File? {
     val updatesDir = File(context.cacheDir, "updates").apply { mkdirs() }
+    val tmpFile = File(updatesDir, "update.apk.tmp")
     val cacheFile = File(updatesDir, "update.apk")
     try {
         context.contentResolver.openInputStream(sourceUri)?.use { input ->
-            cacheFile.outputStream().use { output ->
+            tmpFile.outputStream().use { output ->
                 input.copyTo(output)
             }
-        } ?: return false
+        } ?: return null
     } catch (_: Exception) {
-        return false
+        tmpFile.delete()
+        return null
     }
+    return if (tmpFile.renameTo(cacheFile)) cacheFile else { tmpFile.delete(); null }
+}
+
+/** Fire the system PackageInstaller for an already-copied [cacheFile].
+ *  Returns false if the FileProvider URI can't be built or the intent
+ *  can't be launched. The system Install dialog handles the rest. */
+private fun fireInstallIntent(context: Context, cacheFile: File): Boolean {
     val apkUri: Uri = try {
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", cacheFile)
     } catch (_: Exception) {

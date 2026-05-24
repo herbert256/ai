@@ -6,6 +6,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlin.concurrent.withLock
 
@@ -66,6 +67,10 @@ object ChatHistoryManager {
 
     fun loadSession(sessionId: String): ChatSession? {
         val dir = historyDir ?: run { AppLog.w("ChatHistory", "Not initialized"); return null }
+        if (!isSafeSessionFile(dir, sessionId)) {
+            AppLog.e("ChatHistory", "Refusing to load session with unsafe id: $sessionId")
+            return null
+        }
         return lock.withLock {
             val file = File(dir, "$sessionId.json")
             if (!file.exists()) return null
@@ -97,6 +102,10 @@ object ChatHistoryManager {
 
     fun deleteSession(sessionId: String): Boolean {
         val dir = historyDir ?: return false
+        if (!isSafeSessionFile(dir, sessionId)) {
+            AppLog.e("ChatHistory", "Refusing to delete session with unsafe id: $sessionId")
+            return false
+        }
         return try {
             // Hold the lock across the disk delete + cache invalidation
             // so a concurrent getAllSessions can't observe the cached
@@ -140,6 +149,18 @@ object ChatHistoryManager {
         id.isNotBlank() && id != "." && id != ".." &&
             !id.contains('/') && !id.contains('\\')
 
+    /** Defence-in-depth for the read/delete paths (Bug 25): the same
+     *  flat-id + canonical-containment guard saveSession applies, so a
+     *  deep-link / nav-arg / import-driven id of `../reports/foo` can't
+     *  read or delete a file outside historyDir. */
+    private fun isSafeSessionFile(dir: File, sessionId: String): Boolean {
+        if (!isSafeFlatId(sessionId)) return false
+        return try {
+            File(dir, "$sessionId.json").canonicalPath
+                .startsWith(dir.canonicalPath + File.separator)
+        } catch (_: Exception) { false }
+    }
+
     fun getSessionCount(): Int {
         val dir = historyDir ?: return 0
         if (!dir.exists()) return 0
@@ -149,5 +170,8 @@ object ChatHistoryManager {
     suspend fun getAllSessionsAsync() = withContext(Dispatchers.IO) { getAllSessions() }
     suspend fun getSessionCountAsync() = withContext(Dispatchers.IO) { getSessionCount() }
 
-    private fun notifyHistoryChanged() { _historyVersion.value = System.currentTimeMillis() }
+    // Monotonic counter, not wall-clock (Bug 26): two mutations in the same
+    // millisecond would set _historyVersion to an equal value and StateFlow
+    // drops equal emissions, so a collector keyed on it could miss a refresh.
+    private fun notifyHistoryChanged() { _historyVersion.update { it + 1 } }
 }

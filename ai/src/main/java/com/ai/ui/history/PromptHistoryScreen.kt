@@ -21,6 +21,9 @@ import androidx.compose.ui.unit.sp
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.*
 import com.ai.viewmodel.PromptHistoryEntry
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,9 +36,17 @@ fun PromptHistoryScreen(
 ) {
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
     val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
-    var allEntries by remember { mutableStateOf(settingsPrefs.loadPromptHistory()) }
+    // Load off the main thread — a long prompt-history JSON parse blocked the
+    // first frame when done synchronously in the state initializer.
+    var loaded by remember { mutableStateOf<List<PromptHistoryEntry>?>(null) }
+    LaunchedEffect(Unit) {
+        if (loaded == null) loaded = withContext(Dispatchers.IO) { settingsPrefs.loadPromptHistory() }
+    }
+    var overrideEntries by remember { mutableStateOf<List<PromptHistoryEntry>?>(null) }
+    val allEntries = overrideEntries ?: loaded ?: emptyList()
     var searchText by rememberSaveable { mutableStateOf("") }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
@@ -59,7 +70,10 @@ fun PromptHistoryScreen(
 
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(helpTopic = "prompt_history", title = "Prompt History", subject = "Reuse a prompt you sent before", onBackClick = onNavigateBack,
-                onClear = if (allEntries.isNotEmpty()) ({ settingsPrefs.clearPromptHistory(); allEntries = emptyList(); currentPage = 0 }) else null)
+                onClear = if (allEntries.isNotEmpty()) ({
+                    overrideEntries = emptyList(); currentPage = 0
+                    scope.launch(Dispatchers.IO) { settingsPrefs.clearPromptHistory() }
+                }) else null)
 
             OutlinedTextField(value = searchText, onValueChange = { searchText = it },
                 placeholder = { Text("Search prompts...") }, modifier = Modifier.fillMaxWidth(),
@@ -87,7 +101,9 @@ fun PromptHistoryScreen(
             Spacer(modifier = Modifier.height(4.dp))
 
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                items(pageItems, key = { it.timestamp }) { entry ->
+                // Composite key — two entries saved in the same millisecond
+                // would collide on the bare timestamp and crash Compose.
+                items(pageItems, key = { "${it.timestamp}:${it.title.hashCode()}:${it.prompt.hashCode()}" }) { entry ->
                     PromptHistoryRow(entry = entry, onClick = { onSelectEntry(entry) })
                 }
             }

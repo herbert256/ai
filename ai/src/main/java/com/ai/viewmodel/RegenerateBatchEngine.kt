@@ -153,6 +153,10 @@ class RegenerateBatchEngine internal constructor(
      *  themselves and persist as normal. */
     fun cancel(context: Context, reportId: String) {
         appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+            // Just cancel the orchestrator coroutine and let ITS finally
+            // block decrement activeSecondaryBatches (Bug 80). Decrementing
+            // here too double-counted the same logical batch end, drifting
+            // the "batches running" badge below the real count.
             orchestratorJobs.remove(reportId)?.cancel()
             val job = RegenerateBatchStorage.get(context, reportId) ?: return@launch
             if (job.status == RegenerateJobStatus.DONE ||
@@ -161,9 +165,6 @@ class RegenerateBatchEngine internal constructor(
                 status = RegenerateJobStatus.CANCELLED,
                 updatedAt = System.currentTimeMillis()
             ))
-            appViewModel.updateUiState {
-                it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0))
-            }
         }
     }
 
@@ -599,9 +600,13 @@ class RegenerateBatchEngine internal constructor(
         context: Context, reportId: String,
         mutator: (RegenerateJob) -> RegenerateJob
     ): RegenerateJob? {
-        val current = RegenerateBatchStorage.get(context, reportId) ?: return null
-        val updated = mutator(current).copy(updatedAt = System.currentTimeMillis())
-        persist(context, updated)
+        // Atomic get→mutate→save under the storage lock (Bug 58) so a
+        // concurrent cancel (on another coroutine) can't be clobbered by an
+        // orchestrator update built from a stale RUNNING snapshot.
+        val updated = RegenerateBatchStorage.update(context, reportId) { current ->
+            mutator(current).copy(updatedAt = System.currentTimeMillis())
+        } ?: return null
+        _jobs.update { it + (updated.reportId to updated) }
         return updated
     }
 

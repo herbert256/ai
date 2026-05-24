@@ -129,7 +129,13 @@ private fun parseSseStream(
         }
         // Flush a trailing event that ended via TCP close (no blank line).
         dispatch()
-        if (!sawTerminator && sawAnyData) {
+        // Many OpenAI-compatible clones (vLLM/Ollama-compat, some proxies)
+        // end a stream by simply closing the socket after the last delta,
+        // with no `data: [DONE]` / `message_stop` / `response.completed`
+        // terminator. Treat a clean EOF as valid as long as at least one
+        // content chunk was emitted — only flag truncation when data arrived
+        // but produced no content at all (Bug 2).
+        if (!sawTerminator && sawAnyData && chunkCount == 0) {
             throw java.io.IOException("SSE stream ended without terminator — response likely truncated")
         }
     } finally {
@@ -186,7 +192,11 @@ private fun extractClaudeContent(eventType: String?, data: String): String? {
 /** Gemini SSE: data contains candidates[0].content.parts[0].text */
 private fun extractGeminiContent(eventType: String?, data: String): String? {
     return try {
-        gson.fromJson(data, GeminiStreamChunk::class.java)?.candidates?.firstOrNull()?.content?.parts?.firstOrNull()?.text?.takeIf { it.isNotEmpty() }
+        gson.fromJson(data, GeminiStreamChunk::class.java)
+            ?.candidates?.firstOrNull()?.content?.parts
+            ?.mapNotNull { it.text }
+            ?.joinToString(separator = "")
+            ?.takeIf { it.isNotEmpty() }
     } catch (_: Exception) { null }
 }
 

@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -56,7 +57,10 @@ fun <T> CrudListPage(
     emptyMessage: String = "Nothing here yet."
 ) {
     BackHandler { onBack() }
-    var page by remember(items.size) { mutableStateOf(0) }
+    // Don't key on items.size — that reset the page to 0 on every
+    // add/delete, bouncing the user back to page 1. safePage already
+    // coerces against the live totalPages, so out-of-range is handled.
+    var page by remember { mutableStateOf(0) }
 
     Column(
         modifier = Modifier
@@ -122,10 +126,14 @@ fun <T> CrudListPage(
 private fun CrudRow(text: String, onClick: () -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
+        // Fixed height so the per-page row count (computed from a 56.dp
+        // row estimate) matches the actual rendered height — otherwise on
+        // large-font accessibility settings the content-driven height grew
+        // past the estimate and the last row on a page got clipped.
+        modifier = Modifier.fillMaxWidth().height(50.dp).clickable(onClick = onClick)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(

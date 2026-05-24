@@ -92,7 +92,10 @@ fun TranslateViewScreen(
             val all = SecondaryResultStorage.listForReport(context, currentReportId)
             val translates = all.filter {
                 it.kind == SecondaryKind.TRANSLATE &&
-                    it.translationRunId == currentTranslationRunId &&
+                    // Group by the shared grouping id so a legacy row with a
+                    // null translationRunId still matches its synthetic
+                    // "lang:<lang>" run id handed in by a swipe.
+                    com.ai.ui.helpers.translationRunGroupingId(it) == currentTranslationRunId &&
                     !it.content.isNullOrBlank()
             }
             val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
@@ -234,11 +237,17 @@ private fun TranslatePair(
         }
         "META" -> {
             val meta = metaSources[sourceTargetId]
-            val name = meta?.metaPromptName?.takeIf { it.isNotBlank() }
-                ?: meta?.let { com.ai.data.legacyKindDisplayName(it.kind) }
-                ?: "Meta"
-            sourceLabel = "🧠 $name"
-            sourceBody = meta?.content.orEmpty()
+            if (meta == null) {
+                // Source META row was deleted after the translation was made
+                // — say so rather than showing a generic empty "🧠 Meta".
+                sourceLabel = "🧠 Meta (source deleted)"
+                sourceBody = ""
+            } else {
+                val name = meta.metaPromptName?.takeIf { it.isNotBlank() }
+                    ?: com.ai.data.legacyKindDisplayName(meta.kind)
+                sourceLabel = "🧠 $name"
+                sourceBody = meta.content.orEmpty()
+            }
         }
         else -> {
             sourceLabel = sourceKind.ifBlank { "Source" }
@@ -292,7 +301,14 @@ private fun SidePanel(
     val isLong = body.length > collapseThreshold
     val isExpanded = expanded.get(expansionKey, defaultValue = !isLong)
     val shown = if (isLong && !isExpanded) {
-        body.take(previewChars).trimEnd() + "…"
+        // Cut on a line boundary inside the preview window so we don't
+        // slice through a <think> tag, a ``` code fence, or a table
+        // placeholder mid-token (which would render broken markdown). Fall
+        // back to a hard char cut only when there's no newline to break on.
+        val window = body.take(previewChars)
+        val lastBreak = window.lastIndexOf('\n')
+        val cut = if (lastBreak >= previewChars / 2) window.substring(0, lastBreak) else window
+        cut.trimEnd() + "…"
     } else body
 
     Column(

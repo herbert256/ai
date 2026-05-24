@@ -119,10 +119,18 @@ fun CostsMaintenanceScreen(
             if (rawIn.isEmpty() && rawOut.isEmpty()) return@forEach
             val provider = AppService.findById(parts[0].trim())
             val model = parts[1].trim()
-            val inp = rawIn.toDoubleOrNull()?.div(1_000_000)
-            val outp = rawOut.toDoubleOrNull()?.div(1_000_000)
-            if (provider != null && model.isNotBlank() && inp != null && outp != null) {
-                PricingCache.setManualPricing(context, provider, model, inp, outp); imported++
+            var inp = rawIn.toDoubleOrNull()?.div(1_000_000)
+            var outp = rawOut.toDoubleOrNull()?.div(1_000_000)
+            // Single-column edit (only one of input/output filled): keep the
+            // other side at whatever the lookup currently returns so a
+            // one-column correction doesn't get silently skipped.
+            if (provider != null && model.isNotBlank() && (inp != null || outp != null)) {
+                if (inp == null || outp == null) {
+                    val current = PricingCache.getPricing(context, provider, model)
+                    if (inp == null) inp = current.promptPrice
+                    if (outp == null) outp = current.completionPrice
+                }
+                PricingCache.setManualPricing(context, provider, model, inp!!, outp!!); imported++
             } else skipped++
         }
         Toast.makeText(context, "Imported $imported overrides" + (if (skipped > 0) ", skipped $skipped" else ""), Toast.LENGTH_SHORT).show()

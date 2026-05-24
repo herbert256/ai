@@ -187,19 +187,30 @@ private fun applyRuntimeReports(context: Context, root: JsonObject): ImportRepor
             return@forEach
         }
         if (report.id.isBlank()) { skipped++; return@forEach }
-        if (report.id in existingIds) { skipped++; return@forEach }
-        ReportStorage.persistReport(context, report)
-        added++
-        // Per-report secondaries — same additive logic. The parent
-        // report just landed (its id wasn't in existingIds), so any
-        // secondary id is by construction new on this device.
+        val isNew = report.id !in existingIds
+        if (isNew) {
+            ReportStorage.persistReport(context, report)
+            added++
+        } else {
+            skipped++
+        }
+        // Per-report secondaries — additive. For a newly-added report any
+        // secondary is new by construction; for a skipped (already-present)
+        // report we still merge any secondary whose id isn't on disk so an
+        // import can backfill missing secondaries (Bug 46).
         val rows = secondariesObj?.getAsJsonArray(report.id) ?: return@forEach
+        val existingSecondaryIds = if (isNew) emptySet()
+            else SecondaryResultStorage.listForReport(context, report.id).map { it.id }.toSet()
         rows.forEach { se ->
             val sr = try { gson.fromJson(se, SecondaryResult::class.java) } catch (e: Exception) {
                 AppLog.w("ImportExport", "Skipped secondary row: ${e.message}")
                 return@forEach
             }
             if (sr.id.isBlank() || sr.reportId.isBlank()) return@forEach
+            // Guard against a malformed bundle attaching a secondary to the
+            // wrong parent (Bug 47).
+            if (sr.reportId != report.id) return@forEach
+            if (!isNew && sr.id in existingSecondaryIds) return@forEach
             SecondaryResultStorage.save(context, sr)
             secondariesAdded++
         }
@@ -265,6 +276,36 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("showKnowledgeCard", g.showKnowledgeCard)
     addProperty("autoCreateRerankAndModeration", g.autoCreateRerankAndModeration)
     addProperty("experimentalFeaturesEnabled", g.experimentalFeaturesEnabled)
+    // Metadata sub-flags + icons blob.
+    addProperty("metadataEnabled", g.metadataEnabled)
+    addProperty("reportLanguageGenEnabled", g.reportLanguageGenEnabled)
+    addProperty("perModelIconGenEnabled", g.perModelIconGenEnabled)
+    addProperty("perModelTitleGenEnabled", g.perModelTitleGenEnabled)
+    addProperty("useInternalPromptsIcons", g.useInternalPromptsIcons)
+    addProperty("autostartFanIconsAndTitles", g.autostartFanIconsAndTitles)
+    add("metadataIcons", createAppGson().toJsonTree(g.metadataIcons))
+    // App-wide / report-model default prompt + params.
+    g.appWideSystemPromptId?.let { addProperty("appWideSystemPromptId", it) }
+    add("appWideParametersIds", createAppGson().toJsonTree(g.appWideParametersIds))
+    g.reportModelSystemPromptId?.let { addProperty("reportModelSystemPromptId", it) }
+    add("reportModelParametersIds", createAppGson().toJsonTree(g.reportModelParametersIds))
+    // Network / throttle / retry tuning.
+    addProperty("streamingReadTimeoutSec", g.streamingReadTimeoutSec)
+    addProperty("nonStreamingReadTimeoutSec", g.nonStreamingReadTimeoutSec)
+    addProperty("maxCallsPerProviderPerMinute", g.maxCallsPerProviderPerMinute)
+    addProperty("maxConcurrentCallsPerProvider", g.maxConcurrentCallsPerProvider)
+    addProperty("maxConcurrentApiCalls", g.maxConcurrentApiCalls)
+    addProperty("maxConcurrentReportCalls", g.maxConcurrentReportCalls)
+    addProperty("maxConcurrentTranslationCalls", g.maxConcurrentTranslationCalls)
+    addProperty("maxConcurrentFanOutCalls", g.maxConcurrentFanOutCalls)
+    addProperty("maxConcurrentFanIconsCalls", g.maxConcurrentFanIconsCalls)
+    addProperty("maxTestApiCalls", g.maxTestApiCalls)
+    addProperty("maxRetriesOn429", g.maxRetriesOn429)
+    addProperty("retryBackoffMs429", g.retryBackoffMs429)
+    addProperty("maxRetriesOn529", g.maxRetriesOn529)
+    addProperty("retryBackoffMs529", g.retryBackoffMs529)
+    addProperty("logLevel", g.logLevel.name)
+    add("recentReportModels", createAppGson().toJsonTree(g.recentReportModels))
     context.getSharedPreferences("view_screen_prefs", Context.MODE_PRIVATE)
         .getString("tile_order", null)
         ?.let { addProperty("viewTileOrder", it) }
@@ -279,8 +320,18 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
  *  (not part of the returned [GeneralSettings] object); kept in this
  *  function so settings import/all-bundle import both pick it up. */
 private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, context: Context): GeneralSettings {
+    val gson = createAppGson()
     fun str(name: String) = obj.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
     fun bool(name: String) = obj.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
+    fun int(name: String) = obj.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.runCatching { asInt }?.getOrNull()
+    fun long(name: String) = obj.get(name)?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.runCatching { asLong }?.getOrNull()
+    fun strList(name: String): List<String>? = obj.getAsJsonArray(name)?.mapNotNull {
+        if (it.isJsonPrimitive && it.asJsonPrimitive.isString) it.asString else null
+    }
+    val metadataIcons = obj.getAsJsonObject("metadataIcons")?.let {
+        runCatching { gson.fromJson(it, com.ai.data.MetadataIcons::class.java) }.getOrNull()
+    }
+    val logLevel = str("logLevel")?.let { runCatching { com.ai.data.LogLevel.valueOf(it) }.getOrNull() }
     val typePaths: Map<String, String>? = obj.getAsJsonObject("defaultTypePaths")?.let { o ->
         val m = LinkedHashMap<String, String>()
         o.entrySet().forEach { (k, v) -> if (v.isJsonPrimitive) m[k] = v.asString }
@@ -307,7 +358,34 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         reportTitleMode = titleMode ?: current.reportTitleMode,
         showKnowledgeCard = bool("showKnowledgeCard") ?: current.showKnowledgeCard,
         autoCreateRerankAndModeration = bool("autoCreateRerankAndModeration") ?: current.autoCreateRerankAndModeration,
-        experimentalFeaturesEnabled = bool("experimentalFeaturesEnabled") ?: current.experimentalFeaturesEnabled
+        experimentalFeaturesEnabled = bool("experimentalFeaturesEnabled") ?: current.experimentalFeaturesEnabled,
+        metadataEnabled = bool("metadataEnabled") ?: current.metadataEnabled,
+        reportLanguageGenEnabled = bool("reportLanguageGenEnabled") ?: current.reportLanguageGenEnabled,
+        perModelIconGenEnabled = bool("perModelIconGenEnabled") ?: current.perModelIconGenEnabled,
+        perModelTitleGenEnabled = bool("perModelTitleGenEnabled") ?: current.perModelTitleGenEnabled,
+        useInternalPromptsIcons = bool("useInternalPromptsIcons") ?: current.useInternalPromptsIcons,
+        autostartFanIconsAndTitles = bool("autostartFanIconsAndTitles") ?: current.autostartFanIconsAndTitles,
+        metadataIcons = metadataIcons ?: current.metadataIcons,
+        appWideSystemPromptId = if (obj.has("appWideSystemPromptId")) str("appWideSystemPromptId") else current.appWideSystemPromptId,
+        appWideParametersIds = strList("appWideParametersIds") ?: current.appWideParametersIds,
+        reportModelSystemPromptId = if (obj.has("reportModelSystemPromptId")) str("reportModelSystemPromptId") else current.reportModelSystemPromptId,
+        reportModelParametersIds = strList("reportModelParametersIds") ?: current.reportModelParametersIds,
+        recentReportModels = strList("recentReportModels") ?: current.recentReportModels,
+        streamingReadTimeoutSec = int("streamingReadTimeoutSec") ?: current.streamingReadTimeoutSec,
+        nonStreamingReadTimeoutSec = int("nonStreamingReadTimeoutSec") ?: current.nonStreamingReadTimeoutSec,
+        maxCallsPerProviderPerMinute = int("maxCallsPerProviderPerMinute") ?: current.maxCallsPerProviderPerMinute,
+        maxConcurrentCallsPerProvider = int("maxConcurrentCallsPerProvider") ?: current.maxConcurrentCallsPerProvider,
+        maxConcurrentApiCalls = int("maxConcurrentApiCalls") ?: current.maxConcurrentApiCalls,
+        maxConcurrentReportCalls = int("maxConcurrentReportCalls") ?: current.maxConcurrentReportCalls,
+        maxConcurrentTranslationCalls = int("maxConcurrentTranslationCalls") ?: current.maxConcurrentTranslationCalls,
+        maxConcurrentFanOutCalls = int("maxConcurrentFanOutCalls") ?: current.maxConcurrentFanOutCalls,
+        maxConcurrentFanIconsCalls = int("maxConcurrentFanIconsCalls") ?: current.maxConcurrentFanIconsCalls,
+        maxTestApiCalls = int("maxTestApiCalls") ?: current.maxTestApiCalls,
+        maxRetriesOn429 = int("maxRetriesOn429") ?: current.maxRetriesOn429,
+        retryBackoffMs429 = long("retryBackoffMs429") ?: current.retryBackoffMs429,
+        maxRetriesOn529 = int("maxRetriesOn529") ?: current.maxRetriesOn529,
+        retryBackoffMs529 = long("retryBackoffMs529") ?: current.retryBackoffMs529,
+        logLevel = logLevel ?: current.logLevel
     )
 }
 
@@ -358,7 +436,15 @@ private fun applyModelLists(obj: JsonObject, working: Settings): Pair<Settings, 
             val list = value.mapNotNull {
                 if (it.isJsonPrimitive && it.asJsonPrimitive.isString) it.asString else null
             }
-            s = s.withModels(service, list)
+            // Re-derive a modelTypes map so a legacy bare-array import gets
+            // the same type inference the object branch does — keep any
+            // existing per-model type, infer for ids new to this provider.
+            // vision/web/reasoning sidecars are preserved by withModels.
+            val existingTypes = s.getProvider(service).modelTypes
+            val mergedTypes = list.associateWith { id ->
+                existingTypes[id] ?: com.ai.data.ModelType.infer(id)
+            }
+            s = s.withModels(service, list, mergedTypes)
             n++
             return@forEach
         }
@@ -639,7 +725,10 @@ fun ImportExportScreen(
     // these zip paths do enough disk work to deserve Dispatchers.IO.
     val scope = rememberCoroutineScope()
 
-    var importType by remember { mutableStateOf("keys") }
+    // rememberSaveable: the SAF picker can outlive our process on
+    // low-memory devices; a plain remember would reset importType to
+    // "keys" on recreation and mis-route the picked file.
+    var importType by rememberSaveable { mutableStateOf("keys") }
     // Set once an "Import all" finishes successfully — the in-memory
     // singletons (Settings StateFlow, ProviderRegistry, PromptCache,
     // PricingCache caches) are out of sync with the freshly-imported
@@ -694,7 +783,12 @@ fun ImportExportScreen(
                         ?: error("Report not found")
                     val tsLabel = exportTimestamp()
                     val safeTitle = report.title.replace(Regex("[^A-Za-z0-9._-]+"), "_")
-                        .take(40).ifBlank { "report" }
+                        .take(40)
+                        // An all-non-ASCII title (CJK / emoji) collapses to
+                        // a string of separators, not blank — treat that as
+                        // blank so we fall back to "report".
+                        .trim('_', '.', '-')
+                        .ifBlank { "report" }
                     com.ai.ui.shared.shareExport(
                         context = context,
                         fileName = "ai_report_${safeTitle}_$tsLabel.zip",
@@ -1039,7 +1133,10 @@ fun ImportExportScreen(
             "costs" -> {
                 val csv = readFromUri(uri)
                 if (csv.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
-                var imported = 0; var skipped = 0
+                // Count distinct (provider, model) keys, not rows — two CSV
+                // rows for the same pair overwrite each other but would
+                // otherwise both inflate the "imported" count.
+                val importedKeys = HashSet<String>(); var skipped = 0
                 csv.lines().drop(1).filter { it.isNotBlank() }.forEach { line ->
                     val parts = parseCsvRow(line)
                     if (parts.size >= 4) {
@@ -1048,11 +1145,12 @@ fun ImportExportScreen(
                         val inp = parts[2].trim().toDoubleOrNull()?.div(1_000_000)
                         val outp = parts[3].trim().toDoubleOrNull()?.div(1_000_000)
                         if (provider != null && model.isNotBlank() && inp != null && outp != null) {
-                            PricingCache.setManualPricing(context, provider, model, inp, outp); imported++
+                            PricingCache.setManualPricing(context, provider, model, inp, outp)
+                            importedKeys.add("${provider.id}:$model")
                         } else skipped++
                     } else skipped++
                 }
-                Toast.makeText(context, "Imported $imported costs" + (if (skipped > 0) ", skipped $skipped" else ""), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Imported ${importedKeys.size} costs" + (if (skipped > 0) ", skipped $skipped" else ""), Toast.LENGTH_SHORT).show()
             }
             "providers" -> {
                 // Catalog-only update. Per-provider API keys live in
@@ -1349,20 +1447,29 @@ fun ImportExportScreen(
                     }
                 }
 
-                root.getAsJsonArray("costs")?.let { arr ->
-                    var imported = 0
-                    arr.forEach { el ->
-                        val o = (el as? JsonObject) ?: return@forEach
-                        val provId = o.get("provider")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEach
-                        val model = o.get("model")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEach
-                        val inp = o.get("inputPerMillion")?.takeIf { it.isJsonPrimitive }?.asDouble?.div(1_000_000) ?: return@forEach
-                        val outp = o.get("outputPerMillion")?.takeIf { it.isJsonPrimitive }?.asDouble?.div(1_000_000) ?: return@forEach
-                        val provider = AppService.findById(provId) ?: return@forEach
-                        if (model.isNotBlank()) {
-                            PricingCache.setManualPricing(context, provider, model, inp, outp); imported++
+                try {
+                    root.getAsJsonArray("costs")?.let { arr ->
+                        var imported = 0
+                        arr.forEach { el ->
+                            val o = (el as? JsonObject) ?: return@forEach
+                            val provId = o.get("provider")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEach
+                            val model = o.get("model")?.takeIf { it.isJsonPrimitive }?.asString ?: return@forEach
+                            // Guard against non-numeric primitives ("NaN", strings):
+                            // asDouble throws NumberFormatException on those and would
+                            // otherwise abort the whole bundle import mid-flight.
+                            val inp = o.get("inputPerMillion")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+                                ?.runCatching { asDouble }?.getOrNull()?.div(1_000_000) ?: return@forEach
+                            val outp = o.get("outputPerMillion")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }
+                                ?.runCatching { asDouble }?.getOrNull()?.div(1_000_000) ?: return@forEach
+                            val provider = AppService.findById(provId) ?: return@forEach
+                            if (model.isNotBlank()) {
+                                PricingCache.setManualPricing(context, provider, model, inp, outp); imported++
+                            }
                         }
+                        if (imported > 0) parts.add("$imported costs")
                     }
-                    if (imported > 0) parts.add("$imported costs")
+                } catch (e: Exception) {
+                    AppLog.w("ImportExport", "Bundle costs section failed: ${e.message}")
                 }
 
                 root.getAsJsonArray("providers")?.let { arr ->
@@ -1448,7 +1555,7 @@ fun ImportExportScreen(
                 }
 
                 if (workingGs != generalSettings) onSaveGeneral(workingGs)
-                if (working !== aiSettings) onSave(working)
+                if (working != aiSettings) onSave(working)
                 if (parts.isEmpty()) {
                     Toast.makeText(context, "Bundle had no recognised sections", Toast.LENGTH_LONG).show()
                 } else {

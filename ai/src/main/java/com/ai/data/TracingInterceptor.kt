@@ -47,7 +47,7 @@ class TracingInterceptor : Interceptor {
             try { val buffer = Buffer(); body.writeTo(buffer); buffer.readUtf8() } catch (_: Exception) { null }
         }
         val requestHeaders = headersToMap(request.headers)
-        val traceRequest = TraceRequest(redactUrl(request.url.toString()), request.method, requestHeaders, rawRequestBody)
+        val traceRequest = TraceRequest(redactUrl(request.url.toString()), request.method, requestHeaders, redactBody(rawRequestBody))
 
         // Model + call-site tags resolved BEFORE chain.proceed so even
         // a pre-response failure (DNS, TLS, connect timeout) produces a
@@ -174,7 +174,7 @@ class TracingInterceptor : Interceptor {
         // this filename via saveTrace's `filename` parameter so the
         // partial entry is overwritten in place (file + cache).
         val partialFilename = saveWith(
-            body = "[partitial: stream in progress]",
+            body = "[partial: stream in progress]",
             partial = true
         )
 
@@ -316,5 +316,19 @@ class TracingInterceptor : Interceptor {
 
     private val URL_KEY_PARAM_REGEX =
         Regex("""([?&](?:key|api[_-]?key|access_token|token)=)([^&\s]+)""", RegexOption.IGNORE_CASE)
+
+    /** Redact key-bearing fields inside a JSON request body before it's
+     *  persisted in the trace JSON (Bug 17). Headers and the URL `?key=`
+     *  are already redacted, but a provider/proxy that places a secret in
+     *  the JSON body would otherwise land plaintext on disk (trace files
+     *  roll up into the backup zip). Best-effort string match on the known
+     *  key field names; leaves a non-matching body untouched. */
+    private fun redactBody(body: String?): String? {
+        if (body.isNullOrBlank()) return body
+        return BODY_KEY_FIELD_REGEX.replace(body) { m -> "${m.groupValues[1]}\"[REDACTED]\"" }
+    }
+
+    private val BODY_KEY_FIELD_REGEX =
+        Regex("""("(?:api[_-]?key|apikey|access_token|authorization|secret|token|key)"\s*:\s*)"(?:[^"\\]|\\.)*"""", RegexOption.IGNORE_CASE)
 }
 

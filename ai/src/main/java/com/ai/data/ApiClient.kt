@@ -264,9 +264,18 @@ object ApiFactory {
             val builder = okhttp3.Request.Builder().url(url).get()
             headers.forEach { (k, v) -> builder.addHeader(k, v) }
             okHttpClient.newCall(builder.build()).execute().use { resp ->
-                if (resp.isSuccessful) resp.body?.string() else null
+                if (resp.isSuccessful) resp.body?.string()
+                else {
+                    AppLog.w("ApiClient", "fetchUrlAsString non-2xx ${resp.code} for $url — raw snapshot skipped")
+                    null
+                }
             }
-        } catch (_: Exception) { null }
+        } catch (e: Exception) {
+            // Leave a breadcrumb (Bug 67): the blanket swallow previously
+            // stored a null raw snapshot with no clue why.
+            AppLog.w("ApiClient", "fetchUrlAsString failed for $url: ${e.message}")
+            null
+        }
     }
 
     fun createOpenAiApi(baseUrl: String): OpenAiApi = getRetrofit(baseUrl).create(OpenAiApi::class.java)

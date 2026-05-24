@@ -41,9 +41,16 @@ class OverloadedRetryInterceptor : Interceptor {
         var attempt = 0
         while (current.code == 529 && attempt < maxRetries) {
             if (chain.call().isCanceled()) return current
+            // Exponential-with-equal-jitter backoff (mirrors the 429 path,
+            // Bug 16): a flat per-attempt backoff lets a synchronized 529
+            // burst re-collide each attempt. Doubling spreads a sustained
+            // burst; the random half de-syncs sibling calls.
+            val expBackoff = (backoffMs shl attempt.coerceAtMost(16)).coerceAtMost(30_000L)
+            val jittered = if (expBackoff <= 0) 0L else
+                expBackoff / 2 + java.util.concurrent.ThreadLocalRandom.current().nextLong(expBackoff / 2 + 1)
             // Honour Retry-After when the server includes it.
             // Anthropic frequently does on 529 (overloaded_error).
-            val sleepMs = resolveRetryAfter(current, defaultMs = backoffMs, hostForLog = request.url.host)
+            val sleepMs = resolveRetryAfter(current, defaultMs = jittered, hostForLog = request.url.host)
             current.close()
             try {
                 Thread.sleep(sleepMs)

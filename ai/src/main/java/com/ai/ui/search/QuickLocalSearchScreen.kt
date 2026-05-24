@@ -122,7 +122,7 @@ fun QuickLocalSearchScreen(
     }
 }
 
-private data class QuickHit(val reportId: String, val title: String, val timestamp: String, val icon: String?)
+private data class QuickHit(val reportId: String, val title: String, val timestamp: String, val epoch: Long, val icon: String?)
 
 private fun runQuickSearch(context: android.content.Context, word: String): List<QuickHit> {
     val needle = word.lowercase(java.util.Locale.ROOT)
@@ -135,6 +135,6 @@ private fun runQuickSearch(context: android.content.Context, word: String): List
             a.responseBody?.contains(needle, ignoreCase = true) == true
         }
         if (!matchesPrompt && !matchesAnyResponse) null
-        else QuickHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)), r.icon)
-    }.sortedByDescending { it.timestamp }
+        else QuickHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)), r.timestamp, r.icon)
+    }.sortedByDescending { it.epoch }
 }

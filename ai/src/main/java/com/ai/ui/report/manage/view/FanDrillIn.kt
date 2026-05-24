@@ -281,8 +281,11 @@ internal fun ColumnScope.FanOutDrillInView(
 
     // Build the role-aware ordered list for L2 / L3 stepping.
     val activeKey = selectedModelKey
-    val activePid = activeKey?.split("|")?.getOrNull(0).orEmpty()
-    val activeMdl = activeKey?.split("|")?.getOrNull(1).orEmpty()
+    // providerId|model — split on the FIRST pipe only (provider ids never
+    // contain `|`, but a custom model id can), so the model segment keeps
+    // any literal pipes intact.
+    val activePid = activeKey?.substringBefore('|').orEmpty()
+    val activeMdl = activeKey?.substringAfter('|', "").orEmpty()
     val activeAgents = remember(successful, activeKey) {
         if (activeKey == null) emptyList()
         else successful.filter { it.provider == activePid && it.model == activeMdl }
@@ -456,9 +459,13 @@ internal fun ColumnScope.FanOutDrillInView(
         }
         fun gotoPair(row: L2Row?) {
             row ?: return
-            val pivot = row.l3PairKey.lastIndexOf('|')
-            val ans = if (pivot > 0) row.l3PairKey.substring(0, pivot) else row.l3PairKey
-            val src = if (pivot > 0) row.l3PairKey.substring(pivot + 1) else ""
+            // Derive the answerer key by stripping the EXACT known source
+            // suffix off l3PairKey (using the structured sourceAgentId)
+            // rather than re-splitting on a pipe — that keeps a model id
+            // containing a literal `|` intact and lets a blank-source
+            // (orphan/legacy) row still navigate instead of being dead.
+            val src = row.sourceAgentId
+            val ans = row.l3PairKey.removeSuffix("|$src")
             l3AnswererKey = ans
             l3SourceAgentId = src
         }
@@ -508,8 +515,13 @@ internal fun ColumnScope.FanOutDrillInView(
                         Text(answererLabel, fontSize = 13.sp, color = AppColors.Green,
                             fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace,
                             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        val tf by produceState<String?>(initialValue = null, pairResult?.id, pairResult?.model) {
+                        val tf by produceState<String?>(initialValue = null, pairResult?.id, pairResult?.model, pairResult?.traceFile) {
                             val res = pairResult
+                            // Prefer the exact trace this pair captured at
+                            // call time; the nearest-timestamp heuristic can
+                            // attach the wrong pair's trace when the same
+                            // answerer ran many pairs in one burst.
+                            res?.traceFile?.takeIf { it.isNotBlank() }?.let { value = it; return@produceState }
                             value = if (res == null) null else withContext(Dispatchers.IO) {
                                 ApiTracer.getTraceFiles()
                                     .filter { it.reportId == reportId && it.model == res.model }
@@ -761,7 +773,11 @@ internal fun ColumnScope.FanOutDrillInView(
         val l2ListState = androidx.compose.foundation.lazy.rememberLazyListState()
         var lastModelScopedSize by remember { mutableIntStateOf(modelScopedFanIn.size) }
         LaunchedEffect(modelScopedFanIn.size) {
-            if (modelScopedFanIn.size > lastModelScopedSize) {
+            // Only yank to the top when the user is already near it — a
+            // newly-arrived fan-in row shouldn't pull the scroll up from
+            // under someone reading a per-pair row further down.
+            if (modelScopedFanIn.size > lastModelScopedSize &&
+                l2ListState.firstVisibleItemIndex <= 1) {
                 l2ListState.animateScrollToItem(0)
             }
             lastModelScopedSize = modelScopedFanIn.size
@@ -840,16 +856,14 @@ internal fun ColumnScope.FanOutDrillInView(
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .clickable {
-                                // Split off the trailing srcAgentId via
-                                // lastIndexOf so a model name with a `|`
-                                // doesn't shift the boundary.
-                                val pivot = row.l3PairKey.lastIndexOf('|')
-                                val ans = if (pivot > 0) row.l3PairKey.substring(0, pivot) else row.l3PairKey
-                                val src = if (pivot > 0) row.l3PairKey.substring(pivot + 1) else ""
-                                if (src.isNotBlank()) {
-                                    l3AnswererKey = ans
-                                    l3SourceAgentId = src
-                                }
+                                // Use the structured sourceAgentId and strip
+                                // the exact suffix off l3PairKey for the
+                                // answerer key — robust to model ids with a
+                                // literal `|` and to blank-source orphan rows
+                                // (which were previously dead on tap).
+                                val src = row.sourceAgentId
+                                l3AnswererKey = row.l3PairKey.removeSuffix("|$src")
+                                l3SourceAgentId = src
                             }
                             .padding(vertical = 10.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically

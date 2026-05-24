@@ -37,8 +37,26 @@ internal fun parseGfmTables(markdown: String): Pair<String, List<MarkdownTable>>
             i += 2
             val bodyRows = mutableListOf<List<String>>()
             while (i < lines.size && lines[i].trimStart().startsWith("|")) {
-                bodyRows.add(splitTableRow(lines[i]))
+                // Normalise every body row to the header width: pad short
+                // rows with empty cells (so the <tr> isn't ragged) and
+                // truncate over-long rows. Keeps both the in-app table and
+                // the HTML export aligned to the header column count.
+                val cells = splitTableRow(lines[i])
+                val normalized = when {
+                    cells.size < headers.size -> cells + List(headers.size - cells.size) { "" }
+                    cells.size > headers.size -> cells.take(headers.size)
+                    else -> cells
+                }
+                bodyRows.add(normalized)
                 i++
+            }
+            // A header + separator with zero body rows isn't a real table —
+            // emit the original lines as-is rather than producing an empty
+            // <tbody>/blank in-app table block.
+            if (bodyRows.isEmpty()) {
+                out.append(line).append("\n")
+                out.append(lines[i - 1]).append("\n")
+                continue
             }
             tables.add(MarkdownTable(headers, bodyRows, padded.take(headers.size)))
             // Sandwich the placeholder in blank lines so the surrounding

@@ -259,14 +259,6 @@ fun ReportsScreenNav(
         stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
     ) { mutableStateOf<String?>(null) }
     val openRegenBatchId = openRegenerateBatchReportId.value
-    if (openRegenBatchId != null) {
-        RegenerateBatchOverlay(
-            reportId = openRegenBatchId,
-            engine = reportViewModel.regenerateBatchEngine,
-            onClose = { openRegenerateBatchReportId.value = null }
-        )
-        return
-    }
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
             onOpenManage = onOpenReportManage,
@@ -300,6 +292,19 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalRegenerateBatchEngine provides reportViewModel.regenerateBatchEngine,
         com.ai.ui.shared.LocalRegenerateBatchOpenState provides openRegenerateBatchReportId
     ) {
+    // Regenerate-batch overlay — layered here (inside the provider) so it
+    // sees the report-context locals (ids/switch/neighbor nav, icon
+    // bundle). Previously it early-returned above this block and got the
+    // defaults instead.
+    if (openRegenBatchId != null) {
+        RegenerateBatchOverlay(
+            reportId = openRegenBatchId,
+            engine = reportViewModel.regenerateBatchEngine,
+            onClose = { openRegenerateBatchReportId.value = null },
+            iconRefreshTick = uiState.iconRefreshTick
+        )
+        return@CompositionLocalProvider
+    }
     ReportsScreen(
         uiState = uiState,
         reportsAgentResults = agentResults,

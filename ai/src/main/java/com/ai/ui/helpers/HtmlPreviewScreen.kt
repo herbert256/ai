@@ -132,6 +132,7 @@ fun HtmlPreviewScreen(
                             // anchors like #sec-2 are how Rerank items
                             // link back to their source agent).
                             webViewClient = WebViewClient()
+                            tag = s.html
                             loadDataWithBaseURL(
                                 /* baseUrl = */ "about:blank",
                                 /* data = */ s.html,
@@ -139,6 +140,15 @@ fun HtmlPreviewScreen(
                                 /* encoding = */ "utf-8",
                                 /* historyUrl = */ null
                             )
+                        }
+                    },
+                    update = { webView ->
+                        // Reload only when the html actually changed (a
+                        // Ready→Ready re-fetch with new content) so we don't
+                        // re-load identical html on every recomposition.
+                        if (webView.tag != s.html) {
+                            webView.tag = s.html
+                            webView.loadDataWithBaseURL("about:blank", s.html, "text/html", "utf-8", null)
                         }
                     }
                 )

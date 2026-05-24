@@ -98,7 +98,7 @@ fun ShareChooserScreen(
             ShareCard(
                 icon = "📚",
                 title = "Add to Knowledge",
-                description = "Open the Knowledge screen with the file or URL pre-staged.",
+                description = "Open the Knowledge screen with the file or URL pre-staged. Plain shared text (not a URL) can't be ingested here — use New Report instead.",
                 enabled = hasUris || shared.isUrl,
                 onClick = onSendToKnowledge
             )

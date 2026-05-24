@@ -76,7 +76,10 @@ internal fun parseModerationRows(content: String): List<ModerationRow>? {
         @Suppress("DEPRECATION")
         com.google.gson.JsonParser().parse(cleaned).takeIf { it.isJsonArray }?.asJsonArray
     } catch (_: Exception) { null } ?: return null
-    if (arr.size() == 0) return null
+    // A valid but empty array is "no rows", not a parse failure — return
+    // an empty list so callers render an empty table instead of falling
+    // back to raw rendering.
+    if (arr.size() == 0) return emptyList()
     val rows = arr.mapNotNull { el ->
         if (!el.isJsonObject) return@mapNotNull null
         val obj = el.asJsonObject
@@ -88,7 +91,12 @@ internal fun parseModerationRows(content: String): List<ModerationRow>? {
             it.key to (try { it.value.asBoolean } catch (_: Exception) { false })
         } ?: emptyMap()
         val allScores = scores?.entrySet()?.mapNotNull {
-            val v = try { it.value.asDouble } catch (_: Exception) { return@mapNotNull null }
+            // Tolerate string-encoded numbers ("0.5") before dropping —
+            // some models return scores as JSON strings, and a strict
+            // asDouble would silently lose the whole category.
+            val v = try { it.value.asDouble } catch (_: Exception) {
+                it.value?.asString?.toDoubleOrNull() ?: return@mapNotNull null
+            }
             it.key to v
         }?.toMap() ?: emptyMap()
         val fired = allCats.filterValues { it }.keys.toList()
@@ -123,7 +131,15 @@ internal fun ModerationTable(
             HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
             rows.forEach { r ->
                 val label = agentLabels[r.id] ?: "[${r.id}] (unknown)"
-                val firedText = if (r.firedCategories.isEmpty()) "—" else r.firedCategories.joinToString(", ")
+                // Some moderation APIs flag a row from scores without setting
+                // any per-category boolean. In that case surface the top
+                // scoring category (with a "(by score)" note) so a flagged
+                // 🚩 row never reads as "nothing fired".
+                val firedText = when {
+                    r.firedCategories.isNotEmpty() -> r.firedCategories.joinToString(", ")
+                    r.flagged && r.topScores.isNotEmpty() -> "${r.topScores.first().first} (by score)"
+                    else -> "—"
+                }
                 val scoresText = r.topScores.joinToString(", ") { (k, v) -> "$k=${"%.3f".format(v)}" }
                 Row(modifier = Modifier.clickable { onRowClick(r) }.padding(vertical = 6.dp)) {
                     Text(if (r.flagged) "🚩" else "✓", fontSize = 13.sp,

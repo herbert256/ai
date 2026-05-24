@@ -359,7 +359,10 @@ internal fun ReportRunScreen(
             infoMetaTotal = infoMetaTotal,
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
-            editCreateMenu = editCreateMenu
+            editCreateMenu = editCreateMenu,
+            // Pause the hub's background effects while the Get-info overlay
+            // is layered on top (the hub stays composed underneath).
+            paused = st.showGetInfo.value
         )
     } // close inner Column
         // Body-level pill. TopCenter + 24.dp top padding lines this

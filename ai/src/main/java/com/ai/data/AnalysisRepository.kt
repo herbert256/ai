@@ -103,8 +103,38 @@ class AnalysisRepository {
 
     internal fun formatHeaders(headers: Headers): String {
         return headers.toMultimap().entries.joinToString("\n") { (name, values) ->
-            "$name: ${values.joinToString(", ")}"
+            // Redact key-bearing headers before they land in the report
+            // agent's requestHeaders/responseHeaders fields (Bug 70) —
+            // these persist in the report JSON and roll up into the backup
+            // zip, so an Authorization / x-api-key would otherwise sit in
+            // plaintext on disk.
+            val joined = values.joinToString(", ")
+            val value = if (isSensitiveHeaderName(name)) redactHeaderSecret(joined) else joined
+            "$name: $value"
         }
+    }
+
+    private fun isSensitiveHeaderName(name: String): Boolean {
+        val lower = name.lowercase()
+        return lower == "authorization" ||
+            lower == "x-api-key" ||
+            lower == "api-key" ||
+            lower == "x-goog-api-key" ||
+            lower == "openai-organization" ||
+            lower == "anthropic-api-key" ||
+            lower.startsWith("x-amz-") ||
+            lower.startsWith("cf-")
+    }
+
+    /** Keep a short prefix/suffix so the header stays useful for
+     *  "wrong key" debugging without exposing the secret. */
+    private fun redactHeaderSecret(value: String): String {
+        if (value.isBlank()) return value
+        val (scheme, raw) = value.split(' ', limit = 2).let {
+            if (it.size == 2) it[0] + " " to it[1] else "" to it[0]
+        }
+        if (raw.length <= 8) return "$scheme[REDACTED]"
+        return "$scheme${raw.take(4)}…[REDACTED]…${raw.takeLast(4)}"
     }
 
     private fun formatCurrentDate(): String {

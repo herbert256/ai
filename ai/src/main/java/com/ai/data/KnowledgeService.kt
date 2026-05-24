@@ -282,7 +282,20 @@ object KnowledgeService {
         var charsSoFar = 0
         for (s in sorted) {
             if (s.score <= 0.0) break
-            if (charsSoFar + s.hit.text.length > maxContextChars) continue
+            if (charsSoFar + s.hit.text.length > maxContextChars) {
+                // Bug 42: don't silently drop the single most-relevant chunk
+                // just because it alone overflows the budget while smaller,
+                // lower-scoring chunks would fit. When nothing has been
+                // taken yet (so this is the top-ranked surviving hit) and it
+                // overflows, truncate it to fit rather than skip it entirely.
+                val remaining = maxContextChars - charsSoFar
+                if (out.isEmpty() && remaining > 0) {
+                    out += s.hit.copy(text = s.hit.text.take(remaining))
+                    charsSoFar = maxContextChars
+                    if (out.size >= topK) break
+                }
+                continue
+            }
             out += s.hit
             charsSoFar += s.hit.text.length
             if (out.size >= topK) break

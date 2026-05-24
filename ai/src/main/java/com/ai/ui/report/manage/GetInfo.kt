@@ -77,10 +77,23 @@ fun buildInfoJobs(
     val jobs = mutableListOf<InfoJob>()
 
     val iconPrompt = settings.internalPrompts.firstOrNull { it.category == "icons" && it.name == "main" }
-    val iconAgent = iconPrompt?.let { p -> settings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) } }
+    // Match the cost path (rememberReportCostData → resolvePromptAgent), which
+    // honours a Provider+Model pin as well as a named agent. A named-agent-only
+    // lookup would drop the icon row when the prompt is pinned to a model.
+    val iconAgent = iconPrompt?.let { p -> settings.resolvePromptAgent(p) }
     val iconRowOn = iconGenEnabled && iconPrompt != null && iconAgent != null
 
-    if (iconRowOn) {
+    // A finished report (completedAt set) with no icon, no error, and no
+    // recorded icon attempt (cost/duration/promptUsed all empty) is one where
+    // icon-gen never ran — e.g. legacy reports, or an unresolvable icon agent
+    // at run time. Treat that as terminal "not run" rather than leaving the
+    // row spinning "Generating…" forever.
+    val iconNeverRan = report.completedAt != null && report.icon == null &&
+        report.iconErrorMessage == null && report.iconPromptUsed == null &&
+        report.iconDurationMs == null && report.iconInputCost == 0.0 &&
+        report.iconOutputCost == 0.0
+
+    if (iconRowOn && !iconNeverRan) {
         val state = when {
             report.iconErrorMessage != null -> InfoJobState.FAILED
             report.icon != null -> InfoJobState.DONE
@@ -110,7 +123,7 @@ fun buildInfoJobs(
     }
 
     val titlePrompt = settings.internalPrompts.firstOrNull { it.category == "info" && it.name == "report_title" }
-    val titleAgent = titlePrompt?.let { p -> settings.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) } }
+    val titleAgent = titlePrompt?.let { p -> settings.resolvePromptAgent(p) }
     if (titleModeAi && titlePrompt != null && titleAgent != null) {
         val state = when {
             report.titleErrorMessage != null -> InfoJobState.FAILED

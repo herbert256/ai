@@ -505,7 +505,11 @@ object BackupManager {
                 val m = raw as? Map<String, Any?> ?: continue
                 val k = m["k"] as? String ?: continue
                 when (val tag = m["t"] as? String) {
-                    "s" -> editor.putString(k, m["v"] as? String)
+                    // putString(k, null) REMOVES the key rather than storing
+                    // it (Bug 53). Skip a null/non-string value so a restore
+                    // doesn't silently drop a key that was present (even if
+                    // null) in the backup.
+                    "s" -> (m["v"] as? String)?.let { editor.putString(k, it) }
                     "b" -> editor.putBoolean(k, m["v"] as? Boolean ?: false)
                     "i" -> editor.putInt(k, (m["v"] as? Number)?.toInt() ?: 0)
                     "l" -> editor.putLong(k, (m["v"] as? Number)?.toLong() ?: 0L)

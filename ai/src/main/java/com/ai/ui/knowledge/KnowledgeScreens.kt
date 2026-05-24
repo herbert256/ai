@@ -127,7 +127,9 @@ fun KnowledgeListScreen(
             }
         }
     }
-    LaunchedEffect(Unit) { refreshTick++ }
+    // (Removed an unconditional LaunchedEffect(Unit){refreshTick++} here: it
+    // forced a second full listKnowledgeBases disk read on every entry right
+    // after the initial produceState. resumeTick already refreshes on ON_RESUME.)
 }
 
 @Composable
@@ -162,7 +164,10 @@ fun NewKnowledgeBaseScreen(
     val context = LocalContext.current
 
     var name by remember { mutableStateOf("") }
-    val localEmbedders = remember { LocalEmbedder.availableModels(context) }
+    // Re-list local models on ON_RESUME so one installed in Housekeeping shows
+    // up on return (was an unkeyed remember that stayed stale).
+    val resumeTick = com.ai.ui.shared.resumeRefreshTick()
+    val localEmbedders = remember(resumeTick) { LocalEmbedder.availableModels(context) }
     val remoteEmbedders = remember(aiSettings) { supportedEmbeddingChoices(aiSettings) }
     // Each option encodes (providerId, modelName, displayLabel).
     val options = remember(localEmbedders, remoteEmbedders) {
@@ -171,6 +176,11 @@ fun NewKnowledgeBaseScreen(
         local + remote
     }
     var selected by remember { mutableStateOf(options.firstOrNull()) }
+    // Revalidate the selection when the option set changes so a stale pick
+    // (e.g. the model was removed) falls back to a valid one.
+    LaunchedEffect(options) {
+        if (selected == null || selected !in options) selected = options.firstOrNull()
+    }
     var pickerOpen by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
@@ -280,12 +290,19 @@ fun KnowledgeDetailScreen(
     // imports are prevented by onConsumePending() clearing
     // pendingUris in the parent: a re-fire after consume sees an
     // empty queue and returns at the second guard.
+    // Tracks the exact URI batch already auto-ingested so a recomposition
+    // that hands us a new-but-equal list instance can't double-ingest before
+    // the parent's onConsumePending() clears the queue. Empty until consumed.
+    var ingestedBatchKey by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(kb?.id, pendingUris) {
         val loaded = kb ?: return@LaunchedEffect
         if (pendingUris.isEmpty()) return@LaunchedEffect
+        val batchKey = pendingUris.joinToString(" ")
+        if (batchKey == ingestedBatchKey) return@LaunchedEffect
+        ingestedBatchKey = batchKey
         working = true
         try {
-            for (raw in pendingUris) {
+            for ((uriIdx, raw) in pendingUris.withIndex()) {
                 val trimmed = raw.trim()
                 if (trimmed.isBlank()) continue
                 val isHttp = trimmed.startsWith("http://", true) || trimmed.startsWith("https://", true)
@@ -303,7 +320,9 @@ fun KnowledgeDetailScreen(
                 } else {
                     val uri = runCatching { Uri.parse(trimmed) }.getOrNull() ?: continue
                     val type = pickTypeForUri(context, uri)
-                    val displayName = displayNameForUri(context, uri) ?: "shared_${System.currentTimeMillis()}"
+                    // Append the batch index so two share-target files arriving
+                    // in the same millisecond don't collide on the fallback name.
+                    val displayName = displayNameForUri(context, uri) ?: "shared_${System.currentTimeMillis()}_$uriIdx"
                     status = "Reading $displayName…"
                     val result = withContext(Dispatchers.IO) {
                         KnowledgeService.indexFile(context, repository, aiSettings, loaded.id, type, uri, displayName) { msg, _, _ ->
@@ -456,8 +475,12 @@ fun KnowledgeDetailScreen(
                             enabled = !working
                         ) { Text("Re-index", fontSize = 11.sp, color = AppColors.Blue) }
                         TextButton(onClick = {
-                            KnowledgeStore.deleteSource(context, kbId, src.id)
-                            refreshTick++
+                            // Off the main thread — deleting a source with many
+                            // chunks rewrites the KB index and would block the UI.
+                            scope.launch {
+                                withContext(Dispatchers.IO) { KnowledgeStore.deleteSource(context, kbId, src.id) }
+                                refreshTick++
+                            }
                         }) { Text("Delete", fontSize = 11.sp, color = AppColors.Red) }
                     }
                 }
@@ -621,7 +644,20 @@ fun KnowledgeAttachDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = { onConfirm(selected.value) }) { Text("Apply") }
+            TextButton(onClick = {
+                // Re-validate the embedder set on confirm: a KB could have been
+                // re-indexed with a different embedder between open and Apply, so
+                // drop any selected id that no longer shares the anchor embedder
+                // rather than persisting a mix the retriever would silently skip.
+                val anchor = knowledgeBases.firstOrNull { it.id in selected.value }
+                    ?.let { it.embedderProviderId to it.embedderModel }
+                val valid = if (anchor == null) selected.value
+                    else selected.value.filter { id ->
+                        knowledgeBases.firstOrNull { it.id == id }
+                            ?.let { it.embedderProviderId == anchor.first && it.embedderModel == anchor.second } == true
+                    }.toSet()
+                onConfirm(valid)
+            }) { Text("Apply") }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel") }

@@ -38,7 +38,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.sample
 import kotlinx.coroutines.withContext
 
-internal data class RerankRow(val id: Int, val rank: Int?, val score: Int?, val reason: String?)
+internal data class RerankRow(val id: Int, val rank: Int?, val score: Double?, val reason: String?)
+
+/** Render a rerank score without a trailing ".0" for whole numbers
+ *  (integer-scale models) but with up to 3 decimals for fractional ones. */
+internal fun formatRerankScore(score: Double): String =
+    if (score == score.toLong().toDouble()) score.toLong().toString()
+    else "%.3f".format(score).trimEnd('0').trimEnd('.')
 
 /** Parse the rerank flow's structured JSON output. Both the chat-prompt
  *  path and the dedicated rerank-API path emit the same
@@ -52,18 +58,25 @@ internal fun parseRerankRows(content: String): List<RerankRow>? {
         @Suppress("DEPRECATION")
         com.google.gson.JsonParser().parse(cleaned).takeIf { it.isJsonArray }?.asJsonArray
     } catch (_: Exception) { null } ?: return null
-    if (arr.size() == 0) return null
+    // A valid but empty array is "no rows", not a parse failure.
+    if (arr.size() == 0) return emptyList()
     val rows = arr.mapNotNull { el ->
         if (!el.isJsonObject) return@mapNotNull null
         val obj = el.asJsonObject
         val id = obj.get("id")?.takeIf { it.isJsonPrimitive }?.asInt ?: return@mapNotNull null
         val rank = obj.get("rank")?.takeIf { it.isJsonPrimitive }?.asInt
-        val score = obj.get("score")?.takeIf { it.isJsonPrimitive }?.asNumber?.toInt()
+        // Keep the score as a Double — some models return a fractional
+        // score (0.87); the old toInt() truncated those to 0.
+        val score = obj.get("score")?.takeIf { it.isJsonPrimitive }?.let {
+            try { it.asDouble } catch (_: Exception) { it.asString.toDoubleOrNull() }
+        }
         val reason = obj.get("reason")?.takeIf { it.isJsonPrimitive }?.asString
         RerankRow(id, rank, score, reason)
     }
     if (rows.isEmpty()) return null
-    return rows.sortedBy { it.rank ?: Int.MAX_VALUE }
+    return rows.sortedWith(
+        compareBy<RerankRow> { it.rank ?: Int.MAX_VALUE }.thenBy { it.id }
+    )
 }
 
 @Composable
@@ -92,7 +105,7 @@ internal fun RerankTable(rows: List<RerankRow>, agentLabels: Map<Int, String>) {
                     Text(label, fontSize = 12.sp, color = Color.White,
                         modifier = Modifier.width(220.dp).padding(start = 8.dp),
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(r.score?.toString() ?: "", fontSize = 12.sp, color = AppColors.Green,
+                    Text(r.score?.let { formatRerankScore(it) } ?: "", fontSize = 12.sp, color = AppColors.Green,
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
                     Text(r.reason.orEmpty(), fontSize = 12.sp, color = AppColors.TextTertiary,

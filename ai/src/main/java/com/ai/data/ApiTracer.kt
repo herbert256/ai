@@ -29,7 +29,13 @@ object ApiTracer {
     private val gson = createAppGson(prettyPrint = true)
     private val dateFormat = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss_SSS", Locale.US).withZone(ZoneId.systemDefault())
     private val lock = ReentrantLock()
-    private val fileSequence = AtomicLong(0)
+    // Seed with a random offset rather than 0 (Bug 21a): the sequence is
+    // in-memory only, so after a process restart a new trace written in the
+    // same millisecond + host as a pre-restart trace could otherwise collide
+    // on `host_ts_seq.json` (seq counted from 0 again) and overwrite it. A
+    // random per-process start makes a cross-restart filename collision
+    // vanishingly unlikely while keeping the base-36 suffix short.
+    private val fileSequence = AtomicLong(java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 1_000_000))
     @Volatile var isTracingEnabled: Boolean = false
 
     /** Per-thread tag pair carried across the OkHttp dispatcher
@@ -103,41 +109,44 @@ object ApiTracer {
      */
     fun saveTrace(trace: ApiTrace, filename: String? = null): String? {
         if (!isTracingEnabled) return null
+        val dir = traceDir ?: return null
+        if (!dir.exists()) dir.mkdirs()
+        val resolvedFilename = filename ?: run {
+            val ts = dateFormat.format(Instant.ofEpochMilli(trace.timestamp))
+            val seq = fileSequence.incrementAndGet().toString(36)
+            // Sanitise hostname so a `host:port` style host (some
+            // configurations pass a port through) doesn't produce a
+            // filename with `:` — Android's filesystem rejects that
+            // and the trace silently fails to land. Replace any
+            // non-alphanumeric / dot / dash with `_`.
+            val safeHost = trace.hostname.replace(Regex("[^A-Za-z0-9.-]"), "_")
+            "${safeHost}_${ts}_${seq}.json"
+        }
+        val isUpdate = filename != null
+        // Step 1 — disk write OUTSIDE the lock (Bug 20). The atomic write is
+        // already crash-safe and self-contained; serializing it under the
+        // global lock turned every concurrent traced call (50-pair fan-out
+        // with tracing on) into a disk-I/O bottleneck. Only the in-memory
+        // cache mutation below needs the lock. Both a throw and a `false`
+        // return count as failure — the cache must never reflect a file
+        // that isn't on disk.
+        val wrote = try {
+            File(dir, resolvedFilename).writeTextAtomic(gson.toJson(trace))
+        } catch (e: Exception) {
+            AppLog.e("ApiTracer", "Failed to save trace ($resolvedFilename): ${e.message}")
+            false
+        }
+        if (!wrote) {
+            AppLog.w("ApiTracer", "writeTextAtomic returned false for $resolvedFilename — skipping cache update")
+            return null
+        }
+        // Step 2 — cache mutation under the lock. Independently caught so an
+        // exception here can't leave a stale cache that shadows the
+        // freshly-written file forever. On any failure we invalidate
+        // the cache so the next getTraceFiles() rebuilds it from
+        // disk and re-sees the new trace.
+        AppLog.v("ApiTracer", "trace written $resolvedFilename status=${trace.response.statusCode} partial=${trace.partial}")
         lock.withLock {
-            val dir = traceDir ?: return null
-            if (!dir.exists()) dir.mkdirs()
-            val resolvedFilename = filename ?: run {
-                val ts = dateFormat.format(Instant.ofEpochMilli(trace.timestamp))
-                val seq = fileSequence.incrementAndGet().toString(36)
-                // Sanitise hostname so a `host:port` style host (some
-                // configurations pass a port through) doesn't produce a
-                // filename with `:` — Android's filesystem rejects that
-                // and the trace silently fails to land. Replace any
-                // non-alphanumeric / dot / dash with `_`.
-                val safeHost = trace.hostname.replace(Regex("[^A-Za-z0-9.-]"), "_")
-                "${safeHost}_${ts}_${seq}.json"
-            }
-            val isUpdate = filename != null
-            // Step 1 — disk write. Atomic so a process death mid-write
-            // leaves no half-JSON behind. Both a throw and a `false`
-            // return count as failure — the cache must never reflect a
-            // file that isn't on disk.
-            val wrote = try {
-                File(dir, resolvedFilename).writeTextAtomic(gson.toJson(trace))
-            } catch (e: Exception) {
-                AppLog.e("ApiTracer", "Failed to save trace ($resolvedFilename): ${e.message}")
-                false
-            }
-            if (!wrote) {
-                AppLog.w("ApiTracer", "writeTextAtomic returned false for $resolvedFilename — skipping cache update")
-                return null
-            }
-            // Step 2 — cache mutation. Independently caught so an
-            // exception here can't leave a stale cache that shadows the
-            // freshly-written file forever. On any failure we invalidate
-            // the cache so the next getTraceFiles() rebuilds it from
-            // disk and re-sees the new trace.
-            AppLog.v("ApiTracer", "trace written $resolvedFilename status=${trace.response.statusCode} partial=${trace.partial}")
             try {
                 cachedTraceFiles?.let { current ->
                     val info = TraceFileInfo(

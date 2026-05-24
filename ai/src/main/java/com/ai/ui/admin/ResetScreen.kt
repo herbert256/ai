@@ -207,8 +207,11 @@ fun ResetAssetsScreen(
                             AssetReset.SYSTEM_PROMPTS -> onResetSystemPromptsFromAsset()
                         }
                         pending = null
-                        val msg = if (n >= 0) "Loaded $n ${target.itemNoun} from ${target.assetPath}"
-                        else "Could not read ${target.assetPath}"
+                        val msg = when {
+                            n < 0 -> "Could not read ${target.assetPath}"
+                            n == 0 -> "${target.assetPath} read OK but had no ${target.itemNoun}"
+                            else -> "Loaded $n ${target.itemNoun} from ${target.assetPath}"
+                        }
                         Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)

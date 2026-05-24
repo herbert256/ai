@@ -135,7 +135,9 @@ private fun ActionCard(intent: PendingExternalReport) {
                 intent.hasEdit -> "Open the new-report editor with the prompt pre-filled"
                 intent.willAutoGenerate -> "Generate a report immediately"
                 intent.hasSelect -> "Open agent/model selection for a report"
-                else -> "Open agent/model selection for a report"
+                // No edit / auto / explicit select: a degenerate or
+                // malformed intent. Don't over-promise a selection screen.
+                else -> "Open the new-report screen"
             }
             Text(headline, fontSize = 13.sp, color = Color.White)
 
@@ -163,11 +165,14 @@ private fun SideEffectsCard(intent: PendingExternalReport) {
                 Text("• Email the report to ${intent.email}", fontSize = 12.sp, color = AppColors.TextSecondary)
             }
             when (intent.nextAction?.lowercase()) {
+                null, "" -> Unit
                 "view" -> Text("• Open the report viewer", fontSize = 12.sp, color = AppColors.TextSecondary)
                 "share" -> Text("• Share the report HTML", fontSize = 12.sp, color = AppColors.TextSecondary)
                 "browser" -> Text("• Open the report in Chrome", fontSize = 12.sp, color = AppColors.TextSecondary)
                 "email" -> Text("• Email the report to your default address", fontSize = 12.sp, color = AppColors.TextSecondary)
-                else -> Unit
+                // Unknown but non-blank action: still disclose that
+                // SOMETHING will run rather than show an empty card.
+                else -> Text("• Run action: ${intent.nextAction}", fontSize = 12.sp, color = AppColors.TextSecondary)
             }
             if (intent.hasReturn) {
                 Text("• Close this app after the side effect completes", fontSize = 12.sp, color = AppColors.TextSecondary)

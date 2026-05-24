@@ -18,7 +18,13 @@ import java.io.File
  */
 fun File.writeTextAtomic(content: String): Boolean {
     val parent = parentFile
-    val tmp = File(parent, "$name.tmp")
+    // Unique per-writer tmp name (Bug 23): a deterministic "<name>.tmp"
+    // means two threads writing the SAME destination concurrently (callers
+    // that don't all serialize on a per-path lock — ModelListCache,
+    // EmbeddingsStore, PromptCache, PricingCache.saveBlob, etc.) share one
+    // staging file and can interleave bytes before the rename. A UUID
+    // suffix gives each writer its own staging file.
+    val tmp = File(parent, "$name.${java.util.UUID.randomUUID()}.tmp")
     return try {
         // Make sure the parent exists before we try to drop a tmp file
         // into it. Without this, a fresh install or a freshly-cleared

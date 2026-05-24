@@ -125,29 +125,24 @@ fun LocalSearchScreen(
     }
 }
 
-private data class LocalSearchHit(val reportId: String, val title: String, val timestamp: String, val score: Int, val icon: String?)
+private data class LocalSearchHit(val reportId: String, val title: String, val timestamp: String, val epoch: Long, val score: Int, val icon: String?)
 
 private fun runLocalSearch(context: android.content.Context, query: String): List<LocalSearchHit> {
     val tokens = query.lowercase(Locale.ROOT).split(Regex("\\s+")).filter { it.isNotBlank() }
     if (tokens.isEmpty()) return emptyList()
     val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US)
     val reports: List<Report> = ReportStorage.getAllReports(context)
+    // Word-boundary token matching so short tokens (e.g. "in") don't match
+    // inside unrelated words ("rain", "window") and inflate the score.
+    val tokenRegexes = tokens.map { Regex("\\b" + Regex.escape(it) + "\\b") }
     return reports.mapNotNull { r ->
         val sb = StringBuilder()
         sb.append(r.title).append('\n').append(r.prompt).append('\n')
         for (a in r.agents) a.responseBody?.takeIf { it.isNotBlank() }?.let { sb.append(it).append('\n') }
         val haystack = sb.toString().lowercase(Locale.ROOT)
         var score = 0
-        for (t in tokens) {
-            var idx = 0
-            while (true) {
-                val found = haystack.indexOf(t, idx)
-                if (found < 0) break
-                score++
-                idx = found + 1
-            }
-        }
+        for (re in tokenRegexes) score += re.findAll(haystack).count()
         if (score == 0) null
-        else LocalSearchHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)), score, r.icon)
-    }.sortedWith(compareByDescending<LocalSearchHit> { it.score }.thenByDescending { it.timestamp }).take(25)
+        else LocalSearchHit(r.id, r.title.ifBlank { "(untitled)" }, df.format(Date(r.timestamp)), r.timestamp, score, r.icon)
+    }.sortedWith(compareByDescending<LocalSearchHit> { it.score }.thenByDescending { it.epoch }).take(25)
 }

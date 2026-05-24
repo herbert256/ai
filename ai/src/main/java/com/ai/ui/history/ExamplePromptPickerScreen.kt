@@ -69,6 +69,12 @@ fun ExamplePromptPickerScreen(
                     Text("Add some under AI Setup → Prompt management → Example prompts.", color = AppColors.TextDim, fontSize = 12.sp)
                 }
             }
+        } else if (sorted.isEmpty()) {
+            // Filter yielded nothing — show an explicit empty state rather than
+            // a blank area that looks like a load failure.
+            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("No prompts match \"$search\".", color = AppColors.TextTertiary, fontSize = 14.sp)
+            }
         } else {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 items(sorted, key = { it.id }) { entry ->

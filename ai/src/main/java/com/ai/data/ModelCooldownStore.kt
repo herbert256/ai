@@ -84,18 +84,13 @@ object ModelCooldownStore {
     }
 
     /** True when the pair is benched and the cooldown hasn't
-     *  expired yet. Expired entries are dropped lazily here. */
+     *  expired yet. Pure timestamp compare (Bug 48): model pickers call
+     *  this per row, so it must not write SharedPreferences / emit on the
+     *  StateFlow as a side effect of a "read". Expired entries are pruned
+     *  in [init] and by [pruneExpired] sweeps instead. */
     fun isUnavailable(providerId: String, model: String): Boolean {
-        val k = key(providerId, model)
-        val until = cooldownMap[k] ?: return false
-        if (until <= System.currentTimeMillis()) {
-            cooldownMap.remove(k)
-            traceMap.remove(k)
-            persist()
-            publish()
-            return false
-        }
-        return true
+        val until = cooldownMap[key(providerId, model)] ?: return false
+        return until > System.currentTimeMillis()
     }
 
     fun availableAt(providerId: String, model: String): Long? =
@@ -149,8 +144,13 @@ object ModelCooldownStore {
     fun cooldownCaption(untilMs: Long): String {
         val cal = java.util.Calendar.getInstance()
         val today = cal.get(java.util.Calendar.DAY_OF_YEAR)
+        val thisYear = cal.get(java.util.Calendar.YEAR)
         cal.timeInMillis = untilMs
-        val sameDay = cal.get(java.util.Calendar.DAY_OF_YEAR) == today
+        // Compare year AND day-of-year (Bug 47): a cooldown exactly one year
+        // out on the same day-of-year would otherwise render as today's HH:mm
+        // with no date.
+        val sameDay = cal.get(java.util.Calendar.DAY_OF_YEAR) == today &&
+            cal.get(java.util.Calendar.YEAR) == thisYear
         val fmt = if (sameDay) "HH:mm" else "MMM d HH:mm"
         val when_ = java.text.SimpleDateFormat(fmt, java.util.Locale.getDefault()).format(java.util.Date(untilMs))
         return "rate-limited · back $when_"

@@ -36,7 +36,11 @@ fun TrimByAgeScreen(
         if (days == null || days <= 0) {
             showTrimConfirm = false
         } else {
-            val cutoff = System.currentTimeMillis() - days.toLong() * 24 * 60 * 60 * 1000
+            // Snapshot the cutoff once when the dialog opens so the counts
+            // shown and the deletion performed use the exact same instant —
+            // a per-recomposition recompute could drift across the dialog's
+            // lifetime and count-but-not-delete a boundary item.
+            val cutoff = remember(days) { System.currentTimeMillis() - days.toLong() * 24 * 60 * 60 * 1000 }
             // Counts off the IO thread would be cleaner, but the Trim
             // path runs synchronously today and these reads are
             // already on the UI thread; stay consistent with the

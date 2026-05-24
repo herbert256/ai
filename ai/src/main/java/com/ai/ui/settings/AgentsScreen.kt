@@ -79,6 +79,10 @@ fun AgentEditScreen(
     var testResult by remember { mutableStateOf<String?>(null) }
     var testSuccess by remember { mutableStateOf(false) }
     var lastTraceFile by remember { mutableStateOf<String?>(null) }
+    // LiteLLM-derived endpoints the user picked in this session but which
+    // aren't persisted yet — materialised onto the provider only when the
+    // agent is actually saved, so backing out doesn't leave orphans.
+    var pendingEndpoints by remember(resetTick) { mutableStateOf<List<Pair<AppService, com.ai.model.Endpoint>>>(emptyList()) }
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSystemPromptDialog by remember { mutableStateOf(false) }
     // Overlay: 0=none, 1=provider, 2=model
@@ -159,6 +163,12 @@ fun AgentEditScreen(
         Button(
             onClick = {
                 val id = if (isAddMode) java.util.UUID.randomUUID().toString() else agent!!.id
+                // Persist any LiteLLM endpoints picked this session only now
+                // that the agent is being saved (and only the one actually
+                // selected, to avoid persisting endpoints the user picked then
+                // changed away from).
+                pendingEndpoints.firstOrNull { it.second.id == selectedEndpointId }
+                    ?.let { (provider, ep) -> onAddEndpoint(provider, ep) }
                 onSave(Agent(id, name.trim(), selectedProvider, model, apiKey, selectedEndpointId, selectedParamsIds, selectedSystemPromptId))
             },
             enabled = nameError == null,
@@ -199,7 +209,10 @@ fun AgentEditScreen(
             // the selected model. Picking a LiteLLM-derived option
             // materializes a real Endpoint via onAddEndpoint so it persists
             // on the provider's endpoint list.
-            val endpoints = aiSettings.getEndpointsForProvider(selectedProvider)
+            // Persisted endpoints plus any not-yet-saved LiteLLM picks for
+            // THIS provider so the just-picked option stays selectable.
+            val endpoints = aiSettings.getEndpointsForProvider(selectedProvider) +
+                pendingEndpoints.filter { it.first.id == selectedProvider.id }.map { it.second }
             val effModel = model.ifBlank { aiSettings.getModel(selectedProvider) }
             val litellmPaths = remember(selectedProvider, effModel) {
                 if (effModel.isNotBlank()) com.ai.data.PricingCache.liteLLMSupportedEndpoints(selectedProvider, effModel) ?: emptyList()
@@ -240,7 +253,10 @@ fun AgentEditScreen(
                                     onClick = {
                                         val newId = "litellm-${java.util.UUID.randomUUID()}"
                                         val ep = com.ai.model.Endpoint(id = newId, name = "LiteLLM $path", url = full, isDefault = false)
-                                        onAddEndpoint(selectedProvider, ep)
+                                        // Defer persistence until the agent is
+                                        // saved (see pendingEndpoints) — avoids
+                                        // orphaning the endpoint on a cancelled edit.
+                                        pendingEndpoints = pendingEndpoints + (selectedProvider to ep)
                                         selectedEndpointId = newId
                                         endpointMenuOpen = false
                                     }
@@ -288,6 +304,8 @@ fun AgentEditScreen(
                                     com.ai.data.ApiTracer.getTraceFiles().firstOrNull()?.timestamp ?: 0L
                                 }
                                 val error = onTestAiModel(selectedProvider, key, effectiveModel)
+                                testSuccess = error == null
+                                testResult = error ?: "OK"
                                 // Filter the post-test traces by hostname (matches the dispatcher path's
                                 // own filter in fetchModels error reporting). Without the host correlation
                                 // a concurrent flow's trace landing in the same window would hijack the row.

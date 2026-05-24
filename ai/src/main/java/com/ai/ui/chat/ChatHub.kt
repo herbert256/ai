@@ -186,7 +186,13 @@ private fun LocalLlmChatCard(installed: List<String>, onPick: (String) -> Unit) 
         ChatHubCard(
             icon = "📱", title = "Chat with a local LLM",
             description = "Run a .task model fully on-device — nothing leaves the phone",
-            onClick = { if (installed.size == 1) onPick(installed.first()) else open = true }
+            onClick = {
+                // Explicit branching: a lone installed model opens directly,
+                // any other count (including a races-to-empty list) opens the
+                // dropdown rather than blindly indexing first().
+                val only = installed.singleOrNull()
+                if (only != null) onPick(only) else open = true
+            }
         )
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             installed.forEach { name ->

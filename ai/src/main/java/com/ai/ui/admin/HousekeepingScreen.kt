@@ -73,9 +73,13 @@ fun HousekeepingScreen(
             NavCard("Update from cloud", onClick = onNavigateToUpdateFromCloud)
             // Bulk manual-cost-override maintenance: cleanup + layered
             // CSV. Per-row override curation lives in AI Setup → Costs.
-            NavCard("Costs", onClick = onNavigateToCosts)
-            // Diagnostic test flows — currently "Test all models".
-            NavCard("Test", onClick = onNavigateToTest)
+            // Both Costs and Test act on active providers/models — hide
+            // them on first run when there's nothing to act on.
+            if (hasActiveProvider) {
+                NavCard("Costs", onClick = onNavigateToCosts)
+                // Diagnostic test flows — currently "Test all models".
+                NavCard("Test", onClick = onNavigateToTest)
+            }
             // Refresh and Reset live together at the bottom — both
             // wholesale-state operations that finish with a forced app
             // restart popup.

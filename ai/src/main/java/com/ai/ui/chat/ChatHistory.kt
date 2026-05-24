@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -158,9 +159,14 @@ private suspend fun searchInChats(query: String): List<ChatSearchResult> = withC
         for (message in session.messages) {
             val lowerContent = message.content.lowercase(java.util.Locale.ROOT)
             if (lowerContent.contains(lowerQuery)) {
-                val matchIndex = lowerContent.indexOf(lowerQuery)
-                val start = (matchIndex - 40).coerceAtLeast(0)
-                val end = (matchIndex + query.length + 40).coerceAtMost(message.content.length)
+                // Offsets are computed on the case-folded copy but the preview
+                // is sliced from the original; for most text these align, but
+                // case-folding can change length (ß → "ss", some Greek/Turkic
+                // forms), so coerce every index against the ORIGINAL length to
+                // avoid StringIndexOutOfBoundsException / mid-grapheme slices.
+                val matchIndex = lowerContent.indexOf(lowerQuery).coerceIn(0, message.content.length)
+                val start = (matchIndex - 40).coerceIn(0, message.content.length)
+                val end = (matchIndex + query.length + 40).coerceIn(start, message.content.length)
                 val preview = (if (start > 0) "..." else "") +
                     message.content.substring(start, end) +
                     (if (end < message.content.length) "..." else "")
@@ -197,16 +203,13 @@ fun ChatSearchScreen(
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
-    LaunchedEffect(historyVersion, searchQuery, hasSearched) {
+    // Single, consistent model: searching is explicit (tap Search).
+    // `hasSearched` is the manual trigger; typing resets it (below) so a
+    // new query always requires a fresh Search tap rather than silently
+    // going live after the first one. The effect keys on historyVersion
+    // too so a chat saved/deleted in the background refreshes results.
+    LaunchedEffect(historyVersion, hasSearched) {
         if (searchQuery.isNotBlank() && hasSearched) {
-            // Debounce keystrokes — searchInChats walks every chat
-            // session, which is fine when the user has typed and
-            // tapped Search but kills the UI when each keystroke
-            // re-fires the effect (a typical history runs ~100 ms
-            // per pass). The cancellable delay restarts on every
-            // re-key, so only a typing pause launches the actual
-            // search.
-            kotlinx.coroutines.delay(300)
             isSearching = true
             searchResults = searchInChats(searchQuery)
             isSearching = false
@@ -220,7 +223,13 @@ fun ChatSearchScreen(
 
         OutlinedTextField(
             value = searchQuery,
-            onValueChange = { searchQuery = it; if (it.isBlank()) { hasSearched = false; searchResults = emptyList() } },
+            onValueChange = {
+                searchQuery = it
+                // Any edit invalidates the previous search; require a fresh
+                // Search tap rather than going live mid-typing.
+                hasSearched = false
+                if (it.isBlank()) searchResults = emptyList()
+            },
             modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
             placeholder = { Text("Search in messages...") },
             singleLine = true, colors = AppColors.outlinedFieldColors(),
@@ -253,7 +262,11 @@ fun ChatSearchScreen(
                 Text("${searchResults.size} results", fontSize = 12.sp, color = AppColors.TextTertiary)
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyColumn {
-                    items(searchResults, key = { "${it.sessionId}:${it.messageTimestamp}" }) { result ->
+                    // Key includes the match index + role so two matched
+                    // messages in the same session that share a timestamp
+                    // (system + first user seeded the same ms) don't collide
+                    // and crash Compose with "key already used".
+                    itemsIndexed(searchResults, key = { i, r -> "${r.sessionId}:${r.messageTimestamp}:${r.messageRole}:$i" }) { _, result ->
                         Card(
                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable { onSelectSession(result.sessionId) },
                             colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)

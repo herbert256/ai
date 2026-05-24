@@ -54,6 +54,11 @@ private const val KEY_INTERACTIONS = "interaction_count"
 private const val KEY_FIRST_PROMPT = "first_prompt"
 private const val KEY_SECOND_PROMPT = "second_prompt"
 
+/** Upper bound on auto-chat rounds. The loop is paid per turn with only a
+ *  Stop button, so an accidental huge value (e.g. 100000) would otherwise
+ *  launch an unbounded paid loop. */
+private const val MAX_DUAL_ROUNDS = 100
+
 private data class DualMessage(
     val modelIndex: Int,
     val content: String,
@@ -62,7 +67,11 @@ private data class DualMessage(
     /** Wall clock at the moment this turn finished — used to pick the
      *  closest trace tagged with (sessionId, modelName) so the per-bubble
      *  🐞 doesn't alias when the same model speaks several times. */
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = System.currentTimeMillis(),
+    /** Stable identity for LazyColumn keys — positional-index keys
+     *  re-keyed every trailing item as the loop appends one message at a
+     *  time, defeating stable keys and restarting per-bubble trace lookups. */
+    val id: String = java.util.UUID.randomUUID().toString()
 )
 
 /** Saver that lets the dual-chat conversation survive a rotation /
@@ -71,6 +80,10 @@ private data class DualMessage(
  *  so a very long high-content session may hit the limit; the previous
  *  in-memory-only state lost everything regardless, so this is strict
  *  improvement. */
+/** Number of flat entries each [DualMessage] serializes to. Keep in sync
+ *  with the save/restore field list below. */
+private const val DUAL_MSG_STRIDE = 6
+
 private val DualMessagesSaver = androidx.compose.runtime.saveable.Saver<List<DualMessage>, java.util.ArrayList<Any?>>(
     save = { list ->
         java.util.ArrayList<Any?>().apply {
@@ -80,21 +93,26 @@ private val DualMessagesSaver = androidx.compose.runtime.saveable.Saver<List<Dua
                 add(m.providerName)
                 add(m.modelName)
                 add(m.timestamp)
+                add(m.id)
             }
         }
     },
     restore = { flat ->
         val out = mutableListOf<DualMessage>()
         var i = 0
-        while (i + 4 < flat.size) {
+        // `i + stride <= size` keeps the final complete record (it used to be
+        // `i + 4 < size`, a hand-written stride that silently dropped the tail
+        // if the field count changed).
+        while (i + DUAL_MSG_STRIDE <= flat.size) {
             out += DualMessage(
                 modelIndex = flat[i] as Int,
                 content = flat[i + 1] as String,
                 providerName = flat[i + 2] as String,
                 modelName = flat[i + 3] as String,
-                timestamp = flat[i + 4] as Long
+                timestamp = flat[i + 4] as Long,
+                id = flat[i + 5] as String
             )
-            i += 5
+            i += DUAL_MSG_STRIDE
         }
         out
     }
@@ -105,10 +123,6 @@ private fun loadStringList(prefs: android.content.SharedPreferences, key: String
         val json = prefs.getString(key, null) ?: return emptyList()
         com.ai.data.createAppGson().fromJson(json, Array<String>::class.java)?.toList() ?: emptyList()
     } catch (_: Exception) { emptyList() }
-}
-
-private fun saveStringList(prefs: android.content.SharedPreferences, key: String, list: List<String>) {
-    prefs.edit().putString(key, com.ai.data.createAppGson().toJson(list)).apply()
 }
 
 internal fun resolveParamsIds(aiSettings: Settings, ids: List<String>): ChatParameters {
@@ -152,6 +166,10 @@ fun DualChatSetupScreen(
     var overlayMode by remember { mutableIntStateOf(0) } // 0=none, 1=select m1 provider, 2=select m1 model, 3=select m2 provider, 4=select m2 model
 
     fun savePrefs() {
+        // Single editor commit for ALL dual-setup state, including the
+        // param-id JSON lists, so a crash can't leave prefs half-updated
+        // (the param lists used to be written via separate apply() calls).
+        val gson = com.ai.data.createAppGson()
         prefs.edit()
             .putString(KEY_M1_PROVIDER, model1Provider?.id ?: "")
             .putString(KEY_M1_NAME, model1Name)
@@ -163,9 +181,9 @@ fun DualChatSetupScreen(
             .putString(KEY_INTERACTIONS, interactionCount)
             .putString(KEY_FIRST_PROMPT, firstPrompt)
             .putString(KEY_SECOND_PROMPT, secondPrompt)
+            .putString(KEY_M1_PARAMS, gson.toJson(model1ParamsIds))
+            .putString(KEY_M2_PARAMS, gson.toJson(model2ParamsIds))
             .apply()
-        saveStringList(prefs, KEY_M1_PARAMS, model1ParamsIds)
-        saveStringList(prefs, KEY_M2_PARAMS, model2ParamsIds)
     }
 
     DisposableEffect(Unit) { onDispose { savePrefs() } }
@@ -275,7 +293,7 @@ fun DualChatSetupScreen(
                         model1SystemPrompt = sp1, model1Params = resolveParamsIds(aiSettings, model1ParamsIds),
                         model2Provider = model2Provider!!, model2Name = model2Name,
                         model2SystemPrompt = sp2, model2Params = resolveParamsIds(aiSettings, model2ParamsIds),
-                        subject = subject, interactionCount = interactionCount.toIntOrNull() ?: 10,
+                        subject = subject, interactionCount = (interactionCount.toIntOrNull() ?: 10).coerceIn(1, MAX_DUAL_ROUNDS),
                         firstPrompt = firstPrompt, secondPrompt = secondPrompt
                     )
                 )
@@ -418,9 +436,15 @@ fun DualChatSessionScreen(
     }
 
     fun startChatLoop() {
+        // Guard against two loops running at once: cancel any prior job before
+        // launching, and flip isRunning synchronously on the main thread (the
+        // coroutine body sets it too, but only after dispatch, leaving a window
+        // where a rapid Stop→"Chat more" could start a second concurrent loop
+        // that interleaves messages and double-counts cost).
+        if (isRunning) return
+        chatJob?.cancel()
+        isRunning = true; isStopped = false; errorMessage = null
         chatJob = scope.launch {
-            isRunning = true; isStopped = false; errorMessage = null
-            com.ai.data.withTracerTags(reportId = sessionId, category = "Dual chat") {
             try {
                 while (currentInteraction < targetInteractions) {
                     // Model 1's turn
@@ -430,12 +454,19 @@ fun DualChatSessionScreen(
                         m1Messages.add(ChatMessage(role = "user", content = config.firstPrompt.replace("%subject%", config.subject)))
                     }
                     val apiKey1 = aiSettings.getApiKey(config.model1Provider)
-                    val response1 = chatViewModel.sendDualChatMessage(config.model1Provider, apiKey1, config.model1Name, m1Messages, config.model1Params)
+                    // Tag per individual API call rather than wrapping the whole
+                    // multi-turn loop: the tags are process-global, so holding
+                    // them across every suspending network call let traces from
+                    // other screens (a normal chat started after navigating away
+                    // before this loop's finally ran) get tagged with the
+                    // dual-chat sessionId/category.
+                    val response1 = com.ai.data.withTracerTags(reportId = sessionId, category = "Dual chat") {
+                        chatViewModel.sendDualChatMessage(config.model1Provider, apiKey1, config.model1Name, m1Messages, config.model1Params)
+                    }
                     val inTokens1 = m1Messages.sumOf { AppViewModel.estimateTokens(it.content) }
                     val outTokens1 = AppViewModel.estimateTokens(response1)
                     model1InputTokens += inTokens1; model1OutputTokens += outTokens1
                     appendMessage(DualMessage(1, response1, config.model1Provider.id, config.model1Name))
-                    if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
 
                     // Model 2's turn
                     thinkingModel = 2
@@ -445,12 +476,13 @@ fun DualChatSessionScreen(
                         m2Messages.add(ChatMessage(role = "user", content = config.secondPrompt.replace("%answer%", last.content)))
                     }
                     val apiKey2 = aiSettings.getApiKey(config.model2Provider)
-                    val response2 = chatViewModel.sendDualChatMessage(config.model2Provider, apiKey2, config.model2Name, m2Messages, config.model2Params)
+                    val response2 = com.ai.data.withTracerTags(reportId = sessionId, category = "Dual chat") {
+                        chatViewModel.sendDualChatMessage(config.model2Provider, apiKey2, config.model2Name, m2Messages, config.model2Params)
+                    }
                     val inTokens2 = m2Messages.sumOf { AppViewModel.estimateTokens(it.content) }
                     val outTokens2 = AppViewModel.estimateTokens(response2)
                     model2InputTokens += inTokens2; model2OutputTokens += outTokens2
                     appendMessage(DualMessage(2, response2, config.model2Provider.id, config.model2Name))
-                    if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
 
                     currentInteraction++
                 }
@@ -461,12 +493,17 @@ fun DualChatSessionScreen(
             } finally {
                 thinkingModel = null; isRunning = false; isStopped = true
             }
-            }
         }
     }
 
     DisposableEffect(Unit) { onDispose { chatJob?.cancel() } }
     LaunchedEffect(Unit) { startChatLoop() }
+    // Auto-scroll once recomposition has committed the appended message,
+    // rather than reading messages.size immediately after the state mutation
+    // inside the send loop (where the index could momentarily lag).
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
+    }
 
     var showInfoPicker by remember { mutableStateOf(false) }
     val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
@@ -495,7 +532,7 @@ fun DualChatSessionScreen(
 
         // Messages
         LazyColumn(state = listState, modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(messages.size, key = { "msg_${it}_${messages[it].modelIndex}" }) { index ->
+            items(messages.size, key = { messages[it].id }) { index ->
                 DualMessageBubble(messages[index], sessionId, onNavigateToTraceFile)
             }
             if (thinkingModel != null) {
@@ -546,7 +583,7 @@ fun DualChatSessionScreen(
                     modifier = Modifier.width(120.dp), singleLine = true,
                     label = { Text("Extra chats") }, colors = AppColors.outlinedFieldColors()
                 )
-                val extraCount = extraChatsText.toIntOrNull() ?: 0
+                val extraCount = (extraChatsText.toIntOrNull() ?: 0).coerceAtMost(MAX_DUAL_ROUNDS)
                 Button(
                     onClick = {
                         if (extraCount > 0) {

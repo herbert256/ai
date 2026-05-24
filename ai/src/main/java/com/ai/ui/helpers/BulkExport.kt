@@ -108,41 +108,54 @@ internal suspend fun bulkExportAndShare(
                 File(workDir, lv.key).also { it.mkdirs() }
             } else workDir
             val data = lv.data
+            // Filename stem. When more than one view is rendered, suffix
+            // the language key even if they DON'T go into per-language
+            // dirs — a filename-level backstop so two slices can never
+            // overwrite each other in a shared workDir.
+            val stem = if (viewsToRender.size > 1 && !perLanguageDirs)
+                "${safeTitle}_${lv.key}" else safeTitle
 
             // HTML Short / Complete
-            File(langDir, "${safeTitle}_short.html").writeText(buildShortHtmlFromData(data)); bump()
-            File(langDir, "${safeTitle}_complete.html")
+            File(langDir, "${stem}_short.html").writeText(buildShortHtmlFromData(data)); bump()
+            File(langDir, "${stem}_complete.html")
                 .writeText(convertReportToHtmlFromData(data, appVersion, includeJsonView = false)); bump()
             // DOCX Short / Complete
-            File(langDir, "${safeTitle}_short.docx")
+            File(langDir, "${stem}_short.docx")
                 .writeBytes(buildDocxBytesFromData(data, short = true)); bump()
-            File(langDir, "${safeTitle}_complete.docx")
+            File(langDir, "${stem}_complete.docx")
                 .writeBytes(buildDocxBytesFromData(data, short = false)); bump()
             // ODT Short / Complete
-            File(langDir, "${safeTitle}_short.odt")
+            File(langDir, "${stem}_short.odt")
                 .writeBytes(buildOdtBytesFromData(data, short = true)); bump()
-            File(langDir, "${safeTitle}_complete.odt")
+            File(langDir, "${stem}_complete.odt")
                 .writeBytes(buildOdtBytesFromData(data, short = false)); bump()
-            // Suggest GC before the PDF renders so chromium has a clean
-            // heap to work with — paranoid but harmless.
-            System.gc()
+            // Drop a PDF that failed to render (missing / zero-byte) so the
+            // master zip omits it instead of shipping a corrupt file while
+            // progress reports success.
+            fun dropIfEmpty(f: File) {
+                if (!f.exists() || f.length() == 0L) {
+                    com.ai.data.AppLog.w("BulkExport", "PDF render produced no output: ${f.name}")
+                    f.delete()
+                }
+            }
             // PDF Short — no TOC page. WebView lives on Main, so hop.
             run {
-                val pdfShort = File(langDir, "${safeTitle}_short.pdf")
+                val pdfShort = File(langDir, "${stem}_short.pdf")
                 val staticHtml = makeStaticForPdf(buildShortHtmlFromData(data))
                 withContext(Dispatchers.Main) {
                     renderHtmlToPdfFile(context, staticHtml, pdfShort, withTocPage = false, timeoutMs = 120_000L)
                 }
+                dropIfEmpty(pdfShort)
             }
             bump()
-            System.gc()
             // PDF Complete — JS-injected TOC page with computed page numbers
             run {
-                val pdfComplete = File(langDir, "${safeTitle}_complete.pdf")
+                val pdfComplete = File(langDir, "${stem}_complete.pdf")
                 val staticHtml = makeStaticForPdf(convertReportToHtmlFromData(data, appVersion, includeJsonView = false))
                 withContext(Dispatchers.Main) {
                     renderHtmlToPdfFile(context, staticHtml, pdfComplete, withTocPage = true, timeoutMs = 120_000L)
                 }
+                dropIfEmpty(pdfComplete)
             }
             bump()
             // Per-language Zipped HTML — filter buildLanguageViews to

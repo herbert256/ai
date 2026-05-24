@@ -77,7 +77,7 @@ fun BackupRestoreScreen(
         AlertDialog(
             onDismissRequest = { showRestoreConfirm = null },
             title = { Text("Restore from backup?") },
-            text = { Text("This overwrites all current configuration, API keys, reports, chats, and traces with the contents of the selected backup. The app will restart automatically when restore finishes.") },
+            text = { Text("This overwrites all current configuration, API keys, reports, chats, and traces with the contents of the selected backup. You'll be prompted to restart when restore finishes.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -99,7 +99,7 @@ fun BackupRestoreScreen(
                                 onFailure = {
                                     Toast.makeText(
                                         context,
-                                        "Restore failed: ${it.javaClass.simpleName}: ${it.message}",
+                                        "Restore failed: ${it.javaClass.simpleName}: ${it.message} — existing data left unchanged.",
                                         Toast.LENGTH_LONG
                                     ).show()
                                 }
@@ -142,7 +142,7 @@ fun BackupRestoreScreen(
                     )
                     Text(
                         text = if (restoreOnly) {
-                            "Reads a single .zip from a previous backup and overwrites all current configuration, API keys, reports, chats, and traces. Pick the file via the Android picker, confirm the prompt, and the app restarts when restore finishes."
+                            "Reads a single .zip from a previous backup and overwrites all current configuration, API keys, reports, chats, and traces. Pick the file via the Android picker, confirm the prompt, then tap Restart when prompted once restore finishes."
                         } else {
                             "Saves a single .zip with everything: configuration, API keys, reports, chats, traces, and prompt cache. Tap Backup, then pick a destination from the system share sheet — Email, Drive, Files, Slack, anything installed. Local LLM .task files and LiteRT .tflite embedders are excluded — they're large and re-downloadable."
                         },

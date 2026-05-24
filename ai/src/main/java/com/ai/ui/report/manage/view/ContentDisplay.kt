@@ -988,8 +988,14 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val iconAgent = iconPrompt?.let { p ->
             ai.resolvePromptAgent(p)
         }
-        val provider = iconAgent?.provider
-        val model = iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
+        // Prefer the persisted provider/model the icon actually ran on
+        // (Report.iconModel, "provider/model") so re-pinning the icon
+        // prompt after the run doesn't re-attribute / re-price the row to
+        // a model that never ran; fall back to the currently-pinned agent
+        // for initial-gen reports that didn't persist iconModel.
+        val iconParts = report.iconModel?.split("/", limit = 2)
+        val provider = iconParts?.firstOrNull()?.let { AppService.findById(it) } ?: iconAgent?.provider
+        val model = iconParts?.getOrNull(1) ?: iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
             type = "icon_main",
@@ -999,8 +1005,11 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             durationMs = null,
             inputTokens = report.iconInputTokens,
             outputTokens = report.iconOutputTokens,
-            inputCents = (report.iconInputCost * 100) - mainAltInCents,
-            outputCents = (report.iconOutputCost * 100) - mainAltOutCents
+            // Clamp at 0: if the aggregate icon cost wasn't yet bumped by
+            // the alt-call portion (timing skew / partial write) the
+            // subtraction could underflow to a negative cent value.
+            inputCents = ((report.iconInputCost * 100) - mainAltInCents).coerceAtLeast(0.0),
+            outputCents = ((report.iconOutputCost * 100) - mainAltOutCents).coerceAtLeast(0.0)
         )
     } else null
     // Two-call language flow surfaces as two rows. The first call
@@ -1055,8 +1064,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             durationMs = null,
             inputTokens = report.languageIconInputTokens,
             outputTokens = report.languageIconOutputTokens,
-            inputCents = (report.languageIconInputCost * 100) - languageAltInCents,
-            outputCents = (report.languageIconOutputCost * 100) - languageAltOutCents
+            inputCents = ((report.languageIconInputCost * 100) - languageAltInCents).coerceAtLeast(0.0),
+            outputCents = ((report.languageIconOutputCost * 100) - languageAltOutCents).coerceAtLeast(0.0)
         )
     } else null
     // Report-title row — the one internal/report_title call that names
@@ -1165,8 +1174,10 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         // counted twice (once here on the SR row, once in the
         // per-call row).
         val srAlt = altBySecondary[s.id]
-        val inCents = ((s.inputCost ?: 0.0) * 100) - (srAlt?.first ?: 0.0)
-        val outCents = ((s.outputCost ?: 0.0) * 100) - (srAlt?.second ?: 0.0)
+        // Clamp at 0 so a timing skew between the alt per-call write and
+        // the SR aggregate bump can't produce a negative cent value.
+        val inCents = (((s.inputCost ?: 0.0) * 100) - (srAlt?.first ?: 0.0)).coerceAtLeast(0.0)
+        val outCents = (((s.outputCost ?: 0.0) * 100) - (srAlt?.second ?: 0.0)).coerceAtLeast(0.0)
         // Cost-table "Type" column: prefer the user-given Meta prompt
         // name so a "Compare" row reads "compare", a "Critique" row
         // reads "critique", etc. Rerank / moderation / translate keep

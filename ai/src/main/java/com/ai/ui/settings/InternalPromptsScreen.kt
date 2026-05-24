@@ -65,6 +65,28 @@ fun categoryDisplayName(category: String): String = when (category) {
     "icons" -> "Icons prompts"
     else -> category
 }
+
+/** Built-in template categories whose entries are fixed (no Add / Copy /
+ *  Delete). Single source of truth so the CRUD gating can't drift from the
+ *  category definitions above. */
+fun isFixedListCategory(category: String): Boolean =
+    category == "internal" || category == "icons" || category == "info"
+
+/** Singular label for a single [InternalPrompt.category] entry — used
+ *  for View-page titles and delete-confirm copy. Carried explicitly per
+ *  category instead of string-munging the plural (a naive `removeSuffix("s")`
+ *  produced awkward singulars like "Fan-in-model" → "Fan-in-model" or
+ *  "Icons prompt" → "Icons prompt"). */
+fun categorySingularName(category: String): String = when (category) {
+    "meta" -> "Meta prompt"
+    "fan_out" -> "Fan-out prompt"
+    "fan_in" -> "Fan-in prompt"
+    "fan-in-model" -> "Fan-in model prompt"
+    "internal" -> "Internal prompt"
+    "info" -> "Info prompt"
+    "icons" -> "Icon prompt"
+    else -> category
+}
 @Composable
 fun InternalPromptEditScreen(
     internalPrompt: InternalPrompt?,
