@@ -35,6 +35,7 @@ enum class SettingsSubScreen {
     AI_INTERNAL_PROMPTS, AI_INTERNAL_PROMPT_EDIT,
     AI_EXAMPLE_PROMPTS, AI_EXAMPLE_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
+    AI_APP_SETTINGS,
     AI_PROMPTS_SETUP,
     AI_INTERNAL_PROMPTS_HUB,
     AI_LOCAL_MODELS_SETUP,
@@ -233,6 +234,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_LOCAL_MODELS_SETUP,
             SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_EXTERNAL_SERVICES,
+            SettingsSubScreen.AI_APP_SETTINGS,
             SettingsSubScreen.AI_MODEL_COOLDOWNS,
             SettingsSubScreen.AI_BLOCKED_MODELS,
             SettingsSubScreen.AI_TEST_EXCLUDED_MODELS,
@@ -675,6 +677,12 @@ fun SettingsScreen(
                 onSaveArtificialAnalysisApiKey = onSaveArtificialAnalysisApiKey,
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+        }
+        SettingsSubScreen.AI_APP_SETTINGS -> {
+            AppSettingsScreen(
+                generalSettings = generalSettings, aiSettings = aiSettings,
+                onSave = onSaveGeneral, onBack = goBack
             )
         }
         SettingsSubScreen.AI_LOCAL_LITERT_MODELS -> {
@@ -1573,6 +1581,86 @@ private fun IconDefaultRow(label: String, value: String, onChange: (String) -> U
                 modifier = Modifier.fillMaxWidth().height(360.dp)
             )
         }
+    }
+}
+
+/** "App settings" — app-wide and report-model default System prompt /
+ *  Parameters presets. App-wide is the universal lowest fallback for every
+ *  model; report-model fills in for bare/direct models only. Both are
+ *  outranked by anything more specific (pre-gen, agent / flock / swarm,
+ *  provider). Stored in GeneralSettings. */
+@Composable
+private fun AppSettingsScreen(
+    generalSettings: GeneralSettings,
+    aiSettings: Settings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit
+) {
+    var appSp by remember { mutableStateOf(generalSettings.appWideSystemPromptId) }
+    var appPar by remember { mutableStateOf(generalSettings.appWideParametersIds) }
+    var rmSp by remember { mutableStateOf(generalSettings.reportModelSystemPromptId) }
+    var rmPar by remember { mutableStateOf(generalSettings.reportModelParametersIds) }
+
+    fun build(): GeneralSettings = generalSettings.copy(
+        appWideSystemPromptId = appSp,
+        appWideParametersIds = appPar,
+        reportModelSystemPromptId = rmSp,
+        reportModelParametersIds = rmPar
+    )
+    LaunchedEffect(appSp, appPar, rmSp, rmPar) {
+        val updated = build()
+        if (updated != generalSettings) { kotlinx.coroutines.delay(400); onSave(updated) }
+    }
+    DisposableEffect(Unit) { onDispose { val u = build(); if (u != generalSettings) onSave(u) } }
+
+    var spDialog by remember { mutableStateOf<String?>(null) }   // "app" | "rm"
+    var parDialog by remember { mutableStateOf<String?>(null) }  // "app" | "rm"
+    if (spDialog != null) {
+        val app = spDialog == "app"
+        com.ai.ui.chat.SystemPromptSelectorDialog(
+            aiSettings = aiSettings, selectedId = if (app) appSp else rmSp,
+            onSelect = { if (app) appSp = it else rmSp = it; spDialog = null },
+            onDismiss = { spDialog = null }
+        )
+    }
+    if (parDialog != null) {
+        val app = parDialog == "app"
+        com.ai.ui.chat.ParametersSelectorDialog(
+            aiSettings = aiSettings, selectedIds = if (app) appPar else rmPar,
+            onConfirm = { if (app) appPar = it else rmPar = it; parDialog = null },
+            onDismiss = { parDialog = null }
+        )
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(helpTopic = "settings_app_settings", title = "App settings", subject = "App-wide & report-model default prompt / parameters", onBackClick = onBack)
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SettingCard("System prompt", "App-wide is the lowest fallback for every model; Report model applies to bare models (not from an agent / flock / swarm) and is skipped when a pre-generation system prompt is given.") {
+                AppDefaultRow("App-wide", appSp?.let { aiSettings.getSystemPromptById(it)?.name }) { spDialog = "app" }
+                AppDefaultRow("Report model", rmSp?.let { aiSettings.getSystemPromptById(it)?.name }) { spDialog = "rm" }
+            }
+            SettingCard("Parameters", "App-wide is the lowest fallback for every model; Report model applies to bare models (not from an agent / flock / swarm) and is skipped when pre-generation parameters are given.") {
+                AppDefaultRow("App-wide", appPar.mapNotNull { aiSettings.getParametersById(it)?.name }.joinToString(", ").ifBlank { null }) { parDialog = "app" }
+                AppDefaultRow("Report model", rmPar.mapNotNull { aiSettings.getParametersById(it)?.name }.joinToString(", ").ifBlank { null }) { parDialog = "rm" }
+            }
+        }
+    }
+}
+
+/** One labelled selector row inside an App settings card. */
+@Composable
+private fun AppDefaultRow(label: String, selectedName: String?, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 6.dp)
+    ) {
+        Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.width(110.dp))
+        Text(
+            selectedName ?: "Tap to select", fontSize = 13.sp,
+            color = if (selectedName == null) AppColors.TextTertiary else AppColors.Blue,
+            modifier = Modifier.weight(1f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        Text(">", fontSize = 16.sp, color = AppColors.Blue)
     }
 }
 

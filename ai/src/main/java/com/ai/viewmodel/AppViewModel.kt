@@ -147,6 +147,18 @@ data class GeneralSettings(
      *  [com.ai.data.MetadataDefaults] factory values; edited on Settings →
      *  Default icons. Persisted as one JSON blob. */
     val metadataIcons: com.ai.data.MetadataIcons = com.ai.data.MetadataIcons(),
+    /** App-wide default system prompt / parameters — the universal lowest
+     *  fallback for every model, used only when nothing more specific
+     *  (pre-gen / agent / flock / swarm / provider / report-model) is set.
+     *  Edited on AI Setup → App settings. */
+    val appWideSystemPromptId: String? = null,
+    val appWideParametersIds: List<String> = emptyList(),
+    /** Report-model default system prompt / parameters — fallback for
+     *  bare/direct models only (not agent/flock/swarm-sourced), and NOT
+     *  applied when a pre-generation system prompt / parameters was given
+     *  on the New AI Report screen. */
+    val reportModelSystemPromptId: String? = null,
+    val reportModelParametersIds: List<String> = emptyList(),
     /** Last 3 (provider, model) pairs the user picked from the Report
      *  section's model pickers, most-recent first. Encoded as
      *  `"providerId|model"` strings for trivial round-trip through

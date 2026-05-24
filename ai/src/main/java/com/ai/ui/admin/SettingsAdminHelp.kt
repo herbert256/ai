@@ -64,6 +64,15 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Reset", "Reset all to defaults returns every entry to its factory emoji. The picker always yields exactly one glyph, so an icon can never become blank or invalid."),
         )
     ),
+    "settings_app_settings" to HelpContent(
+        title = "Help - App settings",
+        cards = listOf(
+            HelpCard("Overview", "Two app-level defaults for the System prompt and Parameters used when running a report, each with an App-wide and a Report-model slot. These fill in only when nothing more specific is set. Autosaves with a 400 ms debounce."),
+            HelpCard("App-wide", "The universal lowest fallback. Applied to every model in a report — including models that come from an agent, flock or swarm — but only when no more-specific value (a pre-generation prompt/params, the agent/flock/swarm, the provider, or the report-model default) is set."),
+            HelpCard("Report model", "Applies only to bare models picked directly into a report (not coming from an agent / flock / swarm). It outranks the App-wide default but is below the provider default. It is NOT used at all when you set a system prompt / parameters during the New AI Report screen (pre-generation)."),
+            HelpCard("Precedence", "Highest wins. Bare model: pre-generation → provider → report-model → app-wide. Agent / flock / swarm model: pre-generation → the agent/flock/swarm's own → app-wide."),
+        )
+    ),
     "settings_network" to HelpContent(
         title = "Help - Network settings",
         cards = listOf(

@@ -189,6 +189,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "settings_other" to listOf("help_about", "help_privacy"),
     "settings_metadata" to listOf("help_about", "help_costs"),
     "settings_default_icons" to listOf("help_about"),
+    "settings_app_settings" to listOf("help_about", "concepts"),
     "settings_network" to listOf("concepts", "help_about"),
     "settings_network_api_calls" to listOf("concepts", "help_costs"),
     "settings_ui" to listOf("help_about"),

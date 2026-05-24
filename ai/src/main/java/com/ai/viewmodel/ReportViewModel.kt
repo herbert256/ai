@@ -314,7 +314,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
             val reportLevelSystemPrompt = state.reportSystemPromptId
                 ?.let { aiSettings.getSystemPromptById(it)?.prompt }
-            val reportTasks = buildReportTasks(aiSettings, agents, allModelMembers, selectionParamsById, externalSystemPrompt, reportLevelSystemPrompt)
+            val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            val preGenParamsActive = state.reportAdvancedParameters != null ||
+                state.reportWebSearchTool || state.reportReasoningEffort != null
+            val reportTasks = buildReportTasks(
+                aiSettings, agents, allModelMembers, selectionParamsById, externalSystemPrompt,
+                reportLevelSystemPrompt, state.generalSettings, directModelSids, preGenParamsActive
+            )
 
             _agentResults.value = emptyMap()
             appViewModel.updateUiState { it.copy(
@@ -446,18 +452,39 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
          *  screen. When non-null, wins over agent / flock / external; when
          *  null, the existing per-agent → per-flock → external resolution
          *  chain applies. */
-        reportLevelSystemPrompt: String? = null
+        reportLevelSystemPrompt: String? = null,
+        /** App-wide / report-model default presets from GeneralSettings.
+         *  App-wide is the universal lowest fallback; report-model applies
+         *  to bare/direct models only and is skipped when a pre-gen
+         *  override is active. */
+        general: GeneralSettings = GeneralSettings(),
+        /** sids of true bare/direct models (not swarm members) — only these
+         *  receive the provider + report-model fallbacks. */
+        directModelSids: Set<String> = emptySet(),
+        /** When a pre-generation params override (🌡️ / web / reasoning) is
+         *  active, the report-model + app-wide PARAM fallbacks are skipped. */
+        preGenParamsActive: Boolean = false
     ): List<ReportTask> {
+        val appSp = general.appWideSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+        val rmSp = general.reportModelSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+        val appPar = aiSettings.mergeParameters(general.appWideParametersIds)
+        val rmPar = aiSettings.mergeParameters(general.reportModelParametersIds)
+
         val agentTasks = agents.map { agent ->
             val ea = agent.copy(
                 apiKey = aiSettings.getEffectiveApiKeyForAgent(agent),
                 model = aiSettings.getEffectiveModelForAgent(agent)
             )
             val selParams = aiSettings.mergeParameters(selectionParamsById[agent.id] ?: emptyList())
-            var params = selParams ?: aiSettings.resolveAgentParameters(agent)
+            // selection → agent presets → app-wide (universal floor).
+            var params = selParams
+                ?: aiSettings.mergeParameters(agent.paramsIds)
+                ?: appPar
+                ?: AgentParameters()
             val spText = reportLevelSystemPrompt
                 ?: resolveSystemPromptText(aiSettings, agent.systemPromptId, findFlockSystemPromptIdForAgent(aiSettings, agent.id))
                 ?: externalSystemPrompt
+                ?: appSp
             if (spText != null) params = params.copy(systemPrompt = spText)
 
             ReportTask(agent.id, ReportAgent(agent.id, agent.name, ea.provider.id, ea.model, ReportStatus.PENDING), ea, params)
@@ -465,17 +492,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
         val modelTasks = modelMembers.map { member ->
             val sid = "swarm:${member.provider.id}:${member.model}"
-            // Provider-level defaults for a bare provider+model: applied
-            // when the selection carries no explicit override and no swarm-
-            // specific value. Providers without provider-level presets
-            // yield empty/null here, so there's no change for them.
+            val isDirect = sid in directModelSids
+            // Bare/direct models get the provider + report-model fallbacks;
+            // swarm members get only their swarm level. App-wide is the
+            // universal floor for both.
             val providerConfig = aiSettings.getProvider(member.provider)
             val spText = reportLevelSystemPrompt
                 ?: findSwarmSystemPromptIdForMember(aiSettings, member.provider, member.model)?.let { aiSettings.getSystemPromptById(it)?.prompt }
-                ?: providerConfig.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+                ?: (if (isDirect) providerConfig.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt } else null)
+                ?: (if (isDirect) rmSp else null)
                 ?: externalSystemPrompt
-            val effectiveParamIds = selectionParamsById[sid]?.takeIf { it.isNotEmpty() } ?: providerConfig.parametersIds
-            var params = aiSettings.mergeParameters(effectiveParamIds) ?: AgentParameters()
+                ?: appSp
+            val selPar = aiSettings.mergeParameters(selectionParamsById[sid]?.takeIf { it.isNotEmpty() } ?: emptyList())
+            var params = selPar
+                ?: (if (isDirect) aiSettings.mergeParameters(providerConfig.parametersIds) else null)
+                ?: (if (isDirect && !preGenParamsActive) rmPar else null)
+                ?: (if (!preGenParamsActive) appPar else null)
+                ?: AgentParameters()
             if (spText != null) params = params.copy(systemPrompt = spText)
 
             ReportTask(sid,
@@ -780,7 +813,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             val reportLevelSystemPrompt = state.reportSystemPromptId
                 ?.let { ai.getSystemPromptById(it)?.prompt }
-            val tasks = buildReportTasks(ai, agents, swarmMembers + directModels, emptyMap(), state.externalSystemPrompt, reportLevelSystemPrompt)
+            val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            val preGenParamsActive = state.reportAdvancedParameters != null ||
+                state.reportWebSearchTool || state.reportReasoningEffort != null
+            val tasks = buildReportTasks(
+                ai, agents, swarmMembers + directModels, emptyMap(), state.externalSystemPrompt,
+                reportLevelSystemPrompt, state.generalSettings, directModelSids, preGenParamsActive
+            )
             val existingIds = report.agents.map { it.agentId }.toSet()
             val newTasks = tasks.filter { it.resultId !in existingIds }
             val removedIds = existingIds - tasks.map { it.resultId }.toSet()
@@ -953,9 +992,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             val reportLevelSystemPrompt = state.reportSystemPromptId
                 ?.let { ai.getSystemPromptById(it)?.prompt }
+            val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            val preGenParamsActive = state.reportAdvancedParameters != null ||
+                state.reportWebSearchTool || state.reportReasoningEffort != null
             val tasks = buildReportTasks(
                 ai, agents, swarmMembers + directModels, emptyMap(),
-                state.externalSystemPrompt, reportLevelSystemPrompt
+                state.externalSystemPrompt, reportLevelSystemPrompt,
+                state.generalSettings, directModelSids, preGenParamsActive
             )
             if (tasks.isEmpty()) return@launch
             // Reset every existing agent to PENDING so the row shows

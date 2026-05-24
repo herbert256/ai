@@ -81,6 +81,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             useInternalPromptsIcons = prefs.getBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, true),
             autostartFanIconsAndTitles = prefs.getBoolean(KEY_AUTOSTART_FAN_ICONS_TITLES, true),
             metadataIcons = metadataIcons,
+            appWideSystemPromptId = prefs.getString(KEY_APP_WIDE_SYSTEM_PROMPT_ID, null),
+            appWideParametersIds = loadJsonList(KEY_APP_WIDE_PARAMETERS_IDS) ?: emptyList(),
+            reportModelSystemPromptId = prefs.getString(KEY_REPORT_MODEL_SYSTEM_PROMPT_ID, null),
+            reportModelParametersIds = loadJsonList(KEY_REPORT_MODEL_PARAMETERS_IDS) ?: emptyList(),
             showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false),
             experimentalFeaturesEnabled = prefs.getBoolean(KEY_EXPERIMENTAL_FEATURES, false),
             recentReportModels = prefs.getString(KEY_RECENT_REPORT_MODELS, null)
@@ -138,6 +142,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, settings.useInternalPromptsIcons)
             putBoolean(KEY_AUTOSTART_FAN_ICONS_TITLES, settings.autostartFanIconsAndTitles)
             putString(KEY_METADATA_ICONS, gson.toJson(settings.metadataIcons))
+            putString(KEY_APP_WIDE_SYSTEM_PROMPT_ID, settings.appWideSystemPromptId)
+            putString(KEY_APP_WIDE_PARAMETERS_IDS, if (settings.appWideParametersIds.isEmpty()) null else gson.toJson(settings.appWideParametersIds))
+            putString(KEY_REPORT_MODEL_SYSTEM_PROMPT_ID, settings.reportModelSystemPromptId)
+            putString(KEY_REPORT_MODEL_PARAMETERS_IDS, if (settings.reportModelParametersIds.isEmpty()) null else gson.toJson(settings.reportModelParametersIds))
             putBoolean(KEY_SHOW_KNOWLEDGE_CARD, settings.showKnowledgeCard)
             putBoolean(KEY_EXPERIMENTAL_FEATURES, settings.experimentalFeaturesEnabled)
             // Newline-joined: entries are "providerId|model" so newline
@@ -526,6 +534,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_USE_INTERNAL_PROMPTS_ICONS = "use_internal_prompts_icons"
         private const val KEY_AUTOSTART_FAN_ICONS_TITLES = "autostart_fan_icons_titles"
         private const val KEY_METADATA_ICONS = "metadata_icons"
+        private const val KEY_APP_WIDE_SYSTEM_PROMPT_ID = "app_wide_system_prompt_id"
+        private const val KEY_APP_WIDE_PARAMETERS_IDS = "app_wide_parameters_ids"
+        private const val KEY_REPORT_MODEL_SYSTEM_PROMPT_ID = "report_model_system_prompt_id"
+        private const val KEY_REPORT_MODEL_PARAMETERS_IDS = "report_model_parameters_ids"
         private const val KEY_SHOW_KNOWLEDGE_CARD = "show_knowledge_card"
         private const val KEY_EXPERIMENTAL_FEATURES = "experimental_features"
         private const val KEY_RECENT_REPORT_MODELS = "recent_report_models"
