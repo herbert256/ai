@@ -184,6 +184,7 @@ fun ResetAssetsScreen(
     onRestartProvidersFromAsset: () -> Int,
     onResetInternalPromptsFromAsset: () -> Int,
     onResetExamplePromptsFromAsset: () -> Int,
+    onResetSystemPromptsFromAsset: () -> Int,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -203,6 +204,7 @@ fun ResetAssetsScreen(
                             AssetReset.PROVIDERS -> onRestartProvidersFromAsset()
                             AssetReset.PROMPTS -> onResetInternalPromptsFromAsset()
                             AssetReset.EXAMPLES -> onResetExamplePromptsFromAsset()
+                            AssetReset.SYSTEM_PROMPTS -> onResetSystemPromptsFromAsset()
                         }
                         pending = null
                         val msg = if (n >= 0) "Loaded $n ${target.itemNoun} from ${target.assetPath}"
@@ -221,7 +223,7 @@ fun ResetAssetsScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Restore one of the three bundled JSON catalogs to its as-shipped contents. Each button drops every entry in the matching list and reloads from the asset; user-authored entries in that list are lost. Other configuration (API keys, agents, etc.) is untouched — these buttons are scoped to a single list each.",
+                "Restore one of the bundled JSON catalogs to its as-shipped contents. Each button drops every entry in the matching list and reloads from the asset; user-authored entries in that list are lost. Other configuration (API keys, agents, etc.) is untouched — these buttons are scoped to a single list each.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
             Button(
@@ -239,6 +241,11 @@ fun ResetAssetsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
             ) { Text("back to assets/examples.json", maxLines = 1, softWrap = false) }
+            Button(
+                onClick = { pending = AssetReset.SYSTEM_PROMPTS },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+            ) { Text("back to assets/system-prompts.json", maxLines = 1, softWrap = false) }
         }
     }
 }
@@ -389,5 +396,9 @@ private enum class AssetReset(val assetPath: String, val itemNoun: String, val d
     EXAMPLES(
         "assets/examples.json", "example prompts",
         "Drops every Example prompt (including any you authored) and reloads the bundled assets/examples.json fresh."
+    ),
+    SYSTEM_PROMPTS(
+        "assets/system-prompts.json", "system prompts",
+        "Drops every System prompt (including any you authored) and reloads the bundled assets/system-prompts.json fresh."
     )
 }

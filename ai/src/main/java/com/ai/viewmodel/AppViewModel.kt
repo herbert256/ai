@@ -1274,6 +1274,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // Mirror of the prompts.json / examples.json delta-merge for
+        // system-prompts.json: append any bundled name (case-insensitive)
+        // not yet present, never touch existing rows. Surfaces newly
+        // bundled System prompts automatically on APK upgrade.
+        AppLog.d(tag, "→ system-prompts.json delta-merge")
+        val tSystemPrompts = System.currentTimeMillis()
+        runCatching {
+            val bundled = com.ai.data.SystemPromptSeed.loadFromAssets(application)
+            AppLog.v(tag, "  bundled system-prompts.json entries: ${bundled.size}")
+            if (bundled.isNotEmpty()) {
+                val before = ai.systemPrompts.size
+                val merged = com.ai.data.SystemPromptSeed.ensureAllPresent(ai.systemPrompts, bundled)
+                val added = merged.size - before
+                AppLog.v(tag, "  merge: before=$before merged=${merged.size} added=$added")
+                if (added != 0) {
+                    ai = ai.copy(systemPrompts = merged)
+                    settingsPrefs.saveSettings(ai)
+                    AppLog.v(tag, "  settings saved with $added new system prompts")
+                }
+                AppLog.d(tag, "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (added=$added)")
+            } else {
+                AppLog.d(tag, "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (empty asset)")
+            }
+        }.onFailure {
+            AppLog.w(tag, "← system-prompts.json delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms", it)
+        }
+
+        // Mirror of the prompts.json / examples.json delta-merge for
         // excluded.json: append any (provider, model) test-excluded
         // pair not yet present so APK upgrades that ship a curated
         // "never probe these" list surface them automatically.
@@ -1400,6 +1427,34 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return bundled.size
     }
 
+    /** On-demand append of `assets/system-prompts.json` into
+     *  [Settings.systemPrompts] — existing rows untouched, only names not
+     *  yet present are added. Used by the factory reset. Returns the
+     *  count newly added. */
+    fun loadBundledSystemPrompts(): Int {
+        val ctx = getApplication<Application>()
+        val bundled = com.ai.data.SystemPromptSeed.loadFromAssets(ctx)
+        if (bundled.isEmpty()) return 0
+        val current = _uiState.value.aiSettings
+        val merged = com.ai.data.SystemPromptSeed.ensureAllPresent(current.systemPrompts, bundled)
+        val added = merged.size - current.systemPrompts.size
+        if (added > 0) updateSettings(current.copy(systemPrompts = merged))
+        return added
+    }
+
+    /** Drop every System prompt and replace the list with a fresh load
+     *  of `assets/system-prompts.json`. Returns the number of rows loaded
+     *  (0 if the asset is missing or fails to parse, in which case the
+     *  existing list is left untouched). */
+    fun resetSystemPromptsFromAssets(): Int {
+        val ctx = getApplication<Application>()
+        val bundled = com.ai.data.SystemPromptSeed.loadFromAssets(ctx)
+        if (bundled.isEmpty()) return 0
+        val current = _uiState.value.aiSettings
+        updateSettings(current.copy(systemPrompts = bundled))
+        return bundled.size
+    }
+
     // ===== Housekeeping primitives =====
     //
     // Each Housekeeping → Reset card button (Clear Usage Statistics,
@@ -1523,8 +1578,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // Persist the reset Settings synchronously before the
                 // import step reads _uiState — updateSettings's IO save
                 // is fire-and-forget but the StateFlow update is sync.
-                // 7. Reload prompts.json from assets
+                // 7. Reload prompts.json + system-prompts.json from assets
                 loadBundledInternalPrompts()
+                loadBundledSystemPrompts()
                 // 8. Re-import keys from temp file
                 val readBack = tempFile.readText()
                 val result = com.ai.ui.settings.applyApiKeysJson(readBack, _uiState.value.aiSettings)
