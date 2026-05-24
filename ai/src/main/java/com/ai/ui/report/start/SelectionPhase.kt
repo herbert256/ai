@@ -229,15 +229,6 @@ internal fun ColumnScope.SelectionPhase(
     // bottom-bar 🌡️ / 🎭 icons (wired on this screen's TitleBar in
     // SelectModels.kt); the inline buttons were removed.
 
-    Spacer(modifier = Modifier.height(8.dp))
-
-    // Bottom row — Clear only (the primary CTA is hoisted to the top
-    // of SelectionPhase). Hidden when nothing's selected.
-    if (models.isNotEmpty()) {
-        OutlinedButton(
-            onClick = onClearAll,
-            modifier = Modifier.fillMaxWidth(),
-            colors = AppColors.outlinedButtonColors()
-        ) { Text("Clear", maxLines = 1, softWrap = false) }
-    }
+    // Clear-all moved to the 🧽 bottom-bar icon (wired on this screen's
+    // TitleBar in SelectModels.kt, shown when the selection is non-empty).
 }

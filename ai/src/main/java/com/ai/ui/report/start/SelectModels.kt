@@ -72,6 +72,7 @@ internal fun ReportSelectModelsScreen(
             helpTopic = "report_select_models",
             title = "Report - select models", subject = "Add agents, flocks, swarms or models",
             onBackClick = onDismiss,
+            onClear = if (models.isNotEmpty()) onClearAllModels else null,
             onParameters = onAdvancedParams,
             onSystemPrompt = { showSystemPromptDialog = true }
         )

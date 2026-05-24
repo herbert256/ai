@@ -32,10 +32,11 @@ fun SwarmEditScreen(
     BackHandler { onBack() }
     val isEditing = swarm != null
 
-    var name by remember { mutableStateOf(swarm?.name ?: "") }
-    var selectedMembers by remember { mutableStateOf(swarm?.members ?: emptyList()) }
-    var selectedParamsIds by remember { mutableStateOf(swarm?.paramsIds ?: emptyList()) }
-    var selectedSystemPromptId by remember { mutableStateOf(swarm?.systemPromptId) }
+    var resetTick by remember { mutableStateOf(0) }
+    var name by remember(resetTick) { mutableStateOf(swarm?.name ?: "") }
+    var selectedMembers by remember(resetTick) { mutableStateOf(swarm?.members ?: emptyList()) }
+    var selectedParamsIds by remember(resetTick) { mutableStateOf(swarm?.paramsIds ?: emptyList()) }
+    var selectedSystemPromptId by remember(resetTick) { mutableStateOf(swarm?.systemPromptId) }
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSystemPromptDialog by remember { mutableStateOf(false) }
     var showModelPicker by remember { mutableStateOf(false) }
@@ -111,6 +112,7 @@ fun SwarmEditScreen(
             onBackClick = onBack,
             onOpenView = if (!isAddMode) onOpenView else null,
             onCopyReport = null,
+            onClear = { resetTick++ },
             onParameters = { showParamsDialog = true },
             onSystemPrompt = { showSystemPromptDialog = true }
         )

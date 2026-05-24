@@ -79,6 +79,7 @@ fun ModelSelectionScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack,
+            onClear = if (models.isNotEmpty()) onClearAll else null,
             onParameters = if (onActionWithParams != null) { { showSecParamsDialog = true } } else null,
             onSystemPrompt = if (onActionWithParams != null) { { showSecSystemPromptDialog = true } } else null)
 
@@ -171,16 +172,7 @@ fun ModelSelectionScreen(
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
         }
-
-        // Bottom row — Clear only (the primary CTA is hoisted to
-        // the top). Hidden when nothing's selected.
-        if (models.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = onClearAll,
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) { androidx.compose.material3.Text("Clear", maxLines = 1, softWrap = false) }
-        }
+        // Clear-all moved to the 🧽 bottom-bar icon (shown when the
+        // selection is non-empty); the primary CTA stays hoisted on top.
     }
 }

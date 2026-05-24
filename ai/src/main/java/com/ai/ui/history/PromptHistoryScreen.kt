@@ -58,7 +58,8 @@ fun PromptHistoryScreen(
         val pageItems = filteredEntries.subList(startIndex.coerceAtMost(filteredEntries.size), (startIndex + pageSize).coerceAtMost(filteredEntries.size))
 
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-            TitleBar(helpTopic = "prompt_history", title = "Prompt History", subject = "Reuse a prompt you sent before", onBackClick = onNavigateBack)
+            TitleBar(helpTopic = "prompt_history", title = "Prompt History", subject = "Reuse a prompt you sent before", onBackClick = onNavigateBack,
+                onClear = if (allEntries.isNotEmpty()) ({ settingsPrefs.clearPromptHistory(); allEntries = emptyList(); currentPage = 0 }) else null)
 
             OutlinedTextField(value = searchText, onValueChange = { searchText = it },
                 placeholder = { Text("Search prompts...") }, modifier = Modifier.fillMaxWidth(),
@@ -91,11 +92,7 @@ fun PromptHistoryScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(onClick = { settingsPrefs.clearPromptHistory(); allEntries = emptyList(); currentPage = 0 },
-                enabled = allEntries.isNotEmpty(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red),
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Clear History", maxLines = 1, softWrap = false) }
+            // "Clear History" moved to the 🧽 bottom-bar icon.
         }
     }
 }

@@ -35,6 +35,10 @@ fun CrudFormScaffold(
     onBack: () -> Unit,
     subject: String? = null,
     helpTopic: String? = null,
+    /** Optional 🧽 reset hook. On Add it clears the inputs; on Edit it
+     *  discards the user's edits and shows the saved values again. Null
+     *  → glyph hidden. */
+    onReset: (() -> Unit)? = null,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
     BackHandler { onBack() }
@@ -44,7 +48,7 @@ fun CrudFormScaffold(
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack)
+        TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack, onClear = onReset)
         Button(
             onClick = onSave,
             enabled = saveEnabled,

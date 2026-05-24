@@ -85,6 +85,7 @@ fun HistoryScreenNav(
                 helpTopic = "history",
                 title = "History", subject = "All your saved reports, newest first", onBackClick = onNavigateBack,
                 onDelete = if (allReports.isNotEmpty()) { { confirmClearAll = true } } else null,
+                onClear = if (searchExpanded) ({ searchTitle = ""; searchPrompt = ""; searchReport = "" }) else null,
                 onHousekeeping = onHousekeeping
             )
 
@@ -102,8 +103,9 @@ fun HistoryScreenNav(
                             label = { Text("Prompt") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
                         OutlinedTextField(value = searchReport, onValueChange = { searchReport = it; currentPage = 0 },
                             label = { Text("Response") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
+                        // "Clear" moved to the 🧽 bottom-bar icon (shown while
+                        // this search panel is open).
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { searchTitle = ""; searchPrompt = ""; searchReport = "" }, colors = AppColors.outlinedButtonColors()) { Text("Clear", maxLines = 1, softWrap = false) }
                             OutlinedButton(onClick = { searchExpanded = false }, colors = AppColors.outlinedButtonColors()) { Text("Close", maxLines = 1, softWrap = false) }
                         }
                     }

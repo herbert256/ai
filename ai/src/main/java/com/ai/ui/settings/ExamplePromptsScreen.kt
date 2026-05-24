@@ -20,9 +20,10 @@ fun ExamplePromptEditScreen(
 ) {
     BackHandler { onBack() }
     val isEditing = examplePrompt != null
+    var resetTick by remember { mutableStateOf(0) }
 
-    var title by remember { mutableStateOf(examplePrompt?.title ?: "") }
-    var text by remember { mutableStateOf(examplePrompt?.text ?: "") }
+    var title by remember(resetTick) { mutableStateOf(examplePrompt?.title ?: "") }
+    var text by remember(resetTick) { mutableStateOf(examplePrompt?.text ?: "") }
 
     val dup = rememberDuplicateMode(
         isEditingExisting = examplePrompt != null,
@@ -40,7 +41,8 @@ fun ExamplePromptEditScreen(
             title = if (isAddMode) "Add example prompt" else "Edit example prompt",
             subject = title,
             onBackClick = onBack,
-            onCopyReport = null
+            onCopyReport = null,
+            onClear = { resetTick++ }
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(

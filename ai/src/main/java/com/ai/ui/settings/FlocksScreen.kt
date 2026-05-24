@@ -33,11 +33,12 @@ fun FlockEditScreen(
     val context = LocalContext.current
     val isEditing = flock != null
 
-    var name by remember { mutableStateOf(flock?.name ?: "") }
-    var selectedAgentIds by remember { mutableStateOf((flock?.agentIds ?: emptyList()).toSet()) }
+    var resetTick by remember { mutableStateOf(0) }
+    var name by remember(resetTick) { mutableStateOf(flock?.name ?: "") }
+    var selectedAgentIds by remember(resetTick) { mutableStateOf((flock?.agentIds ?: emptyList()).toSet()) }
     var searchQuery by remember { mutableStateOf("") }
-    var selectedParamsIds by remember { mutableStateOf(flock?.paramsIds ?: emptyList()) }
-    var selectedSystemPromptId by remember { mutableStateOf(flock?.systemPromptId) }
+    var selectedParamsIds by remember(resetTick) { mutableStateOf(flock?.paramsIds ?: emptyList()) }
+    var selectedSystemPromptId by remember(resetTick) { mutableStateOf(flock?.systemPromptId) }
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSystemPromptDialog by remember { mutableStateOf(false) }
 
@@ -90,6 +91,7 @@ fun FlockEditScreen(
             onBackClick = onBack,
             onOpenView = if (!isAddMode) onOpenView else null,
             onCopyReport = null,
+            onClear = { resetTick++ },
             onParameters = { showParamsDialog = true },
             onSystemPrompt = { showSystemPromptDialog = true }
         )

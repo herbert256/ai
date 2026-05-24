@@ -1505,7 +1505,16 @@ private fun DefaultIconsSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_default_icons", title = "Default icons", subject = "Fallback emoji for reports without their own icon", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_default_icons", title = "Default icons", subject = "Fallback emoji for reports without their own icon", onBackClick = onBack,
+            // 🧽 restores every icon to its factory default.
+            onClear = {
+                reportIcon = factory.reportIcon; reportModelIcon = factory.reportModelIcon
+                rerank = factory.rerank; moderate = factory.moderate
+                languageIcon = factory.languageIcon; translationRow = factory.translationRow
+                meta = factory.meta; fanOutRow = factory.fanOutRow; fanInRow = factory.fanInRow
+                fanIconsRow = factory.fanIconsRow; fanIconsResult = factory.fanIconsResult
+            }
+        )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
@@ -1527,19 +1536,7 @@ private fun DefaultIconsSubScreen(
                     IconDefaultRow("Fan In row", fanInRow) { fanInRow = it }
                     IconDefaultRow("Fan Icons row", fanIconsRow) { fanIconsRow = it }
                     IconDefaultRow("Fan Icons result", fanIconsResult) { fanIconsResult = it }
-                    TextButton(onClick = {
-                        reportIcon = factory.reportIcon
-                        reportModelIcon = factory.reportModelIcon
-                        rerank = factory.rerank
-                        moderate = factory.moderate
-                        languageIcon = factory.languageIcon
-                        translationRow = factory.translationRow
-                        meta = factory.meta
-                        fanOutRow = factory.fanOutRow
-                        fanInRow = factory.fanInRow
-                        fanIconsRow = factory.fanIconsRow
-                        fanIconsResult = factory.fanIconsResult
-                    }) { Text("Reset all to defaults", color = AppColors.Blue) }
+                    // "Reset all to defaults" moved to the 🧽 bottom-bar icon.
                 }
             }
         }

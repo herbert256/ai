@@ -35,7 +35,16 @@ fun ReportAdvancedParametersScreen(
     var searchRecency by remember { mutableStateOf(currentParameters?.searchRecency ?: "") }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_parameters", title = "Advanced Parameters", subject = "Override model settings for this report", onBackClick = onBack)
+        TitleBar(
+            helpTopic = "report_parameters", title = "Advanced Parameters",
+            subject = "Override model settings for this report", onBackClick = onBack,
+            // 🧽 clears every override field and drops the report's override.
+            onClear = {
+                temperature = ""; maxTokens = ""; topP = ""; topK = ""; frequencyPenalty = ""; presencePenalty = ""
+                systemPrompt = ""; seed = ""; searchEnabled = false; returnCitations = true; searchRecency = ""
+                onApply(null)
+            }
+        )
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
@@ -58,16 +67,8 @@ fun ReportAdvancedParametersScreen(
                             searchEnabled || !returnCitations || searchRecency.isNotBlank()
                     onApply(if (hasAny) params else null)
                 },
-                modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
             ) { Text("Apply", maxLines = 1, softWrap = false) }
-            OutlinedButton(
-                onClick = {
-                    temperature = ""; maxTokens = ""; topP = ""; topK = ""; frequencyPenalty = ""; presencePenalty = ""
-                    systemPrompt = ""; seed = ""; searchEnabled = false; returnCitations = true; searchRecency = ""
-                    onApply(null)
-                },
-                modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()
-            ) { Text("Clear all", maxLines = 1, softWrap = false) }
         }
 
         Spacer(modifier = Modifier.height(16.dp))

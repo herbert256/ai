@@ -79,18 +79,14 @@ fun ResetRuntimeDataScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "reset_runtime", title = "Clear runtime data", subject = "Drop history; keeps config & API keys", onBackClick = onBack)
+        TitleBar(helpTopic = "reset_runtime", title = "Clear runtime data", subject = "Drop history; keeps config & API keys", onBackClick = onBack,
+            onClear = { showConfirm = true })
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Wipes the activity + personal-history surface that accumulates while the app is in use: rolling app logs, chat sessions, API traces, AI reports (incl. their secondary-result rows), prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys), knowledge bases, the six Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache are all preserved.",
+                "Wipes the activity + personal-history surface that accumulates while the app is in use: rolling app logs, chat sessions, API traces, AI reports (incl. their secondary-result rows), prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys), knowledge bases, the six Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache are all preserved.\n\nTap the 🧽 icon below to clear.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
-            Button(
-                onClick = { showConfirm = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-            ) { Text("Clear runtime data", maxLines = 1, softWrap = false) }
         }
     }
 }
@@ -125,18 +121,14 @@ fun ResetInfoProvidersScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "reset_info_providers", title = "Clear Info providers", subject = "Drop cached pricing; refetch on Refresh", onBackClick = onBack)
+        TitleBar(helpTopic = "reset_info_providers", title = "Clear Info providers", subject = "Drop cached pricing; refetch on Refresh", onBackClick = onBack,
+            onClear = { showConfirm = true })
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Drops the per-provider pricing tier blobs and prefs entries from the six Info providers — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis — plus the OpenRouter model-specs cache. Manual cost overrides survive (they sit above the Info tiers in the layered lookup) and Together's native self-reported pricing also survives. Pricing lookups will fall back to DEFAULT_PRICING until Housekeeping → Refresh repopulates the caches.",
+                "Drops the per-provider pricing tier blobs and prefs entries from the six Info providers — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis — plus the OpenRouter model-specs cache. Manual cost overrides survive (they sit above the Info tiers in the layered lookup) and Together's native self-reported pricing also survives. Pricing lookups will fall back to DEFAULT_PRICING until Housekeeping → Refresh repopulates the caches.\n\nTap the 🧽 icon below to clear.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
-            Button(
-                onClick = { showConfirm = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-            ) { Text("Clear Info providers", maxLines = 1, softWrap = false) }
         }
     }
 }
@@ -175,18 +167,14 @@ fun ResetConfigurationScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "reset_configuration", title = "Clear all configuration", subject = "Wipe all config; keeps reports & chats", onBackClick = onBack)
+        TitleBar(helpTopic = "reset_configuration", title = "Clear all configuration", subject = "Wipe all config; keeps reports & chats", onBackClick = onBack,
+            onClear = { showConfirm = true })
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Wipes every piece of the app's configuration surface: each provider's API key + model list + endpoint set; every agent, flock, swarm, parameter preset, system prompt, internal prompt, example prompt; External Services keys (HuggingFace, OpenRouter, Artificial Analysis); user name and default email; every installed Local LLM (.task) and LiteRT embedder (.tflite). Reports, chats, traces, usage statistics, and the Info-provider pricing caches are kept.",
+                "Wipes every piece of the app's configuration surface: each provider's API key + model list + endpoint set; every agent, flock, swarm, parameter preset, system prompt, internal prompt, example prompt; External Services keys (HuggingFace, OpenRouter, Artificial Analysis); user name and default email; every installed Local LLM (.task) and LiteRT embedder (.tflite). Reports, chats, traces, usage statistics, and the Info-provider pricing caches are kept.\n\nTap the 🧽 icon below to clear.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
-            Button(
-                onClick = { showConfirm = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
-            ) { Text("Clear all configuration", maxLines = 1, softWrap = false) }
         }
     }
 }
@@ -330,7 +318,8 @@ fun ResetApplicationScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "reset_application", title = "Reset application", subject = "Factory reset; only API keys are kept", onBackClick = onBack)
+        TitleBar(helpTopic = "reset_application", title = "Reset application", subject = "Factory reset; only API keys are kept", onBackClick = onBack,
+            onClear = if (!busy) ({ showConfirm = true }) else null)
 
         restartMessage?.let { msg ->
             Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -363,15 +352,9 @@ fun ResetApplicationScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "Factory-style reset. API keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) survive — everything else is wiped, providers and internal prompts reload from assets. A confirm dialog gates the action; on success a banner appears at the top of the page with four follow-ups: Refresh all, Refresh providers/models/default agents, Restart application, or Import API keys.",
+                "Factory-style reset. API keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) survive — everything else is wiped, providers and internal prompts reload from assets. Tap the 🧽 icon below to start; a confirm dialog gates the action; on success a banner appears at the top of the page with four follow-ups: Refresh all, Refresh providers/models/default agents, Restart application, or Import API keys.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
-            Button(
-                onClick = { showConfirm = true },
-                enabled = !busy,
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
-            ) { Text("Reset application", maxLines = 1, softWrap = false) }
         }
     }
 }

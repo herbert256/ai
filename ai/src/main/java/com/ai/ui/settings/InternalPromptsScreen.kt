@@ -87,16 +87,17 @@ fun InternalPromptEditScreen(
     // / moderation) are a fixed list — name is not user-editable.
     val isFixedList = fixedCategory == "internal" || fixedCategory == "icons" || fixedCategory == "info"
 
-    var name by remember { mutableStateOf(internalPrompt?.name ?: "") }
-    var title by remember { mutableStateOf(internalPrompt?.title ?: "") }
+    var resetTick by remember { mutableStateOf(0) }
+    var name by remember(resetTick) { mutableStateOf(internalPrompt?.name ?: "") }
+    var title by remember(resetTick) { mutableStateOf(internalPrompt?.title ?: "") }
     // Preserve the existing prompt's category on edit; only enforce
     // fixedCategory for new prompts. Stops a deep-link with the wrong
     // category from silently moving the prompt across buckets.
     val category = internalPrompt?.category ?: fixedCategory
     val isMeta = category.equals("meta", ignoreCase = true)
     val isFanOut = category.equals("fan_out", ignoreCase = true)
-    var reference by remember { mutableStateOf(internalPrompt?.reference ?: false) }
-    var agent by remember {
+    var reference by remember(resetTick) { mutableStateOf(internalPrompt?.reference ?: false) }
+    var agent by remember(resetTick) {
         mutableStateOf(
             when {
                 // Both fan_out AND fan_in are FAN_CATEGORIES — the
@@ -107,19 +108,19 @@ fun InternalPromptEditScreen(
             }
         )
     }
-    var text by remember { mutableStateOf(internalPrompt?.text ?: "") }
+    var text by remember(resetTick) { mutableStateOf(internalPrompt?.text ?: "") }
     // Either/or alternative to [agent]: pin a provider id + model. The
     // toggle starts in Provider+Model mode only when both were saved.
-    var useProviderModel by remember {
+    var useProviderModel by remember(resetTick) {
         mutableStateOf(!internalPrompt?.provider.isNullOrBlank() && !internalPrompt?.model.isNullOrBlank())
     }
-    var providerId by remember { mutableStateOf(internalPrompt?.provider ?: "") }
-    var model by remember { mutableStateOf(internalPrompt?.model ?: "") }
+    var providerId by remember(resetTick) { mutableStateOf(internalPrompt?.provider ?: "") }
+    var model by remember(resetTick) { mutableStateOf(internalPrompt?.model ?: "") }
     var providerDialogOpen by remember { mutableStateOf(false) }
     var modelDialogOpen by remember { mutableStateOf(false) }
     // Per-prompt Parameters / System-prompt preset NAMES ("*NONE" = unset).
-    var selectedParametersName by remember { mutableStateOf(internalPrompt?.parameters ?: "*NONE") }
-    var selectedSystemPromptName by remember { mutableStateOf(internalPrompt?.systemPrompt ?: "*NONE") }
+    var selectedParametersName by remember(resetTick) { mutableStateOf(internalPrompt?.parameters ?: "*NONE") }
+    var selectedSystemPromptName by remember(resetTick) { mutableStateOf(internalPrompt?.systemPrompt ?: "*NONE") }
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSysPromptDialog by remember { mutableStateOf(false) }
     if (showParamsDialog) {
@@ -183,6 +184,7 @@ fun InternalPromptEditScreen(
             subject = name,
             onBackClick = onBack,
             onCopyReport = null,
+            onClear = { resetTick++ },
             onParameters = { showParamsDialog = true },
             onSystemPrompt = { showSysPromptDialog = true }
         )

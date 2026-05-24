@@ -54,12 +54,13 @@ internal fun ManualOverrideForm(
     onBack: () -> Unit
 ) {
     val allProviders = remember { AppService.entries.sortedBy { it.id } }
-    var providerId by remember { mutableStateOf(initial?.providerId ?: allProviders.firstOrNull()?.id ?: "") }
-    var modelId by remember { mutableStateOf(initial?.modelId ?: "") }
-    var type by remember { mutableStateOf(initial?.type ?: ModelType.CHAT) }
-    var supportsVision by remember { mutableStateOf(initial?.supportsVision ?: false) }
-    var supportsWebSearch by remember { mutableStateOf(initial?.supportsWebSearch ?: false) }
-    var supportsReasoning by remember { mutableStateOf(initial?.supportsReasoning ?: false) }
+    var resetTick by remember { mutableStateOf(0) }
+    var providerId by remember(resetTick) { mutableStateOf(initial?.providerId ?: allProviders.firstOrNull()?.id ?: "") }
+    var modelId by remember(resetTick) { mutableStateOf(initial?.modelId ?: "") }
+    var type by remember(resetTick) { mutableStateOf(initial?.type ?: ModelType.CHAT) }
+    var supportsVision by remember(resetTick) { mutableStateOf(initial?.supportsVision ?: false) }
+    var supportsWebSearch by remember(resetTick) { mutableStateOf(initial?.supportsWebSearch ?: false) }
+    var supportsReasoning by remember(resetTick) { mutableStateOf(initial?.supportsReasoning ?: false) }
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
 
@@ -84,7 +85,8 @@ internal fun ManualOverrideForm(
             )
         },
         onBack = onBack,
-        helpTopic = "crud_model_types"
+        helpTopic = "crud_model_types",
+        onReset = { resetTick++ }
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ExposedDropdownMenuBox(expanded = providerExpanded, onExpandedChange = { providerExpanded = !providerExpanded }) {

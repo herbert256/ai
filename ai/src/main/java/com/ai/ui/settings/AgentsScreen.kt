@@ -67,13 +67,14 @@ fun AgentEditScreen(
         return
     }
 
-    var name by remember { mutableStateOf(agent?.name ?: "") }
-    var selectedProvider by remember { mutableStateOf(initialProvider) }
-    var model by remember { mutableStateOf(agent?.model ?: "") }
-    var apiKey by remember { mutableStateOf(agent?.apiKey ?: "") }
-    var selectedEndpointId by remember { mutableStateOf(agent?.endpointId) }
-    var selectedParamsIds by remember { mutableStateOf(agent?.paramsIds ?: emptyList()) }
-    var selectedSystemPromptId by remember { mutableStateOf(agent?.systemPromptId) }
+    var resetTick by remember { mutableStateOf(0) }
+    var name by remember(resetTick) { mutableStateOf(agent?.name ?: "") }
+    var selectedProvider by remember(resetTick) { mutableStateOf(initialProvider) }
+    var model by remember(resetTick) { mutableStateOf(agent?.model ?: "") }
+    var apiKey by remember(resetTick) { mutableStateOf(agent?.apiKey ?: "") }
+    var selectedEndpointId by remember(resetTick) { mutableStateOf(agent?.endpointId) }
+    var selectedParamsIds by remember(resetTick) { mutableStateOf(agent?.paramsIds ?: emptyList()) }
+    var selectedSystemPromptId by remember(resetTick) { mutableStateOf(agent?.systemPromptId) }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testSuccess by remember { mutableStateOf(false) }
@@ -148,6 +149,7 @@ fun AgentEditScreen(
             // existing agent id) — null in Add mode.
             onOpenView = if (!isAddMode) onOpenView else null,
             onCopyReport = null,
+            onClear = { resetTick++ },
             onParameters = { showParamsDialog = true },
             onSystemPrompt = { showSystemPromptDialog = true }
         )
