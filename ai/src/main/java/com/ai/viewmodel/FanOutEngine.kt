@@ -245,162 +245,17 @@ class FanOutEngine internal constructor(
      *  (answerer, source) pair. Returns the [FanOutRunKey] so the
      *  caller can drill into the run's detail screen immediately —
      *  the StateFlow will fill in as placeholders land + complete. */
-    fun startRun(
-        context: Context,
-        reportId: String,
-        metaPrompt: InternalPrompt,
-        scope: SecondaryScope = SecondaryScope.AllReports,
-        responderAgentIds: Set<String>? = null
-    ): FanOutRunKey? {
-        val key = runKey(reportId, metaPrompt.id)
-
-        // Dedupe: if a run for this key is already active, return its
-        // key without launching a parallel batch.
-        runJobs[key]?.let { existing ->
-            if (existing.isActive) return key
-        }
-
-        AppLog.i("FanOut", "→ engine.startRun \"${metaPrompt.name}\" report=$reportId")
-        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val cat = "Report meta: ${metaPrompt.name}"
-            try {
-                withTracerTags(reportId = reportId, category = cat) {
-                    val state = appViewModel.uiState.value
-                    val aiSettings = state.aiSettings
-                    val report = ReportStorage.getReport(context, reportId)
-                        ?: return@withTracerTags
-                    ReportStorage.bumpReportTimestamp(context, reportId)
-                    val successful = report.agents.filter {
-                        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-                    }
-                    if (successful.size < 2) return@withTracerTags
-
-                    // Apply scope to derive the SOURCE agent set.
-                    val sources = when (scope) {
-                        SecondaryScope.AllReports -> successful
-                        is SecondaryScope.TopRanked -> {
-                            val rerank = SecondaryResultStorage.get(context, reportId, scope.rerankResultId)
-                            val topIds = com.ai.data.extractTopRankedIds(rerank?.content, scope.count)
-                            if (topIds.isNullOrEmpty()) successful
-                            else topIds.mapNotNull { idx -> successful.getOrNull(idx - 1) }
-                        }
-                        is SecondaryScope.Manual -> successful.filter { it.agentId in scope.agentIds }
-                    }
-                    if (sources.isEmpty()) return@withTracerTags
-
-                    val answerers = if (responderAgentIds == null) successful
-                        else successful.filter { it.agentId in responderAgentIds }
-                    if (answerers.isEmpty()) return@withTracerTags
-
-                    // Pre-stage placeholder SecondaryResult rows + PairState
-                    // entries. The state-flow gets one batched update at
-                    // the end of the loop so subscribers see N pairs
-                    // appear together rather than N individual notifications.
-                    data class Pending(val answerer: com.ai.data.ReportAgent, val source: com.ai.data.ReportAgent, val placeholder: SecondaryResult)
-                    val pending = mutableListOf<Pending>()
-                    val newPairs = LinkedHashMap<PairKey, PairState>()
-                    for (answerer in answerers) {
-                        val provider = AppService.findById(answerer.provider) ?: continue
-                        for (source in sources) {
-                            if (source.agentId == answerer.agentId) continue
-                            val agentName = "${provider.id} / ${shortModelName(answerer.model)}"
-                            val placeholder = SecondaryResultStorage.create(
-                                context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName
-                            ) {
-                                it.copy(
-                                    metaPromptId = metaPrompt.id,
-                                    metaPromptName = metaPrompt.name,
-                                    fanOutSourceAgentId = source.agentId,
-                                    secondaryScope = scope.encode()
-                                )
-                            }
-                            pending.add(Pending(answerer, source, placeholder))
-                            val pk = pairKey(answerer.agentId, source.agentId)
-                            newPairs[pk] = PairState(
-                                id = placeholder.id,
-                                answererAgentId = answerer.agentId,
-                                sourceAgentId = source.agentId,
-                                providerId = provider.id,
-                                model = answerer.model,
-                                status = PairStatus.PENDING,
-                                timestamp = placeholder.timestamp
-                            )
-                        }
-                    }
-
-                    // Publish the run with every pair as PENDING.
-                    _runs.update { runs ->
-                        runs + (key to FanOutRunState(
-                            key = key,
-                            reportId = reportId,
-                            metaPrompt = metaPrompt,
-                            scope = scope,
-                            responderIds = responderAgentIds,
-                            pairs = newPairs,
-                            combinedReports = runs[key]?.combinedReports.orEmpty()
-                        ))
-                    }
-
-                    // Concurrent in-flight pair cap — see commit 865fb443
-                    // for why this is necessary to avoid Dispatchers.IO
-                    // starvation. The blocking ProviderThrottle.acquire
-                    // is gated by the suspending Semaphore here.
-                    val ioCap = Semaphore(8)
-
-                    coroutineScope {
-                        pending.map { item ->
-                            val deferred = async(start = CoroutineStart.LAZY) {
-                                runOnePair(
-                                    context, key, item.placeholder.id, item.answerer.agentId,
-                                    item.source.agentId, item.answerer.provider, item.answerer.model,
-                                    metaPrompt, report, aiSettings, sources.size,
-                                    sourceResponseBody = item.source.responseBody.orEmpty(),
-                                    placeholder = item.placeholder,
-                                    ioCap = ioCap
-                                )
-                            }
-                            pairJobs[item.placeholder.id] = deferred
-                            deferred.invokeOnCompletion {
-                                pairJobs.remove(item.placeholder.id, deferred)
-                            }
-                            deferred.start()
-                            deferred
-                        }.awaitAll()
-                    }
-                    AppLog.i("FanOut", "← engine.startRun done \"${metaPrompt.name}\" (${pending.size} pairs)")
-
-                    // Autostart Fan Icons & Titles when the setting is on and
-                    // the run finished cleanly (every pair DONE — no ERROR).
-                    // The two batches read the now-persisted pairs off disk,
-                    // dedupe in-flight jobs and no-op when nothing is pending.
-                    if (appViewModel.uiState.value.generalSettings.autostartFanIconsAndTitles) {
-                        val finishedPairs = _runs.value[key]?.pairs?.values.orEmpty()
-                        val clean = finishedPairs.isNotEmpty() &&
-                            finishedPairs.none { it.status == PairStatus.ERROR }
-                        if (clean) {
-                            AppLog.i("FanOut", "autostart icons+titles for \"${metaPrompt.name}\"")
-                            reportViewModel.iconGen.runFanIconsBatch(context, reportId, metaPrompt.id)
-                            reportViewModel.iconGen.runFanTitlesBatch(context, reportId, metaPrompt.id)
-                        }
-                    }
-                }
-            } finally {
-                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-                runJobs.remove(key)
-            }
-        }
-        runJobs[key] = outer
-        return key
-    }
-
     // -----------------------------------------------------------------
     // Per-pair runner — single canonical path
     // -----------------------------------------------------------------
 
-    /** PENDING → RUNNING → DONE/ERROR. Owns the per-pair throttle
-     *  permit acquisition + the HTTP call (via [ReportViewModel
-     *  .executeSecondaryTask]) + the state-flow transitions. */
+    /** PENDING → RUNNING → DONE/ERROR. The per-pair HTTP call (via
+     *  [ReportViewModel.executeSecondaryTask]) + the engine's state-flow
+     *  transitions. Throttle permit acquisition (global → fan-out →
+     *  per-host) + permitPreAcquired are owned by [runThrottledBatch],
+     *  which calls this as its body — so this runs with the permits held.
+     *  Keeps its own local 60s withTimeout (caught here so a runaway
+     *  model fails just this pair). */
     private suspend fun runOnePair(
         context: Context,
         runKey: FanOutRunKey,
@@ -414,8 +269,7 @@ class FanOutEngine internal constructor(
         aiSettings: Settings,
         sourceCount: Int,
         sourceResponseBody: String,
-        placeholder: SecondaryResult,
-        ioCap: Semaphore
+        placeholder: SecondaryResult
     ) {
         val pk = pairKey(answererAgentId, sourceAgentId)
         val provider = AppService.findById(answererProviderId) ?: run {
@@ -424,21 +278,13 @@ class FanOutEngine internal constructor(
             }
             return
         }
-        ApiCallCaps.global.withPermit {
-        ApiCallCaps.fanOut.withPermit {
-        ioCap.withPermit {
-            val host = providerHost(provider)
-            AppLog.d("FanOut", "queued pair ans=$answererAgentId src=$sourceAgentId ${provider.id}/$answererModel")
-            // Non-blocking gate — a capped host yields the coroutine
-            // (delay, not Thread.sleep) so other pairs proceed.
-            val releaser = acquireOrRequeue(host)
-            try {
-                if (!SecondaryResultStorage.exists(context, runKey.substringBefore('|'), placeholderId)) {
-                    AppLog.d("FanOut", "skip pair $placeholderId — deleted before launch")
-                    dropPair(runKey, pk)
-                    return@withPermit
-                }
-                withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+        AppLog.d("FanOut", "queued pair ans=$answererAgentId src=$sourceAgentId ${provider.id}/$answererModel")
+        if (!SecondaryResultStorage.exists(context, runKey.substringBefore('|'), placeholderId)) {
+            AppLog.d("FanOut", "skip pair $placeholderId — deleted before launch")
+            dropPair(runKey, pk)
+            return
+        }
+        run {
                     transitionPair(runKey, pk) { it.copy(status = PairStatus.RUNNING) }
                     val pairStart = System.currentTimeMillis()
                     try {
@@ -508,12 +354,6 @@ class FanOutEngine internal constructor(
                         AppLog.d("FanOut", "← pair ans=$answererAgentId src=$sourceAgentId ${System.currentTimeMillis() - pairStart}ms")
                     }
                 }
-            } finally {
-                releaser.release()
-            }
-        }
-        }
-        }
     }
 
     // -----------------------------------------------------------------
@@ -665,18 +505,31 @@ class FanOutEngine internal constructor(
         val source = report.agents.firstOrNull { it.agentId == pair.sourceAgentId } ?: return
         val aiSettings = appViewModel.uiState.value.aiSettings
         val cat = "Report meta: ${run.metaPrompt.name}"
-        val ioCap = Semaphore(8)
+        val sourceCount = report.agents.count {
+            it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+        }
+        // Single-pair rerun through the shared runner — same canonical
+        // global → fan-out → per-host order + permitPreAcquired as every
+        // other batch. register wires the per-pair Job into pairJobs (so
+        // cancelPair / delete can target it) before it starts.
         withTracerTags(reportId = run.reportId, category = cat) {
-            runOnePair(
-                context, runKey, pair.id, pair.answererAgentId, pair.sourceAgentId,
-                pair.providerId, pair.model, run.metaPrompt, report, aiSettings,
-                sourceCount = report.agents.count {
-                    it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-                },
-                sourceResponseBody = source.responseBody.orEmpty(),
-                placeholder = cleared,
-                ioCap = ioCap
-            )
+            runThrottledBatch(
+                items = listOf(pair),
+                hostOf = { AppService.findById(it.providerId)?.let { s -> providerHost(s) } },
+                subCap = ApiCallCaps.fanOut,
+                register = { p, d ->
+                    pairJobs[p.id] = d
+                    d.invokeOnCompletion { pairJobs.remove(p.id, d) }
+                }
+            ) { p ->
+                runOnePair(
+                    context, runKey, p.id, p.answererAgentId, p.sourceAgentId,
+                    p.providerId, p.model, run.metaPrompt, report, aiSettings,
+                    sourceCount = sourceCount,
+                    sourceResponseBody = source.responseBody.orEmpty(),
+                    placeholder = cleared
+                )
+            }
         }
     }
 
