@@ -59,6 +59,9 @@ into one resolved view per `(provider, model)` pair.
   hierarchy.
 
 ### Subsystem deep dives
+- **[experimental.md](experimental.md)** — The master **Experimental
+  features** toggle (off by default) and every UI surface it hides:
+  on-device models, AI Knowledge / RAG, and Local Semantic Search.
 - **[translation.md](translation.md)** — TRANSLATE secondary-kind,
   multi-language fan-out, translation runs, the side-by-side /
   Translate Run / Translate Call detail screens.
