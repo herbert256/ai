@@ -1994,16 +1994,35 @@ class SecondaryRunManager(
             // unit per call so cost is at least roughly tracked.
             val pricing = PricingCache.getPricing(context, provider, model)
             val units = r.billedSearchUnits ?: if (r.errorMessage == null) 1 else 0
-            val rerankCost = if (units > 0) units * pricing.perQueryPrice else null
+            val perQueryCost = if (units > 0) units * pricing.perQueryPrice else 0.0
+            // Token-billed rerankers (SiliconFlow, Novita, …) return no
+            // billed-search-units and price per TOKEN, not per query — so
+            // perQueryCost is 0 for them. Fall back to estimating the input
+            // (query + every document) at the model's prompt price, the same
+            // way usage-less embedding calls are costed. estimateTokens is a
+            // chars/4 heuristic; the rerank API returns no usage to do better.
+            // Gated on promptPrice > 0 so a genuinely free / unpriced model
+            // still reads as $0 instead of carrying a fabricated token count.
+            val estInputTokens = if (r.errorMessage == null && perQueryCost <= 0.0 && pricing.promptPrice > 0.0)
+                AppViewModel.estimateTokens(report.prompt) + docs.sumOf { AppViewModel.estimateTokens(it) }
+                else 0
+            val rerankCost = when {
+                perQueryCost > 0.0 -> perQueryCost
+                estInputTokens > 0 -> estInputTokens * pricing.promptPrice
+                else -> null
+            }
+            val rerankTokenUsage = if (estInputTokens > 0)
+                com.ai.data.TokenUsage(inputTokens = estInputTokens, outputTokens = 0) else null
             val saved = SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
                 content = r.content,
                 errorMessage = r.errorMessage,
                 inputCost = rerankCost,
+                tokenUsage = rerankTokenUsage,
                 durationMs = r.durationMs
             ))
             if (saved && r.errorMessage == null) {
                 appViewModel.settingsPrefs.updateUsageStatsAsync(
-                    provider, model, 0, 0, 0, kind = "rerank", searchUnits = units
+                    provider, model, estInputTokens, 0, estInputTokens, kind = "rerank", searchUnits = units
                 )
             }
             return
