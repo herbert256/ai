@@ -88,7 +88,14 @@ internal fun NavGraphBuilder.developerRoutes(
             com.ai.ui.admin.TestScreen(
                 onBack = safePopBack,
                 onOpenTestAllModels = { navController.navigate(NavRoutes.AI_TEST_ALL_MODELS) },
+                onOpenStressTest = { navController.navigate(NavRoutes.AI_STRESS_TEST) },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS_TEST_EXCLUDED_MODELS) }
+            )
+        }
+        composable(NavRoutes.AI_STRESS_TEST) {
+            com.ai.ui.admin.StressTestScreen(
+                engine = reportViewModel.stressTestEngine,
+                onBack = safePopBack
             )
         }
         composable(NavRoutes.AI_APPLOG_LIST) {

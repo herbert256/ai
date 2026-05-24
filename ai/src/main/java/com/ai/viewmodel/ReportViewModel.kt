@@ -180,6 +180,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     /** Runtime owner for the "Test all models" run (Housekeeping →
      *  Test). One run, persisted to its own JSON document. */
     val modelTestEngine: ModelTestEngine = ModelTestEngine(appViewModel)
+    /** Housekeeping → Test → Stress test: wipe runtime data, then report
+     *  every Example Prompt with swarm "Level 2", sequentially. */
+    val stressTestEngine: StressTestEngine = StressTestEngine(appViewModel, this)
     val translation = TranslationRunManager(appViewModel, this)
     val iconGen = IconGenerationManager(appViewModel, this)
     val secondary = SecondaryRunManager(appViewModel, this)
@@ -213,6 +216,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     fun dismissGenericAgentSelection() {
         appViewModel.updateUiState { it.copy(showGenericAgentSelection = false) }
     }
+
+    /** Suspend until the in-flight generic-report generation job (if any)
+     *  finishes. Lets the Stress test run reports strictly one at a time. */
+    internal suspend fun awaitReportGeneration() { reportGenerationJob?.join() }
+
+    /** Cancel the in-flight generic-report generation job — used when the
+     *  Stress test is stopped mid-report. */
+    internal fun cancelReportGeneration() { reportGenerationJob?.cancel() }
 
     fun generateGenericReports(
         context: Context,

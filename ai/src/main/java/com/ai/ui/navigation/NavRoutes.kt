@@ -105,6 +105,7 @@ object NavRoutes {
     const val AI_REFRESH = "ai_refresh"
     const val AI_TEST = "ai_test"
     const val AI_TEST_ALL_MODELS = "ai_test_all_models"
+    const val AI_STRESS_TEST = "ai_stress_test"
     const val AI_APPLOG_LIST = "ai_applog_list"
     const val AI_APPLOG_DETAIL = "ai_applog_detail/{filename}?search={search}"
     const val AI_CHATS_HUB = "ai_chats_hub"

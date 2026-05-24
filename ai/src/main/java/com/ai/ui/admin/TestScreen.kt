@@ -21,6 +21,7 @@ import com.ai.ui.shared.TitleBar
 fun TestScreen(
     onBack: () -> Unit,
     onOpenTestAllModels: () -> Unit,
+    onOpenStressTest: () -> Unit = {},
     onSettings: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
@@ -29,6 +30,7 @@ fun TestScreen(
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             NavCard("Test all models", onClick = onOpenTestAllModels)
+            NavCard("Stress test", onClick = onOpenStressTest)
         }
     }
 }

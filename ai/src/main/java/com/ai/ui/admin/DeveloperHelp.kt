@@ -47,6 +47,16 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Hub for diagnostic test flows. Each row drills into its own full screen."),
             HelpCard("Test all models", "Probes every configured model of every active provider in one run — a quick way to surface hidden problems (dead models, auth errors, models silently dropped from a provider's catalog)."),
+            HelpCard("Stress test", "Exercises the whole report pipeline at volume: first clears ALL runtime data (like Reset → Clear runtime data), then generates one AI report per Example Prompt, each using the models of the swarm named \"Level 2\", one report at a time."),
+        )
+    ),
+    "stress_test" to HelpContent(
+        title = "Help - Stress test",
+        cards = listOf(
+            HelpCard("What it does", "A one-tap end-to-end stress run. Step 1: clears all runtime data (logs, chats, traces, reports, prompt history, usage stats, test runs) — configuration (providers, agents, swarms, prompts, keys) is kept. Step 2: generates one AI report for every Example Prompt, each using the models of the swarm named \"Level 2\"."),
+            HelpCard("Sequential", "Reports run strictly one at a time — each finishes before the next starts — so it's a clean, repeatable load on the pipeline (throttling, cost, icons, titles)."),
+            HelpCard("Before you start", "It needs a swarm named \"Level 2\" with at least one active provider, and at least one Example Prompt. These are checked first; if either is missing the run stops with a message and your data is left untouched."),
+            HelpCard("Stop", "While running, the Stop button cancels the run and the report currently generating."),
         )
     ),
     "test_all_models_l1" to HelpContent(

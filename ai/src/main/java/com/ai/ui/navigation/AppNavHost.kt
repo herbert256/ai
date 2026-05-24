@@ -283,6 +283,7 @@ fun AppNavHost(
         NavRoutes.AI_RESET_RUNTIME, NavRoutes.AI_RESET_INFO_PROVIDERS,
         NavRoutes.AI_RESET_CONFIGURATION, NavRoutes.AI_RESET_ASSETS,
         NavRoutes.AI_RESET_APPLICATION, NavRoutes.AI_TEST_ALL_MODELS,
+        NavRoutes.AI_STRESS_TEST,
         NavRoutes.AI_APPLOG_DETAIL
     )
     // Every AI Reports screen that has no dynamic report glyph of its own
