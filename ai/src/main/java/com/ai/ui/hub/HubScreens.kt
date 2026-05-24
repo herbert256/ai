@@ -359,10 +359,13 @@ fun ReportsHubScreen(
     val pinnedReports = remember(allReports) {
         allReports.filter { it.pinned }.sortedByDescending { it.timestamp }.take(5)
     }
-    val latestReports = remember(allReports) {
-        allReports.filter { !it.pinned }.take(5)
-    }
     val homeReportLists by rememberHomeReportLists(refreshTick, reportViewModel)
+    // "Latest" excludes anything already shown under "Running" or "with
+    // problems" so a report surfaces in only one card.
+    val latestReports = remember(allReports, homeReportLists) {
+        val shown = (homeReportLists.running + homeReportLists.problems).mapTo(HashSet()) { it.id }
+        allReports.filter { !it.pinned && it.id !in shown }.take(5)
+    }
     val scope = rememberCoroutineScope()
     val bumpDelete: (String) -> Unit = { rid ->
         scope.launch(Dispatchers.IO) {

@@ -102,8 +102,13 @@ fun ReportPickerScreen(
         }
     }
     val pinned = remember(allReports) { allReports.filter { it.pinned }.sortedByDescending { it.timestamp } }
-    val latest = remember(allReports) { allReports.filter { !it.pinned } }
     val homeLists by rememberHomeReportLists(refreshTick, reportViewModel)
+    // "Latest" excludes anything already shown under "Running" or "with
+    // problems" so a report surfaces in only one card.
+    val latest = remember(allReports, homeLists) {
+        val shown = (homeLists.running + homeLists.problems).mapTo(HashSet()) { it.id }
+        allReports.filter { !it.pinned && it.id !in shown }
+    }
     val examples by produceState(initialValue = emptyList<ExampleEntry>(), Unit) {
         value = withContext(Dispatchers.IO) { loadExampleIndex(context) }
     }
