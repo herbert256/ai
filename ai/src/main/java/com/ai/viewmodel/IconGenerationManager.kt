@@ -75,7 +75,7 @@ class IconGenerationManager(
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
         )
         val resolved = iconPrompt.text.replace("@PROMPT@", promptText)
-        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, iconPrompt)
+        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, iconPrompt, agent)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withTracerTags(reportId = reportId, category = "icon_main") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
@@ -158,7 +158,7 @@ class IconGenerationManager(
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
         )
         val resolved = titlePrompt.text.replace("@PROMPT@", promptText)
-        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, titlePrompt)
+        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, titlePrompt, agent)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withTracerTags(reportId = reportId, category = "report_title") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
@@ -285,7 +285,7 @@ class IconGenerationManager(
         val agentResponse = ra.responseBody.orEmpty()
         if (agentResponse.isBlank()) return
         val resolved = titlePrompt.text.replace("@RESPONSE@", agentResponse)
-        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, titlePrompt)
+        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, titlePrompt, agent)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             var generatedTitle: String? = null
             withTracerTags(reportId = reportId, category = "model_title") {
@@ -387,7 +387,7 @@ class IconGenerationManager(
             runCatching {
                 val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
                 val resolved = prompt.text.replace("@TITLE@", title)
-                val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, prompt)
+                val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, prompt, agent)
                 val response = appViewModel.repository.analyzeWithAgent(
                     agent, "", resolved, secParams, null, context, baseUrl
                 )
@@ -440,7 +440,7 @@ class IconGenerationManager(
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
         )
         val resolved = languagePrompt.text.replace("@PROMPT@", promptText)
-        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, languagePrompt)
+        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, languagePrompt, agent)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withTracerTags(reportId = reportId, category = "Language") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
@@ -522,7 +522,7 @@ class IconGenerationManager(
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
         )
         val resolved = iconPrompt.text.replace("@LANGUAGE@", languageName)
-        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, iconPrompt)
+        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, iconPrompt, agent)
         withTracerTags(reportId = reportId, category = "icon_language") {
             val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
             runCatching {
@@ -621,7 +621,7 @@ class IconGenerationManager(
         val resolved = iconPrompt.text
             .replace("@NAME@", prompt.name)
             .replace("@TITLE@", prompt.title)
-        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, prompt)
+        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, prompt, agent)
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             withTracerTags(category = "icon_meta") {
@@ -1160,7 +1160,7 @@ class IconGenerationManager(
             model = aiSettings.getEffectiveModelForAgent(rawAgent)
         )
         val resolved = iconPrompt.text.replace("@LANGUAGE@", language)
-        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, iconPrompt)
+        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, iconPrompt, agent)
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             withTracerTags(category = "icon_translation") {
@@ -2277,7 +2277,7 @@ class IconGenerationManager(
                         val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(effectiveAgent)
                         val resolved = tier3Prompt.text.replace("@RESPONSE@", agentResponse)
                         val tierParams = resolveSecondaryParams(
-                            appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, tier3Prompt
+                            appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, tier3Prompt, effectiveAgent
                         )
                         val response = withTraceFilenameSink(traceSink) {
                             appViewModel.repository.analyzeWithAgent(
