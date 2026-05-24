@@ -1078,6 +1078,10 @@ class SecondaryRunManager(
                     it.fanInOf == null &&
                     it.errorMessage != null
             }
+        if (failed.isEmpty()) return null
+        // Show the errored rows back in the Queue immediately; the relaunch
+        // below moves them Queue → Running as the throttle admits each one.
+        rvm.fanOutEngine.requeueErroredPairs(reportId, metaPrompt.id)
         return resetAndRelaunch(context, reportId, metaPrompt, failed)
     }
 
@@ -1128,6 +1132,9 @@ class SecondaryRunManager(
                     it.model == model
             }
         if (failed.isEmpty()) return null
+        // Same as the run-level restart, scoped to this model: errored rows
+        // return to the Queue first, then get picked up for Running.
+        rvm.fanOutEngine.requeueErroredPairs(reportId, metaPrompt.id, providerId, model)
         return resetAndRelaunch(context, reportId, metaPrompt, failed)
     }
 

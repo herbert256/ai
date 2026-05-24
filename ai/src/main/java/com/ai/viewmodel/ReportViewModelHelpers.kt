@@ -187,10 +187,7 @@ internal suspend fun acquireOrRequeue(
     try {
         while (true) {
             when (val o = com.ai.data.ProviderThrottle.tryAcquire(host)) {
-                is com.ai.data.ProviderThrottle.Outcome.Acquired -> {
-                    if (throttledNotified) onCleared()
-                    return o.releaser
-                }
+                is com.ai.data.ProviderThrottle.Outcome.Acquired -> return o.releaser
                 is com.ai.data.ProviderThrottle.Outcome.Blocked -> {
                     if (!throttledNotified) {
                         onThrottled(o.availableAtMs)
@@ -203,6 +200,15 @@ internal suspend fun acquireOrRequeue(
             }
         }
     } finally {
+        // Clear the "throttled" mark on EVERY exit once it was set — not
+        // just the acquire path. Without this, a worker cancelled while
+        // suspended in the delay above (Stop, navigate-away, or a sibling
+        // failing the batch scope) would leave its id stuck in the
+        // dispatcher's throttled set forever — the "Total=Done but still N
+        // throttled" leak. On the acquire path this also runs before the
+        // releaser is returned, so a pair is removed from Throttled the
+        // instant it starts running (it can't be counted as both).
+        if (throttledNotified) onCleared()
         gate.unlock()
     }
 }

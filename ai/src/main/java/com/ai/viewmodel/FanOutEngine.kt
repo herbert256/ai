@@ -432,6 +432,47 @@ class FanOutEngine internal constructor(
         ReportStorage.bumpReportTimestamp(context, run.reportId)
     }
 
+    /** Flip this report+metaPrompt's errored pairs back to PENDING in the
+     *  live run state the instant "Restart failed" is pressed — optionally
+     *  scoped to one (provider, model) for the L2 button. This is purely
+     *  the *display* half of a restart: the grid shows the rows back in the
+     *  Queue immediately, instead of leaving them ❌ until the relaunched
+     *  batch's first status flip. The actual re-run (disk reset + the
+     *  throttled batch that moves them Queue → Running as permits are
+     *  acquired) is driven by SecondaryRunManager right after this call, so
+     *  errored rows visibly go to Queue first and are then picked up for
+     *  Running — never straight to Running. */
+    fun requeueErroredPairs(
+        reportId: String,
+        metaPromptId: String,
+        providerId: String? = null,
+        model: String? = null
+    ) {
+        _runs.update { runs ->
+            var changed = false
+            val updated = runs.mapValues { (_, run) ->
+                if (run.reportId != reportId || run.metaPrompt.id != metaPromptId) return@mapValues run
+                val newPairs = run.pairs.mapValues inner@{ (_, p) ->
+                    if (p.status != PairStatus.ERROR) return@inner p
+                    if (providerId != null && !p.providerId.equals(providerId, ignoreCase = true)) return@inner p
+                    if (model != null && p.model != model) return@inner p
+                    changed = true
+                    p.copy(
+                        status = PairStatus.PENDING,
+                        content = null,
+                        errorMessage = null,
+                        inputCost = null,
+                        outputCost = null,
+                        durationMs = null,
+                        tokenUsage = null
+                    )
+                }
+                run.copy(pairs = newPairs)
+            }
+            if (changed) updated else runs
+        }
+    }
+
     /** Re-fire every errored pair in this run via [rerunPair]. */
     fun restartFailedPairs(context: Context, runKey: FanOutRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
