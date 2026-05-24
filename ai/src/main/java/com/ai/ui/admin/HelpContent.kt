@@ -22,7 +22,8 @@ internal val HELP_TOPICS: Map<String, HelpContent> =
     chatHelp +
     modelsHelp +
     providerCatalogHelp +
-    crudHelp
+    crudHelp +
+    ICON_HELP_TOPIC_CONTENT
 
 
 /** Per-screen → home-help cross-link table. Keyed by topic id; the

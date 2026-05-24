@@ -142,9 +142,18 @@ fun HelpScreen(
                 // the four sub-subpages (building blocks /
                 // groupings / operations / retrieval) — also Composable,
                 // not data.
+                // Per-screen icon legend: standalone table on a
+                // "<topic>_icons" page, or inline (with a header) under the
+                // main help of a screen that has only 1–3 icons.
+                if (topicId != null) {
+                    if (topicId.endsWith("_icons")) {
+                        SCREEN_ICON_HELP[topicId.removeSuffix("_icons")]?.let { IconHelpTable(it) }
+                    } else if (topicId in SCREEN_ICON_HELP && topicId !in ICON_HELP_AS_PAGE) {
+                        IconHelpTable(SCREEN_ICON_HELP.getValue(topicId), title = "Icons on this screen")
+                    }
+                }
                 when (topicId) {
                     "help_home_icons" -> HelpIconTable()
-                    "report_run_icons" -> ReportRunIconTable()
                     "help_home_info_providers" -> InfoProviderTable(onNavigateToTopic)
                     "help_home_ai_providers" -> CloudProviderTable(onNavigateToTopic)
                     "help_glossary" -> {
@@ -543,30 +552,19 @@ private fun HelpSection(title: String, content: String) {
     }
 }
 
-/** Per-screen icon legend for "Manage an AI report" (topic
- *  report_run_icons). One flat table, big glyphs, in the same
- *  left-to-right / top-to-bottom sequence the icons appear in the
- *  bottom bar. */
+/** Generic per-screen icon legend. One flat table, big glyphs, rows in
+ *  the same left-to-right / top-to-bottom sequence the icons appear in
+ *  the bottom bar. Rendered standalone on a "<topic>_icons" page, or
+ *  inline (with [title]) under a screen's main help when it has ≤3
+ *  icons. Rows live in [SCREEN_ICON_HELP] (IconHelp.kt). */
 @Composable
-private fun ReportRunIconTable() {
-    val rows = listOf(
-        Triple("🆕", "Create", "Add an operation to this report: Meta, Rerank, Moderation, Fan out or Translate."),
-        Triple("💬", "Chat", "Start a chat seeded with this report's prompt."),
-        Triple("🗂️", "Switch report", "Pick another report to manage."),
-        Triple("ℹ️", "Information", "The per-report info screen."),
-        Triple("🌡️", "Parameters", "Pick the preset(s) used as this report's parameters on the next Regenerate."),
-        Triple("🎭", "System prompt", "Pick the system prompt used for this report."),
-        Triple("📌", "Pin / unpin", "Keep this report at the top of the lists (orange when pinned)."),
-        Triple("📤", "Export", "Export / share the report (once the run has completed)."),
-        Triple("👯", "Duplicate", "Make a copy of this report."),
-        Triple("👁", "View", "Open the per-agent results / View hub for this report."),
-        Triple("✏️", "Edit", "Change the prompt, title, or models."),
-        Triple("🔄", "Regenerate", "Re-run every agent (once the run has completed)."),
-        Triple("🗑", "Delete", "Delete this report (asks to confirm)."),
-        Triple("🐞", "Trace", "API traces for this report (each agent row has its own 🐞).")
-    )
+private fun IconHelpTable(rows: List<Triple<String, String, String>>, title: String? = null) {
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 10.dp)) {
+            if (title != null) {
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange,
+                    modifier = Modifier.padding(start = 10.dp, bottom = 4.dp))
+            }
             rows.forEach { (icon, name, desc) ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
                     Text(icon, fontSize = 26.sp, modifier = Modifier.width(34.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)

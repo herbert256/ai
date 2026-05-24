@@ -97,12 +97,6 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     // Per-screen icon legend reached from the ❔ bottom-bar glyph on
     // "Manage an AI report". Ordered: icons specific to this screen, then
     // general icons with screen-specific behaviour, then standard icons.
-    // Cards intentionally empty — the icon legend renders as a table
-    // (ReportRunIconTable) via HelpScreen's when(topicId) dispatch.
-    "report_run_icons" to HelpContent(
-        title = "Help - Report — manage — icons",
-        cards = emptyList()
-    ),
     "regenerate_batch" to HelpContent(
         title = "Help - Regenerate report",
         cards = listOf(
