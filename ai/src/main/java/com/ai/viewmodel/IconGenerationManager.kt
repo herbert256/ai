@@ -2574,15 +2574,6 @@ class IconGenerationManager(
                 }
                 AppLog.i("FanIcons", "→ start ${metaPrompt.name} (report=$reportId, ${pending.size} pairs)")
 
-                // Per-host caps mirror the fan-out path.
-                val perHostCaps: Map<String, kotlinx.coroutines.sync.Semaphore> = pending
-                    .mapNotNull { AppService.findById(it.providerId) }
-                    .map { providerHost(it) }
-                    .distinct()
-                    .associateWith { host ->
-                        val (_, concurrent) = ProviderThrottle.limitsFor(host)
-                        kotlinx.coroutines.sync.Semaphore(concurrent)
-                    }
                 // Hosts that returned a 429 during this batch. Once a
                 // host is in here, the icon chain stopped a pair on it;
                 // remaining pairs on that host skip immediately rather
@@ -2591,78 +2582,52 @@ class IconGenerationManager(
                 val rateLimitedHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
                 withTracerTags(reportId = reportId, category = "icon_fan_out", runId = iconRunId) {
-                    coroutineScope {
-                        interleaveByHost(pending) { p ->
-                            AppService.findById(p.providerId)?.let { providerHost(it) }
-                        }.map { pair ->
-                            async(start = CoroutineStart.LAZY) {
-                                val provider = AppService.findById(pair.providerId) ?: return@async
-                                val host = providerHost(provider)
-                                if (host in rateLimitedHosts) {
-                                    AppLog.d("FanIcons", "skip pair ${pair.id} — host $host rate-limited earlier this batch")
-                                    // Persist a sentinel so the UI flips
-                                    // from PENDING (🕓 forever) to ERROR
-                                    // (❌). Relaunching the batch picks
-                                    // these up (the `pending` filter
-                                    // gates on `icon == null`, not on
-                                    // errorMessage), so the user can
-                                    // retry without first clearing.
-                                    SecondaryResultStorage.setFanOutIconError(
-                                        context, reportId, pair.id,
-                                        "rate-limited — host $host hit 429 mid-batch, relaunch to retry"
-                                    )
-                                    return@async
-                                }
-                                val hostCap = perHostCaps[host]
-                                    ?: kotlinx.coroutines.sync.Semaphore(1)
-                                val sourceBody = sourceBodies[pair.fanOutSourceAgentId.orEmpty()].orEmpty()
-                                val resolvedMeta = resolvedBase.replace("@RESPONSE@", sourceBody)
-
-                                // Acquire order: global → fan-icons → per-host
-                                // (global outermost, per-host gate innermost),
-                                // matching runFanOutPrompt / Reports / Test-all.
-                                // ONE consistent order app-wide is what prevents
-                                // the global↔per-host deadlock that froze big
-                                // fan-icons runs; the gate still yields on a
-                                // capped host (delay, not Thread.sleep).
-                                ApiCallCaps.global.withPermit {
-                                    ApiCallCaps.fanIcons.withPermit {
-                                        hostCap.withPermit {
-                                            val releaser = acquireOrRequeue(
-                                                host,
-                                                onThrottled = { appViewModel.updateThrottledFanIconsPairs { it + pair.id } },
-                                                onCleared = { appViewModel.updateThrottledFanIconsPairs { it - pair.id } }
-                                            )
-                                            try {
-                                                if (!SecondaryResultStorage.exists(context, reportId, pair.id)) {
-                                                    AppLog.d("FanIcons", "skip pair ${pair.id} — deleted before launch")
-                                                    return@async
-                                                }
-                                                withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                                                    appViewModel.updateRunningFanIconsPairs { it + pair.id }
-                                                    val pairStart = System.currentTimeMillis()
-                                                    try {
-                                                        runIconChainForPair(
-                                                            context, reportId, pair,
-                                                            metaPromptText = resolvedMeta,
-                                                            reportPrompt = report.prompt,
-                                                            sourceResponse = sourceBody,
-                                                            aiSettings = aiSettings,
-                                                            rateLimitedHosts = rateLimitedHosts
-                                                        )
-                                                    } finally {
-                                                        appViewModel.updateRunningFanIconsPairs { it - pair.id }
-                                                        AppLog.d("FanIcons", "← pair ${pair.id} ${System.currentTimeMillis() - pairStart}ms")
-                                                    }
-                                                }
-                                            } finally {
-                                                releaser.release()
-                                            }
-                                        }
-                                    }
-                                }
-                            }.also { it.start() }
-                        }.awaitAll()
+                    // Shared runner owns the interleave + global → fanIcons →
+                    // per-host order + permitPreAcquired. Body runs with the
+                    // permits held.
+                    runThrottledBatch(
+                        items = pending,
+                        hostOf = { AppService.findById(it.providerId)?.let { s -> providerHost(s) } },
+                        subCap = ApiCallCaps.fanIcons,
+                        onThrottled = { pair -> appViewModel.updateThrottledFanIconsPairs { it + pair.id } },
+                        onCleared = { pair -> appViewModel.updateThrottledFanIconsPairs { it - pair.id } }
+                    ) { pair ->
+                        val host = AppService.findById(pair.providerId)?.let { providerHost(it) }
+                            ?: return@runThrottledBatch
+                        if (host in rateLimitedHosts) {
+                            AppLog.d("FanIcons", "skip pair ${pair.id} — host $host rate-limited earlier this batch")
+                            // Persist a sentinel so the UI flips from PENDING
+                            // (🕓 forever) to ERROR (❌). Relaunching the batch
+                            // picks these up (the `pending` filter gates on
+                            // `icon == null`, not errorMessage), so the user can
+                            // retry without first clearing.
+                            SecondaryResultStorage.setFanOutIconError(
+                                context, reportId, pair.id,
+                                "rate-limited — host $host hit 429 mid-batch, relaunch to retry"
+                            )
+                            return@runThrottledBatch
+                        }
+                        if (!SecondaryResultStorage.exists(context, reportId, pair.id)) {
+                            AppLog.d("FanIcons", "skip pair ${pair.id} — deleted before launch")
+                            return@runThrottledBatch
+                        }
+                        val sourceBody = sourceBodies[pair.fanOutSourceAgentId.orEmpty()].orEmpty()
+                        val resolvedMeta = resolvedBase.replace("@RESPONSE@", sourceBody)
+                        appViewModel.updateRunningFanIconsPairs { it + pair.id }
+                        val pairStart = System.currentTimeMillis()
+                        try {
+                            runIconChainForPair(
+                                context, reportId, pair,
+                                metaPromptText = resolvedMeta,
+                                reportPrompt = report.prompt,
+                                sourceResponse = sourceBody,
+                                aiSettings = aiSettings,
+                                rateLimitedHosts = rateLimitedHosts
+                            )
+                        } finally {
+                            appViewModel.updateRunningFanIconsPairs { it - pair.id }
+                            AppLog.d("FanIcons", "← pair ${pair.id} ${System.currentTimeMillis() - pairStart}ms")
+                        }
                     }
                 }
                 AppLog.i("FanIcons", "← end ${metaPrompt.name} (report=$reportId)")
@@ -2870,78 +2835,47 @@ class IconGenerationManager(
                 }
                 AppLog.i("FanTitles", "→ start ${metaPrompt.name} (report=$reportId, ${pending.size} pairs)")
 
-                val perHostCaps: Map<String, kotlinx.coroutines.sync.Semaphore> = pending
-                    .mapNotNull { AppService.findById(it.providerId) }
-                    .map { providerHost(it) }
-                    .distinct()
-                    .associateWith { host ->
-                        val (_, concurrent) = ProviderThrottle.limitsFor(host)
-                        kotlinx.coroutines.sync.Semaphore(concurrent)
-                    }
                 val rateLimitedHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
                 withTracerTags(reportId = reportId, category = "title_fan_out", runId = titleRunId) {
-                    coroutineScope {
-                        interleaveByHost(pending) { p ->
-                            AppService.findById(p.providerId)?.let { providerHost(it) }
-                        }.map { pair ->
-                            async(start = CoroutineStart.LAZY) {
-                                val provider = AppService.findById(pair.providerId) ?: return@async
-                                val host = providerHost(provider)
-                                if (host in rateLimitedHosts) {
-                                    AppLog.d("FanTitles", "skip pair ${pair.id} — host $host rate-limited earlier this batch")
-                                    SecondaryResultStorage.setFanOutTitleError(
-                                        context, reportId, pair.id,
-                                        "rate-limited — host $host hit 429 mid-batch, relaunch to retry"
-                                    )
-                                    return@async
-                                }
-                                val hostCap = perHostCaps[host]
-                                    ?: kotlinx.coroutines.sync.Semaphore(1)
-                                val sourceBody = sourceBodies[pair.fanOutSourceAgentId.orEmpty()].orEmpty()
-                                val resolvedMeta = resolvedBase.replace("@RESPONSE@", sourceBody)
-
-                                // Acquire order: global → fan-icons → per-host
-                                // (global outermost, per-host gate innermost) —
-                                // consistent app-wide ordering, deadlock-free.
-                                ApiCallCaps.global.withPermit {
-                                    ApiCallCaps.fanIcons.withPermit {
-                                        hostCap.withPermit {
-                                            val releaser = acquireOrRequeue(
-                                                host,
-                                                onThrottled = { appViewModel.updateThrottledFanTitlesPairs { it + pair.id } },
-                                                onCleared = { appViewModel.updateThrottledFanTitlesPairs { it - pair.id } }
-                                            )
-                                            try {
-                                                if (!SecondaryResultStorage.exists(context, reportId, pair.id)) {
-                                                    AppLog.d("FanTitles", "skip pair ${pair.id} — deleted before launch")
-                                                    return@async
-                                                }
-                                                withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                                                    appViewModel.updateRunningFanTitlesPairs { it + pair.id }
-                                                    val pairStart = System.currentTimeMillis()
-                                                    try {
-                                                        runTitleForPair(
-                                                            context, reportId, provider, pair, titlePrompt,
-                                                            metaPromptText = resolvedMeta,
-                                                            pairContent = pair.content!!,
-                                                            titleRunId = titleRunId,
-                                                            aiSettings = aiSettings,
-                                                            rateLimitedHosts = rateLimitedHosts
-                                                        )
-                                                    } finally {
-                                                        appViewModel.updateRunningFanTitlesPairs { it - pair.id }
-                                                        AppLog.d("FanTitles", "← pair ${pair.id} ${System.currentTimeMillis() - pairStart}ms")
-                                                    }
-                                                }
-                                            } finally {
-                                                releaser.release()
-                                            }
-                                        }
-                                    }
-                                }
-                            }.also { it.start() }
-                        }.awaitAll()
+                    runThrottledBatch(
+                        items = pending,
+                        hostOf = { AppService.findById(it.providerId)?.let { s -> providerHost(s) } },
+                        subCap = ApiCallCaps.fanIcons,
+                        onThrottled = { pair -> appViewModel.updateThrottledFanTitlesPairs { it + pair.id } },
+                        onCleared = { pair -> appViewModel.updateThrottledFanTitlesPairs { it - pair.id } }
+                    ) { pair ->
+                        val provider = AppService.findById(pair.providerId) ?: return@runThrottledBatch
+                        val host = providerHost(provider)
+                        if (host in rateLimitedHosts) {
+                            AppLog.d("FanTitles", "skip pair ${pair.id} — host $host rate-limited earlier this batch")
+                            SecondaryResultStorage.setFanOutTitleError(
+                                context, reportId, pair.id,
+                                "rate-limited — host $host hit 429 mid-batch, relaunch to retry"
+                            )
+                            return@runThrottledBatch
+                        }
+                        if (!SecondaryResultStorage.exists(context, reportId, pair.id)) {
+                            AppLog.d("FanTitles", "skip pair ${pair.id} — deleted before launch")
+                            return@runThrottledBatch
+                        }
+                        val sourceBody = sourceBodies[pair.fanOutSourceAgentId.orEmpty()].orEmpty()
+                        val resolvedMeta = resolvedBase.replace("@RESPONSE@", sourceBody)
+                        appViewModel.updateRunningFanTitlesPairs { it + pair.id }
+                        val pairStart = System.currentTimeMillis()
+                        try {
+                            runTitleForPair(
+                                context, reportId, provider, pair, titlePrompt,
+                                metaPromptText = resolvedMeta,
+                                pairContent = pair.content!!,
+                                titleRunId = titleRunId,
+                                aiSettings = aiSettings,
+                                rateLimitedHosts = rateLimitedHosts
+                            )
+                        } finally {
+                            appViewModel.updateRunningFanTitlesPairs { it - pair.id }
+                            AppLog.d("FanTitles", "← pair ${pair.id} ${System.currentTimeMillis() - pairStart}ms")
+                        }
                     }
                 }
                 AppLog.i("FanTitles", "← end ${metaPrompt.name} (report=$reportId)")
