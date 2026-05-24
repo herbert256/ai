@@ -2985,6 +2985,25 @@ class IconGenerationManager(
         return runFanTitlesBatch(context, reportId, metaPromptId)
     }
 
+    /** A reasoning-effort value safe to send to [model] for a trivial
+     *  title / icon call, or null. Picks the LEAST-effort level the model
+     *  actually lists in its `reasoningEffortLevels` capability so a
+     *  reasoning model doesn't burn 20-120s thinking on a one-line title /
+     *  single emoji. Returns null when the model lists no levels (or none
+     *  of the low ones): several reasoning models 400 on an effort value
+     *  they don't accept — xAI grok-* reject the parameter outright,
+     *  Mistral accepts only none/high — so we send nothing unless the
+     *  catalog says a low value is valid. Mirrors the validation the
+     *  chat-screen effort picker does against the same capability list. */
+    private fun minimalReasoningEffort(
+        aiSettings: Settings, provider: AppService, model: String
+    ): String? {
+        val levels = aiSettings.getProvider(provider).modelCapabilities[model]?.reasoningEffortLevels
+        if (levels.isNullOrEmpty()) return null
+        val byLower = levels.associateBy { it.lowercase() }
+        return listOf("none", "minimal", "low").firstNotNullOfOrNull { byLower[it] }
+    }
+
     /** Single-tier title call for one fan-out pair — mirror of
      *  [runFanOutTier1] but produces a title (via [cleanTitle]) rather
      *  than an emoji, and writes it straight to storage. Reproduces the
@@ -3010,7 +3029,9 @@ class IconGenerationManager(
                     val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
                     val responseText = appViewModel.repository.sendChat(
                         service = provider, apiKey = apiKey, model = pair.model,
-                        messages = messages, params = ChatParameters(), baseUrl = baseUrl
+                        messages = messages, params = ChatParameters(
+                            reasoningEffort = minimalReasoningEffort(aiSettings, provider, pair.model)
+                        ), baseUrl = baseUrl
                     )
                     val inT = messages.sumOf { AppViewModel.estimateTokens(it.content) }
                     val outT = AppViewModel.estimateTokens(responseText)
@@ -3099,7 +3120,9 @@ class IconGenerationManager(
                         val responseText = withTraceFilenameSink(traceSink) {
                             appViewModel.repository.sendChat(
                                 service = provider, apiKey = apiKey, model = pair.model,
-                                messages = messages, params = ChatParameters(), baseUrl = baseUrl
+                                messages = messages, params = ChatParameters(
+                                    reasoningEffort = minimalReasoningEffort(aiSettings, provider, pair.model)
+                                ), baseUrl = baseUrl
                             )
                         }
                         val durationMs = System.currentTimeMillis() - started
@@ -3157,7 +3180,9 @@ class IconGenerationManager(
                             .replace("@META_PROMPT@", metaPromptText)
                             .replace("@RESPONSE@", pairContent)
                         val response = appViewModel.repository.analyzeWithAgent(
-                            syntheticAgent, "", resolved, AgentParameters(),
+                            syntheticAgent, "", resolved, AgentParameters(
+                                reasoningEffort = minimalReasoningEffort(aiSettings, provider, pair.model)
+                            ),
                             null, context, baseUrl
                         )
                         val durationMs = System.currentTimeMillis() - started
@@ -3210,7 +3235,11 @@ class IconGenerationManager(
                         val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(effectiveAgent)
                         val resolved = tier3Prompt.text.replace("@RESPONSE@", pairContent)
                         val response = appViewModel.repository.analyzeWithAgent(
-                            effectiveAgent, "", resolved, AgentParameters(),
+                            effectiveAgent, "", resolved, AgentParameters(
+                                reasoningEffort = minimalReasoningEffort(
+                                    aiSettings, effectiveAgent.provider, effectiveAgent.model
+                                )
+                            ),
                             null, context, baseUrl
                         )
                         val durationMs = System.currentTimeMillis() - started
