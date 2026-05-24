@@ -27,131 +27,31 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 
-private data class StatWithCost(val stat: UsageStats, val inputCost: Double, val outputCost: Double, val totalCost: Double, val pricingSource: String)
-private data class ProviderCostGroup(val provider: AppService, val models: List<StatWithCost>, val totalCost: Double, val totalCalls: Int)
+internal data class StatWithCost(val stat: UsageStats, val inputCost: Double, val outputCost: Double, val totalCost: Double, val pricingSource: String)
+internal data class ProviderCostGroup(val provider: AppService, val models: List<StatWithCost>, val totalCost: Double, val totalCalls: Int)
+
+/** Pure (no-Compose) resolution of raw [UsageStats] into per-provider
+ *  cost groups, sorted by spend. Reused by the AI Dashboard's
+ *  "Spend & usage" section. Calls [PricingCache.getPricing] per row,
+ *  so run it off the main thread (Dispatchers.IO). Rerank rows bill
+ *  per search-unit, not per token — the per-query cost lands in the
+ *  input column so the two-column row layout surfaces it. */
+internal fun buildProviderCostGroups(context: Context, stats: Map<String, UsageStats>): List<ProviderCostGroup> =
+    stats.values.groupBy { it.provider }.map { (provider, providerStats) ->
+        val models = providerStats.map { stat ->
+            val pricing = PricingCache.getPricing(context, stat.provider, stat.model)
+            val isRerank = stat.kind == "rerank"
+            val ic = if (isRerank) stat.searchUnits * pricing.perQueryPrice
+                     else stat.inputTokens * pricing.promptPrice
+            val oc = if (isRerank) 0.0
+                     else stat.outputTokens * pricing.completionPrice
+            StatWithCost(stat, ic, oc, ic + oc, pricing.source)
+        }.sortedByDescending { it.totalCost }
+        ProviderCostGroup(provider, models, models.sumOf { it.totalCost }, models.sumOf { it.stat.callCount })
+    }.sortedByDescending { it.totalCost }
 
 @Composable
-fun UsageScreen(
-    openRouterApiKey: String,
-    onBack: () -> Unit,
-    onNavigateHome: () -> Unit,
-    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
-    onHousekeeping: (() -> Unit)? = null
-) {
-    BackHandler { onBack() }
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
-    val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
-    var stats by remember { mutableStateOf<Map<String, UsageStats>>(emptyMap()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var pricingReady by remember { mutableStateOf(false) }
-    // Saveable so the expanded-provider state survives navigation to Model
-    // Info and back. List instead of Set because autoSaver doesn't reliably
-    // round-trip arbitrary Set implementations through the saved Bundle.
-    var expandedProvidersList by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
-    val expandedProviders = expandedProvidersList.toSet()
-
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            stats = settingsPrefs.loadUsageStats()
-            if (openRouterApiKey.isNotBlank() && PricingCache.needsOpenRouterRefresh(context)) {
-                val pricing = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
-                if (pricing.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, pricing)
-            }
-            pricingReady = true
-        }
-        isLoading = false
-    }
-
-    val groups = remember(stats, pricingReady) {
-        if (!pricingReady || stats.isEmpty()) emptyList()
-        else {
-            stats.values.groupBy { it.provider }.map { (provider, providerStats) ->
-                val models = providerStats.map { stat ->
-                    val pricing = PricingCache.getPricing(context, stat.provider, stat.model)
-                    // Rerank-kind rows bill per search-unit, not per
-                    // token — input/output token counters are zero by
-                    // design. Stuff the per-query cost into the input
-                    // column so the existing two-column row layout
-                    // surfaces it without a special case.
-                    val isRerank = stat.kind == "rerank"
-                    val ic = if (isRerank) stat.searchUnits * pricing.perQueryPrice
-                             else stat.inputTokens * pricing.promptPrice
-                    val oc = if (isRerank) 0.0
-                             else stat.outputTokens * pricing.completionPrice
-                    StatWithCost(stat, ic, oc, ic + oc, pricing.source)
-                }.sortedByDescending { it.totalCost }
-                ProviderCostGroup(provider, models, models.sumOf { it.totalCost }, models.sumOf { it.stat.callCount })
-            }.sortedByDescending { it.totalCost }
-        }
-    }
-
-    val totalCost = groups.sumOf { it.totalCost }
-    val totalCalls = groups.sumOf { it.totalCalls }
-    val totalTokens = stats.values.sumOf { it.totalTokens }
-
-    var confirmClear by remember { mutableStateOf(false) }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(
-            helpTopic = "statistics",
-            title = "AI Usage", subject = "Calls, tokens and cost per provider", onBackClick = onBack,
-            reportIcon = "📈", reportIconGoesHome = true,
-            onDelete = if (stats.isNotEmpty()) { { confirmClear = true } } else null,
-            onHousekeeping = onHousekeeping
-        )
-
-        if (isLoading) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        } else if (stats.isEmpty()) {
-            Text("No usage data yet. Generate reports or chat to see statistics.", color = AppColors.TextTertiary, modifier = Modifier.padding(16.dp))
-        } else {
-            // Summary card
-            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(14.dp)) {
-                    Text("Total: $totalCalls calls, ${formatCompactNumber(totalTokens)} tokens", fontSize = 14.sp, color = Color.White)
-                    Text("Cost: ${formatCurrency(totalCost)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = AppColors.Green)
-                    Text("Pricing: ${PricingCache.getPricingStats(context)}", fontSize = 11.sp, color = AppColors.TextTertiary)
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                items(groups, key = { it.provider.id }) { group ->
-                    val isExpanded = group.provider.id in expandedProviders
-                    UsageProviderCard(
-                        group = group, isExpanded = isExpanded,
-                        onToggle = { expandedProvidersList = if (isExpanded) expandedProvidersList - group.provider.id else expandedProvidersList + group.provider.id },
-                        onModelClick = { model -> onNavigateToModelInfo(group.provider, model) }
-                    )
-                }
-            }
-
-        }
-    }
-
-    if (confirmClear) {
-        AlertDialog(
-            onDismissRequest = { confirmClear = false },
-            title = { Text("Clear all statistics?") },
-            text = { Text("Resets every usage counter back to zero. Cannot be undone.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmClear = false
-                    settingsPrefs.clearUsageStats(); stats = emptyMap()
-                    Toast.makeText(context, "Statistics cleared", Toast.LENGTH_SHORT).show()
-                }) { Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmClear = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
-            }
-        )
-    }
-}
-
-@Composable
-private fun UsageProviderCard(
+internal fun UsageProviderCard(
     group: ProviderCostGroup, isExpanded: Boolean, onToggle: () -> Unit,
     onModelClick: (String) -> Unit
 ) {

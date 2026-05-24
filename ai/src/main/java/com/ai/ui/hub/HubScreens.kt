@@ -57,7 +57,7 @@ fun HubScreen(
     onNavigateToHelp: () -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToReportsHub: () -> Unit,
-    onNavigateToUsage: () -> Unit,
+    onNavigateToDashboard: () -> Unit,
     onNavigateToChatsHub: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
     onNavigateToHousekeeping: () -> Unit,
@@ -80,12 +80,6 @@ fun HubScreen(
     // narrower key still picks up the once-per-bootstrap transition that
     // ensureUsageStatsCache needs to retry past a ProviderRegistry-init
     // race, plus any agent edit during the session.
-    val hasStatisticsData by produceState(initialValue = false, uiState.aiSettings.agents) {
-        value = withContext(Dispatchers.IO) {
-            val sp = SettingsPreferences(context.getSharedPreferences(SettingsPreferences.PREFS_NAME, android.content.Context.MODE_PRIVATE), context.filesDir)
-            sp.loadUsageStats().isNotEmpty()
-        }
-    }
     val hasTraces by produceState(initialValue = false, uiState.aiSettings.agents) {
         // hasAnyTraceFile only enumerates filenames — no JSON parse, vs the
         // ~250-file parse getTraceFiles() does for the full list.
@@ -182,8 +176,8 @@ fun HubScreen(
                 HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch)
                 Spacer(modifier = Modifier.height(12.dp))
             }
-            if (hasStatisticsData) {
-                HubCard(icon = "\uD83D\uDCC8", title = "AI Usage", onClick = onNavigateToUsage)
+            if (hasAnyAgent) {
+                HubCard(icon = "\uD83D\uDCCA", title = "AI Dashboard", onClick = onNavigateToDashboard)
                 Spacer(modifier = Modifier.height(12.dp))
             }
             if (tracingEnabled && hasTraces) {

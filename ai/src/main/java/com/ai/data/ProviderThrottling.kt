@@ -302,6 +302,29 @@ object ProviderThrottle {
             "$host conc=${sem.availablePermits()}/$limit win=$win"
         }
     }
+
+    /** One active host's live gate state. [inUse]/[limit] is the
+     *  concurrency saturation; [windowCount] is how many calls landed
+     *  in the trailing 60 s sliding window (against
+     *  [NetworkSettings.maxCallsPerProviderPerMinute]). */
+    data class HostThrottleStat(
+        val host: String,
+        val free: Int,
+        val limit: Int,
+        val windowCount: Int
+    ) {
+        val inUse: Int get() = (limit - free).coerceAtLeast(0)
+    }
+
+    /** Structured sibling of [diagnostics] for the AI Dashboard — one
+     *  row per host that has an active semaphore, busiest first. Cheap,
+     *  read-only (semaphore permit counts + deque sizes). */
+    fun snapshot(): List<HostThrottleStat> =
+        sems.entries.map { (host, sem) ->
+            val limit = (ProviderRegistry.findByHost(host)?.maxConcurrentCallsPerProvider
+                ?: NetworkSettings.maxConcurrentCallsPerProvider).coerceAtLeast(1)
+            HostThrottleStat(host, sem.availablePermits(), limit, windows[host]?.size ?: 0)
+        }.sortedByDescending { it.inUse }
 }
 
 /** OkHttp application interceptor that gates every outbound request

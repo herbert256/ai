@@ -168,7 +168,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "internal_prompt_edit" to listOf("help_glossary_operations"),
 
     // ===== Costs / Usage / Statistics =====
-    "statistics" to listOf("help_costs", "help_privacy"),
+    "ai_dashboard" to listOf("help_costs", "help_privacy"),
     "cost_config" to listOf("help_costs", "help_home_info_providers"),
     "cost_override" to listOf("help_costs", "help_home_info_providers"),
     "cost_view" to listOf("help_costs"),

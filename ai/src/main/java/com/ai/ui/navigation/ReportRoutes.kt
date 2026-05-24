@@ -87,7 +87,7 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateToHelp = { navController.navigate(NavRoutes.HELP) },
                 onNavigateToAbout = { navController.navigate(NavRoutes.ABOUT) },
                 onNavigateToReportsHub = { navController.navigate(NavRoutes.AI_REPORTS_HUB) },
-                onNavigateToUsage = { navController.navigate(NavRoutes.AI_USAGE) },
+                onNavigateToDashboard = { navController.navigate(NavRoutes.AI_DASHBOARD) },
                 onNavigateToChatsHub = { navController.navigate(NavRoutes.AI_CHATS_HUB) },
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
                 onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
