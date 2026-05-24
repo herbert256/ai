@@ -405,138 +405,56 @@ class SecondaryRunManager(
                     // (java.util.concurrent.Semaphore.acquire) returns
                     // immediately for every pair the suspending gate
                     // admitted — no IO threads pinned in waiting.
-                    val perHostCaps: Map<String, kotlinx.coroutines.sync.Semaphore> = pending
-                        .mapNotNull { AppService.findById(it.answerer.provider) }
-                        .map { providerHost(it) }
-                        .distinct()
-                        .associateWith { host ->
-                            val (_, concurrent) = ProviderThrottle.limitsFor(host)
-                            kotlinx.coroutines.sync.Semaphore(concurrent)
+                    // Shared runner owns the interleave + the canonical
+                    // global → fanOut → per-host order + permitPreAcquired +
+                    // register-before-start (the cancel-before-delete race fix).
+                    runThrottledBatch(
+                        items = pending,
+                        hostOf = { AppService.findById(it.answerer.provider)?.let { s -> providerHost(s) } },
+                        subCap = ApiCallCaps.fanOut,
+                        onThrottled = { item -> appViewModel.updateThrottledFanOutPairs { it + item.placeholder.id } },
+                        onCleared = { item -> appViewModel.updateThrottledFanOutPairs { it - item.placeholder.id } },
+                        register = { item, d ->
+                            rvm.fanOutPairJobs[item.placeholder.id] = d
+                            d.invokeOnCompletion { rvm.fanOutPairJobs.remove(item.placeholder.id, d) }
                         }
-                    coroutineScope {
-                        // Interleave by host so the pair list doesn't
-                        // fire in (a1,s1)(a1,s2)…(a1,sN)(a2,s1)… order —
-                        // that has the first N launches all queue on
-                        // a1's per-host cap while holding the outer
-                        // (global + fan-out) caps idle. Round-robin
-                        // across host buckets + jitter within each
-                        // bucket spreads the very first slot across
-                        // every host the run touches.
-                        interleaveByHost(pending) { p ->
-                            AppService.findById(p.answerer.provider)?.let { providerHost(it) }
-                        }.map { item ->
-                            // CoroutineStart.LAZY so the async body
-                            // doesn't run until we've registered the
-                            // Deferred in rvm.fanOutPairJobs below. Without
-                            // LAZY there's a microsecond window between
-                            // `async {}` returning and the registration
-                            // line where the pair is mid-flight but
-                            // can't be looked up by deleteFanOutModel,
-                            // letting it slip past cancellation and
-                            // either land a result on a row that's
-                            // about to be deleted (silent drop) or
-                            // worse, burn the API call entirely.
-                            val deferred = async(start = CoroutineStart.LAZY) {
-                                val provider = AppService.findById(item.answerer.provider) ?: return@async
-                                val host = providerHost(provider)
-                                val hostCap = perHostCaps[host]
-                                    ?: kotlinx.coroutines.sync.Semaphore(1)
-                                // Acquire order: global → fan-out → per-host,
-                                // matching Reports / Test-all / Translation
-                                // (global outermost, the per-host gate innermost).
-                                // ONE consistent order across every batch is what
-                                // prevents the global↔per-host lock-ordering
-                                // deadlock that froze big fan-out / fan-icons /
-                                // Test-all runs (a fan pair held a host permit
-                                // waiting for global while a report held global
-                                // waiting for that host permit). The per-host gate
-                                // still yields (delay, not Thread.sleep) so a
-                                // throttled pair drives the L1 "Throttled N"
-                                // counter while it waits.
-                                if (ApiCallCaps.global.availablePermits == 0)
-                                    AppLog.v("Caps", "pair=${item.placeholder.id} WAIT global ${ApiCallCaps.snapshot().let { "${it.globalInFlight}/${it.globalMax}" }}")
-                                ApiCallCaps.global.withPermit {
-                                if (ApiCallCaps.fanOut.availablePermits == 0)
-                                    AppLog.v("Caps", "pair=${item.placeholder.id} WAIT fanOut ${ApiCallCaps.snapshot().let { "${it.fanOutInFlight}/${it.fanOutMax}" }}")
-                                ApiCallCaps.fanOut.withPermit {
-                                if (hostCap.availablePermits == 0)
-                                    AppLog.v("Caps", "pair=${item.placeholder.id} WAIT hostCap (host=$host)")
-                                hostCap.withPermit {
-                                val releaser = acquireOrRequeue(
-                                    host,
-                                    onThrottled = { appViewModel.updateThrottledFanOutPairs { it + item.placeholder.id } },
-                                    onCleared = { appViewModel.updateThrottledFanOutPairs { it - item.placeholder.id } }
-                                )
-                                try {
-                                AppLog.d("FanOut", "queued pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
-                                    // Bail if the user deleted this pair (via the
-                                    // L2 trash icon or deleteFanOutModel) while
-                                    // we were queued on the throttle. Without
-                                    // this, executeSecondaryTask still fires the
-                                    // HTTP call and the saveIfStillPresent check
-                                    // below would suppress the disk write — but
-                                    // we'd still burn the API call and the
-                                    // tokens. Checking here skips the call too.
-                                    if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) {
-                                        AppLog.d("FanOut", "skip pair ${item.placeholder.id} — deleted before launch")
-                                        return@async
-                                    }
-                                    withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                                        appViewModel.updateRunningFanOutPairs { it + item.placeholder.id }
-                                        val pairStart = System.currentTimeMillis()
-                                        AppLog.d("FanOut", "→ pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
-                                        try {
-                                            val questionForPair = langCtx?.prompt ?: report.prompt
-                                            val bodyForPair = langCtx?.bodies?.get(item.source.agentId)
-                                                ?: (item.source.responseBody ?: "")
-                                            val resolvedBase = resolveSecondaryPrompt(
-                                                metaPrompt.text,
-                                                question = questionForPair,
-                                                results = "",
-                                                count = sources.size,
-                                                title = report.title
-                                            )
-                                            val resolved = resolvedBase.replace("@RESPONSE@", bodyForPair)
-                                            executeSecondaryTask(
-                                                context, reportId, SecondaryKind.META, metaPrompt,
-                                                provider, item.answerer.model, resolved, aiSettings, report,
-                                                targetLanguage = sourceLanguage,
-                                                targetLanguageNative = langCtx?.native,
-                                                fanOutSourceAgentId = item.source.agentId,
-                                                existingPlaceholder = item.placeholder,
-                                                paramsIds = paramsIds, systemPromptId = systemPromptId
-                                            )
-                                            // Note: the per-pair icon chain is NOT fired
-                                            // inline anymore — it lives in a separate
-                                            // user-launched batch (runFanIconsBatch).
-                                            // The "Find Icons" button on the fan-out L1
-                                            // launches it after the parent fan-out
-                                            // completes.
-                                        } finally {
-                                            appViewModel.updateRunningFanOutPairs { it - item.placeholder.id }
-                                            AppLog.d("FanOut", "← pair ans=${item.answerer.agentId} src=${item.source.agentId} ${System.currentTimeMillis() - pairStart}ms")
-                                        }
-                                    }
-                                } finally {
-                                    releaser.release()
-                                }
-                                } // hostCap.withPermit
-                                } // ApiCallCaps.fanOut.withPermit
-                                } // ApiCallCaps.global.withPermit
-                            }
-                            // Register the per-pair Job so deleteFanOutModel /
-                            // rerunCompleteFanOut can target it for cancelAndJoin
-                            // before deleting the row, closing the "result lands
-                            // after delete and is silently dropped" race.
-                            // Registration happens BEFORE start() so a concurrent
-                            // delete can always find the Job.
-                            rvm.fanOutPairJobs[item.placeholder.id] = deferred
-                            deferred.invokeOnCompletion {
-                                rvm.fanOutPairJobs.remove(item.placeholder.id, deferred)
-                            }
-                            deferred.start()
-                            deferred
-                        }.awaitAll()
+                    ) { item ->
+                        val provider = AppService.findById(item.answerer.provider) ?: return@runThrottledBatch
+                        AppLog.d("FanOut", "queued pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
+                        // Bail if the user deleted this pair while it was queued
+                        // on the throttle — skips the call + the token spend.
+                        if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) {
+                            AppLog.d("FanOut", "skip pair ${item.placeholder.id} — deleted before launch")
+                            return@runThrottledBatch
+                        }
+                        appViewModel.updateRunningFanOutPairs { it + item.placeholder.id }
+                        val pairStart = System.currentTimeMillis()
+                        AppLog.d("FanOut", "→ pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
+                        try {
+                            val questionForPair = langCtx?.prompt ?: report.prompt
+                            val bodyForPair = langCtx?.bodies?.get(item.source.agentId)
+                                ?: (item.source.responseBody ?: "")
+                            val resolvedBase = resolveSecondaryPrompt(
+                                metaPrompt.text,
+                                question = questionForPair,
+                                results = "",
+                                count = sources.size,
+                                title = report.title
+                            )
+                            val resolved = resolvedBase.replace("@RESPONSE@", bodyForPair)
+                            executeSecondaryTask(
+                                context, reportId, SecondaryKind.META, metaPrompt,
+                                provider, item.answerer.model, resolved, aiSettings, report,
+                                targetLanguage = sourceLanguage,
+                                targetLanguageNative = langCtx?.native,
+                                fanOutSourceAgentId = item.source.agentId,
+                                existingPlaceholder = item.placeholder,
+                                paramsIds = paramsIds, systemPromptId = systemPromptId
+                            )
+                        } finally {
+                            appViewModel.updateRunningFanOutPairs { it - item.placeholder.id }
+                            AppLog.d("FanOut", "← pair ans=${item.answerer.agentId} src=${item.source.agentId} ${System.currentTimeMillis() - pairStart}ms")
+                        }
                     }
                     AppLog.i("FanOut", "← end \"${metaPrompt.name}\" (${pending.size} pairs in ${System.currentTimeMillis() - fanOutStartMs}ms)")
                 }
@@ -604,102 +522,53 @@ class SecondaryRunManager(
                     // ProviderThrottle concurrent limit so each host gets
                     // its own gate (vs a single global cap, which under-
                     // utilised fast providers).
-                    val perHostCaps: Map<String, kotlinx.coroutines.sync.Semaphore> = placeholders
-                        .mapNotNull { AppService.findById(it.providerId) }
-                        .map { providerHost(it) }
-                        .distinct()
-                        .associateWith { host ->
-                            val (_, concurrent) = ProviderThrottle.limitsFor(host)
-                            kotlinx.coroutines.sync.Semaphore(concurrent)
+                    // Shared runner — same contract as runFanOutPrompt.
+                    runThrottledBatch(
+                        items = placeholders,
+                        hostOf = { AppService.findById(it.providerId)?.let { s -> providerHost(s) } },
+                        subCap = ApiCallCaps.fanOut,
+                        onThrottled = { ph -> appViewModel.updateThrottledFanOutPairs { it + ph.id } },
+                        onCleared = { ph -> appViewModel.updateThrottledFanOutPairs { it - ph.id } },
+                        register = { ph, d ->
+                            rvm.fanOutPairJobs[ph.id] = d
+                            d.invokeOnCompletion { rvm.fanOutPairJobs.remove(ph.id, d) }
                         }
-                    coroutineScope {
-                        // Interleave by host — same rationale as
-                        // runFanOutPrompt: avoid having the first N
-                        // launches all queue on one host's per-host
-                        // cap while the outer caps sit idle.
-                        interleaveByHost(placeholders) { ph ->
-                            AppService.findById(ph.providerId)?.let { providerHost(it) }
-                        }.map { ph ->
-                            // CoroutineStart.LAZY mirrors runFanOutPrompt
-                            // — see the comment there for why the start
-                            // is gated on the post-registration .start()
-                            // call below.
-                            val deferred = async(start = CoroutineStart.LAZY) {
-                                val provider = AppService.findById(ph.providerId) ?: return@async
-                                val source = successful.firstOrNull { it.agentId == ph.fanOutSourceAgentId }
-                                    ?: return@async
-                                val host = providerHost(provider)
-                                val hostCap = perHostCaps[host]
-                                    ?: kotlinx.coroutines.sync.Semaphore(1)
-                                // Acquire order: global → fan-out → per-host
-                                // (global outermost, per-host gate innermost),
-                                // matching runFanOutPrompt / Reports / Test-all.
-                                // ONE consistent order app-wide is what prevents
-                                // the global↔per-host deadlock; same Throttled
-                                // mark for the UI while the gate yields.
-                                ApiCallCaps.global.withPermit {
-                                ApiCallCaps.fanOut.withPermit {
-                                hostCap.withPermit {
-                                val releaser = acquireOrRequeue(
-                                    host,
-                                    onThrottled = { appViewModel.updateThrottledFanOutPairs { it + ph.id } },
-                                    onCleared = { appViewModel.updateThrottledFanOutPairs { it - ph.id } }
-                                )
-                                try {
-                                AppLog.d("FanOut", "queued rerun ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
-                                    if (!SecondaryResultStorage.exists(context, reportId, ph.id)) {
-                                        AppLog.d("FanOut", "skip rerun ${ph.id} — deleted before launch")
-                                        return@async
-                                    }
-                                    withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                                        appViewModel.updateRunningFanOutPairs { it + ph.id }
-                                        val rerunStart = System.currentTimeMillis()
-                                        AppLog.d("FanOut", "→ rerun pair ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
-                                        try {
-                                            val questionForPair = rerunLangCtx?.prompt ?: report.prompt
-                                            val bodyForPair = rerunLangCtx?.bodies?.get(source.agentId)
-                                                ?: (source.responseBody ?: "")
-                                            val resolvedBase = resolveSecondaryPrompt(
-                                                metaPrompt.text,
-                                                question = questionForPair,
-                                                results = "",
-                                                count = sourceCount,
-                                                title = report.title
-                                            )
-                                            val resolved = resolvedBase.replace("@RESPONSE@", bodyForPair)
-                                            executeSecondaryTask(
-                                                context, reportId, SecondaryKind.META, metaPrompt,
-                                                provider, ph.model, resolved, aiSettings, report,
-                                                targetLanguage = ph.targetLanguage,
-                                                targetLanguageNative = ph.targetLanguageNative,
-                                                fanOutSourceAgentId = source.agentId,
-                                                existingPlaceholder = ph
-                                            )
-                                            // Icon chain no longer auto-fires here —
-                                            // the user explicitly launches the
-                                            // fan-icons batch via the L1 button.
-                                        } finally {
-                                            appViewModel.updateRunningFanOutPairs { it - ph.id }
-                                            AppLog.d("FanOut", "← rerun pair ph=${ph.id} ${System.currentTimeMillis() - rerunStart}ms")
-                                        }
-                                    }
-                                } finally {
-                                    releaser.release()
-                                }
-                                } // hostCap.withPermit
-                                } // ApiCallCaps.fanOut.withPermit
-                                } // ApiCallCaps.global.withPermit
-                            }
-                            // Per-pair Job registration mirrors runFanOutPrompt
-                            // — see the comment there for the cancel-on-delete
-                            // race the registration closes.
-                            rvm.fanOutPairJobs[ph.id] = deferred
-                            deferred.invokeOnCompletion {
-                                rvm.fanOutPairJobs.remove(ph.id, deferred)
-                            }
-                            deferred.start()
-                            deferred
-                        }.awaitAll()
+                    ) { ph ->
+                        val provider = AppService.findById(ph.providerId) ?: return@runThrottledBatch
+                        val source = successful.firstOrNull { it.agentId == ph.fanOutSourceAgentId }
+                            ?: return@runThrottledBatch
+                        AppLog.d("FanOut", "queued rerun ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
+                        if (!SecondaryResultStorage.exists(context, reportId, ph.id)) {
+                            AppLog.d("FanOut", "skip rerun ${ph.id} — deleted before launch")
+                            return@runThrottledBatch
+                        }
+                        appViewModel.updateRunningFanOutPairs { it + ph.id }
+                        val rerunStart = System.currentTimeMillis()
+                        AppLog.d("FanOut", "→ rerun pair ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
+                        try {
+                            val questionForPair = rerunLangCtx?.prompt ?: report.prompt
+                            val bodyForPair = rerunLangCtx?.bodies?.get(source.agentId)
+                                ?: (source.responseBody ?: "")
+                            val resolvedBase = resolveSecondaryPrompt(
+                                metaPrompt.text,
+                                question = questionForPair,
+                                results = "",
+                                count = sourceCount,
+                                title = report.title
+                            )
+                            val resolved = resolvedBase.replace("@RESPONSE@", bodyForPair)
+                            executeSecondaryTask(
+                                context, reportId, SecondaryKind.META, metaPrompt,
+                                provider, ph.model, resolved, aiSettings, report,
+                                targetLanguage = ph.targetLanguage,
+                                targetLanguageNative = ph.targetLanguageNative,
+                                fanOutSourceAgentId = source.agentId,
+                                existingPlaceholder = ph
+                            )
+                        } finally {
+                            appViewModel.updateRunningFanOutPairs { it - ph.id }
+                            AppLog.d("FanOut", "← rerun pair ph=${ph.id} ${System.currentTimeMillis() - rerunStart}ms")
+                        }
                     }
                 }
             } finally {
