@@ -298,7 +298,24 @@ fun AppNavHost(
         NavRoutes.AI_SEARCH, NavRoutes.AI_LOCAL_SEARCH, NavRoutes.AI_QUICK_LOCAL_SEARCH,
         NavRoutes.AI_LOCAL_SEMANTIC_SEARCH,
         NavRoutes.AI_REPORTS, NavRoutes.AI_REPORT_INFO, NavRoutes.AI_REPORT_MODEL,
-        NavRoutes.AI_VIEW_PICK_REPORT, NavRoutes.AI_MANAGE_PICK_REPORT
+        NavRoutes.AI_VIEW_PICK_REPORT, NavRoutes.AI_MANAGE_PICK_REPORT,
+        NavRoutes.AI_REPORT_MANAGE
+    )
+    // AI Models section (🧠) and AI Knowledge section (📚): standalone
+    // screens with no report glyph that previously fell back to the AI
+    // logo. Sub-screens jump to their section hub; the hub goes Home.
+    val modelSectionRoutes = setOf(NavRoutes.AI_MODEL_INFO, NavRoutes.AI_MANUAL_OVERRIDE_ADD)
+    val knowledgeSectionRoutes = setOf(NavRoutes.AI_KNOWLEDGE_NEW, NavRoutes.AI_KNOWLEDGE_DETAIL)
+    // One-off screens with no section hub — show a fitting local glyph
+    // whose tap goes Home (About is intentionally excluded: it keeps the
+    // AI logo because it's about the app itself).
+    val homeIconByRoute: Map<String, String> = mapOf(
+        NavRoutes.AI_COST_CONFIG to "💲",
+        NavRoutes.AI_MANUAL_COST_OVERRIDE_ADD to "💲",
+        NavRoutes.AI_API_TEST to "🧪",
+        NavRoutes.AI_API_TEST_EDIT to "🧪",
+        NavRoutes.DOCUMENTATION to "📖",
+        NavRoutes.DOCUMENTATION_MANUAL to "📖"
     )
     val reportDefaultIcon = rootUiStateForLayout.generalSettings.metadataIcons.reportIcon
     val sectionTopIcon: com.ai.ui.shared.TopBarLeftIcon? = when {
@@ -321,6 +338,22 @@ fun AppNavHost(
                 if (!navController.popBackStack(NavRoutes.AI_HOUSEKEEPING, false))
                     navController.navigate(NavRoutes.AI_HOUSEKEEPING)
             }
+        currentNavRoute == NavRoutes.AI_MODEL_SEARCH ->
+            com.ai.ui.shared.TopBarLeftIcon("🧠", navigateHome)
+        currentNavRoute in modelSectionRoutes ->
+            com.ai.ui.shared.TopBarLeftIcon("🧠") {
+                if (!navController.popBackStack(NavRoutes.AI_MODEL_SEARCH, false))
+                    navController.navigate(NavRoutes.AI_MODEL_SEARCH)
+            }
+        currentNavRoute == NavRoutes.AI_KNOWLEDGE ->
+            com.ai.ui.shared.TopBarLeftIcon("📚", navigateHome)
+        currentNavRoute in knowledgeSectionRoutes ->
+            com.ai.ui.shared.TopBarLeftIcon("📚") {
+                if (!navController.popBackStack(NavRoutes.AI_KNOWLEDGE, false))
+                    navController.navigate(NavRoutes.AI_KNOWLEDGE)
+            }
+        homeIconByRoute[currentNavRoute] != null ->
+            com.ai.ui.shared.TopBarLeftIcon(homeIconByRoute.getValue(currentNavRoute), navigateHome)
         else -> null
     }
     androidx.compose.runtime.CompositionLocalProvider(
