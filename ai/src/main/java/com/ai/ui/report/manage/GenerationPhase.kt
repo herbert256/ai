@@ -1170,6 +1170,7 @@ internal fun ColumnScope.GenerationPhase(
                                 modifier = Modifier.width(24.dp),
                                 contentAlignment = Alignment.Center
                             ) { AnimatedHourglass(fontSize = 16.sp) }
+                            run.iconErrorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                             else -> Text(com.ai.ui.shared.LocalMetadataIcons.current.fanIconsRow, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                         }
                         RowTypeCell("fan-icons")
@@ -1204,6 +1205,7 @@ internal fun ColumnScope.GenerationPhase(
                                 modifier = Modifier.width(24.dp),
                                 contentAlignment = Alignment.Center
                             ) { AnimatedHourglass(fontSize = 16.sp) }
+                            run.titleErrorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                             else -> Text("🏷️", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                         }
                         RowTypeCell("fan-titles")
@@ -1690,14 +1692,20 @@ internal data class FanOutRunSummary(
      *  but no icon and no icon error yet. > 0 keeps the spinner on the
      *  sibling "fan-icons" row while a Find-Icons batch is in flight. */
     val iconPendingCount: Int,
+    /** Pairs whose icon chain ended in an error (iconErrorMessage set,
+     *  no icon). > 0 puts a ❌ on the sibling "fan-icons" row once the
+     *  batch is no longer pending, so a run that finished WITH errors
+     *  reads as failed instead of silently showing the plain icon. */
+    val iconErrorCount: Int,
     /** Summed icon-chain (tier 1/2/3) call cost across the run's
      *  pairs — rendered on the sibling "fan-icons" row. Separate from
      *  [totalCost], which covers only the fan-out pair calls. */
     val iconCost: Double,
     /** Title counterparts of [iconCount] / [iconPendingCount] /
-     *  [iconCost] — drive the sibling "fan-titles" row. */
+     *  [iconErrorCount] / [iconCost] — drive the sibling "fan-titles" row. */
     val titleCount: Int,
     val titlePendingCount: Int,
+    val titleErrorCount: Int,
     val titleCost: Double,
     val totalCost: Double,
     /** Latest timestamp across the run; used to sort against the other
@@ -1735,6 +1743,7 @@ internal fun buildFanOutSummaries(rows: List<com.ai.data.SecondaryResult>): List
                     !it.content.isNullOrBlank() &&
                         it.icon.isNullOrBlank() && it.iconErrorMessage.isNullOrBlank()
                 },
+                iconErrorCount = items.count { !it.iconErrorMessage.isNullOrBlank() },
                 iconCost = items.sumOf { it.iconInputCost + it.iconOutputCost },
                 titleCount = items.count {
                     !it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank()
@@ -1743,6 +1752,7 @@ internal fun buildFanOutSummaries(rows: List<com.ai.data.SecondaryResult>): List
                     !it.content.isNullOrBlank() &&
                         it.title.isNullOrBlank() && it.titleErrorMessage.isNullOrBlank()
                 },
+                titleErrorCount = items.count { !it.titleErrorMessage.isNullOrBlank() },
                 titleCost = items.sumOf { it.titleInputCost + it.titleOutputCost },
                 totalCost = items.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) },
                 timestamp = items.maxOf { it.timestamp }
