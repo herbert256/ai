@@ -330,20 +330,22 @@ class ModelTestEngine internal constructor(
                     val cap = appViewModel.uiState.value.generalSettings.maxTestApiCalls.coerceAtLeast(1)
                     val ioCap = Semaphore(cap)
                     val items = keys.mapNotNull { _run.value?.items?.get(it) }
-                    val ordered = interleaveByHost(items) { item ->
-                        AppService.findById(item.providerId)?.let { providerHost(it) } ?: ""
-                    }
-                    coroutineScope {
-                        ordered.map { item ->
-                            val deferred = async(start = CoroutineStart.LAZY) {
-                                runOne(context, item.key, ioCap)
-                            }
-                            itemJobs[item.key] = deferred
-                            deferred.invokeOnCompletion { itemJobs.remove(item.key, deferred) }
-                            deferred.start()
-                            deferred
-                        }.awaitAll()
-                    }
+                    // Shared runner owns the interleave + the canonical
+                    // global → ioCap → per-host acquisition order. runOne keeps
+                    // its own 60s withTimeout (caught locally so one hung probe
+                    // fails just that item, not the whole sweep) and the
+                    // suppressInlineRetry context. Empty host (provider not
+                    // registered) isn't skipped — runOne records the FAIL.
+                    runThrottledBatch(
+                        items = items,
+                        hostOf = { AppService.findById(it.providerId)?.let { s -> providerHost(s) } ?: "" },
+                        subCap = ioCap,
+                        onThrottled = { item -> _throttledKeys.update { it + item.key } },
+                        register = { item, d ->
+                            itemJobs[item.key] = d
+                            d.invokeOnCompletion { itemJobs.remove(item.key, d) }
+                        }
+                    ) { item -> runOne(context, item.key) }
                     AppLog.i("ModelTest", "← run done (${items.size} models)")
                     // Per-item PASS/FAIL transitions in [runOne] have
                     // already pushed the cumulative effect into the
@@ -441,7 +443,11 @@ class ModelTestEngine internal constructor(
 
     /** PENDING → RUNNING → PASS/FAIL for one (provider, model). Owns
      *  the throttle permit + the probe call + the state transitions. */
-    private suspend fun runOne(context: Context, key: ModelTestKey, ioCap: Semaphore) {
+    // Throttle scaffolding (global + ioCap + per-host acquireOrRequeue +
+    // permitPreAcquired) is owned by [runThrottledBatch] now; this runs as
+    // its per-item body with all permits held. Keeps its own local 60s
+    // withTimeout + suppressInlineRetry (see below).
+    private suspend fun runOne(context: Context, key: ModelTestKey) {
         val item = _run.value?.items?.get(key) ?: return
         val service = AppService.findById(item.providerId) ?: run {
             transition(key) { it.copy(status = TestStatus.FAIL, errorMessage = "Provider not registered") }
@@ -452,14 +458,6 @@ class ModelTestEngine internal constructor(
         val aiSettings = appViewModel.uiState.value.aiSettings
         val apiKey = aiSettings.getApiKey(service)
         val type = aiSettings.getModelType(service, item.model)
-        ApiCallCaps.global.withPermit {
-            ioCap.withPermit {
-                val host = providerHost(service)
-                val releaser = acquireOrRequeue(
-                    host,
-                    onThrottled = { _throttledKeys.update { it + key } },
-                    onCleared = { _throttledKeys.update { it - key } }
-                )
                 try {
                     transition(key) { it.copy(status = TestStatus.RUNNING) }
                     val t0 = System.currentTimeMillis()
@@ -609,12 +607,9 @@ class ModelTestEngine internal constructor(
                         _run.value?.items?.get(key)?.let { appViewModel.applyTestItemIncrement(it) }
                     }
                 } finally {
-                    releaser.release()
                     _throttledKeys.update { it - key }
                     persist(context)
                 }
-            }
-        }
     }
 
     /** Generic outcome of a per-(provider, model) probe — chat /
