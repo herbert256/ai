@@ -77,7 +77,7 @@ android {
         // user-tunable GeneralSettings.{streaming,nonStreaming}ReadTimeoutSec —
         // changes here propagate only to fresh installs.
         buildConfigField("int", "NETWORK_CONNECT_TIMEOUT_SEC", "30")
-        buildConfigField("int", "NETWORK_READ_TIMEOUT_SEC", "600")
+        buildConfigField("int", "NETWORK_READ_TIMEOUT_SEC", "240")
         buildConfigField("int", "NETWORK_NONSTREAMING_READ_TIMEOUT_SEC", "120")
         buildConfigField("int", "NETWORK_WRITE_TIMEOUT_SEC", "30")
         // Provider-test calls (Refresh-all per-provider tests, the
