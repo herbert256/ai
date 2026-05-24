@@ -2004,19 +2004,21 @@ fun ReportListRow(
         )
     }
     val iconGenEnabled = LocalIconGenEnabled.current
+    // Always show a leading logo: the generated per-report icon when
+    // metadata is on and present, otherwise the configurable default
+    // report logo (so rows aren't blank when metadata is off).
+    val defaultLogo = LocalMetadataIcons.current.reportIcon
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { onOpenManage(report.id) }
             .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (iconGenEnabled) {
-            Text(
-                text = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
-                fontSize = 22.sp
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-        }
+        Text(
+            text = (if (iconGenEnabled) report.icon?.takeIf { it.isNotBlank() } else null) ?: defaultLogo,
+            fontSize = 22.sp
+        )
+        Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = report.title.ifBlank { "Untitled" },
             fontSize = 14.sp, color = Color.White,

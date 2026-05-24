@@ -191,12 +191,12 @@ private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onOpenView: () 
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
         modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (com.ai.ui.shared.LocalIconGenEnabled.current) {
-                report.icon?.let {
-                    Text(it, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-            }
+            // Always show a leading logo — the generated icon when metadata
+            // is on and present, else the configurable default report logo.
+            val historyIconOn = com.ai.ui.shared.LocalIconGenEnabled.current
+            val historyDefaultLogo = com.ai.ui.shared.LocalMetadataIcons.current.reportIcon
+            Text((if (historyIconOn) report.icon?.takeIf { it.isNotBlank() } else null) ?: historyDefaultLogo, fontSize = 14.sp)
+            Spacer(modifier = Modifier.width(8.dp))
             Text(report.title, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             com.ai.ui.shared.ReportRowActionIcons(onOpenManage = onOpen, onOpenView = onOpenView)
             TextButton(onClick = { showDeleteConfirm = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
