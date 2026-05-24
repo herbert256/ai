@@ -244,11 +244,11 @@ internal fun ColumnScope.SelectionPhase(
     }
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedButton(onClick = onAdvancedParams, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
-            Text(if (advancedParameters != null) "Params ✓" else "Params", fontSize = 13.sp, maxLines = 1, softWrap = false)
+            Text(if (advancedParameters != null) "Parameters ✓" else "Parameters", fontSize = 13.sp, maxLines = 1, softWrap = false)
         }
         OutlinedButton(onClick = { showSystemPromptDialog = true }, modifier = Modifier.weight(1f), colors = AppColors.outlinedButtonColors()) {
             Text(
-                if (selectedSystemPromptName != null) "Sys prompt ✓" else "Sys prompt",
+                if (selectedSystemPromptName != null) "System prompt ✓" else "System prompt",
                 fontSize = 13.sp, maxLines = 1, softWrap = false
             )
         }
