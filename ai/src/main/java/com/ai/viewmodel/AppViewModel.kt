@@ -790,17 +790,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // also toasts) carrying the exact cap + per-host state so the next
         // occurrence is self-diagnosing. Idle ticks log nothing.
         viewModelScope.launch(Dispatchers.Default) {
-            var lastInFlight = -1
+            var lastLine = ""
             var stalledTicks = 0
             while (true) {
                 kotlinx.coroutines.delay(15_000)
-                if (!ApiCallCaps.isBusy()) { lastInFlight = -1; stalledTicks = 0; continue }
-                val inFlight = ApiCallCaps.snapshot().globalInFlight
-                stalledTicks = if (inFlight == lastInFlight) stalledTicks + 1 else 0
-                lastInFlight = inFlight
+                if (!ApiCallCaps.isBusy()) { lastLine = ""; stalledTicks = 0; continue }
+                // Compare the FULL per-host state, not just global in-flight:
+                // a healthy big run keeps global pinned at its cap the whole
+                // time (saturation, not a stall), but the per-host conc/window
+                // counts move every tick as calls complete and fire. Only a
+                // genuine deadlock freezes the per-host state too — so we flag
+                // a stall only when this whole line is byte-identical across
+                // consecutive ticks.
                 val line = "caps: ${ApiCallCaps.diagnosticLine()} | hosts: ${com.ai.data.ProviderThrottle.diagnostics()}"
+                stalledTicks = if (line == lastLine) stalledTicks + 1 else 0
+                lastLine = line
                 if (stalledTicks >= 4)
-                    AppLog.w("CapsWatch", "POSSIBLE STALL — no cap change for ${stalledTicks * 15}s — $line")
+                    AppLog.w("CapsWatch", "POSSIBLE STALL — throttle state frozen ${stalledTicks * 15}s — $line")
                 else
                     AppLog.i("CapsWatch", line)
             }
