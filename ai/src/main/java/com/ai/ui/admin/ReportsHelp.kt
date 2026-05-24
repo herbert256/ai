@@ -86,16 +86,39 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Per-model icons (auto-run, per-task)", "The 3-tier per-agent icon chain (chat continuation → one-shot icons/report template → fixed-agent icons/report_3 fallback) fires automatically when Settings → Generate per model icons is on. Each agent's chain kicks off the moment THAT agent's primary call settles to SUCCESS, so a fast row's emoji can appear before a slow row in the same report has finished generating. Tier 1 = chat (the model emoji-fies its own previous answer). Tier 2 = one-shot with @PROMPT@/@RESPONSE@. Tier 3 = bundled DeepSeek on @RESPONSE@ only. All three fail → 📝. Costs from every tier call accumulate on the row's cost cell, post to global Usage statistics with kind=\"icon\", and appear as their own rows in the export's per-call All tab. Regenerating the report re-fires the chain per regenerated agent."),
             HelpCard("View popup", "Reports / Prompt / Costs plus one row per Meta-prompt name with at least one persisted secondary on this report. Edit popup is Prompt / Title / Models / Parameters — picking Models lands on Report - select models in edit mode."),
             HelpCard("Pending-changes banner", "Orange banner appears when the user edited prompt / models / parameters since the last run — Regenerate is required for the new values to take effect. Until then the displayed rows reflect the old configuration."),
-            HelpCard("Title bar — 💬 (chat handoff)", "Stashes the prompt as the chat starter and routes to the agent picker — pick an agent, the chat opens with the report's prompt as the first user turn. Surfaced only when the prompt is non-blank."),
-            HelpCard("Title bar — 🐞 (trace) + per-row 🐞", "Title-bar 🐞 opens the API Traces list filtered to this report. Each agent row also carries its own 🐞 when its primary call left a recording; tapping opens that single trace file."),
-            HelpCard("Title bar — 🗑 / 🔄 / 📤 / ℹ️", "🗑 deletes the report (confirm dialog). 🔄 opens the regenerate-confirm dialog. 📤 only appears when the run has completed and routes to Export. ℹ️ drills into the per-agent results viewer (same target as tapping the title)."),
             HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate."),
             HelpCard("Reached from", "Pressing Generate on Report - select models. Or History → open any saved report — you land here directly, skipping the selection page."),
-            // "Stalled translation auto-reconcile" + "App-wide
-            // background resume sweep" relocated to the "concepts"
-            // topic — they're cross-screen behaviours, not specific
-            // to this screen. The Help-home "How it works" link
-            // surfaces them.
+            // Bottom-bar icon descriptions moved to the "report_run_icons"
+            // page (reached via the ❔ icon, or the link at the top of this
+            // page). "Stalled translation auto-reconcile" + "App-wide
+            // background resume sweep" live in the "concepts" topic.
+        )
+    ),
+    // Per-screen icon legend reached from the ❔ bottom-bar glyph on
+    // "Manage an AI report". Ordered: icons specific to this screen, then
+    // general icons with screen-specific behaviour, then standard icons.
+    "report_run_icons" to HelpContent(
+        title = "Help - Report — manage — icons",
+        cards = listOf(
+            HelpCard("Icons for this report", buildString {
+                append("👁 View — open the per-agent results / View hub for this report.\n")
+                append("✏️ Edit — change the prompt, title, or models (Models reopens Report - select models).\n")
+                append("🔄 Regenerate — re-run every agent (only once the run has completed).\n")
+                append("🗑 Delete — delete this report (asks to confirm).\n")
+                append("📌 Pin / unpin — keep this report at the top of the lists (orange when pinned).\n")
+                append("👯 Duplicate — make a copy of this report.\n")
+                append("📤 Export — export / share the report (appears once the run has completed).\n")
+                append("ℹ️ Report information — the per-report info screen.\n")
+                append("🗂️ Switch report — pick another report to manage.\n")
+                append("💬 Chat — start a chat seeded with this report's prompt (when the prompt isn't empty).\n")
+                append("🐞 Trace — open the API traces for this report; each agent row also has its own 🐞.")
+            }),
+            HelpCard("Parameters & system prompt (apply to this report)", buildString {
+                append("These two are the same pickers used elsewhere, but here they set THIS report's override:\n")
+                append("🌡️ Parameters — pick the preset(s) used as this report's parameters on the next Regenerate.\n")
+                append("🎭 System prompt — pick the system prompt used for this report.")
+            }),
+            HelpCard("Standard", "🆕 New — opens the create menu (start a new report)."),
         )
     ),
     "regenerate_batch" to HelpContent(

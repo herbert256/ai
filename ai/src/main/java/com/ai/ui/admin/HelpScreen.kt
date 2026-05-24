@@ -119,6 +119,17 @@ fun HelpScreen(
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (topic != null) {
+                // Top cross-link to this screen's per-icon help page, when
+                // one exists (topic id "<screen>_icons"). Generic — every
+                // screen that gains an icon page gets this link for free.
+                if (topicId != null && !topicId.endsWith("_icons") &&
+                    HELP_TOPICS.containsKey("${topicId}_icons")) {
+                    HomeSubpageLink(
+                        "❔", "Icons on this screen",
+                        "What each bottom-bar icon does here.",
+                        onClick = { onNavigateToTopic("${topicId}_icons") }
+                    )
+                }
                 topic.cards.forEach { HelpSection(it.title, it.body) }
                 // The three table subpages of Help home (icons /
                 // info providers / AI providers) attach their
@@ -150,6 +161,18 @@ fun HelpScreen(
                             "⚙️", "Operations",
                             "Report · Chat · Meta prompt · Fan-out · Rerank · Moderation · Translation — the things you actually run.",
                             onClick = { onNavigateToTopic("help_glossary_operations") }
+                        )
+                    }
+                }
+                // Bottom link from a per-icon page ("<screen>_icons") back
+                // to the screen's full help. Generic for any icon page.
+                if (topicId != null && topicId.endsWith("_icons")) {
+                    val base = topicId.removeSuffix("_icons")
+                    if (HELP_TOPICS.containsKey(base)) {
+                        HomeSubpageLink(
+                            "📖", "Full help for this screen",
+                            "Everything else about this screen.",
+                            onClick = { onNavigateToTopic(base) }
                         )
                     }
                 }

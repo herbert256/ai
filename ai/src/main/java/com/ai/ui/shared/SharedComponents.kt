@@ -1688,6 +1688,13 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         // aligned vertically across rows.
         val helpW = 32f
         val helpGap = 4f
+        // Second help glyph ❔ — a per-screen "what do these icons do?" page.
+        // Shown just left of ❓ when this screen has its own "<topic>_icons"
+        // help page AND more than 3 action icons (❓/❔ not counted).
+        val navigateHelp = LocalNavigateToHelp.current
+        val iconTopic = icons?.helpTopic?.let { "${it}_icons" }
+            ?.takeIf { com.ai.ui.admin.HELP_TOPICS.containsKey(it) }
+        val showIconHelp = iconTopic != null && specs.size > 3
         val cell = 24                       // uniform column width (dp) — tight spacing
         // Fill rows of up to 6, but put the SMALLEST (remainder) row on
         // TOP so the full rows sit at the bottom. ❓ pins to the right of
@@ -1704,7 +1711,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         val costReserve = if (costText != null) costText.length * costBaseSp * 0.62f + 16f else 0f
         fun rowWidth(count: Int, withHelp: Boolean, withCost: Boolean) =
             (count * cell + (count - 1).coerceAtLeast(0) * extraGap).toFloat() +
-                (if (withHelp) helpGap + helpW else 0f) +
+                (if (withHelp) helpGap + helpW * (if (showIconHelp) 2 else 1) else 0f) +
                 (if (withCost) costReserve else 0f)
         val widest = rows.mapIndexed { i, r ->
             rowWidth(r.size, i == rows.lastIndex, i == 0)
@@ -1737,6 +1744,9 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                         )
                     }
                     if (isLast) {
+                        if (showIconHelp && iconTopic != null) {
+                            TitleBarIcon("❔", AppColors.Blue, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale)
+                        }
                         TitleBarIcon("❓", AppColors.Blue, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
                     }
                 }
