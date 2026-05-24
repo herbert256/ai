@@ -41,7 +41,7 @@ import com.ai.data.loadExampleIndex
 import com.ai.ui.hub.rememberExampleOpener
 import com.ai.ui.hub.rememberHomeReportLists
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.ViewScreenTitleBar
+import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.ReportViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -139,12 +139,11 @@ fun ReportPickerScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        ViewScreenTitleBar(
-            reportTitle = null,
-            screenTitle = screenTitle,
+        TitleBar(
+            title = screenTitle,
             subject = subject,
             helpTopic = "report_picker",
-            onBack = onBack
+            onBackClick = onBack
         )
         Column(
             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
