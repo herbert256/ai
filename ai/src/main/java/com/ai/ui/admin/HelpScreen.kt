@@ -175,6 +175,9 @@ fun HelpScreen(
                 onNavigateToHelpHome = if (topic != null) onNavigateToHelpHome else null,
                 onNavigateToAbout = onNavigateToAbout
             )
+            // Breathing room below the "More information" card so it
+            // doesn't sit flush against the bottom bar.
+            Spacer(modifier = Modifier.height(48.dp))
         }
     }
 }
