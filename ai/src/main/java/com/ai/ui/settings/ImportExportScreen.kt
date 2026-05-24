@@ -327,6 +327,7 @@ private fun buildModelListsTree(s: Settings): JsonObject {
                 if (cfg.modelPricing.isNotEmpty()) add("modelPricing", gson.toJsonTree(cfg.modelPricing))
                 if (cfg.modelCapabilities.isNotEmpty()) add("modelCapabilities", gson.toJsonTree(cfg.modelCapabilities))
                 if (cfg.parametersIds.isNotEmpty()) add("parametersIds", gson.toJsonTree(cfg.parametersIds))
+                cfg.systemPromptId?.let { addProperty("systemPromptId", it) }
             }
             add(svc.id, obj)
         }
@@ -384,6 +385,7 @@ private fun applyModelLists(obj: JsonObject, working: Settings): Pair<Settings, 
         val parametersIds: List<String> = po.getAsJsonArray("parametersIds")?.mapNotNull {
             if (it.isJsonPrimitive && it.asJsonPrimitive.isString) it.asString else null
         } ?: emptyList()
+        val systemPromptId: String? = po.get("systemPromptId")?.takeIf { it.isJsonPrimitive }?.asString
         val current = s.getProvider(service)
         val updated = current.copy(
             models = models,
@@ -393,7 +395,8 @@ private fun applyModelLists(obj: JsonObject, working: Settings): Pair<Settings, 
             reasoningModels = strSet("reasoningModels"),
             modelPricing = pricing,
             modelCapabilities = caps,
-            parametersIds = parametersIds
+            parametersIds = parametersIds,
+            systemPromptId = systemPromptId
         )
         s = s.withProvider(service, updated)
         n++

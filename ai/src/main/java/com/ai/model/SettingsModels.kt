@@ -64,7 +64,14 @@ data class ProviderConfig(
      *  recomposition. Populated by [Settings.recomputeCapabilities] and
      *  refreshed alongside the capability sets after a catalog refresh. */
     val modelPricing: Map<String, com.ai.data.PricingCache.ModelPricing> = emptyMap(),
-    val parametersIds: List<String> = emptyList()
+    /** Provider-level default parameter presets, applied to a bare
+     *  provider+model selection (one with no per-selection override) at
+     *  report generation. Paired with [systemPromptId]. */
+    val parametersIds: List<String> = emptyList(),
+    /** Provider-level default system prompt, applied to a bare
+     *  provider+model selection at report generation. Paired with
+     *  [parametersIds]. */
+    val systemPromptId: String? = null
 )
 
 fun defaultProviderConfig(service: AppService): ProviderConfig {
@@ -767,7 +774,8 @@ data class Settings(
         systemPrompts = systemPrompts.filter { it.id != systemPromptId },
         agents = agents.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it },
         flocks = flocks.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it },
-        swarms = swarms.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it }
+        swarms = swarms.map { if (it.systemPromptId == systemPromptId) it.copy(systemPromptId = null) else it },
+        providers = providers.mapValues { (_, c) -> if (c.systemPromptId == systemPromptId) c.copy(systemPromptId = null) else c }
     )
 
     fun removeInternalPrompt(internalPromptId: String) = copy(

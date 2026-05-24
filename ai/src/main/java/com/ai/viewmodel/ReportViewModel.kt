@@ -465,10 +465,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
         val modelTasks = modelMembers.map { member ->
             val sid = "swarm:${member.provider.id}:${member.model}"
+            // Provider-level defaults for a bare provider+model: applied
+            // when the selection carries no explicit override and no swarm-
+            // specific value. Providers without provider-level presets
+            // yield empty/null here, so there's no change for them.
+            val providerConfig = aiSettings.getProvider(member.provider)
             val spText = reportLevelSystemPrompt
                 ?: findSwarmSystemPromptIdForMember(aiSettings, member.provider, member.model)?.let { aiSettings.getSystemPromptById(it)?.prompt }
+                ?: providerConfig.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
                 ?: externalSystemPrompt
-            var params = aiSettings.mergeParameters(selectionParamsById[sid] ?: emptyList()) ?: AgentParameters()
+            val effectiveParamIds = selectionParamsById[sid]?.takeIf { it.isNotEmpty() } ?: providerConfig.parametersIds
+            var params = aiSettings.mergeParameters(effectiveParamIds) ?: AgentParameters()
             if (spText != null) params = params.copy(systemPrompt = spText)
 
             ReportTask(sid,

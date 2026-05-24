@@ -241,7 +241,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 modelPricing = modelPricing,
                 modelCapabilities = modelCapabilities,
                 modelListRawJson = modelListRawJson,
-                parametersIds = loadJsonList("${key}_parameters_id") ?: emptyList()
+                parametersIds = loadJsonList("${key}_parameters_id") ?: emptyList(),
+                systemPromptId = prefs.getString("${key}_system_prompt_id", null)
             )
         }
         return Settings(providers = providers)
@@ -284,6 +285,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 // revision can pull out new fields without forcing a refetch.
                 putString("${key}_models_response_raw", config.modelListRawJson)
                 putString("${key}_parameters_id", if (config.parametersIds.isEmpty()) null else gson.toJson(config.parametersIds))
+                putString("${key}_system_prompt_id", config.systemPromptId)
             }
             putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
             putString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))

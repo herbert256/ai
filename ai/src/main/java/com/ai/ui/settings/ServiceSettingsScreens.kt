@@ -609,6 +609,7 @@ fun ProviderSettingsScreen(
     // in the Definition LaunchedEffect.
     var defaultModel by remember(service.id) { mutableStateOf(service.defaultModel) }
     var selectedParametersIds by remember { mutableStateOf(config.parametersIds) }
+    var selectedSystemPromptId by remember { mutableStateOf(config.systemPromptId) }
     var isInactive by remember { mutableStateOf(aiSettings.getProviderState(service) == "inactive") }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
@@ -617,6 +618,7 @@ fun ProviderSettingsScreen(
     // link straight to the request/response that produced the error.
     var testTraceFile by remember { mutableStateOf<String?>(null) }
     var showParamsDialog by remember { mutableStateOf(false) }
+    var showSystemPromptDialog by remember { mutableStateOf(false) }
     var showModelSelector by remember { mutableStateOf(false) }
 
     // ===== Provider definition (catalog) state =====
@@ -812,11 +814,12 @@ fun ProviderSettingsScreen(
     // parametersIds). The default model is part of the catalog now —
     // its writeback runs in the Definition LaunchedEffect above via
     // ProviderRegistry.update.
-    LaunchedEffect(apiKey, selectedParametersIds) {
+    LaunchedEffect(apiKey, selectedParametersIds, selectedSystemPromptId) {
         val current = aiSettings.getProvider(service)
         val updated = current.copy(
             apiKey = apiKey,
-            parametersIds = selectedParametersIds
+            parametersIds = selectedParametersIds,
+            systemPromptId = selectedSystemPromptId
         )
         if (updated == current) return@LaunchedEffect
         onSave(aiSettings.withProvider(service, updated))
@@ -827,6 +830,14 @@ fun ProviderSettingsScreen(
             aiSettings = aiSettings, selectedIds = selectedParametersIds,
             onConfirm = { selectedParametersIds = it; showParamsDialog = false },
             onDismiss = { showParamsDialog = false }
+        )
+    }
+    if (showSystemPromptDialog) {
+        com.ai.ui.chat.SystemPromptSelectorDialog(
+            aiSettings = aiSettings,
+            selectedId = selectedSystemPromptId,
+            onSelect = { selectedSystemPromptId = it; showSystemPromptDialog = false },
+            onDismiss = { showSystemPromptDialog = false }
         )
     }
 
@@ -1449,6 +1460,30 @@ fun ProviderSettingsScreen(
                             text = if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Tap to select",
                             fontSize = 12.sp,
                             color = if (pNames.isEmpty()) AppColors.TextTertiary else AppColors.Blue
+                        )
+                    }
+                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                }
+            }
+
+            // System prompt — paired with Parameters above. Same provider-
+            // level default: applied to a bare provider+model selection at
+            // report generation when nothing more specific is set.
+            val spName = selectedSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
+            Card(
+                modifier = Modifier.fillMaxWidth().clickable { showSystemPromptDialog = true },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("System prompt", fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(
+                            text = spName ?: "Tap to select",
+                            fontSize = 12.sp,
+                            color = if (spName == null) AppColors.TextTertiary else AppColors.Blue
                         )
                     }
                     Text(">", fontSize = 16.sp, color = AppColors.Blue)
