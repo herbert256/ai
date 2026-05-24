@@ -24,22 +24,23 @@ fun ParametersEditScreen(
 ) {
     BackHandler { onBack() }
     val isEditing = params != null
+    var resetTick by remember { mutableStateOf(0) }
 
-    var name by remember { mutableStateOf(params?.name ?: "") }
-    var temperature by remember { mutableStateOf(params?.temperature?.toString() ?: "") }
-    var maxTokens by remember { mutableStateOf(params?.maxTokens?.toString() ?: "") }
-    var topP by remember { mutableStateOf(params?.topP?.toString() ?: "") }
-    var topK by remember { mutableStateOf(params?.topK?.toString() ?: "") }
-    var frequencyPenalty by remember { mutableStateOf(params?.frequencyPenalty?.toString() ?: "") }
-    var presencePenalty by remember { mutableStateOf(params?.presencePenalty?.toString() ?: "") }
-    var seed by remember { mutableStateOf(params?.seed?.toString() ?: "") }
-    var systemPrompt by remember { mutableStateOf(params?.systemPrompt ?: "") }
-    var responseFormatJson by remember { mutableStateOf(params?.responseFormatJson ?: false) }
-    var searchEnabled by remember { mutableStateOf(params?.searchEnabled ?: false) }
-    var returnCitations by remember { mutableStateOf(params?.returnCitations ?: true) }
-    var searchRecency by remember { mutableStateOf(params?.searchRecency ?: "") }
-    var webSearchTool by remember { mutableStateOf(params?.webSearchTool ?: false) }
-    var reasoningEffort by remember { mutableStateOf(params?.reasoningEffort ?: "") }
+    var name by remember(resetTick) { mutableStateOf(params?.name ?: "") }
+    var temperature by remember(resetTick) { mutableStateOf(params?.temperature?.toString() ?: "") }
+    var maxTokens by remember(resetTick) { mutableStateOf(params?.maxTokens?.toString() ?: "") }
+    var topP by remember(resetTick) { mutableStateOf(params?.topP?.toString() ?: "") }
+    var topK by remember(resetTick) { mutableStateOf(params?.topK?.toString() ?: "") }
+    var frequencyPenalty by remember(resetTick) { mutableStateOf(params?.frequencyPenalty?.toString() ?: "") }
+    var presencePenalty by remember(resetTick) { mutableStateOf(params?.presencePenalty?.toString() ?: "") }
+    var seed by remember(resetTick) { mutableStateOf(params?.seed?.toString() ?: "") }
+    var systemPrompt by remember(resetTick) { mutableStateOf(params?.systemPrompt ?: "") }
+    var responseFormatJson by remember(resetTick) { mutableStateOf(params?.responseFormatJson ?: false) }
+    var searchEnabled by remember(resetTick) { mutableStateOf(params?.searchEnabled ?: false) }
+    var returnCitations by remember(resetTick) { mutableStateOf(params?.returnCitations ?: false) }
+    var searchRecency by remember(resetTick) { mutableStateOf(params?.searchRecency ?: "") }
+    var webSearchTool by remember(resetTick) { mutableStateOf(params?.webSearchTool ?: false) }
+    var reasoningEffort by remember(resetTick) { mutableStateOf(params?.reasoningEffort ?: "") }
 
     val dup = com.ai.ui.shared.rememberDuplicateMode(
         isEditingExisting = params != null,
@@ -64,7 +65,8 @@ fun ParametersEditScreen(
             title = if (isAddMode) "Add Parameters" else "Edit Parameters",
             subject = name,
             onBackClick = onBack,
-            onCopyReport = null
+            onCopyReport = null,
+            onClear = { resetTick++ }
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(

@@ -135,7 +135,9 @@ class SecondaryRunManager(
          *  non-empty entry is "" means "rank the original bodies"; a
          *  non-empty entry means "rank the translated bodies for that
          *  language". Multi-language Selected just picks the first. */
-        languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent
+        languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent,
+        paramsIds: List<String> = emptyList(),
+        systemPromptId: String? = null
     ): Job? {
         val (provider, model) = pick
         AppLog.i("Rerank", "→ start report=$reportId via ${provider.id}/$model")
@@ -169,7 +171,8 @@ class SecondaryRunManager(
                         context, reportId, SecondaryKind.RERANK, rerankPrompt,
                         provider, model, resolvedPrompt, aiSettings, report,
                         targetLanguage = sourceLanguage,
-                        targetLanguageNative = langCtx?.native
+                        targetLanguageNative = langCtx?.native,
+                        paramsIds = paramsIds, systemPromptId = systemPromptId
                     )
                 }
             } finally {
@@ -275,7 +278,9 @@ class SecondaryRunManager(
          *  tagged with targetLanguage so the L1 list groups the run
          *  under the chosen language. Fan-out is single-language by
          *  construction; the scope screen enforces this. */
-        sourceLanguage: String? = null
+        sourceLanguage: String? = null,
+        paramsIds: List<String> = emptyList(),
+        systemPromptId: String? = null
     ): Job? {
         // Dedupe against an already-running fan out for this
         // (report, metaPrompt) — a UI double-tap on the launch
@@ -500,7 +505,8 @@ class SecondaryRunManager(
                                                 targetLanguage = sourceLanguage,
                                                 targetLanguageNative = langCtx?.native,
                                                 fanOutSourceAgentId = item.source.agentId,
-                                                existingPlaceholder = item.placeholder
+                                                existingPlaceholder = item.placeholder,
+                                                paramsIds = paramsIds, systemPromptId = systemPromptId
                                             )
                                             // Note: the per-pair icon chain is NOT fired
                                             // inline anymore — it lives in a separate
@@ -1368,7 +1374,9 @@ class SecondaryRunManager(
          *  translation rows. The persisted combined-report is also
          *  tagged with the language so it groups under that section
          *  in the report list. */
-        sourceLanguage: String? = null
+        sourceLanguage: String? = null,
+        paramsIds: List<String> = emptyList(),
+        systemPromptId: String? = null
     ): Job? {
         AppLog.i("FanIn", "→ start \"${metaPrompt.name}\" report=$reportId via ${pick.first.id}/${pick.second}")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -1484,7 +1492,8 @@ class SecondaryRunManager(
                         provider, model, resolved, aiSettings, report,
                         targetLanguage = sourceLanguage,
                         targetLanguageNative = langCtx?.native,
-                        fanInOf = metaPrompt.id
+                        fanInOf = metaPrompt.id,
+                        paramsIds = paramsIds, systemPromptId = systemPromptId
                     )
                 }
             } finally {
@@ -1520,7 +1529,9 @@ class SecondaryRunManager(
          *  [runFanInPrompt]. Drives the substituted text for
          *  @QUESTION@, @TITLE@, @INITIATOR@, and the source-body
          *  half of every @RESPONDER_PAIRS@ entry. */
-        sourceLanguage: String? = null
+        sourceLanguage: String? = null,
+        paramsIds: List<String> = emptyList(),
+        systemPromptId: String? = null
     ): Job? {
         AppLog.i("ModelFanIn", "→ start \"${metaPrompt.name}\" report=$reportId active=$activeProviderId/$activeModel via ${pick.first.id}/${pick.second}")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -1659,7 +1670,8 @@ class SecondaryRunManager(
                         targetLanguage = sourceLanguage,
                         targetLanguageNative = langCtx?.native,
                         fanInOf = metaPrompt.id,
-                        existingPlaceholder = placeholder
+                        existingPlaceholder = placeholder,
+                        paramsIds = paramsIds, systemPromptId = systemPromptId
                     )
                 }
             } finally {
@@ -1767,7 +1779,9 @@ class SecondaryRunManager(
         metaPrompt: com.ai.model.InternalPrompt,
         picks: List<Pair<AppService, String>>,
         scopeChoice: SecondaryScope = SecondaryScope.AllReports,
-        languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent
+        languageScope: SecondaryLanguageScope = SecondaryLanguageScope.AllPresent,
+        paramsIds: List<String> = emptyList(),
+        systemPromptId: String? = null
     ): Job? {
         if (picks.isEmpty()) return null
         val kind = SecondaryKind.META
@@ -1911,7 +1925,8 @@ class SecondaryRunManager(
                                     pick.first, pick.second, resolvedPrompt, aiSettings, report,
                                     seedLang.first, seedLang.second, referenceLegend,
                                     existingPlaceholder = ph,
-                                    scopeEncoded = scopeChoice.encode()
+                                    scopeEncoded = scopeChoice.encode(),
+                                    paramsIds = paramsIds, systemPromptId = systemPromptId
                                 )
                             }
                         }
@@ -1970,7 +1985,10 @@ class SecondaryRunManager(
          *  fresh one — otherwise the placeholder duplicates and the
          *  pre-created row never gets a result. */
         existingPlaceholder: SecondaryResult? = null,
-        scopeEncoded: String? = null
+        scopeEncoded: String? = null,
+        /** Per-launch 🌡️ / 🎭 pick; empty → App-wide default fallback. */
+        paramsIds: List<String> = emptyList(),
+        systemPromptId: String? = null
     ) {
         val apiKey = aiSettings.getApiKey(provider)
         val langSuffix = targetLanguage?.let { " [$it]" } ?: ""
@@ -2091,9 +2109,12 @@ class SecondaryRunManager(
         )
         val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
         val start = System.currentTimeMillis()
+        val secondaryParams = resolveSecondaryParams(
+            appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, metaPrompt
+        )
         val response = try {
             appViewModel.repository.analyzeWithAgent(
-                agent, "", resolvedPrompt, AgentParameters(), null, context, baseUrl
+                agent, "", resolvedPrompt, secondaryParams, null, context, baseUrl
             )
         } catch (e: kotlinx.coroutines.CancellationException) {
             // Don't translate cancellation into a fake error stored on

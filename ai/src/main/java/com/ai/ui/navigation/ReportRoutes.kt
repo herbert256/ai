@@ -38,6 +38,38 @@ import com.ai.ui.shared.*
  */
 import androidx.navigation.NavGraphBuilder
 
+/**
+ * Identifies which Manage screen a report was picked from via its 🗂️
+ * icon, so the filtered [ReportPickerScreen] can (a) title itself and
+ * filter the list to reports relevant to that screen, and (b) return
+ * to that same screen for the chosen report. The [arg] is the route
+ * token carried by [NavRoutes.aiManagePickReport] and (for the overlay
+ * kinds) by [NavRoutes.aiReportManage]'s `initialManageOverlay`.
+ */
+enum class ManagePickKind(
+    val arg: String,
+    val screenTitle: String,
+    val subject: String
+) {
+    MANAGE("manage", "Pick a report", "Switch to another report"),
+    FAN_OUT("fan_out", "Pick a report with a fan-out", "Only reports that have a fan-out"),
+    META("meta", "Pick a report with meta results", "Only reports with meta results"),
+    EDIT_PROMPT("edit_prompt", "Pick a report to edit", "Switch to another report's prompt"),
+    EDIT_TITLE("edit_title", "Pick a report to edit", "Switch to another report's title");
+
+    companion object {
+        fun fromArg(s: String?): ManagePickKind? = entries.firstOrNull { it.arg == s }
+    }
+}
+
+/** Per-kind picker filter. Null = every report qualifies (no secondary
+ *  load needed). FAN_OUT / META load the report's secondaries. */
+fun ManagePickKind.reportFilter(): ((Report, List<SecondaryResult>) -> Boolean)? = when (this) {
+    ManagePickKind.FAN_OUT -> { _, secs -> secs.any { it.fanOutSourceAgentId != null && it.fanInOf == null } }
+    ManagePickKind.META -> { _, secs -> secs.any { it.kind == SecondaryKind.META } }
+    else -> null
+}
+
 internal fun NavGraphBuilder.reportRoutes(
     navController: NavHostController,
     appViewModel: AppViewModel,
@@ -224,6 +256,9 @@ internal fun NavGraphBuilder.reportRoutes(
                 },
                 navArgument("initialReportsAgentId") {
                     type = NavType.StringType; defaultValue = ""; nullable = true
+                },
+                navArgument("initialManageOverlay") {
+                    type = NavType.StringType; defaultValue = ""; nullable = true
                 }
             )
         ) { entry ->
@@ -244,6 +279,11 @@ internal fun NavGraphBuilder.reportRoutes(
             // ViewAiReportScreen's reportsViewInitialAgentId and
             // flips reportsViewOpen on first composition.
             val initialReportsAgentId = entry.arguments?.getString("initialReportsAgentId")
+                ?.takeIf { it.isNotBlank() }
+            // Seed token for a Manage sub-overlay, set when a report was
+            // picked from a Manage screen's 🗂️ (e.g. "meta", "edit_prompt").
+            // [SeedInitialManageOverlay] consumes it once on first composition.
+            val initialManageOverlay = entry.arguments?.getString("initialManageOverlay")
                 ?.takeIf { it.isNotBlank() }
             // Real-time tracker updates live inside ReportScreen,
             // which watches the local showViewReportScreen flag and
@@ -276,11 +316,15 @@ internal fun NavGraphBuilder.reportRoutes(
                 },
                 com.ai.ui.shared.LocalNavigateToReportPicker provides {
                     navController.navigate(NavRoutes.AI_VIEW_PICK_REPORT)
+                },
+                com.ai.ui.shared.LocalNavigateToManagePicker provides { kind ->
+                    navController.navigate(NavRoutes.aiManagePickReport(kind))
                 }
             ) {
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
                 initialView = initialView,
                 initialReportsAgentId = initialReportsAgentId,
+                initialManageOverlay = initialManageOverlay,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 // After a delete-report the user always lands on
                 // the AI Reports hub. popUpTo clears the deleted
@@ -431,10 +475,53 @@ internal fun NavGraphBuilder.reportRoutes(
                 com.ai.ui.report.view.ReportPickerScreen(
                     reportViewModel = reportViewModel,
                     onBack = safePopBack,
+                    currentReportId = appViewModel.uiState.value.currentReportId,
                     onOpenReportView = { rid ->
                         pickScope.launch {
                             reportViewModel.restoreCompletedReport(pickContext, rid)
                             navController.navigate(NavRoutes.aiReportView())
+                        }
+                    }
+                )
+            }
+        }
+        // Filtered "pick a report" screen opened from a Manage screen's 🗂️.
+        // Same picker as the View hub's, but filtered to reports relevant to
+        // the source screen and returning to that same screen on pick.
+        composable(
+            NavRoutes.AI_MANAGE_PICK_REPORT,
+            arguments = listOf(navArgument("kind") { type = NavType.StringType })
+        ) { entry ->
+            val kind = ManagePickKind.fromArg(entry.arguments?.getString("kind"))
+                ?: ManagePickKind.MANAGE
+            val pickContext = LocalContext.current
+            val pickScope = rememberCoroutineScope()
+            com.ai.ui.navigation.ViewSubScreenWithTitleNav(
+                navController = navController,
+                currentReportId = null
+            ) {
+                com.ai.ui.report.view.ReportPickerScreen(
+                    reportViewModel = reportViewModel,
+                    onBack = safePopBack,
+                    screenTitle = kind.screenTitle,
+                    subject = kind.subject,
+                    filter = kind.reportFilter(),
+                    currentReportId = appViewModel.uiState.value.currentReportId,
+                    onOpenReportView = { rid ->
+                        pickScope.launch {
+                            reportViewModel.restoreCompletedReport(pickContext, rid)
+                            // Return to the SAME screen the 🗂️ was tapped on:
+                            // MANAGE → the hub; FAN_OUT → the View tile grid
+                            // (where the report's fan-out(s) are chosen — there's
+                            // no view-only fan-out picker, and the run-a-fan-out
+                            // picker would risk an accidental re-run); the rest
+                            // seed their Manage overlay on entry.
+                            val dest = when (kind) {
+                                ManagePickKind.MANAGE -> NavRoutes.aiReportManage()
+                                ManagePickKind.FAN_OUT -> NavRoutes.aiReportView()
+                                else -> NavRoutes.aiReportManage(kind.arg)
+                            }
+                            navController.navigate(dest)
                         }
                     }
                 )

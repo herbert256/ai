@@ -5,7 +5,9 @@
     "reference": false,
     "category": "meta",
     "agent": "*select",
-    "text": "The following are @COUNT@ AI responses to the same question. Synthesize a single,\nauthoritative answer that captures the best of all responses.\n\nQUESTION:\n@QUESTION@\n\nRESPONSES:\n@RESULTS@\n\nGuidelines:\n- Combine the strongest, most accurate points from each response.\n- Resolve contradictions explicitly; if responses disagree on a fact, say so.\n- Drop redundancy. Do not repeat the question.\n- Match the tone and depth of the original responses.\n- Do not mention that you are summarizing or reference the source responses by number."
+    "text": "The following are @COUNT@ AI responses to the same question. Synthesize a single,\nauthoritative answer that captures the best of all responses.\n\nQUESTION:\n@QUESTION@\n\nRESPONSES:\n@RESULTS@\n\nGuidelines:\n- Combine the strongest, most accurate points from each response.\n- Resolve contradictions explicitly; if responses disagree on a fact, say so.\n- Drop redundancy. Do not repeat the question.\n- Match the tone and depth of the original responses.\n- Do not mention that you are summarizing or reference the source responses by number.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "Compare",
@@ -13,7 +15,9 @@
     "reference": false,
     "category": "meta",
     "agent": "*select",
-    "text": "You are comparing @COUNT@ AI responses to the same question. Identify where they agree and where they diverge.\n\nQUESTION:\n@QUESTION@\n\nRESPONSES:\n@RESULTS@\n\nReference rules — follow them exactly:\n- Each response is identified by ONLY a bracketed number — `[1]`, `[2]`, etc. Provider and model names are intentionally not provided to you; a reference legend mapping each `[N]` to its provider and model is appended to your output automatically. Cite responses with the bracketed number and nothing else.\n- When ALL @COUNT@ responses agree on a point, write \"all responses agree\" (or equivalent) and DO NOT enumerate the IDs. Listing every [1] [2] … [@COUNT@] is noise.\n- Only enumerate IDs when a subset (not all) of the responses share a position — then list just that subset, e.g. \"[1] and [3] argue …\".\n\nProduce a comparative analysis with these sections:\n\n## Points of agreement\nClaims, conclusions, or recommendations that most or all responses share. Apply the reference rules above.\n\n## Points of disagreement\nWhere responses diverge. For each disagreement, describe each side and which response(s) hold which view, referencing them by [N]. Where possible, indicate which view is better supported and why.\n\n## Unique contributions\nFacts, framings, or arguments that only one response raised. Note the source [N] and whether the contribution adds genuine value.\n\n## Overall takeaway\nOne paragraph synthesising what a careful reader should conclude given the points of agreement and disagreement above."
+    "text": "You are comparing @COUNT@ AI responses to the same question. Identify where they agree and where they diverge.\n\nQUESTION:\n@QUESTION@\n\nRESPONSES:\n@RESULTS@\n\nReference rules — follow them exactly:\n- Each response is identified by ONLY a bracketed number — `[1]`, `[2]`, etc. Provider and model names are intentionally not provided to you; a reference legend mapping each `[N]` to its provider and model is appended to your output automatically. Cite responses with the bracketed number and nothing else.\n- When ALL @COUNT@ responses agree on a point, write \"all responses agree\" (or equivalent) and DO NOT enumerate the IDs. Listing every [1] [2] … [@COUNT@] is noise.\n- Only enumerate IDs when a subset (not all) of the responses share a position — then list just that subset, e.g. \"[1] and [3] argue …\".\n\nProduce a comparative analysis with these sections:\n\n## Points of agreement\nClaims, conclusions, or recommendations that most or all responses share. Apply the reference rules above.\n\n## Points of disagreement\nWhere responses diverge. For each disagreement, describe each side and which response(s) hold which view, referencing them by [N]. Where possible, indicate which view is better supported and why.\n\n## Unique contributions\nFacts, framings, or arguments that only one response raised. Note the source [N] and whether the contribution adds genuine value.\n\n## Overall takeaway\nOne paragraph synthesising what a careful reader should conclude given the points of agreement and disagreement above.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "rerank",
@@ -21,7 +25,9 @@
     "reference": false,
     "category": "internal",
     "agent": "*select",
-    "text": "You are an impartial judge ranking @COUNT@ AI responses to the same question.\n\nQUESTION:\n@QUESTION@\n\nRESPONSES:\n@RESULTS@\n\nEvaluate each response on accuracy, completeness, clarity, and usefulness.\nOutput ONLY a JSON array — no prose, no code fences — of the form:\n\n[\n  {\"id\": 1, \"rank\": 1, \"score\": 92, \"reason\": \"...\"},\n  {\"id\": 2, \"rank\": 2, \"score\": 78, \"reason\": \"...\"}\n]\n\n`id` must match the bracketed [N] in RESPONSES.\n`rank` is 1 for the best response, 2 for second, etc. — every id appears exactly once.\n`score` is 0-100. `reason` is one sentence."
+    "text": "You are an impartial judge ranking @COUNT@ AI responses to the same question.\n\nQUESTION:\n@QUESTION@\n\nRESPONSES:\n@RESULTS@\n\nEvaluate each response on accuracy, completeness, clarity, and usefulness.\nOutput ONLY a JSON array — no prose, no code fences — of the form:\n\n[\n  {\"id\": 1, \"rank\": 1, \"score\": 92, \"reason\": \"...\"},\n  {\"id\": 2, \"rank\": 2, \"score\": 78, \"reason\": \"...\"}\n]\n\n`id` must match the bracketed [N] in RESPONSES.\n`rank` is 1 for the best response, 2 for second, etc. — every id appears exactly once.\n`score` is 0-100. `reason` is one sentence.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "moderation",
@@ -29,7 +35,9 @@
     "reference": false,
     "category": "internal",
     "agent": "*select",
-    "text": ""
+    "text": "",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "test_model",
@@ -37,7 +45,9 @@
     "reference": false,
     "category": "internal",
     "agent": "*N/A",
-    "text": "Reply with exactly: OK"
+    "text": "Reply with exactly: OK",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "intro",
@@ -45,7 +55,9 @@
     "reference": false,
     "category": "internal",
     "agent": "*select",
-    "text": "Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown.\n\nYou are: @MODEL@ from @PROVIDER@."
+    "text": "Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown.\n\nYou are: @MODEL@ from @PROVIDER@.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "model_info",
@@ -53,7 +65,9 @@
     "reference": false,
     "category": "internal",
     "agent": "*select",
-    "text": "Tell me about yourself as an AI model. Cover: your name and version, who created you, your context window if you know it, your primary strengths, and any notable limitations. Plain prose, 3–6 sentences.\n\nYou are: @MODEL@ from @PROVIDER@."
+    "text": "Tell me about yourself as an AI model. Cover: your name and version, who created you, your context window if you know it, your primary strengths, and any notable limitations. Plain prose, 3–6 sentences.\n\nYou are: @MODEL@ from @PROVIDER@.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "translate",
@@ -61,7 +75,9 @@
     "reference": false,
     "category": "internal",
     "agent": "*select",
-    "text": "Translate the following text to @LANGUAGE@.\n\nPreserve markdown formatting (headings, bold, italic, lists, code blocks, tables) exactly. Preserve citation references like [1] or [N]. Preserve URLs and code identifiers untouched. Do NOT add commentary, preface, or explanation — output only the translation.\n\nTEXT TO TRANSLATE:\n@TEXT@"
+    "text": "Translate the following text to @LANGUAGE@.\n\nPreserve markdown formatting (headings, bold, italic, lists, code blocks, tables) exactly. Preserve citation references like [1] or [N]. Preserve URLs and code identifiers untouched. Do NOT add commentary, preface, or explanation — output only the translation.\n\nTEXT TO TRANSLATE:\n@TEXT@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "main",
@@ -69,7 +85,9 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@PROMPT@"
+    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@PROMPT@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "report",
@@ -77,7 +95,9 @@
     "reference": false,
     "category": "icons",
     "agent": "*N/A",
-    "text": "Please give a fitting emoji for below text, it is a request to an AI model, first the prompt that is send to this model, then the response from that AI model, your task is to give a fitting emoji for the response of that model, give only this emoji as feedback, nothing more !!!\n\n***PROMPT***\n\n@PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@"
+    "text": "Please give a fitting emoji for below text, it is a request to an AI model, first the prompt that is send to this model, then the response from that AI model, your task is to give a fitting emoji for the response of that model, give only this emoji as feedback, nothing more !!!\n\n***PROMPT***\n\n@PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "report_2",
@@ -85,7 +105,9 @@
     "reference": false,
     "category": "icons",
     "agent": "*N/A",
-    "text": "For your last response above, reply with a single emoji that best captures it. Output only that one emoji, nothing else."
+    "text": "For your last response above, reply with a single emoji that best captures it. Output only that one emoji, nothing else.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "report_3",
@@ -93,7 +115,9 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@RESPONSE@"
+    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@RESPONSE@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "fan_out_2",
@@ -101,7 +125,9 @@
     "reference": false,
     "category": "icons",
     "agent": "*N/A",
-    "text": "For your last response above, reply with a single emoji that best captures it. Output only that one emoji, nothing else."
+    "text": "For your last response above, reply with a single emoji that best captures it. Output only that one emoji, nothing else.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "fan_out",
@@ -109,7 +135,9 @@
     "reference": false,
     "category": "icons",
     "agent": "*N/A",
-    "text": "Please give a fitting emoji for the response below. The context is a fan-out: first the original question, then another AI model's answer, then a meta-prompt asking our model to react to that answer, finally our model's reaction. Give a fitting emoji for our model's reaction (the last RESPONSE block), only one emoji as feedback, nothing more !!!\n\n***QUESTION***\n\n@QUESTION@\n\n***SOURCE_RESPONSE***\n\n@SOURCE_RESPONSE@\n\n***META_PROMPT***\n\n@META_PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@"
+    "text": "Please give a fitting emoji for the response below. The context is a fan-out: first the original question, then another AI model's answer, then a meta-prompt asking our model to react to that answer, finally our model's reaction. Give a fitting emoji for our model's reaction (the last RESPONSE block), only one emoji as feedback, nothing more !!!\n\n***QUESTION***\n\n@QUESTION@\n\n***SOURCE_RESPONSE***\n\n@SOURCE_RESPONSE@\n\n***META_PROMPT***\n\n@META_PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "fan_out_3",
@@ -117,7 +145,9 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@RESPONSE@"
+    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@RESPONSE@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "chat_title",
@@ -125,7 +155,9 @@
     "reference": false,
     "category": "internal",
     "agent": "DeepSeek",
-    "text": "Give a short title, a sentence of maximal 10 words, no other text in the response, based on below text: \n\n @PROMPT@ \n\n @RESPONSE@"
+    "text": "Give a short title, a sentence of maximal 10 words, no other text in the response, based on below text: \n\n @PROMPT@ \n\n @RESPONSE@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "report_title",
@@ -133,7 +165,9 @@
     "reference": false,
     "category": "info",
     "agent": "Anthropic",
-    "text": "Read the text after the blank line below and create two titles for it: a short title of at most 25 characters (including spaces) and a long title of at most 50 characters (including spaces). Put the short title on the first line and the long title on the second line. Return only those two lines and nothing else.\n\n@PROMPT@"
+    "text": "Read the text after the blank line below and create two titles for it: a short title of at most 25 characters (including spaces) and a long title of at most 50 characters (including spaces). Put the short title on the first line and the long title on the second line. Return only those two lines and nothing else.\n\n@PROMPT@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "model_title",
@@ -141,7 +175,9 @@
     "reference": false,
     "category": "info",
     "agent": "Anthropic",
-    "text": "Please see the text after the @@@ marker in this request, you must give it a title, max 4 words, max 325 characters, including spaces, only give this title back, nothing more.\n@@@\n@RESPONSE@"
+    "text": "Please see the text after the @@@ marker in this request, you must give it a title, max 4 words, max 325 characters, including spaces, only give this title back, nothing more.\n@@@\n@RESPONSE@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "report_title_alt",
@@ -149,7 +185,9 @@
     "reference": false,
     "category": "info",
     "agent": "*N/A",
-    "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE title — distinct from the most obvious phrasing, max 5 words, max 30 characters including spaces. Only give this title back, nothing more.\n@@@\n@PROMPT@"
+    "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE title — distinct from the most obvious phrasing, max 5 words, max 30 characters including spaces. Only give this title back, nothing more.\n@@@\n@PROMPT@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "report_title_alt_long",
@@ -157,7 +195,9 @@
     "reference": false,
     "category": "info",
     "agent": "*N/A",
-    "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE long title — distinct from the most obvious phrasing, max 50 characters including spaces. Only give this long title back, nothing more.\n@@@\n@PROMPT@"
+    "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE long title — distinct from the most obvious phrasing, max 50 characters including spaces. Only give this long title back, nothing more.\n@@@\n@PROMPT@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "model_title_alt",
@@ -165,7 +205,9 @@
     "reference": false,
     "category": "info",
     "agent": "*N/A",
-    "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE title — distinct from the most obvious phrasing, max 4 words, max 325 characters including spaces. Only give this title back, nothing more.\n@@@\n@RESPONSE@"
+    "text": "Please see the text after the @@@ marker in this request, give it an ALTERNATIVE title — distinct from the most obvious phrasing, max 4 words, max 325 characters including spaces. Only give this title back, nothing more.\n@@@\n@RESPONSE@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "fan_out_title",
@@ -173,7 +215,9 @@
     "reference": false,
     "category": "info",
     "agent": "*N/A",
-    "text": "For your last response above, reply with a short title that best captures it, max 4 words, max 60 characters. Output only that title, nothing else."
+    "text": "For your last response above, reply with a short title that best captures it, max 4 words, max 60 characters. Output only that title, nothing else.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "report_title_icon",
@@ -181,7 +225,9 @@
     "reference": false,
     "category": "info",
     "agent": "Anthropic",
-    "text": "Please see the text after the @@@ marker in this request, give a fitting emoji for below text, do not use a 'classic yellow smily, give only this emoji as feedback,@@@\n@TITLE@"
+    "text": "Please see the text after the @@@ marker in this request, give a fitting emoji for below text, do not use a 'classic yellow smily, give only this emoji as feedback,@@@\n@TITLE@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "meta",
@@ -189,7 +235,9 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@NAME@ @TITLE@"
+    "text": "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@NAME@ @TITLE@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "translation",
@@ -197,7 +245,9 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
+    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "language",
@@ -205,7 +255,9 @@
     "reference": false,
     "category": "info",
     "agent": "DeepSeek",
-    "text": "Identify the language of the text below.\n\nReply with EXACTLY two lines and nothing else:\nlanguage: <English name of the language>\nicon: <single fitting emoji>\n\nTEXT:\n@PROMPT@"
+    "text": "Identify the language of the text below.\n\nReply with EXACTLY two lines and nothing else:\nlanguage: <English name of the language>\nicon: <single fitting emoji>\n\nTEXT:\n@PROMPT@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "response",
@@ -213,7 +265,9 @@
     "reference": false,
     "category": "fan_out",
     "agent": "*n/a",
-    "text": "@RESPONSE@"
+    "text": "@RESPONSE@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "factcheck",
@@ -221,7 +275,9 @@
     "reference": false,
     "category": "fan_out",
     "agent": "*n/a",
-    "text": "Here are 10 facts about chess, please do a factcheck about each of them: @RESPONSE@"
+    "text": "Here are 10 facts about chess, please do a factcheck about each of them: @RESPONSE@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "test",
@@ -229,7 +285,9 @@
     "reference": false,
     "category": "fan_in",
     "agent": "*select",
-    "text": "Here are @COUNT@ reports, with for each report @FAN_OUT_COUNT@ responses about those reports. Those responses are factchecks about the report. Please combine everything into a single report. Do not say that report is a combined report. Have 3 sections in that report. Section one is names \"The Truth\", here are facts which are viewed true in the responds. The second section is named \"Doubtful\" facts where the responses do not have a clear judgement about. The third seconds is name \"Just wrong\", facts where all responses agree about that they are not true.\n\n***Report*** @REPORT@@RESPONSES@"
+    "text": "Here are @COUNT@ reports, with for each report @FAN_OUT_COUNT@ responses about those reports. Those responses are factchecks about the report. Please combine everything into a single report. Do not say that report is a combined report. Have 3 sections in that report. Section one is names \"The Truth\", here are facts which are viewed true in the responds. The second section is named \"Doubtful\" facts where the responses do not have a clear judgement about. The third seconds is name \"Just wrong\", facts where all responses agree about that they are not true.\n\n***Report*** @REPORT@@RESPONSES@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "factcheck",
@@ -237,7 +295,9 @@
     "reference": false,
     "category": "fan_in",
     "agent": "*select",
-    "text": "Here are @COUNT@ reports, with for each report @FAN_OUT_COUNT@ responses about those reports. Those responses are factchecks about the report. Please combine everything into a single report. Do not say that report is a combined report. Have 3 sections in that report. Section one is names \"The Truth\", here are facts which are viewed true in the responds. The second section is named \"Doubtful\" facts where the responses do not have a clear judgement about. The third seconds is name \"Just wrong\", facts where all responses agree about that they are not true.\n\n***Report*** @REPORT@@RESPONSES@"
+    "text": "Here are @COUNT@ reports, with for each report @FAN_OUT_COUNT@ responses about those reports. Those responses are factchecks about the report. Please combine everything into a single report. Do not say that report is a combined report. Have 3 sections in that report. Section one is names \"The Truth\", here are facts which are viewed true in the responds. The second section is named \"Doubtful\" facts where the responses do not have a clear judgement about. The third seconds is name \"Just wrong\", facts where all responses agree about that they are not true.\n\n***Report*** @REPORT@@RESPONSES@",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "m (a)",
@@ -245,7 +305,9 @@
     "reference": false,
     "category": "fan-in-model",
     "agent": "*select",
-    "text": "model (a)"
+    "text": "model (a)",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "m (n)",
@@ -253,7 +315,9 @@
     "reference": false,
     "category": "fan-in-model",
     "agent": "*select",
-    "text": "model (b)"
+    "text": "model (b)",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "main_alt",
@@ -261,7 +325,9 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
+    "text": "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "meta_alt",
@@ -269,7 +335,9 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
+    "text": "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "report_alt",
@@ -277,7 +345,9 @@
     "reference": false,
     "category": "icons",
     "agent": "*N/A",
-    "text": "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
+    "text": "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "fan_out_alt",
@@ -285,7 +355,9 @@
     "reference": false,
     "category": "icons",
     "agent": "*N/A",
-    "text": "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
+    "text": "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "language_alt",
@@ -293,7 +365,9 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Do not use a country flag emoji, be creative and find an alternative emoji that fits this text."
+    "text": "Do not use a country flag emoji, be creative and find an alternative emoji that fits this text.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "translation_alt",
@@ -301,7 +375,9 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Do not use a country flag emoji, be creative and find an alternative emoji that fits this text."
+    "text": "Do not use a country flag emoji, be creative and find an alternative emoji that fits this text.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "language",
@@ -309,7 +385,9 @@
     "reference": false,
     "category": "icons",
     "agent": "DeepSeek",
-    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
+    "text": "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   },
   {
     "name": "model_intro_view",
@@ -317,6 +395,8 @@
     "reference": false,
     "category": "intra",
     "agent": "*N.A",
-    "text": "Good day !\n\nPlease introduce yourself, give information like:\n- your name and version\n- your cut-off date of the knowledge you have\n- your owner and a short introduction about your owner.\n- your cabilities, like websearch, images support and so on.\n\nUse MD markup in your answer, keep in mind that your response will be viewed on a phone screen."
+    "text": "Good day !\n\nPlease introduce yourself, give information like:\n- your name and version\n- your cut-off date of the knowledge you have\n- your owner and a short introduction about your owner.\n- your cabilities, like websearch, images support and so on.\n\nUse MD markup in your answer, keep in mind that your response will be viewed on a phone screen.",
+    "parameters": "*NONE",
+    "systemPrompt": "*NONE"
   }
 ]

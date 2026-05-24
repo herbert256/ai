@@ -41,9 +41,10 @@ internal fun BlockedModelForm(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
-    var providerId by remember { mutableStateOf(initial?.providerId ?: "") }
-    var model by remember { mutableStateOf(initial?.model ?: "") }
-    var reason by remember { mutableStateOf(initial?.reason ?: "") }
+    var resetTick by remember { mutableStateOf(0) }
+    var providerId by remember(resetTick) { mutableStateOf(initial?.providerId ?: "") }
+    var model by remember(resetTick) { mutableStateOf(initial?.model ?: "") }
+    var reason by remember(resetTick) { mutableStateOf(initial?.reason ?: "") }
     var showPicker by remember { mutableStateOf(false) }
 
     if (showPicker) {
@@ -65,7 +66,8 @@ internal fun BlockedModelForm(
         saveEnabled = hasModel,
         onSave = { onSaved(BlockedModel(providerId, model, reason.trim())) },
         onBack = onBack,
-        helpTopic = "crud_blocked_models"
+        helpTopic = "crud_blocked_models",
+        onReset = { resetTick++ }
     ) {
         OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
             Text(

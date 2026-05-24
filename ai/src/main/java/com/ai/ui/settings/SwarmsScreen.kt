@@ -15,8 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.model.*
-import com.ai.ui.chat.ParametersSelectorDialog
-import com.ai.ui.chat.SystemPromptSelectorDialog
+import com.ai.ui.shared.ParametersSelectScreen
+import com.ai.ui.shared.SystemPromptSelectScreen
 import com.ai.ui.shared.*
 
 @Composable
@@ -32,10 +32,11 @@ fun SwarmEditScreen(
     BackHandler { onBack() }
     val isEditing = swarm != null
 
-    var name by remember { mutableStateOf(swarm?.name ?: "") }
-    var selectedMembers by remember { mutableStateOf(swarm?.members ?: emptyList()) }
-    var selectedParamsIds by remember { mutableStateOf(swarm?.paramsIds ?: emptyList()) }
-    var selectedSystemPromptId by remember { mutableStateOf(swarm?.systemPromptId) }
+    var resetTick by remember { mutableStateOf(0) }
+    var name by remember(resetTick) { mutableStateOf(swarm?.name ?: "") }
+    var selectedMembers by remember(resetTick) { mutableStateOf(swarm?.members ?: emptyList()) }
+    var selectedParamsIds by remember(resetTick) { mutableStateOf(swarm?.paramsIds ?: emptyList()) }
+    var selectedSystemPromptId by remember(resetTick) { mutableStateOf(swarm?.systemPromptId) }
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSystemPromptDialog by remember { mutableStateOf(false) }
     var showModelPicker by remember { mutableStateOf(false) }
@@ -89,12 +90,16 @@ fun SwarmEditScreen(
     }
 
     if (showParamsDialog) {
-        ParametersSelectorDialog(aiSettings = aiSettings, selectedIds = selectedParamsIds,
-            onConfirm = { selectedParamsIds = it; showParamsDialog = false }, onDismiss = { showParamsDialog = false })
+        ParametersSelectScreen(aiSettings = aiSettings, selectedIds = selectedParamsIds,
+            onConfirm = { selectedParamsIds = it },
+            onBack = { showParamsDialog = false }, onNavigateHome = onNavigateHome)
+        return
     }
     if (showSystemPromptDialog) {
-        SystemPromptSelectorDialog(aiSettings = aiSettings, selectedId = selectedSystemPromptId,
-            onSelect = { selectedSystemPromptId = it; showSystemPromptDialog = false }, onDismiss = { showSystemPromptDialog = false })
+        SystemPromptSelectScreen(aiSettings = aiSettings, selectedId = selectedSystemPromptId,
+            onSelect = { selectedSystemPromptId = it },
+            onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome)
+        return
     }
 
     Column(
@@ -106,7 +111,10 @@ fun SwarmEditScreen(
             subject = name,
             onBackClick = onBack,
             onOpenView = if (!isAddMode) onOpenView else null,
-            onCopyReport = null
+            onCopyReport = null,
+            onClear = { resetTick++ },
+            onParameters = { showParamsDialog = true },
+            onSystemPrompt = { showSystemPromptDialog = true }
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
@@ -127,18 +135,7 @@ fun SwarmEditScreen(
             isError = name.isNotBlank() && nameError != null
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val spName = selectedSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
-            OutlinedButton(onClick = { showSystemPromptDialog = true }, modifier = Modifier.weight(1f),
-                colors = if (spName != null) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-            ) { Text(spName ?: "System Prompt", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            val pNames = selectedParamsIds.mapNotNull { aiSettings.getParametersById(it)?.name }
-            OutlinedButton(onClick = { showParamsDialog = true }, modifier = Modifier.weight(1f),
-                colors = if (pNames.isNotEmpty()) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-            ) { Text(if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Parameters", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        }
-
+        // System prompt + parameters now live on the bottom-bar 🎭 / 🌡️ icons.
         Spacer(modifier = Modifier.height(12.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${selectedMembers.size} member${if (selectedMembers.size == 1) "" else "s"}",

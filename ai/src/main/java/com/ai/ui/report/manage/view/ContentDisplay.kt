@@ -986,7 +986,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             it.category == "icons" && it.name == "main"
         }
         val iconAgent = iconPrompt?.let { p ->
-            ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
+            ai.resolvePromptAgent(p)
         }
         val provider = iconAgent?.provider
         val model = iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
@@ -1019,7 +1019,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             it.category == "info" && it.name == "language"
         }
         val agent = detectPrompt?.let { p ->
-            ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
+            ai.resolvePromptAgent(p)
         }
         val provider = agent?.provider
         val model = agent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
@@ -1041,7 +1041,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             it.category == "icons" && it.name == "language"
         }
         val iconAgent = iconPrompt?.let { p ->
-            ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
+            ai.resolvePromptAgent(p)
         }
         val pickedParts = report.languageIconModel?.split("/", limit = 2)
         val provider = pickedParts?.firstOrNull()?.let { AppService.findById(it) } ?: iconAgent?.provider
@@ -1070,7 +1070,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             it.category == "info" && it.name == "report_title"
         }
         val titleAgent = titlePrompt?.let { p ->
-            ai.agents.firstOrNull { it.name.equals(p.agent, ignoreCase = true) }
+            ai.resolvePromptAgent(p)
         }
         val parts = report.titleModel?.split("/", limit = 2)
         val provider = parts?.firstOrNull()?.let { AppService.findById(it) } ?: titleAgent?.provider
@@ -1211,7 +1211,10 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         rows.groupBy {
             when {
                 it.type.startsWith("icon_") -> "icons"
-                it.type == "model_title" -> "model titles"
+                // Find-alt title spend folds into the matching title line
+                // (symmetry with icon alts folding into "icons").
+                it.type == "model_title" || it.type == "title_model_alt" -> "model titles"
+                it.type == "title_report_alt" -> "title"
                 else -> it.type
             }
         }.map { (k, gs) ->

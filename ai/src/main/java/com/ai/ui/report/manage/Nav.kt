@@ -66,6 +66,12 @@ fun ReportsScreenNav(
      *  at this agent's page. Used by Model Info View's Last-Usage
      *  rows ([NavRoutes.aiReportViewAtAgent]). */
     initialReportsAgentId: String? = null,
+    /** Optional Manage sub-overlay to open on first composition, set
+     *  when a report was picked from a Manage screen's 🗂️ so the user
+     *  returns to that same screen for the chosen report. A
+     *  [com.ai.ui.navigation.ManagePickKind] arg token; consumed once
+     *  by [SeedInitialManageOverlay]. */
+    initialManageOverlay: String? = null,
     onNavigateBack: () -> Unit,
     onNavigateHome: () -> Unit = onNavigateBack,
     /** Explicit navigation to the AI Reports hub. Used after a
@@ -267,6 +273,7 @@ fun ReportsScreenNav(
             onOpenView = onOpenReportView,
             initialView = initialView,
             initialReportsAgentId = initialReportsAgentId,
+            initialManageOverlay = initialManageOverlay,
             // Route-pop hook used by the View overlay's onBack when the
             // user arrived here via the per-row 👁 icon — pops AI_REPORTS
             // so back returns to the list instead of falling through to
@@ -343,11 +350,11 @@ fun ReportsScreenNav(
         },
         titleFanOutByReport = titleFanOutByReport,
         titleFanOutByAgent = titleFanOutByAgent,
-        onStartReportTitleFanOut = { rid, prompt, models, long ->
-            reportViewModel.iconGen.startReportTitleFanOut(context, rid, prompt, models, aiSettings, long)
+        onStartReportTitleFanOut = { rid, prompt, models, long, paramsIds, systemPromptId ->
+            reportViewModel.iconGen.startReportTitleFanOut(context, rid, prompt, models, aiSettings, long, paramsIds, systemPromptId)
         },
-        onStartModelTitleFanOut = { rid, agentId, models ->
-            reportViewModel.iconGen.startModelTitleFanOut(context, rid, agentId, models, aiSettings)
+        onStartModelTitleFanOut = { rid, agentId, models, paramsIds, systemPromptId ->
+            reportViewModel.iconGen.startModelTitleFanOut(context, rid, agentId, models, aiSettings, paramsIds, systemPromptId)
         },
         onRestartReportTitleFanOut = { rid -> reportViewModel.iconGen.restartReportTitleFanOut(rid) },
         onRestartModelTitleFanOut = { agentId -> reportViewModel.iconGen.restartModelTitleFanOut(agentId) },
@@ -365,10 +372,11 @@ fun ReportsScreenNav(
             onKickoff = { prompt ->
                 reportViewModel.iconGen.kickOffInternalPromptIcon(context, prompt, aiSettings)
             },
-            onStartFanOut = { prompt, picks ->
+            onStartFanOut = { prompt, picks, paramsIds, systemPromptId ->
                 reportViewModel.iconGen.startInternalPromptIconFanOut(
                     context, prompt, picks, aiSettings,
-                    reportId = uiState.currentReportId
+                    reportId = uiState.currentReportId,
+                    paramsIds = paramsIds, systemPromptId = systemPromptId
                 )
             },
             onPick = { prompt, cand ->
@@ -417,20 +425,20 @@ fun ReportsScreenNav(
         hasPrevReport = hasPrevReport,
         hasNextReport = hasNextReport,
         initialModels = initialModels,
-        onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope ->
-            reportViewModel.secondary.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope)
+        onRunSecondary = { reportId, metaPrompt, picks, scopeChoice, languageScope, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runMetaPrompt(context, reportId, metaPrompt, picks, scopeChoice, languageScope, paramsIds, systemPromptId)
         },
         onTranslateMissingItems = { reportId, items, target, targetNative ->
             reportViewModel.translation.translateMissingItems(context, reportId, items, target, targetNative)
         },
-        onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage ->
-            reportViewModel.secondary.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage)
+        onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds = paramsIds, systemPromptId = systemPromptId)
         },
-        onRunFanIn = { reportId, metaPrompt, pick, sourceLanguage ->
-            reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, pick, sourceLanguage)
+        onRunFanIn = { reportId, metaPrompt, pick, sourceLanguage, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, pick, sourceLanguage, paramsIds, systemPromptId)
         },
-        onRunModelFanIn = { reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage ->
-            reportViewModel.secondary.runModelFanInPrompt(context, reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage)
+        onRunModelFanIn = { reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runModelFanInPrompt(context, reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage, paramsIds, systemPromptId)
         },
         onCreateReportFromFanOut = { sourceRid, activePid, activeMdl ->
             scope.launch {
@@ -445,8 +453,8 @@ fun ReportsScreenNav(
         onRunLocalRerank = { reportId, modelName ->
             reportViewModel.secondary.runLocalRerank(context, reportId, modelName)
         },
-        onRunRerank = { reportId, pick, languageScope ->
-            reportViewModel.secondary.runRerank(context, reportId, pick, languageScope)
+        onRunRerank = { reportId, pick, languageScope, paramsIds, systemPromptId ->
+            reportViewModel.secondary.runRerank(context, reportId, pick, languageScope, paramsIds, systemPromptId)
         },
         onRunModeration = { reportId, pick, languageScope ->
             reportViewModel.secondary.runModeration(context, reportId, pick, languageScope)
@@ -472,6 +480,7 @@ fun ReportsScreenNav(
         onNavigateHome = handleNavigateHome,
         advancedParameters = uiState.reportAdvancedParameters,
         onAdvancedParametersChange = { viewModel.setReportAdvancedParameters(it) },
+        onParametersIdsChange = { viewModel.setReportParametersIds(it) },
         onSystemPromptChange = { viewModel.setReportSystemPromptId(it) },
         onNavigateToTrace = onNavigateToTrace,
         onNavigateToTraceFile = onNavigateToTraceFile,
@@ -493,6 +502,7 @@ fun ReportsScreenNav(
         // batch job (app-restart-survivable, phased through every
         // category) instead of the legacy one-shot regenerateReport.
         onRegenerate = { rid -> reportViewModel.regenerateBatchEngine.enqueueAndStart(context, rid) },
+        onRegenerateInfo = { rid -> reportViewModel.regenerateReportInfo(context, rid) },
         onUpdatePrompt = { rid, prompt ->
             scope.launch { reportViewModel.updateReportPrompt(context, rid, prompt) }
         },
@@ -533,8 +543,8 @@ fun ReportsScreenNav(
         translationRuns = reportViewModel.translation.translationRuns.collectAsState().value.values
             .filter { it.sourceReportId == uiState.currentReportId }
             .toList(),
-        onStartTranslation = { sourceId, langName, langNative, models ->
-            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, models)
+        onStartTranslation = { sourceId, langName, langNative, models, paramsIds, systemPromptId ->
+            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, models, paramsIds, systemPromptId)
         },
         translationLifecycle = TranslationLifecycleCallbacks(
             onCancelRun = { runId -> reportViewModel.translation.cancelTranslation(runId) },
@@ -622,6 +632,28 @@ internal fun SeedInitialViewReportScreen(onSeed: () -> Unit) {
     }
 }
 
+/** One-shot seed for a Manage sub-overlay, set when a report was picked
+ *  from a Manage screen's 🗂️ ([com.ai.ui.navigation.ManagePickKind]).
+ *  Reads the `initialManageOverlay` token bundled into
+ *  [com.ai.ui.shared.LocalReportListIconBundle] by [ReportsScreenNav];
+ *  flips the matching `st.show*` flag exactly once on first composition.
+ *  Hosted here (not inline in [ReportsScreen]) so the `when` block's
+ *  bytecode stays out of that 64 KB-ceiling method. MANAGE / FAN_OUT
+ *  carry no overlay token (the picker routes them to the hub / View
+ *  grid), so they never reach here. */
+@Composable
+internal fun SeedInitialManageOverlay(st: ReportsScreenState) {
+    val bundle = com.ai.ui.shared.LocalReportListIconBundle.current
+    LaunchedEffect(Unit) {
+        when (com.ai.ui.navigation.ManagePickKind.fromArg(bundle.initialManageOverlay)) {
+            com.ai.ui.navigation.ManagePickKind.META -> st.showMetaScreen.value = true
+            com.ai.ui.navigation.ManagePickKind.EDIT_PROMPT -> st.showEditPrompt.value = true
+            com.ai.ui.navigation.ManagePickKind.EDIT_TITLE -> st.showEditTitle.value = true
+            else -> { /* MANAGE / FAN_OUT / null — nothing to seed */ }
+        }
+    }
+}
+
 /** Writes (reportId, viewMode) into [com.ai.data.LastReportTracker]
  *  whenever either changes. The home-page big-AI-logo reads this to
  *  resume the user back into their last opened report in the same
@@ -636,32 +668,6 @@ internal fun TrackLastReportMode(reportId: String?, viewMode: Boolean) {
             ?.let { com.ai.data.LastReportTracker.record(it, view = viewMode) }
     }
 }
-
-/** Per-report system-prompt picker — owns its own visibility state
- *  and renders the shared [com.ai.ui.chat.SystemPromptSelectorDialog]
- *  when the parent triggers it via the returned `show` lambda. The
- *  state lives inside this helper so the rememberSaveable, the if-
- *  block, and every dispatched lambda stay out of [ReportsScreen]'s
- *  bytecode — which already sits at the JVM 64 KB per-method
- *  ceiling. */
-@Composable
-internal fun rememberEditSystemPromptDialog(
-    aiSettings: com.ai.model.Settings,
-    selectedId: String?,
-    onSelect: (String?) -> Unit
-): () -> Unit {
-    var show by rememberSaveable { mutableStateOf(false) }
-    if (show) {
-        com.ai.ui.chat.SystemPromptSelectorDialog(
-            aiSettings = aiSettings,
-            selectedId = selectedId,
-            onSelect = { id -> onSelect(id); show = false },
-            onDismiss = { show = false }
-        )
-    }
-    return { show = true }
-}
-
 
 internal fun loadSavedReportModels(viewModel: AppViewModel, aiSettings: Settings): List<ReportModel> {
     val agentIds = viewModel.loadReportAgents()

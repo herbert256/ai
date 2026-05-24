@@ -21,6 +21,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,6 +64,10 @@ internal fun ReportRunScreen(
     iconGenEnabled: Boolean,
     showRegenerateConfirm: Boolean,
     models: List<ReportModel>,
+    /** Manage screen state — read for the "Report - Get info" layer
+     *  (st.showGetInfo) drawn on top of this hub, and to set the
+     *  icon / title detail flags its rows open. */
+    st: ReportsScreenState,
     generationHandlers: GenerationPhaseHandlers,
     secondaryCounts: SecondaryResultStorage.Counts,
     costsFromDeletedItems: Double,
@@ -93,6 +98,9 @@ internal fun ReportRunScreen(
     onRequestRegenerate: () -> Unit,
     onDismissRegenerateConfirm: () -> Unit,
     onRegenerate: (String) -> Unit,
+    /** Metadata-only regenerate — used by the 🔄 while the Get-info
+     *  layer is open (re-runs the page's icon/title/language jobs). */
+    onRegenerateInfo: (String) -> Unit = {},
     onChatWithReportPrompt: (String) -> Unit
 ) {
     val aiSettings = uiState.aiSettings
@@ -108,19 +116,23 @@ internal fun ReportRunScreen(
             withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.pinned == true }
         } ?: false
     }
-    // Per-report system-prompt picker — owns its visibility state +
-    // renders the SystemPromptSelectorDialog. Returns the trigger
-    // lambda that Edit Row 2's "System prompt" button fires. Lives
-    // here (not in ReportScreen) so its bytecode stays out of the
-    // 64 KB-ceiling-hugging ReportsScreen. The select callback is
-    // pulled from LocalSystemPromptChange so we don't need to thread
-    // it through the call site as another arg.
+    // The select callback is pulled from LocalSystemPromptChange so we
+    // don't thread it through the call site as another arg.
     val systemPromptChange = com.ai.ui.shared.LocalSystemPromptChange.current
-    val editSystemPromptTrigger = rememberEditSystemPromptDialog(
-        aiSettings = aiSettings,
-        selectedId = uiState.reportSystemPromptId,
-        onSelect = systemPromptChange
-    )
+    // Per-report system-prompt picker — opens the full-screen
+    // "Define AI model system prompt" overlay. The early return keeps
+    // this screen's remember state underneath.
+    var showEditSystemPrompt by rememberSaveable { mutableStateOf(false) }
+    val editSystemPromptTrigger: () -> Unit = { showEditSystemPrompt = true }
+    if (showEditSystemPrompt) {
+        com.ai.ui.shared.SystemPromptSelectScreen(
+            aiSettings = aiSettings,
+            selectedId = uiState.reportSystemPromptId,
+            onSelect = systemPromptChange,
+            onBack = { showEditSystemPrompt = false }, onNavigateHome = onDismiss
+        )
+        return
+    }
     // 👯 duplicate-report tap shows a yes/no first so an accidental
     // hit on the bottom bar doesn't silently spawn a "(Copy)" report.
     var showCopyConfirm by remember { mutableStateOf(false) }
@@ -224,6 +236,14 @@ internal fun ReportRunScreen(
         // Running total cost, reported up from GenerationPhase, shown in
         // the bottom icon bar (top row, right, above ❓).
         var totalCostForBar by remember { mutableStateOf(0.0) }
+        // 🗂️ pick-another-report on the Manage hub → the unfiltered picker,
+        // returning to the hub for the chosen report. Provided only around
+        // the TitleBar so the auto-captured bottom-bar icon appears here.
+        val managePick = com.ai.ui.shared.LocalNavigateToManagePicker.current
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalManagePickReport provides
+                { managePick(com.ai.ui.navigation.ManagePickKind.MANAGE.arg) }
+        ) {
         TitleBar(
             helpTopic = "report_run",
             title = "Manage an AI report",
@@ -260,24 +280,46 @@ internal fun ReportRunScreen(
             } else null,
             isPinned = isPinned,
             onEdit = { editCreateMenu.value = if (editCreateMenu.value == "edit") null else "edit" },
+            // 🌡️ parameters / 🎭 system prompt — pulled out of the Edit
+            // pop-up onto their own bottom-bar icons.
+            onParameters = if (currentReportId != null) { { st.showEditParameters.value = true } } else null,
+            onSystemPrompt = if (currentReportId != null) editSystemPromptTrigger else null,
             onAdd = { editCreateMenu.value = if (editCreateMenu.value == "create") null else "create" },
             addFirst = true
         )
+        }
 
         if (showRegenerateConfirm && currentReportId != null) {
             val rid = currentReportId
-            val agentCount = models.size
-            com.ai.ui.shared.ReloadConfirmationDialog(
-                target = "",
-                title = "Regenerate every agent?",
-                message = "Re-fire the API call for all $agentCount model${if (agentCount == 1) "" else "s"} on this report. The existing responses, costs, and traces are replaced. Secondary results (Meta, Fan out, Translate) are kept.",
-                confirmLabel = "Regenerate",
-                onConfirm = {
-                    onDismissRegenerateConfirm()
-                    onRegenerate(rid)
-                },
-                onDismiss = onDismissRegenerateConfirm
-            )
+            // On the Get-info layer the 🔄 regenerates only this page's
+            // metadata jobs (icon / title / language / per-model), not
+            // the whole report.
+            if (st.showGetInfo.value) {
+                com.ai.ui.shared.ReloadConfirmationDialog(
+                    target = "",
+                    title = "Regenerate report info?",
+                    message = "Re-run the icon, language, title and per-model icon / title jobs shown here. Each new call's cost is ADDED on top of the report's existing cost; the model responses and secondary results are left untouched.",
+                    confirmLabel = "Regenerate info",
+                    onConfirm = {
+                        onDismissRegenerateConfirm()
+                        onRegenerateInfo(rid)
+                    },
+                    onDismiss = onDismissRegenerateConfirm
+                )
+            } else {
+                val agentCount = models.size
+                com.ai.ui.shared.ReloadConfirmationDialog(
+                    target = "",
+                    title = "Regenerate every agent?",
+                    message = "Re-fire the API call for all $agentCount model${if (agentCount == 1) "" else "s"} on this report. The existing responses, costs, and traces are replaced. Secondary results (Meta, Fan out, Translate) are kept.",
+                    confirmLabel = "Regenerate",
+                    onConfirm = {
+                        onDismissRegenerateConfirm()
+                        onRegenerate(rid)
+                    },
+                    onDismiss = onDismissRegenerateConfirm
+                )
+            }
         }
 
         GenerationPhase(
@@ -339,6 +381,44 @@ internal fun ReportRunScreen(
                     .border(1.dp, com.ai.ui.shared.AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             )
+        }
+        // "Report - Get info" drawn as a visual layer ON TOP of this
+        // still-composed hub. Because the hub's TitleBar + GenerationPhase
+        // stay composed underneath, the global bottom bar remains the
+        // hub's (cost above ❓ + every action icon, with the live ✏️/🆕
+        // menus and confirm dialogs) — Get info's own header passes
+        // publishBottomBar=false so it doesn't clobber it. Its opaque
+        // background covers the hub body; Back peels just this layer.
+        if (st.showGetInfo.value && currentReportId != null) {
+            // Provide the report-context locals the screen's TitleBar
+            // reads: the dynamic report icon (top-left), and the
+            // "current report" target so tapping the icon / title peels
+            // this layer back to the Manage hub.
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides { st.showGetInfo.value = false }
+            ) {
+                ReportGetInfoScreen(
+                    reportId = currentReportId,
+                    settings = aiSettings,
+                    iconRefreshTick = uiState.iconRefreshTick,
+                    iconGenEnabled = iconGenEnabled,
+                    reportLanguageOn = uiState.generalSettings.reportLanguageOn(),
+                    titleModeAi = uiState.generalSettings.reportTitleAiOn(),
+                    perModelIcon = uiState.generalSettings.perModelIconOn(),
+                    perModelTitle = uiState.generalSettings.perModelTitleOn(),
+                    onBack = { st.showGetInfo.value = false },
+                    onOpenIconDetail = { st.showIconDetail.value = true },
+                    onOpenLanguageDetail = {
+                        st.showIconDetail.value = true
+                        st.targetLanguageIcon.value = true
+                    },
+                    onEditTitle = { st.showEditTitle.value = true },
+                    onOpenAgentIconDetail = { agentId -> st.agentIconDetailFor.value = agentId },
+                    onEditModelTitle = { agentId -> st.editModelTitleFor.value = agentId }
+                )
+            }
         }
     } // close outer Box
 }

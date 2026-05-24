@@ -76,50 +76,38 @@ fun ChatParametersScreen(
     var showSystemPromptDialog by rememberSaveable { mutableStateOf(false) }
 
     if (showParamsDialog) {
-        ParametersSelectorDialog(
+        com.ai.ui.shared.ParametersSelectScreen(
             aiSettings = aiSettings, selectedIds = selectedParametersIds,
-            onConfirm = { selectedParametersIds = it; showParamsDialog = false },
-            onDismiss = { showParamsDialog = false }
+            onConfirm = { selectedParametersIds = it },
+            onBack = { showParamsDialog = false }, onNavigateHome = onNavigateHome
         )
+        return
     }
     if (showSystemPromptDialog) {
-        SystemPromptSelectorDialog(
+        com.ai.ui.shared.SystemPromptSelectScreen(
             aiSettings = aiSettings, selectedId = selectedSystemPromptId,
             onSelect = { id ->
                 selectedSystemPromptId = id
                 if (id != null) systemPrompt = aiSettings.getSystemPromptById(id)?.prompt ?: systemPrompt
-                showSystemPromptDialog = false
             },
-            onDismiss = { showSystemPromptDialog = false }
+            onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome
         )
+        return
     }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "chat_parameters", title = "Chat Parameters", subject = "Set model & options before chatting", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "chat_parameters", title = "Chat Parameters", subject = "Set model & options before chatting", onBackClick = onNavigateBack,
+            onParameters = { showParamsDialog = true }, onSystemPrompt = { showSystemPromptDialog = true })
         Text(com.ai.ui.shared.modelLabel(provider.id, model, separator = " / "),
             fontSize = 12.sp, color = AppColors.TextTertiary,
             modifier = Modifier.modelInfoClickable(provider, model))
         Spacer(modifier = Modifier.height(16.dp))
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val spName = selectedSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
-                OutlinedButton(
-                    onClick = { showSystemPromptDialog = true },
-                    modifier = Modifier.weight(1f),
-                    colors = if (spName != null) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-                ) { Text(spName ?: "System Prompt", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-
-                val pNames = selectedParametersIds.mapNotNull { aiSettings.getParametersById(it)?.name }
-                OutlinedButton(
-                    onClick = { showParamsDialog = true },
-                    modifier = Modifier.weight(1f),
-                    colors = if (pNames.isNotEmpty()) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-                ) { Text(if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Parameters", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            }
-
+            // System-prompt / parameters preset selectors now live on the
+            // bottom-bar 🎭 / 🌡️ icons (wired on the TitleBar above).
             OutlinedTextField(
                 value = systemPrompt, onValueChange = { systemPrompt = it; selectedSystemPromptId = null },
                 label = { Text("System prompt") }, modifier = Modifier.fillMaxWidth(),
@@ -1088,124 +1076,9 @@ private fun AnimatedTextLines(content: String) {
     }
 }
 
-// ===== Shared Dialogs =====
-
-@Composable
-internal fun SystemPromptSelectorDialog(
-    aiSettings: Settings,
-    selectedId: String?,
-    onSelect: (String?) -> Unit,
-    onDismiss: () -> Unit
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Select System Prompt", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (aiSettings.systemPrompts.isEmpty()) {
-                    Text("No system prompts configured", color = AppColors.TextTertiary, fontSize = 14.sp)
-                } else {
-                    LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                        item(key = "__none__") {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().clickable { onSelect(null) }.padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(selected = selectedId == null, onClick = { onSelect(null) })
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("None (manual)", color = Color.White)
-                            }
-                            HorizontalDivider(color = AppColors.DividerDark)
-                        }
-                        items(aiSettings.systemPrompts, key = { it.id }) { sp ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth().clickable { onSelect(sp.id) }.padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(selected = selectedId == sp.id, onClick = { onSelect(sp.id) })
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(sp.name, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                    Text(sp.prompt.take(80), color = AppColors.TextTertiary, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                }
-                            }
-                            HorizontalDivider(color = AppColors.DividerDark)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                    Text("Cancel", maxLines = 1, softWrap = false)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-internal fun ParametersSelectorDialog(
-    aiSettings: Settings,
-    selectedIds: List<String>,
-    onConfirm: (List<String>) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var current by remember { mutableStateOf(selectedIds.toSet()) }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text("Select Parameter Presets", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.White)
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (aiSettings.parameters.isEmpty()) {
-                    Text("No parameter presets configured", color = AppColors.TextTertiary, fontSize = 14.sp)
-                } else {
-                    LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                        items(aiSettings.parameters, key = { it.id }) { params ->
-                            val isChecked = params.id in current
-                            Row(
-                                modifier = Modifier.fillMaxWidth().clickable {
-                                    current = if (isChecked) current - params.id else current + params.id
-                                }.padding(vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(checked = isChecked, onCheckedChange = {
-                                    current = if (isChecked) current - params.id else current + params.id
-                                })
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(params.name, color = Color.White, fontWeight = FontWeight.SemiBold)
-                                    val details = listOfNotNull(
-                                        params.temperature?.let { "temp=$it" },
-                                        params.maxTokens?.let { "max=$it" },
-                                        params.topP?.let { "topP=$it" }
-                                    ).joinToString(", ")
-                                    if (details.isNotEmpty()) Text(details, color = AppColors.TextTertiary, fontSize = 12.sp)
-                                }
-                            }
-                            HorizontalDivider(color = AppColors.DividerDark)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    TextButton(onClick = { onConfirm(current.toList()) }) { Text("OK", maxLines = 1, softWrap = false) }
-                }
-            }
-        }
-    }
-}
+// The former ParametersSelectorDialog / SystemPromptSelectorDialog are
+// gone — replaced by the full-screen com.ai.ui.shared.ParametersSelectScreen
+// / SystemPromptSelectScreen opened from the 🌡️ / 🎭 bottom-bar icons.
 
 /** Fire-and-forget call to the `chat_title` internal prompt. Mirrors
  *  [com.ai.viewmodel.ReportViewModel.kickOffIconGeneration]: looks up
@@ -1226,9 +1099,7 @@ private fun kickOffChatTitleGeneration(
     val prompt = aiSettings.internalPrompts.firstOrNull {
         it.category == "internal" && it.name.equals("chat_title", ignoreCase = true)
     } ?: return
-    val rawAgent = aiSettings.agents.firstOrNull {
-        it.name.equals(prompt.agent, ignoreCase = true)
-    } ?: return
+    val rawAgent = aiSettings.resolvePromptAgent(prompt) ?: return
     val agent = rawAgent.copy(
         apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
         model = aiSettings.getEffectiveModelForAgent(rawAgent)

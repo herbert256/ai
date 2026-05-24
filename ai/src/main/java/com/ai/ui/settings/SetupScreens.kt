@@ -80,6 +80,8 @@ fun SetupScreen(
                 onClick = onNavigateToCostConfig)
             SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })
+            SetupNavCard("\uD83E\uDDE9", "App settings", "App-wide & report-model default system prompt / parameters", "",
+                onClick = { onNavigate(SettingsSubScreen.AI_APP_SETTINGS) })
             // Local Models / Model cooldowns / Blocked models /
             // Test-excluded models all live one level deeper under
             // "AI Models setup" \u2014 see ModelsSetupScreen.

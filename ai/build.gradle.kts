@@ -197,6 +197,12 @@ dependencies {
     implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
 
+    // AndroidX Emoji2 picker — the Material-styled emoji grid (search,
+    // categories, recents, skin-tone variants) used on Settings →
+    // Default icons. A classic View embedded via AndroidView; guarantees
+    // a single valid glyph per pick.
+    implementation("androidx.emoji2:emoji2-emojipicker:1.5.0")
+
     // Networking
     implementation(libs.retrofit)
     implementation(libs.retrofit.gson)

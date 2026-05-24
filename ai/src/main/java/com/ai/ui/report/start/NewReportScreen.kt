@@ -111,6 +111,10 @@ fun NewReportScreen(
     // models drop the field).
     var reasoningEffort by remember { mutableStateOf("") }
     var reasoningMenuExpanded by remember { mutableStateOf(false) }
+    // Report-level Parameters / System prompt, set from the bottom-bar
+    // 🌡️ / 🎭 icons and carried into the report via UiState.
+    var showAdvancedParams by remember { mutableStateOf(false) }
+    var showSystemPromptDialog by remember { mutableStateOf(false) }
     // Optional moderation pre-check — when set, the prompt runs through
     // the chosen moderation model before any agent fires. Mirrors the
     // chat session screen.
@@ -178,8 +182,35 @@ fun NewReportScreen(
         }
     }
 
+    // 🌡️ report-level Parameters preset picker — full-screen overlay;
+    // the early return preserves this screen's remember state underneath.
+    // The picked presets resolve into the pre-gen override.
+    if (showAdvancedParams) {
+        com.ai.ui.shared.ParametersSelectScreen(
+            aiSettings = uiState.aiSettings,
+            selectedIds = uiState.reportParametersIds,
+            onConfirm = { viewModel.setReportParametersIds(it) },
+            onBack = { showAdvancedParams = false }, onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    if (showSystemPromptDialog) {
+        com.ai.ui.shared.SystemPromptSelectScreen(
+            aiSettings = uiState.aiSettings,
+            selectedId = uiState.reportSystemPromptId,
+            onSelect = { viewModel.setReportSystemPromptId(it) },
+            onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_new", title = "New AI Report", subject = "Write your prompt, then pick models", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "report_new", title = "New AI Report", subject = "Write your prompt, then pick models", onBackClick = onNavigateBack,
+            onParameters = { showAdvancedParams = true }, onSystemPrompt = { showSystemPromptDialog = true },
+            onClear = { title = ""; prompt = ""; attachedImage = null },
+            onAttach = { showAttachChooser = true },
+            onValidatePrompt = { if (moderationModel == null) showModerationPicker = true else moderationModel = null },
+            validatePromptActive = moderationModel != null)
 
         if (sharedKbUris.isNotEmpty() && sharedKbState !is SharedKbBannerState.Skipped) {
             SharedKbBanner(
@@ -215,7 +246,7 @@ fun NewReportScreen(
         // it out of the Clear / 📎 row.
         Button(
             onClick = next@{
-                    val titleRequired = uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual
+                    val titleRequired = !uiState.generalSettings.reportTitleAiOn()
                     if ((titleRequired && title.isBlank()) || prompt.isBlank() || isModerating) return@next
                     val fullPrompt = if (userTagBlock.isNotEmpty()) "$prompt\n$userTagBlock" else prompt
                     prefs.edit().putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
@@ -262,7 +293,7 @@ fun NewReportScreen(
                         }
                     }
                 },
-            enabled = (uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI || title.isNotBlank())
+            enabled = (uiState.generalSettings.reportTitleAiOn() || title.isNotBlank())
                 && prompt.isNotBlank() && !isModerating,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
@@ -273,85 +304,9 @@ fun NewReportScreen(
             }
             Text("Next", fontSize = 16.sp, maxLines = 1, softWrap = false)
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        // Secondary actions — Clear (wipes the form) and 📎 (attach
-        // image). Kept in their own row below the primary CTA so the
-        // green Next button stays visually distinct.
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = { title = ""; prompt = ""; attachedImage = null },
-                modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Clear", maxLines = 1, softWrap = false) }
-            OutlinedButton(onClick = { showAttachChooser = true }, colors = AppColors.outlinedButtonColors()) {
-                Text("📎", fontSize = 16.sp, maxLines = 1, softWrap = false)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-        @OptIn(ExperimentalLayoutApi::class)
-        FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilterChip(
-                selected = useWebSearch,
-                onClick = { useWebSearch = !useWebSearch },
-                label = { Text("🌐 Web search", fontSize = 12.sp) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = AppColors.Blue.copy(alpha = 0.2f),
-                    selectedLabelColor = AppColors.Blue
-                )
-            )
-            // 🧠 Thinking pulldown — same low/medium/high set as chat.
-            // Always shown on the report screen since the report fans out
-            // to many models with mixed reasoning support; the dispatch
-            // layer's per-format helper drops the field on non-thinking
-            // models so showing the chip universally is harmless.
-            Box {
-                val levelLabel = if (reasoningEffort.isBlank()) "none"
-                    else reasoningEffort.replaceFirstChar { it.uppercase() }
-                FilterChip(
-                    selected = reasoningEffort.isNotBlank(),
-                    onClick = { reasoningMenuExpanded = true },
-                    label = { Text("🧠 $levelLabel", fontSize = 12.sp) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = AppColors.Purple.copy(alpha = 0.2f),
-                        selectedLabelColor = AppColors.Purple
-                    )
-                )
-                DropdownMenu(
-                    expanded = reasoningMenuExpanded,
-                    onDismissRequest = { reasoningMenuExpanded = false },
-                    modifier = Modifier.background(Color(0xFF2D2D2D))
-                ) {
-                    listOf("" to "None", "low" to "Low", "medium" to "Medium", "high" to "High").forEach { (value, label) ->
-                        DropdownMenuItem(
-                            text = {
-                                Text(label, fontSize = 13.sp,
-                                    color = if (reasoningEffort == value) AppColors.Blue else Color.White)
-                            },
-                            onClick = { reasoningEffort = value; reasoningMenuExpanded = false }
-                        )
-                    }
-                }
-            }
-            // 🛡 Moderation chip — tap when off opens the model picker;
-            // tap when on clears the selection. With a model set, the
-            // prompt is validated before generation kicks off.
-            FilterChip(
-                selected = moderationModel != null,
-                onClick = {
-                    if (moderationModel == null) showModerationPicker = true
-                    else moderationModel = null
-                },
-                label = {
-                    val label = moderationModel?.let { (_, m) -> "🛡 $m" } ?: "🛡 Validate prompt"
-                    Text(label, fontSize = 12.sp, maxLines = 1)
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = AppColors.Orange.copy(alpha = 0.2f),
-                    selectedLabelColor = AppColors.Orange
-                )
-            )
-        }
+        // Clear (🧽), attach (📎) and Validate prompt (🚩) now live on the
+        // bottom-bar icons (wired on the TitleBar above). 🚩 is grayed until
+        // a moderation model is picked.
         if (moderationError != null) {
             Text("Moderation: ${moderationError}", fontSize = 11.sp, color = AppColors.Orange,
                 modifier = Modifier.padding(top = 4.dp))
@@ -387,7 +342,7 @@ fun NewReportScreen(
         // post-creation by [ReportViewModel.kickOffReportTitleGeneration]
         // via the bundled `internal/report_title` prompt and surfaced
         // on Manage report's new `title` row.
-        if (uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual) {
+        if (!uiState.generalSettings.reportTitleAiOn()) {
             Spacer(modifier = Modifier.height(16.dp))
             OutlinedTextField(
                 value = title, onValueChange = { title = it }, label = { Text("Title") },

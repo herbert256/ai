@@ -15,8 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.PricingCache
 import com.ai.model.*
-import com.ai.ui.chat.ParametersSelectorDialog
-import com.ai.ui.chat.SystemPromptSelectorDialog
+import com.ai.ui.shared.ParametersSelectScreen
+import com.ai.ui.shared.SystemPromptSelectScreen
 import com.ai.ui.shared.*
 
 @Composable
@@ -33,11 +33,12 @@ fun FlockEditScreen(
     val context = LocalContext.current
     val isEditing = flock != null
 
-    var name by remember { mutableStateOf(flock?.name ?: "") }
-    var selectedAgentIds by remember { mutableStateOf((flock?.agentIds ?: emptyList()).toSet()) }
+    var resetTick by remember { mutableStateOf(0) }
+    var name by remember(resetTick) { mutableStateOf(flock?.name ?: "") }
+    var selectedAgentIds by remember(resetTick) { mutableStateOf((flock?.agentIds ?: emptyList()).toSet()) }
     var searchQuery by remember { mutableStateOf("") }
-    var selectedParamsIds by remember { mutableStateOf(flock?.paramsIds ?: emptyList()) }
-    var selectedSystemPromptId by remember { mutableStateOf(flock?.systemPromptId) }
+    var selectedParamsIds by remember(resetTick) { mutableStateOf(flock?.paramsIds ?: emptyList()) }
+    var selectedSystemPromptId by remember(resetTick) { mutableStateOf(flock?.systemPromptId) }
     var showParamsDialog by remember { mutableStateOf(false) }
     var showSystemPromptDialog by remember { mutableStateOf(false) }
 
@@ -68,12 +69,16 @@ fun FlockEditScreen(
     }
 
     if (showParamsDialog) {
-        ParametersSelectorDialog(aiSettings = aiSettings, selectedIds = selectedParamsIds,
-            onConfirm = { selectedParamsIds = it; showParamsDialog = false }, onDismiss = { showParamsDialog = false })
+        ParametersSelectScreen(aiSettings = aiSettings, selectedIds = selectedParamsIds,
+            onConfirm = { selectedParamsIds = it },
+            onBack = { showParamsDialog = false }, onNavigateHome = onNavigateHome)
+        return
     }
     if (showSystemPromptDialog) {
-        SystemPromptSelectorDialog(aiSettings = aiSettings, selectedId = selectedSystemPromptId,
-            onSelect = { selectedSystemPromptId = it; showSystemPromptDialog = false }, onDismiss = { showSystemPromptDialog = false })
+        SystemPromptSelectScreen(aiSettings = aiSettings, selectedId = selectedSystemPromptId,
+            onSelect = { selectedSystemPromptId = it },
+            onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome)
+        return
     }
 
     Column(
@@ -85,7 +90,10 @@ fun FlockEditScreen(
             subject = name,
             onBackClick = onBack,
             onOpenView = if (!isAddMode) onOpenView else null,
-            onCopyReport = null
+            onCopyReport = null,
+            onClear = { resetTick++ },
+            onParameters = { showParamsDialog = true },
+            onSystemPrompt = { showSystemPromptDialog = true }
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(
@@ -106,18 +114,7 @@ fun FlockEditScreen(
             isError = name.isNotBlank() && nameError != null
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            val spName = selectedSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
-            OutlinedButton(onClick = { showSystemPromptDialog = true }, modifier = Modifier.weight(1f),
-                colors = if (spName != null) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-            ) { Text(spName ?: "System Prompt", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            val pNames = selectedParamsIds.mapNotNull { aiSettings.getParametersById(it)?.name }
-            OutlinedButton(onClick = { showParamsDialog = true }, modifier = Modifier.weight(1f),
-                colors = if (pNames.isNotEmpty()) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-            ) { Text(if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Parameters", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-        }
-
+        // System prompt + parameters now live on the bottom-bar 🎭 / 🌡️ icons.
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(
             value = searchQuery, onValueChange = { searchQuery = it },

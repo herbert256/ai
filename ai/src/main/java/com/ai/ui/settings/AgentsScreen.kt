@@ -15,8 +15,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.model.*
-import com.ai.ui.chat.ParametersSelectorDialog
-import com.ai.ui.chat.SystemPromptSelectorDialog
+import com.ai.ui.shared.ParametersSelectScreen
+import com.ai.ui.shared.SystemPromptSelectScreen
 import com.ai.ui.shared.*
 import kotlinx.coroutines.launch
 
@@ -67,13 +67,14 @@ fun AgentEditScreen(
         return
     }
 
-    var name by remember { mutableStateOf(agent?.name ?: "") }
-    var selectedProvider by remember { mutableStateOf(initialProvider) }
-    var model by remember { mutableStateOf(agent?.model ?: "") }
-    var apiKey by remember { mutableStateOf(agent?.apiKey ?: "") }
-    var selectedEndpointId by remember { mutableStateOf(agent?.endpointId) }
-    var selectedParamsIds by remember { mutableStateOf(agent?.paramsIds ?: emptyList()) }
-    var selectedSystemPromptId by remember { mutableStateOf(agent?.systemPromptId) }
+    var resetTick by remember { mutableStateOf(0) }
+    var name by remember(resetTick) { mutableStateOf(agent?.name ?: "") }
+    var selectedProvider by remember(resetTick) { mutableStateOf(initialProvider) }
+    var model by remember(resetTick) { mutableStateOf(agent?.model ?: "") }
+    var apiKey by remember(resetTick) { mutableStateOf(agent?.apiKey ?: "") }
+    var selectedEndpointId by remember(resetTick) { mutableStateOf(agent?.endpointId) }
+    var selectedParamsIds by remember(resetTick) { mutableStateOf(agent?.paramsIds ?: emptyList()) }
+    var selectedSystemPromptId by remember(resetTick) { mutableStateOf(agent?.systemPromptId) }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
     var testSuccess by remember { mutableStateOf(false) }
@@ -104,16 +105,18 @@ fun AgentEditScreen(
     }
 
     if (showParamsDialog) {
-        ParametersSelectorDialog(aiSettings = aiSettings, selectedIds = selectedParamsIds,
-            // Dedupe in case the dialog handed back the same id twice
-            // (the picker has no internal de-duplication on Confirm,
-            // and a duplicate-id list silently double-applies the
-            // same preset at runtime).
-            onConfirm = { selectedParamsIds = it.distinct(); showParamsDialog = false }, onDismiss = { showParamsDialog = false })
+        // Dedupe in case the picker handed back the same id twice — a
+        // duplicate-id list silently double-applies the same preset.
+        ParametersSelectScreen(aiSettings = aiSettings, selectedIds = selectedParamsIds,
+            onConfirm = { selectedParamsIds = it.distinct() },
+            onBack = { showParamsDialog = false }, onNavigateHome = onNavigateHome)
+        return
     }
     if (showSystemPromptDialog) {
-        SystemPromptSelectorDialog(aiSettings = aiSettings, selectedId = selectedSystemPromptId,
-            onSelect = { selectedSystemPromptId = it; showSystemPromptDialog = false }, onDismiss = { showSystemPromptDialog = false })
+        SystemPromptSelectScreen(aiSettings = aiSettings, selectedId = selectedSystemPromptId,
+            onSelect = { selectedSystemPromptId = it },
+            onBack = { showSystemPromptDialog = false }, onNavigateHome = onNavigateHome)
+        return
     }
 
     // Full-screen overlays
@@ -145,7 +148,10 @@ fun AgentEditScreen(
             // 👁 only visible on Edit (the View screen needs an
             // existing agent id) — null in Add mode.
             onOpenView = if (!isAddMode) onOpenView else null,
-            onCopyReport = null
+            onCopyReport = null,
+            onClear = { resetTick++ },
+            onParameters = { showParamsDialog = true },
+            onSystemPrompt = { showSystemPromptDialog = true }
         )
         // Save / Create CTA hoisted to the top — the form below can
         // be long enough to push a bottom button out of reach.
@@ -245,19 +251,9 @@ fun AgentEditScreen(
                 }
             }
 
-            // System prompt + parameters
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val spName = selectedSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
-                OutlinedButton(
-                    onClick = { showSystemPromptDialog = true }, modifier = Modifier.weight(1f),
-                    colors = if (spName != null) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-                ) { Text(spName ?: "System Prompt", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                val pNames = selectedParamsIds.mapNotNull { aiSettings.getParametersById(it)?.name }
-                OutlinedButton(
-                    onClick = { showParamsDialog = true }, modifier = Modifier.weight(1f),
-                    colors = if (pNames.isNotEmpty()) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-                ) { Text(if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Parameters", fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            }
+            // System prompt + parameters now live on the bottom-bar
+            // 🎭 / 🌡️ icons (wired on the TitleBar above) — the inline
+            // buttons were removed.
             // Per-litellm: warn when the model is known not to accept system
             // messages — anything chosen on either the System Prompt button
             // above or via the Parameters preset's systemPrompt field would

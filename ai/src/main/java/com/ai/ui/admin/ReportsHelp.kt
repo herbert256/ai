@@ -86,18 +86,17 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Per-model icons (auto-run, per-task)", "The 3-tier per-agent icon chain (chat continuation → one-shot icons/report template → fixed-agent icons/report_3 fallback) fires automatically when Settings → Generate per model icons is on. Each agent's chain kicks off the moment THAT agent's primary call settles to SUCCESS, so a fast row's emoji can appear before a slow row in the same report has finished generating. Tier 1 = chat (the model emoji-fies its own previous answer). Tier 2 = one-shot with @PROMPT@/@RESPONSE@. Tier 3 = bundled DeepSeek on @RESPONSE@ only. All three fail → 📝. Costs from every tier call accumulate on the row's cost cell, post to global Usage statistics with kind=\"icon\", and appear as their own rows in the export's per-call All tab. Regenerating the report re-fires the chain per regenerated agent."),
             HelpCard("View popup", "Reports / Prompt / Costs plus one row per Meta-prompt name with at least one persisted secondary on this report. Edit popup is Prompt / Title / Models / Parameters — picking Models lands on Report - select models in edit mode."),
             HelpCard("Pending-changes banner", "Orange banner appears when the user edited prompt / models / parameters since the last run — Regenerate is required for the new values to take effect. Until then the displayed rows reflect the old configuration."),
-            HelpCard("Title bar — 💬 (chat handoff)", "Stashes the prompt as the chat starter and routes to the agent picker — pick an agent, the chat opens with the report's prompt as the first user turn. Surfaced only when the prompt is non-blank."),
-            HelpCard("Title bar — 🐞 (trace) + per-row 🐞", "Title-bar 🐞 opens the API Traces list filtered to this report. Each agent row also carries its own 🐞 when its primary call left a recording; tapping opens that single trace file."),
-            HelpCard("Title bar — 🗑 / 🔄 / 📤 / ℹ️", "🗑 deletes the report (confirm dialog). 🔄 opens the regenerate-confirm dialog. 📤 only appears when the run has completed and routes to Export. ℹ️ drills into the per-agent results viewer (same target as tapping the title)."),
             HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate."),
             HelpCard("Reached from", "Pressing Generate on Report - select models. Or History → open any saved report — you land here directly, skipping the selection page."),
-            // "Stalled translation auto-reconcile" + "App-wide
-            // background resume sweep" relocated to the "concepts"
-            // topic — they're cross-screen behaviours, not specific
-            // to this screen. The Help-home "How it works" link
-            // surfaces them.
+            // Bottom-bar icon descriptions moved to the "report_run_icons"
+            // page (reached via the ❔ icon, or the link at the top of this
+            // page). "Stalled translation auto-reconcile" + "App-wide
+            // background resume sweep" live in the "concepts" topic.
         )
     ),
+    // Per-screen icon legend reached from the ❔ bottom-bar glyph on
+    // "Manage an AI report". Ordered: icons specific to this screen, then
+    // general icons with screen-specific behaviour, then standard icons.
     "regenerate_batch" to HelpContent(
         title = "Help - Regenerate report",
         cards = listOf(
@@ -472,6 +471,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Opened from the 🗂️ on the View hub. Lists your reports in the same five buckets as the AI Reports hub (Running, Problems, Pinned, Latest, Examples). Tap any row to open that report straight in View."),
             HelpCard("Cards", "Each card shows up to five at a glance; scroll inside a card for more. Empty buckets are greyed and sink to the bottom. Rows are title-only — no per-row icons here."),
+            HelpCard("From a Manage screen", "The same 🗂️ also appears on several Manage screens (the Manage hub, Fan Out, Meta, Edit prompt, Edit title). Opened from there, the list is FILTERED to reports relevant to that screen — e.g. from Fan Out only reports that have a fan-out — and picking one returns you to that same screen for the chosen report. The Examples bucket is hidden while a filter is active."),
         )
     ),
     "report_info" to HelpContent(

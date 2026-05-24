@@ -163,10 +163,41 @@ internal fun ReportSelectModelsScreen(
      *  user picks a row (from either Recent or the main list). Lets
      *  Report-section call sites bump their entry to the front of
      *  the persisted recents without changing onConfirm signatures. */
-    onRecordRecent: ((Pair<AppService, String>) -> Unit)? = null
+    onRecordRecent: ((Pair<AppService, String>) -> Unit)? = null,
+    /** When set, the picker shows 🌡️ / 🎭 bottom-bar icons for a per-launch
+     *  Parameters / System-prompt pick and routes the chosen model to THIS
+     *  callback (with the picked ids) instead of [onConfirm]. Used by the
+     *  secondary-operation pickers (Rerank / Meta / Fan-in). */
+    onSecondaryParamsConfirm: ((Pair<AppService, String>, List<String>, String?) -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    var pickedParamsIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pickedSystemPromptId by remember { mutableStateOf<String?>(null) }
+    var showSecParamsDialog by remember { mutableStateOf(false) }
+    var showSecSystemPromptDialog by remember { mutableStateOf(false) }
+    if (showSecParamsDialog) {
+        com.ai.ui.shared.ParametersSelectScreen(
+            aiSettings = aiSettings, selectedIds = pickedParamsIds,
+            onConfirm = { pickedParamsIds = it },
+            onBack = { showSecParamsDialog = false }, onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    if (showSecSystemPromptDialog) {
+        com.ai.ui.shared.SystemPromptSelectScreen(
+            aiSettings = aiSettings, selectedId = pickedSystemPromptId,
+            onSelect = { pickedSystemPromptId = it },
+            onBack = { showSecSystemPromptDialog = false }, onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    // Route a picked model either to the secondary-params callback (with
+    // the per-launch 🌡️/🎭 picks) or to the plain onConfirm.
+    val confirmPick: (Pair<AppService, String>) -> Unit = { pick ->
+        if (onSecondaryParamsConfirm != null) onSecondaryParamsConfirm(pick, pickedParamsIds, pickedSystemPromptId)
+        else onConfirm(pick)
+    }
     // Shared advisory lookup — covers cooldown (>1h 429), user-blocked,
     // and tier-gated Inaccessible entries with one consistent dim
     // treatment (alpha 0.4 + leading badge + reason caption).
@@ -235,7 +266,9 @@ internal fun ReportSelectModelsScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_pick_model", title = titleText, subject = "Add one model, with live pricing", onBackClick = onBack)
+        TitleBar(helpTopic = "report_pick_model", title = titleText, subject = "Add one model, with live pricing", onBackClick = onBack,
+            onParameters = if (onSecondaryParamsConfirm != null) { { showSecParamsDialog = true } } else null,
+            onSystemPrompt = if (onSecondaryParamsConfirm != null) { { showSecSystemPromptDialog = true } } else null)
 
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = { providerDropdownExpanded = true }, modifier = Modifier.fillMaxWidth(),
@@ -305,7 +338,7 @@ internal fun ReportSelectModelsScreen(
                 modifier = Modifier.fillMaxWidth()
                     .clickable(enabled = !disabled) {
                         onRecordRecent?.invoke(entry)
-                        onConfirm(entry)
+                        confirmPick(entry)
                     }
                     .padding(vertical = 8.dp, horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically

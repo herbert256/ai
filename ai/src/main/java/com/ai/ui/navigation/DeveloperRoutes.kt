@@ -198,7 +198,13 @@ internal fun NavGraphBuilder.developerRoutes(
                         popUpTo(NavRoutes.AI_IMPORT_EXPORT) { inclusive = true }
                     }
                 },
-                initialSubScreen = SettingsSubScreen.AI_IMPORT_EXPORT
+                initialSubScreen = SettingsSubScreen.AI_IMPORT_EXPORT,
+                // Reached from Housekeeping → show 🧹 (not the AI Setup 🤖)
+                // and route the tap back to the Housekeeping hub.
+                sectionIconOverride = com.ai.ui.shared.TopBarLeftIcon("🧹") {
+                    if (!navController.popBackStack(NavRoutes.AI_HOUSEKEEPING, false))
+                        navController.navigate(NavRoutes.AI_HOUSEKEEPING)
+                }
             )
         }
         composable(NavRoutes.AI_REFRESH) {
@@ -209,7 +215,13 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
 
                 onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
-                initialSubScreen = SettingsSubScreen.AI_REFRESH
+                initialSubScreen = SettingsSubScreen.AI_REFRESH,
+                // Reached from Housekeeping → show 🧹 (not the AI Setup 🤖)
+                // and route the tap back to the Housekeeping hub.
+                sectionIconOverride = com.ai.ui.shared.TopBarLeftIcon("🧹") {
+                    if (!navController.popBackStack(NavRoutes.AI_HOUSEKEEPING, false))
+                        navController.navigate(NavRoutes.AI_HOUSEKEEPING)
+                }
             )
         }
         composable(NavRoutes.HELP) {

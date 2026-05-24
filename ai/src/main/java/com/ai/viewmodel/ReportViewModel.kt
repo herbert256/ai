@@ -314,7 +314,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
             val reportLevelSystemPrompt = state.reportSystemPromptId
                 ?.let { aiSettings.getSystemPromptById(it)?.prompt }
-            val reportTasks = buildReportTasks(aiSettings, agents, allModelMembers, selectionParamsById, externalSystemPrompt, reportLevelSystemPrompt)
+            val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            val preGenParamsActive = state.reportAdvancedParameters != null ||
+                state.reportWebSearchTool || state.reportReasoningEffort != null
+            val reportTasks = buildReportTasks(
+                aiSettings, agents, allModelMembers, selectionParamsById, externalSystemPrompt,
+                reportLevelSystemPrompt, state.generalSettings, directModelSids, preGenParamsActive
+            )
 
             _agentResults.value = emptyMap()
             appViewModel.updateUiState { it.copy(
@@ -403,12 +409,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 // title per the two toggles. When both are on,
                                 // title runs first and the icon is derived from it.
                                 val g = appViewModel.uiState.value.generalSettings
-                                if (g.perModelIconGenEnabled || g.perModelTitleGenEnabled) {
+                                if (g.perModelIconOn() || g.perModelTitleOn()) {
                                     val ra = ReportStorage.getReport(context, reportId)
                                         ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
                                     if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
                                         iconGen.runPerModelEnrichment(context, reportId, ra, aiPrompt, aiSettings,
-                                            g.perModelIconGenEnabled, g.perModelTitleGenEnabled)
+                                            g.perModelIconOn(), g.perModelTitleOn())
                                     }
                                 }
                             }
@@ -446,18 +452,39 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
          *  screen. When non-null, wins over agent / flock / external; when
          *  null, the existing per-agent → per-flock → external resolution
          *  chain applies. */
-        reportLevelSystemPrompt: String? = null
+        reportLevelSystemPrompt: String? = null,
+        /** App-wide / report-model default presets from GeneralSettings.
+         *  App-wide is the universal lowest fallback; report-model applies
+         *  to bare/direct models only and is skipped when a pre-gen
+         *  override is active. */
+        general: GeneralSettings = GeneralSettings(),
+        /** sids of true bare/direct models (not swarm members) — only these
+         *  receive the provider + report-model fallbacks. */
+        directModelSids: Set<String> = emptySet(),
+        /** When a pre-generation params override (🌡️ / web / reasoning) is
+         *  active, the report-model + app-wide PARAM fallbacks are skipped. */
+        preGenParamsActive: Boolean = false
     ): List<ReportTask> {
+        val appSp = general.appWideSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+        val rmSp = general.reportModelSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+        val appPar = aiSettings.mergeParameters(general.appWideParametersIds)
+        val rmPar = aiSettings.mergeParameters(general.reportModelParametersIds)
+
         val agentTasks = agents.map { agent ->
             val ea = agent.copy(
                 apiKey = aiSettings.getEffectiveApiKeyForAgent(agent),
                 model = aiSettings.getEffectiveModelForAgent(agent)
             )
             val selParams = aiSettings.mergeParameters(selectionParamsById[agent.id] ?: emptyList())
-            var params = selParams ?: aiSettings.resolveAgentParameters(agent)
+            // selection → agent presets → app-wide (universal floor).
+            var params = selParams
+                ?: aiSettings.mergeParameters(agent.paramsIds)
+                ?: appPar
+                ?: AgentParameters()
             val spText = reportLevelSystemPrompt
                 ?: resolveSystemPromptText(aiSettings, agent.systemPromptId, findFlockSystemPromptIdForAgent(aiSettings, agent.id))
                 ?: externalSystemPrompt
+                ?: appSp
             if (spText != null) params = params.copy(systemPrompt = spText)
 
             ReportTask(agent.id, ReportAgent(agent.id, agent.name, ea.provider.id, ea.model, ReportStatus.PENDING), ea, params)
@@ -465,10 +492,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
         val modelTasks = modelMembers.map { member ->
             val sid = "swarm:${member.provider.id}:${member.model}"
+            val isDirect = sid in directModelSids
+            // Bare/direct models get the provider + report-model fallbacks;
+            // swarm members get only their swarm level. App-wide is the
+            // universal floor for both.
+            val providerConfig = aiSettings.getProvider(member.provider)
             val spText = reportLevelSystemPrompt
                 ?: findSwarmSystemPromptIdForMember(aiSettings, member.provider, member.model)?.let { aiSettings.getSystemPromptById(it)?.prompt }
+                ?: (if (isDirect) providerConfig.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt } else null)
+                ?: (if (isDirect) rmSp else null)
                 ?: externalSystemPrompt
-            var params = aiSettings.mergeParameters(selectionParamsById[sid] ?: emptyList()) ?: AgentParameters()
+                ?: appSp
+            val selPar = aiSettings.mergeParameters(selectionParamsById[sid]?.takeIf { it.isNotEmpty() } ?: emptyList())
+            var params = selPar
+                ?: (if (isDirect) aiSettings.mergeParameters(providerConfig.parametersIds) else null)
+                ?: (if (isDirect && !preGenParamsActive) rmPar else null)
+                ?: (if (!preGenParamsActive) appPar else null)
+                ?: AgentParameters()
             if (spText != null) params = params.copy(systemPrompt = spText)
 
             ReportTask(sid,
@@ -711,6 +751,40 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
     /**
+     * Regenerate only the report's **metadata** — the jobs shown on the
+     * "Report - Get info" screen: report icon, language, title, and the
+     * per-model icon / title for each completed agent. Re-runs the same
+     * kick-offs the initial generation fires (each gated by its own
+     * enabled flag), leaving the model responses and secondary results
+     * untouched. Nothing is cleared first, so the ReportStorage cost
+     * writers (which are additive) ADD this run's token cost on top of
+     * the first run's — both runs count. Wired to the 🔄 on Get-info.
+     */
+    fun regenerateReportInfo(context: Context, reportId: String) {
+        appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val ai = appViewModel.uiState.value.aiSettings
+            val g = appViewModel.uiState.value.generalSettings
+            withTracerTags(reportId = reportId, category = "Report info regenerate") {
+                iconGen.kickOffIconGeneration(context, reportId, report.prompt, ai)
+                iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
+                iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai)
+                if (g.perModelIconOn() || g.perModelTitleOn()) {
+                    report.agents
+                        .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                        .forEach { ra ->
+                            iconGen.runPerModelEnrichment(
+                                context, reportId, ra, report.prompt, ai,
+                                g.perModelIconOn(), g.perModelTitleOn()
+                            )
+                        }
+                }
+                appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+            }
+        }
+    }
+
+    /**
      * Re-run a previously generated report end-to-end with the same prompt, agent set,
      * and parameter selections.
      */
@@ -739,7 +813,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             val reportLevelSystemPrompt = state.reportSystemPromptId
                 ?.let { ai.getSystemPromptById(it)?.prompt }
-            val tasks = buildReportTasks(ai, agents, swarmMembers + directModels, emptyMap(), state.externalSystemPrompt, reportLevelSystemPrompt)
+            val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            val preGenParamsActive = state.reportAdvancedParameters != null ||
+                state.reportWebSearchTool || state.reportReasoningEffort != null
+            val tasks = buildReportTasks(
+                ai, agents, swarmMembers + directModels, emptyMap(), state.externalSystemPrompt,
+                reportLevelSystemPrompt, state.generalSettings, directModelSids, preGenParamsActive
+            )
             val existingIds = report.agents.map { it.agentId }.toSet()
             val newTasks = tasks.filter { it.resultId !in existingIds }
             val removedIds = existingIds - tasks.map { it.resultId }.toSet()
@@ -852,12 +932,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 // any stale icon + iconCalls rows so
                                 // the re-fire is clean.
                                 val g = appViewModel.uiState.value.generalSettings
-                                if (g.perModelIconGenEnabled || g.perModelTitleGenEnabled) {
+                                if (g.perModelIconOn() || g.perModelTitleOn()) {
                                     val ra = ReportStorage.getReport(context, reportId)
                                         ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
                                     if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
                                         iconGen.runPerModelEnrichment(context, reportId, ra, finalReport.prompt, ai,
-                                            g.perModelIconGenEnabled, g.perModelTitleGenEnabled)
+                                            g.perModelIconOn(), g.perModelTitleOn())
                                     }
                                 }
                             }
@@ -912,9 +992,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             val reportLevelSystemPrompt = state.reportSystemPromptId
                 ?.let { ai.getSystemPromptById(it)?.prompt }
+            val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
+            val preGenParamsActive = state.reportAdvancedParameters != null ||
+                state.reportWebSearchTool || state.reportReasoningEffort != null
             val tasks = buildReportTasks(
                 ai, agents, swarmMembers + directModels, emptyMap(),
-                state.externalSystemPrompt, reportLevelSystemPrompt
+                state.externalSystemPrompt, reportLevelSystemPrompt,
+                state.generalSettings, directModelSids, preGenParamsActive
             )
             if (tasks.isEmpty()) return@launch
             // Reset every existing agent to PENDING so the row shows
@@ -961,12 +1045,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             }
                             // Per-agent enrichment auto-fire — same shape as regenerateReport.
                             val g = appViewModel.uiState.value.generalSettings
-                            if (g.perModelIconGenEnabled || g.perModelTitleGenEnabled) {
+                            if (g.perModelIconOn() || g.perModelTitleOn()) {
                                 val ra = ReportStorage.getReport(context, reportId)
                                     ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
                                 if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
                                     iconGen.runPerModelEnrichment(context, reportId, ra, report.prompt, ai,
-                                        g.perModelIconGenEnabled, g.perModelTitleGenEnabled)
+                                        g.perModelIconOn(), g.perModelTitleOn())
                                 }
                             }
                         }
@@ -1211,6 +1295,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             genericReportsProgress = 0, genericReportsTotal = 0,
             genericReportsSelectedAgents = emptySet(),
             currentReportId = null, reportAdvancedParameters = null,
+            reportParametersIds = emptyList(),
             reportSystemPromptId = null,
             stagedReportModels = emptyList(), editModeReportId = null,
             pendingReportModels = emptyList(),

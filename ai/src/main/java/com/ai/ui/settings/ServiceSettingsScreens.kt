@@ -609,6 +609,7 @@ fun ProviderSettingsScreen(
     // in the Definition LaunchedEffect.
     var defaultModel by remember(service.id) { mutableStateOf(service.defaultModel) }
     var selectedParametersIds by remember { mutableStateOf(config.parametersIds) }
+    var selectedSystemPromptId by remember { mutableStateOf(config.systemPromptId) }
     var isInactive by remember { mutableStateOf(aiSettings.getProviderState(service) == "inactive") }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<String?>(null) }
@@ -617,6 +618,7 @@ fun ProviderSettingsScreen(
     // link straight to the request/response that produced the error.
     var testTraceFile by remember { mutableStateOf<String?>(null) }
     var showParamsDialog by remember { mutableStateOf(false) }
+    var showSystemPromptDialog by remember { mutableStateOf(false) }
     var showModelSelector by remember { mutableStateOf(false) }
 
     // ===== Provider definition (catalog) state =====
@@ -812,22 +814,33 @@ fun ProviderSettingsScreen(
     // parametersIds). The default model is part of the catalog now —
     // its writeback runs in the Definition LaunchedEffect above via
     // ProviderRegistry.update.
-    LaunchedEffect(apiKey, selectedParametersIds) {
+    LaunchedEffect(apiKey, selectedParametersIds, selectedSystemPromptId) {
         val current = aiSettings.getProvider(service)
         val updated = current.copy(
             apiKey = apiKey,
-            parametersIds = selectedParametersIds
+            parametersIds = selectedParametersIds,
+            systemPromptId = selectedSystemPromptId
         )
         if (updated == current) return@LaunchedEffect
         onSave(aiSettings.withProvider(service, updated))
     }
 
     if (showParamsDialog) {
-        com.ai.ui.chat.ParametersSelectorDialog(
+        com.ai.ui.shared.ParametersSelectScreen(
             aiSettings = aiSettings, selectedIds = selectedParametersIds,
-            onConfirm = { selectedParametersIds = it; showParamsDialog = false },
-            onDismiss = { showParamsDialog = false }
+            onConfirm = { selectedParametersIds = it },
+            onBack = { showParamsDialog = false }, onNavigateHome = onBackToHome
         )
+        return
+    }
+    if (showSystemPromptDialog) {
+        com.ai.ui.shared.SystemPromptSelectScreen(
+            aiSettings = aiSettings,
+            selectedId = selectedSystemPromptId,
+            onSelect = { selectedSystemPromptId = it },
+            onBack = { showSystemPromptDialog = false }, onNavigateHome = onBackToHome
+        )
+        return
     }
 
     // Full-screen overlay for model selection. Using the full-screen overlay pattern (early
@@ -872,7 +885,9 @@ fun ProviderSettingsScreen(
             // button and a trace was captured. Hidden until then so
             // the bar isn't claiming a trace exists when one doesn't.
             onTrace = testTraceFile?.takeIf { com.ai.data.ApiTracer.isTracingEnabled && onNavigateToTrace != null }
-                ?.let { tf -> { onNavigateToTrace!!(tf) } }
+                ?.let { tf -> { onNavigateToTrace!!(tf) } },
+            onParameters = { showParamsDialog = true },
+            onSystemPrompt = { showSystemPromptDialog = true }
         )
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -1430,30 +1445,9 @@ fun ProviderSettingsScreen(
                 )
             }
 
-            // Parameters — same blue-card pattern as Default Model / Models so a long
-            // list of selected presets wraps onto a second line instead of overflowing
-            // the row width. Sits at the bottom because it's a power-user preset
-            // (not part of the basic API-key + model setup flow).
-            val pNames = selectedParametersIds.mapNotNull { aiSettings.getParametersById(it)?.name }
-            Card(
-                modifier = Modifier.fillMaxWidth().clickable { showParamsDialog = true },
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Parameters", fontWeight = FontWeight.Bold, color = Color.White)
-                        Text(
-                            text = if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Tap to select",
-                            fontSize = 12.sp,
-                            color = if (pNames.isEmpty()) AppColors.TextTertiary else AppColors.Blue
-                        )
-                    }
-                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
-                }
-            }
+            // Provider-level Parameters + System prompt presets now live on
+            // the bottom-bar 🌡️ / 🎭 icons (wired on the TitleBar above);
+            // their selector dialogs open from there.
         }
     }
 }

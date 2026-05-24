@@ -264,6 +264,13 @@ val LocalNavigateToHelp = compositionLocalOf<(String?) -> Unit> { {} }
  *  the removed "AI" text-button used to play. */
 val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
 
+/** Provided by AppNavHost so an AI-report screen's top-left 📝 icon can
+ *  jump to the AI Reports hub. Used by the report-section screens (New
+ *  report, All reports, Search, …) whose top-left glyph is the report
+ *  default icon while no single report is in scope. The hub itself uses
+ *  reportIconGoesHome instead. */
+val LocalNavigateToReportsHub = compositionLocalOf<() -> Unit> { {} }
+
 /** Provided by AppNavHost — navigate to any route by its NavRoutes
  *  constant. Backs the bottom-bar 🧹 "jump to Housekeeping" and ⚙️
  *  "jump to AI Setup / Settings" icons on dispatcher sub-screens that
@@ -380,6 +387,21 @@ val LocalNavigateToReportModel = compositionLocalOf<(String, String) -> Unit> { 
 /** Opens the "pick a report to view" screen from the View hub's 📋.
  *  Provided around the AI_REPORTS composable. Default no-op. */
 val LocalNavigateToReportPicker = compositionLocalOf<() -> Unit> { {} }
+
+/** Opens the filtered "pick a report" screen from a Manage screen's
+ *  🗂️ bottom-bar icon, carrying the source screen's [ManagePickKind]
+ *  so the picker can filter the list and return to that same screen
+ *  for the chosen report. Provided around the AI_REPORTS composable.
+ *  Default no-op. (Typed as a String arg — the kind's route token —
+ *  to avoid a navigation-package dependency from this shared file.) */
+val LocalNavigateToManagePicker = compositionLocalOf<(String) -> Unit> { {} }
+
+/** The fully-formed 🗂️ "pick another report" action for the active
+ *  Manage screen — `{ navigateToManagePicker(kind) }`. Each Manage
+ *  screen that wants the icon provides this (with its own kind) around
+ *  its [TitleBar]; the bar auto-captures it into the bottom bar. Null
+ *  (default) → no 🗂️, so every non-Manage screen is unaffected. */
+val LocalManagePickReport = compositionLocalOf<(() -> Unit)?> { null }
 
 /** Prev / next callbacks for the chronologically surrounding reports
  *  on disk. Provided by [ReportsScreenNav] (it builds the lambdas
@@ -514,7 +536,13 @@ data class ReportListIconBundle(
      *  ([initialView] == true). Without this, back from the View
      *  overlay would fall through to the underlying Manage screen
      *  instead of returning to the list the user tapped from. */
-    val onExitToList: (() -> Unit)? = null
+    val onExitToList: (() -> Unit)? = null,
+    /** Route token (a [ManagePickKind.arg]) seeding a Manage overlay on
+     *  first composition, set when a report is picked from a Manage
+     *  screen's 🗂️ so the user lands back on that same overlay for the
+     *  chosen report. Null = land on the Manage hub. Consumed once by
+     *  [SeedInitialManageOverlay]. */
+    val initialManageOverlay: String? = null
 )
 val LocalReportListIconBundle = compositionLocalOf { ReportListIconBundle() }
 
@@ -525,6 +553,19 @@ val LocalReportListIconBundle = compositionLocalOf { ReportListIconBundle() }
  *  row, the leftmost title-bar icon, the 📝 memo icon) can short-
  *  circuit when false. Default true keeps the feature live. */
 val LocalIconGenEnabled = compositionLocalOf { true }
+
+/** Grand-master metadata switch
+ *  ([com.ai.viewmodel.GeneralSettings.metadataEnabled]) propagated to the
+ *  composition tree so control surfaces that have no per-item sub-flag — the
+ *  Fan Out **Icons** / **Titles** entry buttons — can hide themselves when the
+ *  user turns all optional metadata off. Default true keeps everything live. */
+val LocalMetadataEnabled = compositionLocalOf { true }
+
+/** User-editable fallback emoji ([com.ai.data.MetadataIcons]) propagated to the
+ *  composition tree so every view-screen / row fallback renders the configured
+ *  glyph (edited on Settings → Default icons) rather than a hardcoded literal.
+ *  Defaults to the factory set. */
+val LocalMetadataIcons = compositionLocalOf { com.ai.data.MetadataIcons() }
 
 /** Resolved per-report emoji propagated to every TitleBar inside a
  *  report-scoped composition tree. Provided by ReportsScreen at every
@@ -611,6 +652,11 @@ data class TitleBarIcons(
      *  Manage sub-overlay (via [LocalOpenManage]). Null → glyph
      *  hidden. */
     val onOpenManage: (() -> Unit)? = null,
+    /** Optional 🗂️ pick-another-report hook. Wired (via
+     *  [LocalManagePickReport]) by the Manage screens that support
+     *  switching to a different report while staying on the same
+     *  screen. Opens a filtered report picker. Null → glyph hidden. */
+    val onPickReport: (() -> Unit)? = null,
     val onCopy: (() -> Unit)?,
     val onShare: (() -> Unit)?,
     val onReload: (() -> Unit)?,
@@ -670,7 +716,22 @@ data class TitleBarIcons(
      *  row (above the ❓). Set by the Manage report screen. Null → hidden. */
     val costText: String? = null,
     /** Tap handler for [costText] — opens the costs screen. */
-    val onCostClick: (() -> Unit)? = null
+    val onCostClick: (() -> Unit)? = null,
+    /** Optional 🌡️ parameters hook. Screens that let you attach a
+     *  Parameters preset publish it so the bottom bar carries the action
+     *  (replacing the old inline "Parameters" button). Null → glyph hidden. */
+    val onParameters: (() -> Unit)? = null,
+    /** Optional 🎭 system-prompt hook — the paired sibling of
+     *  [onParameters]. Opens the system-prompt selector. Null → glyph hidden. */
+    val onSystemPrompt: (() -> Unit)? = null,
+    /** Optional 🧽 clear-form hook (New AI Report). Null → glyph hidden. */
+    val onClear: (() -> Unit)? = null,
+    /** Optional 📎 attach hook (New AI Report). Null → glyph hidden. */
+    val onAttach: (() -> Unit)? = null,
+    /** Optional 🚩 validate-prompt (moderation) hook. Grayed when
+     *  [validatePromptActive] is false. Null → glyph hidden. */
+    val onValidatePrompt: (() -> Unit)? = null,
+    val validatePromptActive: Boolean = false
 )
 
 /** Make a model-name Text clickable so tapping it opens the Model
@@ -971,10 +1032,26 @@ fun TitleBar(
     onCostClick: (() -> Unit)? = null,
     /** Optional ✏️ edit hook (CRUD view pages). Null → glyph hidden. */
     onEdit: (() -> Unit)? = null,
+    /** Optional 🌡️ parameters / 🎭 system-prompt hooks — paired config
+     *  actions surfaced in the bottom bar (replacing inline buttons). */
+    onParameters: (() -> Unit)? = null,
+    onSystemPrompt: (() -> Unit)? = null,
+    /** Optional 🧽 clear / 📎 attach / 🚩 validate-prompt hooks (New AI
+     *  Report). validatePromptActive grays the 🚩 until activated. */
+    onClear: (() -> Unit)? = null,
+    onAttach: (() -> Unit)? = null,
+    onValidatePrompt: (() -> Unit)? = null,
+    validatePromptActive: Boolean = false,
     /** Optional 🧹 jump-to-Housekeeping hook. Null → glyph hidden. */
     onHousekeeping: (() -> Unit)? = null,
     /** Optional ⚙️ jump-to-AI-Setup/Settings hook. Null → glyph hidden. */
     onSettings: (() -> Unit)? = null,
+    /** When false, this bar renders its top chrome but does NOT publish
+     *  its icons into [LocalBottomIconState]. Used by screens drawn as a
+     *  visual layer ON TOP of a still-composed host (e.g. "Report - Get
+     *  info" over the Manage hub) so the host's already-published bottom
+     *  bar stands instead of being clobbered. */
+    publishBottomBar: Boolean = true,
     /** Applied to the bar's outer Row. */
     modifier: Modifier = Modifier
 ) {
@@ -1008,6 +1085,10 @@ fun TitleBar(
         onInfo = onInfo,
         onOpenView = onOpenView,
         onOpenManage = onOpenManage,
+        // 🗂️ pick-another-report — auto-captured from the per-screen
+        // CompositionLocal so Manage screens needn't thread it through
+        // their TitleBar signatures. Null on every other screen.
+        onPickReport = LocalManagePickReport.current,
         onCopy = onCopy,
         onShare = onShare,
         onReload = onReload,
@@ -1023,6 +1104,12 @@ fun TitleBar(
         costText = costText,
         onCostClick = onCostClick,
         onEdit = onEdit,
+        onParameters = onParameters,
+        onSystemPrompt = onSystemPrompt,
+        onClear = onClear,
+        onAttach = onAttach,
+        onValidatePrompt = onValidatePrompt,
+        validatePromptActive = validatePromptActive,
         onHousekeeping = onHousekeeping,
         onSettings = onSettings,
         // ❓ help moved out of the top bar into the bottom icons bar
@@ -1030,7 +1117,7 @@ fun TitleBar(
         // top-bar ❓ — see ViewScreenTitleBar.
         onHelp = helpTopic?.let { { navigateHelp(it) } }
     )
-    if (state != null) {
+    if (state != null && publishBottomBar) {
         SideEffect { state.value = captured }
         DisposableEffect(Unit) {
             onDispose { if (state.value === captured) state.value = null }
@@ -1453,6 +1540,9 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // stays in the trailing copy/edit/delete/new group below.
     if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
     icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
+    // 🗂️ pick another report (same glyph as the View hub's picker) —
+    // leads the nav group on the Manage screens that support it.
+    icons.onPickReport?.let { add(BottomBarIcon("🗂️", Color.Unspecified, it, 28)) }
     // 🔧 manage — rendered a touch smaller so 👁 leads on View screens.
     icons.onOpenManage?.let { add(BottomBarIcon("🔧", Color.Unspecified, it, 28, fontSize = 15.sp)) }
     // 🧹 jump to the related Housekeeping screen, ⚙️ jump to the related
@@ -1460,6 +1550,15 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onHousekeeping?.let { add(BottomBarIcon("🧹", Color.Unspecified, it, 28)) }
     icons.onSettings?.let { add(BottomBarIcon("⚙️", Color.Unspecified, it, 28)) }
     icons.onInfo?.let { add(BottomBarIcon("ℹ️", Color.Unspecified, it, 28)) }
+    // 🌡️ parameters + 🎭 system prompt — paired config actions, kept
+    // adjacent so they read as a couple wherever a screen exposes them.
+    icons.onParameters?.let { add(BottomBarIcon("🌡️", Color.Unspecified, it, 28)) }
+    icons.onSystemPrompt?.let { add(BottomBarIcon("🎭", Color.Unspecified, it, 28)) }
+    icons.onClear?.let { add(BottomBarIcon("🧽", Color.Unspecified, it, 28)) }
+    icons.onAttach?.let { add(BottomBarIcon("📎", Color.Unspecified, it, 28)) }
+    // 🚩 validate prompt — grayed until the user activates it (picks a
+    // moderation model), mirroring the 📌 pin alpha treatment.
+    icons.onValidatePrompt?.let { add(BottomBarIcon("🚩", Color.Unspecified, it, 28, alpha = if (icons.validatePromptActive) 1f else 0.35f)) }
     icons.onCopy?.let { add(BottomBarIcon("📋", Color.Unspecified, it, 28)) }
     icons.onPin?.let { add(BottomBarIcon("📌", Color.Unspecified, it, 28, alpha = if (icons.isPinned) 1f else 0.35f)) }
     icons.onShare?.let { add(BottomBarIcon("📤", Color.Unspecified, it, 28)) }
@@ -1565,7 +1664,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
 
     androidx.compose.foundation.layout.BoxWithConstraints(
         // Bottom padding lifts the bar a touch above the gesture pill.
-        modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 4.dp, bottom = 12.dp)
+        modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 2.dp, bottom = 18.dp)
     ) {
         val available = maxWidth.value
 
@@ -1581,31 +1680,54 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             return@BoxWithConstraints
         }
 
-        // Help layout (every non-View screen). ❓ is pinned bottom-right
-        // and never counts toward the split.
+        // Help layout (every non-View screen). Icons fill up to 6 per
+        // row, then wrap to a new LEFT-aligned row; the ❓ help glyph is
+        // pinned to the right of the LAST row and never counts toward the
+        // 6-per-row cap. The cost readout (when present) sits at the right
+        // of the FIRST row. A uniform per-icon cell width keeps columns
+        // aligned vertically across rows.
         val helpW = 32f
         val helpGap = 4f
-        // More than 6 action icons → two rows. Both left-aligned; the
-        // bottom row gets the larger half (ceil) and carries the
-        // contiguous copy/edit/delete/new group + ❓. A uniform per-icon
-        // cell width keeps the two rows' columns aligned vertically.
-        val twoRows = specs.size > 6
-        if (twoRows) {
-            val split = specs.size / 2          // floor → top count
-            val topRow = specs.take(split)
-            val bottomRow = specs.drop(split)   // ceil → ≥ top
-            val cell = 30                        // uniform column width (dp)
-            fun rowWidth(count: Int) = (count * cell + (count - 1).coerceAtLeast(0) * extraGap).toFloat()
-            val widest = maxOf(rowWidth(topRow.size), rowWidth(bottomRow.size) + helpGap + helpW)
-            val scale = (available / widest).coerceIn(1.0f, ceiling)
-            // Tighter per-row cell height so the two rows sit close
-            // together vertically (Arrangement.spacedBy can't go negative).
-            val rowCellH = 22
-            Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        // Second help glyph ❔ — a per-screen "what do these icons do?" page.
+        // Shown just left of ❓ when this screen has its own "<topic>_icons"
+        // help page AND more than 3 action icons (❓/❔ not counted).
+        val navigateHelp = LocalNavigateToHelp.current
+        val iconTopic = icons?.helpTopic?.let { "${it}_icons" }
+            ?.takeIf { com.ai.ui.admin.HELP_TOPICS.containsKey(it) }
+        val showIconHelp = iconTopic != null && specs.size > 3
+        val cell = 24                       // uniform column width (dp) — tight spacing
+        // Fill rows of up to 6, but put the SMALLEST (remainder) row on
+        // TOP so the full rows sit at the bottom. ❓ pins to the right of
+        // the last (bottom) row; the cost readout to the first (top) row.
+        val per = 6
+        val rem = specs.size % per
+        val rows = when {
+            specs.isEmpty() -> listOf(emptyList())
+            rem == 0 -> specs.chunked(per)
+            else -> listOf(specs.take(rem)) + specs.drop(rem).chunked(per)
+        }
+        // Rough width (unscaled) the cost readout needs, reserved on the
+        // first row so the scale shrinks enough to keep it on-screen.
+        val costReserve = if (costText != null) costText.length * costBaseSp * 0.62f + 16f else 0f
+        fun rowWidth(count: Int, withHelp: Boolean, withCost: Boolean) =
+            (count * cell + (count - 1).coerceAtLeast(0) * extraGap).toFloat() +
+                (if (withHelp) helpGap + helpW * (if (showIconHelp) 2 else 1) else 0f) +
+                (if (withCost) costReserve else 0f)
+        val widest = rows.mapIndexed { i, r ->
+            rowWidth(r.size, i == rows.lastIndex, i == 0)
+        }.maxOrNull() ?: helpW
+        val scale = (available / widest).coerceIn(1.0f, ceiling)
+        // Tighter per-row cell height when wrapped so the rows sit close
+        // together vertically; full height for a single row.
+        val rowCellH = if (rows.size > 1) 22 else 32
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            rows.forEachIndexed { i, rowSpecs ->
+                val isFirst = i == 0
+                val isLast = i == rows.lastIndex
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    BottomBarIconRow(topRow, scale, extraGap.dp, cellWidthDp = cell, cellHeightDp = rowCellH)
+                    BottomBarIconRow(rowSpecs, scale, extraGap.dp, cellWidthDp = cell, cellHeightDp = rowCellH)
                     Spacer(modifier = Modifier.weight(1f))
-                    if (costText != null) {
+                    if (isFirst && costText != null) {
                         Text(
                             text = costText,
                             color = AppColors.Blue,
@@ -1621,32 +1743,13 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                                 .padding(end = 13.dp)
                         )
                     }
+                    if (isLast) {
+                        if (showIconHelp && iconTopic != null) {
+                            TitleBarIcon("❔", AppColors.Blue, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale)
+                        }
+                        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
+                    }
                 }
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    BottomBarIconRow(bottomRow, scale, extraGap.dp, cellWidthDp = cell, cellHeightDp = rowCellH)
-                    Spacer(modifier = Modifier.weight(1f))
-                    TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, heightDp = rowCellH, scale = scale)
-                }
-            }
-        } else {
-            val scale = ((available - helpW - helpGap) / intrinsicOf(specs)).coerceIn(1.0f, ceiling)
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                BottomBarIconRow(specs, scale, extraGap.dp)
-                Spacer(modifier = Modifier.weight(1f))
-                if (costText != null) {
-                    Text(
-                        text = costText,
-                        color = AppColors.Blue,
-                        fontSize = (costBaseSp * scale).sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.5).sp,
-                        maxLines = 1, softWrap = false,
-                        modifier = Modifier
-                            .let { m -> if (onCostClick != null) m.clickable(onClick = onCostClick) else m }
-                            .padding(end = 13.dp)
-                    )
-                }
-                TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, scale = scale)
             }
         }
     }
@@ -1901,19 +2004,21 @@ fun ReportListRow(
         )
     }
     val iconGenEnabled = LocalIconGenEnabled.current
+    // Always show a leading logo: the generated per-report icon when
+    // metadata is on and present, otherwise the configurable default
+    // report logo (so rows aren't blank when metadata is off).
+    val defaultLogo = LocalMetadataIcons.current.reportIcon
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { onOpenManage(report.id) }
             .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (iconGenEnabled) {
-            Text(
-                text = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
-                fontSize = 22.sp
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-        }
+        Text(
+            text = (if (iconGenEnabled) report.icon?.takeIf { it.isNotBlank() } else null) ?: defaultLogo,
+            fontSize = 22.sp
+        )
+        Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = report.title.ifBlank { "Untitled" },
             fontSize = 14.sp, color = Color.White,

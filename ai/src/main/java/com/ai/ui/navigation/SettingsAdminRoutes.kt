@@ -298,6 +298,19 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
                 onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 initialSubScreen = SettingsSubScreen.AI_AGENTS)
         }
+        // Reached from the ✏️ icon on the Configure-API-parameters /
+        // Define-system-prompt picker screens — lands straight on the
+        // matching CRUD list.
+        composable(NavRoutes.SETTINGS_PARAMETERS) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.AI_PARAMETERS)
+        }
+        composable(NavRoutes.SETTINGS_SYSTEM_PROMPTS) {
+            SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
+                initialSubScreen = SettingsSubScreen.AI_SYSTEM_PROMPTS)
+        }
         composable(NavRoutes.SETTINGS_FLOCK_EDIT) { entry ->
             val fid = entry.arguments?.getString("flockId")
             SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,

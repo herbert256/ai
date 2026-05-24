@@ -48,19 +48,46 @@ fun ModelSelectionScreen(
     subject: String? = null,
     actionLabel: String = "Find Icons",
     actionColor: Color = AppColors.Green,
-    helpTopic: String = "find_icons_selection"
+    helpTopic: String = "find_icons_selection",
+    /** When set, the screen shows 🌡️ / 🎭 for a per-launch Parameters /
+     *  System-prompt pick and routes the action button to THIS callback
+     *  (with the picked ids) instead of [onAction]. */
+    onActionWithParams: ((List<String>, String?) -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    var pickedParamsIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pickedSystemPromptId by remember { mutableStateOf<String?>(null) }
+    var showSecParamsDialog by remember { mutableStateOf(false) }
+    var showSecSystemPromptDialog by remember { mutableStateOf(false) }
+    if (showSecParamsDialog) {
+        com.ai.ui.shared.ParametersSelectScreen(
+            aiSettings = aiSettings, selectedIds = pickedParamsIds,
+            onConfirm = { pickedParamsIds = it },
+            onBack = { showSecParamsDialog = false }, onNavigateHome = onBack
+        )
+        return
+    }
+    if (showSecSystemPromptDialog) {
+        com.ai.ui.shared.SystemPromptSelectScreen(
+            aiSettings = aiSettings, selectedId = pickedSystemPromptId,
+            onSelect = { pickedSystemPromptId = it },
+            onBack = { showSecSystemPromptDialog = false }, onNavigateHome = onBack
+        )
+        return
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack)
+        TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack,
+            onClear = if (models.isNotEmpty()) onClearAll else null,
+            onParameters = if (onActionWithParams != null) { { showSecParamsDialog = true } } else null,
+            onSystemPrompt = if (onActionWithParams != null) { { showSecSystemPromptDialog = true } } else null)
 
         // Primary CTA hoisted to the top — kept gated on
         // `models.isNotEmpty()` so the empty-state still shows a
         // disabled button as a hint. Clear stays at the bottom.
         Button(
-            onClick = onAction,
+            onClick = { if (onActionWithParams != null) onActionWithParams(pickedParamsIds, pickedSystemPromptId) else onAction() },
             enabled = models.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = actionColor)
@@ -145,16 +172,7 @@ fun ModelSelectionScreen(
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
         }
-
-        // Bottom row — Clear only (the primary CTA is hoisted to
-        // the top). Hidden when nothing's selected.
-        if (models.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedButton(
-                onClick = onClearAll,
-                modifier = Modifier.fillMaxWidth(),
-                colors = AppColors.outlinedButtonColors()
-            ) { androidx.compose.material3.Text("Clear", maxLines = 1, softWrap = false) }
-        }
+        // Clear-all moved to the 🧽 bottom-bar icon (shown when the
+        // selection is non-empty); the primary CTA stays hoisted on top.
     }
 }

@@ -119,6 +119,17 @@ fun HelpScreen(
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (topic != null) {
+                // Top cross-link to this screen's per-icon help page, when
+                // one exists (topic id "<screen>_icons"). Generic — every
+                // screen that gains an icon page gets this link for free.
+                if (topicId != null && !topicId.endsWith("_icons") &&
+                    HELP_TOPICS.containsKey("${topicId}_icons")) {
+                    HomeSubpageLink(
+                        "❔", "Icons on this screen",
+                        "What each bottom-bar icon does here.",
+                        onClick = { onNavigateToTopic("${topicId}_icons") }
+                    )
+                }
                 topic.cards.forEach { HelpSection(it.title, it.body) }
                 // The three table subpages of Help home (icons /
                 // info providers / AI providers) attach their
@@ -131,6 +142,16 @@ fun HelpScreen(
                 // the four sub-subpages (building blocks /
                 // groupings / operations / retrieval) — also Composable,
                 // not data.
+                // Per-screen icon legend: standalone table on a
+                // "<topic>_icons" page, or inline (with a header) under the
+                // main help of a screen that has only 1–3 icons.
+                if (topicId != null) {
+                    if (topicId.endsWith("_icons")) {
+                        SCREEN_ICON_HELP[topicId.removeSuffix("_icons")]?.let { IconHelpTable(it) }
+                    } else if (topicId in SCREEN_ICON_HELP && topicId !in ICON_HELP_AS_PAGE) {
+                        IconHelpTable(SCREEN_ICON_HELP.getValue(topicId), title = "Icons on this screen")
+                    }
+                }
                 when (topicId) {
                     "help_home_icons" -> HelpIconTable()
                     "help_home_info_providers" -> InfoProviderTable(onNavigateToTopic)
@@ -150,6 +171,18 @@ fun HelpScreen(
                             "⚙️", "Operations",
                             "Report · Chat · Meta prompt · Fan-out · Rerank · Moderation · Translation — the things you actually run.",
                             onClick = { onNavigateToTopic("help_glossary_operations") }
+                        )
+                    }
+                }
+                // Bottom link from a per-icon page ("<screen>_icons") back
+                // to the screen's full help. Generic for any icon page.
+                if (topicId != null && topicId.endsWith("_icons")) {
+                    val base = topicId.removeSuffix("_icons")
+                    if (HELP_TOPICS.containsKey(base)) {
+                        HomeSubpageLink(
+                            "📖", "Full help for this screen",
+                            "Everything else about this screen.",
+                            onClick = { onNavigateToTopic(base) }
                         )
                     }
                 }
@@ -175,6 +208,9 @@ fun HelpScreen(
                 onNavigateToHelpHome = if (topic != null) onNavigateToHelpHome else null,
                 onNavigateToAbout = onNavigateToAbout
             )
+            // Breathing room below the "More information" card so it
+            // doesn't sit flush against the bottom bar.
+            Spacer(modifier = Modifier.height(48.dp))
         }
     }
 }
@@ -512,6 +548,30 @@ private fun HelpSection(title: String, content: String) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
             Spacer(modifier = Modifier.height(6.dp))
             Text(content, fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp)
+        }
+    }
+}
+
+/** Generic per-screen icon legend. One flat table, big glyphs, rows in
+ *  the same left-to-right / top-to-bottom sequence the icons appear in
+ *  the bottom bar. Rendered standalone on a "<topic>_icons" page, or
+ *  inline (with [title]) under a screen's main help when it has ≤3
+ *  icons. Rows live in [SCREEN_ICON_HELP] (IconHelp.kt). */
+@Composable
+private fun IconHelpTable(rows: List<Triple<String, String, String>>, title: String? = null) {
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 10.dp)) {
+            if (title != null) {
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange,
+                    modifier = Modifier.padding(start = 10.dp, bottom = 4.dp))
+            }
+            rows.forEach { (icon, name, desc) ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
+                    Text(icon, fontSize = 26.sp, modifier = Modifier.width(34.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.width(94.dp))
+                    Text(desc, fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                }
+            }
         }
     }
 }

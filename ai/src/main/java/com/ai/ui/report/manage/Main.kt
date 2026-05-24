@@ -1,7 +1,6 @@
 package com.ai.ui.report.manage
 import com.ai.ui.report.manage.view.*
 import com.ai.ui.report.other.TargetLanguage
-import com.ai.ui.report.other.ReportAdvancedParametersScreen
 import com.ai.ui.report.other.LanguageSelectionScreen
 import com.ai.ui.report.start.ModelSelectionScreen
 import com.ai.ui.report.start.SelectionOverlayDialogs
@@ -102,8 +101,8 @@ fun ReportsScreen(
      *  agentId). Transient: a picked title only fills the editor field. */
     titleFanOutByReport: Map<String, List<com.ai.viewmodel.TitleCandidate>> = emptyMap(),
     titleFanOutByAgent: Map<String, List<com.ai.viewmodel.TitleCandidate>> = emptyMap(),
-    onStartReportTitleFanOut: (reportId: String, promptText: String, models: List<ReportModel>, long: Boolean) -> Unit = { _, _, _, _ -> },
-    onStartModelTitleFanOut: (reportId: String, agentId: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
+    onStartReportTitleFanOut: (reportId: String, promptText: String, models: List<ReportModel>, long: Boolean, paramsIds: List<String>, systemPromptId: String?) -> Unit = { _, _, _, _, _, _ -> },
+    onStartModelTitleFanOut: (reportId: String, agentId: String, models: List<ReportModel>, paramsIds: List<String>, systemPromptId: String?) -> Unit = { _, _, _, _, _ -> },
     onRestartReportTitleFanOut: (reportId: String) -> Unit = { _ -> },
     onRestartModelTitleFanOut: (agentId: String) -> Unit = { _ -> },
     /** Bundle of the four per-Internal-Prompt icon callbacks —
@@ -155,6 +154,7 @@ fun ReportsScreen(
     onNavigateHome: () -> Unit = onDismiss,
     advancedParameters: AgentParameters? = null,
     onAdvancedParametersChange: (AgentParameters?) -> Unit = {},
+    onParametersIdsChange: (List<String>) -> Unit = {},
     /** Persist the per-report system prompt picked in SelectionPhase
      *  onto UiState so the dispatch sees it at generation time. */
     onSystemPromptChange: (String?) -> Unit = {},
@@ -168,6 +168,9 @@ fun ReportsScreen(
     onUpdateModelList: (String, List<ReportModel>) -> Unit = { _, _ -> },
     onMarkParametersChanged: () -> Unit = {},
     onRegenerate: (String) -> Unit = {},
+    /** Regenerate only the metadata jobs (icon / title / language /
+     *  per-model) — wired to the 🔄 while the Get-info layer is open. */
+    onRegenerateInfo: (String) -> Unit = {},
     onUpdatePrompt: (String, String) -> Unit = { _, _ -> },
     onUpdateTitle: (String, String, String) -> Unit = { _, _, _ -> },
     onUpdateModelTitle: (String, String, String) -> Unit = { _, _, _ -> },
@@ -176,22 +179,22 @@ fun ReportsScreen(
     onCopyReport: (String) -> Unit = {},
     onTogglePinReport: (String) -> Unit = {},
     onConsumePendingModels: () -> Unit = {},
-    onRunSecondary: (String, com.ai.model.InternalPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _, _, _ -> },
+    onRunSecondary: (String, com.ai.model.InternalPrompt, List<Pair<AppService, String>>, com.ai.data.SecondaryScope, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _, _, _, _ -> },
     /** Fired by the View screen's "Language missing" popup. Routes
      *  to ReportViewModel.translateMissingItems. */
     onTranslateMissingItems: (String, List<com.ai.viewmodel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
-    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?) -> Unit = { _, _, _, _, _ -> },
-    onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String?) -> Unit = { _, _, _, _ -> },
+    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?, List<String>, String?) -> Unit = { _, _, _, _, _, _, _ -> },
+    onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String?, List<String>, String?) -> Unit = { _, _, _, _, _, _ -> },
     /** Model-scoped fan-in run path. Args: reportId, prompt, picked
      *  model, active provider id (the L2 page's), active model name. */
-    onRunModelFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String, String, String?) -> Unit = { _, _, _, _, _, _ -> },
+    onRunModelFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String, String, String?, List<String>, String?) -> Unit = { _, _, _, _, _, _, _, _ -> },
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Args: source reportId, active provider id,
      *  active model. The new report's id is built inside the
      *  ReportViewModel; this lambda navigates after the save. */
     onCreateReportFromFanOut: (String, String, String) -> Unit = { _, _, _ -> },
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
-    onRunRerank: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _ -> },
+    onRunRerank: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _, _ -> },
     onRunModeration: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     /** Bulk delete on the report VM's viewModelScope so a Stop /
@@ -209,7 +212,7 @@ fun ReportsScreen(
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
     onExportAll: suspend (String, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _ -> },
     translationRuns: List<com.ai.viewmodel.TranslationRunState> = emptyList(),
-    onStartTranslation: (String, String, String, List<Pair<AppService, String>>) -> Unit = { _, _, _, _ -> },
+    onStartTranslation: (String, String, String, List<Pair<AppService, String>>, List<String>, String?) -> Unit = { _, _, _, _, _, _ -> },
     translationLifecycle: TranslationLifecycleCallbacks = TranslationLifecycleCallbacks(),
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
@@ -295,7 +298,7 @@ fun ReportsScreen(
     val isComplete = reportsProgress >= reportsTotal && reportsTotal > 0
     val currentReportId = uiState.currentReportId
 
-    val iconGenEnabled = uiState.generalSettings.iconGenEnabled
+    val iconGenEnabled = uiState.generalSettings.reportIconOn()
     val runtime = rememberReportRuntimeState(
         context = context,
         currentReportId = currentReportId,
@@ -489,6 +492,9 @@ fun ReportsScreen(
     // [ReportsScreen], which already sits at the JVM 64 KB
     // per-method ceiling.
     SeedInitialViewReportScreen { showViewReportScreen = true }
+    // Sibling seed for the 🗂️-pick re-entry: opens the Manage sub-overlay
+    // the report was picked from. Helper-hosted for the same 64 KB reason.
+    SeedInitialManageOverlay(st)
     // Track the user's CURRENT mode (Manage vs View) in real-time so
     // the Hub's big-AI-logo "resume" knob lands them back where
     // they actually were. Extracted out of [ReportsScreen] for the
@@ -667,6 +673,7 @@ fun ReportsScreen(
             reportLanguageName = languageName,
             onDeleteSecondaryRowById = onDeleteSecondaryWithRefresh,
             onAdvancedParametersChange = onAdvancedParametersChange,
+            onParametersIdsChange = onParametersIdsChange,
             onShowAdvancedParametersChange = { showAdvancedParameters = it },
             onTranslateMissingItems = onTranslateMissingItems,
             fanOutViewName = fanOutViewName,
@@ -846,10 +853,11 @@ fun ReportsScreen(
                 fanOutMp = fanOutMp,
                 reportId = currentReportId,
                 context = context,
+                aiSettings = aiSettings,
                 // Back from Run → unwind to Scope (state still set);
                 // back from there → Picker; back from there → main.
                 onCancel = { fanOutConfirmMetaPrompt = null },
-                onRun = { mp, initiators, responders ->
+                onRun = { mp, initiators, responders, pIds, spId ->
                     // Pull the single fan-out language from the scope
                     // step's Selected set — empty string = Original
                     // (untranslated). AllPresent collapses to null
@@ -871,7 +879,8 @@ fun ReportsScreen(
                         currentReportId, mp,
                         com.ai.data.SecondaryScope.Manual(initiators),
                         responders,
-                        sourceLanguage
+                        sourceLanguage,
+                        pIds, spId
                     )
                     // Land on the Fan Out L1 page so the user watches the
                     // run progress instead of the report screen.
@@ -931,8 +940,9 @@ fun ReportsScreen(
                 titleText = "${pickerMetaPrompt.name} — pick model",
                 recentEntries = recentReportPairs,
                 onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-                onConfirm = { pick ->
-                    onRunSecondary(rid, pickerMetaPrompt, listOf(pick), pendingSecondaryScope, pendingLanguageScope)
+                onConfirm = { /* secondary picker uses onSecondaryParamsConfirm */ },
+                onSecondaryParamsConfirm = { pick, pIds, spId ->
+                    onRunSecondary(rid, pickerMetaPrompt, listOf(pick), pendingSecondaryScope, pendingLanguageScope, pIds, spId)
                     // Clear the WHOLE meta-creation stack — picker + scope —
                     // so the user lands back on the report once the run
                     // kicks off. Without clearing `secondaryScopeMetaPrompt`
@@ -967,8 +977,9 @@ fun ReportsScreen(
             modelTypeFilter = null,
             recentEntries = recentReportPairs,
             onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-            onConfirm = { pick ->
-                onRunFanIn(rid, fanInPicker, pick, fanInPickerSourceLanguage)
+            onConfirm = { /* secondary picker uses onSecondaryParamsConfirm */ },
+            onSecondaryParamsConfirm = { pick, pIds, spId ->
+                onRunFanIn(rid, fanInPicker, pick, fanInPickerSourceLanguage, pIds, spId)
                 fanInPickerPrompt = null
                 fanInPickerSourceLanguage = null
             },
@@ -1030,8 +1041,9 @@ fun ReportsScreen(
                 modelTypeFilter = null,
                 recentEntries = recentReportPairs,
                 onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-                onConfirm = { pick ->
-                    onRunModelFanIn(rid, modelFanInPicker, pick, activePid, activeMdl, fanInPickerSourceLanguage)
+                onConfirm = { /* secondary picker uses onSecondaryParamsConfirm */ },
+                onSecondaryParamsConfirm = { pick, pIds, spId ->
+                    onRunModelFanIn(rid, modelFanInPicker, pick, activePid, activeMdl, fanInPickerSourceLanguage, pIds, spId)
                     modelFanInActivePid = null
                     modelFanInActiveMdl = null
                     modelFanInPickerPrompt = null
@@ -1090,12 +1102,14 @@ fun ReportsScreen(
                 onAddAllModels = { pickerTarget = PickerTarget.TRANSLATION; showSelectAllModels = true },
                 onRemoveModel = { idx -> translationModels = translationModels.toMutableList().apply { removeAt(idx) } },
                 onClearAll = { translationModels = emptyList() },
-                onAction = {
+                onAction = { },
+                onActionWithParams = { pIds, spId ->
                     onStartTranslation(
                         currentReportId,
                         pickingTranslateModelFor.name,
                         pickingTranslateModelFor.native,
-                        translationModels.map { it.provider to it.model }
+                        translationModels.map { it.provider to it.model },
+                        pIds, spId
                     )
                     translationModels = emptyList()
                     pickerTarget = PickerTarget.NEW_REPORT
@@ -1118,13 +1132,14 @@ fun ReportsScreen(
                 titleText = "Pick rerank model",
                 recentEntries = recentReportPairs,
                 onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-                onConfirm = { pick ->
+                onConfirm = { /* secondary picker uses onSecondaryParamsConfirm */ },
+                onSecondaryParamsConfirm = { pick, pIds, spId ->
                     val ls = pendingLanguageScope
                     showRerankPicker = false
                     secondaryScopeMetaPrompt = null
                     pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                     pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
-                    onRunRerank(rid, pick, ls)
+                    onRunRerank(rid, pick, ls, pIds, spId)
                 },
                 onBack = { showRerankPicker = false },
                 onNavigateHome = onNavigateHome,
@@ -1322,6 +1337,7 @@ fun ReportsScreen(
             onExport = onExport,
             onExportAll = onExportAll,
             onAdvancedParametersChange = onAdvancedParametersChange,
+            onParametersIdsChange = onParametersIdsChange,
             onMarkParametersChanged = onMarkParametersChanged,
             onUpdatePrompt = onUpdatePrompt,
             onUpdateTitle = onUpdateTitle,
@@ -1385,6 +1401,7 @@ fun ReportsScreen(
             iconGenEnabled = iconGenEnabled,
             showRegenerateConfirm = showRegenerateConfirm,
             models = models,
+            st = st,
             generationHandlers = generationHandlers,
             secondaryCounts = secondaryCounts,
             costsFromDeletedItems = costsFromDeletedItems,
@@ -1413,6 +1430,7 @@ fun ReportsScreen(
             onDismiss = onDismiss,
             onOpenViewReport = openViewReportFromManage,
             onRequestRegenerate = { showRegenerateConfirm = true },
+            onRegenerateInfo = onRegenerateInfo,
             onDismissRegenerateConfirm = { showRegenerateConfirm = false },
             onRegenerate = onRegenerate,
             onChatWithReportPrompt = onChatWithReportPrompt

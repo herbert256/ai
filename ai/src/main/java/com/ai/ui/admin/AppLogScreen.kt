@@ -581,6 +581,13 @@ fun AppLogDetailScreen(
         )
     }
 
+    val logDefaultLevels = setOf(LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR)
+    val anyFilterActive = searchQuery.isNotEmpty() || enabledLevels != logDefaultLevels ||
+        startTimeText.isNotEmpty() || endTimeText.isNotEmpty() || selectedTag != "(any)"
+    val clearFilters = {
+        searchQuery = ""; enabledLevels = logDefaultLevels
+        startTimeText = ""; endTimeText = ""; selectedTag = "(any)"
+    }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "applog_detail",
@@ -588,6 +595,8 @@ fun AppLogDetailScreen(
             subject = currentFilename,
             onBackClick = onBack,
             onDelete = { confirmDelete = true },
+            // 🧽 resets every filter; shown only when a filter is active.
+            onClear = if (allEntries.isNotEmpty() && anyFilterActive) clearFilters else null,
             onCopy = { shareAction = ShareAction.COPY },
             onShare = { shareAction = ShareAction.SHARE }
         )
@@ -672,37 +681,13 @@ fun AppLogDetailScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Count line + Clear-filters action. "Clear filters" only
-        // appears when at least one filter differs from the
-        // screen-open defaults (all levels on, no search, no time
-        // range, "(any)" tag) so it doesn't sit there as a no-op
-        // affordance the rest of the time. Tap resets every filter
-        // in one shot.
+        // Count line. "Clear filters" moved to the 🧽 bottom-bar icon
+        // (shown only while a filter is active).
         if (allEntries.isNotEmpty()) {
-            val defaultLevels = setOf(LogLevel.TRACE, LogLevel.DEBUG, LogLevel.INFO, LogLevel.WARN, LogLevel.ERROR)
-            val anyFilterActive = searchQuery.isNotEmpty() ||
-                enabledLevels != defaultLevels ||
-                startTimeText.isNotEmpty() ||
-                endTimeText.isNotEmpty() ||
-                selectedTag != "(any)"
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (anyFilterActive) {
-                    TextButton(
-                        onClick = {
-                            searchQuery = ""
-                            enabledLevels = defaultLevels
-                            startTimeText = ""
-                            endTimeText = ""
-                            selectedTag = "(any)"
-                        },
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                    ) {
-                        Text("Clear filters", fontSize = 11.sp, color = AppColors.Blue, maxLines = 1, softWrap = false)
-                    }
-                }
                 Text(
                     "Showing ${entries.size} of ${allEntries.size}",
                     fontSize = 11.sp, color = AppColors.TextTertiary,

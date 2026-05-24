@@ -147,6 +147,13 @@ fun ReportModelScreen(
     // chain, per-model title.
     val agentTraceFilename = agent.traceFile?.takeIf { it.isNotBlank() }
     val iconTraceFilename = agent.iconTraceFile?.takeIf { it.isNotBlank() }
+        ?: rememberAgentIconTrace(
+            reportId = reportId,
+            agentModel = agent.model,
+            iconKey = agent.icon,
+            winningTier = agent.iconWinningTier,
+            promptUsed = agent.iconPromptUsed
+        )?.takeIf { it.isNotBlank() }
     val titleTraceFilename = agent.modelTitleTraceFile?.takeIf { it.isNotBlank() }
 
     // Load this report's TRANSLATE secondaries — drives the language

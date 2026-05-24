@@ -642,13 +642,12 @@ internal fun ColumnScope.GenerationPhase(
             ActionRow {
                 CompactButton(onClick = { close(); onEditTitle() }, color = editColor, text = "Title")
                 CompactButton(onClick = { close(); onEditPromptInline() }, color = editColor, text = "Prompt")
-                CompactButton(onClick = { close(); editSystemPromptTrigger() }, color = editColor, text = "System prompt")
+                // System prompt + Parameters moved to the bottom-bar 🎭 / 🌡️ icons.
                 CompactButton(
                     onClick = { close(); onEditModelsInline() },
                     color = editColor, text = "Models",
                     enabled = currentReportId != null
                 )
-                CompactButton(onClick = { close(); onEditParametersInline() }, color = editColor, text = "Parameters")
             }
         }
     }
@@ -948,7 +947,9 @@ internal fun ColumnScope.GenerationPhase(
                                         }
                                 )
                             } else {
-                                Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                                val mi = com.ai.ui.shared.LocalMetadataIcons.current
+                                val fallback = if (run.fanInOf != null) mi.fanInRow else mi.forKind(run.kind)
+                                Text(fallback, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                             }
                         }
                     }
@@ -1107,7 +1108,7 @@ internal fun ColumnScope.GenerationPhase(
                                         .clickable { onOpenInternalPromptIconDetail(fanOutPrompt!!) }
                                 )
                             } else {
-                                Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                                Text(com.ai.ui.shared.LocalMetadataIcons.current.fanOutRow, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                             }
                         }
                     }
@@ -1146,7 +1147,7 @@ internal fun ColumnScope.GenerationPhase(
                                 modifier = Modifier.width(24.dp),
                                 contentAlignment = Alignment.Center
                             ) { AnimatedHourglass(fontSize = 16.sp) }
-                            else -> Text("🎨", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                            else -> Text(com.ai.ui.shared.LocalMetadataIcons.current.fanIconsRow, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                         }
                         RowTypeCell("fan-icons")
                         Column(modifier = Modifier.weight(1f)) {
@@ -1481,7 +1482,7 @@ internal fun LanguageRow(
             // Name is set; show the language-specific icon if one was
             // generated, otherwise a neutral 🌐 placeholder so the row
             // doesn't shift width.
-            else -> Text(snapshot.icon ?: "🌐", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+            else -> Text(snapshot.icon ?: com.ai.ui.shared.LocalMetadataIcons.current.languageIcon, fontSize = 16.sp, modifier = Modifier.width(24.dp))
         }
         RowTypeCell("language")
         Column(modifier = Modifier.weight(1f)) {

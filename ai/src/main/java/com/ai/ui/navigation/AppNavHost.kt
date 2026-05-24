@@ -242,6 +242,12 @@ fun AppNavHost(
             launchSingleTop = true
         }
     }
+    val rootNavigateToReportsHub: () -> Unit = {
+        navController.navigate(NavRoutes.AI_REPORTS_HUB) {
+            popUpTo(NavRoutes.AI_REPORTS_HUB) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
     val rootNavigateHelp: (String?) -> Unit = { topic ->
         if (topic.isNullOrBlank()) navController.navigate(NavRoutes.HELP)
         else navController.navigate(NavRoutes.helpForTopic(topic))
@@ -279,8 +285,45 @@ fun AppNavHost(
         NavRoutes.AI_RESET_APPLICATION, NavRoutes.AI_TEST_ALL_MODELS,
         NavRoutes.AI_APPLOG_DETAIL
     )
+    // Every AI Reports screen that has no dynamic report glyph of its own
+    // shows the report default icon (📝) in the left slot instead of the
+    // AI logo. Tapping it goes to the AI Reports hub — except on the hub,
+    // where it goes Home. Screens that DO carry a report icon (Manage /
+    // View with a generated icon) pass it via reportIcon, which takes
+    // precedence over this section icon, so they're unaffected.
+    val reportSectionRoutes = setOf(
+        NavRoutes.AI_NEW_REPORT_HUB, NavRoutes.AI_NEW_REPORT, NavRoutes.AI_NEW_REPORT_WITH_PARAMS,
+        NavRoutes.AI_SEARCH_REPORTS, NavRoutes.AI_ALL_REPORTS, NavRoutes.AI_EXAMPLES,
+        NavRoutes.AI_PROMPT_HISTORY, NavRoutes.AI_EXAMPLE_PROMPT_PICKER,
+        NavRoutes.AI_SEARCH, NavRoutes.AI_LOCAL_SEARCH, NavRoutes.AI_QUICK_LOCAL_SEARCH,
+        NavRoutes.AI_LOCAL_SEMANTIC_SEARCH,
+        NavRoutes.AI_REPORTS, NavRoutes.AI_REPORT_INFO, NavRoutes.AI_REPORT_MODEL,
+        NavRoutes.AI_VIEW_PICK_REPORT, NavRoutes.AI_MANAGE_PICK_REPORT,
+        NavRoutes.AI_REPORT_MANAGE
+    )
+    // AI Models section (🧠) and AI Knowledge section (📚): standalone
+    // screens with no report glyph that previously fell back to the AI
+    // logo. Sub-screens jump to their section hub; the hub goes Home.
+    val modelSectionRoutes = setOf(NavRoutes.AI_MODEL_INFO, NavRoutes.AI_MANUAL_OVERRIDE_ADD)
+    val knowledgeSectionRoutes = setOf(NavRoutes.AI_KNOWLEDGE_NEW, NavRoutes.AI_KNOWLEDGE_DETAIL)
+    // One-off screens with no section hub — show a fitting local glyph
+    // whose tap goes Home. About uses the same ℹ️ it has on the home page.
+    val homeIconByRoute: Map<String, String> = mapOf(
+        NavRoutes.AI_COST_CONFIG to "💲",
+        NavRoutes.AI_MANUAL_COST_OVERRIDE_ADD to "💲",
+        NavRoutes.AI_API_TEST to "🧪",
+        NavRoutes.AI_API_TEST_EDIT to "🧪",
+        NavRoutes.DOCUMENTATION to "📖",
+        NavRoutes.DOCUMENTATION_MANUAL to "📖",
+        NavRoutes.ABOUT to "ℹ️"
+    )
+    val reportDefaultIcon = rootUiStateForLayout.generalSettings.metadataIcons.reportIcon
     val sectionTopIcon: com.ai.ui.shared.TopBarLeftIcon? = when {
         currentNavRoute == null -> null
+        currentNavRoute == NavRoutes.AI_REPORTS_HUB ->
+            com.ai.ui.shared.TopBarLeftIcon(reportDefaultIcon, rootNavigateHome)
+        currentNavRoute in reportSectionRoutes ->
+            com.ai.ui.shared.TopBarLeftIcon(reportDefaultIcon, rootNavigateToReportsHub)
         currentNavRoute == NavRoutes.AI_CHATS_HUB ->
             com.ai.ui.shared.TopBarLeftIcon("💬", navigateHome)
         currentNavRoute.startsWith("ai_chat") || currentNavRoute.startsWith("ai_dual_chat") ->
@@ -295,6 +338,22 @@ fun AppNavHost(
                 if (!navController.popBackStack(NavRoutes.AI_HOUSEKEEPING, false))
                     navController.navigate(NavRoutes.AI_HOUSEKEEPING)
             }
+        currentNavRoute == NavRoutes.AI_MODEL_SEARCH ->
+            com.ai.ui.shared.TopBarLeftIcon("🧠", navigateHome)
+        currentNavRoute in modelSectionRoutes ->
+            com.ai.ui.shared.TopBarLeftIcon("🧠") {
+                if (!navController.popBackStack(NavRoutes.AI_MODEL_SEARCH, false))
+                    navController.navigate(NavRoutes.AI_MODEL_SEARCH)
+            }
+        currentNavRoute == NavRoutes.AI_KNOWLEDGE ->
+            com.ai.ui.shared.TopBarLeftIcon("📚", navigateHome)
+        currentNavRoute in knowledgeSectionRoutes ->
+            com.ai.ui.shared.TopBarLeftIcon("📚") {
+                if (!navController.popBackStack(NavRoutes.AI_KNOWLEDGE, false))
+                    navController.navigate(NavRoutes.AI_KNOWLEDGE)
+            }
+        homeIconByRoute[currentNavRoute] != null ->
+            com.ai.ui.shared.TopBarLeftIcon(homeIconByRoute.getValue(currentNavRoute), navigateHome)
         else -> null
     }
     androidx.compose.runtime.CompositionLocalProvider(
@@ -306,9 +365,12 @@ fun AppNavHost(
         com.ai.ui.shared.LocalNavigateToAgentView provides rootNavigateToAgentView,
         com.ai.ui.shared.LocalNavigateToFlockView provides rootNavigateToFlockView,
         com.ai.ui.shared.LocalNavigateToSwarmView provides rootNavigateToSwarmView,
-        com.ai.ui.shared.LocalIconGenEnabled provides rootUiStateForLayout.generalSettings.iconGenEnabled,
+        com.ai.ui.shared.LocalIconGenEnabled provides rootUiStateForLayout.generalSettings.reportIconOn(),
+        com.ai.ui.shared.LocalMetadataEnabled provides rootUiStateForLayout.generalSettings.metadataEnabled,
+        com.ai.ui.shared.LocalMetadataIcons provides rootUiStateForLayout.generalSettings.metadataIcons,
         com.ai.ui.shared.LocalBottomIconState provides bottomBarIconState,
         com.ai.ui.shared.LocalNavigateHome provides rootNavigateHome,
+        com.ai.ui.shared.LocalNavigateToReportsHub provides rootNavigateToReportsHub,
         com.ai.ui.shared.LocalNavigateToHelp provides rootNavigateHelp,
         com.ai.ui.shared.LocalNavigateToRoute provides { route -> navController.navigate(route) }
     ) {
@@ -372,7 +434,8 @@ fun SettingsScreenNav(
     initialEditingFlockId: String? = null,
     initialEditingSwarmId: String? = null,
     initialEditingInternalPromptId: String? = null,
-    initialInternalPromptCategory: String? = null
+    initialInternalPromptCategory: String? = null,
+    sectionIconOverride: com.ai.ui.shared.TopBarLeftIcon? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val refreshAllState by viewModel.refreshAllState.collectAsState()
@@ -413,7 +476,8 @@ fun SettingsScreenNav(
         initialEditingFlockId = initialEditingFlockId,
         initialEditingSwarmId = initialEditingSwarmId,
         initialEditingInternalPromptId = initialEditingInternalPromptId,
-        initialInternalPromptCategory = initialInternalPromptCategory
+        initialInternalPromptCategory = initialInternalPromptCategory,
+        sectionIconOverride = sectionIconOverride
     )
 }
 

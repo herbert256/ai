@@ -22,7 +22,8 @@ internal val HELP_TOPICS: Map<String, HelpContent> =
     chatHelp +
     modelsHelp +
     providerCatalogHelp +
-    crudHelp
+    crudHelp +
+    ICON_HELP_TOPIC_CONTENT
 
 
 /** Per-screen → home-help cross-link table. Keyed by topic id; the
@@ -187,6 +188,9 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     // ===== Settings =====
     "settings_main" to listOf("help_about", "help_privacy"),
     "settings_other" to listOf("help_about", "help_privacy"),
+    "settings_metadata" to listOf("help_about", "help_costs"),
+    "settings_default_icons" to listOf("help_about"),
+    "settings_app_settings" to listOf("help_about", "concepts"),
     "settings_network" to listOf("concepts", "help_about"),
     "settings_network_api_calls" to listOf("concepts", "help_costs"),
     "settings_ui" to listOf("help_about"),

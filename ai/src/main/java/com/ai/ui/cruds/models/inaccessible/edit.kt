@@ -38,9 +38,10 @@ internal fun InaccessibleModelForm(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
-    var providerId by remember { mutableStateOf(initial?.providerId ?: "") }
-    var model by remember { mutableStateOf(initial?.model ?: "") }
-    var reason by remember { mutableStateOf(initial?.reason ?: "Manually added") }
+    var resetTick by remember { mutableStateOf(0) }
+    var providerId by remember(resetTick) { mutableStateOf(initial?.providerId ?: "") }
+    var model by remember(resetTick) { mutableStateOf(initial?.model ?: "") }
+    var reason by remember(resetTick) { mutableStateOf(initial?.reason ?: "Manually added") }
     var showPicker by remember { mutableStateOf(false) }
 
     if (showPicker) {
@@ -62,7 +63,8 @@ internal fun InaccessibleModelForm(
         saveEnabled = hasModel,
         onSave = { onSaved(InaccessibleModel(providerId, model, reason.trim().ifBlank { "Manually added" })) },
         onBack = onBack,
-        helpTopic = "crud_inaccessible_models"
+        helpTopic = "crud_inaccessible_models",
+        onReset = { resetTick++ }
     ) {
         OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
             Text(

@@ -33,8 +33,9 @@ internal fun TestExcludedModelForm(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
-    var providerId by remember { mutableStateOf(initial?.providerId ?: "") }
-    var model by remember { mutableStateOf(initial?.model ?: "") }
+    var resetTick by remember { mutableStateOf(0) }
+    var providerId by remember(resetTick) { mutableStateOf(initial?.providerId ?: "") }
+    var model by remember(resetTick) { mutableStateOf(initial?.model ?: "") }
     var showPicker by remember { mutableStateOf(false) }
 
     if (showPicker) {
@@ -56,7 +57,8 @@ internal fun TestExcludedModelForm(
         saveEnabled = hasModel,
         onSave = { onSaved(TestExcludedModel(providerId, model)) },
         onBack = onBack,
-        helpTopic = "crud_test_excluded"
+        helpTopic = "crud_test_excluded",
+        onReset = { resetTick++ }
     ) {
         OutlinedButton(onClick = { showPicker = true }, modifier = Modifier.fillMaxWidth()) {
             Text(

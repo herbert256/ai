@@ -68,9 +68,11 @@ fun buildInfoJobs(
     report: Report,
     settings: Settings,
     iconGenEnabled: Boolean,
+    reportLanguageOn: Boolean,
     titleModeAi: Boolean,
     perModelIcon: Boolean,
-    perModelTitle: Boolean
+    perModelTitle: Boolean,
+    icons: com.ai.data.MetadataIcons = com.ai.data.MetadataIcons()
 ): List<InfoJob> {
     val jobs = mutableListOf<InfoJob>()
 
@@ -87,9 +89,11 @@ fun buildInfoJobs(
         val label = report.iconErrorMessage ?: report.icon ?: "Generating…"
         jobs += InfoJob("icon", label, state, report.iconInputCost + report.iconOutputCost,
             doneIcon = report.icon, pending = state == InfoJobState.RUNNING)
+    }
 
-        // Language detection shares the icon-gen gate (same as the old
-        // Manage row, which nested the language row inside the icon gate).
+    // Language detection has its own gate now (split from the icon gate)
+    // so report icon and report language can be toggled independently.
+    if (reportLanguageOn) {
         val langState = when {
             report.languageIconErrorMessage != null -> InfoJobState.FAILED
             report.languageName != null -> InfoJobState.DONE
@@ -100,7 +104,7 @@ fun buildInfoJobs(
             "language", langLabel, langState,
             report.languageInputCost + report.languageOutputCost +
                 report.languageIconInputCost + report.languageIconOutputCost,
-            doneIcon = report.languageIcon ?: "🌐",
+            doneIcon = report.languageIcon ?: icons.languageIcon,
             pending = langState == InfoJobState.RUNNING
         )
     }
@@ -210,6 +214,7 @@ fun ReportGetInfoScreen(
     settings: Settings,
     iconRefreshTick: Int,
     iconGenEnabled: Boolean,
+    reportLanguageOn: Boolean,
     titleModeAi: Boolean,
     perModelIcon: Boolean,
     perModelTitle: Boolean,
@@ -222,20 +227,24 @@ fun ReportGetInfoScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val jobs by produceState(initialValue = emptyList<InfoJob>(), reportId, iconRefreshTick) {
+    val metadataIcons = com.ai.ui.shared.LocalMetadataIcons.current
+    val jobs by produceState(initialValue = emptyList<InfoJob>(), reportId, iconRefreshTick, metadataIcons) {
         value = withContext(Dispatchers.IO) {
             val r = ReportStorage.getReport(context, reportId) ?: return@withContext emptyList()
-            buildInfoJobs(r, settings, iconGenEnabled, titleModeAi, perModelIcon, perModelTitle)
+            buildInfoJobs(r, settings, iconGenEnabled, reportLanguageOn, titleModeAi, perModelIcon, perModelTitle, metadataIcons)
         }
     }
-    val total = jobs.sumOf { it.cost }
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
+        // publishBottomBar=false: this screen is drawn as a layer on top
+        // of the Manage hub, which keeps publishing its own (full) bottom
+        // bar. We render only the top chrome here. (costText would be
+        // ignored anyway with nothing published.)
         TitleBar(
             helpTopic = "report_get_info", title = "Report - Get info", subject = "Status of icon, title & language jobs", onBackClick = onBack,
-            costText = total.takeIf { it > 0.0 }?.let { formatCents(it, 2) }
+            publishBottomBar = false
         )
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(jobs, key = { "${it.type}-${it.agentId ?: it.label}" }) { job ->

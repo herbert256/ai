@@ -7,12 +7,10 @@ import com.ai.data.AgentParameters
 import com.ai.ui.helpers.*
 import com.ai.ui.other.ReportSelectInternalPromptScreen
 import com.ai.ui.report.manage.view.buildLangTabs
-import com.ai.ui.report.other.ReportAdvancedParametersScreen
 import com.ai.ui.shared.LocalCurrentReportIdForSwipe
 import com.ai.ui.shared.LocalMainViewResetTick
 import com.ai.ui.shared.LocalNavigateToCurrentReport
 import com.ai.ui.shared.shortModelName
-import com.ai.viewmodel.ReportTitleMode
 import com.ai.viewmodel.UiState
 
 @Composable
@@ -26,6 +24,7 @@ internal fun ReportManageActionOverlays(
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, ExportLanguage, (Int, Int) -> Unit) -> Unit,
     onExportAll: suspend (String, ExportLanguage, (Int, Int) -> Unit) -> Unit,
     onAdvancedParametersChange: (AgentParameters?) -> Unit,
+    onParametersIdsChange: (List<String>) -> Unit,
     onMarkParametersChanged: () -> Unit,
     onUpdatePrompt: (String, String) -> Unit,
     onUpdateTitle: (String, String, String) -> Unit,
@@ -37,13 +36,19 @@ internal fun ReportManageActionOverlays(
 ): Boolean {
     val currentReportId = uiState.currentReportId
     val aiSettings = uiState.aiSettings
+    // 🗂️ "pick another report (filtered)" navigation for the overlays
+    // below; each provides it with its own kind so the bottom-bar icon
+    // returns to this same screen for the chosen report.
+    val managePick = com.ai.ui.shared.LocalNavigateToManagePicker.current
 
     if (st.showMetaScreen.value && currentReportId != null) {
         val rid = currentReportId
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides runtime.effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
-            LocalNavigateToCurrentReport provides { st.showMetaScreen.value = false }
+            LocalNavigateToCurrentReport provides { st.showMetaScreen.value = false },
+            com.ai.ui.shared.LocalManagePickReport provides
+                { managePick(com.ai.ui.navigation.ManagePickKind.META.arg) }
         ) {
             ReportMetaScreen(
                 reportId = rid,
@@ -126,14 +131,12 @@ internal fun ReportManageActionOverlays(
             com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
             LocalNavigateToCurrentReport provides { st.showEditParameters.value = false }
         ) {
-            ReportAdvancedParametersScreen(
-                currentParameters = uiState.reportAdvancedParameters,
-                onApply = {
-                    onAdvancedParametersChange(it)
-                    onMarkParametersChanged()
-                    st.showEditParameters.value = false
-                },
-                onBack = { st.showEditParameters.value = false }
+            com.ai.ui.shared.ParametersSelectScreen(
+                aiSettings = aiSettings,
+                selectedIds = uiState.reportParametersIds,
+                onConfirm = { onParametersIdsChange(it); onMarkParametersChanged() },
+                onBack = { st.showEditParameters.value = false },
+                onNavigateHome = onNavigateHome
             )
         }
         return true
@@ -144,7 +147,9 @@ internal fun ReportManageActionOverlays(
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides runtime.effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
-            LocalNavigateToCurrentReport provides { st.showEditPrompt.value = false }
+            LocalNavigateToCurrentReport provides { st.showEditPrompt.value = false },
+            com.ai.ui.shared.LocalManagePickReport provides
+                { managePick(com.ai.ui.navigation.ManagePickKind.EDIT_PROMPT.arg) }
         ) {
             ReportEditPromptScreen(
                 initialPrompt = uiState.genericPromptText,
@@ -164,7 +169,9 @@ internal fun ReportManageActionOverlays(
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides runtime.effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
-            LocalNavigateToCurrentReport provides { st.showEditTitle.value = false }
+            LocalNavigateToCurrentReport provides { st.showEditTitle.value = false },
+            com.ai.ui.shared.LocalManagePickReport provides
+                { managePick(com.ai.ui.navigation.ManagePickKind.EDIT_TITLE.arg) }
         ) {
             ReportEditTitleScreen(
                 reportId = rid,
@@ -234,34 +241,10 @@ internal fun ReportManageActionOverlays(
         }
     }
 
-    if (st.showGetInfo.value && currentReportId != null) {
-        val rid = currentReportId
-        CompositionLocalProvider(
-            com.ai.ui.shared.LocalReportIcon provides runtime.effectiveReportIcon,
-            com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
-            LocalNavigateToCurrentReport provides { st.showGetInfo.value = false }
-        ) {
-            ReportGetInfoScreen(
-                reportId = rid,
-                settings = aiSettings,
-                iconRefreshTick = uiState.iconRefreshTick,
-                iconGenEnabled = iconGenEnabled,
-                titleModeAi = uiState.generalSettings.reportTitleMode == ReportTitleMode.AI,
-                perModelIcon = uiState.generalSettings.perModelIconGenEnabled,
-                perModelTitle = uiState.generalSettings.perModelTitleGenEnabled,
-                onBack = { st.showGetInfo.value = false },
-                onOpenIconDetail = { st.showIconDetail.value = true },
-                onOpenLanguageDetail = {
-                    st.showIconDetail.value = true
-                    st.targetLanguageIcon.value = true
-                },
-                onEditTitle = { st.showEditTitle.value = true },
-                onOpenAgentIconDetail = { agentId -> st.agentIconDetailFor.value = agentId },
-                onEditModelTitle = { agentId -> st.editModelTitleFor.value = agentId }
-            )
-        }
-        return true
-    }
+    // NOTE: "Report - Get info" is no longer an early-return overlay —
+    // it renders as a visual layer on top of the still-composed Manage
+    // hub (see ReportRunScreen), so it inherits the hub's full bottom
+    // bar instead of publishing its own minimal one.
 
     if (st.showMetaPicker.value) {
         CompositionLocalProvider(

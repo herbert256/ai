@@ -35,6 +35,7 @@ enum class SettingsSubScreen {
     AI_INTERNAL_PROMPTS, AI_INTERNAL_PROMPT_EDIT,
     AI_EXAMPLE_PROMPTS, AI_EXAMPLE_PROMPT_EDIT,
     AI_EXTERNAL_SERVICES,
+    AI_APP_SETTINGS,
     AI_PROMPTS_SETUP,
     AI_INTERNAL_PROMPTS_HUB,
     AI_LOCAL_MODELS_SETUP,
@@ -53,7 +54,9 @@ enum class SettingsSubScreen {
     SETTINGS_NETWORK_API_CALLS,
     SETTINGS_UI,
     SETTINGS_LOGGING,
-    SETTINGS_OTHER
+    SETTINGS_OTHER,
+    SETTINGS_METADATA,
+    SETTINGS_DEFAULT_ICONS
 }
 
 @Composable
@@ -105,7 +108,13 @@ fun SettingsScreen(
     initialEditingFlockId: String? = null,
     initialEditingSwarmId: String? = null,
     initialEditingInternalPromptId: String? = null,
-    initialInternalPromptCategory: String? = null
+    initialInternalPromptCategory: String? = null,
+    /** Overrides the computed ⚙️ / 🤖 section icon in the top-left slot.
+     *  Set by standalone route entries that are shared with another
+     *  section — e.g. Refresh / Import-Export reached from Housekeeping,
+     *  which pass 🧹 (→ Housekeeping) so the icon matches where the user
+     *  actually came from rather than always reading as AI Setup. */
+    sectionIconOverride: com.ai.ui.shared.TopBarLeftIcon? = null
 ) {
     // rememberSaveable so a navigation hop OUT of Settings and back
     // (e.g. tapping a per-card ❓ that opens HelpScreen) restores the
@@ -225,6 +234,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_LOCAL_MODELS_SETUP,
             SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_EXTERNAL_SERVICES,
+            SettingsSubScreen.AI_APP_SETTINGS,
             SettingsSubScreen.AI_MODEL_COOLDOWNS,
             SettingsSubScreen.AI_BLOCKED_MODELS,
             SettingsSubScreen.AI_TEST_EXCLUDED_MODELS,
@@ -240,6 +250,8 @@ fun SettingsScreen(
             SettingsSubScreen.SETTINGS_UI,
             SettingsSubScreen.SETTINGS_LOGGING,
             SettingsSubScreen.SETTINGS_OTHER -> currentSubScreen = SettingsSubScreen.MAIN
+            SettingsSubScreen.SETTINGS_METADATA -> currentSubScreen = SettingsSubScreen.MAIN
+            SettingsSubScreen.SETTINGS_DEFAULT_ICONS -> currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.SETTINGS_NETWORK_API_CALLS ->
                 currentSubScreen = SettingsSubScreen.SETTINGS_NETWORK
         }
@@ -267,17 +279,19 @@ fun SettingsScreen(
         SettingsSubScreen.SETTINGS_NETWORK_API_CALLS,
         SettingsSubScreen.SETTINGS_UI,
         SettingsSubScreen.SETTINGS_LOGGING,
-        SettingsSubScreen.SETTINGS_OTHER
+        SettingsSubScreen.SETTINGS_OTHER,
+        SettingsSubScreen.SETTINGS_METADATA,
+        SettingsSubScreen.SETTINGS_DEFAULT_ICONS
     )
     val sectionMain = if (inSettingsSubtree) SettingsSubScreen.MAIN else SettingsSubScreen.AI_SETUP
     androidx.compose.runtime.CompositionLocalProvider(
-        com.ai.ui.shared.LocalTopBarLeftIcon provides com.ai.ui.shared.TopBarLeftIcon(
+        com.ai.ui.shared.LocalTopBarLeftIcon provides (sectionIconOverride ?: com.ai.ui.shared.TopBarLeftIcon(
             glyph = if (inSettingsSubtree) "⚙️" else "🤖",
             onClick = {
                 if (currentSubScreen == sectionMain) onNavigateHome()
                 else currentSubScreen = sectionMain
             }
-        )
+        ))
     ) {
     when (currentSubScreen) {
         SettingsSubScreen.MAIN -> {
@@ -643,6 +657,7 @@ fun SettingsScreen(
                             .map { it.name.lowercase(java.util.Locale.ROOT) }
                             .toSet(),
                         agentNames = aiSettings.agents.map { it.name },
+                        aiSettings = aiSettings,
                         fixedCategory = selectedInternalCategory,
                         onSave = { saved ->
                             val updated = if (ip != null) aiSettings.copy(internalPrompts = aiSettings.internalPrompts.map { if (it.id == ip.id) saved else it })
@@ -662,6 +677,12 @@ fun SettingsScreen(
                 onSaveArtificialAnalysisApiKey = onSaveArtificialAnalysisApiKey,
                 onBack = goBack, onNavigateHome = onNavigateHome,
                 onNavigateToHelpTopic = onNavigateToHelpTopic
+            )
+        }
+        SettingsSubScreen.AI_APP_SETTINGS -> {
+            AppSettingsScreen(
+                generalSettings = generalSettings, aiSettings = aiSettings,
+                onSave = onSaveGeneral, onBack = goBack
             )
         }
         SettingsSubScreen.AI_LOCAL_LITERT_MODELS -> {
@@ -740,6 +761,18 @@ fun SettingsScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
+        SettingsSubScreen.SETTINGS_METADATA -> {
+            MetadataSettingsSubScreen(
+                generalSettings = generalSettings, onSave = onSaveGeneral,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
+        SettingsSubScreen.SETTINGS_DEFAULT_ICONS -> {
+            DefaultIconsSubScreen(
+                generalSettings = generalSettings, onSave = onSaveGeneral,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
     }
     }
 }
@@ -787,9 +820,21 @@ private fun SettingsMainScreen(
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_LOGGING) }
             )
             SettingsNavCard(
+                icon = "🏷️",
+                title = "Metadata & icons",
+                description = "Master switch for all optional metadata — report icon / language / title, per-model icons / titles, fan & meta icons.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_METADATA) }
+            )
+            SettingsNavCard(
+                icon = "🎨",
+                title = "Default icons",
+                description = "Edit the fallback emoji shown when a report or result has no generated icon of its own.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_DEFAULT_ICONS) }
+            )
+            SettingsNavCard(
                 icon = "⚙️",
                 title = "Other settings",
-                description = "Identity (Name + Email) and Generate report icons.",
+                description = "Identity (Name + Email).",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_OTHER) }
             )
         }
@@ -1247,25 +1292,13 @@ private fun OtherSettingsSubScreen(
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
-    var reportTitleMode by remember { mutableStateOf(generalSettings.reportTitleMode) }
-    var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
-    var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
-    var perModelTitleGenEnabled by remember { mutableStateOf(generalSettings.perModelTitleGenEnabled) }
-    var useInternalPromptsIcons by remember { mutableStateOf(generalSettings.useInternalPromptsIcons) }
-    var autostartFanIconsAndTitles by remember { mutableStateOf(generalSettings.autostartFanIconsAndTitles) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         userName = userName,
-        defaultEmail = defaultEmail,
-        reportTitleMode = reportTitleMode,
-        iconGenEnabled = iconGenEnabled,
-        perModelIconGenEnabled = perModelIconGenEnabled,
-        perModelTitleGenEnabled = perModelTitleGenEnabled,
-        useInternalPromptsIcons = useInternalPromptsIcons,
-        autostartFanIconsAndTitles = autostartFanIconsAndTitles
+        defaultEmail = defaultEmail
     )
 
-    LaunchedEffect(userName, defaultEmail, reportTitleMode, iconGenEnabled, perModelIconGenEnabled, perModelTitleGenEnabled, useInternalPromptsIcons, autostartFanIconsAndTitles) {
+    LaunchedEffect(userName, defaultEmail) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1282,7 +1315,7 @@ private fun OtherSettingsSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity and report-icon options", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("Identity", "Used as the human side of the conversation in agent prompts; the email pre-fills the export sheet so you don't retype it on every send.") {
                 OutlinedTextField(
@@ -1298,51 +1331,335 @@ private fun OtherSettingsSubScreen(
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
             }
-            SettingCard("Report title", "How a new report's title is decided. Manual keeps the Title input field on the New AI Report screen. AI (default) hides the field and runs a background LLM call after report start that fills the title from the prompt body — the resolved title shows on the 'title' row of the Manage report screen, alongside the icon and language rows.") {
-                Column {
-                    RadioRow(
-                        selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual,
-                        label = "Manual — type a title yourself",
-                        onClick = { reportTitleMode = com.ai.viewmodel.ReportTitleMode.Manual }
+        }
+    }
+}
+
+/** "Metadata & icons" — the grand-master switch for every optional
+ *  metadata item plus the per-item sub-toggles it gates. When the master
+ *  is off the sub-toggles are hidden (and every item is treated as off
+ *  app-wide). Default on, mirroring the old per-item defaults. */
+@Composable
+private fun MetadataSettingsSubScreen(
+    generalSettings: GeneralSettings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    var metadataEnabled by remember { mutableStateOf(generalSettings.metadataEnabled) }
+    var reportTitleMode by remember { mutableStateOf(generalSettings.reportTitleMode) }
+    var iconGenEnabled by remember { mutableStateOf(generalSettings.iconGenEnabled) }
+    var reportLanguageGenEnabled by remember { mutableStateOf(generalSettings.reportLanguageGenEnabled) }
+    var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
+    var perModelTitleGenEnabled by remember { mutableStateOf(generalSettings.perModelTitleGenEnabled) }
+    var useInternalPromptsIcons by remember { mutableStateOf(generalSettings.useInternalPromptsIcons) }
+    var autostartFanIconsAndTitles by remember { mutableStateOf(generalSettings.autostartFanIconsAndTitles) }
+
+    fun build(): GeneralSettings = generalSettings.copy(
+        metadataEnabled = metadataEnabled,
+        reportTitleMode = reportTitleMode,
+        iconGenEnabled = iconGenEnabled,
+        reportLanguageGenEnabled = reportLanguageGenEnabled,
+        perModelIconGenEnabled = perModelIconGenEnabled,
+        perModelTitleGenEnabled = perModelTitleGenEnabled,
+        useInternalPromptsIcons = useInternalPromptsIcons,
+        autostartFanIconsAndTitles = autostartFanIconsAndTitles
+    )
+
+    LaunchedEffect(metadataEnabled, reportTitleMode, iconGenEnabled, reportLanguageGenEnabled, perModelIconGenEnabled, perModelTitleGenEnabled, useInternalPromptsIcons, autostartFanIconsAndTitles) {
+        val updated = build()
+        if (updated != generalSettings) {
+            kotlinx.coroutines.delay(400)
+            onSave(updated)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val updated = build()
+            if (updated != generalSettings) onSave(updated)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(helpTopic = "settings_metadata", title = "Metadata & icons", subject = "Master switch and per-item options for optional report metadata", onBackClick = onBack)
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ToggleSettingCard(
+                title = "Generate metadata & icons",
+                description = "Grand-master switch for every optional metadata item: report icon, report language, AI report title, per-model icons & titles, Fan Out icons & titles, and the meta / rerank / moderate / translate row icons. When off, none of it is generated and all of its UI disappears — the Fan Out Icons / Titles buttons, the Manage report 'info' row — and a new report must be given a manual title. View screens are unaffected: a report that already has icons keeps showing them. Turn it on to reveal the per-item toggles below.",
+                checked = metadataEnabled,
+                onCheckedChange = { metadataEnabled = it }
+            )
+            if (metadataEnabled) {
+                SettingCard("Report title", "How a new report's title is decided. Manual keeps the Title input field on the New AI Report screen. AI (default) hides the field and runs a background LLM call after report start that fills the title from the prompt body — the resolved title shows on the 'title' row of the Manage report screen, alongside the icon and language rows.") {
+                    Column {
+                        RadioRow(
+                            selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual,
+                            label = "Manual — type a title yourself",
+                            onClick = { reportTitleMode = com.ai.viewmodel.ReportTitleMode.Manual }
+                        )
+                        RadioRow(
+                            selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
+                            label = "AI — generate from the prompt",
+                            onClick = { reportTitleMode = com.ai.viewmodel.ReportTitleMode.AI }
+                        )
+                    }
+                }
+                ToggleSettingCard(
+                    title = "Generate report icon",
+                    description = "Run a small LLM call at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. Turn this off to skip the call and hide every report-icon affordance.",
+                    checked = iconGenEnabled,
+                    onCheckedChange = { iconGenEnabled = it }
+                )
+                ToggleSettingCard(
+                    title = "Generate report language",
+                    description = "Detect the report's language and pick a flag emoji for it (a two-step LLM call after report start). Surfaces as the 'language' row on the info screen and as a flag on the language picker. Independent of the report icon.",
+                    checked = reportLanguageGenEnabled,
+                    onCheckedChange = { reportLanguageGenEnabled = it }
+                )
+                ToggleSettingCard(
+                    title = "Generate per model icons",
+                    description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ✅ flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
+                    checked = perModelIconGenEnabled,
+                    onCheckedChange = { perModelIconGenEnabled = it }
+                )
+                ToggleSettingCard(
+                    title = "Generate per model titles",
+                    description = "After each model response, run a short Anthropic call (internal/model_title) to title that response in ≤4 words. The title replaces the model name on the Manage report 'report' row; its cost folds into that row and into a 'Model titles' category on the Costs screen. Off by default — it's one extra LLM call per model.",
+                    checked = perModelTitleGenEnabled,
+                    onCheckedChange = { perModelTitleGenEnabled = it }
+                )
+                ToggleSettingCard(
+                    title = "Use internal prompts icons",
+                    description = "Generate a small emoji for each Internal Prompt and show it as a leading glyph on the secondary-result rows of the report result page (compare / critique / rerank / fan-out / …). One LLM call per (name, title) — results cached persistently and reused across reports. Renaming a prompt or editing its title invalidates only that entry.",
+                    checked = useInternalPromptsIcons,
+                    onCheckedChange = { useInternalPromptsIcons = it }
+                )
+                ToggleSettingCard(
+                    title = "Autostart Fan Icons & Titles",
+                    description = "When a Fan Out finishes with no errored pairs, automatically kick off its Fan Icons and Fan Titles batches — so you don't have to tap the Icons / Titles buttons by hand. A run with any error pair is left alone; you can still start the batches manually.",
+                    checked = autostartFanIconsAndTitles,
+                    onCheckedChange = { autostartFanIconsAndTitles = it }
+                )
+            }
+        }
+    }
+}
+
+/** "Default icons" — edit the 11 fallback emoji shown when a report /
+ *  secondary result has no generated icon of its own. Always reachable
+ *  (independent of the metadata master switch) since defaults render on
+ *  view screens regardless. Blank field on save → factory default. */
+@Composable
+private fun DefaultIconsSubScreen(
+    generalSettings: GeneralSettings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    val factory = remember { com.ai.data.MetadataIcons() }
+    var reportIcon by remember { mutableStateOf(generalSettings.metadataIcons.reportIcon) }
+    var reportModelIcon by remember { mutableStateOf(generalSettings.metadataIcons.reportModelIcon) }
+    var rerank by remember { mutableStateOf(generalSettings.metadataIcons.rerank) }
+    var moderate by remember { mutableStateOf(generalSettings.metadataIcons.moderate) }
+    var languageIcon by remember { mutableStateOf(generalSettings.metadataIcons.languageIcon) }
+    var translationRow by remember { mutableStateOf(generalSettings.metadataIcons.translationRow) }
+    var meta by remember { mutableStateOf(generalSettings.metadataIcons.meta) }
+    var fanOutRow by remember { mutableStateOf(generalSettings.metadataIcons.fanOutRow) }
+    var fanInRow by remember { mutableStateOf(generalSettings.metadataIcons.fanInRow) }
+    var fanIconsRow by remember { mutableStateOf(generalSettings.metadataIcons.fanIconsRow) }
+    var fanIconsResult by remember { mutableStateOf(generalSettings.metadataIcons.fanIconsResult) }
+
+    fun build(): GeneralSettings {
+        fun f(v: String, d: String) = v.trim().ifBlank { d }
+        return generalSettings.copy(metadataIcons = com.ai.data.MetadataIcons(
+            reportIcon = f(reportIcon, factory.reportIcon),
+            reportModelIcon = f(reportModelIcon, factory.reportModelIcon),
+            rerank = f(rerank, factory.rerank),
+            moderate = f(moderate, factory.moderate),
+            languageIcon = f(languageIcon, factory.languageIcon),
+            translationRow = f(translationRow, factory.translationRow),
+            meta = f(meta, factory.meta),
+            fanOutRow = f(fanOutRow, factory.fanOutRow),
+            fanInRow = f(fanInRow, factory.fanInRow),
+            fanIconsRow = f(fanIconsRow, factory.fanIconsRow),
+            fanIconsResult = f(fanIconsResult, factory.fanIconsResult)
+        ))
+    }
+
+    LaunchedEffect(reportIcon, reportModelIcon, rerank, moderate, languageIcon, translationRow, meta, fanOutRow, fanInRow, fanIconsRow, fanIconsResult) {
+        val updated = build()
+        if (updated != generalSettings) {
+            kotlinx.coroutines.delay(400)
+            onSave(updated)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val updated = build()
+            if (updated != generalSettings) onSave(updated)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(helpTopic = "settings_default_icons", title = "Default icons", subject = "Fallback emoji for reports without their own icon", onBackClick = onBack,
+            // 🧽 restores every icon to its factory default.
+            onClear = {
+                reportIcon = factory.reportIcon; reportModelIcon = factory.reportModelIcon
+                rerank = factory.rerank; moderate = factory.moderate
+                languageIcon = factory.languageIcon; translationRow = factory.translationRow
+                meta = factory.meta; fanOutRow = factory.fanOutRow; fanInRow = factory.fanInRow
+                fanIconsRow = factory.fanIconsRow; fanIconsResult = factory.fanIconsResult
+            }
+        )
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Shown on view screens when a report or result carries no generated icon. Editing one updates every report that lacks its own.",
+                        fontSize = 11.sp, color = AppColors.TextTertiary
                     )
-                    RadioRow(
-                        selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
-                        label = "AI — generate from the prompt",
-                        onClick = { reportTitleMode = com.ai.viewmodel.ReportTitleMode.AI }
-                    )
+                    IconDefaultRow("Report", reportIcon) { reportIcon = it }
+                    IconDefaultRow("Report model", reportModelIcon) { reportModelIcon = it }
+                    IconDefaultRow("Rerank", rerank) { rerank = it }
+                    IconDefaultRow("Moderate", moderate) { moderate = it }
+                    IconDefaultRow("Language icon", languageIcon) { languageIcon = it }
+                    IconDefaultRow("Translation row", translationRow) { translationRow = it }
+                    IconDefaultRow("Meta", meta) { meta = it }
+                    IconDefaultRow("Fan Out row", fanOutRow) { fanOutRow = it }
+                    IconDefaultRow("Fan In row", fanInRow) { fanInRow = it }
+                    IconDefaultRow("Fan Icons row", fanIconsRow) { fanIconsRow = it }
+                    IconDefaultRow("Fan Icons result", fanIconsResult) { fanIconsResult = it }
+                    // "Reset all to defaults" moved to the 🧽 bottom-bar icon.
                 }
             }
-            ToggleSettingCard(
-                title = "Generate report icons",
-                description = "Run a small LLM call at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. Turn this off to skip the call and hide every report-icon affordance.",
-                checked = iconGenEnabled,
-                onCheckedChange = { iconGenEnabled = it }
-            )
-            ToggleSettingCard(
-                title = "Generate per model icons",
-                description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ✅ flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
-                checked = perModelIconGenEnabled,
-                onCheckedChange = { perModelIconGenEnabled = it }
-            )
-            ToggleSettingCard(
-                title = "Generate per model titles",
-                description = "After each model response, run a short Anthropic call (internal/model_title) to title that response in ≤4 words. The title replaces the model name on the Manage report 'report' row; its cost folds into that row and into a 'Model titles' category on the Costs screen. Off by default — it's one extra LLM call per model.",
-                checked = perModelTitleGenEnabled,
-                onCheckedChange = { perModelTitleGenEnabled = it }
-            )
-            ToggleSettingCard(
-                title = "Use internal prompts icons",
-                description = "Generate a small emoji for each Internal Prompt and show it as a leading glyph on the secondary-result rows of the report result page (compare / critique / rerank / fan-out / …). One LLM call per (name, title) — results cached persistently and reused across reports. Renaming a prompt or editing its title invalidates only that entry.",
-                checked = useInternalPromptsIcons,
-                onCheckedChange = { useInternalPromptsIcons = it }
-            )
-            ToggleSettingCard(
-                title = "Autostart Fan Icons & Titles",
-                description = "When a Fan Out finishes with no errored pairs, automatically kick off its Fan Icons and Fan Titles batches — so you don't have to tap the Icons / Titles buttons by hand. A run with any error pair is left alone; you can still start the batches manually.",
-                checked = autostartFanIconsAndTitles,
-                onCheckedChange = { autostartFanIconsAndTitles = it }
+        }
+    }
+}
+
+/** One labelled row on the Default icons screen: the item name on the
+ *  left, a tappable emoji box on the right that opens the AndroidX
+ *  EmojiPickerView in a bottom sheet. Picking an emoji writes exactly
+ *  one glyph back, so the value is always a single valid emoji. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun IconDefaultRow(label: String, value: String, onChange: (String) -> Unit) {
+    var showPicker by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .width(96.dp)
+                .border(1.dp, AppColors.TextDisabled, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                .clickable { showPicker = true }
+                .padding(vertical = 10.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(value, fontSize = 22.sp)
+        }
+    }
+    if (showPicker) {
+        ModalBottomSheet(onDismissRequest = { showPicker = false }) {
+            androidx.compose.ui.viewinterop.AndroidView(
+                factory = { ctx ->
+                    androidx.emoji2.emojipicker.EmojiPickerView(ctx).apply {
+                        setOnEmojiPickedListener { picked ->
+                            onChange(picked.emoji)
+                            showPicker = false
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(360.dp)
             )
         }
+    }
+}
+
+/** "App settings" — app-wide and report-model default System prompt /
+ *  Parameters presets. App-wide is the universal lowest fallback for every
+ *  model; report-model fills in for bare/direct models only. Both are
+ *  outranked by anything more specific (pre-gen, agent / flock / swarm,
+ *  provider). Stored in GeneralSettings. */
+@Composable
+private fun AppSettingsScreen(
+    generalSettings: GeneralSettings,
+    aiSettings: Settings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit
+) {
+    var appSp by remember { mutableStateOf(generalSettings.appWideSystemPromptId) }
+    var appPar by remember { mutableStateOf(generalSettings.appWideParametersIds) }
+    var rmSp by remember { mutableStateOf(generalSettings.reportModelSystemPromptId) }
+    var rmPar by remember { mutableStateOf(generalSettings.reportModelParametersIds) }
+
+    fun build(): GeneralSettings = generalSettings.copy(
+        appWideSystemPromptId = appSp,
+        appWideParametersIds = appPar,
+        reportModelSystemPromptId = rmSp,
+        reportModelParametersIds = rmPar
+    )
+    LaunchedEffect(appSp, appPar, rmSp, rmPar) {
+        val updated = build()
+        if (updated != generalSettings) { kotlinx.coroutines.delay(400); onSave(updated) }
+    }
+    DisposableEffect(Unit) { onDispose { val u = build(); if (u != generalSettings) onSave(u) } }
+
+    var spDialog by remember { mutableStateOf<String?>(null) }   // "app" | "rm"
+    var parDialog by remember { mutableStateOf<String?>(null) }  // "app" | "rm"
+    if (spDialog != null) {
+        val app = spDialog == "app"
+        com.ai.ui.shared.SystemPromptSelectScreen(
+            aiSettings = aiSettings, selectedId = if (app) appSp else rmSp,
+            onSelect = { if (app) appSp = it else rmSp = it },
+            onBack = { spDialog = null }, onNavigateHome = onBack
+        )
+        return
+    }
+    if (parDialog != null) {
+        val app = parDialog == "app"
+        com.ai.ui.shared.ParametersSelectScreen(
+            aiSettings = aiSettings, selectedIds = if (app) appPar else rmPar,
+            onConfirm = { if (app) appPar = it else rmPar = it },
+            onBack = { parDialog = null }, onNavigateHome = onBack
+        )
+        return
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(helpTopic = "settings_app_settings", title = "App settings", subject = "App-wide & report-model default prompt / parameters", onBackClick = onBack)
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SettingCard("System prompt", "App-wide is the lowest fallback for every model; Report model applies to bare models (not from an agent / flock / swarm) and is skipped when a pre-generation system prompt is given.") {
+                AppDefaultRow("App-wide", appSp?.let { aiSettings.getSystemPromptById(it)?.name }) { spDialog = "app" }
+                AppDefaultRow("Report model", rmSp?.let { aiSettings.getSystemPromptById(it)?.name }) { spDialog = "rm" }
+            }
+            SettingCard("Parameters", "App-wide is the lowest fallback for every model; Report model applies to bare models (not from an agent / flock / swarm) and is skipped when pre-generation parameters are given.") {
+                AppDefaultRow("App-wide", appPar.mapNotNull { aiSettings.getParametersById(it)?.name }.joinToString(", ").ifBlank { null }) { parDialog = "app" }
+                AppDefaultRow("Report model", rmPar.mapNotNull { aiSettings.getParametersById(it)?.name }.joinToString(", ").ifBlank { null }) { parDialog = "rm" }
+            }
+        }
+    }
+}
+
+/** One labelled selector row inside an App settings card. */
+@Composable
+private fun AppDefaultRow(label: String, selectedName: String?, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 6.dp)
+    ) {
+        Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.width(110.dp))
+        Text(
+            selectedName ?: "Tap to select", fontSize = 13.sp,
+            color = if (selectedName == null) AppColors.TextTertiary else AppColors.Blue,
+            modifier = Modifier.weight(1f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        Text(">", fontSize = 16.sp, color = AppColors.Blue)
     }
 }
 

@@ -180,9 +180,11 @@ internal fun rememberReportRuntimeState(
             agentRecordsByAgentId = r?.agents?.associate { ra -> ra.agentId to ra } ?: emptyMap()
             val infoJobs = if (r != null) buildInfoJobs(
                 r, uiState.aiSettings, iconGenEnabled,
-                uiState.generalSettings.reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
-                uiState.generalSettings.perModelIconGenEnabled,
-                uiState.generalSettings.perModelTitleGenEnabled
+                uiState.generalSettings.reportLanguageOn(),
+                uiState.generalSettings.reportTitleAiOn(),
+                uiState.generalSettings.perModelIconOn(),
+                uiState.generalSettings.perModelTitleOn(),
+                uiState.generalSettings.metadataIcons
             ) else emptyList()
             infoEnabled = infoJobs.isNotEmpty()
             infoState = aggregateInfoState(infoJobs)

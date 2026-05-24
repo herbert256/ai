@@ -28,6 +28,8 @@ import com.ai.model.Settings
 import com.ai.ui.shared.AppColors
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.ai.ui.shared.ParametersSelectScreen
+import com.ai.ui.shared.SystemPromptSelectScreen
 import com.ai.ui.shared.SelectModelScreen
 import com.ai.ui.shared.SelectProviderScreen
 import com.ai.ui.shared.TitleBar
@@ -176,20 +178,46 @@ fun DualChatSetupScreen(
         4 -> if (model2Provider != null) { SelectModelScreen(provider = model2Provider!!, aiSettings = aiSettings, currentModel = model2Name, onSelectModel = { model2Name = it; overlayMode = 0 }, onBack = { overlayMode = 3 }, onNavigateHome = onNavigateHome); return }
     }
 
+    // 🌡️ / 🎭 ask which model first (this screen configures two), then
+    // open the matching full-screen picker as an overlay.
+    var paramsForModel by remember { mutableStateOf<Int?>(null) }
+    var sysPromptForModel by remember { mutableStateOf<Int?>(null) }
+    var showParamsChooser by remember { mutableStateOf(false) }
+    var showSysPromptChooser by remember { mutableStateOf(false) }
+    ModelPickDialog(showParamsChooser, "Parameters for which model?", { showParamsChooser = false }) { paramsForModel = it; showParamsChooser = false }
+    ModelPickDialog(showSysPromptChooser, "System prompt for which model?", { showSysPromptChooser = false }) { sysPromptForModel = it; showSysPromptChooser = false }
+    if (paramsForModel != null) {
+        val m = paramsForModel!!
+        ParametersSelectScreen(
+            aiSettings = aiSettings, selectedIds = if (m == 1) model1ParamsIds else model2ParamsIds,
+            onConfirm = { if (m == 1) model1ParamsIds = it else model2ParamsIds = it },
+            onBack = { paramsForModel = null }, onNavigateHome = onNavigateHome
+        )
+        return
+    }
+    if (sysPromptForModel != null) {
+        val m = sysPromptForModel!!
+        SystemPromptSelectScreen(
+            aiSettings = aiSettings, selectedId = if (m == 1) model1SystemPromptId else model2SystemPromptId,
+            onSelect = { if (m == 1) model1SystemPromptId = it else model2SystemPromptId = it },
+            onBack = { sysPromptForModel = null }, onNavigateHome = onNavigateHome
+        )
+        return
+    }
+
     val canStart = model1Provider != null && model1Name.isNotBlank() && model2Provider != null && model2Name.isNotBlank() && subject.isNotBlank() && (interactionCount.toIntOrNull() ?: 0) > 0
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "dual_chat_setup", title = "Dual AI Chat", subject = "Set up two models to debate a topic", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "dual_chat_setup", title = "Dual AI Chat", subject = "Set up two models to debate a topic", onBackClick = onNavigateBack,
+            onParameters = { showParamsChooser = true }, onSystemPrompt = { showSysPromptChooser = true })
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Model 1
             ModelSelectionCard(
                 label = "Model 1", providerName = model1Provider?.id, modelName = model1Name,
-                onSelectClick = { overlayMode = 1 }, color = Color(0xFF4488CC),
-                aiSettings = aiSettings, paramsIds = model1ParamsIds, onParamsIdsChange = { model1ParamsIds = it },
-                systemPromptId = model1SystemPromptId, onSystemPromptIdChange = { model1SystemPromptId = it }
+                onSelectClick = { overlayMode = 1 }, color = Color(0xFF4488CC)
             )
 
             // Swap button
@@ -204,9 +232,7 @@ fun DualChatSetupScreen(
             // Model 2
             ModelSelectionCard(
                 label = "Model 2", providerName = model2Provider?.id, modelName = model2Name,
-                onSelectClick = { overlayMode = 3 }, color = Color(0xFF44AA66),
-                aiSettings = aiSettings, paramsIds = model2ParamsIds, onParamsIdsChange = { model2ParamsIds = it },
-                systemPromptId = model2SystemPromptId, onSystemPromptIdChange = { model2SystemPromptId = it }
+                onSelectClick = { overlayMode = 3 }, color = Color(0xFF44AA66)
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -266,34 +292,10 @@ private fun ModelSelectionCard(
     providerName: String?,
     modelName: String,
     onSelectClick: () -> Unit,
-    color: Color,
-    aiSettings: Settings,
-    paramsIds: List<String>,
-    onParamsIdsChange: (List<String>) -> Unit,
-    systemPromptId: String?,
-    onSystemPromptIdChange: (String?) -> Unit
+    color: Color
 ) {
-    var showSystemPromptDialog by rememberSaveable { mutableStateOf(false) }
-    var showParamsDialog by rememberSaveable { mutableStateOf(false) }
-
-    if (showSystemPromptDialog) {
-        SystemPromptSelectorDialog(
-            aiSettings = aiSettings, selectedId = systemPromptId,
-            onSelect = { onSystemPromptIdChange(it); showSystemPromptDialog = false },
-            onDismiss = { showSystemPromptDialog = false }
-        )
-    }
-    if (showParamsDialog) {
-        ParametersSelectorDialog(
-            aiSettings = aiSettings, selectedIds = paramsIds,
-            onConfirm = { onParamsIdsChange(it); showParamsDialog = false },
-            onDismiss = { showParamsDialog = false }
-        )
-    }
-
-    val spName = systemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
-    val pNames = paramsIds.mapNotNull { aiSettings.getParametersById(it)?.name }
-
+    // Per-model Parameters / System prompt now live on the screen's
+    // bottom-bar 🌡️ / 🎭 icons (which ask "Model 1 or Model 2?").
     Card(
         colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.1f)),
         modifier = Modifier.fillMaxWidth()
@@ -312,19 +314,27 @@ private fun ModelSelectionCard(
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
             }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(
-                    onClick = { showSystemPromptDialog = true }, modifier = Modifier.weight(1f),
-                    colors = if (spName != null) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-                ) { Text(spName ?: "System Prompt", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                OutlinedButton(
-                    onClick = { showParamsDialog = true }, modifier = Modifier.weight(1f),
-                    colors = if (pNames.isNotEmpty()) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.Purple.copy(alpha = 0.2f)) else ButtonDefaults.outlinedButtonColors()
-                ) { Text(if (pNames.isNotEmpty()) pNames.joinToString(", ") else "Parameters", fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis) }
-            }
         }
     }
+}
+
+/** Tiny chooser shown when a bottom-bar 🌡️ / 🎭 icon is tapped on the
+ *  Dual Chat setup — the screen configures two models, so we ask which
+ *  one before opening the preset selector. */
+@Composable
+private fun ModelPickDialog(show: Boolean, title: String, onDismiss: () -> Unit, onPick: (Int) -> Unit) {
+    if (!show) return
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { onPick(1) }) { Text("Model 1") }
+                TextButton(onClick = { onPick(2) }) { Text("Model 2") }
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+    )
 }
 
 // ===== Session Screen =====

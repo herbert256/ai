@@ -91,7 +91,7 @@ data class TranslationIconCallbacks(
  *  restartInternalPromptIconFanOut`. */
 data class InternalPromptIconCallbacks(
     val onKickoff: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
-    val onStartFanOut: (com.ai.model.InternalPrompt, List<ReportModel>) -> Unit = { _, _ -> },
+    val onStartFanOut: (com.ai.model.InternalPrompt, List<ReportModel>, List<String>, String?) -> Unit = { _, _, _, _ -> },
     val onPick: (com.ai.model.InternalPrompt, IconCandidate.Done) -> Unit = { _, _ -> },
     val onRestartFanOut: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
     /** Per-row override variant of [onPick]. Wired to

@@ -10,6 +10,8 @@ object NavRoutes {
     const val SETTINGS_FLOCK_EDIT = "settings_flock_edit/{flockId}"
     const val SETTINGS_SWARM_EDIT = "settings_swarm_edit/{swarmId}"
     const val SETTINGS_INTERNAL_PROMPT_EDIT = "settings_internal_prompt_edit/{promptId}"
+    const val SETTINGS_PARAMETERS = "settings_parameters"
+    const val SETTINGS_SYSTEM_PROMPTS = "settings_system_prompts"
     const val SETTINGS_AGENTS = "settings_agents"
     const val SETTINGS_FLOCKS = "settings_flocks"
     const val SETTINGS_SWARMS = "settings_swarms"
@@ -60,10 +62,14 @@ object NavRoutes {
      *  `initialReportsAgentId` further seeds the View tile grid's
      *  per-agent Reports sub-overlay (used by Model Info View's
      *  Last-Usage rows). */
-    const val AI_REPORTS = "ai_reports?initialView={initialView}&initialReportsAgentId={initialReportsAgentId}"
+    const val AI_REPORTS = "ai_reports?initialView={initialView}&initialReportsAgentId={initialReportsAgentId}&initialManageOverlay={initialManageOverlay}"
     /** Helper for the row-level 🔧 Manage icon — same destination
-     *  the existing navigation uses. */
-    fun aiReportManage() = "ai_reports"
+     *  the existing navigation uses. Pass [overlay] (a
+     *  `ManagePickKind.arg`) to seed a Manage sub-overlay on entry,
+     *  used when a report is picked from a Manage screen's 🗂️. */
+    fun aiReportManage(overlay: String? = null) =
+        if (overlay.isNullOrBlank()) "ai_reports"
+        else "ai_reports?initialManageOverlay=$overlay"
     /** Helper for the row-level 👁 View icon — seeds the View
      *  tile grid (`showViewReportScreen`) on first composition only. */
     fun aiReportView() = "ai_reports?initialView=true"
@@ -120,6 +126,10 @@ object NavRoutes {
     const val AI_REPORT_INFO = "ai_report_info/{reportId}"
     const val AI_REPORT_MODEL = "ai_report_model/{reportId}/{agentId}"
     const val AI_VIEW_PICK_REPORT = "ai_view_pick_report"
+    /** Filtered "pick a report" screen opened from a Manage screen's
+     *  🗂️ — `{kind}` is a [ManagePickKind.arg]. */
+    const val AI_MANAGE_PICK_REPORT = "ai_manage_pick_report/{kind}"
+    fun aiManagePickReport(kind: String) = "ai_manage_pick_report/$kind"
     const val AI_MANUAL_OVERRIDE_ADD = "ai_manual_override_add/{provider}/{model}"
     const val AI_MANUAL_COST_OVERRIDE_ADD = "ai_manual_cost_override_add/{provider}/{model}"
     const val AI_API_TEST = "ai_api_test"

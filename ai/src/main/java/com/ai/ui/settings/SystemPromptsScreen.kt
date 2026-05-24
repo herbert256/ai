@@ -22,9 +22,10 @@ fun SystemPromptEditScreen(
 ) {
     BackHandler { onBack() }
     val isEditing = systemPrompt != null
+    var resetTick by remember { mutableStateOf(0) }
 
-    var name by remember { mutableStateOf(systemPrompt?.name ?: "") }
-    var prompt by remember { mutableStateOf(systemPrompt?.prompt ?: "") }
+    var name by remember(resetTick) { mutableStateOf(systemPrompt?.name ?: "") }
+    var prompt by remember(resetTick) { mutableStateOf(systemPrompt?.prompt ?: "") }
 
     val dup = rememberDuplicateMode(
         isEditingExisting = systemPrompt != null,
@@ -49,7 +50,8 @@ fun SystemPromptEditScreen(
             title = if (isAddMode) "Add System Prompt" else "Edit System Prompt",
             subject = name,
             onBackClick = onBack,
-            onCopyReport = null
+            onCopyReport = null,
+            onClear = { resetTick++ }
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(

@@ -1,6 +1,24 @@
 package com.ai.ui.admin
 
 internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
+    "select_parameters" to HelpContent(
+        title = "Help - Configure API parameters",
+        cards = listOf(
+            HelpCard("Overview", "Opened from the 🌡️ icon. Picks which saved Parameters preset(s) — temperature, max tokens, top-p and the rest — apply to whatever you're configuring (a report model, an agent, a chat, an internal prompt, the app-wide default, …)."),
+            HelpCard("Current active", "When at least one preset is selected, the orange line under the title lists the active preset name(s). Nothing there means no preset is set and the next level down (agent / provider / app-wide) decides."),
+            HelpCard("Selecting", "Tap a row to toggle it. This is multi-select — pick several and their settings merge. The list pages when it doesn't fit; swipe left / right (or up / down) to move between pages."),
+            HelpCard("Icons", "🗑 clears the whole selection (back to none). ✏️ opens the Parameters management screen where you create, edit and delete presets."),
+        )
+    ),
+    "select_system_prompt" to HelpContent(
+        title = "Help - Define AI model system prompt",
+        cards = listOf(
+            HelpCard("Overview", "Opened from the 🎭 icon. Picks the saved System prompt — the standing instruction that sets the model's role or tone — for whatever you're configuring."),
+            HelpCard("Current active", "When a prompt is selected, the orange line under the title shows its name. Nothing there means no system prompt is set at this level."),
+            HelpCard("Selecting", "Tap a row to select it (single choice). The list pages when it doesn't fit; swipe to move between pages."),
+            HelpCard("Icons", "🗑 clears the selection (back to none). ✏️ opens the System prompts management screen where you create, edit and delete prompts."),
+        )
+    ),
     "update_from_cloud" to HelpContent(
         title = "Help - Update from cloud",
         cards = listOf(
@@ -30,17 +48,47 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Network settings", "Read timeouts, per-provider throttling, and 429 / 529 retry policies. Tap the row to open the dedicated sub-screen."),
             HelpCard("UI tweaks", "Experimental features master toggle, model name layout, full-screen, back-arrow visibility. Tap the row to open the dedicated sub-screen."),
             HelpCard("Logging and tracing", "API tracing master switch and application log level. Tap the row to open the dedicated sub-screen."),
-            HelpCard("Other settings", "Identity (Name + Email) used for outbound prompts and email exports, plus the master switch for per-report icon generation."),
+            HelpCard("Metadata & icons", "Grand-master switch for every optional AI-generated extra — report icon / language / title, per-model icons & titles, Fan & meta icons — plus the per-item toggles it gates."),
+            HelpCard("Default icons", "Edit the 11 fallback emoji shown when a report or result has no generated icon of its own (report, model, rerank, moderate, language, translation, meta, fan-out / fan-in / fan-icons rows, fan-icons result)."),
+            HelpCard("Other settings", "Identity (Name + Email) used for outbound prompts and email exports."),
             HelpCard("Tips", "Each sub-screen has no Save button on purpose — every keystroke restarts a 400 ms debounce timer. If you tap Back fast, the latest values still flush to disk via a DisposableEffect."),
         )
     ),
     "settings_other" to HelpContent(
         title = "Help - Other settings",
         cards = listOf(
-            HelpCard("Overview", "Catch-all bucket for the few preferences that don't fit the network / UI / logging buckets. Two cards — Identity and Generate report icons. Both autosave with a 400 ms debounce."),
+            HelpCard("Overview", "Holds your Identity (Name + Email). The optional report-metadata toggles that used to live here now have their own screen — Settings → Metadata & icons. Autosaves with a 400 ms debounce."),
             HelpCard("Identity", "Two text fields — Name and Email address — combined in one card. Name surfaces wherever the app addresses you and defaults the From: header on email-style exports. Email address pre-fills the To: field on report email exports; leave blank to be prompted each time."),
-            HelpCard("Generate report icons", "Master switch for the per-report icon-gen feature. When on, a small LLM call fires at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. When off, the icon row on the result page is hidden, the leftmost report icon (and its tied 📝 memo) drops from every title bar, and per-row icon prefixes on the hub / history / search hits / pickers fall back to the static 🕘 / 📌 (or no prefix). Persisted icon values stay on disk — turning the setting back on brings them back."),
             HelpCard("Tips", "Renaming yourself mid-conversation has no retroactive effect on already-saved chats / reports — the Name field only shapes outbound prompts going forward."),
+        )
+    ),
+    "settings_metadata" to HelpContent(
+        title = "Help - Metadata & icons",
+        cards = listOf(
+            HelpCard("Overview", "One screen for every optional, AI-generated extra a report can carry — its icon, detected language, AI title, per-model icons & titles, Fan Out icons & titles, and the meta / rerank / moderate / translate row icons. A single grand-master toggle at the top turns the whole category on or off; the per-item toggles below it appear only while the master is on. Everything autosaves with a 400 ms debounce."),
+            HelpCard("Generate metadata & icons (master)", "The grand-master switch. When OFF: no metadata LLM calls fire, the per-item toggles are hidden, the Fan Out Icons / Titles buttons and the Manage report 'info' row disappear, and a new report must be given a manual title (the AI-title option is suppressed). When ON: each per-item toggle governs its own item exactly as before. Default ON."),
+            HelpCard("View screens are never gated", "The master switch only affects generation and the controls that trigger it. Screens that display a finished report always show whatever that report already holds, and fall back to fixed defaults when it holds nothing — 📝 report, 🧠 model, 🏆 rerank, 🚦 moderate, 🌐 translate, 🔗 meta, 🔱 Fan Out, 🎯 Fan In. So switching the master off never blanks out icons on reports that already have them."),
+            HelpCard("Report title", "Manual keeps the Title field on the New AI Report screen; AI (default) hides it and fills the title from a background call after report start. With the master off the title is always Manual."),
+            HelpCard("Report icon / Report language", "Two independent toggles (previously one). Report icon runs a small call to pick a fitting emoji shown in title bars, the hub list, history, and search hits. Report language detects the language and picks a flag emoji shown on the info screen and the language picker."),
+            HelpCard("Per-model icons / titles, internal-prompt icons, Autostart Fan", "Per-model icons run the 3-tier per-agent emoji chain; per-model titles add a ≤4-word title per response. Internal-prompt icons add a leading emoji to secondary-result rows. Autostart Fan Icons & Titles kicks those batches off automatically when a clean Fan Out finishes."),
+        )
+    ),
+    "settings_default_icons" to HelpContent(
+        title = "Help - Default icons",
+        cards = listOf(
+            HelpCard("Overview", "Edit the fallback emoji the app shows when a report (or one of its results) has no generated icon of its own. There are 11 entries; tap an entry's emoji box to open the system emoji picker (search, categories, recents) and pick a replacement. Edits autosave with a 400 ms debounce."),
+            HelpCard("When defaults show", "View screens always render whatever a report actually holds; these defaults fill in only when that value is missing. So changing a default updates every report that never had its own icon, and never overrides one that does. The defaults are independent of the Metadata & icons master switch — they apply even when metadata generation is off."),
+            HelpCard("The 11 entries", "Report (📝) and Report model (🧠) are the title-bar / per-model fallbacks. Rerank (🏆), Moderate (🚦), Translation row (🌐) and Meta (🔗) are the leading glyphs on secondary-result rows. Language icon (🌐) is the report's detected-language flag. Fan Out row (🔱), Fan In row (🎯) and Fan Icons row (💭) are the leading glyphs of those rows on the Manage report screen; Fan Icons result (📩) is the per-pair glyph on the Fan out – icons screen."),
+            HelpCard("Reset", "Reset all to defaults returns every entry to its factory emoji. The picker always yields exactly one glyph, so an icon can never become blank or invalid."),
+        )
+    ),
+    "settings_app_settings" to HelpContent(
+        title = "Help - App settings",
+        cards = listOf(
+            HelpCard("Overview", "Two app-level defaults for the System prompt and Parameters used when running a report, each with an App-wide and a Report-model slot. These fill in only when nothing more specific is set. Autosaves with a 400 ms debounce."),
+            HelpCard("App-wide", "The universal lowest fallback. Applied to every model in a report — including models that come from an agent, flock or swarm — but only when no more-specific value (a pre-generation prompt/params, the agent/flock/swarm, the provider, or the report-model default) is set."),
+            HelpCard("Report model", "Applies only to bare models picked directly into a report (not coming from an agent / flock / swarm). It outranks the App-wide default but is below the provider default. It is NOT used at all when you set a system prompt / parameters during the New AI Report screen (pre-generation)."),
+            HelpCard("Precedence", "Highest wins. Bare model: pre-generation → provider → report-model → app-wide. Agent / flock / swarm model: pre-generation → the agent/flock/swarm's own → app-wide."),
         )
     ),
     "settings_network" to HelpContent(

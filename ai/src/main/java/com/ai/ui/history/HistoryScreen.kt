@@ -85,6 +85,7 @@ fun HistoryScreenNav(
                 helpTopic = "history",
                 title = "History", subject = "All your saved reports, newest first", onBackClick = onNavigateBack,
                 onDelete = if (allReports.isNotEmpty()) { { confirmClearAll = true } } else null,
+                onClear = if (searchExpanded) ({ searchTitle = ""; searchPrompt = ""; searchReport = "" }) else null,
                 onHousekeeping = onHousekeeping
             )
 
@@ -102,8 +103,9 @@ fun HistoryScreenNav(
                             label = { Text("Prompt") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
                         OutlinedTextField(value = searchReport, onValueChange = { searchReport = it; currentPage = 0 },
                             label = { Text("Response") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
+                        // "Clear" moved to the 🧽 bottom-bar icon (shown while
+                        // this search panel is open).
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { searchTitle = ""; searchPrompt = ""; searchReport = "" }, colors = AppColors.outlinedButtonColors()) { Text("Clear", maxLines = 1, softWrap = false) }
                             OutlinedButton(onClick = { searchExpanded = false }, colors = AppColors.outlinedButtonColors()) { Text("Close", maxLines = 1, softWrap = false) }
                         }
                     }
@@ -189,12 +191,12 @@ private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onOpenView: () 
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
         modifier = Modifier.fillMaxWidth().clickable { onOpen() }) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (com.ai.ui.shared.LocalIconGenEnabled.current) {
-                report.icon?.let {
-                    Text(it, fontSize = 14.sp)
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-            }
+            // Always show a leading logo — the generated icon when metadata
+            // is on and present, else the configurable default report logo.
+            val historyIconOn = com.ai.ui.shared.LocalIconGenEnabled.current
+            val historyDefaultLogo = com.ai.ui.shared.LocalMetadataIcons.current.reportIcon
+            Text((if (historyIconOn) report.icon?.takeIf { it.isNotBlank() } else null) ?: historyDefaultLogo, fontSize = 14.sp)
+            Spacer(modifier = Modifier.width(8.dp))
             Text(report.title, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             com.ai.ui.shared.ReportRowActionIcons(onOpenManage = onOpen, onOpenView = onOpenView)
             TextButton(onClick = { showDeleteConfirm = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {

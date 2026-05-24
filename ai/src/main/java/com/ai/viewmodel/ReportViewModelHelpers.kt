@@ -1,6 +1,7 @@
 package com.ai.viewmodel
 
 import android.content.Context
+import com.ai.data.AgentParameters
 import com.ai.data.AppService
 import com.ai.data.PricingCache
 import com.ai.data.Report
@@ -28,6 +29,45 @@ import com.ai.model.toReportModel
  *  the agent runs inside that group. */
 internal fun resolveSystemPromptText(aiSettings: Settings, agentSpId: String?, groupSpId: String?): String? {
     return (groupSpId ?: agentSpId)?.let { aiSettings.getSystemPromptById(it)?.prompt }
+}
+
+/** Resolve the effective AgentParameters (incl. system prompt) for a
+ *  SECONDARY operation (Fan out / Fan in / Rerank / Meta / Translate /
+ *  Alt icons / Alt titles). The per-launch 🌡️ / 🎭 pick wins; when it's
+ *  empty the App-wide default (GeneralSettings) fills in. Returns empty
+ *  defaults when neither is set. */
+internal fun resolveSecondaryParams(
+    general: GeneralSettings,
+    aiSettings: Settings,
+    paramsIds: List<String>,
+    systemPromptId: String?,
+    /** The InternalPrompt driving the call. Its own parameters /
+     *  system-prompt (referenced by NAME) sit between the runtime pick
+     *  and the agent / App-wide levels. */
+    prompt: com.ai.model.InternalPrompt? = null,
+    /** The configured agent the prompt is bound to (when it pins an
+     *  agent rather than a Provider+Model pair). Its own
+     *  paramsIds / systemPromptId sit between the prompt's own and the
+     *  App-wide default. Pass null for a Provider+Model-pinned or a
+     *  runtime-picked (secondary-op) model — those have no agent level.
+     *  Full precedence: runtime pick → prompt's own → agent's own →
+     *  app-wide default. */
+    agent: com.ai.model.Agent? = null
+): AgentParameters {
+    fun nm(n: String?) = n?.takeIf { it.isNotBlank() && it != "*NONE" }
+    val promptParamIds = nm(prompt?.parameters)
+        ?.let { name -> aiSettings.parameters.firstOrNull { it.name == name }?.id }
+        ?.let { listOf(it) } ?: emptyList()
+    val agentParamIds = agent?.paramsIds ?: emptyList()
+    val ids = paramsIds.ifEmpty {
+        promptParamIds.ifEmpty { agentParamIds.ifEmpty { general.appWideParametersIds } }
+    }
+    val base = aiSettings.mergeParameters(ids) ?: AgentParameters()
+    val promptSpId = nm(prompt?.systemPrompt)
+        ?.let { name -> aiSettings.systemPrompts.firstOrNull { it.name == name }?.id }
+    val spId = systemPromptId ?: promptSpId ?: agent?.systemPromptId ?: general.appWideSystemPromptId
+    val sp = spId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+    return if (sp != null) base.copy(systemPrompt = sp) else base
 }
 
 /** First Flock the agent is a member of with a still-resolvable

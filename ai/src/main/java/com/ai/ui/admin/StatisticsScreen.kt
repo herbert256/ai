@@ -96,6 +96,7 @@ fun UsageScreen(
         TitleBar(
             helpTopic = "statistics",
             title = "AI Usage", subject = "Calls, tokens and cost per provider", onBackClick = onBack,
+            reportIcon = "📈", reportIconGoesHome = true,
             onDelete = if (stats.isNotEmpty()) { { confirmClear = true } } else null,
             onHousekeeping = onHousekeeping
         )
@@ -289,12 +290,13 @@ internal fun AddManualOverrideScreen(
     originalModel: String? = null
 ) {
     BackHandler { onBack() }
-    var selectedProvider by remember {
+    var resetTick by remember { mutableStateOf(0) }
+    var selectedProvider by remember(resetTick) {
         mutableStateOf(initialProviderId?.let { AppService.findById(it) } ?: AppService.entries.firstOrNull())
     }
-    var model by remember { mutableStateOf(initialModel ?: "") }
-    var inputPrice by remember { mutableStateOf(initialInputPerMillion?.let { "%.4f".format(Locale.US, it) } ?: "") }
-    var outputPrice by remember { mutableStateOf(initialOutputPerMillion?.let { "%.4f".format(Locale.US, it) } ?: "") }
+    var model by remember(resetTick) { mutableStateOf(initialModel ?: "") }
+    var inputPrice by remember(resetTick) { mutableStateOf(initialInputPerMillion?.let { "%.4f".format(Locale.US, it) } ?: "") }
+    var outputPrice by remember(resetTick) { mutableStateOf(initialOutputPerMillion?.let { "%.4f".format(Locale.US, it) } ?: "") }
     var showProviderSelect by remember { mutableStateOf(false) }
     var showModelSelect by remember { mutableStateOf(false) }
     val context = LocalContext.current
@@ -326,7 +328,8 @@ internal fun AddManualOverrideScreen(
             title = if (isAddMode) "Add Override" else "Edit Override",
             subject = "Set input/output \$/M for one model",
             onBackClick = onBack,
-            onCopyReport = null
+            onCopyReport = null,
+            onClear = { resetTick++ }
         )
         Spacer(modifier = Modifier.height(8.dp))
         Button(onClick = {

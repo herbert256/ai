@@ -59,6 +59,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val reportTitleMode = titleModeName?.let {
             try { com.ai.viewmodel.ReportTitleMode.valueOf(it) } catch (_: Exception) { null }
         } ?: com.ai.viewmodel.ReportTitleMode.AI
+        val metadataIcons: com.ai.data.MetadataIcons = prefs.getString(KEY_METADATA_ICONS, null)?.let {
+            try { gson.fromJson(it, com.ai.data.MetadataIcons::class.java) } catch (_: Exception) { null }
+        } ?: com.ai.data.MetadataIcons()
         return GeneralSettings(
             userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
@@ -69,12 +72,19 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
             fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, false),
             modelNameLayout = modelNameLayout,
+            metadataEnabled = prefs.getBoolean(KEY_METADATA_ENABLED, true),
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
+            reportLanguageGenEnabled = prefs.getBoolean(KEY_REPORT_LANGUAGE_GEN_ENABLED, true),
             reportTitleMode = reportTitleMode,
             perModelIconGenEnabled = prefs.getBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, true),
             perModelTitleGenEnabled = prefs.getBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, true),
             useInternalPromptsIcons = prefs.getBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, true),
             autostartFanIconsAndTitles = prefs.getBoolean(KEY_AUTOSTART_FAN_ICONS_TITLES, true),
+            metadataIcons = metadataIcons,
+            appWideSystemPromptId = prefs.getString(KEY_APP_WIDE_SYSTEM_PROMPT_ID, null),
+            appWideParametersIds = loadJsonList(KEY_APP_WIDE_PARAMETERS_IDS) ?: emptyList(),
+            reportModelSystemPromptId = prefs.getString(KEY_REPORT_MODEL_SYSTEM_PROMPT_ID, null),
+            reportModelParametersIds = loadJsonList(KEY_REPORT_MODEL_PARAMETERS_IDS) ?: emptyList(),
             showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false),
             experimentalFeaturesEnabled = prefs.getBoolean(KEY_EXPERIMENTAL_FEATURES, false),
             recentReportModels = prefs.getString(KEY_RECENT_REPORT_MODELS, null)
@@ -123,12 +133,19 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
             putBoolean(KEY_FULL_SCREEN, settings.fullScreen)
             putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
+            putBoolean(KEY_METADATA_ENABLED, settings.metadataEnabled)
             putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
+            putBoolean(KEY_REPORT_LANGUAGE_GEN_ENABLED, settings.reportLanguageGenEnabled)
             putString(KEY_REPORT_TITLE_MODE, settings.reportTitleMode.name)
             putBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, settings.perModelIconGenEnabled)
             putBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, settings.perModelTitleGenEnabled)
             putBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, settings.useInternalPromptsIcons)
             putBoolean(KEY_AUTOSTART_FAN_ICONS_TITLES, settings.autostartFanIconsAndTitles)
+            putString(KEY_METADATA_ICONS, gson.toJson(settings.metadataIcons))
+            putString(KEY_APP_WIDE_SYSTEM_PROMPT_ID, settings.appWideSystemPromptId)
+            putString(KEY_APP_WIDE_PARAMETERS_IDS, if (settings.appWideParametersIds.isEmpty()) null else gson.toJson(settings.appWideParametersIds))
+            putString(KEY_REPORT_MODEL_SYSTEM_PROMPT_ID, settings.reportModelSystemPromptId)
+            putString(KEY_REPORT_MODEL_PARAMETERS_IDS, if (settings.reportModelParametersIds.isEmpty()) null else gson.toJson(settings.reportModelParametersIds))
             putBoolean(KEY_SHOW_KNOWLEDGE_CARD, settings.showKnowledgeCard)
             putBoolean(KEY_EXPERIMENTAL_FEATURES, settings.experimentalFeaturesEnabled)
             // Newline-joined: entries are "providerId|model" so newline
@@ -232,7 +249,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 modelPricing = modelPricing,
                 modelCapabilities = modelCapabilities,
                 modelListRawJson = modelListRawJson,
-                parametersIds = loadJsonList("${key}_parameters_id") ?: emptyList()
+                parametersIds = loadJsonList("${key}_parameters_id") ?: emptyList(),
+                systemPromptId = prefs.getString("${key}_system_prompt_id", null)
             )
         }
         return Settings(providers = providers)
@@ -275,6 +293,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 // revision can pull out new fields without forcing a refetch.
                 putString("${key}_models_response_raw", config.modelListRawJson)
                 putString("${key}_parameters_id", if (config.parametersIds.isEmpty()) null else gson.toJson(config.parametersIds))
+                putString("${key}_system_prompt_id", config.systemPromptId)
             }
             putString(KEY_AI_AGENTS, gson.toJson(settings.agents))
             putString(KEY_AI_FLOCKS, gson.toJson(settings.flocks))
@@ -506,12 +525,19 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_TRACING_ENABLED = "tracing_enabled"
         private const val KEY_FULL_SCREEN = "full_screen"
         private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
+        private const val KEY_METADATA_ENABLED = "metadata_enabled"
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
+        private const val KEY_REPORT_LANGUAGE_GEN_ENABLED = "report_language_gen_enabled"
         private const val KEY_REPORT_TITLE_MODE = "report_title_mode"
         private const val KEY_PER_MODEL_ICON_GEN_ENABLED = "per_model_icon_gen_enabled"
         private const val KEY_PER_MODEL_TITLE_GEN_ENABLED = "per_model_title_gen_enabled"
         private const val KEY_USE_INTERNAL_PROMPTS_ICONS = "use_internal_prompts_icons"
         private const val KEY_AUTOSTART_FAN_ICONS_TITLES = "autostart_fan_icons_titles"
+        private const val KEY_METADATA_ICONS = "metadata_icons"
+        private const val KEY_APP_WIDE_SYSTEM_PROMPT_ID = "app_wide_system_prompt_id"
+        private const val KEY_APP_WIDE_PARAMETERS_IDS = "app_wide_parameters_ids"
+        private const val KEY_REPORT_MODEL_SYSTEM_PROMPT_ID = "report_model_system_prompt_id"
+        private const val KEY_REPORT_MODEL_PARAMETERS_IDS = "report_model_parameters_ids"
         private const val KEY_SHOW_KNOWLEDGE_CARD = "show_knowledge_card"
         private const val KEY_EXPERIMENTAL_FEATURES = "experimental_features"
         private const val KEY_RECENT_REPORT_MODELS = "recent_report_models"

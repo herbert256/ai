@@ -42,9 +42,10 @@ internal fun CooldownForm(
     onBack: () -> Unit
 ) {
     val allProviders = remember { AppService.entries.sortedBy { it.id } }
-    var providerId by remember { mutableStateOf(initial?.providerId ?: allProviders.firstOrNull()?.id ?: "") }
-    var model by remember { mutableStateOf(initial?.model ?: "") }
-    var hoursText by remember {
+    var resetTick by remember { mutableStateOf(0) }
+    var providerId by remember(resetTick) { mutableStateOf(initial?.providerId ?: allProviders.firstOrNull()?.id ?: "") }
+    var model by remember(resetTick) { mutableStateOf(initial?.model ?: "") }
+    var hoursText by remember(resetTick) {
         mutableStateOf(
             if (initial == null) "24"
             else {
@@ -72,7 +73,8 @@ internal fun CooldownForm(
             onSaved(providerId, model.trim(), System.currentTimeMillis() + h * 3_600_000L)
         },
         onBack = onBack,
-        helpTopic = "crud_model_cooldowns"
+        helpTopic = "crud_model_cooldowns",
+        onReset = { resetTick++ }
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ExposedDropdownMenuBox(expanded = providerExpanded, onExpandedChange = { providerExpanded = !providerExpanded }) {

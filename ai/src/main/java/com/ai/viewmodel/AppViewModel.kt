@@ -67,6 +67,20 @@ data class GeneralSettings(
      *  chat headers, …) show only the model or both. Provided to the
      *  composition tree via LocalModelNameLayout in the AppNavHost. */
     val modelNameLayout: ModelNameLayout = ModelNameLayout.MODEL_ONLY,
+    /** Grand master switch for every optional metadata item — report
+     *  icon, report language, AI title, per-model icons / titles, fan
+     *  icons / titles, and internal-prompt (meta / rerank / moderate /
+     *  translate) icons. When true (default) each individual sub-toggle
+     *  below governs its own item as before. When false, ALL of them are
+     *  off regardless of the sub-toggles: no generation calls fire, the
+     *  sub-toggles are hidden in Settings, the Fan Out Icons / Titles
+     *  buttons and the Manage `info` row disappear, and a new report
+     *  must be given a manual title. View screens ignore this flag
+     *  entirely — they render whatever a report already holds, falling
+     *  back to [com.ai.data.MetadataDefaults]. The [reportIconOn] /
+     *  [reportLanguageOn] / … helpers fold this master AND each
+     *  sub-flag so call sites ask one question. */
+    val metadataEnabled: Boolean = true,
     /** Master switch for the per-report icon-gen feature. When true
      *  (default) every new report kicks off a background LLM call that
      *  generates a fitting emoji, the icon-row appears on the result
@@ -78,6 +92,13 @@ data class GeneralSettings(
      *  iconCost values on existing reports stay on disk — re-enabling
      *  brings them back. */
     val iconGenEnabled: Boolean = true,
+    /** Master switch for report language detection (+ its flag emoji),
+     *  split out of [iconGenEnabled] so the report icon and the language
+     *  row can be toggled independently. When true (default) every new
+     *  report fires the bundled `info/language` two-step call; when false
+     *  the call is skipped and the language row drops from the info
+     *  screen. Gated behind [metadataEnabled] via [reportLanguageOn]. */
+    val reportLanguageGenEnabled: Boolean = true,
     /** How the title of a new report is decided. `Manual` keeps the
      *  Title input field on the New AI Report screen; `AI` (default)
      *  hides it and fires a background LLM call after report start
@@ -121,6 +142,23 @@ data class GeneralSettings(
      *  batches — no need to tap the Icons / Titles buttons by hand. A
      *  run with any error pair is left alone. */
     val autostartFanIconsAndTitles: Boolean = true,
+    /** User-editable fallback emoji shown on view screens when a report /
+     *  secondary result has no generated icon of its own. Defaults to the
+     *  [com.ai.data.MetadataDefaults] factory values; edited on Settings →
+     *  Default icons. Persisted as one JSON blob. */
+    val metadataIcons: com.ai.data.MetadataIcons = com.ai.data.MetadataIcons(),
+    /** App-wide default system prompt / parameters — the universal lowest
+     *  fallback for every model, used only when nothing more specific
+     *  (pre-gen / agent / flock / swarm / provider / report-model) is set.
+     *  Edited on AI Setup → App settings. */
+    val appWideSystemPromptId: String? = null,
+    val appWideParametersIds: List<String> = emptyList(),
+    /** Report-model default system prompt / parameters — fallback for
+     *  bare/direct models only (not agent/flock/swarm-sourced), and NOT
+     *  applied when a pre-generation system prompt / parameters was given
+     *  on the New AI Report screen. */
+    val reportModelSystemPromptId: String? = null,
+    val reportModelParametersIds: List<String> = emptyList(),
     /** Last 3 (provider, model) pairs the user picked from the Report
      *  section's model pickers, most-recent first. Encoded as
      *  `"providerId|model"` strings for trivial round-trip through
@@ -233,7 +271,21 @@ data class GeneralSettings(
      *  reports keep sending context at API time even while the
      *  attach UI is hidden. */
     val experimentalFeaturesEnabled: Boolean = false
-)
+) {
+    /** Effective gates — the grand-master [metadataEnabled] ANDed with
+     *  each per-item sub-flag. Every generation call site and every
+     *  control-surface (Manage info row, Fan Out Icons / Titles buttons,
+     *  New report title requirement) asks one of these instead of
+     *  re-deriving the AND. View screens must NOT call these — they read
+     *  report data directly with [com.ai.data.MetadataDefaults]. */
+    fun reportIconOn() = metadataEnabled && iconGenEnabled
+    fun reportLanguageOn() = metadataEnabled && reportLanguageGenEnabled
+    fun reportTitleAiOn() = metadataEnabled && reportTitleMode == ReportTitleMode.AI
+    fun perModelIconOn() = metadataEnabled && perModelIconGenEnabled
+    fun perModelTitleOn() = metadataEnabled && perModelTitleGenEnabled
+    fun metaIconsOn() = metadataEnabled && useInternalPromptsIcons
+    fun fanIconsTitlesOn() = metadataEnabled
+}
 
 // Prompt history entry
 data class PromptHistoryEntry(
@@ -318,6 +370,13 @@ data class UiState(
     val genericReportsSelectedAgents: Set<String> = emptySet(),
     val currentReportId: String? = null,
     val reportAdvancedParameters: AgentParameters? = null,
+    /** Report-level Parameters PRESET ids picked via the New-Report 🌡️
+     *  "Configure API parameters" screen. Kept only so that picker can
+     *  show its current selection; the chosen presets are resolved into
+     *  [reportAdvancedParameters] (the pre-gen override) by
+     *  setReportParametersIds, so generation reads them through the
+     *  existing path. */
+    val reportParametersIds: List<String> = emptyList(),
     /** Per-report system prompt override picked on the model-selection
      *  screen. When non-null, replaces the per-agent / per-flock /
      *  external-intent system prompt at dispatch (see
@@ -2307,6 +2366,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun setChatParameters(params: ChatParameters) { _uiState.update { it.copy(chatParameters = params) } }
     fun setDualChatConfig(config: DualChatConfig?) { _uiState.update { it.copy(dualChatConfig = config) } }
     fun setReportAdvancedParameters(params: AgentParameters?) { _uiState.update { it.copy(reportAdvancedParameters = params) } }
+    /** Set the report-level Parameters preset ids and resolve them into
+     *  the pre-gen override so generation honours them through the
+     *  existing [reportAdvancedParameters] path. Empty → clears both. */
+    fun setReportParametersIds(ids: List<String>) {
+        _uiState.update { it.copy(reportParametersIds = ids, reportAdvancedParameters = it.aiSettings.mergeParameters(ids)) }
+    }
     fun setReportSystemPromptId(id: String?) { _uiState.update { it.copy(reportSystemPromptId = id) } }
 
     // ===== Internal helpers =====
