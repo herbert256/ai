@@ -217,14 +217,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.updateUiState { it.copy(showGenericAgentSelection = false) }
     }
 
-    /** Suspend until the in-flight generic-report generation job (if any)
-     *  finishes. Lets the Stress test run reports strictly one at a time. */
-    internal suspend fun awaitReportGeneration() { reportGenerationJob?.join() }
-
-    /** Cancel the in-flight generic-report generation job — used when the
-     *  Stress test is stopped mid-report. */
-    internal fun cancelReportGeneration() { reportGenerationJob?.cancel() }
-
     fun generateGenericReports(
         context: Context,
         selectedAgentIds: Set<String>,
@@ -377,60 +369,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 iconGen.kickOffReportTitleGeneration(context, reportId, aiPrompt, aiSettings)
 
                 try {
-                    coroutineScope {
-                        // Interleave by host so a picks list clustered by
-                        // provider (e.g. four OpenAI rows followed by
-                        // four Anthropic) doesn't have the first four
-                        // launches all hammer one host while holding
-                        // outer cap permits idle. Round-robin + jitter
-                        // within each host bucket spreads load
-                        // immediately and varies the run-to-run order.
-                        interleaveByHost(reportTasks) { providerHost(it.runtimeAgent.provider) }.map { task ->
-                            async {
-                                // Non-blocking per-host gate, outside the outer
-                                // caps — a task on a capped host yields the
-                                // coroutine (delay, not Thread.sleep) instead of
-                                // blocking an OkHttp thread, so other hosts'
-                                // tasks proceed. The interceptor skips its own
-                                // acquire via permitPreAcquired.
-                                val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
-                                try {
-                                    ApiCallCaps.global.withPermit {
-                                        ApiCallCaps.report.withPermit {
-                                            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                                                executeReportTask(context, reportId, aiPrompt, overrideParams, task, imageBase64, imageMime)
-                                            }
-                                        }
-                                    }
-                                } finally {
-                                    releaser.release()
-                                }
-                                // Per-task auto-fire: kick off this
-                                // agent's 3-tier icon chain the moment
-                                // its primary call settles to SUCCESS,
-                                // instead of waiting for every other
-                                // agent in the report. The chain
-                                // launches on viewModelScope, registers
-                                // in reportIconsJobs, and runs
-                                // independently — the outer async
-                                // here returns as soon as the chain is
-                                // scheduled, so awaitAll below still
-                                // tracks only the primary calls.
-                                // Per-agent enrichment auto-fire — icon and/or
-                                // title per the two toggles. When both are on,
-                                // title runs first and the icon is derived from it.
-                                val g = appViewModel.uiState.value.generalSettings
-                                if (g.perModelIconOn() || g.perModelTitleOn()) {
-                                    val ra = ReportStorage.getReport(context, reportId)
-                                        ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
-                                    if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
-                                        iconGen.runPerModelEnrichment(context, reportId, ra, aiPrompt, aiSettings,
-                                            g.perModelIconOn(), g.perModelTitleOn())
-                                    }
-                                }
-                            }
-                        }.awaitAll()
-                    }
+                    runReportPrimaryCalls(
+                        context, reportId, aiPrompt, overrideParams, reportTasks,
+                        aiSettings, imageBase64, imageMime, headless = false
+                    )
                     val finalReport = ReportStorage.getReport(context, reportId)
                     val ok = finalReport?.agents?.count { it.reportStatus == ReportStatus.SUCCESS } ?: 0
                     val fail = finalReport?.agents?.count { it.reportStatus == ReportStatus.ERROR } ?: 0
@@ -638,7 +580,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // counted as complete the first time around, so bumping the
         // counter again would push past total and break the progress
         // bar / completion-equality check.
-        isRegeneration: Boolean = false
+        isRegeneration: Boolean = false,
+        // Headless = a background report (Stress test) that isn't the
+        // one shown in the live generic-reports dialog: skip ALL the
+        // shared single-report UI-state writes (_agentResults +
+        // genericReportsProgress) so concurrent background reports don't
+        // clobber the foreground report's progress/results. Disk
+        // persistence (markAgent*Async) is per-report and always runs.
+        headless: Boolean = false
     ) {
         AppLog.d("Report", "→ task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId}${if (isRegeneration) " (regen)" else ""}")
         // Model already benched by an earlier run — skip the doomed
@@ -653,7 +602,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} is rate-limited (benched) — skipped"
                 )
             }
-            if (!isRegeneration) {
+            if (!isRegeneration && !headless) {
                 appViewModel.updateUiState { state ->
                     state.copy(genericReportsProgress = state.genericReportsProgress + 1)
                 }
@@ -746,8 +695,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 usage.inputTokens, usage.outputTokens, usage.totalTokens)
         }
 
-        _agentResults.update { it + (task.resultId to response) }
-        if (!isRegeneration) {
+        if (!headless) _agentResults.update { it + (task.resultId to response) }
+        if (!isRegeneration && !headless) {
             appViewModel.updateUiState { state ->
                 state.copy(genericReportsProgress = state.genericReportsProgress + 1)
             }
@@ -763,6 +712,106 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
 
+
+    /** Run [reportTasks]' primary calls for [reportId], interleaved by host
+     *  and throttled (global → report → per-host), each firing its own
+     *  per-model enrichment the moment it lands. Suspends until every
+     *  primary call has settled. Shared by the foreground generic-report
+     *  flow and the background Stress-test runner; [headless] forwards to
+     *  [executeReportTask] to suppress the live single-report UI writes. */
+    private suspend fun runReportPrimaryCalls(
+        context: Context, reportId: String, aiPrompt: String,
+        overrideParams: AgentParameters?, reportTasks: List<ReportTask>,
+        aiSettings: Settings, imageBase64: String?, imageMime: String?, headless: Boolean
+    ) {
+        coroutineScope {
+            // Interleave by host so a picks list clustered by provider
+            // doesn't have the first launches all hammer one host while
+            // holding outer cap permits idle.
+            interleaveByHost(reportTasks) { providerHost(it.runtimeAgent.provider) }.map { task ->
+                async {
+                    // Non-blocking per-host gate, outside the outer caps — a
+                    // capped host yields the coroutine (delay, not
+                    // Thread.sleep). The interceptor skips its own acquire
+                    // via permitPreAcquired.
+                    val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                    try {
+                        ApiCallCaps.global.withPermit {
+                            ApiCallCaps.report.withPermit {
+                                withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                    executeReportTask(context, reportId, aiPrompt, overrideParams, task,
+                                        imageBase64, imageMime, headless = headless)
+                                }
+                            }
+                        }
+                    } finally {
+                        releaser.release()
+                    }
+                    // Per-agent enrichment auto-fire — icon and/or title per
+                    // the two toggles; launches independently (fire-and-forget),
+                    // so awaitAll still tracks only the primary calls.
+                    val g = appViewModel.uiState.value.generalSettings
+                    if (g.perModelIconOn() || g.perModelTitleOn()) {
+                        val ra = ReportStorage.getReport(context, reportId)
+                            ?.agents?.firstOrNull { it.agentId == task.reportAgent.agentId }
+                        if (ra?.reportStatus == ReportStatus.SUCCESS && !ra.responseBody.isNullOrBlank()) {
+                            iconGen.runPerModelEnrichment(context, reportId, ra, aiPrompt, aiSettings,
+                                g.perModelIconOn(), g.perModelTitleOn())
+                        }
+                    }
+                }
+            }.awaitAll()
+        }
+    }
+
+    /** Fire-and-forget: create + run ONE report fully in the background from
+     *  an explicit [prompt] / [title] + the swarm [swarmId], on its OWN
+     *  independent coroutine — NOT the shared [reportGenerationJob], so many
+     *  can run at once and none cancels another, and it touches no live
+     *  single-report UI state (no dialog, no _agentResults, no progress, no
+     *  currentReportId). Returns immediately. Backs the Stress test, which
+     *  submits every Example Prompt and finishes at once. */
+    fun submitBackgroundReport(context: Context, prompt: String, title: String, swarmId: String) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val state = appViewModel.uiState.value
+            val aiSettings = state.aiSettings
+            val swarmMembers = aiSettings.getMembersForSwarms(setOf(swarmId))
+            val reportTasks = buildReportTasks(
+                aiSettings, emptyList(), swarmMembers, emptyMap(), state.externalSystemPrompt,
+                null, state.generalSettings, emptySet(), false
+            )
+            if (reportTasks.isEmpty()) {
+                AppLog.w("Report", "background report skipped — no active models for swarm $swarmId")
+                return@launch
+            }
+            val runId = java.util.UUID.randomUUID().toString()
+            val report = ReportStorage.createReportAsync(
+                context = context, title = title.ifBlank { "AI Report" },
+                prompt = prompt, agents = reportTasks.map { it.reportAgent },
+                reportType = ReportType.CLASSIC, runId = runId
+            )
+            val reportId = report.id
+            val startMs = System.currentTimeMillis()
+            withContext(AppLog.currentLogId.asContextElement(reportId)) {
+                withTracerTags(reportId = reportId, category = "Report", runId = runId) {
+                    AppLog.i("Report", "→ start (bg) \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")
+                    iconGen.kickOffIconGeneration(context, reportId, prompt, aiSettings)
+                    iconGen.kickOffLanguageGeneration(context, reportId, prompt, aiSettings)
+                    iconGen.kickOffReportTitleGeneration(context, reportId, prompt, aiSettings)
+                    runReportPrimaryCalls(
+                        context, reportId, prompt, null, reportTasks,
+                        aiSettings, null, null, headless = true
+                    )
+                    val finalReport = ReportStorage.getReport(context, reportId)
+                    val ok = finalReport?.agents?.count { it.reportStatus == ReportStatus.SUCCESS } ?: 0
+                    val fail = finalReport?.agents?.count { it.reportStatus == ReportStatus.ERROR } ?: 0
+                    AppLog.i("Report", "← end (bg) id=$reportId ok=$ok fail=$fail in ${System.currentTimeMillis() - startMs}ms")
+                    maybeAutoCreateSecondaries(context, reportId, aiSettings, ok)
+                    maybeAutoCreateDefaultMetas(context, reportId, aiSettings, ok)
+                }
+            }
+        }
+    }
 
     /**
      * Tear down the current finished-report state and pre-fill the selection screen with

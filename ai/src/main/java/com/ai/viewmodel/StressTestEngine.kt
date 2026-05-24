@@ -8,15 +8,16 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /** Orchestrates the Housekeeping → Test "Stress test": wipe all runtime
- *  data, then generate one AI report per Example Prompt using the swarm
- *  named "Level 2", strictly SEQUENTIALLY (each report fully completes
- *  before the next starts). Pure orchestration over existing pieces —
- *  no new pipeline code: [AppViewModel.clearAllRuntimeData],
- *  [ReportViewModel.generateGenericReports] + [ReportViewModel.awaitReportGeneration].
+ *  data, then SUBMIT one AI report per Example Prompt using the swarm
+ *  named "Level 2" — fire-and-forget. The submit loop returns at once;
+ *  the reports then generate concurrently in the background (each on its
+ *  own coroutine via [ReportViewModel.submitBackgroundReport]), which is
+ *  exactly the concurrent load a stress test wants. The engine itself
+ *  finishes as soon as everything is submitted — it does NOT wait for the
+ *  reports to complete.
  *
  *  Config (swarm + example prompts) is validated BEFORE the destructive
  *  wipe, so a misconfiguration surfaces an error and leaves runtime data
@@ -25,13 +26,11 @@ class StressTestEngine internal constructor(
     private val appViewModel: AppViewModel,
     private val reportViewModel: ReportViewModel,
 ) {
-    enum class Phase { CLEARING, GENERATING, DONE, ERROR }
+    enum class Phase { CLEARING, SUBMITTING, DONE, ERROR }
 
     data class State(
         val phase: Phase,
-        val current: Int = 0,        // 1-based index of the report in flight
-        val total: Int = 0,          // number of example prompts
-        val currentTitle: String = "",
+        val total: Int = 0,          // number of example prompts submitted
         val errorMessage: String? = null,
     )
 
@@ -68,32 +67,20 @@ class StressTestEngine internal constructor(
                 // 2. Wipe runtime data (mirrors Housekeeping → Reset → Clear
                 //    runtime data, incl. the in-memory test-run reset).
                 _state.value = State(Phase.CLEARING, total = total)
-                AppLog.i("StressTest", "→ start: clearing runtime data, then $total report(s) with swarm '$SWARM_NAME'")
+                AppLog.i("StressTest", "→ start: clearing runtime data, then submitting $total report(s) with swarm '$SWARM_NAME'")
                 appViewModel.clearAllRuntimeData(context)
                 reportViewModel.modelTestEngine.clearRun()
 
-                // 3. One report per example prompt, strictly sequential.
-                prompts.forEachIndexed { i, ex ->
-                    if (!isActive) return@launch
-                    _state.value = State(
-                        Phase.GENERATING, current = i + 1, total = total, currentTitle = ex.title
-                    )
-                    appViewModel.updateUiState {
-                        it.copy(genericPromptText = ex.text, genericPromptTitle = ex.title)
-                    }
-                    reportViewModel.generateGenericReports(
-                        context, selectedAgentIds = emptySet(), selectedSwarmIds = setOf(level2.id)
-                    )
-                    reportViewModel.awaitReportGeneration()   // the sequential gate
-                    // Drop the standard per-report progress dialog flag so it
-                    // doesn't linger over the Stress test screen between runs.
-                    appViewModel.updateUiState { it.copy(showGenericReportsDialog = false) }
-                    AppLog.i("StressTest", "← report ${i + 1}/$total done: ${ex.title}")
-                    // Continue through all: an errored report does not halt the run.
+                // 3. Submit one report per example prompt — fire-and-forget.
+                //    Each runs on its own independent background coroutine;
+                //    we do NOT wait for any of them.
+                _state.value = State(Phase.SUBMITTING, total = total)
+                prompts.forEach { ex ->
+                    reportViewModel.submitBackgroundReport(context, ex.text, ex.title, level2.id)
                 }
 
-                _state.value = State(Phase.DONE, current = total, total = total)
-                AppLog.i("StressTest", "← end: $total report(s) generated")
+                _state.value = State(Phase.DONE, total = total)
+                AppLog.i("StressTest", "← submitted $total report(s) — generating in the background")
             } catch (e: kotlinx.coroutines.CancellationException) {
                 _state.value = null
                 throw e
@@ -104,10 +91,10 @@ class StressTestEngine internal constructor(
         }
     }
 
-    /** Stop a running stress test and the report it's currently generating. */
+    /** Cancel the (brief) submit loop. Reports already submitted keep
+     *  generating in the background — by design they're independent. */
     fun cancel() {
         job?.cancel()
-        reportViewModel.cancelReportGeneration()
         _state.value = null
     }
 
