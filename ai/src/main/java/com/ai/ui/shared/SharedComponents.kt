@@ -723,7 +723,15 @@ data class TitleBarIcons(
     val onParameters: (() -> Unit)? = null,
     /** Optional 🎭 system-prompt hook — the paired sibling of
      *  [onParameters]. Opens the system-prompt selector. Null → glyph hidden. */
-    val onSystemPrompt: (() -> Unit)? = null
+    val onSystemPrompt: (() -> Unit)? = null,
+    /** Optional 🧽 clear-form hook (New AI Report). Null → glyph hidden. */
+    val onClear: (() -> Unit)? = null,
+    /** Optional 📎 attach hook (New AI Report). Null → glyph hidden. */
+    val onAttach: (() -> Unit)? = null,
+    /** Optional 🚩 validate-prompt (moderation) hook. Grayed when
+     *  [validatePromptActive] is false. Null → glyph hidden. */
+    val onValidatePrompt: (() -> Unit)? = null,
+    val validatePromptActive: Boolean = false
 )
 
 /** Make a model-name Text clickable so tapping it opens the Model
@@ -1028,6 +1036,12 @@ fun TitleBar(
      *  actions surfaced in the bottom bar (replacing inline buttons). */
     onParameters: (() -> Unit)? = null,
     onSystemPrompt: (() -> Unit)? = null,
+    /** Optional 🧽 clear / 📎 attach / 🚩 validate-prompt hooks (New AI
+     *  Report). validatePromptActive grays the 🚩 until activated. */
+    onClear: (() -> Unit)? = null,
+    onAttach: (() -> Unit)? = null,
+    onValidatePrompt: (() -> Unit)? = null,
+    validatePromptActive: Boolean = false,
     /** Optional 🧹 jump-to-Housekeeping hook. Null → glyph hidden. */
     onHousekeeping: (() -> Unit)? = null,
     /** Optional ⚙️ jump-to-AI-Setup/Settings hook. Null → glyph hidden. */
@@ -1092,6 +1106,10 @@ fun TitleBar(
         onEdit = onEdit,
         onParameters = onParameters,
         onSystemPrompt = onSystemPrompt,
+        onClear = onClear,
+        onAttach = onAttach,
+        onValidatePrompt = onValidatePrompt,
+        validatePromptActive = validatePromptActive,
         onHousekeeping = onHousekeeping,
         onSettings = onSettings,
         // ❓ help moved out of the top bar into the bottom icons bar
@@ -1536,6 +1554,11 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // adjacent so they read as a couple wherever a screen exposes them.
     icons.onParameters?.let { add(BottomBarIcon("🌡️", Color.Unspecified, it, 28)) }
     icons.onSystemPrompt?.let { add(BottomBarIcon("🎭", Color.Unspecified, it, 28)) }
+    icons.onClear?.let { add(BottomBarIcon("🧽", Color.Unspecified, it, 28)) }
+    icons.onAttach?.let { add(BottomBarIcon("📎", Color.Unspecified, it, 28)) }
+    // 🚩 validate prompt — grayed until the user activates it (picks a
+    // moderation model), mirroring the 📌 pin alpha treatment.
+    icons.onValidatePrompt?.let { add(BottomBarIcon("🚩", Color.Unspecified, it, 28, alpha = if (icons.validatePromptActive) 1f else 0.35f)) }
     icons.onCopy?.let { add(BottomBarIcon("📋", Color.Unspecified, it, 28)) }
     icons.onPin?.let { add(BottomBarIcon("📌", Color.Unspecified, it, 28, alpha = if (icons.isPinned) 1f else 0.35f)) }
     icons.onShare?.let { add(BottomBarIcon("📤", Color.Unspecified, it, 28)) }

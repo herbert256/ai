@@ -203,7 +203,11 @@ fun NewReportScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_new", title = "New AI Report", subject = "Write your prompt, then pick models", onBackClick = onNavigateBack,
-            onParameters = { showAdvancedParams = true }, onSystemPrompt = { showSystemPromptDialog = true })
+            onParameters = { showAdvancedParams = true }, onSystemPrompt = { showSystemPromptDialog = true },
+            onClear = { title = ""; prompt = ""; attachedImage = null },
+            onAttach = { showAttachChooser = true },
+            onValidatePrompt = { if (moderationModel == null) showModerationPicker = true else moderationModel = null },
+            validatePromptActive = moderationModel != null)
 
         if (sharedKbUris.isNotEmpty() && sharedKbState !is SharedKbBannerState.Skipped) {
             SharedKbBanner(
@@ -297,43 +301,9 @@ fun NewReportScreen(
             }
             Text("Next", fontSize = 16.sp, maxLines = 1, softWrap = false)
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        // Secondary actions — Clear (wipes the form) and 📎 (attach
-        // image). Kept in their own row below the primary CTA so the
-        // green Next button stays visually distinct.
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = { title = ""; prompt = ""; attachedImage = null },
-                modifier = Modifier.weight(1f),
-                colors = AppColors.outlinedButtonColors()
-            ) { Text("Clear", maxLines = 1, softWrap = false) }
-            OutlinedButton(onClick = { showAttachChooser = true }, colors = AppColors.outlinedButtonColors()) {
-                Text("📎", fontSize = 16.sp, maxLines = 1, softWrap = false)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-        @OptIn(ExperimentalLayoutApi::class)
-        FlowRow(verticalArrangement = Arrangement.spacedBy(4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            // 🛡 Moderation chip — tap when off opens the model picker;
-            // tap when on clears the selection. With a model set, the
-            // prompt is validated before generation kicks off.
-            FilterChip(
-                selected = moderationModel != null,
-                onClick = {
-                    if (moderationModel == null) showModerationPicker = true
-                    else moderationModel = null
-                },
-                label = {
-                    val label = moderationModel?.let { (_, m) -> "🛡 $m" } ?: "🛡 Validate prompt"
-                    Text(label, fontSize = 12.sp, maxLines = 1)
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = AppColors.Orange.copy(alpha = 0.2f),
-                    selectedLabelColor = AppColors.Orange
-                )
-            )
-        }
+        // Clear (🧽), attach (📎) and Validate prompt (🚩) now live on the
+        // bottom-bar icons (wired on the TitleBar above). 🚩 is grayed until
+        // a moderation model is picked.
         if (moderationError != null) {
             Text("Moderation: ${moderationError}", fontSize = 11.sp, color = AppColors.Orange,
                 modifier = Modifier.padding(top = 4.dp))
