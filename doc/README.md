@@ -6,10 +6,11 @@ models in parallel, fanning one model's response into another's
 prompt, and chatting with them.
 
 The project is a single Activity, Kotlin 2.2.10 + Jetpack Compose,
-~60,300 LOC across 123 Kotlin files, MVVM with three primary view
-models plus an extracted helpers file, 42 cloud providers across
-three API formats, and seven external metadata repositories layered
-into one resolved view per `(provider, model)` pair.
+~106,440 LOC across 306 Kotlin files, MVVM with three primary view
+models plus extracted engines/managers (11 files under `viewmodel/`),
+42 cloud providers across three API formats, and seven external
+metadata repositories layered into one resolved view per
+`(provider, model)` pair.
 
 ## Index
 
@@ -30,6 +31,11 @@ into one resolved view per `(provider, model)` pair.
   each.
 - **[datastructures.md](datastructures.md)** — Every non-trivial data
   class with every field, grouped by domain.
+- **[parameters.md](parameters.md)** — How generation parameters
+  (temperature, max_tokens, reasoning effort, web search, …) resolve:
+  the agent / flock / swarm / per-call precedence at every call site.
+- **[system-prompts.md](system-prompts.md)** — How the system prompt is
+  chosen for each kind of API call, and the precedence at each site.
 - **[secondary-results.md](secondary-results.md)** — Deep dive on the
   meta-result flow: RERANK, the user-driven META kind (every chat-
   type Meta prompt — Compare, Critique, Synthesize, …), MODERATION,
@@ -59,9 +65,28 @@ into one resolved view per `(provider, model)` pair.
   hierarchy.
 
 ### Subsystem deep dives
+- **[workers.md](workers.md)** — AI Workers: **Agents** (named
+  provider+model+params+system-prompt configs), **Flocks** (agent
+  groups), and **Swarms** (provider/model-pair groups), and how they
+  feed report / chat selection.
+- **[knowledge.md](knowledge.md)** — RAG: knowledge bases, the nine
+  source extractors, the chunk → embed → retrieve → inject pipeline,
+  and the `FloatArray` cosine hot path.
+- **[local-runtime.md](local-runtime.md)** — The on-device runtime:
+  the synthetic `AppService.LOCAL` provider, `LocalLlm` (`.task`) and
+  `LocalEmbedder` (`.tflite`), and Local Semantic Search.
 - **[experimental.md](experimental.md)** — The master **Experimental
   features** toggle (off by default) and every UI surface it hides:
   on-device models, AI Knowledge / RAG, and Local Semantic Search.
+- **[model-states.md](model-states.md)** — The four model-state lists
+  (Blocked, Cooldowns, Test-excluded, Inaccessible) plus manual
+  model-type overrides: purpose, population, and picker effect.
+- **[regenerate.md](regenerate.md)** — The Manage-hub "Get info" status
+  board and the multi-phase regenerate-batch orchestration engine
+  (pause-on-error, background resume, per-report persistence).
+- **[costs.md](costs.md)** — Cost tracking, the AI Usage screen,
+  per-report cost breakdown, manual price overrides, and costs
+  maintenance.
 - **[translation.md](translation.md)** — TRANSLATE secondary-kind,
   multi-language fan-out, translation runs, the side-by-side /
   Translate Run / Translate Call detail screens.

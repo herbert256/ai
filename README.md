@@ -83,7 +83,18 @@ order:
 | [doc/development.md](doc/development.md) | Build, deploy, test, and how to add things |
 | [doc/api-formats.md](doc/api-formats.md) | The three API dispatch paths and their quirks |
 | [doc/datastructures.md](doc/datastructures.md) | Every data class with every field |
+| [doc/parameters.md](doc/parameters.md) | How generation parameters resolve (precedence per call site) |
+| [doc/system-prompts.md](doc/system-prompts.md) | How the system prompt resolves per call site |
 | [doc/secondary-results.md](doc/secondary-results.md) | Rerank / Meta prompts / Moderate / Translate / Fan-out / Fan-in deep dive |
+| [doc/workers.md](doc/workers.md) | AI Workers: Agents, Flocks, Swarms |
+| [doc/knowledge.md](doc/knowledge.md) | RAG: knowledge bases, nine extractors, embedding, retrieval |
+| [doc/local-runtime.md](doc/local-runtime.md) | On-device `LocalLlm` + `LocalEmbedder`, synthetic `AppService.LOCAL` |
+| [doc/experimental.md](doc/experimental.md) | The master Experimental-features toggle and what it hides |
+| [doc/model-states.md](doc/model-states.md) | Blocked / Cooldowns / Test-excluded / Inaccessible + type overrides |
+| [doc/regenerate.md](doc/regenerate.md) | Get-info + the regenerate-batch orchestration engine |
+| [doc/report-icons.md](doc/report-icons.md) | Per-report emoji + per-agent 3-tier icon chain |
+| [doc/costs.md](doc/costs.md) | Cost tracking, AI Usage, manual price overrides, maintenance |
+| [doc/throttle.md](doc/throttle.md) | Per-provider rate-limit + concurrency caps, 429 retry, timeouts |
 | [doc/translation.md](doc/translation.md) | TRANSLATE secondary-kind, multi-language fan-out, translation runs |
 | [doc/share-target.md](doc/share-target.md) | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` flow |
 | [doc/backup-restore.md](doc/backup-restore.md) | Backup zip format, two-pass validate-then-write restore |
@@ -91,6 +102,8 @@ order:
 | [doc/repositories.md](doc/repositories.md) | The seven external metadata sources |
 | [doc/persistent.md](doc/persistent.md) | Every prefs key and every persistent file |
 | [doc/help.md](doc/help.md) | The in-app Help system: per-screen topics, per-provider pages, icon legend |
+| [doc/applog.md](doc/applog.md) | In-app file logger: levels, rotation, redaction, viewer |
+| [doc/log-details.md](doc/log-details.md) | Reference: every `AppLog` call site, grouped by severity |
 | [doc/TODO.md](doc/TODO.md) | Future-work backlog discussed but not scheduled |
 
 [doc/README.md](doc/README.md) is the index with the same list and a

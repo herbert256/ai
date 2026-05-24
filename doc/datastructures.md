@@ -103,12 +103,18 @@ A named parameter preset.
 | webSearchTool | `Boolean` |
 | reasoningEffort | `String?` (`"low"`, `"medium"`, `"high"`, or null) |
 
+→ For how these fields are *resolved* at each call site (the agent /
+flock / swarm / per-call precedence), see **[parameters.md](parameters.md)**.
+
 ### `Endpoint`
 | id, name, url | `String` |
 | isDefault | `Boolean` |
 
 ### `SystemPrompt`
 | id, name, prompt | `String` |
+
+→ For which system prompt wins at each kind of API call, see
+**[system-prompts.md](system-prompts.md)**.
 
 ### `InternalPrompt`
 User-managed prompt template. Covers Meta-prompt launchers on the

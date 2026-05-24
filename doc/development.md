@@ -95,43 +95,46 @@ ai/src/main/java/com/ai/
 │   ├── ReportStorage.kt        SecondaryResult.kt   SharedContent.kt
 ├── model/                             # 2 files
 │   ├── SettingsModels.kt + SettingsHolder.kt
-├── viewmodel/                         # 4 files
+├── viewmodel/                         # 11 files
 │   ├── AppViewModel.kt + ChatViewModel.kt + ReportViewModel.kt
-│   └── ReportViewModelHelpers.kt
-└── ui/                                # 82 files
-    ├── navigation/  (2)               # AppNavHost, NavRoutes
-    ├── hub/         (1)               # main hub + Reports / Chats hubs
-    ├── report/      (26)              # report flows, secondary results,
+│   └── extracted engines/managers (RegenerateBatchEngine,
+│       SecondaryRunManager, IconGenerationManager, …)
+└── ui/                                # 231 files
+    ├── report/      (66)              # report flows, secondary results,
     │                                  # Fan-out / Fan-in screens, exports
     │                                  # (PDF, DOCX/ODT, RTF, zipped HTML),
-    │                                  # translation screens, icon screens
-    │                                  # (FindAlternativeIcons, agent
-    │                                  # icon detail, icons grid),
-    │                                  # split SelectionPhase /
-    │                                  # GenerationPhase / Dialogs files
-    ├── chat/        (5)               # chat + chat history + dual chat
-    ├── search/      (4)               # Quick / Extended local +
-    │                                  # Remote semantic search screens
-    ├── share/       (2)               # ShareChooserScreen + helpers
-    ├── models/      (1)               # model search + Model Info
-    ├── history/     (3)               # report history + prompt history
-    │                                  # + example-prompt picker
-    ├── settings/    (17)              # all AI Setup sub-screens
-    ├── admin/       (10)              # Housekeeping / Backup-Restore /
-    │                                  # Reset / Trim by age / Usage stats /
+    │                                  # translation screens, icon screens,
+    │                                  # Manage hub, Get-info / regenerate
+    ├── cruds/       (52)              # generic CRUD framework + per-entity
+    │                                  # CRUDs: workers (agents/flocks/
+    │                                  # swarms), model-states (blocked/
+    │                                  # cooldowns/testexcluded/inaccessible/
+    │                                  # manual overrides), prompts, params,
+    │                                  # cost overrides
+    ├── admin/       (27)              # Housekeeping / Backup-Restore /
+    │                                  # Reset / Trim by age / Usage /
     │                                  # statistics / traces / help /
     │                                  # provider admin / developer +
     │                                  # AppLogScreen
-    ├── shared/      (9)               # CrudListScreen, TitleBar +
-    │                                  # BottomIconBar, AppColors,
-    │                                  # CameraCapture, CsvHelpers,
-    │                                  # ExportShare, RestartAppDialog,
-    │                                  # SelectionScreens,
-    │                                  # SharedComponents, UiFormatting
+    ├── settings/    (22)              # AI Setup sub-screens + Workers/
+    │                                  # Local-runtime setup
+    ├── helpers/     (16)              # report export + shared helpers
+    ├── shared/      (13)              # CrudListScreen, TitleBar +
+    │                                  # BottomIconBar, AppColors, …
+    ├── navigation/  (7)               # AppNavHost, NavRoutes + route files
+    ├── other/       (6)               # Selection picker + misc
+    ├── chat/        (5)               # chat + chat history + dual chat
+    ├── search/      (4)               # Quick / Extended local + Remote
+    │                                  # + Local semantic search screens
+    ├── hub/         (4)               # main hub + Reports / Chats hubs
+    ├── history/     (3)               # report + prompt history + picker
+    ├── share/       (2)               # ShareChooserScreen + helpers
+    ├── models/      (2)               # model search + Model Info
+    ├── knowledge/   (1)               # RAG Knowledge screens
     └── theme/       (1)               # Material3 dark theme
 ```
 
-Roughly **123 Kotlin files, ~60,300 LOC** total.
+Roughly **306 Kotlin files, ~106,440 LOC** total.
 
 ## Adding things
 
@@ -183,6 +186,11 @@ insensitively dedups when merging.
 4. Pass it through in `ApiDispatch.kt` and the streaming methods.
 5. If it should also be settable per-turn from the chat session
    (like reasoning effort), wire it in `ChatSessionScreen`.
+
+> For how an added parameter is *resolved* at call time (agent /
+> flock / swarm / per-call precedence), see
+> [parameters.md](parameters.md); for the system-prompt equivalent,
+> [system-prompts.md](system-prompts.md).
 
 ### A new pricing tier
 

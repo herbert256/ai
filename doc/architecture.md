@@ -82,17 +82,21 @@ tier blobs).
 
 ## Codebase shape
 
-~60,300 LOC across 123 Kotlin files:
-- `data/` — 34 files (HTTP, dispatch, streaming, tracer, rate
+~106,440 LOC across 306 Kotlin files:
+- `data/` — 61 files (HTTP, dispatch, streaming, tracer, rate
   limit / throttle, registry, pricing, storage, in-app file
-  logger, atomic-write helpers, bundled-asset seeds).
+  logger, atomic-write helpers, bundled-asset seeds, RAG /
+  Knowledge, on-device `local/` runtime, regenerate-batch).
 - `model/` — 2 files (`SettingsModels.kt`, `SettingsHolder.kt`)
-- `viewmodel/` — 4 files (`AppViewModel`, `ChatViewModel`,
-  `ReportViewModel`, `ReportViewModelHelpers`)
-- `ui/` — 82 files across sub-domains (`hub`, `report` × 26,
-  `chat` × 5, `models`, `search` × 4, `history` × 3,
-  `settings` × 17, `admin` × 10, `share` × 2, `shared` × 9,
-  `theme`, `navigation` × 2)
+- `viewmodel/` — 11 files (`AppViewModel`, `ChatViewModel`,
+  `ReportViewModel` + extracted engines/managers such as
+  `RegenerateBatchEngine`, `SecondaryRunManager`,
+  `IconGenerationManager`)
+- `ui/` — 231 files across sub-domains (`report` × 66,
+  `cruds` × 52, `admin` × 27, `settings` × 22, `helpers` × 16,
+  `shared` × 13, `navigation` × 7, `other` × 6, `chat` × 5,
+  `search` × 4, `hub` × 4, `history` × 3, `share` × 2,
+  `models` × 2, `knowledge` × 1, `theme` × 1)
 - `MainActivity.kt`
 
 ## Key concepts

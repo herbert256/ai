@@ -10,6 +10,10 @@ Designed so a user can hand the app a clean, durable log when
 something misbehaves — independent of `adb logcat`, shareable from
 inside the app.
 
+> This page covers *how the logger works*. For the catalogue of
+> *every* call site that writes to the log — grouped by severity —
+> see **[log-details.md](log-details.md)**.
+
 ## Levels
 
 ```kotlin

@@ -4,10 +4,14 @@ Everything the app keeps on disk, where it lives, and what's in each
 slot. All of this rounds-trip through `BackupManager` (Settings →
 Housekeeping → Backup & Restore) into a single `.zip`.
 
-## SharedPreferences (6 files)
+## SharedPreferences (8 files)
 
-All under `/data/data/com.ai/shared_prefs/<name>.xml`. All six are
-captured in `BackupManager.PREFS_TO_BACKUP`.
+All under `/data/data/com.ai/shared_prefs/<name>.xml`. **Seven** are
+captured in `BackupManager.PREFS_TO_BACKUP` (`eval_prefs`,
+`provider_registry`, `pricing_cache`, `dual_chat_prefs`,
+`huggingface_cache`, `model_cooldowns`, `view_screen_prefs`);
+`provider_field_timestamps` is the lone exception — it is a
+recomputable cache and is left out of the backup.
 
 ### `eval_prefs` — main settings
 By far the largest. Loaded by `SettingsPreferences`.
@@ -37,6 +41,8 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `retry_backoff_ms_529` | Long (default 1000) | wait between 529 retry attempts in milliseconds |
 | `log_level` | String (default `INFO`) | threshold for the in-app file logger (`com.ai.data.AppLog`). One of `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Read directly by `AppLog.init` from `eval_prefs` so DEBUG calls inside bootstrap are admitted on cold start |
 | `first_run_bootstrapped` | Boolean | gates the first-run providers + prompts seed (the every-start delta-merge still runs on subsequent starts — see [architecture.md](architecture.md)) |
+| `experimental_features` | Boolean (default false) | master gate for on-device models, AI Knowledge / RAG, and Local Semantic Search — see [experimental.md](experimental.md) |
+| `show_knowledge_card` | Boolean (default false) | shows the AI Knowledge card on the Hub (only meaningful when `experimental_features` is on) |
 
 > The intro / model_info / translate / rerank / moderation prompt
 > templates that used to live as dedicated `*_prompt` keys now live
@@ -79,7 +85,10 @@ For every provider id (`<key> = service.id`, e.g. `OpenAI`):
 | `ai_example_prompts` | JSON List<ExamplePrompt> | starter library for the New Report flow |
 | `ai_endpoints` | JSON Map<String, List<Endpoint>> | keyed by provider id |
 | `provider_states` | JSON Map<String, String> | "ok"/"error"/"inactive"/"not-used" |
-| `ai_model_type_overrides` | JSON List<ModelTypeOverride> | |
+| `ai_model_type_overrides` | JSON List<ModelTypeOverride> | per-model type assignment that wins over autodetection — see [model-states.md](model-states.md) |
+| `ai_blocked_models` | JSON List<String> | `"providerId:model"` pairs flagged blocked; dimmed in every picker — see [model-states.md](model-states.md) |
+| `ai_test_excluded_models` | JSON List<String> | skipped by "Test all models"; auto-added when a probe would cost > 5¢; seeded from `assets/excluded.json` |
+| `ai_inaccessible_models` | JSON List<String> | not reachable on this account; dimmed in pickers; seeded from `assets/inaccessible.json` |
 
 #### Caches and bookkeeping
 | Key | Type | Notes |
@@ -157,6 +166,20 @@ keyed on `<providerId>::<modelId>`.
 network call until the TTL expires. Concurrent load-modify-save
 is serialised so two simultaneous misses don't tear the JSON blob.
 
+### `model_cooldowns`
+Owned by `ModelCooldownStore` (not part of the main settings). Holds
+models auto-benched after a 429 with a long retry-after. See
+[model-states.md](model-states.md).
+
+| Key | Type | Notes |
+|---|---|---|
+| `map` | JSON Map<String, Long> | `"providerId:model"` → epoch-ms the model becomes available again |
+| `traces` | JSON Map<String, String> | `"providerId:model"` → trace filename of the 429 that benched it (device-local, not exported) |
+
+### `view_screen_prefs`
+Per-screen view-state (collapse/expand, last-used toggles) for various
+report/manage screens. Backed up so layout preferences survive restore.
+
 ## Files (under `<filesDir>`)
 
 The app's `filesDir` is `/data/data/com.ai/files/`. The tree is
@@ -220,6 +243,17 @@ path stays inside the configured directory (defence against
 fingerprint cache (`(name, mtime, length)` joined across every
 JSON file) to catch in-place edits, and invalidates the cache
 on delete.
+
+### `regenerate/<reportId>.json`
+One file per report holding its `RegenerateJob` — the persisted state
+of a multi-phase "regenerate everything" batch (phase cursor, per-row
+status, pause-on-error marker). Lets a partially-done batch resume
+after the app is killed. See [regenerate.md](regenerate.md).
+
+### `knowledge/<kbId>/...`
+RAG knowledge bases: per-KB metadata plus `chunks/` (each chunk with
+its `FloatArray` embedding). Gated behind Experimental features but
+persisted regardless. See [knowledge.md](knowledge.md).
 
 ### `applog/applog_<yyyyMMdd>.log`
 Daily-rotating plain-text log files produced by

@@ -23,7 +23,7 @@ have format-specific code.
 | Persistence | SharedPreferences + JSON files in `<filesDir>` + Jetpack DataStore |
 | Networking | Retrofit + OkHttp + custom interceptors (tracing, 429 retry) |
 | Streaming | Kotlin Flow over SSE |
-| Size | ~52,300 LOC across 112 Kotlin files (30 data, 76 ui, 3 viewmodel, 2 model, 1 entry) |
+| Size | ~106,440 LOC across 306 Kotlin files (61 data, 231 ui, 11 viewmodel, 2 model, 1 entry) |
 
 ## Documentation
 
@@ -34,15 +34,26 @@ Anything operational beyond this file is in `doc/`:
 - `doc/development.md` — build/deploy/test, how to add a provider / parameter / pricing tier / source type / SecondaryKind, common gotchas
 - `doc/datastructures.md` — every non-trivial data class
 - `doc/api-formats.md` — the three dispatch paths
-- `doc/secondary-results.md` — Rerank / Summarize / Compare / Moderate / Translate
-- `doc/knowledge.md` — RAG: KBs, ten extractors, embedding, retrieval
-- `doc/local-runtime.md` — `LocalLlm` + `LocalEmbedder`
+- `doc/secondary-results.md` — Rerank / Meta (Compare/Critique/Synthesize/…) / Moderate / Translate / Fan-out / Fan-in
+- `doc/parameters.md` — how generation parameters resolve (precedence per call site)
+- `doc/system-prompts.md` — how the system prompt resolves per call site
+- `doc/workers.md` — Agents / Flocks / Swarms
+- `doc/knowledge.md` — RAG: KBs, nine extractors, embedding, retrieval
+- `doc/local-runtime.md` — `LocalLlm` + `LocalEmbedder` (synthetic `AppService.LOCAL`)
+- `doc/experimental.md` — the master Experimental-features toggle and what it hides
+- `doc/model-states.md` — Blocked / Cooldowns / Test-excluded / Inaccessible + type overrides
+- `doc/regenerate.md` — Get-info + the regenerate-batch orchestration engine
+- `doc/report-icons.md` — per-report emoji + per-agent 3-tier icon chain
+- `doc/costs.md` — cost tracking, AI Usage, manual price overrides, maintenance
+- `doc/throttle.md` — per-provider rate-limit + concurrency caps, 429 retry
 - `doc/translation.md` — TRANSLATE secondary kind + multi-language fan-out
 - `doc/share-target.md` — `ACTION_SEND` plumbing
 - `doc/backup-restore.md` — backup zip format, validate-then-write restore, exclude/preserve list
 - `doc/persistent.md` — every prefs key, every file under `<filesDir>`
-- `doc/providers.md` — all 39 providers
+- `doc/providers.md` — all 42 providers
 - `doc/repositories.md` — the seven external metadata repos
+- `doc/help.md` — in-app Help system (per-screen topics, per-provider pages)
+- `doc/applog.md` + `doc/log-details.md` — the in-app file logger + every call site
 - `doc/README.md` — index with reading order
 
 ## Session start
@@ -106,7 +117,7 @@ explicit request**. The full procedures live in
 
 Top-level under `ai/src/main/java/com/ai/`:
 
-- `data/` (28 files) — provider model (`AppService`,
+- `data/` (61 files) — provider model (`AppService`,
   `ApiFormat`), dispatch (`ApiDispatch`, `ApiStreaming`,
   `ApiClient`), tracing (`ApiTracer` + the in-memory
   `cachedTraceFiles` cache), retry interceptor, repository
@@ -118,14 +129,17 @@ Top-level under `ai/src/main/java/com/ai/`:
   `KnowledgeService`, `KnowledgeExtractors`), on-device runtime
   (`LocalLlm`, `LocalEmbedder`), `BackupManager`, `AppDataStore`,
   `SharedContent`.
-- `model/` (3 files) — settings + export data classes.
-- `viewmodel/` (3 files) — `AppViewModel`, `ChatViewModel`,
-  `ReportViewModel`. Other view models delegate state to
+- `model/` (2 files) — settings data classes.
+- `viewmodel/` (11 files) — `AppViewModel`, `ChatViewModel`,
+  `ReportViewModel` plus extracted engines/managers
+  (`RegenerateBatchEngine`, `SecondaryRunManager`,
+  `IconGenerationManager`, …). Other view models delegate state to
   `AppViewModel`.
-- `ui/` (68 files) — Compose screens grouped by domain
-  (`hub/`, `report/`, `chat/`, `knowledge/`, `models/`,
-  `search/`, `history/`, `settings/`, `admin/`, `shared/`,
-  `theme/`, `navigation/`).
+- `ui/` (231 files) — Compose screens grouped by domain
+  (`report/` ×66, `cruds/` ×52, `admin/` ×27, `settings/` ×22,
+  `helpers/`, `shared/`, `navigation/`, `other/`, `chat/`,
+  `search/`, `hub/`, `history/`, `share/`, `models/`,
+  `knowledge/`, `theme/`).
 
 Two non-obvious conventions:
 
@@ -139,11 +153,12 @@ Two non-obvious conventions:
 
 ## Critical gotchas (the rest are in `doc/development.md`)
 
-- **`AppService.LOCAL` is synthetic.** Not in `ProviderRegistry`,
-  reachable only via `findById("LOCAL")`. Routes the dispatch to
-  `LocalLlm.generate` / `LocalEmbedder.embed` instead of
-  Retrofit. Surfaces as a normal "Local" provider in every
-  picker.
+- **`AppService.LOCAL` is synthetic.** Its id is `"Local"`. Not in
+  `ProviderRegistry`, reachable only via `AppService.findById`
+  (which special-cases `LOCAL.id` before delegating). Routes the
+  dispatch to `LocalLlm.generate` / `LocalEmbedder.embed` instead of
+  Retrofit. Surfaces as a normal "Local" provider in every picker.
+  See `doc/local-runtime.md`.
 - **Anthropic `max_tokens` is required** (defaults to 4096).
   OpenAI treats it as optional.
 - **Google auth uses `?key=` query param**, not `Authorization`.
@@ -178,8 +193,9 @@ Two non-obvious conventions:
   back-off** and has an explicit `Looper.myLooper() ==
   getMainLooper()` guard. Don't remove the guard — it prevents
   the retry from ANR-ing the UI.
-- **Export version is `24`.** Import accepts `11..24`. Bump only
-  when adding/removing a top-level field.
+- **Export version is `1`** (`EXPORT_VERSION` in
+  `data/ReportBundle.kt`). Import accepts `1..1`. Bump only when
+  adding/removing a top-level field.
 
 ## Memory & plans
 

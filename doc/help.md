@@ -8,7 +8,7 @@ pages. The Help home page surfaces an icon legend rendered as a
 one-line description.
 
 Code lives in `ui/admin/HelpContent.kt` (the topic catalog —
-~190 topics, one per full-screen overlay) and
+~197 topics, one per full-screen overlay) and
 `ui/admin/HelpScreen.kt` (renderer + `HelpResolver`). The
 `helpForTopic(topicId)` route helper is in
 `ui/navigation/NavRoutes.kt`.

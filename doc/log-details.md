@@ -6,6 +6,8 @@
 > for any call at or above the active `threshold` (default `INFO`).
 > Grouped by severity, then by source file. Each row is
 > `Lnnn` `Tag` — message (message interpolations shown as written in source).
+> For *how the logger works* (levels, rotation, redaction, viewer), see
+> **[applog.md](applog.md)**.
 
 **453 call sites** — 57 ERROR, 140 WARN, 92 INFO, 111 DEBUG, 53 TRACE.
 
