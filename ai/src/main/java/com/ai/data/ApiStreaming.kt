@@ -236,7 +236,7 @@ private fun AnalysisRepository.streamOpenAi(
             tools = if (params.webSearchTool) responsesWebSearchTool() else null,
             reasoning = reasoningField(service, model, params.reasoningEffort)
         )
-        val response = withApiCallTimeout(streaming = true) { withContext(Dispatchers.IO) { api.responsesStream(responsesUrl, "Bearer $apiKey", request) } }
+        val response = withApiCallTimeout { withContext(Dispatchers.IO) { api.responsesStream(responsesUrl, "Bearer $apiKey", request) } }
         if (response.isSuccessful) {
             response.body()?.let { body ->
                 parseSseStream(body, ::extractResponsesApiContent).collect { emit(it) }
@@ -267,7 +267,7 @@ private fun AnalysisRepository.streamOpenAi(
                 it.isNotBlank() && isReasoningCapableForDispatch(service, model)
             }
         )
-        val response = withApiCallTimeout(streaming = true) { withContext(Dispatchers.IO) { api.chatStream(chatUrl, "Bearer $apiKey", request) } }
+        val response = withApiCallTimeout { withContext(Dispatchers.IO) { api.chatStream(chatUrl, "Bearer $apiKey", request) } }
         if (response.isSuccessful) {
             response.body()?.let { body ->
                 parseSseStream(body, ::extractOpenAiContent).collect { emit(it) }
@@ -298,7 +298,7 @@ private fun AnalysisRepository.streamAnthropic(
         thinking = bundle.thinking,
         output_config = bundle.outputConfig
     )
-    val response = withApiCallTimeout(streaming = true) { withContext(Dispatchers.IO) { api.createMessageStream(apiKey, request = request) } }
+    val response = withApiCallTimeout { withContext(Dispatchers.IO) { api.createMessageStream(apiKey, request = request) } }
     if (response.isSuccessful) {
         response.body()?.let { body ->
             parseSseStream(body, ::extractClaudeContent).collect { emit(it) }
@@ -326,7 +326,7 @@ private fun AnalysisRepository.streamGemini(
         systemInstruction = systemInstruction,
         tools = if (params.webSearchTool) geminiWebSearchTool() else null
     )
-    val response = withApiCallTimeout(streaming = true) { withContext(Dispatchers.IO) { api.streamGenerateContent(model, apiKey, request = request) } }
+    val response = withApiCallTimeout { withContext(Dispatchers.IO) { api.streamGenerateContent(model, apiKey, request = request) } }
     if (response.isSuccessful) {
         response.body()?.let { body ->
             parseSseStream(body, ::extractGeminiContent, ::isGeminiFinalChunk).collect { emit(it) }
