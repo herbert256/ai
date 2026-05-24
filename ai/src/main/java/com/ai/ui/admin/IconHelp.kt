@@ -169,6 +169,112 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("👯", "Duplicate", "Duplicate this swarm as a new one."),
         Triple("🗑", "Delete", "Delete this swarm."),
     ),
+
+    // ===== Provider edit (page) =====
+    "provider_edit" to listOf(
+        Triple("ℹ️", "Information", "Open this provider's reference help page."),
+        Triple("🌡️", "Parameters", "Pick the parameter preset(s) this provider uses by default."),
+        Triple("🎭", "System prompt", "Pick this provider's default system prompt."),
+        Triple("🐞", "Trace", "Open the API trace from this provider's last in-page Test."),
+    ),
+
+    // ===== Chat =====
+    "chat_parameters" to listOf(
+        Triple("🌡️", "Parameters", "Pick the parameter preset(s) for this chat."),
+        Triple("🎭", "System prompt", "Pick the system prompt for this chat."),
+    ),
+    "dual_chat_setup" to listOf(
+        Triple("🌡️", "Parameters", "Pick parameters for one of the two models (you choose which)."),
+        Triple("🎭", "System prompt", "Pick the system prompt for one of the two models (you choose which)."),
+    ),
+    "chat_session" to listOf(
+        Triple("ℹ️", "Information", "Open the chatting model's info."),
+    ),
+    "dual_chat_session" to listOf(
+        Triple("ℹ️", "Information", "Open one of the two models' info (you choose which)."),
+    ),
+    "chat_history" to listOf(
+        Triple("🧹", "Housekeeping", "Jump to the related Housekeeping screen."),
+    ),
+
+    // ===== Report flow (other) =====
+    "report_select_models" to listOf(
+        Triple("🌡️", "Parameters", "Configure API parameters: pick the preset(s) for this report."),
+        Triple("🎭", "System prompt", "Pick the system prompt for this report."),
+        Triple("🧽", "Clear", "Clear every selected model (shown once at least one is picked)."),
+    ),
+    "report_pick_model" to listOf(
+        Triple("🌡️", "Parameters", "Pick parameters for this one-off operation (secondary ops only)."),
+        Triple("🎭", "System prompt", "Pick the system prompt for this one-off operation (secondary ops only)."),
+    ),
+    "report_meta" to listOf(
+        Triple("👁", "View", "Open this meta result in the View screen."),
+    ),
+    "translation_run_l2" to listOf(
+        Triple("ℹ️", "Information", "Open the translating model's info."),
+        Triple("👁", "View", "Open this translation in the View screen."),
+    ),
+    "secondary_fan_out_onepage" to listOf(
+        Triple("ℹ️", "Information", "Open the model's info."),
+        Triple("👁", "View", "Open the one-page fan-out view."),
+    ),
+    "regenerate_batch" to listOf(
+        Triple("🗑", "Delete", "Cancel and delete this regenerate job."),
+    ),
+    "report_edit_title" to listOf(
+        Triple("🐞", "Trace", "Open the API trace from generating the title."),
+    ),
+    "report_edit_model_title" to listOf(
+        Triple("🐞", "Trace", "Open the API trace from generating this model's title."),
+    ),
+
+    // ===== Setup / refresh / test / cost hubs =====
+    "setup_models" to listOf(
+        Triple("🧹", "Housekeeping", "Jump to the related Housekeeping screen."),
+    ),
+    "providers" to listOf(
+        Triple("🧹", "Housekeeping", "Jump to the related Housekeeping screen."),
+    ),
+    "refresh" to listOf(
+        Triple("⚙️", "Settings", "Jump to the related AI Setup / Settings screen."),
+    ),
+    "test" to listOf(
+        Triple("⚙️", "Settings", "Jump to the related AI Setup / Settings screen."),
+    ),
+    "cost_config" to listOf(
+        Triple("⚙️", "Settings", "Jump to the related AI Setup / Settings screen."),
+    ),
+    "test_all_models_l1" to listOf(
+        Triple("⚙️", "Settings", "Open the Test-excluded models settings."),
+        Triple("🐞", "Trace", "Open the API traces for this test run."),
+    ),
+    "test_all_models_l2" to listOf(
+        Triple("ℹ️", "Information", "Open this provider's info."),
+    ),
+    "test_all_models_l3" to listOf(
+        Triple("ℹ️", "Information", "Open this model's info."),
+        Triple("🐞", "Trace", "Open the API trace from testing this model."),
+    ),
+
+    // ===== Knowledge / history / reset =====
+    "knowledge_detail" to listOf(
+        Triple("🗑", "Delete", "Delete this knowledge base (asks to confirm)."),
+    ),
+    "prompt_history" to listOf(
+        Triple("🧽", "Clear", "Clear the entire prompt history (shown when it isn't empty)."),
+    ),
+    "reset_runtime" to listOf(
+        Triple("🧽", "Clear", "Clear runtime data — history, chats, traces, reports, stats. Asks to confirm; keeps config & API keys."),
+    ),
+    "reset_info_providers" to listOf(
+        Triple("🧽", "Clear", "Clear the cached Info-provider pricing. Asks to confirm; refetched on the next Refresh."),
+    ),
+    "reset_configuration" to listOf(
+        Triple("🧽", "Clear", "Clear all configuration (providers, agents, prompts, keys…). Asks to confirm; keeps reports & chats."),
+    ),
+    "reset_application" to listOf(
+        Triple("🧽", "Clear", "Factory-reset the app (only API keys are kept). Asks to confirm."),
+    ),
 )
 
 /** Topics whose screen shows MORE than 3 icons → a standalone ❔ icon page
@@ -177,6 +283,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
 internal val ICON_HELP_AS_PAGE: Set<String> = setOf(
     "report_run", "report_new",
     "agent_edit", "flock_edit", "swarm_edit",
+    "provider_edit",
 )
 
 /** Base-topic titles for the auto-built icon pages; declared before
@@ -188,6 +295,7 @@ private val HELP_TOPICS_BASE_TITLES: Map<String, String> = mapOf(
     "agent_edit" to "Agent",
     "flock_edit" to "Flock",
     "swarm_edit" to "Swarm",
+    "provider_edit" to "Provider",
 )
 
 /** Auto-built "<topic>_icons" HelpContent (empty — the table is rendered
