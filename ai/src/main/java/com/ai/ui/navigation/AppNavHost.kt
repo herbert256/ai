@@ -307,15 +307,15 @@ fun AppNavHost(
     val modelSectionRoutes = setOf(NavRoutes.AI_MODEL_INFO, NavRoutes.AI_MANUAL_OVERRIDE_ADD)
     val knowledgeSectionRoutes = setOf(NavRoutes.AI_KNOWLEDGE_NEW, NavRoutes.AI_KNOWLEDGE_DETAIL)
     // One-off screens with no section hub — show a fitting local glyph
-    // whose tap goes Home (About is intentionally excluded: it keeps the
-    // AI logo because it's about the app itself).
+    // whose tap goes Home. About uses the same ℹ️ it has on the home page.
     val homeIconByRoute: Map<String, String> = mapOf(
         NavRoutes.AI_COST_CONFIG to "💲",
         NavRoutes.AI_MANUAL_COST_OVERRIDE_ADD to "💲",
         NavRoutes.AI_API_TEST to "🧪",
         NavRoutes.AI_API_TEST_EDIT to "🧪",
         NavRoutes.DOCUMENTATION to "📖",
-        NavRoutes.DOCUMENTATION_MANUAL to "📖"
+        NavRoutes.DOCUMENTATION_MANUAL to "📖",
+        NavRoutes.ABOUT to "ℹ️"
     )
     val reportDefaultIcon = rootUiStateForLayout.generalSettings.metadataIcons.reportIcon
     val sectionTopIcon: com.ai.ui.shared.TopBarLeftIcon? = when {
