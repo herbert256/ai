@@ -1664,7 +1664,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
 
     androidx.compose.foundation.layout.BoxWithConstraints(
         // Bottom padding lifts the bar a touch above the gesture pill.
-        modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 4.dp, bottom = 12.dp)
+        modifier = modifier.fillMaxWidth().padding(start = 0.dp, end = 0.dp, bottom = 12.dp)
     ) {
         val available = maxWidth.value
 
@@ -1737,7 +1737,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                         )
                     }
                     if (isLast) {
-                        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, heightDp = rowCellH, scale = scale)
+                        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
                     }
                 }
             }
