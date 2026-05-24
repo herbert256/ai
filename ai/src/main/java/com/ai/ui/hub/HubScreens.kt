@@ -413,29 +413,21 @@ fun ReportsHubScreen(
             ) { Text("All", maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(12.dp))
-        ReportsHubListCard(
-            accentEmoji = "⏳", accentColor = AppColors.Orange,
-            label = "Running AI reports", reports = homeReportLists.running,
-            showEmptyHint = false
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        ReportsHubListCard(
-            accentEmoji = "⚠️", accentColor = AppColors.Red,
-            label = "AI Reports with problems", reports = homeReportLists.problems,
-            showEmptyHint = false
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        ReportsHubListCard(
-            accentEmoji = "📌", accentColor = AppColors.Yellow,
-            label = "Pinned AI Reports", reports = pinnedReports,
-            showEmptyHint = false
-        )
-        Spacer(modifier = Modifier.height(10.dp))
-        ReportsHubListCard(
-            accentEmoji = "🕘", accentColor = AppColors.Blue,
-            label = "Latest AI Reports", reports = latestReports,
-            showEmptyHint = false
-        )
+        // Section cards, with empty ones (e.g. Running / Problems) sunk to
+        // the bottom so the populated buckets lead. Examples stays last.
+        val hubCards = listOf(
+            Triple("⏳", AppColors.Orange, "Running AI reports") to homeReportLists.running,
+            Triple("⚠️", AppColors.Red, "AI Reports with problems") to homeReportLists.problems,
+            Triple("📌", AppColors.Yellow, "Pinned AI Reports") to pinnedReports,
+            Triple("🕘", AppColors.Blue, "Latest AI Reports") to latestReports,
+        ).sortedBy { it.second.isEmpty() }
+        hubCards.forEachIndexed { i, (meta, reports) ->
+            if (i > 0) Spacer(modifier = Modifier.height(10.dp))
+            ReportsHubListCard(
+                accentEmoji = meta.first, accentColor = meta.second,
+                label = meta.third, reports = reports, showEmptyHint = false
+            )
+        }
         if (examples.isNotEmpty()) {
             Spacer(modifier = Modifier.height(10.dp))
             ExampleReportsCard(
