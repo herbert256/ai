@@ -96,6 +96,7 @@ fun UsageScreen(
         TitleBar(
             helpTopic = "statistics",
             title = "AI Usage", subject = "Calls, tokens and cost per provider", onBackClick = onBack,
+            reportIcon = "📈", reportIconGoesHome = true,
             onDelete = if (stats.isNotEmpty()) { { confirmClear = true } } else null,
             onHousekeeping = onHousekeeping
         )
