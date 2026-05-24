@@ -126,6 +126,12 @@ class TagPropagatingExecutor(
         // intent (the "Test all models" sweep skips the sleeping retry
         // loops).
         val capturedSuppressRetry = ProviderThrottle.suppressInlineRetry.get() == true
+        // Carry the backoff permit-yielder so the 429/529 retry loops on
+        // the worker can release this item's held permits during their
+        // sleep (runThrottledBatch registers it). Without propagation the
+        // worker reads null and falls back to a permit-hogging in-place
+        // sleep.
+        val capturedYielder = ProviderThrottle.backoffPermitYielder.get()
         // Carry the trace-filename sink (if any) onto the worker so
         // TracingInterceptor's save can hand the filename back to the
         // originating coroutine.
@@ -137,13 +143,16 @@ class TagPropagatingExecutor(
             val previousTags = ApiTracer.currentTags.get()
             val previousPreAcquired = ProviderThrottle.permitPreAcquired.get() == true
             val previousSuppressRetry = ProviderThrottle.suppressInlineRetry.get() == true
+            val previousYielder = ProviderThrottle.backoffPermitYielder.get()
             val previousSink = ApiTracer.traceFilenameSink.get()
             ApiTracer.currentTags.set(captured)
-            // Always set the captured value (even when false) so a stale `true`
-            // left by a prior Runnable on this pooled cached-thread cannot leak
-            // into this call's throttle/retry decisions (Bug 12).
+            // Always set the captured value (even when false / null) so a
+            // stale value left by a prior Runnable on this pooled
+            // cached-thread cannot leak into this call's throttle/retry
+            // decisions (Bug 12).
             ProviderThrottle.permitPreAcquired.set(capturedPreAcquired)
             ProviderThrottle.suppressInlineRetry.set(capturedSuppressRetry)
+            ProviderThrottle.backoffPermitYielder.set(capturedYielder)
             ApiTracer.traceFilenameSink.set(capturedSink)
             try {
                 command.run()
@@ -151,6 +160,7 @@ class TagPropagatingExecutor(
                 ApiTracer.currentTags.set(previousTags)
                 ProviderThrottle.permitPreAcquired.set(previousPreAcquired)
                 ProviderThrottle.suppressInlineRetry.set(previousSuppressRetry)
+                ProviderThrottle.backoffPermitYielder.set(previousYielder)
                 ApiTracer.traceFilenameSink.set(previousSink)
             }
         }

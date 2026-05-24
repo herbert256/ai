@@ -9,7 +9,6 @@ import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 
@@ -41,6 +40,18 @@ import kotlinx.coroutines.withTimeout
  * set so the OkHttp `ProviderThrottleInterceptor` skips re-acquiring the
  * same per-host permit (which would otherwise self-deadlock same-host
  * calls).
+ *
+ * The three permits are acquired manually (not `withPermit`) and handed to
+ * a [PermitHold] so the 429/529 backoff can give them ALL back and re-take
+ * them: `ProviderThrottle.backoffPermitYielder` is registered into the
+ * body's context, and the retry interceptors call it instead of sleeping
+ * in place. Releasing only some of the permits during the sleep would
+ * deadlock (holding `host` while re-acquiring `global` inverts the
+ * canonical order); releasing all three and re-acquiring in order is
+ * deadlock-safe and re-queues the call fairly. [PermitHold] serialises the
+ * yield (on the OkHttp worker thread) against the per-item `finally`
+ * cleanup (on the coroutine, e.g. on cancellation) so the two can never
+ * double-release.
  *
  * Concurrency shape mirrors the loops it replaces: items are spread with
  * [interleaveByHost], each runs in its own `async(LAZY)` registered via
@@ -82,28 +93,123 @@ internal suspend fun <T> runThrottledBatch(
         interleaveByHost(items) { hostOf(it) }.map { item ->
             val deferred = async(start = CoroutineStart.LAZY) {
                 val host = hostOf(item) ?: return@async
-                subCap.withPermit {
-                    ApiCallCaps.global.withPermit {
-                        val releaser = acquireOrRequeue(
-                            host,
-                            onThrottled = { onThrottled(item) },
-                            onCleared = { onCleared(item) }
+                // Manual acquire in canonical order (sub-cap → global →
+                // host) instead of withPermit, so PermitHold owns all
+                // three and the backoff yielder can release+re-take them.
+                // `ok` guards the cancellation window: until the hold owns
+                // the permits, the unwinding finallys release what was
+                // taken; once it does, dispose() is the sole releaser.
+                subCap.acquire()
+                var ok = false
+                try {
+                    ApiCallCaps.global.acquire()
+                    try {
+                        val hold = PermitHold(
+                            subCap, ApiCallCaps.global, host,
+                            acquireOrRequeue(
+                                host,
+                                onThrottled = { onThrottled(item) },
+                                onCleared = { onCleared(item) }
+                            )
                         )
+                        ok = true
                         try {
-                            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                            withContext(
+                                ProviderThrottle.permitPreAcquired.asContextElement(true) +
+                                    ProviderThrottle.backoffPermitYielder
+                                        .asContextElement({ ms -> hold.yieldFor(ms) })
+                            ) {
                                 if (timeoutMs != null) withTimeout(timeoutMs) { body(item) }
                                 else body(item)
                             }
                         } finally {
-                            releaser.release()
+                            hold.dispose()
                         }
+                    } finally {
+                        if (!ok) ApiCallCaps.global.release()
                     }
+                } finally {
+                    if (!ok) subCap.release()
                 }
             }
             register(item, deferred)
             deferred.start()
             deferred
         }.awaitAll()
+    }
+}
+
+/**
+ * Owns one throttled item's three nested permits (sub-cap → global →
+ * per-host) for its whole lifetime. The 429/529 backoff hands them all
+ * back and re-takes them via [yieldFor]; the per-item `finally` releases
+ * whatever is still held via [dispose]. Both run under one lock and track
+ * `held` / `done`, so a cancellation racing a mid-flight backoff can never
+ * double-release (which would inflate a semaphore's permit count and break
+ * the cap) nor leak. [yieldFor] runs on the OkHttp worker thread, so it
+ * uses the blocking / `tryAcquire` permit APIs (it must not suspend); the
+ * blocking re-acquire is done OUTSIDE the lock so cancellation isn't stuck
+ * behind it.
+ */
+private class PermitHold(
+    private val subCap: Semaphore,
+    private val global: Semaphore,
+    private val host: String,
+    @Volatile private var hostReleaser: com.ai.data.ProviderThrottle.Releaser,
+) {
+    private val lock = Any()
+    private var held = true
+    private var done = false
+
+    /** Backoff yield: release all three permits, sleep [ms] holding
+     *  nothing, then re-acquire in canonical order and re-queue. A no-op
+     *  if already [dispose]d (the permits stay released). */
+    fun yieldFor(ms: Long) {
+        synchronized(lock) {
+            if (!held || done) return
+            hostReleaser.release()
+            global.release()
+            subCap.release()
+            held = false
+        }
+        try {
+            Thread.sleep(ms)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw e
+        }
+        if (synchronized(lock) { done }) return
+        // Re-acquire OUTSIDE the lock (these block on capacity / the
+        // per-minute window) so a concurrent dispose() isn't delayed.
+        while (!subCap.tryAcquire()) Thread.sleep(20)
+        while (!global.tryAcquire()) Thread.sleep(20)
+        val newHostReleaser = com.ai.data.ProviderThrottle.acquire(host)
+        synchronized(lock) {
+            if (done) {
+                // Disposed while we were re-acquiring: undo so nothing
+                // leaks; dispose() released nothing (held was false).
+                newHostReleaser.release()
+                global.release()
+                subCap.release()
+            } else {
+                hostReleaser = newHostReleaser
+                held = true
+            }
+        }
+    }
+
+    /** Final release from the coroutine's `finally`: give back whatever is
+     *  currently held, exactly once. */
+    fun dispose() {
+        synchronized(lock) {
+            done = true
+            if (held) {
+                hostReleaser.release()
+                global.release()
+                subCap.release()
+                held = false
+            }
+        }
     }
 }
 

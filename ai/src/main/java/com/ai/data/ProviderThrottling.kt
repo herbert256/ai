@@ -58,6 +58,38 @@ object ProviderThrottle {
      *  Same propagation contract as [permitPreAcquired]. */
     val suppressInlineRetry: ThreadLocal<Boolean> = ThreadLocal.withInitial { false }
 
+    /** Set by `runThrottledBatch` for its throttled items. When present,
+     *  the 429 / 529 retry interceptors call it (via [backoffSleep])
+     *  with the chosen backoff INSTEAD of `Thread.sleep`-ing in place:
+     *  it releases the item's held sub-cap + global + per-host permits,
+     *  sleeps the backoff holding NOTHING, then re-acquires them in the
+     *  canonical order (sub-cap → global → host). A call backing off no
+     *  longer hogs shared capacity other hosts / flows could use, and
+     *  re-queues fairly. Null for flows that didn't register one — the
+     *  retry loop then falls back to a plain in-place sleep. Same
+     *  worker-thread propagation contract as [permitPreAcquired]. */
+    val backoffPermitYielder: ThreadLocal<((backoffMs: Long) -> Unit)?> =
+        ThreadLocal.withInitial { null }
+
+    /** Sleep [ms] for a retry backoff. If the current flow registered a
+     *  [backoffPermitYielder] (the throttled-batch flows do), delegate to
+     *  it so the held permits are released for the duration; otherwise a
+     *  plain `Thread.sleep`. Propagates `InterruptedException` either way
+     *  (caller treats it as teardown). */
+    fun backoffSleep(ms: Long) {
+        val yielder = backoffPermitYielder.get()
+        if (yielder != null) {
+            yielder(ms)
+        } else {
+            try {
+                Thread.sleep(ms)
+            } catch (e: InterruptedException) {
+                Thread.currentThread().interrupt()
+                throw e
+            }
+        }
+    }
+
     class Releaser internal constructor(private val sem: java.util.concurrent.Semaphore) {
         private val released = java.util.concurrent.atomic.AtomicBoolean(false)
         fun release() { if (released.compareAndSet(false, true)) sem.release() }

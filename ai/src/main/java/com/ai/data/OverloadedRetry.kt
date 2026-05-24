@@ -52,12 +52,11 @@ class OverloadedRetryInterceptor : Interceptor {
             // Anthropic frequently does on 529 (overloaded_error).
             val sleepMs = resolveRetryAfter(current, defaultMs = jittered, hostForLog = request.url.host)
             current.close()
-            try {
-                Thread.sleep(sleepMs)
-            } catch (e: InterruptedException) {
-                Thread.currentThread().interrupt()
-                throw e
-            }
+            // Releases this item's batch permits for the sleep when the
+            // flow registered a yielder (runThrottledBatch); plain sleep
+            // otherwise — mirrors the 429 path so a 529 backoff doesn't
+            // pin shared capacity either.
+            ProviderThrottle.backoffSleep(sleepMs)
             attempt++
             AppLog.d("Overloaded", "529 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}")
             current = chain.proceed(request)

@@ -146,12 +146,11 @@ class RateLimitRetryInterceptor : Interceptor {
             // Always close the previous response before reissuing — leaving
             // the body open leaks an OkHttp connection.
             current.close()
-            try {
-                Thread.sleep(sleepMs)
-            } catch (e: InterruptedException) {
-                Thread.currentThread().interrupt()
-                throw e
-            }
+            // Releases this item's batch permits for the sleep when the
+            // flow registered a yielder (runThrottledBatch); plain sleep
+            // otherwise. Either way a backing-off call doesn't pin shared
+            // capacity for the whole backoff.
+            ProviderThrottle.backoffSleep(sleepMs)
             attempt++
             AppLog.d("RateLimit", "429 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}")
             current = chain.proceed(request)
