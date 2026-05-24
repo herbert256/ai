@@ -144,6 +144,7 @@ fun HelpScreen(
                 // not data.
                 when (topicId) {
                     "help_home_icons" -> HelpIconTable()
+                    "report_run_icons" -> ReportRunIconTable()
                     "help_home_info_providers" -> InfoProviderTable(onNavigateToTopic)
                     "help_home_ai_providers" -> CloudProviderTable(onNavigateToTopic)
                     "help_glossary" -> {
@@ -538,6 +539,51 @@ private fun HelpSection(title: String, content: String) {
             Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
             Spacer(modifier = Modifier.height(6.dp))
             Text(content, fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp)
+        }
+    }
+}
+
+/** Per-screen icon legend for "Manage an AI report" (topic
+ *  report_run_icons). One table, big glyphs, grouped in the order:
+ *  screen-specific → general-but-special-here → standard. */
+@Composable
+private fun ReportRunIconTable() {
+    val sections = listOf(
+        "Icons for this report" to listOf(
+            Triple("👁", "View", "Open the per-agent results / View hub for this report."),
+            Triple("✏️", "Edit", "Change the prompt, title, or models."),
+            Triple("🔄", "Regenerate", "Re-run every agent (once the run has completed)."),
+            Triple("🗑", "Delete", "Delete this report (asks to confirm)."),
+            Triple("📌", "Pin / unpin", "Keep this report at the top of the lists (orange when pinned)."),
+            Triple("👯", "Duplicate", "Make a copy of this report."),
+            Triple("📤", "Export", "Export / share the report (once the run has completed)."),
+            Triple("ℹ️", "Information", "The per-report info screen."),
+            Triple("🗂️", "Switch report", "Pick another report to manage."),
+            Triple("💬", "Chat", "Start a chat seeded with this report's prompt."),
+            Triple("🐞", "Trace", "API traces for this report (each agent row has its own 🐞).")
+        ),
+        "Parameters & system prompt (apply to this report)" to listOf(
+            Triple("🌡️", "Parameters", "Pick the preset(s) used as this report's parameters on the next Regenerate."),
+            Triple("🎭", "System prompt", "Pick the system prompt used for this report.")
+        ),
+        "Standard" to listOf(
+            Triple("🆕", "New", "Open the create menu (start a new report).")
+        )
+    )
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            sections.forEachIndexed { si, (label, rows) ->
+                if (si > 0) Spacer(modifier = Modifier.height(12.dp))
+                Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
+                Spacer(modifier = Modifier.height(6.dp))
+                rows.forEach { (icon, name, desc) ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
+                        Text(icon, fontSize = 26.sp, modifier = Modifier.width(44.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.width(96.dp))
+                        Text(desc, fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                    }
+                }
+            }
         }
     }
 }
