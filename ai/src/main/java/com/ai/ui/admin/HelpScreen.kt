@@ -550,7 +550,7 @@ private fun HelpSection(title: String, content: String) {
 @Composable
 private fun ReportRunIconTable() {
     val rows = listOf(
-        Triple("🆕", "New", "Open the create menu (start a new report)."),
+        Triple("🆕", "Create", "Add an operation to this report: Meta, Rerank, Moderation, Fan out or Translate."),
         Triple("💬", "Chat", "Start a chat seeded with this report's prompt."),
         Triple("🗂️", "Switch report", "Pick another report to manage."),
         Triple("ℹ️", "Information", "The per-report info screen."),
