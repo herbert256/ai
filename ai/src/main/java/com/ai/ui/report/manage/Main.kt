@@ -852,10 +852,11 @@ fun ReportsScreen(
                 fanOutMp = fanOutMp,
                 reportId = currentReportId,
                 context = context,
+                aiSettings = aiSettings,
                 // Back from Run → unwind to Scope (state still set);
                 // back from there → Picker; back from there → main.
                 onCancel = { fanOutConfirmMetaPrompt = null },
-                onRun = { mp, initiators, responders ->
+                onRun = { mp, initiators, responders, pIds, spId ->
                     // Pull the single fan-out language from the scope
                     // step's Selected set — empty string = Original
                     // (untranslated). AllPresent collapses to null
@@ -878,7 +879,7 @@ fun ReportsScreen(
                         com.ai.data.SecondaryScope.Manual(initiators),
                         responders,
                         sourceLanguage,
-                        emptyList(), null
+                        pIds, spId
                     )
                     // Land on the Fan Out L1 page so the user watches the
                     // run progress instead of the report screen.

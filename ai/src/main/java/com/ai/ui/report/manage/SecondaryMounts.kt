@@ -295,9 +295,28 @@ internal fun FanOutConfirmScreen(
     fanOutMp: InternalPrompt,
     reportId: String,
     context: android.content.Context,
+    aiSettings: com.ai.model.Settings,
     onCancel: () -> Unit,
-    onRun: (InternalPrompt, Set<String>, Set<String>) -> Unit
+    onRun: (InternalPrompt, Set<String>, Set<String>, List<String>, String?) -> Unit
 ) {
+    var pickedParamsIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    var pickedSystemPromptId by remember { mutableStateOf<String?>(null) }
+    var showSecParamsDialog by remember { mutableStateOf(false) }
+    var showSecSystemPromptDialog by remember { mutableStateOf(false) }
+    if (showSecParamsDialog) {
+        com.ai.ui.chat.ParametersSelectorDialog(
+            aiSettings = aiSettings, selectedIds = pickedParamsIds,
+            onConfirm = { pickedParamsIds = it; showSecParamsDialog = false },
+            onDismiss = { showSecParamsDialog = false }
+        )
+    }
+    if (showSecSystemPromptDialog) {
+        com.ai.ui.chat.SystemPromptSelectorDialog(
+            aiSettings = aiSettings, selectedId = pickedSystemPromptId,
+            onSelect = { pickedSystemPromptId = it; showSecSystemPromptDialog = false },
+            onDismiss = { showSecSystemPromptDialog = false }
+        )
+    }
     val successfulState = produceState<List<com.ai.data.ReportAgent>?>(initialValue = null, reportId) {
         value = withContext(Dispatchers.IO) {
             com.ai.data.ReportStorage.getReport(context, reportId)?.agents?.filter {
@@ -326,7 +345,9 @@ internal fun FanOutConfirmScreen(
         TitleBar(
             helpTopic = "report_fan_out_confirm",
             title = "Fan Out - run", subject = "Confirm the calls before fanning out",
-            onBackClick = onCancel
+            onBackClick = onCancel,
+            onParameters = { showSecParamsDialog = true },
+            onSystemPrompt = { showSecSystemPromptDialog = true }
         )
         // Primary CTA hoisted to the top — pairCount-gated Run sits
         // immediately under the TitleBar so it's reachable without
@@ -336,7 +357,7 @@ internal fun FanOutConfirmScreen(
         // Android back to onCancel.
         Button(
             onClick = {
-                onRun(fanOutMp.copy(text = editablePrompt), selectedInitiators, selectedResponders)
+                onRun(fanOutMp.copy(text = editablePrompt), selectedInitiators, selectedResponders, pickedParamsIds, pickedSystemPromptId)
             },
             enabled = pairCount > 0,
             modifier = Modifier.fillMaxWidth(),
