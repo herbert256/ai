@@ -17,6 +17,16 @@ package com.ai.ui.admin
  * TitleBar handler, never guess (e.g. 🆕 on Manage adds an operation, it
  * does NOT start a new report).
  */
+/** Shared by the six icon-lookup screens (main / agent / meta /
+ *  translation / language / pair) — same screen, same icons. */
+private val ICON_LOOKUP_ROWS = listOf(
+    Triple("💬", "Chat", "Continue this icon's source response in a chat."),
+    Triple("ℹ️", "Information", "Open the generating model's info."),
+    Triple("📋", "Copy", "Copy the API request / response text."),
+    Triple("📤", "Share", "Share the API request / response text."),
+    Triple("🐞", "Trace", "Open the API trace for this icon generation."),
+)
+
 internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>> = mapOf(
 
     // ===== Report flow (top level) =====
@@ -275,6 +285,96 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     "reset_application" to listOf(
         Triple("🧽", "Clear", "Factory-reset the app (only API keys are kept). Asks to confirm."),
     ),
+
+    // ===== Deep report drill-ins (pages) =====
+    "report_single_result" to listOf(
+        Triple("💬", "Chat", "Continue this response in a chat."),
+        Triple("ℹ️", "Information", "Open this model's info."),
+        Triple("📋", "Copy", "Copy the response text."),
+        Triple("📤", "Share", "Share the response text."),
+        Triple("👁", "View", "Open the full per-agent View."),
+        Triple("🌐", "Compare", "Show the original and its translation side by side."),
+        Triple("🔄", "Regenerate", "Re-run this single model."),
+        Triple("🗑", "Delete", "Remove this response (with multiple languages, just the active one)."),
+        Triple("🐞", "Trace", "Open the API trace for this response."),
+    ),
+    "content_model_response" to listOf(
+        Triple("💬", "Chat", "Continue this response in a chat."),
+        Triple("ℹ️", "Information", "Open this model's info."),
+        Triple("📋", "Copy", "Copy the response text."),
+        Triple("📤", "Share", "Share the response text."),
+        Triple("👁", "View", "Open the full per-agent View."),
+        Triple("🌐", "Compare", "Show the original and its translation side by side."),
+        Triple("🔄", "Regenerate", "Re-run this single model."),
+        Triple("🗑", "Delete", "Remove this response (with multiple languages, just the active one)."),
+        Triple("🐞", "Trace", "Open the API trace for this response."),
+    ),
+    "secondary_detail" to listOf(
+        Triple("ℹ️", "Information", "Open the model's info."),
+        Triple("📋", "Copy", "Copy this result's text."),
+        Triple("📤", "Share", "Share this result's text."),
+        Triple("👁", "View", "Open this result in the View screen."),
+        Triple("🌐", "Compare", "Show the original and its translation side by side."),
+        Triple("🗑", "Delete", "Delete this result (with multiple languages, just the active one)."),
+        Triple("🐞", "Trace", "Open the API trace for this result."),
+    ),
+    "prompt_view" to listOf(
+        Triple("📋", "Copy", "Copy the prompt text."),
+        Triple("📤", "Share", "Share the prompt text."),
+        Triple("👁", "View", "Open the prompt in the View screen."),
+        Triple("🌐", "Compare", "Show the prompt and its translation side by side."),
+        Triple("🐞", "Trace", "Open the API trace tied to the prompt."),
+    ),
+    "secondary_list" to listOf(
+        Triple("ℹ️", "Information", "Open the selected result's model info (meta-picker mode)."),
+        Triple("👁", "View", "Open the secondary results in the View screen."),
+        Triple("🗑", "Delete", "Delete the selected result (meta-picker mode)."),
+        Triple("🐞", "Trace", "Open the API trace for the selected result (meta-picker mode)."),
+    ),
+    "secondary_fan_out_l1" to listOf(
+        Triple("👁", "View", "Open the fan-out in the View screen."),
+        Triple("🔄", "Regenerate", "Re-run the whole fan-out."),
+        Triple("🗑", "Delete", "Delete this fan-out run."),
+        Triple("🐞", "Trace", "Open the API trace for the fan-out."),
+    ),
+    "secondary_fan_out_l2" to listOf(
+        Triple("ℹ️", "Information", "Open this model's info."),
+        Triple("👯", "Switch role", "Swap this model between Initiator and Responder (fan-out mode)."),
+        Triple("👁", "View", "Open this model's fan-out in the View screen."),
+        Triple("🗑", "Delete", "Delete this model's fan-out rows."),
+        Triple("🐞", "Trace", "Open the API trace."),
+    ),
+    "secondary_fan_out_l3" to listOf(
+        Triple("ℹ️", "Information", "Open the answering model's info."),
+        Triple("👁", "View", "Open this pair in the View screen."),
+        Triple("🔄", "Regenerate", "Re-run this initiator → responder pair."),
+        Triple("🗑", "Delete", "Delete this pair."),
+        Triple("🐞", "Trace", "Open the API trace for this pair."),
+    ),
+    "translation_run_l1" to listOf(
+        Triple("👁", "View", "Open this translation in the View screen."),
+        Triple("🔄", "Regenerate", "Re-run the whole translation."),
+        Triple("🗑", "Delete", "Delete this translation run."),
+        Triple("🐞", "Trace", "Open the API trace for the translation."),
+    ),
+    "translation_run_l3" to listOf(
+        Triple("ℹ️", "Information", "Open the translating model's info."),
+        Triple("📋", "Copy", "Copy the translated text."),
+        Triple("📤", "Share", "Share the translated text."),
+        Triple("👁", "View", "Open this translation call in the View screen."),
+        Triple("🗑", "Delete", "Delete this translation call."),
+        Triple("🐞", "Trace", "Open the API trace for this call."),
+    ),
+    "cost_view" to listOf(
+        Triple("👁", "View", "Open the costs in the View screen."),
+        Triple("🐞", "Trace", "Open the API trace tied to a call."),
+    ),
+    "icon_lookup_main" to ICON_LOOKUP_ROWS,
+    "icon_lookup_agent" to ICON_LOOKUP_ROWS,
+    "icon_lookup_meta" to ICON_LOOKUP_ROWS,
+    "icon_lookup_translation" to ICON_LOOKUP_ROWS,
+    "icon_lookup_language" to ICON_LOOKUP_ROWS,
+    "icon_lookup_pair" to ICON_LOOKUP_ROWS,
 )
 
 /** Topics whose screen shows MORE than 3 icons → a standalone ❔ icon page
@@ -284,6 +384,13 @@ internal val ICON_HELP_AS_PAGE: Set<String> = setOf(
     "report_run", "report_new",
     "agent_edit", "flock_edit", "swarm_edit",
     "provider_edit",
+    // deep report drill-ins
+    "report_single_result", "content_model_response", "secondary_detail",
+    "prompt_view", "secondary_list",
+    "secondary_fan_out_l1", "secondary_fan_out_l2", "secondary_fan_out_l3",
+    "translation_run_l1", "translation_run_l3",
+    "icon_lookup_main", "icon_lookup_agent", "icon_lookup_meta",
+    "icon_lookup_translation", "icon_lookup_language", "icon_lookup_pair",
 )
 
 /** Base-topic titles for the auto-built icon pages; declared before
@@ -296,6 +403,22 @@ private val HELP_TOPICS_BASE_TITLES: Map<String, String> = mapOf(
     "flock_edit" to "Flock",
     "swarm_edit" to "Swarm",
     "provider_edit" to "Provider",
+    "report_single_result" to "Model response",
+    "content_model_response" to "Model response",
+    "secondary_detail" to "Secondary detail",
+    "prompt_view" to "Prompt",
+    "secondary_list" to "Secondary results",
+    "secondary_fan_out_l1" to "Fan out",
+    "secondary_fan_out_l2" to "Fan out — model",
+    "secondary_fan_out_l3" to "Fan out — pair",
+    "translation_run_l1" to "Translation",
+    "translation_run_l3" to "Translation call",
+    "icon_lookup_main" to "Icon lookup",
+    "icon_lookup_agent" to "Icon lookup",
+    "icon_lookup_meta" to "Icon lookup",
+    "icon_lookup_translation" to "Icon lookup",
+    "icon_lookup_language" to "Icon lookup",
+    "icon_lookup_pair" to "Icon lookup",
 )
 
 /** Auto-built "<topic>_icons" HelpContent (empty — the table is rendered
