@@ -427,6 +427,22 @@ object ApiCallCaps {
         fanIconsInFlight = fanIconsCap - fanIconsSem.availablePermits,
         fanIconsMax = fanIconsCap
     )
+
+    /** True when any cap has at least one permit checked out — i.e. work
+     *  is in flight. The stall watchdog only logs while this holds. */
+    fun isBusy(): Boolean =
+        globalSem.availablePermits < globalCap ||
+            reportSem.availablePermits < reportCap ||
+            translationSem.availablePermits < translationCap ||
+            fanOutSem.availablePermits < fanOutCap ||
+            fanIconsSem.availablePermits < fanIconsCap
+
+    /** One-line `in-flight/max` summary of every cap for the watchdog. */
+    fun diagnosticLine(): String = snapshot().let {
+        "global ${it.globalInFlight}/${it.globalMax} report ${it.reportInFlight}/${it.reportMax} " +
+            "translation ${it.translationInFlight}/${it.translationMax} " +
+            "fanOut ${it.fanOutInFlight}/${it.fanOutMax} fanIcons ${it.fanIconsInFlight}/${it.fanIconsMax}"
+    }
 }
 
 object NetworkSettings {

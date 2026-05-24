@@ -441,35 +441,33 @@ class SecondaryRunManager(
                                 val host = providerHost(provider)
                                 val hostCap = perHostCaps[host]
                                     ?: kotlinx.coroutines.sync.Semaphore(1)
-                                // Acquire order: per-host cap FIRST, then
-                                // outer global + fan-out. A pair waiting on
-                                // a saturated per-host cap (e.g. 12 of 15
-                                // pairs targeting one host) suspends here
-                                // without holding the outer caps — those
-                                // stay free for other batches and for
-                                // other hosts' pairs (which interleave
-                                // ahead via interleaveByHost).
-                                if (hostCap.availablePermits == 0)
-                                    AppLog.v("Caps", "pair=${item.placeholder.id} WAIT hostCap (host=$host)")
-                                hostCap.withPermit {
-                                // Non-blocking per-host gate (concurrent +
-                                // per-minute window), BEFORE the outer global /
-                                // fan-out caps. A capped pair yields the
-                                // coroutine (delay, not Thread.sleep) so other
-                                // hosts' pairs proceed; the Throttled mark drives
-                                // the L1 "Throttled N" counter while it waits.
-                                val releaser = acquireOrRequeue(
-                                    host,
-                                    onThrottled = { appViewModel.updateThrottledFanOutPairs { it + item.placeholder.id } },
-                                    onCleared = { appViewModel.updateThrottledFanOutPairs { it - item.placeholder.id } }
-                                )
-                                try {
+                                // Acquire order: global → fan-out → per-host,
+                                // matching Reports / Test-all / Translation
+                                // (global outermost, the per-host gate innermost).
+                                // ONE consistent order across every batch is what
+                                // prevents the global↔per-host lock-ordering
+                                // deadlock that froze big fan-out / fan-icons /
+                                // Test-all runs (a fan pair held a host permit
+                                // waiting for global while a report held global
+                                // waiting for that host permit). The per-host gate
+                                // still yields (delay, not Thread.sleep) so a
+                                // throttled pair drives the L1 "Throttled N"
+                                // counter while it waits.
                                 if (ApiCallCaps.global.availablePermits == 0)
                                     AppLog.v("Caps", "pair=${item.placeholder.id} WAIT global ${ApiCallCaps.snapshot().let { "${it.globalInFlight}/${it.globalMax}" }}")
                                 ApiCallCaps.global.withPermit {
                                 if (ApiCallCaps.fanOut.availablePermits == 0)
                                     AppLog.v("Caps", "pair=${item.placeholder.id} WAIT fanOut ${ApiCallCaps.snapshot().let { "${it.fanOutInFlight}/${it.fanOutMax}" }}")
                                 ApiCallCaps.fanOut.withPermit {
+                                if (hostCap.availablePermits == 0)
+                                    AppLog.v("Caps", "pair=${item.placeholder.id} WAIT hostCap (host=$host)")
+                                hostCap.withPermit {
+                                val releaser = acquireOrRequeue(
+                                    host,
+                                    onThrottled = { appViewModel.updateThrottledFanOutPairs { it + item.placeholder.id } },
+                                    onCleared = { appViewModel.updateThrottledFanOutPairs { it - item.placeholder.id } }
+                                )
+                                try {
                                 AppLog.d("FanOut", "queued pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
                                     // Bail if the user deleted this pair (via the
                                     // L2 trash icon or deleteFanOutModel) while
@@ -519,12 +517,12 @@ class SecondaryRunManager(
                                             AppLog.d("FanOut", "← pair ans=${item.answerer.agentId} src=${item.source.agentId} ${System.currentTimeMillis() - pairStart}ms")
                                         }
                                     }
-                                } // ApiCallCaps.fanOut.withPermit
-                                } // ApiCallCaps.global.withPermit
                                 } finally {
                                     releaser.release()
                                 }
                                 } // hostCap.withPermit
+                                } // ApiCallCaps.fanOut.withPermit
+                                } // ApiCallCaps.global.withPermit
                             }
                             // Register the per-pair Job so deleteFanOutModel /
                             // rerunCompleteFanOut can target it for cancelAndJoin
@@ -633,11 +631,14 @@ class SecondaryRunManager(
                                 val host = providerHost(provider)
                                 val hostCap = perHostCaps[host]
                                     ?: kotlinx.coroutines.sync.Semaphore(1)
-                                // Acquire order: per-host cap → non-blocking
-                                // ProviderThrottle gate (yields on a capped host
-                                // instead of Thread.sleep) → outer global +
-                                // fan-out. See runFanOutPrompt for the full
-                                // rationale; same Throttled-mark for the UI.
+                                // Acquire order: global → fan-out → per-host
+                                // (global outermost, per-host gate innermost),
+                                // matching runFanOutPrompt / Reports / Test-all.
+                                // ONE consistent order app-wide is what prevents
+                                // the global↔per-host deadlock; same Throttled
+                                // mark for the UI while the gate yields.
+                                ApiCallCaps.global.withPermit {
+                                ApiCallCaps.fanOut.withPermit {
                                 hostCap.withPermit {
                                 val releaser = acquireOrRequeue(
                                     host,
@@ -645,8 +646,6 @@ class SecondaryRunManager(
                                     onCleared = { appViewModel.updateThrottledFanOutPairs { it - ph.id } }
                                 )
                                 try {
-                                ApiCallCaps.global.withPermit {
-                                ApiCallCaps.fanOut.withPermit {
                                 AppLog.d("FanOut", "queued rerun ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
                                     if (!SecondaryResultStorage.exists(context, reportId, ph.id)) {
                                         AppLog.d("FanOut", "skip rerun ${ph.id} — deleted before launch")
@@ -684,12 +683,12 @@ class SecondaryRunManager(
                                             AppLog.d("FanOut", "← rerun pair ph=${ph.id} ${System.currentTimeMillis() - rerunStart}ms")
                                         }
                                     }
-                                } // ApiCallCaps.fanOut.withPermit
-                                } // ApiCallCaps.global.withPermit
                                 } finally {
                                     releaser.release()
                                 }
                                 } // hostCap.withPermit
+                                } // ApiCallCaps.fanOut.withPermit
+                                } // ApiCallCaps.global.withPermit
                             }
                             // Per-pair Job registration mirrors runFanOutPrompt
                             // — see the comment there for the cancel-on-delete

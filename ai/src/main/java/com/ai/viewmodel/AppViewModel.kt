@@ -782,6 +782,30 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         PricingCache.preloadAsync(application, viewModelScope)
         AppLog.d("App.start", "← Prewarm caches dispatched (background)")
 
+        // Stall watchdog. Every 15s WHILE work is in flight, log the cap
+        // snapshot + per-host throttle state. If the global in-flight count
+        // doesn't change for 60s straight (4 ticks) while still > 0, that's
+        // the signature of a deadlock (a big fan-out / fan-icons / Test-all
+        // sweep wedged on the throttle gates) — escalate to a WARN (which
+        // also toasts) carrying the exact cap + per-host state so the next
+        // occurrence is self-diagnosing. Idle ticks log nothing.
+        viewModelScope.launch(Dispatchers.Default) {
+            var lastInFlight = -1
+            var stalledTicks = 0
+            while (true) {
+                kotlinx.coroutines.delay(15_000)
+                if (!ApiCallCaps.isBusy()) { lastInFlight = -1; stalledTicks = 0; continue }
+                val inFlight = ApiCallCaps.snapshot().globalInFlight
+                stalledTicks = if (inFlight == lastInFlight) stalledTicks + 1 else 0
+                lastInFlight = inFlight
+                val line = "caps: ${ApiCallCaps.diagnosticLine()} | hosts: ${com.ai.data.ProviderThrottle.diagnostics()}"
+                if (stalledTicks >= 4)
+                    AppLog.w("CapsWatch", "POSSIBLE STALL — no cap change for ${stalledTicks * 15}s — $line")
+                else
+                    AppLog.i("CapsWatch", line)
+            }
+        }
+
         viewModelScope.launch(Dispatchers.IO) {
             val startTag = "App.start"
             val bs = bootstrap(application)

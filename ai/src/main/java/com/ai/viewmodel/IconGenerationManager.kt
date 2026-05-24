@@ -2618,19 +2618,22 @@ class IconGenerationManager(
                                 val sourceBody = sourceBodies[pair.fanOutSourceAgentId.orEmpty()].orEmpty()
                                 val resolvedMeta = resolvedBase.replace("@RESPONSE@", sourceBody)
 
-                                // Acquire order mirrors runFanOutPrompt: hostCap
-                                // first, then the non-blocking ProviderThrottle
-                                // gate (yields on a capped host instead of
-                                // Thread.sleep), then global, then fan-icons cap.
-                                hostCap.withPermit {
-                                    val releaser = acquireOrRequeue(
-                                        host,
-                                        onThrottled = { appViewModel.updateThrottledFanIconsPairs { it + pair.id } },
-                                        onCleared = { appViewModel.updateThrottledFanIconsPairs { it - pair.id } }
-                                    )
-                                    try {
-                                        ApiCallCaps.global.withPermit {
-                                            ApiCallCaps.fanIcons.withPermit {
+                                // Acquire order: global → fan-icons → per-host
+                                // (global outermost, per-host gate innermost),
+                                // matching runFanOutPrompt / Reports / Test-all.
+                                // ONE consistent order app-wide is what prevents
+                                // the global↔per-host deadlock that froze big
+                                // fan-icons runs; the gate still yields on a
+                                // capped host (delay, not Thread.sleep).
+                                ApiCallCaps.global.withPermit {
+                                    ApiCallCaps.fanIcons.withPermit {
+                                        hostCap.withPermit {
+                                            val releaser = acquireOrRequeue(
+                                                host,
+                                                onThrottled = { appViewModel.updateThrottledFanIconsPairs { it + pair.id } },
+                                                onCleared = { appViewModel.updateThrottledFanIconsPairs { it - pair.id } }
+                                            )
+                                            try {
                                                 if (!SecondaryResultStorage.exists(context, reportId, pair.id)) {
                                                     AppLog.d("FanIcons", "skip pair ${pair.id} — deleted before launch")
                                                     return@async
@@ -2652,10 +2655,10 @@ class IconGenerationManager(
                                                         AppLog.d("FanIcons", "← pair ${pair.id} ${System.currentTimeMillis() - pairStart}ms")
                                                     }
                                                 }
+                                            } finally {
+                                                releaser.release()
                                             }
                                         }
-                                    } finally {
-                                        releaser.release()
                                     }
                                 }
                             }.also { it.start() }
@@ -2898,15 +2901,18 @@ class IconGenerationManager(
                                 val sourceBody = sourceBodies[pair.fanOutSourceAgentId.orEmpty()].orEmpty()
                                 val resolvedMeta = resolvedBase.replace("@RESPONSE@", sourceBody)
 
-                                hostCap.withPermit {
-                                    val releaser = acquireOrRequeue(
-                                        host,
-                                        onThrottled = { appViewModel.updateThrottledFanTitlesPairs { it + pair.id } },
-                                        onCleared = { appViewModel.updateThrottledFanTitlesPairs { it - pair.id } }
-                                    )
-                                    try {
-                                        ApiCallCaps.global.withPermit {
-                                            ApiCallCaps.fanIcons.withPermit {
+                                // Acquire order: global → fan-icons → per-host
+                                // (global outermost, per-host gate innermost) —
+                                // consistent app-wide ordering, deadlock-free.
+                                ApiCallCaps.global.withPermit {
+                                    ApiCallCaps.fanIcons.withPermit {
+                                        hostCap.withPermit {
+                                            val releaser = acquireOrRequeue(
+                                                host,
+                                                onThrottled = { appViewModel.updateThrottledFanTitlesPairs { it + pair.id } },
+                                                onCleared = { appViewModel.updateThrottledFanTitlesPairs { it - pair.id } }
+                                            )
+                                            try {
                                                 if (!SecondaryResultStorage.exists(context, reportId, pair.id)) {
                                                     AppLog.d("FanTitles", "skip pair ${pair.id} — deleted before launch")
                                                     return@async
@@ -2928,10 +2934,10 @@ class IconGenerationManager(
                                                         AppLog.d("FanTitles", "← pair ${pair.id} ${System.currentTimeMillis() - pairStart}ms")
                                                     }
                                                 }
+                                            } finally {
+                                                releaser.release()
                                             }
                                         }
-                                    } finally {
-                                        releaser.release()
                                     }
                                 }
                             }.also { it.start() }

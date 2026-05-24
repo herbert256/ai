@@ -235,6 +235,21 @@ object ProviderThrottle {
         sems.clear()
         windows.clear()
     }
+
+    /** One-line per-host snapshot for the stall watchdog: for every host
+     *  that has an active semaphore, `host conc=<avail>/<limit> win=<n>`.
+     *  A host stuck at `conc=0/N` with no progress across watchdog ticks
+     *  is the signature of a leaked concurrency permit (the kind of thing
+     *  that froze a big sweep). Cheap, read-only. */
+    fun diagnostics(): String {
+        if (sems.isEmpty()) return "(no active hosts)"
+        return sems.entries.joinToString("; ") { (host, sem) ->
+            val limit = (ProviderRegistry.findByHost(host)?.maxConcurrentCallsPerProvider
+                ?: NetworkSettings.maxConcurrentCallsPerProvider).coerceAtLeast(1)
+            val win = windows[host]?.size ?: 0
+            "$host conc=${sem.availablePermits()}/$limit win=$win"
+        }
+    }
 }
 
 /** OkHttp application interceptor that gates every outbound request
