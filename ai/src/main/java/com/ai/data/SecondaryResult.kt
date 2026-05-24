@@ -586,6 +586,12 @@ object SecondaryResultStorage {
             val updated = current.copy(
                 title = null,
                 titleErrorMessage = null,
+                // titleRunId too: the report-open + 30s resume detectors
+                // treat a non-null titleRunId as "a titles batch was
+                // started here" and relaunch it. Leaving it set is what
+                // made a deleted fan-titles run reappear on every Manage
+                // open, even after the cancel-join race was closed.
+                titleRunId = null,
                 titleInputTokens = 0,
                 titleOutputTokens = 0,
                 titleInputCost = 0.0,
