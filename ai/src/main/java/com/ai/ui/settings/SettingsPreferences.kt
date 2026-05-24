@@ -191,7 +191,23 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             // their content after the three-way category collapse.
             // Idempotent — runs every load, no-ops once persisted prefs
             // are clean (next save flushes the migrated list back).
-            internalPrompts = loadList<InternalPrompt>(KEY_AI_INTERNAL_PROMPTS, TypeTokens.listInternalPromptType).map { p ->
+            internalPrompts = loadList<InternalPrompt>(KEY_AI_INTERNAL_PROMPTS, TypeTokens.listInternalPromptType).map { raw ->
+                // Gson allocates without the constructor, so a non-null Kotlin
+                // field is left null when older stored JSON predates it (e.g.
+                // `parameters` / `systemPrompt`, added later — old Meta prompts
+                // crashed the CRUD view with that null). Reassert the data-class
+                // invariant for every non-null String field before anything reads it.
+                @Suppress("USELESS_CAST")
+                val p = raw.copy(
+                    id = (raw.id as String?) ?: java.util.UUID.randomUUID().toString(),
+                    name = (raw.name as String?) ?: "",
+                    category = (raw.category as String?) ?: "internal",
+                    agent = (raw.agent as String?) ?: "*select",
+                    text = (raw.text as String?) ?: "",
+                    title = (raw.title as String?) ?: "",
+                    parameters = (raw.parameters as String?) ?: "*NONE",
+                    systemPrompt = (raw.systemPrompt as String?) ?: "*NONE"
+                )
                 if (p.category == "model") p.copy(category = "fan-in-model") else p
             },
             examplePrompts = loadList(KEY_AI_EXAMPLE_PROMPTS, TypeTokens.listExamplePromptType),
