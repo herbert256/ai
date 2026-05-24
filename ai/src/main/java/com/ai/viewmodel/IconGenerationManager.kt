@@ -3010,10 +3010,7 @@ class IconGenerationManager(
                     val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
                     val responseText = appViewModel.repository.sendChat(
                         service = provider, apiKey = apiKey, model = pair.model,
-                        // A title is one short line — don't let a reasoning
-                        // model burn 20-120s of thinking on it. low effort
-                        // is ignored by non-reasoning models.
-                        messages = messages, params = ChatParameters(reasoningEffort = "low"), baseUrl = baseUrl
+                        messages = messages, params = ChatParameters(), baseUrl = baseUrl
                     )
                     val inT = messages.sumOf { AppViewModel.estimateTokens(it.content) }
                     val outT = AppViewModel.estimateTokens(responseText)
@@ -3102,10 +3099,7 @@ class IconGenerationManager(
                         val responseText = withTraceFilenameSink(traceSink) {
                             appViewModel.repository.sendChat(
                                 service = provider, apiKey = apiKey, model = pair.model,
-                                // Tier-1 just needs one emoji — low reasoning
-                                // effort so a reasoning model doesn't think for
-                                // tens of seconds (ignored by non-reasoners).
-                                messages = messages, params = ChatParameters(reasoningEffort = "low"), baseUrl = baseUrl
+                                messages = messages, params = ChatParameters(), baseUrl = baseUrl
                             )
                         }
                         val durationMs = System.currentTimeMillis() - started
@@ -3163,9 +3157,7 @@ class IconGenerationManager(
                             .replace("@META_PROMPT@", metaPromptText)
                             .replace("@RESPONSE@", pairContent)
                         val response = appViewModel.repository.analyzeWithAgent(
-                            // One emoji — low reasoning effort (no-op on
-                            // non-reasoning models).
-                            syntheticAgent, "", resolved, AgentParameters(reasoningEffort = "low"),
+                            syntheticAgent, "", resolved, AgentParameters(),
                             null, context, baseUrl
                         )
                         val durationMs = System.currentTimeMillis() - started
@@ -3218,9 +3210,7 @@ class IconGenerationManager(
                         val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(effectiveAgent)
                         val resolved = tier3Prompt.text.replace("@RESPONSE@", pairContent)
                         val response = appViewModel.repository.analyzeWithAgent(
-                            // One emoji — low reasoning effort (no-op on
-                            // non-reasoning models).
-                            effectiveAgent, "", resolved, AgentParameters(reasoningEffort = "low"),
+                            effectiveAgent, "", resolved, AgentParameters(),
                             null, context, baseUrl
                         )
                         val durationMs = System.currentTimeMillis() - started
