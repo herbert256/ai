@@ -1680,31 +1680,32 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             return@BoxWithConstraints
         }
 
-        // Help layout (every non-View screen). ❓ is pinned bottom-right
-        // and never counts toward the split.
+        // Help layout (every non-View screen). Icons fill up to 6 per
+        // row, then wrap to a new LEFT-aligned row; the ❓ help glyph is
+        // pinned to the right of the LAST row and never counts toward the
+        // 6-per-row cap. The cost readout (when present) sits at the right
+        // of the FIRST row. A uniform per-icon cell width keeps columns
+        // aligned vertically across rows.
         val helpW = 32f
         val helpGap = 4f
-        // More than 6 action icons → two rows. Both left-aligned; the
-        // bottom row gets the larger half (ceil) and carries the
-        // contiguous copy/edit/delete/new group + ❓. A uniform per-icon
-        // cell width keeps the two rows' columns aligned vertically.
-        val twoRows = specs.size > 6
-        if (twoRows) {
-            val split = specs.size / 2          // floor → top count
-            val topRow = specs.take(split)
-            val bottomRow = specs.drop(split)   // ceil → ≥ top
-            val cell = 30                        // uniform column width (dp)
-            fun rowWidth(count: Int) = (count * cell + (count - 1).coerceAtLeast(0) * extraGap).toFloat()
-            val widest = maxOf(rowWidth(topRow.size), rowWidth(bottomRow.size) + helpGap + helpW)
-            val scale = (available / widest).coerceIn(1.0f, ceiling)
-            // Tighter per-row cell height so the two rows sit close
-            // together vertically (Arrangement.spacedBy can't go negative).
-            val rowCellH = 22
-            Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+        val cell = 30                       // uniform column width (dp)
+        val rows = if (specs.isEmpty()) listOf(emptyList()) else specs.chunked(6)
+        fun rowWidth(count: Int, withHelp: Boolean) =
+            (count * cell + (count - 1).coerceAtLeast(0) * extraGap).toFloat() +
+                (if (withHelp) helpGap + helpW else 0f)
+        val widest = rows.mapIndexed { i, r -> rowWidth(r.size, i == rows.lastIndex) }.maxOrNull() ?: helpW
+        val scale = (available / widest).coerceIn(1.0f, ceiling)
+        // Tighter per-row cell height when wrapped so the rows sit close
+        // together vertically; full height for a single row.
+        val rowCellH = if (rows.size > 1) 22 else 32
+        Column(verticalArrangement = Arrangement.spacedBy(0.dp)) {
+            rows.forEachIndexed { i, rowSpecs ->
+                val isFirst = i == 0
+                val isLast = i == rows.lastIndex
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    BottomBarIconRow(topRow, scale, extraGap.dp, cellWidthDp = cell, cellHeightDp = rowCellH)
+                    BottomBarIconRow(rowSpecs, scale, extraGap.dp, cellWidthDp = cell, cellHeightDp = rowCellH)
                     Spacer(modifier = Modifier.weight(1f))
-                    if (costText != null) {
+                    if (isFirst && costText != null) {
                         Text(
                             text = costText,
                             color = AppColors.Blue,
@@ -1720,32 +1721,10 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                                 .padding(end = 13.dp)
                         )
                     }
+                    if (isLast) {
+                        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, heightDp = rowCellH, scale = scale)
+                    }
                 }
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    BottomBarIconRow(bottomRow, scale, extraGap.dp, cellWidthDp = cell, cellHeightDp = rowCellH)
-                    Spacer(modifier = Modifier.weight(1f))
-                    TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, heightDp = rowCellH, scale = scale)
-                }
-            }
-        } else {
-            val scale = ((available - helpW - helpGap) / intrinsicOf(specs)).coerceIn(1.0f, ceiling)
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                BottomBarIconRow(specs, scale, extraGap.dp)
-                Spacer(modifier = Modifier.weight(1f))
-                if (costText != null) {
-                    Text(
-                        text = costText,
-                        color = AppColors.Blue,
-                        fontSize = (costBaseSp * scale).sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = (-0.5).sp,
-                        maxLines = 1, softWrap = false,
-                        modifier = Modifier
-                            .let { m -> if (onCostClick != null) m.clickable(onClick = onCostClick) else m }
-                            .padding(end = 13.dp)
-                    )
-                }
-                TitleBarIcon("❓", AppColors.Blue, onHelp, width = 28.dp, scale = scale)
             }
         }
     }
