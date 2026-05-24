@@ -1688,12 +1688,27 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         // aligned vertically across rows.
         val helpW = 32f
         val helpGap = 4f
-        val cell = 30                       // uniform column width (dp)
-        val rows = if (specs.isEmpty()) listOf(emptyList()) else specs.chunked(6)
-        fun rowWidth(count: Int, withHelp: Boolean) =
+        val cell = 24                       // uniform column width (dp) — tight spacing
+        // Fill rows of up to 6, but put the SMALLEST (remainder) row on
+        // TOP so the full rows sit at the bottom. ❓ pins to the right of
+        // the last (bottom) row; the cost readout to the first (top) row.
+        val per = 6
+        val rem = specs.size % per
+        val rows = when {
+            specs.isEmpty() -> listOf(emptyList())
+            rem == 0 -> specs.chunked(per)
+            else -> listOf(specs.take(rem)) + specs.drop(rem).chunked(per)
+        }
+        // Rough width (unscaled) the cost readout needs, reserved on the
+        // first row so the scale shrinks enough to keep it on-screen.
+        val costReserve = if (costText != null) costText.length * costBaseSp * 0.62f + 16f else 0f
+        fun rowWidth(count: Int, withHelp: Boolean, withCost: Boolean) =
             (count * cell + (count - 1).coerceAtLeast(0) * extraGap).toFloat() +
-                (if (withHelp) helpGap + helpW else 0f)
-        val widest = rows.mapIndexed { i, r -> rowWidth(r.size, i == rows.lastIndex) }.maxOrNull() ?: helpW
+                (if (withHelp) helpGap + helpW else 0f) +
+                (if (withCost) costReserve else 0f)
+        val widest = rows.mapIndexed { i, r ->
+            rowWidth(r.size, i == rows.lastIndex, i == 0)
+        }.maxOrNull() ?: helpW
         val scale = (available / widest).coerceIn(1.0f, ceiling)
         // Tighter per-row cell height when wrapped so the rows sit close
         // together vertically; full height for a single row.
