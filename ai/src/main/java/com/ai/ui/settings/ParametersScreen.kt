@@ -36,7 +36,7 @@ fun ParametersEditScreen(
     var systemPrompt by remember { mutableStateOf(params?.systemPrompt ?: "") }
     var responseFormatJson by remember { mutableStateOf(params?.responseFormatJson ?: false) }
     var searchEnabled by remember { mutableStateOf(params?.searchEnabled ?: false) }
-    var returnCitations by remember { mutableStateOf(params?.returnCitations ?: true) }
+    var returnCitations by remember { mutableStateOf(params?.returnCitations ?: false) }
     var searchRecency by remember { mutableStateOf(params?.searchRecency ?: "") }
     var webSearchTool by remember { mutableStateOf(params?.webSearchTool ?: false) }
     var reasoningEffort by remember { mutableStateOf(params?.reasoningEffort ?: "") }
