@@ -103,7 +103,9 @@ private suspend fun callNativeModeration(
 ): Pair<List<ModerationInputResult>?, ModerationApiResult> {
     return try {
         val api = ApiFactory.createMistralModerationApi()
-        val response = api.moderate(url, "Bearer $apiKey", MistralModerationRequest(model, inputs))
+        val response = withApiCallTimeout(streaming = false) {
+            api.moderate(url, "Bearer $apiKey", MistralModerationRequest(model, inputs))
+        }
         val duration = System.currentTimeMillis() - start
         if (!response.isSuccessful) {
             val errBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -188,7 +190,9 @@ private suspend fun callNativeRerank(
     return try {
         val api = ApiFactory.createCohereRerankApi()
         val request = CohereRerankRequest(model, query, documents, top_n = documents.size)
-        val response = api.rerank(url, "Bearer $apiKey", request)
+        val response = withApiCallTimeout(streaming = false) {
+            api.rerank(url, "Bearer $apiKey", request)
+        }
         val duration = System.currentTimeMillis() - start
         if (!response.isSuccessful) {
             val errBody = try { response.errorBody()?.string() } catch (_: Exception) { null }

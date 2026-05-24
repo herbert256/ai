@@ -24,6 +24,39 @@ internal fun defaultMaxTokens(service: AppService, model: String): Int =
     service.maxTokensDefaults.resolveMaxTokens(model) ?: 4_096
 
 /**
+ * Hard coroutine-level ceiling for ONE outbound provider call. OkHttp's
+ * connect / read / write timeouts all start AFTER DNS resolution, and DNS
+ * (`InetAddress.getAllByName`) can block indefinitely — so a call wedged in
+ * name resolution trips none of them and pins the calling coroutine, plus
+ * any throttle permits it holds, forever (this froze whole stress runs).
+ *
+ * [withTimeout] cancels the call and returns at once (the throttle permits
+ * release even if the zombie DNS thread lingers in OkHttp's dispatcher
+ * pool). The timeout is converted to a plain [java.io.IOException] so every
+ * existing `catch (Exception)` / `runCatching` path treats it as an
+ * ordinary transient network failure — no caller changes, and it's not
+ * mistaken for structured cancellation (Stop / navigate-away), which
+ * surfaces as a different CancellationException that passes straight
+ * through.
+ *
+ * [streaming] picks the larger streaming read-timeout budget so opening a
+ * legitimately long-lived stream isn't killed; non-streaming uses the short
+ * budget. Ceiling = read + connect + 30 s margin, coerced so a 0 /
+ * "infinite" read-timeout setting can't disable the guard.
+ */
+internal suspend fun <T> withApiCallTimeout(streaming: Boolean, block: suspend () -> T): T {
+    val readSec = (if (streaming) NetworkSettings.streamingReadTimeoutSec
+        else NetworkSettings.nonStreamingReadTimeoutSec)
+        .takeIf { it > 0 } ?: if (streaming) 600 else 120
+    val ceilingMs = (readSec.toLong() + com.ai.BuildConfig.NETWORK_CONNECT_TIMEOUT_SEC + 30L) * 1000L
+    return try {
+        kotlinx.coroutines.withTimeout(ceilingMs) { block() }
+    } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+        throw java.io.IOException("API call timed out after ${ceilingMs / 1000}s (no response — possible network/DNS hang)")
+    }
+}
+
+/**
  * Analyze a prompt using the appropriate API format.
  */
 suspend fun AnalysisRepository.analyze(
@@ -37,10 +70,12 @@ suspend fun AnalysisRepository.analyze(
     imageMime: String? = null
 ): AnalysisResponse = withContext(Dispatchers.IO) {
     AppLog.d("ApiDispatch", "analyze ${service.id}/$model fmt=${service.apiFormat} promptLen=${prompt.length} img=${imageBase64 != null}")
-    when (service.apiFormat) {
-        ApiFormat.ANTHROPIC -> analyzeAnthropic(service, apiKey, prompt, model, params, imageBase64, imageMime)
-        ApiFormat.GOOGLE -> analyzeGemini(service, apiKey, prompt, model, params, imageBase64, imageMime)
-        ApiFormat.OPENAI_COMPATIBLE -> analyzeOpenAi(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
+    withApiCallTimeout(streaming = false) {
+        when (service.apiFormat) {
+            ApiFormat.ANTHROPIC -> analyzeAnthropic(service, apiKey, prompt, model, params, imageBase64, imageMime)
+            ApiFormat.GOOGLE -> analyzeGemini(service, apiKey, prompt, model, params, imageBase64, imageMime)
+            ApiFormat.OPENAI_COMPATIBLE -> analyzeOpenAi(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
+        }
     }
 }
 
@@ -56,10 +91,12 @@ suspend fun AnalysisRepository.sendChat(
     baseUrl: String = service.baseUrl
 ): String = withContext(Dispatchers.IO) {
     AppLog.d("ApiDispatch", "sendChat ${service.id}/$model fmt=${service.apiFormat} msgs=${messages.size}")
-    when (service.apiFormat) {
-        ApiFormat.ANTHROPIC -> chatAnthropic(service, apiKey, model, messages, params)
-        ApiFormat.GOOGLE -> chatGemini(service, apiKey, model, messages, params)
-        ApiFormat.OPENAI_COMPATIBLE -> chatOpenAi(service, apiKey, model, messages, params, baseUrl)
+    withApiCallTimeout(streaming = false) {
+        when (service.apiFormat) {
+            ApiFormat.ANTHROPIC -> chatAnthropic(service, apiKey, model, messages, params)
+            ApiFormat.GOOGLE -> chatGemini(service, apiKey, model, messages, params)
+            ApiFormat.OPENAI_COMPATIBLE -> chatOpenAi(service, apiKey, model, messages, params, baseUrl)
+        }
     }
 }
 
@@ -98,10 +135,12 @@ suspend fun AnalysisRepository.fetchModelsWithKinds(
     AppLog.d("ApiDispatch", "fetchModels ${service.id} fmt=${service.apiFormat}")
     val t0 = System.currentTimeMillis()
     withTraceCategory("Retrieve models list") {
-        val result = when (service.apiFormat) {
-            ApiFormat.ANTHROPIC -> fetchModelsAnthropic(service, apiKey)
-            ApiFormat.GOOGLE -> fetchModelsGemini(service, apiKey)
-            ApiFormat.OPENAI_COMPATIBLE -> fetchModelsOpenAi(service, apiKey)
+        val result = withApiCallTimeout(streaming = false) {
+            when (service.apiFormat) {
+                ApiFormat.ANTHROPIC -> fetchModelsAnthropic(service, apiKey)
+                ApiFormat.GOOGLE -> fetchModelsGemini(service, apiKey)
+                ApiFormat.OPENAI_COMPATIBLE -> fetchModelsOpenAi(service, apiKey)
+            }
         }
         AppLog.d("ApiDispatch", "fetchModels ${service.id} → ${result.ids.size} models in ${System.currentTimeMillis() - t0}ms")
         result
@@ -156,7 +195,9 @@ suspend fun AnalysisRepository.embedWithStatus(
         val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
         val embedPath = service.pathFor(ModelType.EMBEDDING) ?: ModelType.DEFAULT_PATHS[ModelType.EMBEDDING]!!
         val url = buildChatUrl(baseUrl, embedPath, service.knownEndpointPaths())
-        val response = api.embeddings(url, "Bearer $apiKey", OpenAiEmbeddingRequest(model = model, input = texts))
+        val response = withApiCallTimeout(streaming = false) {
+            api.embeddings(url, "Bearer $apiKey", OpenAiEmbeddingRequest(model = model, input = texts))
+        }
         val durationMs = System.currentTimeMillis() - t0
         if (!response.isSuccessful) {
             val errBody = try { response.errorBody()?.string() } catch (_: Exception) { null }
@@ -225,7 +266,7 @@ private suspend fun embedGemini(
         }
     )
     return try {
-        val response = api.batchEmbedContents(model, apiKey, request)
+        val response = withApiCallTimeout(streaming = false) { api.batchEmbedContents(model, apiKey, request) }
         val durationMs = System.currentTimeMillis() - t0
         if (!response.isSuccessful) {
             val errBody = try { response.errorBody()?.string() } catch (_: Exception) { null }

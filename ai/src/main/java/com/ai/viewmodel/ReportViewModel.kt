@@ -623,45 +623,28 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // the agent row (read directly by the per-model viewer's 🐞 instead
         // of a fragile ApiTracer time-based guess).
         val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-        // Hard per-call ceiling. OkHttp's connect/read/write timeouts do
-        // NOT cover DNS resolution (InetAddress.getAllByName can block
-        // indefinitely), so a call wedged before connect never trips any
-        // of them — and under heavy concurrency (the Stress test) that
-        // froze whole runs because the hung calls pinned their
-        // global/report/per-host permits forever. withTimeout cancels the
-        // call and — crucially — returns at once so the permits release
-        // even if the underlying DNS thread lingers. Ceiling = the
-        // non-streaming read timeout + connect + margin (these are
-        // non-streaming analyze calls); coerced so a 0/"infinite" setting
-        // can't disable the guard.
-        val callCeilingMs = ((com.ai.data.NetworkSettings.nonStreamingReadTimeoutSec.takeIf { it > 0 } ?: 120)
-            + com.ai.BuildConfig.NETWORK_CONNECT_TIMEOUT_SEC + 30) * 1000L
+        // Per-call hang protection lives at the shared dispatch chokepoint
+        // (AnalysisRepository.analyze → withApiCallTimeout), which bounds
+        // DNS-phase hangs for every flow and surfaces a timeout as an
+        // IOException — handled by the catch (Exception) below like any
+        // other failed call.
         val response = try {
             val baseUrl = appViewModel.uiState.value.aiSettings.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
-            kotlinx.coroutines.withTimeout(callCeilingMs) {
-                com.ai.data.withTraceFilenameSink(traceSink) {
-                    appViewModel.repository.analyzeWithAgent(
-                        task.runtimeAgent,
-                        "",
-                        aiPrompt,
-                        task.resolvedParams,
-                        overrideParams,
-                        context,
-                        baseUrl,
-                        imageBase64,
-                        imageMime,
-                        knowledgeBaseIds = knowledgeBaseIds,
-                        aiSettings = appViewModel.uiState.value.aiSettings
-                    )
-                }
+            com.ai.data.withTraceFilenameSink(traceSink) {
+                appViewModel.repository.analyzeWithAgent(
+                    task.runtimeAgent,
+                    "",
+                    aiPrompt,
+                    task.resolvedParams,
+                    overrideParams,
+                    context,
+                    baseUrl,
+                    imageBase64,
+                    imageMime,
+                    knowledgeBaseIds = knowledgeBaseIds,
+                    aiSettings = appViewModel.uiState.value.aiSettings
+                )
             }
-        } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-            // Treat a timed-out call as a normal agent failure (red row),
-            // NOT structured cancellation — so only this agent fails, its
-            // permits release, and the rest of the report/run continues.
-            AppLog.w("Report", "agent ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} timed out after ${callCeilingMs / 1000}s — marking errored")
-            AnalysisResponse(service = task.runtimeAgent.provider, analysis = null,
-                error = "Timed out after ${callCeilingMs / 1000}s (no response — possible network/DNS hang)")
         } catch (e: kotlinx.coroutines.CancellationException) {
             // Honor structured cancellation (Stop / nav-away) instead of
             // persisting a fake error onto the agent row.
