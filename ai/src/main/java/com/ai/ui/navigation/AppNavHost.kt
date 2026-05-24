@@ -401,7 +401,8 @@ fun SettingsScreenNav(
     initialEditingFlockId: String? = null,
     initialEditingSwarmId: String? = null,
     initialEditingInternalPromptId: String? = null,
-    initialInternalPromptCategory: String? = null
+    initialInternalPromptCategory: String? = null,
+    sectionIconOverride: com.ai.ui.shared.TopBarLeftIcon? = null
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val refreshAllState by viewModel.refreshAllState.collectAsState()
@@ -442,7 +443,8 @@ fun SettingsScreenNav(
         initialEditingFlockId = initialEditingFlockId,
         initialEditingSwarmId = initialEditingSwarmId,
         initialEditingInternalPromptId = initialEditingInternalPromptId,
-        initialInternalPromptCategory = initialInternalPromptCategory
+        initialInternalPromptCategory = initialInternalPromptCategory,
+        sectionIconOverride = sectionIconOverride
     )
 }
 

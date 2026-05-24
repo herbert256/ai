@@ -107,7 +107,13 @@ fun SettingsScreen(
     initialEditingFlockId: String? = null,
     initialEditingSwarmId: String? = null,
     initialEditingInternalPromptId: String? = null,
-    initialInternalPromptCategory: String? = null
+    initialInternalPromptCategory: String? = null,
+    /** Overrides the computed ⚙️ / 🤖 section icon in the top-left slot.
+     *  Set by standalone route entries that are shared with another
+     *  section — e.g. Refresh / Import-Export reached from Housekeeping,
+     *  which pass 🧹 (→ Housekeeping) so the icon matches where the user
+     *  actually came from rather than always reading as AI Setup. */
+    sectionIconOverride: com.ai.ui.shared.TopBarLeftIcon? = null
 ) {
     // rememberSaveable so a navigation hop OUT of Settings and back
     // (e.g. tapping a per-card ❓ that opens HelpScreen) restores the
@@ -271,17 +277,19 @@ fun SettingsScreen(
         SettingsSubScreen.SETTINGS_NETWORK_API_CALLS,
         SettingsSubScreen.SETTINGS_UI,
         SettingsSubScreen.SETTINGS_LOGGING,
-        SettingsSubScreen.SETTINGS_OTHER
+        SettingsSubScreen.SETTINGS_OTHER,
+        SettingsSubScreen.SETTINGS_METADATA,
+        SettingsSubScreen.SETTINGS_DEFAULT_ICONS
     )
     val sectionMain = if (inSettingsSubtree) SettingsSubScreen.MAIN else SettingsSubScreen.AI_SETUP
     androidx.compose.runtime.CompositionLocalProvider(
-        com.ai.ui.shared.LocalTopBarLeftIcon provides com.ai.ui.shared.TopBarLeftIcon(
+        com.ai.ui.shared.LocalTopBarLeftIcon provides (sectionIconOverride ?: com.ai.ui.shared.TopBarLeftIcon(
             glyph = if (inSettingsSubtree) "⚙️" else "🤖",
             onClick = {
                 if (currentSubScreen == sectionMain) onNavigateHome()
                 else currentSubScreen = sectionMain
             }
-        )
+        ))
     ) {
     when (currentSubScreen) {
         SettingsSubScreen.MAIN -> {
