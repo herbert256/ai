@@ -20,15 +20,22 @@ import kotlinx.coroutines.withTimeout
  * is what let the acquisition order drift and deadlock — keeping it here
  * means the order is defined exactly once.
  *
- * For each item it acquires, in this **canonical order** (the same as
- * Reports / Translation), then runs [body]:
+ * For each item it acquires, in this **canonical order**, then runs [body]:
  *
- *   [ApiCallCaps.global]  →  [subCap]  →  per-host ([acquireOrRequeue])
+ *   [subCap]  →  [ApiCallCaps.global]  →  per-host ([acquireOrRequeue])
  *
- * `global` outermost and the per-host gate innermost is what prevents the
- * global↔per-host lock-ordering deadlock. [acquireOrRequeue] is the
- * suspending per-host gate (concurrency + per-minute window, yields via
- * `delay` instead of pinning an IO thread) — it already enforces the
+ * The per-flow [subCap] is acquired BEFORE the shared `global` cap on
+ * purpose: an item queued on its own flow cap (e.g. one of 1000 fan-icons
+ * pairs waiting for a fan-icons permit) then holds NOTHING shared, so it
+ * can't hog `global` from other flows — which is what let a fan-icons run
+ * starve a concurrent fan-titles run of every global permit. Acquiring the
+ * private cap first and the shared cap last is also the standard
+ * deadlock-avoidance ordering (only one flow ever waits on a given
+ * `subCap`, and everyone acquires the shared `global` last). `global` is
+ * still acquired BEFORE the per-host gate, so the global↔per-host ordering
+ * that the earlier deadlock fix established is preserved. [acquireOrRequeue]
+ * is the suspending per-host gate (concurrency + per-minute window, yields
+ * via `delay` instead of pinning an IO thread) — it already enforces the
  * per-host concurrency cap, so callers no longer need a separate per-host
  * `Semaphore`. While [body] runs, `ProviderThrottle.permitPreAcquired` is
  * set so the OkHttp `ProviderThrottleInterceptor` skips re-acquiring the
@@ -75,8 +82,8 @@ internal suspend fun <T> runThrottledBatch(
         interleaveByHost(items) { hostOf(it) }.map { item ->
             val deferred = async(start = CoroutineStart.LAZY) {
                 val host = hostOf(item) ?: return@async
-                ApiCallCaps.global.withPermit {
-                    subCap.withPermit {
+                subCap.withPermit {
+                    ApiCallCaps.global.withPermit {
                         val releaser = acquireOrRequeue(
                             host,
                             onThrottled = { onThrottled(item) },

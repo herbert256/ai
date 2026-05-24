@@ -2859,7 +2859,7 @@ class IconGenerationManager(
                     runThrottledBatch(
                         items = pending,
                         hostOf = { AppService.findById(it.providerId)?.let { s -> providerHost(s) } },
-                        subCap = ApiCallCaps.fanIcons,
+                        subCap = ApiCallCaps.fanTitles,
                         onThrottled = { pair -> appViewModel.updateThrottledFanTitlesPairs { it + pair.id } },
                         onCleared = { pair -> appViewModel.updateThrottledFanTitlesPairs { it - pair.id } }
                     ) { pair ->
