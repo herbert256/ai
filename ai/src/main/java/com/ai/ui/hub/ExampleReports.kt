@@ -211,7 +211,9 @@ internal fun AllAiExamplesScreen(
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(title = "AI Examples", subject = "Open ready-made example reports", helpTopic = "ai_examples_screen", onBackClick = onNavigateBack)
+        TitleBar(title = "AI Examples", subject = "Open ready-made example reports", helpTopic = "ai_examples_screen", onBackClick = onNavigateBack,
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
+            onReportIconClick = com.ai.ui.shared.LocalNavigateToReportsHub.current)
         if (examples.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {

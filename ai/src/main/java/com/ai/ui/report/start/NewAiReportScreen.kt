@@ -63,7 +63,9 @@ fun NewAiReportScreen(
         TitleBar(
             title = "New AI report", subject = "Blank, a past prompt, or an example",
             helpTopic = "new_ai_report_screen",
-            onBackClick = onNavigateBack
+            onBackClick = onNavigateBack,
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
+            onReportIconClick = com.ai.ui.shared.LocalNavigateToReportsHub.current
         )
         Spacer(modifier = Modifier.height(8.dp))
         NewAiReportItem(icon = "🗒", title = "New AI Report",

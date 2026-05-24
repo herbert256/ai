@@ -242,6 +242,12 @@ fun AppNavHost(
             launchSingleTop = true
         }
     }
+    val rootNavigateToReportsHub: () -> Unit = {
+        navController.navigate(NavRoutes.AI_REPORTS_HUB) {
+            popUpTo(NavRoutes.AI_REPORTS_HUB) { inclusive = false }
+            launchSingleTop = true
+        }
+    }
     val rootNavigateHelp: (String?) -> Unit = { topic ->
         if (topic.isNullOrBlank()) navController.navigate(NavRoutes.HELP)
         else navController.navigate(NavRoutes.helpForTopic(topic))
@@ -311,6 +317,7 @@ fun AppNavHost(
         com.ai.ui.shared.LocalMetadataIcons provides rootUiStateForLayout.generalSettings.metadataIcons,
         com.ai.ui.shared.LocalBottomIconState provides bottomBarIconState,
         com.ai.ui.shared.LocalNavigateHome provides rootNavigateHome,
+        com.ai.ui.shared.LocalNavigateToReportsHub provides rootNavigateToReportsHub,
         com.ai.ui.shared.LocalNavigateToHelp provides rootNavigateHelp,
         com.ai.ui.shared.LocalNavigateToRoute provides { route -> navController.navigate(route) }
     ) {

@@ -394,7 +394,8 @@ fun ReportsHubScreen(
         .background(MaterialTheme.colorScheme.background)
         .verticalScroll(rememberScrollState())
         .padding(16.dp)) {
-        TitleBar(helpTopic = "reports_hub", title = "AI Reports", subject = "Create, browse and search your reports", onBackClick = onNavigateBack, onHousekeeping = onHousekeeping)
+        TitleBar(helpTopic = "reports_hub", title = "AI Reports", subject = "Create, browse and search your reports", onBackClick = onNavigateBack, onHousekeeping = onHousekeeping,
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.reportIcon, reportIconGoesHome = true)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)

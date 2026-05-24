@@ -53,7 +53,9 @@ fun SearchAiReportsScreen(
         TitleBar(
             title = "Search AI reports", subject = "Find a report by keyword or meaning",
             helpTopic = "search_ai_reports_screen",
-            onBackClick = onNavigateBack
+            onBackClick = onNavigateBack,
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
+            onReportIconClick = com.ai.ui.shared.LocalNavigateToReportsHub.current
         )
         Spacer(modifier = Modifier.height(8.dp))
         SearchAiReportsItem(icon = "🔍", title = "Quick local search",

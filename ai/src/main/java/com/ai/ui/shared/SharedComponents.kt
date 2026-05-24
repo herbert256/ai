@@ -264,6 +264,13 @@ val LocalNavigateToHelp = compositionLocalOf<(String?) -> Unit> { {} }
  *  the removed "AI" text-button used to play. */
 val LocalNavigateHome = compositionLocalOf<() -> Unit> { {} }
 
+/** Provided by AppNavHost so an AI-report screen's top-left 📝 icon can
+ *  jump to the AI Reports hub. Used by the report-section screens (New
+ *  report, All reports, Search, …) whose top-left glyph is the report
+ *  default icon while no single report is in scope. The hub itself uses
+ *  reportIconGoesHome instead. */
+val LocalNavigateToReportsHub = compositionLocalOf<() -> Unit> { {} }
+
 /** Provided by AppNavHost — navigate to any route by its NavRoutes
  *  constant. Backs the bottom-bar 🧹 "jump to Housekeeping" and ⚙️
  *  "jump to AI Setup / Settings" icons on dispatcher sub-screens that
