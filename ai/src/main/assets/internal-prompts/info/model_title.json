@@ -1,0 +1,8 @@
+{
+  "name": "model_title",
+  "title": "Decide the model report title",
+  "reference": false,
+  "agent": "Anthropic",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

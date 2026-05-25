@@ -1,0 +1,8 @@
+{
+  "name": "test",
+  "title": "Combine fan-out factcheck responses into one report",
+  "reference": false,
+  "agent": "*select",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

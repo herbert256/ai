@@ -1,0 +1,1 @@
+For your last response above, reply with a single emoji that best captures it. Output only that one emoji, nothing else.

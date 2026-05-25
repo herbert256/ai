@@ -1,0 +1,8 @@
+{
+  "name": "Summarize",
+  "title": "Synthesize all responses into one answer",
+  "reference": false,
+  "agent": "*select",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

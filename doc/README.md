@@ -144,7 +144,7 @@ The documentation is hand-written — the code is the ultimate source of
 truth. When in doubt, the relevant files are:
 
 - `assets/providers.json` — provider definitions
-- `assets/prompts.json` — Internal Prompts (Meta / Fan-out / Fan-in / Other internal)
+- `assets/internal-prompts/` — Internal Prompts (Meta / Fan-out / Fan-in / Other internal)
 - `assets/examples.json` — Example Prompts library
 - `data/AppService.kt` — provider runtime model
 - `data/ApiFormat.kt` + `data/ApiDispatch.kt` — dispatch routing

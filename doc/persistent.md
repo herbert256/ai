@@ -391,7 +391,7 @@ format and restore semantics.
 - **Clear all configuration** — wipes provider config and prompts.
   Asks before destructive actions.
 - **Restore bundled assets** — re-merges `providers.json` /
-  `prompts.json` / `examples.json` from the APK. User edits
+  `internal-prompts/` / `examples.json` from the APK. User edits
   on existing rows are preserved.
 - **Reset application** — factory-style reset that preserves
   API keys (written to a temp file under `cacheDir/reset_keys_*`,

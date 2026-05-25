@@ -64,7 +64,7 @@ tier blobs).
 │  ├── BackupManager       — zip-based backup/restore                 │
 │  ├── ModelListCache      — model-list TTL bookkeeping               │
 │  ├── PromptCache         — per-prompt cached responses              │
-│  ├── InternalPromptSeed  — assets/prompts.json loader               │
+│  ├── InternalPromptSeed  — assets/internal-prompts/ loader               │
 │  ├── ExamplePromptSeed   — assets/examples.json loader              │
 │  ├── ImageAttach         — vision-image downscale + JPEG-encode     │
 │  ├── EmbeddingsStore     — content-hashed per-doc embedding cache   │
@@ -495,7 +495,7 @@ id for providers:
   which fields the every-start sync may overwrite — a field the
   user has edited (timestamp non-null) is left alone; an
   un-edited field tracks the asset.
-- `assets/prompts.json` — Internal Prompts (Meta / Fan-out /
+- `assets/internal-prompts/` — Internal Prompts (Meta / Fan-out /
   Fan-in / fixed Internal templates: intro / model_info /
   translate / rerank / moderation / icon / report_icon /
   report_icon_chat / report_icon_3th / chat_title / response /

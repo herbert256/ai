@@ -1,0 +1,19 @@
+You are an impartial judge ranking @COUNT@ AI responses to the same question.
+
+QUESTION:
+@QUESTION@
+
+RESPONSES:
+@RESULTS@
+
+Evaluate each response on accuracy, completeness, clarity, and usefulness.
+Output ONLY a JSON array — no prose, no code fences — of the form:
+
+[
+  {"id": 1, "rank": 1, "score": 92, "reason": "..."},
+  {"id": 2, "rank": 2, "score": 78, "reason": "..."}
+]
+
+`id` must match the bracketed [N] in RESPONSES.
+`rank` is 1 for the best response, 2 for second, etc. — every id appears exactly once.
+`score` is 0-100. `reason` is one sentence.

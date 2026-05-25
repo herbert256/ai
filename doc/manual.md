@@ -10,7 +10,7 @@ of every API call you made.
 1. Install the APK and open it. The app imports a default catalog of
    42 cloud providers from a bundled `providers.json` and seeds
    Internal Prompts (Meta / Fan-out / Fan-in / fixed templates) from
-   `prompts.json` so you don't have to type any URLs or prompt
+   `internal-prompts/` so you don't have to type any URLs or prompt
    templates yourself.
 2. Open **Settings → AI Setup → Providers**. Pick the providers you
    want to use, paste in their API keys (each card has a 🔗 link to
@@ -552,7 +552,7 @@ card, all collapsed by default):
 - **Clear all configuration** — wipes provider config and prompts.
   Asks before destructive actions.
 - **Restore bundled assets** — re-merges `providers.json` /
-  `prompts.json` / `examples.json` from the APK. User edits to
+  `internal-prompts/` / `examples.json` from the APK. User edits to
   existing rows are preserved.
 - **Reset application** — factory-style reset that preserves API
   keys (written to a temp file under `cacheDir/reset_keys_*`,

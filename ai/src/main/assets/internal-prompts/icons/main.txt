@@ -1,0 +1,3 @@
+Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !
+
+@PROMPT@

@@ -1,0 +1,8 @@
+{
+  "name": "chat_title",
+  "title": "Decide the chat title",
+  "reference": false,
+  "agent": "DeepSeek",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

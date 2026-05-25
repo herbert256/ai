@@ -1,0 +1,8 @@
+{
+  "name": "fan_out_alt",
+  "title": "Find an ALTERNATIVE fitting emoji for a fan-out pair response",
+  "reference": false,
+  "agent": "*N/A",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

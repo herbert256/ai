@@ -1,0 +1,9 @@
+Good day !
+
+Please introduce yourself, give information like:
+- your name and version
+- your cut-off date of the knowledge you have
+- your owner and a short introduction about your owner.
+- your cabilities, like websearch, images support and so on.
+
+Use MD markup in your answer, keep in mind that your response will be viewed on a phone screen.

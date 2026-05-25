@@ -1,0 +1,5 @@
+Give a short title, a sentence of maximal 10 words, no other text in the response, based on below text: 
+
+ @PROMPT@ 
+
+ @RESPONSE@

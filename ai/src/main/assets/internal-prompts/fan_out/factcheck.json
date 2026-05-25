@@ -1,0 +1,8 @@
+{
+  "name": "factcheck",
+  "title": "Combine cross factchecks into one report",
+  "reference": false,
+  "agent": "*n/a",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

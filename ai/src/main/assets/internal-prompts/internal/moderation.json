@@ -1,0 +1,8 @@
+{
+  "name": "moderation",
+  "title": "Flag policy-violating responses",
+  "reference": false,
+  "agent": "*select",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}
