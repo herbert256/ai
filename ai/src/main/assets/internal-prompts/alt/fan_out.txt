@@ -1,1 +1,19 @@
 Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits.
+
+Please give a fitting emoji for the response below. The context is a fan-out: first the original question, then another AI model's answer, then a meta-prompt asking our model to react to that answer, finally our model's reaction. Give a fitting emoji for our model's reaction (the last RESPONSE block), only one emoji as feedback, nothing more !!!
+
+***QUESTION***
+
+@QUESTION@
+
+***SOURCE_RESPONSE***
+
+@SOURCE_RESPONSE@
+
+***META_PROMPT***
+
+@META_PROMPT@
+
+***RESPONSE***
+
+@RESPONSE@

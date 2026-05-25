@@ -1,1 +1,5 @@
 Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits.
+
+Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !
+
+@NAME@ @TITLE@

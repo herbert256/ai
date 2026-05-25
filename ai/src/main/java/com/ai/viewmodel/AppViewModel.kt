@@ -1295,6 +1295,46 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // One-shot: the six find-alternative icon flows used to compose
+        // their `alt/*` prompt's short nudge text + a blank line + a
+        // base prompt (icons/*) at call time. The base text is now baked
+        // INTO the alt prompt (so the alt is self-contained and the base
+        // lookup is gone), matching the bundled alt/*.txt assets. Rewrite
+        // any persisted alt row that still holds the OLD nudge-only
+        // default to the merged text; a user's manual edit (text != old
+        // default) is left untouched. Idempotent — once merged, the
+        // match misses. `language` is base-first to mirror its old
+        // composition order; the rest are alt-first.
+        run {
+            val nudgeGeneric = "Do not repeat an obvious emoji like 📝 / 💬 / ✅ — pick something distinct that still fits."
+            val nudgeNoFlag = "Do not use a country flag emoji, be creative and find an alternative emoji that fits this text."
+            val baseMain = "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@PROMPT@"
+            val baseMeta = "Please give a fitting emoji for below text, only give this emoji as feedback, nothing more !\n\n@NAME@ @TITLE@"
+            val baseLang = "Please give a fitting emoji for @LANGUAGE@, give only this emoji as feedback, nothing more !!!"
+            val baseReport = "Please give a fitting emoji for below text, it is a request to an AI model, first the prompt that is send to this model, then the response from that AI model, your task is to give a fitting emoji for the response of that model, give only this emoji as feedback, nothing more !!!\n\n***PROMPT***\n\n@PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@"
+            val baseFanOut = "Please give a fitting emoji for the response below. The context is a fan-out: first the original question, then another AI model's answer, then a meta-prompt asking our model to react to that answer, finally our model's reaction. Give a fitting emoji for our model's reaction (the last RESPONSE block), only one emoji as feedback, nothing more !!!\n\n***QUESTION***\n\n@QUESTION@\n\n***SOURCE_RESPONSE***\n\n@SOURCE_RESPONSE@\n\n***META_PROMPT***\n\n@META_PROMPT@\n\n***RESPONSE***\n\n@RESPONSE@"
+            // name -> (old nudge-only text, new merged text)
+            val merges = mapOf(
+                "main" to (nudgeGeneric to "$nudgeGeneric\n\n$baseMain"),
+                "meta" to (nudgeGeneric to "$nudgeGeneric\n\n$baseMeta"),
+                "report" to (nudgeGeneric to "$nudgeGeneric\n\n$baseReport"),
+                "fan_out" to (nudgeGeneric to "$nudgeGeneric\n\n$baseFanOut"),
+                "translation" to (nudgeNoFlag to "$nudgeNoFlag\n\n$baseLang"),
+                "language" to (nudgeNoFlag to "$baseLang\n\n$nudgeNoFlag")
+            )
+            val merged = ai.internalPrompts.map { p ->
+                val pair = merges[p.name.lowercase()]
+                if (pair != null && p.category.equals("alt", ignoreCase = true) && p.text == pair.first)
+                    p.copy(text = pair.second)
+                else p
+            }
+            if (merged != ai.internalPrompts) {
+                AppLog.i(tag, "Merged the base prompt into ${merged.zip(ai.internalPrompts).count { (a, b) -> a !== b }} self-contained 'alt' prompt(s)")
+                ai = ai.copy(internalPrompts = merged)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
         // existing rows. New prompts shipped in an APK upgrade get
