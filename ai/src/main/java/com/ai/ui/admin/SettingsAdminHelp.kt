@@ -645,10 +645,11 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_costs_tier" to HelpContent(
         title = "Help - Costs tier",
         cards = listOf(
-            HelpCard("Overview", "For every configured model (each provider's catalog), which pricing tier PricingCache.getPricing would resolve it to — counted per tier. Reached from AI Statistics; runs getPricing for the whole catalog, so it's computed only when opened."),
+            HelpCard("Overview", "Which pricing tier PricingCache.getPricing resolves each model to, counted per tier. Reached from AI Statistics; runs getPricing per model, so it's computed only when opened."),
+            HelpCard("Configuration / Runtime", "Two modes. Configuration = every configured model in each provider's catalog. Runtime = only the DISTINCT (provider, model) pairs that were actually called, read from the API traces (host → provider, plus the recorded model). Runtime mirrors Configuration but over what really happened."),
             HelpCard("Tiers", "Listed by the source tag the lookup returns: Manual override, LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Together, Helicone, then the 25/75 default fallback for models no catalog covers."),
             HelpCard("25/75 default", "A big default count means those models have no real catalog price and would bill at the $25/$75-per-million placeholder. Add a manual override or refresh catalogs to fix."),
-            HelpCard("Pitfalls", "Reflects the catalogs currently loaded and your configured model lists — not actual API traces. The same model can shift tiers after a catalog refresh."),
+            HelpCard("Pitfalls", "Tier resolution reflects the catalogs currently loaded — a model can shift tiers after a refresh. Runtime depends on tracing having been enabled when the calls were made; with no traces it shows zeros."),
         )
     ),
     "cost_config" to HelpContent(

@@ -81,6 +81,28 @@ internal suspend fun computeTierCounts(
     tierCounts
 }
 
+/** "Runtime" sibling of [computeTierCounts]: instead of the configured
+ *  catalog, resolve the tier for each DISTINCT (provider, model) pair that was
+ *  actually called — read from the API traces ([ApiTracer.getTraceFiles], which
+ *  carry hostname + model). Host → provider via [ProviderRegistry.findByHost];
+ *  pairs whose host maps to no registered provider, or with no model recorded,
+ *  are skipped. Counts each used model once, so it mirrors the configuration
+ *  view but over what really happened. */
+internal suspend fun computeTierCountsRuntime(
+    context: Context,
+): Map<String, Int> = withContext(Dispatchers.IO) {
+    val tierCounts = LinkedHashMap<String, Int>().apply { PRICING_TIER_ORDER.forEach { put(it, 0) } }
+    val seen = HashSet<String>()
+    for (t in ApiTracer.getTraceFiles()) {
+        val model = t.model?.takeIf { it.isNotBlank() } ?: continue
+        val provider = ProviderRegistry.findByHost(t.hostname) ?: continue
+        if (!seen.add("${provider.id}:$model")) continue
+        val src = PricingCache.getPricing(context, provider, model).source
+        tierCounts[src] = (tierCounts[src] ?: 0) + 1
+    }
+    tierCounts
+}
+
 /** Pricing-tier source tags as they appear on [PricingCache.ModelPricing.source]
  *  (set by the catalog parsers / explicit constructions — NOT getPricing's log
  *  labels). Drives the "Costs tier" card so it lists every tier even at zero.

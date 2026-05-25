@@ -21,6 +21,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +60,7 @@ import com.ai.data.SecondaryKind
 import com.ai.data.UsageGroupsResult
 import com.ai.data.computeDashboardAggregates
 import com.ai.data.computeTierCounts
+import com.ai.data.computeTierCountsRuntime
 import com.ai.data.computeUsageGroups
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.AppColors
@@ -346,8 +349,13 @@ fun AiCostsTierScreen(
     val context = LocalContext.current
     val uiState by appViewModel.uiState.collectAsState()
     val refreshTick = resumeRefreshTick()
-    val tierCounts by produceState<Map<String, Int>?>(null, refreshTick) {
-        value = computeTierCounts(context, uiState.aiSettings)
+    // Configuration = every configured model; Runtime = only the models that
+    // were actually called, read from the API traces.
+    var runtime by rememberSaveable { mutableStateOf(false) }
+    val tierCounts by produceState<Map<String, Int>?>(null, refreshTick, runtime) {
+        value = null
+        value = if (runtime) computeTierCountsRuntime(context)
+                else computeTierCounts(context, uiState.aiSettings)
     }
 
     Column(
@@ -358,20 +366,52 @@ fun AiCostsTierScreen(
         TitleBar(
             helpTopic = "ai_costs_tier",
             title = "Costs tier",
-            subject = "Pricing tier each configured model resolves to",
+            subject = "Pricing tier per model",
             onBackClick = onBack,
             reportIcon = "🧮", reportIconGoesHome = true
         )
+        Spacer(Modifier.height(8.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ModeButton("Configuration", selected = !runtime, modifier = Modifier.weight(1f)) { runtime = false }
+            ModeButton("Runtime", selected = runtime, modifier = Modifier.weight(1f)) { runtime = true }
+        }
+        Spacer(Modifier.height(8.dp))
         val tc = tierCounts
         if (tc == null) {
-            Text("Loading… (checking every configured model)", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            Text(
+                if (runtime) "Loading… (reading API traces)" else "Loading… (checking every configured model)",
+                color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)
+            )
         } else {
             LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { Spacer(Modifier.height(4.dp)) }
-                item { CostTierSection(tc) }
+                item {
+                    CostTierSection(
+                        tierCounts = tc,
+                        subtitle = if (runtime) "Tier of each model actually called (from API traces)"
+                                   else "Tier each configured model resolves to",
+                        totalLabel = if (runtime) "Models called" else "Total models"
+                    )
+                }
                 item { Spacer(Modifier.height(24.dp)) }
             }
         }
+    }
+}
+
+@Composable
+private fun ModeButton(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = modifier,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) AppColors.Blue else AppColors.CardBackgroundAlt
+        )
+    ) {
+        Text(
+            label, fontSize = 13.sp, maxLines = 1, softWrap = false,
+            color = if (selected) Color.White else AppColors.TextSecondary
+        )
     }
 }
 
@@ -572,19 +612,16 @@ private fun KnowledgeSection(agg: DashboardAggregates) {
 }
 
 @Composable
-private fun CostTierSection(tierCounts: Map<String, Int>) {
+private fun CostTierSection(tierCounts: Map<String, Int>, subtitle: String, totalLabel: String) {
     SectionCard("🧮", "Costs tier", AppColors.Blue) {
-        Text(
-            "Which pricing tier each configured model resolves to",
-            fontSize = 10.sp, color = AppColors.TextTertiary
-        )
+        Text(subtitle, fontSize = 10.sp, color = AppColors.TextTertiary)
         Spacer(Modifier.height(6.dp))
         val total = tierCounts.values.sum()
         tierCounts.forEach { (src, count) ->
             KeyVal(tierLabel(src), "$count", if (count > 0) Color.White else AppColors.TextDim)
         }
         Spacer(Modifier.height(4.dp))
-        KeyVal("Total models", "$total", AppColors.TextSecondary)
+        KeyVal(totalLabel, "$total", AppColors.TextSecondary)
     }
 }
 
