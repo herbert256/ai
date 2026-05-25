@@ -131,6 +131,28 @@ class IconGenerationManager(
      *  also pushed into [com.ai.model.UiState.genericPromptTitle] when
      *  the user is currently on this report, so the green title row
      *  at the top of Manage report updates without a refresh. */
+    /** Defensive cleanup of one line of an LLM two-line title reply.
+     *  Strips leading bullets / numbering ("1.", "2)", "- "), label
+     *  prefixes ("Title:", "Short:", "Long:" — any case), surrounding
+     *  quotes and **markdown bold**, iterating so stacked prefixes like
+     *  "1. Short: X" reduce to "X". Some models echo the prompt's two-line
+     *  format as labels/numbers even when told to return only the titles. */
+    private fun cleanTitleLine(raw: String): String {
+        val leading = Regex(
+            "^\\s*(?:[-*•]\\s*|\\d+[.)]\\s*|(?:short|long|title)\\s*[:.\\-]\\s*)",
+            RegexOption.IGNORE_CASE
+        )
+        var s = raw.trim()
+        var prev: String
+        do {
+            prev = s
+            s = s.replace(leading, "").trim()
+            if (s.length >= 4 && s.startsWith("**") && s.endsWith("**")) s = s.substring(2, s.length - 2).trim()
+            s = s.removeSurrounding("\"").trim().removeSurrounding("'").trim()
+        } while (s != prev)
+        return s
+    }
+
     internal fun kickOffReportTitleGeneration(
         context: Context,
         reportId: String,
@@ -168,12 +190,7 @@ class IconGenerationManager(
                         // when told not to), then take the first two non-blank.
                         val lines = (outcome.response.analysis ?: "")
                             .lineSequence()
-                            .map {
-                                it.trim()
-                                    .removePrefix("Title:").trim()
-                                    .removeSurrounding("\"").trim()
-                                    .removeSurrounding("'").trim()
-                            }
+                            .map { cleanTitleLine(it) }
                             .filter { it.isNotBlank() }
                             .toList()
                         // Short title (≤25) drives list cards; long title (≤50)
