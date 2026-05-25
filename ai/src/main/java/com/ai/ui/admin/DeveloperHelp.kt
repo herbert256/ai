@@ -29,7 +29,7 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "share_target" to HelpContent(
-        title = "Help - Send to AI",
+        title = "Help - Share",
         cards = listOf(
             HelpCard("Overview", "Lightweight chooser shown when another app shares content into this app via ACTION_SEND. Lives between the receiving Activity and the standard nav graph; a card tap clears the share state and routes the payload."),
             HelpCard("Preview card", "Top of the screen: shared subject (when present and non-blank), first 300 characters of shared text (with ellipsis when truncated), \"N attachments\" line for any URIs, and the raw mime type. Lets you double-check the payload before picking a destination."),

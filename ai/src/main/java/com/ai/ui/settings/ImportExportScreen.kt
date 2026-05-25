@@ -798,7 +798,7 @@ fun ImportExportScreen(
                 }
             }
             result.fold(
-                onSuccess = { Toast.makeText(context, "AI Report ready to share", Toast.LENGTH_SHORT).show() },
+                onSuccess = { Toast.makeText(context, "Report ready to share", Toast.LENGTH_SHORT).show() },
                 onFailure = { Toast.makeText(context, "Export failed: ${it.message}", Toast.LENGTH_LONG).show() }
             )
         }
@@ -1645,7 +1645,7 @@ fun ImportExportScreen(
             // report (fresh UUID, re-keyed secondaries + trace
             // filenames) so re-importing the same zip never clobbers.
             ControlledCollapsibleCard(
-                title = "AI Reports",
+                title = "Reports",
                 expanded = openCard == "ai_reports",
                 onToggle = { toggle("ai_reports") }
             ) {

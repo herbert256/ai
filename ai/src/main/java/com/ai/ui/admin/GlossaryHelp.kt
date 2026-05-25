@@ -46,7 +46,7 @@ internal val glossaryHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "help_home_ai_providers" to HelpContent(
-        title = "Help - AI providers (cloud)",
+        title = "Help - Providers (cloud)",
         cards = listOf(
             HelpCard("Overview", "Every cloud LLM / embedder / reranker provider the app can talk to. Tap a row in the table below for that provider's setup notes — endpoint, auth shape, model-list freshness, anything that's worth knowing before pasting an API key. Reached from the Help home → \"Help - AI providers\" link.")
         )

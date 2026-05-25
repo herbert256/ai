@@ -140,30 +140,30 @@ fun HubScreen(
             // inside the `if`, so the gap goes with it and the layout
             // stays compact.
             if (hasAnyAgent) {
-                HubCard(icon = "\uD83D\uDCDD", title = "AI Reports", onClick = onNavigateToReportsHub)
+                HubCard(icon = "\uD83D\uDCDD", title = "Reports", onClick = onNavigateToReportsHub)
                 Spacer(modifier = Modifier.height(12.dp))
-                HubCard(icon = "\uD83D\uDCAC", title = "AI Chat", onClick = onNavigateToChatsHub)
+                HubCard(icon = "\uD83D\uDCAC", title = "Chat", onClick = onNavigateToChatsHub)
                 Spacer(modifier = Modifier.height(12.dp))
             } else {
                 // No agents yet \u2192 the AI Reports hub is hidden. Offer the
                 // bundled example reports so a first-run user can open a
                 // real report without configuring a provider.
-                HubCard(icon = "\uD83D\uDCA1", title = "AI Examples", onClick = onNavigateToExamples)
+                HubCard(icon = "\uD83D\uDCA1", title = "Examples", onClick = onNavigateToExamples)
                 Spacer(modifier = Modifier.height(12.dp))
             }
             if (uiState.generalSettings.experimentalFeaturesEnabled && uiState.generalSettings.showKnowledgeCard) {
-                HubCard(icon = "\uD83D\uDCDA", title = "AI Knowledge", onClick = onNavigateToKnowledge)
+                HubCard(icon = "\uD83D\uDCDA", title = "Knowledge", onClick = onNavigateToKnowledge)
                 Spacer(modifier = Modifier.height(12.dp))
             }
             if (hasAnyAgent) {
-                HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch)
+                HubCard(icon = "\uD83E\uDDE0", title = "Models", onClick = onNavigateToModelSearch)
                 Spacer(modifier = Modifier.height(12.dp))
             }
-            HubCard(icon = "\uD83D\uDCE1", title = "AI Monitor", onClick = onNavigateToMonitor)
+            HubCard(icon = "\uD83D\uDCE1", title = "Monitor", onClick = onNavigateToMonitor)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
+            HubCard(icon = "\uD83E\uDD16", title = "Setup", onClick = onNavigateToAiSetup)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
+            HubCard(icon = "\uD83E\uDDF9", title = "Housekeeping", onClick = onNavigateToHousekeeping)
             Spacer(modifier = Modifier.height(12.dp))
             Spacer(modifier = Modifier.height(32.dp))
             HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
@@ -368,7 +368,7 @@ fun ReportsHubScreen(
         .background(MaterialTheme.colorScheme.background)
         .verticalScroll(rememberScrollState())
         .padding(16.dp)) {
-        TitleBar(helpTopic = "reports_hub", title = "AI Reports", subject = "Create, browse and search your reports", onBackClick = onNavigateBack, onHousekeeping = onHousekeeping)
+        TitleBar(helpTopic = "reports_hub", title = "Reports", subject = "Create, browse and search your reports", onBackClick = onNavigateBack, onHousekeeping = onHousekeeping)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -391,7 +391,7 @@ fun ReportsHubScreen(
         // the bottom so the populated buckets lead. Examples stays last.
         val hubCards = listOf(
             Triple("⏳", AppColors.Orange, "Running AI reports") to homeReportLists.running,
-            Triple("⚠️", AppColors.Red, "AI Reports with problems") to homeReportLists.problems,
+            Triple("⚠️", AppColors.Red, "Reports with problems") to homeReportLists.problems,
             Triple("📌", AppColors.Yellow, "Pinned AI Reports") to pinnedReports,
             Triple("🕘", AppColors.Blue, "Latest AI Reports") to latestReports,
         ).sortedBy { it.second.isEmpty() }

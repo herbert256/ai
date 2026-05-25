@@ -2,7 +2,7 @@ package com.ai.ui.admin
 
 internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "reports_hub" to HelpContent(
-        title = "Help - AI Reports",
+        title = "Help - Reports",
         cards = listOf(
             HelpCard("Overview", "Dashboard for everything to do with reports. Two top buttons jump into the creation and search wrappers; four list cards summarise what's already on disk; one bottom button opens the paginated browser."),
             HelpCard("In-flight pill", "When at least one report has unfinished agents (PENDING / RUNNING and no completedAt), an orange ⏳ pill appears at the top — tap it to resume the most recent in-flight run without going through History."),
@@ -13,21 +13,21 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "new_ai_report_screen" to HelpContent(
-        title = "Help - New AI report",
+        title = "Help - New report",
         cards = listOf(
             HelpCard("What you see", "Three tap-through rows: 🗒 New AI Report opens the blank form; 🔄 Start with a previous prompt opens the prompt history; 💡 Start with an example prompt opens the example-prompt picker (only shown when at least one example prompt is configured)."),
             HelpCard("How to use it", "Pick whichever entry point matches how you want to start. Each one lands on the standard report form where you finish entering title + prompt, then pick the agents/flocks/swarms/models that should answer.")
         )
     ),
     "all_ai_reports_screen" to HelpContent(
-        title = "Help - All AI reports",
+        title = "Help - All reports",
         cards = listOf(
             HelpCard("What you see", "Every saved report, newest first. The body doesn't scroll — rows are split into fixed pages that auto-fit the screen height. A small 'Page X of Y' header sits above the rows."),
             HelpCard("How to use it", "Swipe left / right to flip between pages. Each row carries the same tap-to-manage behaviour and 🔧 / 👁 / 🗑 icons as the dashboard cards. The page math re-fits when you rotate the device, so portrait and landscape both fill the visible area.")
         )
     ),
     "ai_examples_screen" to HelpContent(
-        title = "Help - AI Examples",
+        title = "Help - Examples",
         cards = listOf(
             HelpCard("What you see", "A list of ready-made example reports bundled with the app. This screen appears from the home menu when you haven't set up any agents yet, so you can open a real, fully-populated report before configuring a provider. (The same list also lives as the 'Example AI Reports' card inside the AI Reports hub once you have agents.)"),
             HelpCard("How to use it", "Tap a row (or its 🔧) to open the example at Manage; tap 👁 to open the View tile grid. The first time you open an example it is imported into your reports — a brief 'Loading example report' popup shows while it copies. Imported examples then appear in your normal report lists."),
@@ -52,7 +52,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_new" to HelpContent(
-        title = "Help - New AI Report",
+        title = "Help - New Report",
         cards = listOf(
             HelpCard("Overview", "Two-stage: type a title + prompt here, then on Next pick which agents / flocks / swarms / models receive the prompt. The title and prompt are saved to LAST_AI_REPORT_TITLE / _PROMPT and to the last-100 prompt history."),
             HelpCard("Title and prompt", "Both are required for Next to enable. Title is single-line; prompt is multi-line with a 10-line minimum height. Clear wipes both fields plus any attached image."),
@@ -118,7 +118,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "view_ai_report" to HelpContent(
-        title = "Help - View AI report",
+        title = "Help - View report",
         cards = listOf(
             HelpCard("What you see", "The View home for a report — a grid of tiles, one per thing this report has to look at: the original prompt, the per-model responses, the cost breakdown, the in-app HTML preview, plus one tile for each kind of post-run result the report carries (Meta, Rerank, Moderation, Fan-out, Fan-in, Fan-in-model, Translate). The title bar carries the AI logo (taps go to the app home), the report's own title centred in white, and the help icon."),
             HelpCard("How to read it", "Each tile shows an emoji, a label, and — when a kind has more than one item — a small count badge in the top-right. Tiles you can tap are at full colour; tiles for kinds this report doesn't have yet aren't shown at all. Tap a tile to open the matching View screen. Long-press a tile and drag it onto another to swap their positions — your order persists across reports, so once you've arranged the grid the way you like it, it stays that way. When the report has translations, a row of large flag-style icons at the top picks the active language; that language is carried into every tile you open.")

@@ -181,7 +181,7 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
             // from Model Info returns to the list, not the Hub.
             com.ai.ui.other.ReportSelectModelsScreen(
                 aiSettings = uiState.aiSettings,
-                titleText = "AI Models",
+                titleText = "Models",
                 onConfirm = { (p, m) -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onBack = safePopBack,
                 onNavigateHome = navigateHome

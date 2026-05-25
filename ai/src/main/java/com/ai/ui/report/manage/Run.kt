@@ -250,7 +250,7 @@ internal fun ReportRunScreen(
         ) {
         TitleBar(
             helpTopic = "report_run",
-            title = "Manage an AI report",
+            title = "Manage a report",
             costText = totalCostForBar.takeIf { it > 0.0 }?.let { com.ai.ui.shared.formatCents(it, 2) },
             onCostClick = generationHandlers.onViewCosts,
             // Tapping the "Manage report" screen title opens the main

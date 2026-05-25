@@ -455,7 +455,7 @@ private fun InfoProvidersRefreshPage(
 ) {
     BackHandler { onBack() }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "refresh_info_providers", title = "AI Info Providers", subject = "Six pricing & capability catalogs", onBackClick = onBack)
+        TitleBar(helpTopic = "refresh_info_providers", title = "Info Providers", subject = "Six pricing & capability catalogs", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             RefreshAction(
                 label = "OpenRouter",

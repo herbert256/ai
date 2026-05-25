@@ -268,7 +268,7 @@ fun SelectProviderScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "model_pick_provider", title = "Select Provider", subject = "Pick a cloud AI provider", onBackClick = onBack)
+        TitleBar(helpTopic = "model_pick_provider", title = "Select Provider", subject = "Pick a cloud provider", onBackClick = onBack)
 
         Text(
             text = "${allProviders.size} providers",

@@ -85,7 +85,7 @@ fun ChatsHubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "chat_hub", title = "AI Chat", subject = "Start or resume a chat with a model", onBackClick = onNavigateBack)
+        TitleBar(helpTopic = "chat_hub", title = "Chat", subject = "Start or resume a chat with a model", onBackClick = onNavigateBack)
 
         if (unfinishedSessions.isNotEmpty()) {
             UnfinishedChatPill(
@@ -252,7 +252,7 @@ private fun StartChatGroup(
                 modifier = Modifier.padding(bottom = 4.dp))
             ChatStartRow(icon = "\uD83E\uDD16", title = "New Chat with Agent", enabled = hasAgents, onClick = onAgentChat)
             ChatStartRow(icon = "\uD83D\uDCAC", title = "New Chat \u2013 Configure On The Fly", enabled = true, onClick = onNewChat)
-            ChatStartRow(icon = "\uD83E\uDD1C\uD83E\uDD1B", title = "Dual AI Chat", enabled = true, onClick = onDualChat)
+            ChatStartRow(icon = "\uD83E\uDD1C\uD83E\uDD1B", title = "Dual Chat", enabled = true, onClick = onDualChat)
             ChatStartRow(icon = "\uD83D\uDCF8", title = "Start with photo", enabled = true, onClick = onStartWithPhoto)
         }
     }

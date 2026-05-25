@@ -51,7 +51,7 @@ fun SearchAiReportsScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
-            title = "Search AI reports", subject = "Find a report by keyword or meaning",
+            title = "Search reports", subject = "Find a report by keyword or meaning",
             helpTopic = "search_ai_reports_screen",
             onBackClick = onNavigateBack
         )

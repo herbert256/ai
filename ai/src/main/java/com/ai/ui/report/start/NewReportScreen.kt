@@ -205,7 +205,7 @@ fun NewReportScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "report_new", title = "New AI Report", subject = "Write your prompt, then pick models", onBackClick = onNavigateBack,
+        TitleBar(helpTopic = "report_new", title = "New Report", subject = "Write your prompt, then pick models", onBackClick = onNavigateBack,
             onParameters = { showAdvancedParams = true }, onSystemPrompt = { showSystemPromptDialog = true },
             onClear = { title = ""; prompt = ""; attachedImage = null },
             onAttach = { showAttachChooser = true },
@@ -352,8 +352,8 @@ fun NewReportScreen(
         }
         Spacer(modifier = Modifier.height(16.dp))
         OutlinedTextField(
-            value = prompt, onValueChange = { prompt = it }, label = { Text("AI Prompt") },
-            placeholder = { Text("Enter your prompt for the AI...") },
+            value = prompt, onValueChange = { prompt = it }, label = { Text("Prompt") },
+            placeholder = { Text("Enter your prompt...") },
             modifier = Modifier.fillMaxWidth().weight(1f), minLines = 10, colors = AppColors.outlinedFieldColors()
         )
     }

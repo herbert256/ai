@@ -45,7 +45,7 @@ fun ShareChooserScreen(
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)
         .padding(16.dp)) {
-        TitleBar(helpTopic = "share_target", title = "Send to AI", subject = "Turn shared content into a report/chat", onBackClick = onCancel)
+        TitleBar(helpTopic = "share_target", title = "Share", subject = "Turn shared content into a report/chat", onBackClick = onCancel)
 
         // Show a short preview of what was shared so the user can
         // double-check before picking a destination.

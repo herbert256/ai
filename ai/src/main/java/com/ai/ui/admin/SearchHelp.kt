@@ -2,7 +2,7 @@ package com.ai.ui.admin
 
 internal val searchHelp: Map<String, HelpContent> = mapOf(
     "search_ai_reports_screen" to HelpContent(
-        title = "Help - Search AI reports",
+        title = "Help - Search reports",
         cards = listOf(
             HelpCard("What you see", "Three search modes in escalating-cost order: 🔍 Quick local search (substring), 📂 Extended local search (tokenised), 🌐 Remote semantic search (cloud embeddings)."),
             HelpCard("How to use it", "Pick the mode that suits the question — local-quick is fast and free; remote-semantic uses an embedding provider and bills accordingly. Each mode shows matching reports with the same per-row 🔧 / 👁 icons as the dashboard.")

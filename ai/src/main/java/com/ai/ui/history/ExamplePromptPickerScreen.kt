@@ -66,7 +66,7 @@ fun ExamplePromptPickerScreen(
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("No example prompts yet.", color = AppColors.TextTertiary, fontSize = 14.sp)
-                    Text("Add some under AI Setup → Prompt management → Example prompts.", color = AppColors.TextDim, fontSize = 12.sp)
+                    Text("Add some under Setup → Prompt management → Example prompts.", color = AppColors.TextDim, fontSize = 12.sp)
                 }
             }
         } else if (sorted.isEmpty()) {

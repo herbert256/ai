@@ -11,7 +11,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "select_system_prompt" to HelpContent(
-        title = "Help - Define AI model system prompt",
+        title = "Help - Define model system prompt",
         cards = listOf(
             HelpCard("Overview", "Opened from the 🎭 icon. Picks the saved System prompt — the standing instruction that sets the model's role or tone — for whatever you're configuring."),
             HelpCard("Current active", "When a prompt is selected, the orange line under the title shows its name. Nothing there means no system prompt is set at this level."),
@@ -135,7 +135,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "settings_setup" to HelpContent(
-        title = "Help - AI Setup",
+        title = "Help - Setup",
         cards = listOf(
             HelpCard("Overview", "Top-level hub for AI configuration. Each card opens a sub-hub or list — counts on the right show how many entries you have so you can tell at a glance what is configured."),
             HelpCard("Providers", "Per-provider API keys, state, default model, and the catalog editor. Count = number of registered providers (39 ship by default plus any you have added)."),
@@ -411,7 +411,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "refresh_info_providers" to HelpContent(
-        title = "Help - AI Info Providers",
+        title = "Help - Info Providers",
         cards = listOf(
             HelpCard("Overview", "Refresh-screen sub-page for the six external metadata catalogs (model pricing, capability flags, supported parameters). They have no per-AppService side effects, so the page's \"All info providers\" runs them in parallel."),
             HelpCard("All info providers", "Runs OpenRouter (if its key is set), LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis (if its key is set) in parallel via the same full-screen progress page Refresh-all uses. Skips Providers / Models / Default agents."),
@@ -454,7 +454,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "setup_models" to HelpContent(
-        title = "Help - AI Models setup",
+        title = "Help - Models setup",
         cards = listOf(
             HelpCard("Overview", "Sub-hub under AI Setup. Three cards: Models (per active provider), Model Types (default API path per type), Manual model types overrides (per-model type assignments)."),
             HelpCard("Models", "Disabled until you have at least one active provider. Drills into the per-provider model lists. Count = total models across active providers."),
@@ -465,7 +465,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "setup_workers" to HelpContent(
-        title = "Help - AI Workers (setup)",
+        title = "Help - Workers (setup)",
         cards = listOf(
             HelpCard("Overview", "Sub-hub under AI Setup. Three cards (Agents / Flocks / Swarms) — all three disabled until at least one provider has an API key set."),
             HelpCard("Agents", "Named (provider, model, key, params, prompt, endpoint) tuples. Count = active agents (whose provider is currently active)."),
@@ -606,7 +606,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "ai_live_dashboard" to HelpContent(
-        title = "Help - AI Live Dashboard",
+        title = "Help - Live Dashboard",
         cards = listOf(
             HelpCard("Overview", "A live ops monitor — what's happening right now. Auto-refreshes ~every 0.75 s while it's on top and stops the moment you leave it. Opened from the home 📡 AI Live Dashboard card. Lifetime totals + costs live on the separate 📈 AI Statistics screen."),
             HelpCard("🟢 Live activity", "Hero number is global API calls in flight / the global cap, with an Idle / Active / Saturated badge. Six bars show in-use/max for each concurrency cap (Global, Report, Translation, Fan-out, Fan-icons, Fan-titles) — green under 60 %, orange approaching the cap, red at the cap. The caps are owned by Settings → Network settings and count live API calls (a pair parked on a provider's rate-limit holds no cap permit). An orange Throttled row appears when batches are waiting on a provider rate-limit."),
@@ -619,7 +619,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "ai_monitor" to HelpContent(
-        title = "Help - AI Monitor",
+        title = "Help - Monitor",
         cards = listOf(
             HelpCard("Overview", "A small hub for watching what the app is doing — live and after the fact. Opened from the home 📡 AI Monitor card. Each row opens its own screen."),
             HelpCard("📡 AI Live Dashboard →", "Real-time runtime state: in-flight calls, per-provider concurrency caps, and throttle / cooldown status."),
@@ -629,7 +629,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "ai_statistics" to HelpContent(
-        title = "Help - AI Statistics",
+        title = "Help - Statistics",
         cards = listOf(
             HelpCard("Overview", "A hub of lifetime-stat pages. Opened from the home 📈 AI Statistics card; live runtime state is on the separate 📡 AI Live Dashboard. Each heavier breakdown is its own page (the link cards), so they only compute when opened; only the cheap Knowledge totals show inline."),
             HelpCard("📋 Reports →", "Own page: report totals (running / problems / completed, agent calls, error rate, spend) and secondary-result counts by kind."),

@@ -228,7 +228,7 @@ fun DualChatSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "dual_chat_setup", title = "Dual AI Chat", subject = "Set up two models to debate a topic", onBackClick = onNavigateBack,
+        TitleBar(helpTopic = "dual_chat_setup", title = "Dual Chat", subject = "Set up two models to debate a topic", onBackClick = onNavigateBack,
             onParameters = { showParamsChooser = true }, onSystemPrompt = { showSysPromptChooser = true })
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {

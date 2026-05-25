@@ -520,12 +520,12 @@ fun ModelInfoScreen(
                                         onClick = { onStartChat(provider, modelName) },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                                    ) { Text("Start AI Chat", maxLines = 1, softWrap = false) }
+                                    ) { Text("Start Chat", maxLines = 1, softWrap = false) }
                                     Button(
                                         onClick = { showAgentEdit = true },
                                         modifier = Modifier.weight(1f),
                                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                                    ) { Text("Create AI Agent", maxLines = 1, softWrap = false) }
+                                    ) { Text("Create Agent", maxLines = 1, softWrap = false) }
                                     if (isProviderActive) {
                                         Button(
                                             onClick = {
@@ -1031,7 +1031,7 @@ fun ModelInfoScreen(
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("AI Usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                Text("Usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
                                 val ue = usageEntry
                                 if (ue == null) {
                                     Text("No usage recorded yet for this model", fontSize = 12.sp, color = AppColors.TextTertiary)

@@ -57,7 +57,7 @@ fun SetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_setup", title = "AI Setup", subject = "Providers, models, workers & prompts", onBackClick = onBackToSettings)
+        TitleBar(helpTopic = "settings_setup", title = "Setup", subject = "Providers, models, workers & prompts", onBackClick = onBackToSettings)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             SetupNavCard("\u2699\uFE0F", "Providers", "API key, state, and default model per provider", "${AppService.entries.size}",
@@ -143,7 +143,7 @@ fun ModelsSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "setup_models", title = "AI Models setup", subject = "Models, types and manual overrides", onBackClick = onBack, onHousekeeping = onHousekeeping)
+        TitleBar(helpTopic = "setup_models", title = "Models setup", subject = "Models, types and manual overrides", onBackClick = onBack, onHousekeeping = onHousekeeping)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🧠", "Models", "Source and model list per active provider", "$modelCount",
@@ -186,10 +186,10 @@ fun WorkersSetupScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "setup_workers", title = "AI Workers", subject = "Agents, flocks and swarms", onBackClick = onBack)
+        TitleBar(helpTopic = "setup_workers", title = "Workers", subject = "Agents, flocks and swarms", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard("🤖", "Agents", "Named AI model configurations", "$agentCount",
+            ModelsSetupNavCard("🤖", "Agents", "Named model configurations", "$agentCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }, enabled = hasApiKey)
             ModelsSetupNavCard("🦆", "Flocks", "Groups of agents", "${aiSettings.flocks.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_FLOCKS) }, enabled = hasApiKey)

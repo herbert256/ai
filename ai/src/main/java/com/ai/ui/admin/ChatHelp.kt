@@ -12,7 +12,7 @@ internal val chatHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "chat_hub" to HelpContent(
-        title = "Help - AI Chat",
+        title = "Help - Chat",
         cards = listOf(
             HelpCard("Overview", "Landing screen for everything chat-shaped. Top section starts a new conversation; below it, pinned and recent sessions plus tools to continue, search, or manage existing chats."),
             HelpCard("Unfinished pill", "When at least one chat ended on a user turn with no assistant reply (you navigated away mid-stream), an envelope pill appears at the very top with a Resume link to the most recent such session."),
@@ -93,7 +93,7 @@ internal val chatHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "dual_chat_setup" to HelpContent(
-        title = "Help - Dual AI Chat",
+        title = "Help - Dual Chat",
         cards = listOf(
             HelpCard("Overview", "Configures two models that take turns chatting about a subject. State is persisted to a dedicated SharedPreferences (dual_chat_prefs) so reopening the screen restores your last configuration."),
             HelpCard("Model 1 card (blue)", "Tap the model button to drill into the active-providers picker, then the model picker. System Prompt and Parameters preset buttons sit below — both turn purple-tinted when set."),

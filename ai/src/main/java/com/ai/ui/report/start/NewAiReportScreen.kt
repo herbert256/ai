@@ -61,12 +61,12 @@ fun NewAiReportScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
-            title = "New AI report", subject = "Blank, a past prompt, or an example",
+            title = "New report", subject = "Blank, a past prompt, or an example",
             helpTopic = "new_ai_report_screen",
             onBackClick = onNavigateBack
         )
         Spacer(modifier = Modifier.height(8.dp))
-        NewAiReportItem(icon = "🗒", title = "New AI Report",
+        NewAiReportItem(icon = "🗒", title = "New Report",
             enabled = true, onClick = onNavigateToNewReport)
         NewAiReportItem(icon = "🔄", title = "Start with a previous prompt",
             enabled = hasPromptHistory, onClick = onNavigateToPromptHistory)

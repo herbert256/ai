@@ -139,7 +139,7 @@ fun AiLiveDashboardScreen(
     ) {
         TitleBar(
             helpTopic = "ai_live_dashboard",
-            title = "AI Live Dashboard",
+            title = "Live Dashboard",
             subject = "What's happening right now",
             onBackClick = onBack,
             reportIcon = "📡", reportIconGoesHome = true
@@ -193,7 +193,7 @@ fun AiMonitorScreen(
     ) {
         TitleBar(
             helpTopic = "ai_monitor",
-            title = "AI Monitor",
+            title = "Monitor",
             subject = "Live and historical observability",
             onBackClick = onBack,
             reportIcon = "📡", reportIconGoesHome = true,
@@ -204,9 +204,9 @@ fun AiMonitorScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
-            item { LinkCard("📡", "AI Live Dashboard", "In-flight calls, caps and throttle state", onNavigateToLiveDashboard) }
-            item { LinkCard("📈", "AI Statistics", "Reports, providers, models, spend and more", onNavigateToStatistics) }
-            item { LinkCard("🐞", "AI API Traces", "Per-call request/response records", onNavigateToTraces) }
+            item { LinkCard("📡", "Live Dashboard", "In-flight calls, caps and throttle state", onNavigateToLiveDashboard) }
+            item { LinkCard("📈", "Statistics", "Reports, providers, models, spend and more", onNavigateToStatistics) }
+            item { LinkCard("🐞", "API Traces", "Per-call request/response records", onNavigateToTraces) }
             item { LinkCard("📜", "Application log", "The in-app application log, line by line", onNavigateToAppLog) }
             item { Spacer(Modifier.height(24.dp)) }
         }
@@ -242,7 +242,7 @@ fun AiStatisticsScreen(
     ) {
         TitleBar(
             helpTopic = "ai_statistics",
-            title = "AI Statistics",
+            title = "Statistics",
             subject = "Everything you want to know and more",
             onBackClick = onBack,
             reportIcon = "📈", reportIconGoesHome = true,

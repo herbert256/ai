@@ -1285,7 +1285,7 @@ private fun UiTweaksSubScreen(
             )
             if (experimentalFeatures) {
                 ToggleSettingCard(
-                    title = "Show AI Knowledge card on home page",
+                    title = "Show Knowledge card on home page",
                     description = "Show the AI Knowledge / RAG card on the Hub. Off hides the card — knowledge bases still work via the share-target chooser, and any KB already attached to a chat or report is unaffected.",
                     checked = showKnowledgeCard,
                     onCheckedChange = { showKnowledgeCard = it }
@@ -1422,7 +1422,7 @@ private fun MetadataSettingsSubScreen(
                 onCheckedChange = { metadataEnabled = it }
             )
             if (metadataEnabled) {
-                SettingCard("Report title", "How a new report's title is decided. Manual keeps the Title input field on the New AI Report screen. AI (default) hides the field and runs a background LLM call after report start that fills the title from the prompt body — the resolved title shows on the 'title' row of the Manage report screen, alongside the icon and language rows.") {
+                SettingCard("Report title", "How a new report's title is decided. Manual keeps the Title input field on the New Report screen. Generate (default) hides the field and runs a background LLM call after report start that fills the title from the prompt body — the resolved title shows on the 'title' row of the Manage report screen, alongside the icon and language rows.") {
                     Column {
                         RadioRow(
                             selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual,
@@ -1431,7 +1431,7 @@ private fun MetadataSettingsSubScreen(
                         )
                         RadioRow(
                             selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.AI,
-                            label = "AI — generate from the prompt",
+                            label = "Generate from the prompt",
                             onClick = { reportTitleMode = com.ai.viewmodel.ReportTitleMode.AI }
                         )
                     }

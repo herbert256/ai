@@ -116,7 +116,7 @@ fun SystemPromptSelectScreen(
     ) {
         TitleBar(
             helpTopic = "select_system_prompt",
-            title = "Define AI model system prompt",
+            title = "Define model system prompt",
             subject = activeName?.let { "Current active: $it" },
             onBackClick = onBack,
             onDelete = if (selectedId != null) ({ onSelect(null) }) else null,

@@ -432,7 +432,7 @@ fun ModelInfoViewScreen(
             // 9) AI Usage — cumulative counter (now aggregating
             //    across every UsageStats kind for this (provider, model)).
             item {
-                SectionCard(title = "AI Usage") {
+                SectionCard(title = "Usage") {
                     val ue = usageEntry
                     if (ue == null) {
                         Text("No usage recorded yet for this model.", fontSize = 12.sp, color = AppColors.TextTertiary)
@@ -470,7 +470,7 @@ fun ModelInfoViewScreen(
             //     missing cache or > 1 week age.
             if (canRequestIntro || aiIntro != null) {
                 item {
-                    SectionCard(title = "AI Introduction") {
+                    SectionCard(title = "Introduction") {
                         when {
                             aiLoading && aiIntro == null -> Row(
                                 verticalAlignment = Alignment.CenterVertically,
