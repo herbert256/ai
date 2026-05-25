@@ -1353,6 +1353,25 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // One-shot: retire the whole `icons` and `info` categories. All
+        // generation moved to the worker engine (workers/*); what remained
+        // were display / cost / overlay-reconstruction lookups, now all
+        // repointed to workers/*. The bundled assets are gone, so drop the
+        // orphaned persisted rows. Runs AFTER the alt-move pass (so any
+        // `*_alt` prompts were already lifted into the `alt` category, not
+        // pruned here). Idempotent.
+        run {
+            val pruned = ai.internalPrompts.filterNot {
+                it.category.equals("icons", ignoreCase = true) ||
+                    it.category.equals("info", ignoreCase = true)
+            }
+            if (pruned.size != ai.internalPrompts.size) {
+                AppLog.i(tag, "Removed ${ai.internalPrompts.size - pruned.size} retired icons/* + info/* prompt(s)")
+                ai = ai.copy(internalPrompts = pruned)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
         // existing rows. New prompts shipped in an APK upgrade get

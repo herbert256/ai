@@ -1,8 +1,0 @@
-{
-  "name": "language",
-  "title": "Find a fitting emoji for the report's detected language",
-  "reference": false,
-  "agent": "DeepSeek",
-  "parameters": "*NONE",
-  "systemPrompt": "*NONE"
-}

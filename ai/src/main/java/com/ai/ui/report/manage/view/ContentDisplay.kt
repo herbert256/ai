@@ -983,11 +983,9 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val iconRow: CostRow? = if (report.iconInputCost > 0.0 || report.iconOutputCost > 0.0) {
         val ai = com.ai.model.SettingsHolder.current
         val iconPrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "icons" && it.name == "main"
+            it.category == "workers" && it.name == "report-icon"
         }
-        val iconAgent = iconPrompt?.let { p ->
-            ai.resolvePromptAgent(p)
-        }
+        val iconAgent = iconPrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
         // Prefer the persisted provider/model the icon actually ran on
         // (Report.iconModel, "provider/model") so re-pinning the icon
         // prompt after the run doesn't re-attribute / re-price the row to
@@ -1025,11 +1023,9 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val ai = com.ai.model.SettingsHolder.current
     val languageDetectRow: CostRow? = if (hasLanguageDetectCost) {
         val detectPrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "info" && it.name == "language"
+            it.category == "workers" && it.name == "language"
         }
-        val agent = detectPrompt?.let { p ->
-            ai.resolvePromptAgent(p)
-        }
+        val agent = detectPrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
         val provider = agent?.provider
         val model = agent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
@@ -1047,11 +1043,9 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     } else null
     val languageIconRow: CostRow? = if (hasLanguageIconCost) {
         val iconPrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "icons" && it.name == "language"
+            it.category == "workers" && it.name == "language"
         }
-        val iconAgent = iconPrompt?.let { p ->
-            ai.resolvePromptAgent(p)
-        }
+        val iconAgent = iconPrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
         val pickedParts = report.languageIconModel?.split("/", limit = 2)
         val provider = pickedParts?.firstOrNull()?.let { AppService.findById(it) } ?: iconAgent?.provider
         val model = pickedParts?.getOrNull(1) ?: iconAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
@@ -1076,11 +1070,9 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     // title via infoMetaTotal).
     val titleRow: CostRow? = if (hasTitleCost) {
         val titlePrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "info" && it.name == "report_title"
+            it.category == "workers" && it.name == "report-title"
         }
-        val titleAgent = titlePrompt?.let { p ->
-            ai.resolvePromptAgent(p)
-        }
+        val titleAgent = titlePrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
         val parts = report.titleModel?.split("/", limit = 2)
         val provider = parts?.firstOrNull()?.let { AppService.findById(it) } ?: titleAgent?.provider
         val model = parts?.getOrNull(1) ?: titleAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""

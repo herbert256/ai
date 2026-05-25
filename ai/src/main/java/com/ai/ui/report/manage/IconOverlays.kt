@@ -420,14 +420,11 @@ internal fun PairIconDetailOverlay(
         return false
     }
     val provider = AppService.findById(pair.providerId) ?: return false
-    val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "fan_out_1"
+    val fanMetaPrompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "workers" && it.name == "fan-meta"
     }
-    val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "fan_out_2"
-    }
-    val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "fan_out_3"
+    val altPrompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "alt" && it.name == "fan_out"
     }
     val metaPrompt = pair.metaPromptId?.let { mid ->
         aiSettings.internalPrompts.firstOrNull { it.id == mid }
@@ -437,24 +434,15 @@ internal fun PairIconDetailOverlay(
     val pairIconTraceFile = rememberIconTrace(
         reportId = reportId,
         model = pair.model,
-        categories = listOf(
-            "icon_fan_out", "icon_fan_out_2", "icon_fan_out_3",
-            "icon_fan_out_alt"
-        )
+        categories = listOf("fan_meta", "icon_fan_out_alt")
     )
-    val subject = pair.iconPromptUsed
-        ?: when (pair.iconWinningTier) {
-            1 -> "fan_out_1"; 2 -> "fan_out_2"; 3 -> "fan_out_3"
-            else -> "fan_out_2"
-        }
-    // Reconstruct the EXACT meta-prompt text the pair was sent so
-    // the API-interaction card matches what hit the wire. The
-    // engine does this in two steps: first resolveSecondaryPrompt
-    // for @QUESTION@/@TITLE@/@COUNT@/@DATE@/@RESULTS@, then
-    // .replace("@RESPONSE@", sourceBody) per pair. Without this,
-    // the card displayed the raw `@RESPONSE@` / `@QUESTION@`
-    // placeholders verbatim, which read as if the literal string
-    // had been sent to the API.
+    val subject = pair.iconPromptUsed ?: "fan-meta"
+    // Reconstruct what hit the wire. A Find-alternative pick
+    // (fan_out_alt) ran alt/fan_out — its @QUESTION@/@SOURCE_RESPONSE@/
+    // @META_PROMPT@/@RESPONSE@ tokens resolve to the report prompt, the
+    // source agent's response, the resolved meta-prompt and the pair's
+    // own response. Every other icon came from the single
+    // workers/fan-meta call (@PROMPT@ = the pair's own response).
     val sourceBody = sourceAgent?.responseBody.orEmpty()
     val resolvedMetaForDisplay = metaPrompt?.text?.let { template ->
         com.ai.data.resolveSecondaryPrompt(
@@ -465,40 +453,17 @@ internal fun PairIconDetailOverlay(
             title = loadedReportTitle
         ).replace("@RESPONSE@", sourceBody)
     }.orEmpty()
-    val apiInteraction = when (pair.iconWinningTier) {
-        1 -> buildChatContinuationApiInteraction(
-            // Tier-1 reproduces the pair's actual exchange: ONE
-            // user message (the resolved meta prompt with the source
-            // body substituted) → assistant=pair.content → ask for
-            // emoji. Matches the 3-message API call shape.
-            reportPrompt = resolvedMetaForDisplay,
-            agentResponse = pair.content,
-            chatPrompt = chatPrompt?.text.orEmpty(),
-            iconResponse = pair.icon
-        )
-        2 -> {
-            val resolved = (tier2Prompt?.text.orEmpty())
-                .replace("@QUESTION@", loadedReportPrompt)
-                .replace("@SOURCE_RESPONSE@", sourceBody)
-                .replace("@META_PROMPT@", resolvedMetaForDisplay)
-                .replace("@RESPONSE@", pair.content.orEmpty())
-            buildOneShotApiInteraction(resolved, pair.icon)
-        }
-        3 -> {
-            val resolved = (tier3Prompt?.text.orEmpty())
-                .replace("@RESPONSE@", pair.content.orEmpty())
-            buildOneShotApiInteraction(resolved, pair.icon)
-        }
-        else -> {
-            // Alt-pick or unknown tier — show the base tier-2
-            // template as a sensible default.
-            val resolved = (tier2Prompt?.text.orEmpty())
-                .replace("@QUESTION@", loadedReportPrompt)
-                .replace("@SOURCE_RESPONSE@", sourceBody)
-                .replace("@META_PROMPT@", resolvedMetaForDisplay)
-                .replace("@RESPONSE@", pair.content.orEmpty())
-            buildOneShotApiInteraction(resolved, pair.icon)
-        }
+    val apiInteraction = if (pair.iconPromptUsed == "fan_out_alt") {
+        val resolved = (altPrompt?.text.orEmpty())
+            .replace("@QUESTION@", loadedReportPrompt)
+            .replace("@SOURCE_RESPONSE@", sourceBody)
+            .replace("@META_PROMPT@", resolvedMetaForDisplay)
+            .replace("@RESPONSE@", pair.content.orEmpty())
+        buildOneShotApiInteraction(resolved, pair.icon)
+    } else {
+        val resolved = (fanMetaPrompt?.text.orEmpty())
+            .replace("@PROMPT@", pair.content.orEmpty())
+        buildOneShotApiInteraction(resolved, pair.icon)
     }
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
@@ -662,11 +627,14 @@ internal fun RenderLanguageDetailOverlay(
     onBack: () -> Unit,
 ) {
     val languagePrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "language"
+        it.category == "workers" && it.name == "language"
     } ?: return
-    val languageAgent = aiSettings.agents.firstOrNull {
-        it.name.equals(languagePrompt.agent, ignoreCase = true)
+    val languageAgent = languagePrompt.workers.firstNotNullOfOrNull {
+        aiSettings.resolveWorker(it)
     } ?: return
+    val altLanguagePrompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "alt" && it.name == "language"
+    }
     val context = LocalContext.current
     // Load language fields here (not at the ReportsScreen scope) so
     // the parent's bytecode stays under the JVM 64 KB per-method
@@ -703,7 +671,13 @@ internal fun RenderLanguageDetailOverlay(
         LocalNavigateToCurrentReport provides onBack
     ) {
         val infoTarget = resolveInfoTarget(snapshot.model, languageAgent, aiSettings)
-        val resolvedPrompt = languagePrompt.text.replace("@LANGUAGE@", ctxData.second.orEmpty())
+        // The language icon came from the single workers/language call
+        // (@PROMPT@ = the report prompt); a Find-alternative pick
+        // (language_alt) ran alt/language (@LANGUAGE@ = detected language).
+        val resolvedPrompt = if (ctxData.first == "language_alt")
+            (altLanguagePrompt?.text.orEmpty()).replace("@LANGUAGE@", ctxData.second.orEmpty())
+        else
+            languagePrompt.text.replace("@PROMPT@", promptText)
         val provider = snapshot.model?.split("/", limit = 2)?.firstOrNull()
             ?.let { AppService.findById(it) } ?: languageAgent.provider
         val modelId = snapshot.model?.split("/", limit = 2)?.getOrNull(1)
@@ -780,11 +754,14 @@ internal fun ReportIconOrLanguageDetailOverlay(
         return true
     }
     val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "main"
+        it.category == "workers" && it.name == "report-icon"
     } ?: return false
-    val iconAgent = aiSettings.agents.firstOrNull {
-        it.name.equals(iconPrompt.agent, ignoreCase = true)
+    val iconAgent = iconPrompt.workers.firstNotNullOfOrNull {
+        aiSettings.resolveWorker(it)
     } ?: return false
+    val altPrompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "alt" && it.name == "main"
+    }
     val hasActiveFanOut = iconFanOutByReport[reportId].orEmpty().isNotEmpty()
     val context = LocalContext.current
     // Re-read the persisted prompt-used so the subject row reflects
@@ -800,7 +777,13 @@ internal fun ReportIconOrLanguageDetailOverlay(
         LocalNavigateToCurrentReport provides onClose
     ) {
         val infoTarget = resolveInfoTarget(reportIconModel, iconAgent, aiSettings)
-        val resolvedPrompt = iconPrompt.text.replace("@PROMPT@", promptText)
+        // The report icon came from workers/report-icon (@TITLE_LONG@ =
+        // the report's long title); a Find-alternative pick (main_alt)
+        // ran alt/main (@PROMPT@ = the report prompt).
+        val resolvedPrompt = if (promptUsed == "main_alt")
+            (altPrompt?.text.orEmpty()).replace("@PROMPT@", promptText)
+        else
+            iconPrompt.text.replace("@TITLE_LONG@", loadedReportTitle.orEmpty())
         val provider = reportIconModel?.split("/", limit = 2)?.firstOrNull()
             ?.let { AppService.findById(it) } ?: iconAgent.provider
         val modelId = reportIconModel?.split("/", limit = 2)?.getOrNull(1)

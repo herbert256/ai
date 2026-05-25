@@ -1,3 +1,0 @@
-Read the text after the blank line below and create two titles for it: a short title of at most 25 characters (including spaces) and a long title of at most 50 characters (including spaces). Put the short title on the first line and the long title on the second line. Return only those two lines and nothing else.
-
-@PROMPT@

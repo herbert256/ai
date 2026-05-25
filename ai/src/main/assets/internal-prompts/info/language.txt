@@ -1,8 +1,0 @@
-Identify the language of the text below.
-
-Reply with EXACTLY two lines and nothing else:
-language: <English name of the language>
-icon: <single fitting emoji>
-
-TEXT:
-@PROMPT@

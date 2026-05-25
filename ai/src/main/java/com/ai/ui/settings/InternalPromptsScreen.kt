@@ -61,8 +61,6 @@ fun categoryDisplayName(category: String): String = when (category) {
     "fan_in" -> "Fan-in prompts"
     "fan-in-model" -> "Fan In, model"
     "internal" -> "Other internal prompts"
-    "info" -> "Info prompts"
-    "icons" -> "Icons prompts"
     "workers" -> "Worker prompts"
     "alt" -> "Alternative prompts"
     else -> category
@@ -72,8 +70,7 @@ fun categoryDisplayName(category: String): String = when (category) {
  *  Delete). Single source of truth so the CRUD gating can't drift from the
  *  category definitions above. */
 fun isFixedListCategory(category: String): Boolean =
-    category == "internal" || category == "icons" || category == "info" ||
-        category == "workers" || category == "alt"
+    category == "internal" || category == "workers" || category == "alt"
 
 /** Singular label for a single [InternalPrompt.category] entry — used
  *  for View-page titles and delete-confirm copy. Carried explicitly per
@@ -86,8 +83,6 @@ fun categorySingularName(category: String): String = when (category) {
     "fan_in" -> "Fan-in prompt"
     "fan-in-model" -> "Fan-in model prompt"
     "internal" -> "Internal prompt"
-    "info" -> "Info prompt"
-    "icons" -> "Icon prompt"
     "workers" -> "Worker prompt"
     "alt" -> "Alternative prompt"
     else -> category

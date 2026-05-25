@@ -227,13 +227,12 @@ fun PromptsSetupScreen(
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
         val internalTotal = countByCategory("meta") + countByCategory("fan_out") +
             countByCategory("fan_in") + countByCategory("fan-in-model") +
-            countByCategory("icons") + countByCategory("internal") +
-            countByCategory("info") + countByCategory("workers") + countByCategory("alt")
+            countByCategory("internal") + countByCategory("workers") + countByCategory("alt")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
-            ModelsSetupNavCard("🧠", "Internal prompts", "Meta, Fan out/in, Icons, and Other internal templates consumed by app features", "$internalTotal",
+            ModelsSetupNavCard("🧠", "Internal prompts", "Meta, Fan out/in, Worker, and Other internal templates consumed by app features", "$internalTotal",
                 onClick = onOpenInternalPromptsHub)
             ModelsSetupNavCard("📝", "Example prompts", "Curated (title, text) starters for the New Report flow", "${aiSettings.examplePrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXAMPLE_PROMPTS) })
@@ -242,9 +241,8 @@ fun PromptsSetupScreen(
 }
 
 /** Sub-hub reached from "Prompt management" → "Internal prompts".
- *  Hosts the four cards that used to live on the Prompt management
- *  page: Meta prompts, Fan out/in prompts, Icons prompts, and
- *  (last) Other internal prompts. */
+ *  Hosts the per-category cards: Meta prompts, Fan out/in prompts,
+ *  Other internal prompts, Worker prompts, and Alternative prompts. */
 @Composable
 fun InternalPromptsHubScreen(
     aiSettings: Settings,
@@ -272,10 +270,6 @@ fun InternalPromptsHubScreen(
                 onClick = { onOpenInternalPrompts("meta") })
             ModelsSetupNavCard("🔀", "Fan out/in prompts", "Templates for the Fan out / Fan in flow — across pairs, combined reports, and per-model variants", "$fanTotal",
                 onClick = onOpenFanInOutHub)
-            ModelsSetupNavCard("ℹ️", "Info prompts", "Bundled prompts that derive a report's info — report title, language detection, per-model title, and the title-based icon. Edit-only — can't be removed or added to.", "${countByCategory("info")}",
-                onClick = { onOpenInternalPrompts("info") })
-            ModelsSetupNavCard("🎨", "Icons prompts", "Bundled prompts the icon chains use (report icon, fan-out icon, internal-prompt icon, translation icon). Edit-only — can't be removed or added to.", "${countByCategory("icons")}",
-                onClick = { onOpenInternalPrompts("icons") })
             ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Intro)", "${countByCategory("internal")}",
                 onClick = { onOpenInternalPrompts("internal") })
             ModelsSetupNavCard("👷", "Worker prompts", "Prompts that run on an ordered list of workers (agent or provider+model) tried as a fallback chain. Edit-only — wiring comes later.", "${countByCategory("workers")}",

@@ -1,8 +1,0 @@
-{
-  "name": "fan_out_1",
-  "title": "Find a fitting emoji for a fan-out pair response, chat version",
-  "reference": false,
-  "agent": "*N/A",
-  "parameters": "*NONE",
-  "systemPrompt": "*NONE"
-}

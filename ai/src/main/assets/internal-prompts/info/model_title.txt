@@ -1,3 +1,0 @@
-Please see the text after the @@@ marker in this request, you must give it a title, max 4 words, max 325 characters, including spaces, only give this title back, nothing more.
-@@@
-@RESPONSE@

@@ -312,10 +312,9 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "internal_prompts_hub" to HelpContent(
         title = "Help - Internal prompts (hub)",
         cards = listOf(
-            HelpCard("Overview", "Sub-hub one level under AI Setup → Prompt management → Internal prompts. Groups the four categories the app's internal flows consume: Meta, Fan out/in, Icons, and Other internal. Each card opens the matching CRUD list (or, for Fan out/in, a deeper sub-hub)."),
+            HelpCard("Overview", "Sub-hub one level under AI Setup → Prompt management → Internal prompts. Groups the categories the app's internal flows consume: Meta, Fan out/in, Other internal, Worker, and Alternative. Each card opens the matching CRUD list (or, for Fan out/in, a deeper sub-hub)."),
             HelpCard("Meta prompts", "category=\"meta\". Rerank, Summarize, Compare, Moderation — run on the full report from the View → Actions card."),
             HelpCard("Fan out/in prompts", "Opens the dedicated sub-hub with the fan_out / fan_in / fan-in-model categories."),
-            HelpCard("Icons prompts", "category=\"icons\". The bundled icon-chain prompts (report icon, fan-out icon, internal-prompt icon, translation icon). Edit-only — can't be added to or removed."),
             HelpCard("Other internal prompts", "category=\"internal\". Templates consumed by app features (Translate, Model info, Intro). Last on the page so the more commonly-edited buckets sit at the top."),
             HelpCard("Worker prompts", "category=\"workers\". Prompts that carry an ordered list of workers (each an Agent or a Provider+Model) tried as a fallback chain. Edit-only; the chain isn't executed yet — wiring comes later."),
             HelpCard("Alternative prompts", "category=\"alt\". The *_alt variants the Find-alternative-icons / titles flows compose with their base prompt (the distinct-emoji / no-country-flag nudges). Edit-only."),

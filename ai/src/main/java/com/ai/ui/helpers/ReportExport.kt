@@ -409,16 +409,16 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
         }
 
     // Resolve the icon-gen agent + pricing tier so the export's cost
-    // table can show a fully-attributed icon row. The pinned agent on
-    // internal/icon supplies the (provider, model) pair; PricingCache
-    // looks up the tier the cost was billed against.
+    // table can show a fully-attributed icon row. The first resolvable
+    // worker on workers/report-icon supplies the (provider, model) pair;
+    // PricingCache looks up the tier the cost was billed against.
     val ai = com.ai.model.SettingsHolder.current
     val iconPrompt = ai?.internalPrompts?.firstOrNull {
-        it.category == "icons" && it.name == "main"
+        it.category == "workers" && it.name == "report-icon"
     }
-    val iconAgent = iconPrompt?.let { p -> ai.resolvePromptAgent(p) }
+    val iconAgent = iconPrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
     val iconProvider = iconAgent?.provider
-    val iconModel = iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
+    val iconModel = iconAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
     val iconPricing = iconProvider?.let { PricingCache.getPricing(context, it, iconModel) }
 
     // Per-tier audit rows from the 3-tier Create → Report icons

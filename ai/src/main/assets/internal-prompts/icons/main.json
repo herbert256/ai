@@ -1,8 +1,0 @@
-{
-  "name": "main",
-  "title": "Find a fitting title for a report",
-  "reference": false,
-  "agent": "DeepSeek",
-  "parameters": "*NONE",
-  "systemPrompt": "*NONE"
-}

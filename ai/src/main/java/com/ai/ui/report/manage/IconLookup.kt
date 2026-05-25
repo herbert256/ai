@@ -225,26 +225,9 @@ data class IconLookupContext(
 )
 
 /** Compose a plain `[user] …\n[assistant] …` 2-turn transcript.
- *  Used by adapters whose prompt is a one-shot template (main, meta,
- *  translation, language, report tier-2, report tier-3, fan_out
- *  tier-2/3). */
+ *  Every icon/title/language transcript is one-shot now (the worker
+ *  prompts are single-call), so this is the only shape the detail
+ *  overlays reconstruct. */
 fun buildOneShotApiInteraction(prompt: String, response: String?): String =
     "[user]\n${prompt.trim()}\n\n[assistant]\n${(response ?: "").trim().ifBlank { "(pending)" }}"
-
-/** Compose a `[user] / [assistant] / [user] / [assistant]` 4-turn
- *  transcript for the chat-continuation tier (agent tier-1,
- *  fan_out tier-1). The first user / assistant pair is the agent's
- *  ORIGINAL report exchange; the third-turn user is the chat-tier
- *  icon prompt; the fourth-turn assistant is the returned emoji. */
-fun buildChatContinuationApiInteraction(
-    reportPrompt: String,
-    agentResponse: String?,
-    chatPrompt: String,
-    iconResponse: String?
-): String = buildString {
-    append("[user]\n").append(reportPrompt.trim()).append("\n\n")
-    append("[assistant]\n").append((agentResponse ?: "(no response)").trim()).append("\n\n")
-    append("[user]\n").append(chatPrompt.trim()).append("\n\n")
-    append("[assistant]\n").append((iconResponse ?: "").trim().ifBlank { "(pending)" })
-}
 

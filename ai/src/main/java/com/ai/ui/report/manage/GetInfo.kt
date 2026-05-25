@@ -84,12 +84,11 @@ fun buildInfoJobs(
 ): List<InfoJob> {
     val jobs = mutableListOf<InfoJob>()
 
-    val iconPrompt = settings.internalPrompts.firstOrNull { it.category == "icons" && it.name == "main" }
-    // Match the cost path (rememberReportCostData → resolvePromptAgent), which
-    // honours a Provider+Model pin as well as a named agent. A named-agent-only
-    // lookup would drop the icon row when the prompt is pinned to a model.
-    val iconAgent = iconPrompt?.let { p -> settings.resolvePromptAgent(p) }
-    val iconRowOn = iconGenEnabled && iconPrompt != null && iconAgent != null
+    // Report icons are produced by the worker engine (workers/report-icon).
+    // The row is eligible when that prompt has at least one resolvable worker.
+    val iconPrompt = settings.internalPrompts.firstOrNull { it.category == "workers" && it.name == "report-icon" }
+    val iconRowOn = iconGenEnabled && iconPrompt != null &&
+        iconPrompt.workers.any { settings.resolveWorker(it) != null }
 
     // A finished report (completedAt set) with no icon, no error, and no
     // recorded icon attempt (cost/duration/promptUsed all empty) is one where
@@ -136,9 +135,9 @@ fun buildInfoJobs(
         )
     }
 
-    val titlePrompt = settings.internalPrompts.firstOrNull { it.category == "info" && it.name == "report_title" }
-    val titleAgent = titlePrompt?.let { p -> settings.resolvePromptAgent(p) }
-    if (titleModeAi && titlePrompt != null && titleAgent != null) {
+    val titlePrompt = settings.internalPrompts.firstOrNull { it.category == "workers" && it.name == "report-title" }
+    val titleConfigured = titlePrompt != null && titlePrompt.workers.any { settings.resolveWorker(it) != null }
+    if (titleModeAi && titleConfigured) {
         val state = when {
             !report.titleErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
             !report.titlePromptUsed.isNullOrBlank() -> InfoJobState.DONE
