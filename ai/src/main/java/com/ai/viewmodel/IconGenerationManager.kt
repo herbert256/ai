@@ -356,13 +356,12 @@ class IconGenerationManager(
                     it.copy(iconRefreshTick = it.iconRefreshTick + 1)
                 }
             }
-            // Chain the icon: derive it from the title, falling back to the
-            // response-based 3-tier chain when there's no usable title (or the
-            // title→icon call yields no emoji).
+            // Chain the icon: derive it from the title via the worker
+            // engine (workers/model-icons). No usable title — or no worker
+            // produced an emoji — leaves the agent icon-less; there is no
+            // longer a response-based fallback chain.
             if (thenIconFromTitle) {
-                val t = generatedTitle
-                val iconOk = if (t != null) generateIconFromTitle(context, reportId, ra, t, aiSettings) else false
-                if (!iconOk) runReportIconsForAgent(context, reportId, ra, reportPrompt, aiSettings)
+                generatedTitle?.let { generateIconFromTitle(context, reportId, ra, it, aiSettings) }
             }
         }
     }
@@ -1881,286 +1880,13 @@ class IconGenerationManager(
         }
     }
 
-    /** 3-tier fallback chain for ONE agent's report icon. Fires
-     *  immediately when an agent's primary call settles to SUCCESS
-     *  (per-task auto-fire hook in generateGenericReports /
-     *  regenerateReport), so a fast row's icon search starts while
-     *  a slow row is still generating its response.
-     *
-     *  Each call runs in sequence on the agent's own dispatch path;
-     *  the first one that returns an extractable emoji wins:
-     *
-     *    Tier 1 — chat continuation against the agent's own
-     *      (provider, model). user→assistant→user message chain with
-     *      the third turn = icons/report_2.text.
-     *    Tier 2 — one-shot icons/report template (@PROMPT@ +
-     *      @RESPONSE@) against the agent's own (provider, model).
-     *    Tier 3 — fixed bundled-agent (DeepSeek) running
-     *      icons/report_3 with @RESPONSE@ only.
-     *
-     *  Each call's cost bumps the per-agent ReportAgent.iconInputCost
-     *  / iconOutputCost so the row's cost cell shows the cumulative
-     *  spend, AND the global UsageStats ledger with kind="icon"
-     *  attributed to the actual provider/model that ran. Every
-     *  attempt — including failed earlier tiers — appends an
-     *  [IconCallRecord] to [Report.iconCalls] so the export's per-
-     *  call All-tab can render each one as its own row.
-     *
-     *  All three tiers fail → 📝 fallback (icon set, iconWinningTier
-     *  null — matches the existing "result must always be just one
-     *  emoji" rule for the rest of the icon system).
-     *
-     *  The job registers in [rvm.reportIconsJobs] under
-     *  "$reportId|$agentId" so deleteReport's prefix sweep cancels
-     *  it; a re-fire for the same agent (regenerate path) cancels
-     *  the previous run. */
-    fun runReportIconsForAgent(
-        context: Context, reportId: String,
-        ra: ReportAgent, reportPrompt: String, aiSettings: Settings
-    ) {
-        val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report_1"
-        }
-        val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report_2"
-        }
-        val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report_3"
-        }
-        if (chatPrompt == null && tier2Prompt == null && tier3Prompt == null) {
-            AppLog.w("ReportIcons", "no icon prompts configured — skipping (agent=${ra.agentId})")
-            return
-        }
-        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val agentProvider = AppService.findById(ra.provider) ?: return@launch
-            val agentResponse = ra.responseBody.orEmpty()
-            if (agentResponse.isBlank()) return@launch
-            // Per-agent state reset — wipes this agent's icon fields
-            // and removes its rows from the iconCalls audit log so a
-            // regenerate re-fire starts clean. No-op on initial gen
-            // (everything's already null). Other agents' state is
-            // untouched.
-            ReportStorage.clearReportAgentIconState(context, reportId, ra.agentId)
-            appViewModel.updateUiState {
-                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
-            }
-            // Each tier overwrites this sink; the winning (last-run) tier
-            // leaves its trace filename here, stored on the agent so the
-            // per-model viewer's icon 🐞 points at the exact call.
-            val iconTraceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-
-            // Tier 1 — chat continuation.
-            val tier1Emoji = chatPrompt?.let { p ->
-                runTier1(context, reportId, agentProvider, ra, p, reportPrompt, agentResponse, aiSettings, iconTraceSink)
-            }
-            if (tier1Emoji != null) {
-                commitChainResult(context, reportId, ra.agentId, tier1Emoji, winningTier = 1, traceFile = iconTraceSink.get())
-                return@launch
-            }
-
-            // Tier 2 — one-shot report_icon template.
-            val tier2Emoji = tier2Prompt?.let { p ->
-                runTier2(context, reportId, agentProvider, ra, p, reportPrompt, agentResponse, aiSettings, iconTraceSink)
-            }
-            if (tier2Emoji != null) {
-                commitChainResult(context, reportId, ra.agentId, tier2Emoji, winningTier = 2, traceFile = iconTraceSink.get())
-                return@launch
-            }
-
-            // Tier 3 — fixed bundled-agent fallback.
-            val tier3Emoji = tier3Prompt?.let { p ->
-                runTier3(context, reportId, ra, p, agentResponse, aiSettings, iconTraceSink)
-            }
-            if (tier3Emoji != null) {
-                commitChainResult(context, reportId, ra.agentId, tier3Emoji, winningTier = 3, traceFile = iconTraceSink.get())
-                return@launch
-            }
-
-            // All three tiers failed — final 📝 fallback (no real call trace).
-            commitChainResult(context, reportId, ra.agentId, "📝", winningTier = null)
-        }
-        rvm.registerReportIconForAgentJob(reportId, ra.agentId, outer)
-    }
-
-    /** Tier 1 of [runReportIcons]: continue the conversation as a
-     *  chat. Returns the extracted first emoji on success, null
-     *  otherwise (network error, no emoji in the response). Costs +
-     *  IconCallRecord are written regardless of emoji extraction
-     *  success — the user paid for the call either way. */
-    private suspend fun runTier1(
-        context: Context, reportId: String, provider: AppService,
-        ra: ReportAgent, chatPrompt: InternalPrompt,
-        reportPrompt: String, agentResponse: String, aiSettings: Settings,
-        traceSink: java.util.concurrent.atomic.AtomicReference<String?>
-    ): String? {
-        val host = providerHost(provider)
-        val releaser = ProviderThrottle.acquire(host)
-        return try {
-            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                withTracerTags(reportId = reportId, category = "icon_report_2") {
-                    val started = System.currentTimeMillis()
-                    runCatching {
-                        val messages = listOf(
-                            ChatMessage(role = "user", content = reportPrompt),
-                            ChatMessage(role = "assistant", content = agentResponse),
-                            ChatMessage(role = "user", content = chatPrompt.text)
-                        )
-                        val apiKey = aiSettings.getApiKey(provider)
-                        val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
-                        val responseText = withTraceFilenameSink(traceSink) {
-                            appViewModel.repository.sendChat(
-                                service = provider, apiKey = apiKey, model = ra.model,
-                                messages = messages, params = ChatParameters(), baseUrl = baseUrl
-                            )
-                        }
-                        val durationMs = System.currentTimeMillis() - started
-                        // sendChat returns plain text — no wire token
-                        // counts. Char-length heuristic, same one
-                        // ChatViewModel.sendDualChatMessage uses for
-                        // usage-stats accounting.
-                        val inT = messages.sumOf { AppViewModel.estimateTokens(it.content) }
-                        val outT = AppViewModel.estimateTokens(responseText)
-                        val emoji = extractFirstEmoji(responseText)
-                        recordTierCall(
-                            context, reportId, ra.agentId, tier = 1,
-                            provider = provider, model = ra.model,
-                            inT = inT, outT = outT, durationMs = durationMs,
-                            success = emoji != null
-                        )
-                        emoji
-                    }.getOrElse { e ->
-                        AppLog.w("ReportIcons", "tier 1 failed for ${ra.agentId}: ${e.message}")
-                        null
-                    }
-                }
-            }
-        } finally {
-            releaser.release()
-        }
-    }
-
-    /** Tier 2 of [runReportIcons]: one-shot icons/report
-     *  template substitution against the agent's own (provider, model). */
-    private suspend fun runTier2(
-        context: Context, reportId: String, provider: AppService,
-        ra: ReportAgent, tier2Prompt: InternalPrompt,
-        reportPrompt: String, agentResponse: String, aiSettings: Settings,
-        traceSink: java.util.concurrent.atomic.AtomicReference<String?>
-    ): String? {
-        val host = providerHost(provider)
-        val releaser = ProviderThrottle.acquire(host)
-        return try {
-            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                withTracerTags(reportId = reportId, category = "icon_report") {
-                    val started = System.currentTimeMillis()
-                    runCatching {
-                        val syntheticAgent = Agent(
-                            id = "report-icon-tier2-${ra.agentId}",
-                            name = ra.agentName,
-                            provider = provider,
-                            model = ra.model,
-                            apiKey = aiSettings.getApiKey(provider)
-                        )
-                        val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
-                        val resolved = tier2Prompt.text
-                            .replace("@PROMPT@", reportPrompt)
-                            .replace("@RESPONSE@", agentResponse)
-                        val tierParams = resolveSecondaryParams(
-                            appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, tier2Prompt
-                        )
-                        val response = withTraceFilenameSink(traceSink) {
-                            appViewModel.repository.analyzeWithAgent(
-                                syntheticAgent, "", resolved, tierParams,
-                                null, context, baseUrl
-                            )
-                        }
-                        val durationMs = System.currentTimeMillis() - started
-                        val tu = response.tokenUsage
-                        val inT = tu?.inputTokens ?: 0
-                        val outT = tu?.outputTokens ?: 0
-                        val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
-                        recordTierCall(
-                            context, reportId, ra.agentId, tier = 2,
-                            provider = provider, model = ra.model,
-                            inT = inT, outT = outT, durationMs = durationMs,
-                            success = emoji != null
-                        )
-                        emoji
-                    }.getOrElse { e ->
-                        AppLog.w("ReportIcons", "tier 2 failed for ${ra.agentId}: ${e.message}")
-                        null
-                    }
-                }
-            }
-        } finally {
-            releaser.release()
-        }
-    }
-
-    /** Tier 3 of [runReportIcons]: bundled fixed-agent fallback. Uses
-     *  whichever Agent matches the report_3 prompt's pinned
-     *  agent name (case-insensitive). When the user has no such
-     *  agent configured, this returns null instantly — no API call,
-     *  no IconCallRecord — and the chain falls through to 📝. */
-    private suspend fun runTier3(
-        context: Context, reportId: String,
-        ra: ReportAgent, tier3Prompt: InternalPrompt,
-        agentResponse: String, aiSettings: Settings,
-        traceSink: java.util.concurrent.atomic.AtomicReference<String?>
-    ): String? {
-        val rawAgent = aiSettings.resolvePromptAgent(tier3Prompt) ?: run {
-            AppLog.w("ReportIcons", "tier 3 skipped — no agent matching '${tier3Prompt.agent}' configured")
-            return null
-        }
-        val effectiveAgent = rawAgent.copy(
-            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
-            model = aiSettings.getEffectiveModelForAgent(rawAgent)
-        )
-        val host = providerHost(effectiveAgent.provider)
-        val releaser = ProviderThrottle.acquire(host)
-        return try {
-            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                withTracerTags(reportId = reportId, category = "icon_report_3") {
-                    val started = System.currentTimeMillis()
-                    runCatching {
-                        val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(effectiveAgent)
-                        val resolved = tier3Prompt.text.replace("@RESPONSE@", agentResponse)
-                        val tierParams = resolveSecondaryParams(
-                            appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, tier3Prompt, effectiveAgent
-                        )
-                        val response = withTraceFilenameSink(traceSink) {
-                            appViewModel.repository.analyzeWithAgent(
-                                effectiveAgent, "", resolved, tierParams,
-                                null, context, baseUrl
-                            )
-                        }
-                        val durationMs = System.currentTimeMillis() - started
-                        val tu = response.tokenUsage
-                        val inT = tu?.inputTokens ?: 0
-                        val outT = tu?.outputTokens ?: 0
-                        val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
-                        recordTierCall(
-                            context, reportId, ra.agentId, tier = 3,
-                            // Cost attribution for tier 3 goes to the
-                            // ACTUAL model that ran (DeepSeek), not the
-                            // agent's own provider/model. Surfaces in
-                            // the global UsageStats and the export's
-                            // All / Models tabs against DeepSeek.
-                            provider = effectiveAgent.provider, model = effectiveAgent.model,
-                            inT = inT, outT = outT, durationMs = durationMs,
-                            success = emoji != null
-                        )
-                        emoji
-                    }.getOrElse { e ->
-                        AppLog.w("ReportIcons", "tier 3 failed for ${ra.agentId}: ${e.message}")
-                        null
-                    }
-                }
-            }
-        } finally {
-            releaser.release()
-        }
-    }
+    /* The response-based 3-tier per-agent report-icon fallback chain
+     * (runReportIconsForAgent + runTier1/2/3 + commitChainResult, on
+     * icons/report_1/2/3) has been removed. Per-agent model icons are
+     * now produced solely by the worker engine via
+     * [generateIconFromTitle] (workers/model-icons, derived from the
+     * model title). When no title is available or no worker yields an
+     * emoji, the agent is simply left icon-less. */
 
     /** Shared write-side of a tier call. Bumps the per-agent icon
      *  cost (so the row's cost cell totals every attempt), updates
@@ -2199,31 +1925,8 @@ class IconGenerationManager(
         )
     }
 
-    /** Final commit step at the end of a chain — writes the emoji +
-     *  winning-tier marker and bumps the icon-refresh tick so the
-     *  result-screen row picks up the new value. */
-    private suspend fun commitChainResult(
-        context: Context, reportId: String, agentId: String,
-        emoji: String, winningTier: Int?, traceFile: String? = null
-    ) {
-        // Map tier number to the bundled prompt name that produced
-        // the icon — surfaces on the Icon lookup screen's subject row.
-        val promptUsed = when (winningTier) {
-            1 -> "report_1"
-            2 -> "report_2"
-            3 -> "report_3"
-            else -> null
-        }
-        ReportStorage.setReportAgentIconAndTier(
-            context, reportId, agentId, emoji, winningTier, promptUsed = promptUsed, traceFile = traceFile
-        )
-        appViewModel.updateUiState {
-            it.copy(iconRefreshTick = it.iconRefreshTick + 1)
-        }
-    }
-
     // -----------------------------------------------------------------
-    // Fan-out pair icon chain (mirrors runReportIconsForAgent)
+    // Fan-out pair icon chain (per-pair 3-tier response-based chain)
     // -----------------------------------------------------------------
 
     /** Per-fan-out-pair 3-tier icon chain. Tier 1 = chat continuation

@@ -91,22 +91,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         job.invokeOnCompletion { iconFanOutJobs.remove(reportId, job) }
     }
 
-    // Sibling map for the per-agent "Report icons" run (Create →
-    // Report icons). Same cancel-prior-run-on-retap semantics as
-    // iconFanOutJobs; cleaned up by deleteReport.
-    // Per-agent "Report icons" 3-tier chain jobs. Each successful
-    // agent gets its own entry the moment its primary call finishes
-    // (so a fast row's icon search can start while a slow row is
-    // still generating). Keyed by "$reportId|$agentId" — same shape
-    // as the existing agentIconFanOutJobs map — so deleteReport's
-    // prefix sweep on "$reportId|" cancels them too.
-    internal val reportIconsJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
-    internal fun reportIconJobKey(reportId: String, agentId: String) = "$reportId|$agentId"
-    internal fun registerReportIconForAgentJob(reportId: String, agentId: String, job: Job) {
-        val key = reportIconJobKey(reportId, agentId)
-        reportIconsJobs.put(key, job)?.cancel()
-        job.invokeOnCompletion { reportIconsJobs.remove(key, job) }
-    }
 
     // Per-agent alternative-icons fan-out jobs (Agent icon detail →
     // Find alternative icons). Keyed by "$reportId|$agentId" so
@@ -1134,12 +1118,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 }
                                 // Per-task auto-fire — same shape as
                                 // generateGenericReports. Each agent's
-                                // chain kicks off the moment its primary
-                                // call settles to SUCCESS; the agent's
-                                // own clearReportAgentIconState (at the
-                                // top of runReportIconsForAgent) wipes
-                                // any stale icon + iconCalls rows so
-                                // the re-fire is clean.
+                                // worker-based title→icon enrichment kicks
+                                // off the moment its primary call settles
+                                // to SUCCESS; generateIconFromTitle's
+                                // clearReportAgentIconState wipes any stale
+                                // icon + iconCalls rows so the re-fire is
+                                // clean.
                                 val g = appViewModel.uiState.value.generalSettings
                                 if (g.perModelIconOn() || g.perModelTitleOn()) {
                                     val ra = ReportStorage.getReport(context, reportId)
@@ -1362,10 +1346,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         iconFanOutJobs.remove(reportId)?.cancel()
         languageIconFanOutJobs.remove(reportId)?.cancel()
         appViewModel.clearLanguageIconFanOut(reportId)
-        // reportIconsJobs is now keyed by "$reportId|$agentId" (one
-        // job per per-agent chain) — sweep by prefix like the fan-out
-        // pair jobs above.
-        reportIconsJobs.entries.filter { it.key.startsWith(fanOutPrefix) }.forEach { it.value.cancel() }
         // Per-agent alt-icon jobs also live under the same reportId
         // prefix — collect and cancel them by agentId so their
         // candidate maps clear too. Same prefix key as the fan-out
