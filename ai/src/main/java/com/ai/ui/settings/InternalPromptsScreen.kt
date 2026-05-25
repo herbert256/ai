@@ -100,7 +100,9 @@ fun InternalPromptEditScreen(
     fixedCategory: String,
     onSave: (InternalPrompt) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    /** 🐞 bottom-bar trace-link — non-null when this prompt has ≥1 trace. */
+    onTrace: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val isEditing = internalPrompt != null
@@ -213,7 +215,8 @@ fun InternalPromptEditScreen(
             onCopyReport = null,
             onClear = { resetTick++ },
             onParameters = { showParamsDialog = true },
-            onSystemPrompt = { showSysPromptDialog = true }
+            onSystemPrompt = { showSysPromptDialog = true },
+            onTrace = onTrace
         )
         // Save / Create CTA hoisted to the top — these forms can be
         // long (especially with the prompt-text editor) so a bottom

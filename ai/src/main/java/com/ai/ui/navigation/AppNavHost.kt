@@ -415,6 +415,7 @@ fun AppNavHost(
 fun SettingsScreenNav(
     viewModel: AppViewModel, onNavigateBack: () -> Unit, onNavigateHome: () -> Unit,
     onNavigateToCostConfig: () -> Unit = {}, onNavigateToTrace: (String) -> Unit = {},
+    onNavigateToTraceCategory: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToHelpTopic: (String) -> Unit = {},
     /** Forwarded into ImportExportScreen so the post-API-keys-import
@@ -467,6 +468,7 @@ fun SettingsScreenNav(
         onTestModelWithPrompt = { s, k, m, p -> viewModel.testModelWithPrompt(s, k, m, p) },
         onTestSpecificModel = { s, k, m, p -> viewModel.testSpecificModel(s, k, m, p) },
         onNavigateToTrace = onNavigateToTrace,
+        onNavigateToTraceCategory = onNavigateToTraceCategory,
         onNavigateToModelInfo = onNavigateToModelInfo,
         onNavigateToAgentView = onNavigateToAgentView,
         onNavigateToFlockView = onNavigateToFlockView,
@@ -486,11 +488,13 @@ fun SettingsScreenNav(
 fun SetupScreenNav(
     viewModel: AppViewModel, onNavigateBack: () -> Unit, onNavigateHome: () -> Unit,
     onNavigateToCostConfig: () -> Unit = {}, onNavigateToTrace: (String) -> Unit = {},
+    onNavigateToTraceCategory: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToHelpTopic: (String) -> Unit = {}
 ) {
     SettingsScreenNav(viewModel = viewModel, onNavigateBack = onNavigateBack, onNavigateHome = onNavigateHome,
         onNavigateToCostConfig = onNavigateToCostConfig, onNavigateToTrace = onNavigateToTrace,
+        onNavigateToTraceCategory = onNavigateToTraceCategory,
         onNavigateToModelInfo = onNavigateToModelInfo,
         onNavigateToHelpTopic = onNavigateToHelpTopic,
         initialSubScreen = SettingsSubScreen.AI_SETUP)

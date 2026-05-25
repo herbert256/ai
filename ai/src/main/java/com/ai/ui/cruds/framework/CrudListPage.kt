@@ -54,7 +54,10 @@ fun <T> CrudListPage(
     helpTopic: String? = null,
     onAdd: (() -> Unit)? = null,
     onHousekeeping: (() -> Unit)? = null,
-    emptyMessage: String = "Nothing here yet."
+    emptyMessage: String = "Nothing here yet.",
+    /** Optional trailing content rendered at the end of each row (e.g. a
+     *  🐞 trace-link). Receives the row's item. */
+    rowTrailing: (@Composable (T) -> Unit)? = null
 ) {
     BackHandler { onBack() }
     // Don't key on items.size — that reset the page to 0 on every
@@ -115,7 +118,11 @@ fun <T> CrudListPage(
                     )
                 }
                 pageItems.forEach { item ->
-                    CrudRow(text = line(item), onClick = { onView(item) })
+                    CrudRow(
+                        text = line(item),
+                        onClick = { onView(item) },
+                        trailing = rowTrailing?.let { rt -> { rt(item) } }
+                    )
                 }
             }
         }
@@ -123,7 +130,7 @@ fun <T> CrudListPage(
 }
 
 @Composable
-private fun CrudRow(text: String, onClick: () -> Unit) {
+private fun CrudRow(text: String, onClick: () -> Unit, trailing: (@Composable () -> Unit)? = null) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         // Fixed height so the per-page row count (computed from a 56.dp
@@ -144,6 +151,7 @@ private fun CrudRow(text: String, onClick: () -> Unit) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
+            trailing?.invoke()
         }
     }
 }

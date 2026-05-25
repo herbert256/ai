@@ -48,6 +48,7 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
             SettingsScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToTraceCategory = { navController.navigate(NavRoutes.traceListFiltered(category = it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
                 onNavigateToAgentView = { id -> navController.navigate(NavRoutes.aiAgentView(id)) },
@@ -58,6 +59,7 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
             SetupScreenNav(viewModel = appViewModel, onNavigateBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToCostConfig = { navController.navigate(NavRoutes.AI_COST_CONFIG) },
                 onNavigateToTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onNavigateToTraceCategory = { navController.navigate(NavRoutes.traceListFiltered(category = it)) },
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) })
         }

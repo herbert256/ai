@@ -85,6 +85,7 @@ fun SettingsScreen(
     onTestModelWithPrompt: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onTestSpecificModel: suspend (AppService, String, String, String) -> Pair<Boolean, String?> = { _, _, _, _ -> Pair(false, null) },
     onNavigateToTrace: (String) -> Unit = {},
+    onNavigateToTraceCategory: (String) -> Unit = {},
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     refreshAllState: com.ai.viewmodel.RefreshAllState? = null,
     onStartRefreshAll: () -> Unit = {},
@@ -614,7 +615,8 @@ fun SettingsScreen(
                 aiSettings = aiSettings,
                 category = selectedInternalCategory,
                 onSave = onSaveAi,
-                onBack = goBack, onNavigateHome = onNavigateHome
+                onBack = goBack, onNavigateHome = onNavigateHome,
+                onNavigateToTraceCategory = onNavigateToTraceCategory
             )
         }
         SettingsSubScreen.AI_EXAMPLE_PROMPTS -> {

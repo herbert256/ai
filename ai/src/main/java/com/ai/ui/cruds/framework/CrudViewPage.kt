@@ -39,6 +39,7 @@ fun CrudViewPage(
     helpTopic: String? = null,
     onCopy: (() -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
+    onTrace: (() -> Unit)? = null,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
     BackHandler { onBack() }
@@ -53,7 +54,8 @@ fun CrudViewPage(
             helpTopic = helpTopic, title = title, subject = subject?.takeIf { it.isNotBlank() }, onBackClick = onBack,
             onEdit = onEdit,
             onCopyReport = onCopy,
-            onDelete = onDelete?.let { { confirmDelete = true } }
+            onDelete = onDelete?.let { { confirmDelete = true } },
+            onTrace = onTrace
         )
         Spacer(modifier = Modifier.height(12.dp))
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
