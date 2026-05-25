@@ -166,6 +166,7 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
                             navController.navigate(NavRoutes.aiProviderView(p.id))
                         },
                         onOpenManage = { navController.navigate(NavRoutes.aiModelInfo(provider.id, model)) },
+                        onNavigateToTraceCategory = { navController.navigate(NavRoutes.traceListFiltered(category = it)) },
                         onBack = safePopBack
                     )
                 }

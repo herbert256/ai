@@ -124,11 +124,24 @@ fun ModelInfoViewScreen(
      *  no-op leaves the name un-clickable on legacy call sites. */
     onOpenProvider: ((AppService) -> Unit)? = null,
     onOpenManage: (() -> Unit)? = null,
+    /** Open the Trace screen filtered to an `info/…` category. Null/no-op
+     *  hides the per-source 🐞. */
+    onNavigateToTraceCategory: (String) -> Unit = {},
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // Per-source 🐞 gate: which info/* trace categories have ≥1 trace on
+    // disk (one cached off-thread load). These categories aren't model-
+    // scoped (the source fetches don't tag a model), so the 🐞 opens the
+    // category-filtered trace list across all models.
+    val infoTraceCats by androidx.compose.runtime.produceState(emptySet<String>()) {
+        value = withContext(Dispatchers.IO) {
+            com.ai.data.ApiTracer.getTraceFiles().mapNotNull { it.category }
+                .filter { it == "info/huggingface" || it == "info/provider" }.toSet()
+        }
+    }
 
     // Source-overlay state. Null = nothing open. The overlay renders
     // the parsed JsonElement view (no raw JSON dump) and a back
@@ -373,6 +386,8 @@ fun ModelInfoViewScreen(
                     heliconeRaw = heliconeRaw,
                     llmPricesRaw = llmPricesRaw,
                     aaRaw = aaRaw,
+                    hfTrace = if ("info/huggingface" in infoTraceCats) ({ onNavigateToTraceCategory("info/huggingface") }) else null,
+                    orTrace = if ("info/provider" in infoTraceCats) ({ onNavigateToTraceCategory("info/provider") }) else null,
                     onOpen = { name, body, url ->
                         sourceOverlay = SourceOverlayState(name, body, url)
                     }
@@ -619,6 +634,8 @@ private fun SourcesCard(
     heliconeRaw: String?,
     llmPricesRaw: String?,
     aaRaw: String?,
+    hfTrace: (() -> Unit)? = null,
+    orTrace: (() -> Unit)? = null,
     onOpen: (sourceName: String, body: String, calledUrl: String?) -> Unit
 ) {
     // Vertical list of clickable source rows. Each row carries an
@@ -626,10 +643,10 @@ private fun SourcesCard(
     // source opens [ParsedSourceOverlay]; tapping an absent row is
     // a no-op (the row is faded so the user reads it as inactive).
     SectionCard(title = "Sources") {
-        SourceRow("🤗", "HuggingFace", hfRaw) {
+        SourceRow("🤗", "HuggingFace", hfRaw, onTrace = hfTrace) {
             onOpen("HuggingFace", hfRaw ?: "{}", "https://huggingface.co/api/models")
         }
-        SourceRow("🌐", "OpenRouter", orRaw) {
+        SourceRow("🌐", "OpenRouter", orRaw, onTrace = orTrace) {
             onOpen("OpenRouter", orRaw ?: "{}", "https://openrouter.ai/api/v1/models")
         }
         SourceRow("🔖", "LiteLLM", liteLLMRaw) {
@@ -651,7 +668,7 @@ private fun SourcesCard(
 }
 
 @Composable
-private fun SourceRow(icon: String, label: String, raw: String?, isLast: Boolean = false, onClick: () -> Unit) {
+private fun SourceRow(icon: String, label: String, raw: String?, isLast: Boolean = false, onTrace: (() -> Unit)? = null, onClick: () -> Unit) {
     val hasData = raw != null
     Row(
         modifier = Modifier.fillMaxWidth()
@@ -674,6 +691,18 @@ private fun SourceRow(icon: String, label: String, raw: String?, isLast: Boolean
             color = if (hasData) AppColors.Green else AppColors.TextTertiary,
             fontSize = 14.sp, fontWeight = FontWeight.SemiBold
         )
+        // 🐞 trace-link — present when this source has been fetched at
+        // least once (its `<info/…>` trace exists). Full opacity even on
+        // an absent row so a prior fetch's trace stays reachable.
+        if (onTrace != null) {
+            Text(
+                "🐞", fontSize = 16.sp,
+                modifier = Modifier
+                    .alpha(1f)
+                    .clickable { onTrace() }
+                    .padding(start = 12.dp)
+            )
+        }
     }
     if (!isLast) {
         HorizontalDivider(color = AppColors.DividerDark.copy(alpha = 0.6f), thickness = 1.dp)

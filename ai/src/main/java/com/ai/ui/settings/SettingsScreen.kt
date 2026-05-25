@@ -379,7 +379,8 @@ fun SettingsScreen(
             ModelsListScreen(
                 aiSettings = aiSettings, onBackToAiSetup = goBack, onBackToHome = onNavigateHome,
                 onProviderSelected = { selectedProviderId = it.id; currentSubScreen = SettingsSubScreen.AI_MODEL_EDIT },
-                onRefreshAllModels = onRefreshAllModels
+                onRefreshAllModels = onRefreshAllModels,
+                onNavigateToTraceCategory = onNavigateToTraceCategory
             )
         }
         SettingsSubScreen.AI_MODEL_EDIT -> {

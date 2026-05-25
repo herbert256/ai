@@ -155,7 +155,9 @@ fun ModelsListScreen(
     onBackToAiSetup: () -> Unit,
     onBackToHome: () -> Unit,
     onProviderSelected: (AppService) -> Unit,
-    onRefreshAllModels: suspend (Settings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() }
+    onRefreshAllModels: suspend (Settings, Boolean, ((String) -> Unit)?) -> Map<String, Int> = { _, _, _ -> emptyMap() },
+    /** Open the Trace screen filtered to a `<category>/<prompt>` category. */
+    onNavigateToTraceCategory: ((String) -> Unit)? = null
 ) {
     BackHandler { onBackToAiSetup() }
     val scope = rememberCoroutineScope()
@@ -163,10 +165,22 @@ fun ModelsListScreen(
     var refreshProgressText by remember { mutableStateOf("") }
     var refreshResults by remember { mutableStateOf<Map<String, Int>?>(null) }
 
+    // 🐞 gate — show a trace-link when ≥1 model-list retrieval has been
+    // traced (category "model/list"; one cached off-thread load).
+    val hasModelListTrace by androidx.compose.runtime.produceState(false) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.ai.data.ApiTracer.getTraceFiles().any { it.category == "model/list" }
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "models", title = "Models", subject = "Fetch, test and edit a provider's models", onBackClick = onBackToAiSetup)
+        TitleBar(
+            helpTopic = "models", title = "Models", subject = "Fetch, test and edit a provider's models",
+            onBackClick = onBackToAiSetup,
+            onTrace = if (hasModelListTrace && onNavigateToTraceCategory != null) ({ onNavigateToTraceCategory("model/list") }) else null
+        )
         // Only show providers with a working API key (state == "ok"), matching the "Active"
         // filter on the Providers screen.
         val activeProviders = AppService.entries
