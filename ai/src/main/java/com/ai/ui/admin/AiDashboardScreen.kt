@@ -417,10 +417,8 @@ fun AiCostsTierScreen(
         val runtime = computeTierCountsRuntime(context)
         value = config to runtime
     }
-    val pricing by produceState<Pair<List<PricingCache.CatalogStat>, Int>?>(null, refreshTick) {
-        value = withContext(Dispatchers.IO) {
-            PricingCache.catalogStats(context) to PricingCache.getAllManualPricing(context).size
-        }
+    val pricing by produceState<List<PricingCache.CatalogStat>?>(null, refreshTick) {
+        value = withContext(Dispatchers.IO) { PricingCache.catalogStats(context) }
     }
 
     Column(
@@ -449,7 +447,7 @@ fun AiCostsTierScreen(
                     CostTierSection(config = td.first, runtime = td.second)
                 }
             }
-            pricing?.let { (cats, overrides) -> item { PricingSection(cats, overrides) } }
+            pricing?.let { cats -> item { PricingSection(cats) } }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
@@ -670,11 +668,12 @@ private fun CostTierSection(config: Map<String, Int>, runtime: Map<String, Int>)
         keys.forEach { src ->
             val cfg = config[src] ?: 0
             val rt = runtime[src] ?: 0
-            val active = cfg > 0 || rt > 0
+            // All rows render uniformly (no per-row dimming) so a zero-count
+            // tier like "Manual override" matches the rest.
             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(tierLabel(src), fontSize = 12.sp, color = if (active) Color.White else AppColors.TextDim, maxLines = 1, modifier = Modifier.weight(1.6f))
-                Text("$cfg", fontSize = 12.sp, color = if (cfg > 0) AppColors.TextSecondary else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
-                Text("$rt", fontSize = 12.sp, color = if (rt > 0) AppColors.TextSecondary else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+                Text(tierLabel(src), fontSize = 12.sp, color = Color.White, maxLines = 1, modifier = Modifier.weight(1.6f))
+                Text("$cfg", fontSize = 12.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+                Text("$rt", fontSize = 12.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
             }
         }
         Spacer(Modifier.height(4.dp))
@@ -702,7 +701,7 @@ private fun tierLabel(src: String): String = when (src) {
 }
 
 @Composable
-private fun PricingSection(catalogStats: List<com.ai.data.PricingCache.CatalogStat>, manualOverrides: Int) {
+private fun PricingSection(catalogStats: List<com.ai.data.PricingCache.CatalogStat>) {
     SectionCard("🏷️", "Pricing cache", AppColors.Purple) {
         // Header
         Row(Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
@@ -722,8 +721,6 @@ private fun PricingSection(catalogStats: List<com.ai.data.PricingCache.CatalogSt
                 )
             }
         }
-        Spacer(Modifier.height(6.dp))
-        KeyVal("Manual overrides", "$manualOverrides")
     }
 }
 
