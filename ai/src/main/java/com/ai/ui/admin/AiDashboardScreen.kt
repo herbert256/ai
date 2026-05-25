@@ -271,12 +271,20 @@ private fun LiveActivitySection(
             )
         }
         Spacer(Modifier.height(8.dp))
+        // Bars fill to permits HELD (cap saturation). For the per-flow caps
+        // a held permit may be parked on a provider's rate-limit gate rather
+        // than running, so the "active" count (matching each Fan-* screen's
+        // Run column) is shown alongside when it's lower than held.
         CapBar("Global", caps.globalInFlight, caps.globalMax)
         CapBar("Report", caps.reportInFlight, caps.reportMax)
         CapBar("Translation", caps.translationInFlight, caps.translationMax)
-        CapBar("Fan-out", caps.fanOutInFlight, caps.fanOutMax)
-        CapBar("Fan-icons", caps.fanIconsInFlight, caps.fanIconsMax)
-        CapBar("Fan-titles", caps.fanTitlesInFlight, caps.fanTitlesMax)
+        CapBar("Fan-out", caps.fanOutInFlight, caps.fanOutMax, running = runFanOut.size)
+        CapBar("Fan-icons", caps.fanIconsInFlight, caps.fanIconsMax, running = runIcons.size)
+        CapBar("Fan-titles", caps.fanTitlesInFlight, caps.fanTitlesMax, running = runTitles.size)
+        Text(
+            "held = running + waiting on a provider rate-limit",
+            fontSize = 10.sp, color = AppColors.TextTertiary
+        )
 
         Spacer(Modifier.height(8.dp))
         Text("In flight", fontSize = 11.sp, color = AppColors.TextTertiary)
@@ -511,7 +519,7 @@ private fun SectionCard(emoji: String, title: String, accent: Color, content: @C
 }
 
 @Composable
-private fun CapBar(label: String, inFlight: Int, max: Int) {
+private fun CapBar(label: String, inFlight: Int, max: Int, running: Int? = null) {
     val frac = if (max > 0) (inFlight.toFloat() / max).coerceIn(0f, 1f) else 0f
     val color = when {
         max > 0 && inFlight >= max -> AppColors.Red
@@ -519,10 +527,16 @@ private fun CapBar(label: String, inFlight: Int, max: Int) {
         inFlight > 0 -> AppColors.Green
         else -> AppColors.TextDim
     }
+    // When some held permits are parked on the per-host gate (running <
+    // held), surface both so this reconciles with the Fan-* screen's Run
+    // count; otherwise just held/max.
+    val valueText =
+        if (running != null && running < inFlight) "$running run · $inFlight/$max held"
+        else "$inFlight/$max"
     Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
-            Text("$inFlight/$max", fontSize = 12.sp, color = color, fontWeight = FontWeight.Medium)
+            Text(valueText, fontSize = 12.sp, color = color, fontWeight = FontWeight.Medium)
         }
         Bar(frac, color)
     }
