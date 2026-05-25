@@ -165,6 +165,8 @@
     "reference": false,
     "category": "info",
     "agent": "OpenAI",
+    "provider": "OpenAI",
+    "model": "gpt-4o-mini",
     "text": "Read the text after the blank line below and create two titles for it: a short title of at most 25 characters (including spaces) and a long title of at most 50 characters (including spaces). Put the short title on the first line and the long title on the second line. Return only those two lines and nothing else.\n\n@PROMPT@",
     "parameters": "*NONE",
     "systemPrompt": "*NONE"
@@ -175,6 +177,8 @@
     "reference": false,
     "category": "info",
     "agent": "OpenAI",
+    "provider": "OpenAI",
+    "model": "gpt-4o-mini",
     "text": "Please see the text after the @@@ marker in this request, you must give it a title, max 4 words, max 325 characters, including spaces, only give this title back, nothing more.\n@@@\n@RESPONSE@",
     "parameters": "*NONE",
     "systemPrompt": "*NONE"
@@ -225,6 +229,8 @@
     "reference": false,
     "category": "info",
     "agent": "OpenAI",
+    "provider": "OpenAI",
+    "model": "gpt-4o-mini",
     "text": "Please see the text after the @@@ marker in this request, give a fitting emoji for below text, do not use a 'classic yellow smily, give only this emoji as feedback,@@@\n@TITLE@",
     "parameters": "*NONE",
     "systemPrompt": "*NONE"
