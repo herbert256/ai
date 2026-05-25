@@ -252,7 +252,7 @@ fun ResetAssetsScreen(
                 onClick = { pending = AssetReset.PROMPTS },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
-            ) { Text("back to assets/prompts.json", maxLines = 1, softWrap = false) }
+            ) { Text("back to assets/internal-prompts/", maxLines = 1, softWrap = false) }
             Button(
                 onClick = { pending = AssetReset.EXAMPLES },
                 modifier = Modifier.fillMaxWidth(),
@@ -417,8 +417,8 @@ private enum class AssetReset(val assetPath: String, val itemNoun: String, val d
         "Drops every provider definition currently in the registry (including any hand-edited fields) and reloads the bundled assets/providers.json verbatim. Per-provider API keys, model lists, and agents are stored separately and will survive."
     ),
     PROMPTS(
-        "assets/prompts.json", "internal prompts",
-        "Drops every Internal prompt (including any you customized) and reloads the bundled assets/prompts.json fresh."
+        "assets/internal-prompts/", "internal prompts",
+        "Drops every Internal prompt (including any you customized) and reloads the bundled assets/internal-prompts/ tree fresh."
     ),
     EXAMPLES(
         "assets/examples.json", "example prompts",

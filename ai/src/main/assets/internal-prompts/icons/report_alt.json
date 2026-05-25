@@ -1,0 +1,8 @@
+{
+  "name": "report_alt",
+  "title": "Find an ALTERNATIVE fitting emoji for a model report",
+  "reference": false,
+  "agent": "*N/A",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

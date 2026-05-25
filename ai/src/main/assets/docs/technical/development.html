@@ -200,7 +200,7 @@ persists each provider into <code>ProviderRegistry</code>. To force
 a re-import on an existing install: AI Setup → Providers → Refresh
 providers (or Housekeeping → Reset → Refresh bundled assets, which
 re-pulls <code>providers.json</code> <em>and</em>
-<code>prompts.json</code>).</p>
+<code>internal-prompts/</code>).</p>
 <p><code>ProviderRegistry.importFromAsset</code> rejects duplicate
 ids, drops malformed provider entries instead of NPEing later, and
 case-insensitively dedups when merging.</p>
@@ -357,7 +357,7 @@ too.</p>
 <code>"internal"</code> are the four in use today. Adding a new one
 means:</p>
 <ol>
-<li>Bump the <code>assets/prompts.json</code> to seed a default
+<li>Bump the <code>assets/internal-prompts/</code> to seed a default
 row.</li>
 <li>Add a sub-hub entry to <code>SetupScreens.kt</code> →
 <code>InternalPromptsHubScreen</code> (the place that counts entries
@@ -534,7 +534,7 @@ an old restore can't read.</li>
 provider catalog is <code>assets/providers.json</code> and ships in
 a flat <code>{"providers": [...]}</code> shape — the older
 <code>version + providerDefinitions</code> schema is gone. Internal
-Prompts come from <code>assets/prompts.json</code>, Example Prompts
+Prompts come from <code>assets/internal-prompts/</code>, Example Prompts
 from <code>assets/examples.json</code>. None of the three carry a
 top-level version.</li>
 <li><strong><code>ApiFactory.fetchUrlAsString</code> is preferred
@@ -597,7 +597,7 @@ every start. Per-field updates are gated by
 <code>ProviderFieldTimestamps</code> — a field the user has edited
 (the timestamp is non-null) is left alone; an un-edited field tracks
 the asset.</li>
-<li><code>assets/prompts.json</code> — bundled rows missing by
+<li><code>assets/internal-prompts/</code> — bundled rows missing by
 <code>(category, name)</code> are added; existing rows are never
 overwritten. So shipping new bundled <code>internal/…</code> prompts
 (e.g. the icon-prompt set, <code>chat_title</code>, …) reaches

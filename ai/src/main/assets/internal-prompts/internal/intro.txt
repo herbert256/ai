@@ -1,0 +1,3 @@
+Briefly introduce yourself in two short sentences: model name, who built you, and what you're best at. Plain prose, no markdown.
+
+You are: @MODEL@ from @PROVIDER@.

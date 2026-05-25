@@ -1,0 +1,1 @@
+Here are 10 facts about chess, please do a factcheck about each of them: @RESPONSE@

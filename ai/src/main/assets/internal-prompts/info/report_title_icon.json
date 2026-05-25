@@ -1,0 +1,8 @@
+{
+  "name": "report_title_icon",
+  "title": "Decide the icon for a model, based on the title",
+  "reference": false,
+  "agent": "Anthropic",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

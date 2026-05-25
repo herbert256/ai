@@ -1,0 +1,26 @@
+You are comparing @COUNT@ AI responses to the same question. Identify where they agree and where they diverge.
+
+QUESTION:
+@QUESTION@
+
+RESPONSES:
+@RESULTS@
+
+Reference rules — follow them exactly:
+- Each response is identified by ONLY a bracketed number — `[1]`, `[2]`, etc. Provider and model names are intentionally not provided to you; a reference legend mapping each `[N]` to its provider and model is appended to your output automatically. Cite responses with the bracketed number and nothing else.
+- When ALL @COUNT@ responses agree on a point, write "all responses agree" (or equivalent) and DO NOT enumerate the IDs. Listing every [1] [2] … [@COUNT@] is noise.
+- Only enumerate IDs when a subset (not all) of the responses share a position — then list just that subset, e.g. "[1] and [3] argue …".
+
+Produce a comparative analysis with these sections:
+
+## Points of agreement
+Claims, conclusions, or recommendations that most or all responses share. Apply the reference rules above.
+
+## Points of disagreement
+Where responses diverge. For each disagreement, describe each side and which response(s) hold which view, referencing them by [N]. Where possible, indicate which view is better supported and why.
+
+## Unique contributions
+Facts, framings, or arguments that only one response raised. Note the source [N] and whether the contribution adds genuine value.
+
+## Overall takeaway
+One paragraph synthesising what a careful reader should conclude given the points of agreement and disagreement above.

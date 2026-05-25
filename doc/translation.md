@@ -57,7 +57,7 @@ For each selected language, one TRANSLATE call is made per:
 
 The TRANSLATE prompt template lives as the `InternalPrompt` row
 named `"translate"` in the `internal` category (seeded from
-`assets/prompts.json` on fresh install, editable thereafter via
+`assets/internal-prompts/` on fresh install, editable thereafter via
 Settings → AI Setup → Prompt management → Other internal). It
 substitutes:
 
@@ -143,10 +143,10 @@ screen + its own row colour in the Report cost table.
 Settings → AI Setup → **Prompt management → Other internal** lists
 the five fixed-name internal templates (intro / model_info /
 translate / rerank / moderation). Edit the `text` field of the
-`translate` row. Defaults are seeded from `assets/prompts.json` on
+`translate` row. Defaults are seeded from `assets/internal-prompts/` on
 a fresh install; existing entries are never overwritten by re-seeds
 unless the user runs Housekeeping → Reset → "Reset Internal Prompts
-to assets/prompts.json".
+to assets/internal-prompts/".
 
 ## See also
 

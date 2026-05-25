@@ -27,7 +27,7 @@ back).
 
 ## The four bundled prompts
 
-Seeded from `assets/prompts.json` on every app start (delta
+Seeded from `assets/internal-prompts/` on every app start (delta
 merge — `InternalPromptSeed` only adds missing entries by
 `(category, name)`, so user edits survive):
 
@@ -266,4 +266,4 @@ data class IconCallRecord(
   fan-out live list, the per-icon detail.
 - `ui/report/ReportScreen.kt` — the **View → Icons** grid +
   per-agent detail (`AgentIconDetailScreen`).
-- `assets/prompts.json` — the four bundled prompt definitions.
+- `assets/internal-prompts/` — the four bundled prompt definitions.

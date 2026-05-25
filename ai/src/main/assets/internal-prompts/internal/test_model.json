@@ -1,0 +1,8 @@
+{
+  "name": "test_model",
+  "title": "Minimal test for an AI Model",
+  "reference": false,
+  "agent": "*N/A",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

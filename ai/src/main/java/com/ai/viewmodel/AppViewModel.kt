@@ -1111,7 +1111,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // category "internal" with name `language` (the
                 // detection prompt). The NEW icons-category second-call
                 // emoji prompt arrives via delta-merge of the bundled
-                // prompts.json with name `language`.
+                // internal-prompts/ with name `language`.
                 "language_icon" to Rename("language", newCategory = "internal"),
                 "report_icon_chat" to Rename("report_2"),
                 "report_icon_3th" to Rename("report_3"),
@@ -1284,11 +1284,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // picked up here without the user having to tap 'Read new
         // prompts' in Settings. Already on Dispatchers.IO via the
         // viewModelScope.launch wrapping this bootstrap call.
-        AppLog.d(tag, "→ prompts.json delta-merge")
+        AppLog.d(tag, "→ internal-prompts/ delta-merge")
         val tPrompts = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.InternalPromptSeed.loadFromAssets(application)
-            AppLog.v(tag, "  bundled prompts.json entries: ${bundled.size}")
+            AppLog.v(tag, "  bundled internal-prompts/ entries: ${bundled.size}")
             if (bundled.isNotEmpty()) {
                 val before = ai.internalPrompts.size
                 val merged = com.ai.data.InternalPromptSeed.ensureAllPresent(ai.internalPrompts, bundled)
@@ -1299,15 +1299,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     settingsPrefs.saveSettings(ai)
                     AppLog.v(tag, "  settings saved with $added new prompts")
                 }
-                AppLog.d(tag, "← prompts.json delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (added=$added)")
+                AppLog.d(tag, "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (added=$added)")
             } else {
-                AppLog.d(tag, "← prompts.json delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (empty asset)")
+                AppLog.d(tag, "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (empty asset)")
             }
         }.onFailure {
-            AppLog.w(tag, "← prompts.json delta-merge failed in ${System.currentTimeMillis() - tPrompts}ms", it)
+            AppLog.w(tag, "← internal-prompts/ delta-merge failed in ${System.currentTimeMillis() - tPrompts}ms", it)
         }
 
-        // Mirror of the prompts.json delta-merge for examples.json:
+        // Mirror of the internal-prompts/ delta-merge for examples.json:
         // append any bundled title (case-insensitive) not yet present,
         // never touch existing rows. Lets APK upgrades that ship new
         // example prompts surface them automatically without the user
@@ -1336,7 +1336,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← examples.json delta-merge failed in ${System.currentTimeMillis() - tExamples}ms", it)
         }
 
-        // Mirror of the prompts.json / examples.json delta-merge for
+        // Mirror of the internal-prompts/ / examples.json delta-merge for
         // system-prompts.json: append any bundled name (case-insensitive)
         // not yet present, never touch existing rows. Surfaces newly
         // bundled System prompts automatically on APK upgrade.
@@ -1363,7 +1363,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← system-prompts.json delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms", it)
         }
 
-        // Mirror of the prompts.json / examples.json delta-merge for
+        // Mirror of the internal-prompts/ / examples.json delta-merge for
         // excluded.json: append any (provider, model) test-excluded
         // pair not yet present so APK upgrades that ship a curated
         // "never probe these" list surface them automatically.
@@ -1470,7 +1470,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return gs to ai
     }
 
-    /** On-demand merge of the prompts declared in `assets/prompts.json`
+    /** On-demand merge of the prompts declared in `assets/internal-prompts/`
      *  into [Settings.internalPrompts]. Existing rows are left strictly
      *  alone (no overwrites); only names not yet present are appended.
      *  Returns the count of newly added prompts so the caller can show
@@ -1487,7 +1487,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Drop every Internal prompt and replace the list with a fresh
-     *  load of `assets/prompts.json`. Returns the number of rows loaded
+     *  load of `assets/internal-prompts/`. Returns the number of rows loaded
      *  (0 if the asset is missing or fails to parse, in which case the
      *  existing list is left untouched). */
     fun resetInternalPromptsFromAssets(): Int {
@@ -1635,7 +1635,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     /** Factory-style reset that preserves API keys. Runs the cascade
      *  documented in the Reset application dialog: snapshot the keys
      *  to a temp file in cacheDir, wipe usage stats / runtime data /
-     *  provider registry, reload providers.json + prompts.json from
+     *  provider registry, reload providers.json + internal-prompts/ from
      *  assets, clear configuration (so Settings() is built against
      *  the freshly loaded registry), re-import the keys, and finally
      *  run the same Refresh-all chain the Refresh screen exposes so
@@ -1687,7 +1687,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // Persist the reset Settings synchronously before the
                 // import step reads _uiState — updateSettings's IO save
                 // is fire-and-forget but the StateFlow update is sync.
-                // 7. Reload prompts.json + system-prompts.json + meta.json from assets
+                // 7. Reload internal-prompts/ + system-prompts.json + meta.json from assets
                 loadBundledInternalPrompts()
                 loadBundledSystemPrompts()
                 loadBundledDefaultMetaItems()
@@ -2565,7 +2565,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // clear / reinstall, present after the very first successful
         // bootstrap. Survives app updates (SharedPreferences is part of
         // user data, untouched by APK upgrades), so the bundled
-        // providers.json + prompts.json import is one-shot per install.
+        // providers.json + internal-prompts/ import is one-shot per install.
         internal const val KEY_FIRST_RUN_BOOTSTRAPPED = "first_run_bootstrapped"
 
         /** One-time migration flag: move pre-existing Together entries

@@ -1,0 +1,8 @@
+{
+  "name": "report_title",
+  "title": "Decide the report title",
+  "reference": false,
+  "agent": "Anthropic",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

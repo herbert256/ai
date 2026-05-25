@@ -1,0 +1,8 @@
+{
+  "name": "Compare",
+  "title": "Find points of agreement and disagreement",
+  "reference": false,
+  "agent": "*select",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

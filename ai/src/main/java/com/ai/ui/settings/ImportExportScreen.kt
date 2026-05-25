@@ -51,9 +51,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// Drop-in shape for assets/prompts.json — no id field (the seed
-// loader assigns fresh UUIDs on read). Used by both the standalone
-// prompts.json export and the All-bundle's "prompts" section.
+// Flat array shape (text inline, no id field — the importer assigns
+// fresh UUIDs on read). Used by both the standalone prompts.json
+// export and the All-bundle's "prompts" section. The bundled defaults
+// live as a per-category file tree under assets/internal-prompts/;
+// this flat shape is the wire format for export/import only.
 private fun promptEntry(p: InternalPrompt): Map<String, Any> = linkedMapOf<String, Any>(
     "name" to p.name,
     "title" to p.title,
@@ -819,9 +821,10 @@ fun ImportExportScreen(
     }
 
     fun exportPromptsJson() {
-        // Drop-in shape for assets/prompts.json — top-level array of
-        // {name, title, reference, category, agent, text} objects, no
-        // ids (the seed loader assigns fresh UUIDs on read).
+        // Flat array — top-level list of {name, title, reference,
+        // category, agent, text} objects, no ids (the importer assigns
+        // fresh UUIDs on read). The bundled defaults live as a file
+        // tree under assets/internal-prompts/; this is the wire format.
         val payload = aiSettings.internalPrompts.map { promptEntry(it) }
         shareExportText(context, "prompts.json", "application/json", "Share prompts",
             createAppGson(prettyPrint = true).toJson(payload))

@@ -1,0 +1,8 @@
+{
+  "name": "response",
+  "title": "Just the response",
+  "reference": false,
+  "agent": "*n/a",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

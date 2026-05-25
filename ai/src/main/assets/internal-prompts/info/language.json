@@ -1,0 +1,8 @@
+{
+  "name": "language",
+  "title": "Detect a prompt's language + a fitting emoji",
+  "reference": false,
+  "agent": "DeepSeek",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}
