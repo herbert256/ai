@@ -19,10 +19,6 @@ internal data class DashboardAggregates(
     val reports: ReportStats,
     val secondaries: Map<SecondaryKind, Int>,
     val metaByName: Map<String, Int>,
-    val usageGroups: List<ProviderCostGroup>,
-    val totalCalls: Int,
-    val totalTokens: Long,
-    val totalUsageCost: Double,
     val providersConfigured: Int,
     val providersWithKey: Int,
     val totalModels: Int,
@@ -36,10 +32,54 @@ internal data class DashboardAggregates(
     val pricingStats: String,
     val openRouterCacheAge: String,
     val manualOverrides: Int,
-    /** For every configured model, the pricing tier [PricingCache.getPricing]
-     *  would resolve it to, keyed by source tag in precedence order. */
-    val tierCounts: Map<String, Int>,
 )
+
+/** Spend & usage breakdown — heavy enough (per-model getPricing) that it lives
+ *  on its own screen, computed only when opened. */
+internal data class UsageGroupsResult(
+    val groups: List<ProviderCostGroup>,
+    val totalCalls: Int,
+    val totalTokens: Long,
+    val totalCost: Double,
+    val pricingStats: String,
+)
+
+/** Spend & usage for the dedicated screen — reuses the AI Usage cost-grouping.
+ *  Off the main thread (per-model getPricing). */
+internal suspend fun computeUsageGroups(
+    context: Context,
+    settingsPrefs: SettingsPreferences,
+): UsageGroupsResult = withContext(Dispatchers.IO) {
+    val stats = settingsPrefs.loadUsageStats()
+    val groups = buildProviderCostGroups(context, stats)
+    UsageGroupsResult(
+        groups = groups,
+        totalCalls = stats.values.sumOf { it.callCount },
+        totalTokens = stats.values.sumOf { it.totalTokens },
+        totalCost = groups.sumOf { it.totalCost },
+        pricingStats = PricingCache.getPricingStats(context),
+    )
+}
+
+/** Per-model pricing-tier resolution for the dedicated "Costs tier" screen:
+ *  which tier [PricingCache.getPricing] would pick for every configured model,
+ *  counted by [PricingCache.ModelPricing.source] in [PRICING_TIER_ORDER] (so
+ *  every tier shows even at zero). Heavy (getPricing per model) — own screen,
+ *  computed only when opened. */
+internal suspend fun computeTierCounts(
+    context: Context,
+    aiSettings: Settings,
+): Map<String, Int> = withContext(Dispatchers.IO) {
+    val tierCounts = LinkedHashMap<String, Int>().apply { PRICING_TIER_ORDER.forEach { put(it, 0) } }
+    for (p in ProviderRegistry.getAll()) {
+        for (m in aiSettings.getProvider(p).models) {
+            if (m.isBlank()) continue
+            val src = PricingCache.getPricing(context, p, m).source
+            tierCounts[src] = (tierCounts[src] ?: 0) + 1
+        }
+    }
+    tierCounts
+}
 
 /** Pricing-tier source tags as they appear on [PricingCache.ModelPricing.source]
  *  (set by the catalog parsers / explicit constructions — NOT getPricing's log
@@ -117,13 +157,6 @@ internal suspend fun computeDashboardAggregates(
         spend = all.sumOf { it.totalCost },
     )
 
-    // Usage / spend — reuse the AI Usage cost-grouping verbatim.
-    val stats = settingsPrefs.loadUsageStats()
-    val usageGroups = buildProviderCostGroups(context, stats)
-    val totalCalls = stats.values.sumOf { it.callCount }
-    val totalTokens = stats.values.sumOf { it.totalTokens }
-    val totalUsageCost = usageGroups.sumOf { it.totalCost }
-
     // Providers / models / model-list cache freshness.
     val providers = ProviderRegistry.getAll()
     val now = System.currentTimeMillis()
@@ -135,17 +168,6 @@ internal suspend fun computeDashboardAggregates(
         if (now - at > MODEL_CACHE_STALE_MS) stale++
     }
 
-    // Per-model pricing-tier resolution: for every configured model, which
-    // tier getPricing would resolve to (same precedence a real call uses).
-    val tierCounts = LinkedHashMap<String, Int>().apply { PRICING_TIER_ORDER.forEach { put(it, 0) } }
-    for (p in providers) {
-        for (m in aiSettings.getProvider(p).models) {
-            if (m.isBlank()) continue
-            val src = PricingCache.getPricing(context, p, m).source
-            tierCounts[src] = (tierCounts[src] ?: 0) + 1
-        }
-    }
-
     // Knowledge bases.
     val kbs = KnowledgeStore.listKnowledgeBases(context)
     val allSources = kbs.flatMap { it.sources }
@@ -154,10 +176,6 @@ internal suspend fun computeDashboardAggregates(
         reports = reportStats,
         secondaries = secByKind,
         metaByName = metaByName.entries.sortedByDescending { it.value }.associate { it.key to it.value },
-        usageGroups = usageGroups,
-        totalCalls = totalCalls,
-        totalTokens = totalTokens,
-        totalUsageCost = totalUsageCost,
         providersConfigured = providers.size,
         providersWithKey = providers.count { aiSettings.getApiKey(it).isNotBlank() },
         totalModels = providers.sumOf { aiSettings.getProvider(it).models.size },
@@ -171,6 +189,5 @@ internal suspend fun computeDashboardAggregates(
         pricingStats = PricingCache.getPricingStats(context),
         openRouterCacheAge = PricingCache.getOpenRouterCacheAge(context),
         manualOverrides = PricingCache.getAllManualPricing(context).size,
-        tierCounts = tierCounts,
     )
 }

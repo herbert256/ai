@@ -51,16 +51,28 @@ internal fun NavGraphBuilder.developerRoutes(
                 onBack = safePopBack, onNavigateHome = navigateHome)
         }
         composable(NavRoutes.AI_STATISTICS) {
-            val uiState by appViewModel.uiState.collectAsState()
             AiStatisticsScreen(
                 appViewModel = appViewModel,
                 reportViewModel = reportViewModel,
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToSpendUsage = { navController.navigate(NavRoutes.AI_SPEND_USAGE) },
+                onNavigateToCostsTier = { navController.navigate(NavRoutes.AI_COSTS_TIER) },
+                onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
+        }
+        composable(NavRoutes.AI_SPEND_USAGE) {
+            val uiState by appViewModel.uiState.collectAsState()
+            AiSpendUsageScreen(
                 openRouterApiKey = uiState.generalSettings.openRouterApiKey.ifBlank {
                     AppService.entries.firstOrNull { it.crossProviderModelList }?.let { uiState.aiSettings.getApiKey(it) } ?: ""
                 },
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
+        }
+        composable(NavRoutes.AI_COSTS_TIER) {
+            AiCostsTierScreen(
+                appViewModel = appViewModel,
+                onBack = safePopBack, onNavigateHome = navigateHome)
         }
         composable(NavRoutes.AI_HOUSEKEEPING) {
             val uiState by appViewModel.uiState.collectAsState()

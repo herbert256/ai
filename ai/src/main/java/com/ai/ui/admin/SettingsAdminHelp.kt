@@ -621,15 +621,34 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_statistics" to HelpContent(
         title = "Help - AI Statistics",
         cards = listOf(
-            HelpCard("Overview", "Lifetime aggregate stats and costs, re-read from disk on resume and every ~10 s. Opened from the home 📈 AI Statistics card. The former AI Usage screen is folded in here as the Spend & usage section. Live runtime state is on the separate 📡 AI Live Dashboard screen."),
+            HelpCard("Overview", "Lifetime aggregate stats, re-read from disk on resume and every ~10 s. Opened from the home 📈 AI Statistics card. Live runtime state is on the separate 📡 AI Live Dashboard screen. The two heavy cost breakdowns each live on their own page (links at the top) so this screen stays light."),
+            HelpCard("💰 Spend & usage →", "Link to its own page: calls / tokens / cost summary over expandable per-provider cards, model→Model Info drill-in, and the 🧹 clear-stats action. On its own page because it runs getPricing per used model."),
+            HelpCard("🧮 Costs tier →", "Link to its own page: for every configured model, which pricing tier getPricing would pick, counted per tier. On its own page because it runs getPricing for the whole catalog."),
             HelpCard("📋 Reports", "Lifetime totals: total / running / problems / completed reports, total agent calls, error rate (errored agent calls), stopped agents, and total report spend. Running/problems use the same predicates as the AI Reports hub."),
             HelpCard("🔗 Secondary results", "Counts of every stored secondary by kind (Rerank / Meta / Moderation / Translate) plus the top meta-prompt names."),
-            HelpCard("💰 Spend & usage", "Summary (calls, tokens, total cost, pricing-source stats) over expandable per-provider cards. Tap a model row to drill into Model Info. The 🧹 in the title bar clears all usage counters (confirm dialog). Rerank rows bill per search-unit, not per token."),
             HelpCard("🔌 Providers & models", "Providers configured, how many have an API key, total models across providers, and model-list cache freshness (cached / stale > 7 days)."),
             HelpCard("📚 Knowledge", "Knowledge-base count, total chunks, indexed character count, failed sources, and a breakdown of sources by type. Hidden when there are no knowledge bases."),
             HelpCard("🏷️ Pricing cache", "Pricing-source stats, OpenRouter pricing-cache age, and the number of manual cost overrides on file."),
-            HelpCard("🧮 Costs tier", "For every configured model, which pricing tier PricingCache.getPricing would resolve it to — counted per tier in lookup-precedence order: OpenRouter/Together self-report, Manual override, LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter cross-provider, Helicone, then the 25/75 default fallback for models no catalog covers. A big '25/75 default' count means those models have no real price and bill at the placeholder rate."),
-            HelpCard("Pitfalls", "Numbers lag a few seconds behind (10 s tick); costs need pricing data, fetched once on entry when an OpenRouter key is set. Cost-tier resolution runs getPricing for every configured model, so it reflects the catalogs currently loaded."),
+            HelpCard("Pitfalls", "Numbers lag a few seconds behind (10 s tick)."),
+        )
+    ),
+    "ai_spend_usage" to HelpContent(
+        title = "Help - Spend & usage",
+        cards = listOf(
+            HelpCard("Overview", "Per-provider usage breakdown — calls, tokens and cost — for every model you've actually called. Reached from AI Statistics. Computed only when opened (it runs getPricing per used model), and on entry it refreshes OpenRouter pricing once if a key is set."),
+            HelpCard("Summary", "Top card: total calls, total tokens, total cost (green), and the pricing-source stats line."),
+            HelpCard("Provider rows", "Expandable per-provider cards sorted by spend; expand to see per-model rows with cost and the winning pricing-source tag. Tap a model row to drill into Model Info."),
+            HelpCard("Clear", "The 🧹 in the title bar clears every usage counter back to zero (confirm dialog). Cannot be undone."),
+            HelpCard("Pitfalls", "Rerank rows bill per search-unit, not per token. A model never called won't appear; costs need pricing data loaded."),
+        )
+    ),
+    "ai_costs_tier" to HelpContent(
+        title = "Help - Costs tier",
+        cards = listOf(
+            HelpCard("Overview", "For every configured model (each provider's catalog), which pricing tier PricingCache.getPricing would resolve it to — counted per tier. Reached from AI Statistics; runs getPricing for the whole catalog, so it's computed only when opened."),
+            HelpCard("Tiers", "Listed by the source tag the lookup returns: Manual override, LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Together, Helicone, then the 25/75 default fallback for models no catalog covers."),
+            HelpCard("25/75 default", "A big default count means those models have no real catalog price and would bill at the $25/$75-per-million placeholder. Add a manual override or refresh catalogs to fix."),
+            HelpCard("Pitfalls", "Reflects the catalogs currently loaded and your configured model lists — not actual API traces. The same model can shift tiers after a catalog refresh."),
         )
     ),
     "cost_config" to HelpContent(

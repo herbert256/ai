@@ -4,6 +4,7 @@ import android.content.Context
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -53,7 +55,10 @@ import com.ai.data.PricingCache
 import com.ai.data.ProviderThrottle
 import com.ai.data.ReportStats
 import com.ai.data.SecondaryKind
+import com.ai.data.UsageGroupsResult
 import com.ai.data.computeDashboardAggregates
+import com.ai.data.computeTierCounts
+import com.ai.data.computeUsageGroups
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
@@ -155,10 +160,10 @@ fun AiLiveDashboardScreen(
 fun AiStatisticsScreen(
     appViewModel: AppViewModel,
     reportViewModel: ReportViewModel,
-    openRouterApiKey: String,
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
-    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onNavigateToSpendUsage: () -> Unit = {},
+    onNavigateToCostsTier: () -> Unit = {},
     onHousekeeping: (() -> Unit)? = null,
 ) {
     BackHandler { onBack() }
@@ -168,31 +173,16 @@ fun AiStatisticsScreen(
     val uiState by appViewModel.uiState.collectAsState()
     val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
 
-    // ---- aggregates: one disk pass, slow cadence ----
+    // ---- lightweight aggregates: one disk pass, slow cadence. The heavy
+    // per-model pricing work (Spend & usage, Costs tier) lives on its own
+    // screen, reached via the link cards, so it only runs when opened.
     val refreshTick = resumeRefreshTick()
     val slowTick by produceState(0) { while (true) { delay(10_000); value++ } }
-    var reloadTick by remember { mutableStateOf(0) }
-
-    // One-time OpenRouter pricing refresh so usage costs resolve, then
-    // recompute aggregates once it lands.
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            if (openRouterApiKey.isNotBlank() && PricingCache.needsOpenRouterRefresh(context)) {
-                val p = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
-                if (p.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, p)
-            }
-        }
-        reloadTick++
-    }
-
     val aggregates by produceState<DashboardAggregates?>(
-        null, refreshTick, slowTick, reloadTick, translationRuns
+        null, refreshTick, slowTick, translationRuns
     ) {
         value = computeDashboardAggregates(context, uiState.aiSettings, settingsPrefs, translationRuns)
     }
-
-    var expandedProvidersList by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
-    var confirmClear by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -202,10 +192,9 @@ fun AiStatisticsScreen(
         TitleBar(
             helpTopic = "ai_statistics",
             title = "AI Statistics",
-            subject = "Costs, usage and lifetime totals",
+            subject = "Lifetime totals (costs on their own pages)",
             onBackClick = onBack,
             reportIcon = "📈", reportIconGoesHome = true,
-            onDelete = { confirmClear = true },
             onHousekeeping = onHousekeeping
         )
 
@@ -214,6 +203,10 @@ fun AiStatisticsScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
+
+            // Heavy cost breakdowns get their own pages.
+            item { LinkCard("💰", "Spend & usage", "Calls, tokens and cost per provider", onNavigateToSpendUsage) }
+            item { LinkCard("🧮", "Costs tier", "Which pricing tier each configured model resolves to", onNavigateToCostsTier) }
 
             val agg = aggregates
             if (agg == null) {
@@ -227,24 +220,97 @@ fun AiStatisticsScreen(
             } else {
                 item { ReportsSection(agg.reports) }
                 item { SecondariesSection(agg.secondaries, agg.metaByName) }
-                item {
-                    UsageSection(
-                        agg = agg,
-                        expandedProviders = expandedProvidersList.toSet(),
-                        onToggle = { id ->
-                            expandedProvidersList =
-                                if (id in expandedProvidersList) expandedProvidersList - id
-                                else expandedProvidersList + id
-                        },
-                        onModelClick = onNavigateToModelInfo
-                    )
-                }
                 item { ProvidersSection(agg) }
                 if (agg.kbCount > 0) item { KnowledgeSection(agg) }
                 item { PricingSection(agg) }
-                item { CostTierSection(agg.tierCounts) }
             }
             item { Spacer(Modifier.height(24.dp)) }
+        }
+    }
+}
+
+/** Spend & usage — own screen (per-model getPricing). Reached from AI
+ *  Statistics. Computes its breakdown only on open. */
+@Composable
+fun AiSpendUsageScreen(
+    openRouterApiKey: String,
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onHousekeeping: (() -> Unit)? = null,
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
+
+    val refreshTick = resumeRefreshTick()
+    var reloadTick by remember { mutableStateOf(0) }
+    // One-time OpenRouter pricing refresh so usage costs resolve, then recompute.
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            if (openRouterApiKey.isNotBlank() && PricingCache.needsOpenRouterRefresh(context)) {
+                val p = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
+                if (p.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, p)
+            }
+        }
+        reloadTick++
+    }
+    val data by produceState<UsageGroupsResult?>(null, refreshTick, reloadTick) {
+        value = computeUsageGroups(context, settingsPrefs)
+    }
+    var expandedProvidersList by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    var confirmClear by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_spend_usage",
+            title = "Spend & usage",
+            subject = "Calls, tokens and cost per provider",
+            onBackClick = onBack,
+            reportIcon = "💰", reportIconGoesHome = true,
+            onDelete = { confirmClear = true },
+            onHousekeeping = onHousekeeping
+        )
+
+        val d = data
+        when {
+            d == null -> Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            d.groups.isEmpty() -> Text(
+                "No usage data yet. Generate reports or chat to see spend.",
+                color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)
+            )
+            else -> {
+                Spacer(Modifier.height(8.dp))
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(14.dp)) {
+                        Text("Total: ${d.totalCalls} calls, ${formatCompactNumber(d.totalTokens)} tokens", fontSize = 13.sp, color = Color.White)
+                        Text("Cost: ${money(d.totalCost)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = AppColors.Green)
+                        Text("Pricing: ${d.pricingStats}", fontSize = 10.sp, color = AppColors.TextTertiary)
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(d.groups, key = { it.provider.id }) { group ->
+                        val isExpanded = group.provider.id in expandedProvidersList
+                        UsageProviderCard(
+                            group = group,
+                            isExpanded = isExpanded,
+                            onToggle = {
+                                expandedProvidersList =
+                                    if (isExpanded) expandedProvidersList - group.provider.id
+                                    else expandedProvidersList + group.provider.id
+                            },
+                            onModelClick = { model -> onNavigateToModelInfo(group.provider, model) }
+                        )
+                    }
+                    item { Spacer(Modifier.height(24.dp)) }
+                }
+            }
         }
     }
 
@@ -265,6 +331,47 @@ fun AiStatisticsScreen(
                 TextButton(onClick = { confirmClear = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
             }
         )
+    }
+}
+
+/** Costs tier — own screen (per-model getPricing for the whole catalog).
+ *  Reached from AI Statistics; computes only on open. */
+@Composable
+fun AiCostsTierScreen(
+    appViewModel: AppViewModel,
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val uiState by appViewModel.uiState.collectAsState()
+    val refreshTick = resumeRefreshTick()
+    val tierCounts by produceState<Map<String, Int>?>(null, refreshTick) {
+        value = computeTierCounts(context, uiState.aiSettings)
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_costs_tier",
+            title = "Costs tier",
+            subject = "Pricing tier each configured model resolves to",
+            onBackClick = onBack,
+            reportIcon = "🧮", reportIconGoesHome = true
+        )
+        val tc = tierCounts
+        if (tc == null) {
+            Text("Loading… (checking every configured model)", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { Spacer(Modifier.height(4.dp)) }
+                item { CostTierSection(tc) }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
     }
 }
 
@@ -436,36 +543,6 @@ private fun SecondariesSection(byKind: Map<SecondaryKind, Int>, metaByName: Map<
 }
 
 @Composable
-private fun UsageSection(
-    agg: DashboardAggregates,
-    expandedProviders: Set<String>,
-    onToggle: (String) -> Unit,
-    onModelClick: (AppService, String) -> Unit,
-) {
-    SectionCard("💰", "Spend & usage", AppColors.Green) {
-        if (agg.usageGroups.isEmpty()) {
-            Text("No usage data yet. Generate reports or chat to see spend.", fontSize = 12.sp, color = AppColors.TextTertiary)
-            return@SectionCard
-        }
-        KeyVal("Calls", "${agg.totalCalls}")
-        KeyVal("Tokens", formatCompactNumber(agg.totalTokens))
-        KeyVal("Total cost", money(agg.totalUsageCost), AppColors.Green)
-        Text("Pricing: ${agg.pricingStats}", fontSize = 10.sp, color = AppColors.TextTertiary)
-        Spacer(Modifier.height(8.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            agg.usageGroups.forEach { group ->
-                UsageProviderCard(
-                    group = group,
-                    isExpanded = group.provider.id in expandedProviders,
-                    onToggle = { onToggle(group.provider.id) },
-                    onModelClick = { model -> onModelClick(group.provider, model) }
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun ProvidersSection(agg: DashboardAggregates) {
     SectionCard("🔌", "Providers & models", AppColors.Indigo) {
         KeyVal("Providers configured", "${agg.providersConfigured}")
@@ -539,6 +616,29 @@ private fun PricingSection(agg: DashboardAggregates) {
 // =====================================================================
 // Reusable building blocks
 // =====================================================================
+
+/** Tappable card that links to a sub-screen (used by AI Statistics for the
+ *  heavy Spend & usage / Costs tier pages). */
+@Composable
+private fun LinkCard(emoji: String, title: String, subtitle: String, onClick: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(emoji, fontSize = 16.sp)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(subtitle, fontSize = 11.sp, color = AppColors.TextTertiary)
+            }
+            Text("›", fontSize = 22.sp, color = AppColors.TextTertiary)
+        }
+    }
+}
 
 @Composable
 private fun SectionCard(emoji: String, title: String, accent: Color, content: @Composable ColumnScope.() -> Unit) {
