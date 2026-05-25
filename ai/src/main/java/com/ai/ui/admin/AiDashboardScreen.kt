@@ -172,6 +172,47 @@ fun AiLiveDashboardScreen(
     }
 }
 
+/** AI Monitor — a small hub gathering the live + historical
+ *  observability screens (Live Dashboard, Statistics, API Traces,
+ *  Application log) that previously sat loose on the home page and
+ *  in Housekeeping. */
+@Composable
+fun AiMonitorScreen(
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToLiveDashboard: () -> Unit = {},
+    onNavigateToStatistics: () -> Unit = {},
+    onNavigateToTraces: () -> Unit = {},
+    onNavigateToAppLog: () -> Unit = {},
+) {
+    BackHandler { onBack() }
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_monitor",
+            title = "AI Monitor",
+            subject = "Live and historical observability",
+            onBackClick = onBack,
+            reportIcon = "📡", reportIconGoesHome = true,
+            onTitleClick = onNavigateHome,
+        )
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item { Spacer(Modifier.height(4.dp)) }
+            item { LinkCard("📡", "AI Live Dashboard", "In-flight calls, caps and throttle state", onNavigateToLiveDashboard) }
+            item { LinkCard("📈", "AI Statistics", "Reports, providers, models, spend and more", onNavigateToStatistics) }
+            item { LinkCard("🐞", "AI API Traces", "Per-call request/response records", onNavigateToTraces) }
+            item { LinkCard("📜", "Application log", "The in-app application log, line by line", onNavigateToAppLog) }
+            item { Spacer(Modifier.height(24.dp)) }
+        }
+    }
+}
+
 @Composable
 fun AiStatisticsScreen(
     onBack: () -> Unit,

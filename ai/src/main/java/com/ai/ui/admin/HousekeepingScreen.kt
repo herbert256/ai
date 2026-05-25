@@ -40,7 +40,6 @@ fun HousekeepingScreen(
     onNavigateToRefresh: () -> Unit = {},
     onNavigateToTrimByAge: () -> Unit = {},
     onNavigateToReset: () -> Unit = {},
-    onNavigateToAppLog: () -> Unit = {},
     onNavigateToTest: () -> Unit = {},
     onNavigateToUpdateFromCloud: () -> Unit = {},
     onNavigateToCosts: () -> Unit = {}
@@ -62,10 +61,6 @@ fun HousekeepingScreen(
             if (hasActiveProvider && hasTrimmable) {
                 NavCard("Trim by age", onClick = onNavigateToTrimByAge)
             }
-            // In-app log viewer — daily-rotating file under filesDir/applog/.
-            // Available even on first run (no active provider) because the
-            // log is populated immediately on app start (bootstrap line).
-            NavCard("Application log", onClick = onNavigateToAppLog)
             // Self-update: reads an APK from a user-picked storage
             // location (typically a Drive sync folder) and fires the
             // system PackageInstaller. One-time setup picks the file;

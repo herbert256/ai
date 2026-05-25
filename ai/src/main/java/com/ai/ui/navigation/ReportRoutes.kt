@@ -83,12 +83,10 @@ internal fun NavGraphBuilder.reportRoutes(
             val hubScope = rememberCoroutineScope()
             HubScreen(
                 onNavigateToSettings = { navController.navigate(NavRoutes.SETTINGS) },
-                onNavigateToTraces = { navController.navigate(NavRoutes.TRACE_LIST) },
+                onNavigateToMonitor = { navController.navigate(NavRoutes.AI_MONITOR) },
                 onNavigateToHelp = { navController.navigate(NavRoutes.HELP) },
                 onNavigateToAbout = { navController.navigate(NavRoutes.ABOUT) },
                 onNavigateToReportsHub = { navController.navigate(NavRoutes.AI_REPORTS_HUB) },
-                onNavigateToLiveDashboard = { navController.navigate(NavRoutes.AI_LIVE_DASHBOARD) },
-                onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
                 onNavigateToChatsHub = { navController.navigate(NavRoutes.AI_CHATS_HUB) },
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
                 onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },

@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.R
 import com.ai.data.AnalysisRepository
-import com.ai.data.ApiTracer
 import com.ai.data.KnowledgeService
 import com.ai.data.KnowledgeStore
 import com.ai.data.ModelCooldownStore
@@ -53,12 +52,10 @@ import kotlinx.coroutines.withContext
 @Composable
 fun HubScreen(
     onNavigateToSettings: () -> Unit,
-    onNavigateToTraces: () -> Unit,
+    onNavigateToMonitor: () -> Unit,
     onNavigateToHelp: () -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToReportsHub: () -> Unit,
-    onNavigateToLiveDashboard: () -> Unit,
-    onNavigateToStatistics: () -> Unit,
     onNavigateToChatsHub: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
     onNavigateToHousekeeping: () -> Unit,
@@ -74,18 +71,6 @@ fun HubScreen(
     BackHandler { (context as? Activity)?.moveTaskToBack(true) }
 
     val hasAnyAgent = remember(uiState.aiSettings.agents) { uiState.aiSettings.agents.isNotEmpty() }
-    // Re-fire whenever the agent list changes. Was keyed on the whole
-    // uiState, which churned ~30 times during refreshAllModelLists (each
-    // model-list fetch touches aiSettings.providers but not agents) and
-    // dragged the main thread through repeated disk work for nothing. The
-    // narrower key still picks up the once-per-bootstrap transition that
-    // ensureUsageStatsCache needs to retry past a ProviderRegistry-init
-    // race, plus any agent edit during the session.
-    val hasTraces by produceState(initialValue = false, uiState.aiSettings.agents) {
-        // hasAnyTraceFile only enumerates filenames — no JSON parse, vs the
-        // ~250-file parse getTraceFiles() does for the full list.
-        value = withContext(Dispatchers.IO) { ApiTracer.hasAnyTraceFile() }
-    }
     // Drives the logo's clickability — tapping the logo opens the
     // most recent report's result page. Re-fires on resume so a
     // freshly-finished report is reachable without a process restart.
@@ -99,9 +84,6 @@ fun HubScreen(
     // (home no longer renders Running / Problems cards — they live
     // on ReportsHubScreen now.)
 
-    // The AI API Traces card disappears entirely when tracing is off \u2014
-    // adjust the card count so the logo sizing math still works.
-    val tracingEnabled = uiState.generalSettings.tracingEnabled
     val cardHeight = 50.dp
     val cardSpacing = 12.dp
     // homeCardsExtra contributes 1 row-equivalent per visible new
@@ -109,7 +91,7 @@ fun HubScreen(
     // inside), but we keep the math simple — logo just shrinks a
     // touch when the cards are showing, still bounded by the
     // coerceIn(100, 220) below.
-    val cardCount = (if (tracingEnabled) 12 else 11)
+    val cardCount = 10
     val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + 32.dp
 
     BoxWithConstraints(
@@ -177,16 +159,8 @@ fun HubScreen(
                 HubCard(icon = "\uD83E\uDDE0", title = "AI Models", onClick = onNavigateToModelSearch)
                 Spacer(modifier = Modifier.height(12.dp))
             }
-            if (hasAnyAgent) {
-                HubCard(icon = "\uD83D\uDCE1", title = "AI Live Dashboard", onClick = onNavigateToLiveDashboard)
-                Spacer(modifier = Modifier.height(12.dp))
-                HubCard(icon = "\uD83D\uDCC8", title = "AI Statistics", onClick = onNavigateToStatistics)
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-            if (tracingEnabled && hasTraces) {
-                HubCard(icon = "\uD83D\uDC1E", title = "AI API Traces", onClick = onNavigateToTraces)
-                Spacer(modifier = Modifier.height(12.dp))
-            }
+            HubCard(icon = "\uD83D\uDCE1", title = "AI Monitor", onClick = onNavigateToMonitor)
+            Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83E\uDD16", title = "AI Setup", onClick = onNavigateToAiSetup)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83E\uDDF9", title = "AI Housekeeping", onClick = onNavigateToHousekeeping)

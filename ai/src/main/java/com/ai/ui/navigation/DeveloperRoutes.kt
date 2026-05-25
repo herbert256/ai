@@ -62,6 +62,14 @@ internal fun NavGraphBuilder.developerRoutes(
                 model = value.takeIf { field == "model" },
             ))
         }
+        composable(NavRoutes.AI_MONITOR) {
+            AiMonitorScreen(
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToLiveDashboard = { navController.navigate(NavRoutes.AI_LIVE_DASHBOARD) },
+                onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
+                onNavigateToTraces = { navController.navigate(NavRoutes.TRACE_LIST) },
+                onNavigateToAppLog = { navController.navigate(NavRoutes.AI_APPLOG_LIST) })
+        }
         composable(NavRoutes.AI_LIVE_DASHBOARD) {
             AiLiveDashboardScreen(
                 appViewModel = appViewModel,
@@ -161,7 +169,6 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToRefresh = { navController.navigate(NavRoutes.AI_REFRESH) },
                 onNavigateToTrimByAge = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) },
                 onNavigateToReset = { navController.navigate(NavRoutes.AI_RESET) },
-                onNavigateToAppLog = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
                 onNavigateToTest = { navController.navigate(NavRoutes.AI_TEST) },
                 onNavigateToUpdateFromCloud = { navController.navigate(NavRoutes.AI_UPDATE_FROM_CLOUD) },
                 onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) }

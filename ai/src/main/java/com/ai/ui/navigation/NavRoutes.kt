@@ -91,6 +91,7 @@ object NavRoutes {
     const val AI_KNOWLEDGE_NEW = "ai_knowledge_new"
     const val AI_KNOWLEDGE_DETAIL = "ai_knowledge_detail/{kbId}"
     const val AI_LOCAL_SEMANTIC_SEARCH = "ai_local_semantic_search"
+    const val AI_MONITOR = "ai_monitor"
     const val AI_LIVE_DASHBOARD = "ai_live_dashboard"
     const val AI_STATISTICS = "ai_statistics"
     const val AI_SPEND_USAGE = "ai_spend_usage"

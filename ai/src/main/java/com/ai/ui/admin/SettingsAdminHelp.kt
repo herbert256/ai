@@ -618,6 +618,16 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "The live ticker only runs while the screen is on top — navigate away and it stops."),
         )
     ),
+    "ai_monitor" to HelpContent(
+        title = "Help - AI Monitor",
+        cards = listOf(
+            HelpCard("Overview", "A small hub for watching what the app is doing — live and after the fact. Opened from the home 📡 AI Monitor card. Each row opens its own screen."),
+            HelpCard("📡 AI Live Dashboard →", "Real-time runtime state: in-flight calls, per-provider concurrency caps, and throttle / cooldown status."),
+            HelpCard("📈 AI Statistics →", "Lifetime-stat hub: reports, providers, models, spend & usage, cost tiers, API-trace and app-log breakdowns."),
+            HelpCard("🐞 AI API Traces →", "The per-call request/response records (filterable by category, provider, host, model). Needs API tracing enabled in Settings."),
+            HelpCard("📜 Application log →", "The in-app application log, line by line — the same viewer previously reached from Housekeeping."),
+        )
+    ),
     "ai_statistics" to HelpContent(
         title = "Help - AI Statistics",
         cards = listOf(
