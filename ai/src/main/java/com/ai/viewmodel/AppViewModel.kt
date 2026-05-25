@@ -1042,6 +1042,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // One-shot fix: `model_intro_view` shipped under a typo'd
+        // category "intra" — correct it to "internal" so it lands in
+        // the right CRUD group. Idempotent; a category remap can't
+        // collide with any name.
+        run {
+            val migrated = ai.internalPrompts.map { p ->
+                if (p.category.equals("intra", ignoreCase = true)) p.copy(category = "internal") else p
+            }
+            if (migrated != ai.internalPrompts) {
+                AppLog.i(tag, "Re-categorised ${migrated.zip(ai.internalPrompts).count { (a, b) -> a !== b }} prompt(s) from 'intra' → 'internal'")
+                ai = ai.copy(internalPrompts = migrated)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // One-shot migration: nine bundled icon prompts moved from
         // category "internal" to a new "icons" category. Rewrite any
         // persisted row that still carries the old category so the
