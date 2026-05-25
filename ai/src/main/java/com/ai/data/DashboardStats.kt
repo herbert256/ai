@@ -41,11 +41,15 @@ internal data class DashboardAggregates(
     val tierCounts: Map<String, Int>,
 )
 
-/** Pricing-tier source tags in [PricingCache.getPricing]'s precedence order —
- *  drives the "Costs tier" card so it lists every tier even at zero. */
+/** Pricing-tier source tags as they appear on [PricingCache.ModelPricing.source]
+ *  (set by the catalog parsers / explicit constructions — NOT getPricing's log
+ *  labels). Drives the "Costs tier" card so it lists every tier even at zero.
+ *  Note: OpenRouter self-report and cross-provider both tag "OPENROUTER", and
+ *  Together self-report tags "TOGETHER" — the source can't tell self from
+ *  fallback, so each appears once. */
 internal val PRICING_TIER_ORDER = listOf(
-    "OPENROUTER-SELF", "TOGETHER-SELF", "OVERRIDE", "LITELLM", "MODELSDEV",
-    "LLMPRICES", "AA", "OPENROUTER", "HELICONE", "DEFAULT"
+    "OVERRIDE", "LITELLM", "MODELSDEV", "LLMPRICES", "ARTIFICIALANALYSIS",
+    "OPENROUTER", "TOGETHER", "HELICONE", "DEFAULT"
 )
 
 internal data class ReportStats(

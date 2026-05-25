@@ -514,14 +514,13 @@ private fun CostTierSection(tierCounts: Map<String, Int>) {
 /** Display label for a [PricingCache] source tag (DEFAULT is the 25/75
  *  fallback). */
 private fun tierLabel(src: String): String = when (src) {
-    "OPENROUTER-SELF" -> "OpenRouter (self-report)"
-    "TOGETHER-SELF" -> "Together (self-report)"
     "OVERRIDE" -> "Manual override"
     "LITELLM" -> "LiteLLM"
     "MODELSDEV" -> "models.dev"
     "LLMPRICES" -> "llm-prices"
-    "AA" -> "Artificial Analysis"
-    "OPENROUTER" -> "OpenRouter (cross-provider)"
+    "ARTIFICIALANALYSIS" -> "Artificial Analysis"
+    "OPENROUTER" -> "OpenRouter"
+    "TOGETHER" -> "Together"
     "HELICONE" -> "Helicone"
     "DEFAULT" -> "25/75 default"
     else -> src
