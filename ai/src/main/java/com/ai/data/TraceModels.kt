@@ -25,9 +25,11 @@ data class TraceResponse(val statusCode: Int, val headers: Map<String, String>, 
 data class ApiTrace(
     val timestamp: Long, val hostname: String,
     val reportId: String? = null, val model: String? = null,
-    /** Functional description of the call site that produced this trace,
-     *  e.g. "Report", "Report meta: Compare", "Chat", "Chat validate
-     *  input", "Provider test", "Retrieve models list", "Pricing fetch".
+    /** Functional description of the call site that produced this trace.
+     *  Internal-prompt calls use the literal "<category>/<prompt>" form
+     *  (e.g. "report/prompt", "workers/report-title", "meta/Compare",
+     *  "after/rerank", "model/list", "info/huggingface"); other sites use
+     *  free-text tags ("Chat", "Provider test", "Pricing fetch").
      *  Set via [ApiTracer.currentCategory] / [withTraceCategory] before
      *  the API call runs. Null on traces written before the field
      *  existed or from sites that don't bracket their calls. */

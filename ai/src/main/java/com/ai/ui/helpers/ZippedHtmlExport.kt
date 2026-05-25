@@ -231,7 +231,7 @@ private fun buildReportIndex(data: HtmlReportData, basePath: String, origin: Str
     val out = mutableListOf<ReportLoc>()
     data.agents.forEachIndexed { idx, a ->
         val filename = itemFilename(idx, "${a.providerDisplay}_${a.model}")
-        out += ReportLoc(a.providerDisplay, a.model, "Report", "${basePath}Reports/$filename", origin)
+        out += ReportLoc(a.providerDisplay, a.model, "report/prompt", "${basePath}Reports/$filename", origin)
     }
     // Chat-type META rows: one section per user-given prompt name.
     // Trace category matches the runMetaPrompt tag — "Report meta:
@@ -247,12 +247,12 @@ private fun buildReportIndex(data: HtmlReportData, basePath: String, origin: Str
     metaByName.forEach { (name, items) ->
         items.forEachIndexed { idx, s ->
             val filename = itemFilename(idx, "${s.providerDisplay}_${s.model}")
-            out += ReportLoc(s.providerDisplay, s.model, "Report meta: $name", "${basePath}${safeName(name)}/$filename", origin)
+            out += ReportLoc(s.providerDisplay, s.model, "meta/$name", "${basePath}${safeName(name)}/$filename", origin)
         }
     }
     val structuredLabels = mapOf(
-        SecondaryKind.RERANK to ("Reranks" to "Report rerank"),
-        SecondaryKind.MODERATION to ("Moderations" to "Report moderation")
+        SecondaryKind.RERANK to ("Reranks" to "after/rerank"),
+        SecondaryKind.MODERATION to ("Moderations" to "after/moderation")
     )
     structuredLabels.forEach { (kind, pair) ->
         val (sectionLabel, traceCategory) = pair
@@ -415,12 +415,12 @@ private fun reportPage(label: String, a: HtmlAgentData, data: HtmlReportData, ma
     sb.append(htmlHead("$label - ${data.title}", depth = 1, basePath = basePath))
     sb.append(breadcrumb(1, listOf("Reports" to "index.html", label to null), data, langDisplay))
     sb.append("<main>")
-    // Match by (provider displayName, model) and the "Report" category
-    // — that's the per-agent run on the original report. For
+    // Match by (provider displayName, model) and the "report/prompt"
+    // category — that's the per-agent run on the original report. For
     // translated reports there's no own-side trace for the agent run
     // (the response carries over from the source), so the lookup
     // naturally lands on a source-side trace.
-    val match = traceIndex.findMatch(a.providerDisplay, a.model, "Report")
+    val match = traceIndex.findMatch(a.providerDisplay, a.model, "report/prompt")
     sb.append("<h1>").append(iconPrefixHtml(a.icon)).append(esc(a.providerDisplay)).append(" / ").append(esc(a.model))
         .append(bugLink(match, pageDepth = 1, basePath = basePath)).append("</h1>")
     if (a.errorMessage != null) sb.append("<div class='error'>Error: ${esc(a.errorMessage)}</div>")
@@ -484,7 +484,7 @@ private fun emitMetaSections(zos: ZipOutputStream, data: HtmlReportData, traceIn
         }
         sb.append("</ul></main></body></html>")
         emit(zos, "${basePath}$safeLabel/index.html", sb.toString())
-        val traceCategory = "Report meta: $name"
+        val traceCategory = "meta/$name"
         withFiles.forEach { (filename, itemLabel, s) ->
             emit(zos, "${basePath}$safeLabel/$filename", secondaryPage(label, itemLabel, s, data, maxAnchor, traceIndex, traceCategory, basePath, langDisplay))
         }
@@ -521,10 +521,10 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
     // Structured kinds — fixed trace-category tags. Chat-type META is
     // routed through emitMetaSections; this branch never sees META.
     val traceCategory = when (kind) {
-        SecondaryKind.RERANK -> "Report rerank"
-        SecondaryKind.MODERATION -> "Report moderation"
-        SecondaryKind.TRANSLATE -> "Report translate"
-        SecondaryKind.META -> "Report meta"
+        SecondaryKind.RERANK -> "after/rerank"
+        SecondaryKind.MODERATION -> "after/moderation"
+        SecondaryKind.TRANSLATE -> "internal/Translate"
+        SecondaryKind.META -> "meta/meta"
     }
     withFiles.forEach { (filename, itemLabel, s) ->
         emit(zos, "${basePath}$label/$filename", secondaryPage(label, itemLabel, s, data, maxAnchor, traceIndex, traceCategory, basePath, langDisplay))

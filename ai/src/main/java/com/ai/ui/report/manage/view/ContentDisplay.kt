@@ -1181,14 +1181,17 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         // plain Meta all read as their Meta prompt — the out/in role is
         // visible in the row's drill-in, not the type string).
         val mp = s.metaPromptId?.let { id -> ai?.internalPrompts?.firstOrNull { it.id == id } }
-        val type = when {
-            mp != null -> "${mp.category}/${mp.name}"
-            !s.metaPromptName.isNullOrBlank() -> "meta/${s.metaPromptName}"
-            else -> when (s.kind) {
-                SecondaryKind.RERANK -> ai?.getInternalPromptByName("rerank")?.let { "${it.category}/${it.name}" } ?: "internal/rerank"
-                SecondaryKind.MODERATION -> ai?.getInternalPromptByName("moderation")?.let { "${it.category}/${it.name}" } ?: "internal/moderation"
-                SecondaryKind.TRANSLATE -> ai?.getInternalPromptByName("Translate")?.let { "${it.category}/${it.name}" } ?: "internal/Translate"
-                SecondaryKind.META -> "meta/meta"
+        val type = when (s.kind) {
+            // Post-report ("after") operations get their own fixed types,
+            // not the prompt path — they're not internal-prompt driven in
+            // the user's mental model.
+            SecondaryKind.RERANK -> "after/rerank"
+            SecondaryKind.MODERATION -> "after/moderation"
+            SecondaryKind.TRANSLATE -> ai?.getInternalPromptByName("Translate")?.let { "${it.category}/${it.name}" } ?: "internal/Translate"
+            SecondaryKind.META -> when {
+                mp != null -> "${mp.category}/${mp.name}"
+                !s.metaPromptName.isNullOrBlank() -> "meta/${s.metaPromptName}"
+                else -> "meta/meta"
             }
         }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
@@ -1520,6 +1523,7 @@ private fun costTypeColor(type: String): Color = when (type.substringBefore('/')
     "fan_out" -> AppColors.Indigo
     "fan_in", "fan-in-model" -> AppColors.Green
     "internal" -> AppColors.Orange
+    "after" -> AppColors.Orange
     else -> AppColors.TextSecondary
 }
 

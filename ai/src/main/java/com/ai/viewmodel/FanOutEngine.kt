@@ -545,7 +545,7 @@ class FanOutEngine internal constructor(
         val report = ReportStorage.getReport(context, run.reportId) ?: return
         val source = report.agents.firstOrNull { it.agentId == pair.sourceAgentId } ?: return
         val aiSettings = appViewModel.uiState.value.aiSettings
-        val cat = "Report meta: ${run.metaPrompt.name}"
+        val cat = "${run.metaPrompt.category}/${run.metaPrompt.name}"
         val sourceCount = report.agents.count {
             it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
         }

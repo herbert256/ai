@@ -2151,13 +2151,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             } catch (e: Exception) {
                 AppLog.w("App", "Failed to fetch models for ${service.id}: ${e.message}")
                 val msg = e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
-                // Match the trace bracketed by withTraceCategory("Retrieve
-                // models list") in ApiDispatch.fetchModelsWithKinds. Filtering
-                // by category as well as timestamp keeps concurrent fetches
-                // from clobbering each other's pointers.
+                // Match the trace bracketed by withTraceCategory("model/list")
+                // in ApiDispatch.fetchModelsWithKinds. Filtering by category
+                // as well as timestamp keeps concurrent fetches from
+                // clobbering each other's pointers.
                 val traceFile = if (ApiTracer.isTracingEnabled) {
                     // Multiple parallel fetches all share the
-                    // "Retrieve models list" category, so the
+                    // "model/list" category, so the
                     // category filter alone could pick a different
                     // provider's trace. Match on hostname too —
                     // the AppService.baseUrl host is the most
@@ -2168,7 +2168,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     ApiTracer.getTraceFiles()
                         .firstOrNull {
                             it.timestamp >= startedAt &&
-                                it.category == "Retrieve models list" &&
+                                it.category == "model/list" &&
                                 (providerHost == null || it.hostname.equals(providerHost, ignoreCase = true))
                         }
                         ?.filename

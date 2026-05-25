@@ -168,7 +168,7 @@ suspend fun AnalysisRepository.fetchModelsWithKinds(
 ): FetchedModels = withContext(Dispatchers.IO) {
     AppLog.d("ApiDispatch", "fetchModels ${service.id} fmt=${service.apiFormat}")
     val t0 = System.currentTimeMillis()
-    withTraceCategory("Retrieve models list") {
+    withTraceCategory("model/list") {
         val result = withApiCallTimeout {
             when (service.apiFormat) {
                 ApiFormat.ANTHROPIC -> fetchModelsAnthropic(service, apiKey)

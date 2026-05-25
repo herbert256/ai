@@ -172,7 +172,9 @@ fun ModelInfoViewScreen(
             var found: HuggingFaceModelInfo? = null
             for (cand in variants) {
                 try {
-                    val resp = ApiFactory.createHuggingFaceApi().getModelInfo(cand, "Bearer $huggingFaceApiKey")
+                    val resp = withTraceCategory("info/huggingface") {
+                        ApiFactory.createHuggingFaceApi().getModelInfo(cand, "Bearer $huggingFaceApiKey")
+                    }
                     if (resp.isSuccessful) { found = resp.body(); break }
                 } catch (_: Exception) {}
             }
@@ -1010,7 +1012,7 @@ private object ModelInfoLookupCache {
             openRouterModels?.let { return it }
         }
         val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
-        val response = api.listModelsDetailed("Bearer $apiKey")
+        val response = withTraceCategory("info/provider") { api.listModelsDetailed("Bearer $apiKey") }
         val models = if (response.isSuccessful) response.body()?.data ?: emptyList() else emptyList()
         this.apiKey = apiKey
         openRouterModels = models

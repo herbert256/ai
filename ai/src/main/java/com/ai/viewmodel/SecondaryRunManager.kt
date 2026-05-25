@@ -67,7 +67,7 @@ class SecondaryRunManager(
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
-                withTracerTags(reportId = reportId, category = "Report rerank (local)") {
+                withTracerTags(reportId = reportId, category = "after/rerank") {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     val responses = report.agents
                         .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
@@ -150,7 +150,7 @@ class SecondaryRunManager(
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
-                withTracerTags(reportId = reportId, category = "${rerankPrompt.category}/${rerankPrompt.name}") {
+                withTracerTags(reportId = reportId, category = "after/rerank") {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
                     val successfulCount = report.agents.count {
@@ -219,7 +219,7 @@ class SecondaryRunManager(
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
-                withTracerTags(reportId = reportId, category = "${moderationPrompt.category}/${moderationPrompt.name}") {
+                withTracerTags(reportId = reportId, category = "after/moderation") {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
                     val successfulCount = report.agents.count {
