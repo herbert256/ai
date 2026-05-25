@@ -105,14 +105,9 @@ fun AiDashboardScreen(
     val droppedLines = remember(liveTick) { AppLog.droppedLineCount }
 
     // ---- live reactive flows ----
-    val runFanOut by appViewModel.runningFanOutPairs.collectAsState()
     val thrFanOut by appViewModel.throttledFanOutPairs.collectAsState()
-    val runIcons by appViewModel.runningFanIconsPairs.collectAsState()
     val thrIcons by appViewModel.throttledFanIconsPairs.collectAsState()
-    val runTitles by appViewModel.runningFanTitlesPairs.collectAsState()
     val thrTitles by appViewModel.throttledFanTitlesPairs.collectAsState()
-    val runSingle by appViewModel.runningSingleSecondaries.collectAsState()
-    val runInfo by appViewModel.runningInfoJobs.collectAsState()
     val cooldowns by ModelCooldownStore.cooldowns.collectAsState()
     val testRun by reportViewModel.modelTestEngine.run.collectAsState()
     val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
@@ -167,12 +162,7 @@ fun AiDashboardScreen(
         ) {
             item { Spacer(Modifier.height(4.dp)) }
 
-            item {
-                LiveActivitySection(
-                    caps, runFanOut, thrFanOut, runIcons, thrIcons,
-                    runTitles, thrTitles, runSingle, runInfo
-                )
-            }
+            item { LiveActivitySection(caps, thrFanOut, thrIcons, thrTitles) }
             item { ThrottleSection(hosts) }
 
             val activeCooldowns = cooldowns.filterValues { it > now }
@@ -248,10 +238,7 @@ fun AiDashboardScreen(
 @Composable
 private fun LiveActivitySection(
     caps: ApiCallCaps.Snapshot,
-    runFanOut: Set<String>, thrFanOut: Set<String>,
-    runIcons: Set<String>, thrIcons: Set<String>,
-    runTitles: Set<String>, thrTitles: Set<String>,
-    runSingle: Set<String>, runInfo: Set<String>,
+    thrFanOut: Set<String>, thrIcons: Set<String>, thrTitles: Set<String>,
 ) {
     val (statusWord, statusColor) = when {
         caps.globalInFlight == 0 -> "Idle" to AppColors.TextDim
@@ -271,33 +258,17 @@ private fun LiveActivitySection(
             )
         }
         Spacer(Modifier.height(8.dp))
-        // Bars fill to permits HELD (cap saturation). For the per-flow caps
-        // a held permit may be parked on a provider's rate-limit gate rather
-        // than running, so the "active" count (matching each Fan-* screen's
-        // Run column) is shown alongside when it's lower than held.
+        // Bars fill to permits in use (cap saturation).
         CapBar("Global", caps.globalInFlight, caps.globalMax)
         CapBar("Report", caps.reportInFlight, caps.reportMax)
         CapBar("Translation", caps.translationInFlight, caps.translationMax)
-        CapBar("Fan-out", caps.fanOutInFlight, caps.fanOutMax, running = runFanOut.size)
-        CapBar("Fan-icons", caps.fanIconsInFlight, caps.fanIconsMax, running = runIcons.size)
-        CapBar("Fan-titles", caps.fanTitlesInFlight, caps.fanTitlesMax, running = runTitles.size)
-        Text(
-            "held = running + waiting on a provider rate-limit",
-            fontSize = 10.sp, color = AppColors.TextTertiary
-        )
+        CapBar("Fan-out", caps.fanOutInFlight, caps.fanOutMax)
+        CapBar("Fan-icons", caps.fanIconsInFlight, caps.fanIconsMax)
+        CapBar("Fan-titles", caps.fanTitlesInFlight, caps.fanTitlesMax)
 
-        Spacer(Modifier.height(8.dp))
-        Text("In flight", fontSize = 11.sp, color = AppColors.TextTertiary)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            StatChip("🌫️", "Fan-out", runFanOut.size, AppColors.Blue)
-            StatChip("🎨", "Icons", runIcons.size, AppColors.Purple)
-            StatChip("🏷️", "Titles", runTitles.size, AppColors.Indigo)
-            StatChip("🔗", "Secondary", runSingle.size, AppColors.Green)
-            StatChip("ℹ️", "Get-info", runInfo.size, AppColors.TextSecondary)
-        }
         val throttled = thrFanOut.size + thrIcons.size + thrTitles.size
         if (throttled > 0) {
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
             Text("Throttled — waiting on a provider rate-limit", fontSize = 11.sp, color = AppColors.Orange)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (thrFanOut.isNotEmpty()) StatChip("🌫️", "Fan-out", thrFanOut.size, AppColors.Orange)
@@ -325,7 +296,7 @@ private fun ThrottleSection(hosts: List<ProviderThrottle.HostThrottleStat>) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(h.host, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
                         Text(
-                            "conc ${h.inUse}/${h.limit}  ·  win ${h.windowCount}/$windowCap",
+                            "con ${h.inUse}/${h.limit}  ·  min ${h.windowCount}/$windowCap",
                             fontSize = 11.sp, color = concColor
                         )
                     }
@@ -519,7 +490,7 @@ private fun SectionCard(emoji: String, title: String, accent: Color, content: @C
 }
 
 @Composable
-private fun CapBar(label: String, inFlight: Int, max: Int, running: Int? = null) {
+private fun CapBar(label: String, inFlight: Int, max: Int) {
     val frac = if (max > 0) (inFlight.toFloat() / max).coerceIn(0f, 1f) else 0f
     val color = when {
         max > 0 && inFlight >= max -> AppColors.Red
@@ -527,16 +498,10 @@ private fun CapBar(label: String, inFlight: Int, max: Int, running: Int? = null)
         inFlight > 0 -> AppColors.Green
         else -> AppColors.TextDim
     }
-    // When some held permits are parked on the per-host gate (running <
-    // held), surface both so this reconciles with the Fan-* screen's Run
-    // count; otherwise just held/max.
-    val valueText =
-        if (running != null && running < inFlight) "$running run · $inFlight/$max held"
-        else "$inFlight/$max"
     Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
-            Text(valueText, fontSize = 12.sp, color = color, fontWeight = FontWeight.Medium)
+            Text("$inFlight/$max", fontSize = 12.sp, color = color, fontWeight = FontWeight.Medium)
         }
         Bar(frac, color)
     }
