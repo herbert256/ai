@@ -21,8 +21,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -210,7 +208,7 @@ fun AiStatisticsScreen(
 
             // Heavy cost breakdowns get their own pages.
             item { LinkCard("💰", "Spend & usage", "Calls, tokens and cost per provider", onNavigateToSpendUsage) }
-            item { LinkCard("🧮", "Costs tier", "Which pricing tier each configured model resolves to", onNavigateToCostsTier) }
+            item { LinkCard("🧮", "Costs tiers", "Pricing tier per model (configured vs runtime) + catalog freshness", onNavigateToCostsTier) }
 
             val agg = aggregates
             if (agg == null) {
@@ -349,15 +347,13 @@ fun AiCostsTierScreen(
     val context = LocalContext.current
     val uiState by appViewModel.uiState.collectAsState()
     val refreshTick = resumeRefreshTick()
-    // Configuration = every configured model; Runtime = only the models that
-    // were actually called, read from the API traces.
-    var runtime by rememberSaveable { mutableStateOf(false) }
-    val tierCounts by produceState<Map<String, Int>?>(null, refreshTick, runtime) {
-        value = null
-        value = if (runtime) computeTierCountsRuntime(context)
-                else computeTierCounts(context, uiState.aiSettings)
+    // Two columns side by side: Config = every configured model; Runtime =
+    // only the models actually called (read from the API traces).
+    val tierData by produceState<Pair<Map<String, Int>, Map<String, Int>>?>(null, refreshTick) {
+        val config = computeTierCounts(context, uiState.aiSettings)
+        val runtime = computeTierCountsRuntime(context)
+        value = config to runtime
     }
-    // Pricing-cache catalog table — independent of the tier mode.
     val pricing by produceState<Pair<List<PricingCache.CatalogStat>, Int>?>(null, refreshTick) {
         value = withContext(Dispatchers.IO) {
             PricingCache.catalogStats(context) to PricingCache.getAllManualPricing(context).size
@@ -371,54 +367,28 @@ fun AiCostsTierScreen(
     ) {
         TitleBar(
             helpTopic = "ai_costs_tier",
-            title = "Costs tier",
+            title = "Costs tiers",
             subject = "Pricing tier per model + catalog freshness",
             onBackClick = onBack,
             reportIcon = "🧮", reportIconGoesHome = true
         )
         Spacer(Modifier.height(8.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ModeButton("Configuration", selected = !runtime, modifier = Modifier.weight(1f)) { runtime = false }
-            ModeButton("Runtime", selected = runtime, modifier = Modifier.weight(1f)) { runtime = true }
-        }
-        Spacer(Modifier.height(8.dp))
         LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             item { Spacer(Modifier.height(4.dp)) }
             item {
-                val tc = tierCounts
-                if (tc == null) {
+                val td = tierData
+                if (td == null) {
                     Text(
-                        if (runtime) "Loading… (reading API traces)" else "Loading… (checking every configured model)",
+                        "Loading… (checking every configured model + reading API traces)",
                         color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)
                     )
                 } else {
-                    CostTierSection(
-                        tierCounts = tc,
-                        subtitle = if (runtime) "Tier of each model actually called (from API traces)"
-                                   else "Tier each configured model resolves to",
-                        totalLabel = if (runtime) "Models called" else "Total models"
-                    )
+                    CostTierSection(config = td.first, runtime = td.second)
                 }
             }
             pricing?.let { (cats, overrides) -> item { PricingSection(cats, overrides) } }
             item { Spacer(Modifier.height(24.dp)) }
         }
-    }
-}
-
-@Composable
-private fun ModeButton(label: String, selected: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = modifier,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (selected) AppColors.Blue else AppColors.CardBackgroundAlt
-        )
-    ) {
-        Text(
-            label, fontSize = 13.sp, maxLines = 1, softWrap = false,
-            color = if (selected) Color.White else AppColors.TextSecondary
-        )
     }
 }
 
@@ -619,16 +589,37 @@ private fun KnowledgeSection(agg: DashboardAggregates) {
 }
 
 @Composable
-private fun CostTierSection(tierCounts: Map<String, Int>, subtitle: String, totalLabel: String) {
-    SectionCard("🧮", "Costs tier", AppColors.Blue) {
-        Text(subtitle, fontSize = 10.sp, color = AppColors.TextTertiary)
+private fun CostTierSection(config: Map<String, Int>, runtime: Map<String, Int>) {
+    SectionCard("🧮", "Costs tiers", AppColors.Blue) {
+        Text(
+            "Pricing tier per model — Config = configured catalog, Runtime = actually called (API traces)",
+            fontSize = 10.sp, color = AppColors.TextTertiary
+        )
         Spacer(Modifier.height(6.dp))
-        val total = tierCounts.values.sum()
-        tierCounts.forEach { (src, count) ->
-            KeyVal(tierLabel(src), "$count", if (count > 0) Color.White else AppColors.TextDim)
+        // Header
+        Row(Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
+            Text("Tier", fontSize = 10.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1.6f))
+            Text("Config", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+            Text("Runtime", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+        }
+        // Union of keys, config order first (both seed PRICING_TIER_ORDER).
+        val keys = (config.keys + runtime.keys)
+        keys.forEach { src ->
+            val cfg = config[src] ?: 0
+            val rt = runtime[src] ?: 0
+            val active = cfg > 0 || rt > 0
+            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(tierLabel(src), fontSize = 12.sp, color = if (active) Color.White else AppColors.TextDim, maxLines = 1, modifier = Modifier.weight(1.6f))
+                Text("$cfg", fontSize = 12.sp, color = if (cfg > 0) AppColors.TextSecondary else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+                Text("$rt", fontSize = 12.sp, color = if (rt > 0) AppColors.TextSecondary else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+            }
         }
         Spacer(Modifier.height(4.dp))
-        KeyVal(totalLabel, "$total", AppColors.TextSecondary)
+        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+            Text("Total models", fontSize = 12.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1.6f))
+            Text("${config.values.sum()}", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+            Text("${runtime.values.sum()}", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+        }
     }
 }
 

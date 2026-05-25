@@ -623,7 +623,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Lifetime aggregate stats, re-read from disk on resume and every ~10 s. Opened from the home 📈 AI Statistics card. Live runtime state is on the separate 📡 AI Live Dashboard screen. The two heavy cost breakdowns each live on their own page (links at the top) so this screen stays light."),
             HelpCard("💰 Spend & usage →", "Link to its own page: calls / tokens / cost summary over expandable per-provider cards, model→Model Info drill-in, and the 🧹 clear-stats action. On its own page because it runs getPricing per used model."),
-            HelpCard("🧮 Costs tier →", "Link to its own page: for every configured model, which pricing tier getPricing would pick, counted per tier. On its own page because it runs getPricing for the whole catalog."),
+            HelpCard("🧮 Costs tiers →", "Link to its own page: which pricing tier getPricing picks for each model, counted per tier — Config (configured catalog) vs Runtime (actually called) side by side — plus the pricing-cache catalog table. On its own page because it runs getPricing for the whole catalog."),
             HelpCard("📋 Reports", "Lifetime totals: total / running / problems / completed reports, total agent calls, error rate (errored agent calls), stopped agents, and total report spend. Running/problems use the same predicates as the AI Reports hub."),
             HelpCard("🔗 Secondary results", "Counts of every stored secondary by kind (Rerank / Meta / Moderation / Translate) plus the top meta-prompt names."),
             HelpCard("🔌 Providers & models", "Providers configured, how many have an API key, total models across providers, and model-list cache freshness (cached / stale > 7 days)."),
@@ -642,10 +642,10 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "ai_costs_tier" to HelpContent(
-        title = "Help - Costs tier",
+        title = "Help - Costs tiers",
         cards = listOf(
             HelpCard("Overview", "Which pricing tier PricingCache.getPricing resolves each model to, counted per tier. Reached from AI Statistics; runs getPricing per model, so it's computed only when opened."),
-            HelpCard("Configuration / Runtime", "Two modes. Configuration = every configured model in each provider's catalog. Runtime = only the DISTINCT (provider, model) pairs that were actually called, read from the API traces (host → provider, plus the recorded model). Runtime mirrors Configuration but over what really happened."),
+            HelpCard("Config / Runtime columns", "Two columns side by side. Config = every configured model in each provider's catalog. Runtime = only the DISTINCT (provider, model) pairs that were actually called, read from the API traces (host → provider, plus the recorded model). Runtime mirrors Config but over what really happened."),
             HelpCard("Tiers", "Listed by the source tag the lookup returns: Manual override, LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Together, Helicone, then the 25/75 default fallback for models no catalog covers."),
             HelpCard("25/75 default", "A big default count means those models have no real catalog price and would bill at the $25/$75-per-million placeholder. Add a manual override or refresh catalogs to fix."),
             HelpCard("🏷️ Pricing cache", "Below the tiers: a table of the six external pricing info-providers (LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Helicone) with each catalog's entry count and when it was last retrieved ('never' if not yet fetched), plus the number of manual cost overrides on file. These catalogs are exactly what feeds the tier resolution above. Refresh them from Housekeeping → Costs maintenance."),
