@@ -202,8 +202,8 @@ fun AiStatisticsScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
-            item { LinkCard("📋", "Statistics - Reports", "Reports + secondary results totals", onNavigateToReports) }
-            item { LinkCard("🔌", "Statistics - Providers / Models", "Providers, models and catalog freshness", onNavigateToProviders) }
+            item { LinkCard("📋", "Reports", "Reports + secondary results totals", onNavigateToReports) }
+            item { LinkCard("🔌", "Providers / Models", "Providers, models and catalog freshness", onNavigateToProviders) }
             item { LinkCard("💰", "Spend & usage", "Calls, tokens and cost per provider", onNavigateToSpendUsage) }
             item { LinkCard("🧮", "Costs tiers", "Pricing tier per model + catalog freshness", onNavigateToCostsTier) }
             kb?.let { if (it.kbCount > 0) item { KnowledgeSection(it) } }
@@ -236,7 +236,7 @@ fun AiStatReportsScreen(
     ) {
         TitleBar(
             helpTopic = "ai_stat_reports",
-            title = "Statistics - Reports",
+            title = "Reports",
             subject = "Reports and secondary results",
             onBackClick = onBack,
             reportIcon = "📈",
@@ -280,7 +280,7 @@ fun AiStatProvidersScreen(
     ) {
         TitleBar(
             helpTopic = "ai_stat_providers",
-            title = "Statistics - Providers / Models",
+            title = "Providers / Models",
             subject = "Providers, models and catalog freshness",
             onBackClick = onBack,
             reportIcon = "📈",

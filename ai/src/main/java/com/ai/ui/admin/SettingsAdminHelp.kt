@@ -622,15 +622,15 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - AI Statistics",
         cards = listOf(
             HelpCard("Overview", "A hub of lifetime-stat pages. Opened from the home 📈 AI Statistics card; live runtime state is on the separate 📡 AI Live Dashboard. Each heavier breakdown is its own page (the link cards), so they only compute when opened; only the cheap Knowledge totals show inline."),
-            HelpCard("📋 Statistics - Reports →", "Own page: report totals (running / problems / completed, agent calls, error rate, spend) and secondary-result counts by kind."),
-            HelpCard("🔌 Statistics - Providers / Models →", "Own page: providers configured / with key, total models, and model-list cache freshness."),
+            HelpCard("📋 Reports →", "Own page: report totals (running / problems / completed, agent calls, error rate, spend) and secondary-result counts by kind."),
+            HelpCard("🔌 Providers / Models →", "Own page: providers configured / with key, total models, and model-list cache freshness."),
             HelpCard("💰 Spend & usage →", "Own page: calls / tokens / cost over expandable per-provider cards, model→Model Info drill-in, and 🧹 clear-stats. Runs getPricing per used model."),
             HelpCard("🧮 Costs tiers →", "Own page: which pricing tier each model resolves to (Config vs Runtime columns) plus the pricing-cache catalog table."),
             HelpCard("📚 Knowledge", "Knowledge-base count, total chunks, indexed character count, failed sources, and a breakdown of sources by type. Shown inline; hidden when there are no knowledge bases."),
         )
     ),
     "ai_stat_reports" to HelpContent(
-        title = "Help - Statistics - Reports",
+        title = "Help - Reports",
         cards = listOf(
             HelpCard("Overview", "Report + secondary-result lifetime totals, re-read from disk on resume and every ~10 s. Reached from AI Statistics."),
             HelpCard("📋 Reports", "Total / running / problems / completed reports, total agent calls, error rate (errored agent calls), stopped agents, and total report spend. Running/problems use the same predicates as the AI Reports hub."),
@@ -639,7 +639,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "ai_stat_providers" to HelpContent(
-        title = "Help - Statistics - Providers / Models",
+        title = "Help - Providers / Models",
         cards = listOf(
             HelpCard("Overview", "Provider / model counts and model-list cache freshness. Reached from AI Statistics."),
             HelpCard("🔌 Providers & models", "Providers configured, how many have an API key, total models across providers, and model-list cache freshness (cached, plus how many are stale > 7 days)."),
