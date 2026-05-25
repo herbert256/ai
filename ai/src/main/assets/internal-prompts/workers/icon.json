@@ -1,0 +1,25 @@
+{
+  "name": "icon",
+  "title": "Decide an icon for a given title",
+  "reference": false,
+  "workers":
+    [
+      {
+        "agent": "OpenAI",
+        "provider": "*N/A",
+        "model": "*N/A"
+      },
+      {
+        "agent": "*N/A",
+        "provider": "OpenAI",
+        "model": "gpt-4o-mini"
+      },
+      {
+        "agent": "DeepSeek",
+        "provider": "*N/A",
+        "model": "*N/A"
+      }
+    ],
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

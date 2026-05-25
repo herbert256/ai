@@ -245,7 +245,23 @@ data class InternalPrompt(
      *  agent/flock/swarm/provider/app-wide levels — unless a runtime
      *  🌡️/🎭 pick was made on the model-selection screen. */
     val parameters: String = "*NONE",
-    val systemPrompt: String = "*NONE"
+    val systemPrompt: String = "*NONE",
+    /** Only used by the "workers" category: an ordered list of worker
+     *  selections (intended as a fallback chain). Each [Worker] is one
+     *  (agent) OR (provider+model) pick — the same two resolution modes
+     *  as [agent] vs [provider]/[model]. Empty for every other
+     *  category. Execution is not wired yet. */
+    val workers: List<Worker> = emptyList()
+)
+
+/** One entry in a "workers"-category prompt's chain. Either an [agent]
+ *  name (with [provider]/[model] left as the "*N/A" sentinel) or a
+ *  pinned [provider]+[model] (with [agent] = "*N/A"). Stored verbatim;
+ *  execution semantics are intentionally not wired yet. */
+data class Worker(
+    val agent: String = "*N/A",
+    val provider: String = "*N/A",
+    val model: String = "*N/A"
 )
 
 /** Stand-alone example prompt — pure (title, text) pair the user

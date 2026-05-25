@@ -317,6 +317,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Fan out/in prompts", "Opens the dedicated sub-hub with the fan_out / fan_in / fan-in-model categories."),
             HelpCard("Icons prompts", "category=\"icons\". The bundled icon-chain prompts (report icon, fan-out icon, internal-prompt icon, translation icon). Edit-only — can't be added to or removed."),
             HelpCard("Other internal prompts", "category=\"internal\". Templates consumed by app features (Translate, Model info, Intro). Last on the page so the more commonly-edited buckets sit at the top."),
+            HelpCard("Worker prompts", "category=\"workers\". Prompts that carry an ordered list of workers (each an Agent or a Provider+Model) tried as a fallback chain. Edit-only; the chain isn't executed yet — wiring comes later."),
             HelpCard("Counts", "Each card's badge is the live count of prompts in that category (or the sum across the three fan-* categories for Fan out/in)."),
         )
     ),
@@ -356,6 +357,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Name / Title", "Name is unique within the category. Title is a short tag shown alongside the name on Fan out; optional. For Other internal the Name is read-only."),
             HelpCard("Append reference legend", "Switch — adds a [N] = Provider / Model footer to the response."),
             HelpCard("Agent dropdown", "*select = ask the user at run time (legacy default). *n/a = no agent applies (fan_out only). Anything else = the named agent in Settings.agents resolved at run time."),
+            HelpCard("Worker prompts", "For the Workers category the single Agent / Provider+Model picker is replaced by an ordered list of workers — each row is one Agent OR one Provider+Model pick. They're intended as a fallback chain (try worker 1, then 2, …). Add / remove rows with the buttons; the running of the chain is not wired yet."),
             HelpCard("Template body", "8–22 visible lines. Helper text lists the placeholders allowed: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@ (meta); @RESPONSE@/@QUESTION@/@TITLE@/@DATE@/@COUNT@ (fan_out); @COUNT@, @FAN_OUT_COUNT@, the iterable @REPORT@@RESPONSES@ block with @RESPONSE@ inside (fan_in)."),
             HelpCard("Pitfalls", "If you deep-link into edit before aiSettings has bootstrapped, the screen shows a \"Loading…\" placeholder and re-keys when the prompt id resolves — saving an empty form there would silently create a duplicate, so it is blocked.")
         )

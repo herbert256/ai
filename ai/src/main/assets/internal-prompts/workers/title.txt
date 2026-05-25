@@ -1,0 +1,3 @@
+Please read the text below, and give it a title, maximum 4 words, maximum 25 characters, return only the title, nothing else.
+
+@RESPONSE@

@@ -26,9 +26,11 @@ private sealed interface Mode {
 
 /**
  * Uniform CRUD for the internal prompts of one [category]
- * (meta / fan_out / fan_in / fan-in-model / icons / internal). The
- * `internal` and `icons` categories are FIXED lists: rows are editable
- * but can't be added, copied or deleted (they're built-in templates).
+ * (meta / fan_out / fan_in / fan-in-model / icons / internal / info /
+ * workers). The `internal`, `icons`, `info` and `workers` categories are
+ * FIXED lists: rows are editable but can't be added, copied or deleted
+ * (they're built-in templates). `workers` rows additionally carry a
+ * worker list, edited via the worker-list editor.
  *
  * Edit/add reuse the existing rich [InternalPromptEditScreen].
  */
@@ -101,7 +103,12 @@ fun InternalPromptCrud(
             CrudField("Name", m.item.name)
             if (m.item.title.isNotBlank()) CrudField("Title", m.item.title)
             CrudField("Category", categoryDisplayName(m.item.category))
-            if (!m.item.provider.isNullOrBlank() && !m.item.model.isNullOrBlank())
+            if (m.item.workers.isNotEmpty())
+                CrudField("Workers", m.item.workers.mapIndexed { i, w ->
+                    val pick = if (w.agent != "*N/A" && w.agent.isNotBlank()) w.agent else "${w.provider} / ${w.model}"
+                    "${i + 1}. $pick"
+                }.joinToString("\n"))
+            else if (!m.item.provider.isNullOrBlank() && !m.item.model.isNullOrBlank())
                 CrudField("Provider / Model", "${m.item.provider} / ${m.item.model}")
             else if (m.item.agent.isNotBlank() && m.item.agent != "*select" && m.item.agent != "*n/a")
                 CrudField("Agent", m.item.agent)

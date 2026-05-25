@@ -1,0 +1,3 @@
+Please choose a fitting emoji for the text below, return only one emoji, do not include any other text.
+
+@TITLE@

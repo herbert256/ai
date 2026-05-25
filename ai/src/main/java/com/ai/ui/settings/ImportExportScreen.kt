@@ -71,6 +71,9 @@ private fun promptEntry(p: InternalPrompt): Map<String, Any> = linkedMapOf<Strin
     // Per-prompt Parameters / System-prompt preset NAMES (skip "*NONE").
     p.parameters.takeIf { it != "*NONE" && it.isNotBlank() }?.let { put("parameters", it) }
     p.systemPrompt.takeIf { it != "*NONE" && it.isNotBlank() }?.let { put("systemPrompt", it) }
+    // "workers" category only: emit the worker chain. Gson serialises the
+    // List<Worker>; other categories keep their original shape.
+    p.workers.takeIf { it.isNotEmpty() }?.let { put("workers", it) }
 }
 
 /** Apply Workers sections (agents / flocks / swarms) from a parsed

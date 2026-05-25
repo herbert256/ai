@@ -63,6 +63,7 @@ fun categoryDisplayName(category: String): String = when (category) {
     "internal" -> "Other internal prompts"
     "info" -> "Info prompts"
     "icons" -> "Icons prompts"
+    "workers" -> "Worker prompts"
     else -> category
 }
 
@@ -70,7 +71,7 @@ fun categoryDisplayName(category: String): String = when (category) {
  *  Delete). Single source of truth so the CRUD gating can't drift from the
  *  category definitions above. */
 fun isFixedListCategory(category: String): Boolean =
-    category == "internal" || category == "icons" || category == "info"
+    category == "internal" || category == "icons" || category == "info" || category == "workers"
 
 /** Singular label for a single [InternalPrompt.category] entry — used
  *  for View-page titles and delete-confirm copy. Carried explicitly per
@@ -85,6 +86,7 @@ fun categorySingularName(category: String): String = when (category) {
     "internal" -> "Internal prompt"
     "info" -> "Info prompt"
     "icons" -> "Icon prompt"
+    "workers" -> "Worker prompt"
     else -> category
 }
 @Composable
@@ -106,8 +108,9 @@ fun InternalPromptEditScreen(
     val isEditing = internalPrompt != null
     val isFanCategory = fixedCategory in FAN_CATEGORIES
     // Other Internal prompts (intro / model_info / translate / rerank
-    // / moderation) are a fixed list — name is not user-editable.
-    val isFixedList = fixedCategory == "internal" || fixedCategory == "icons" || fixedCategory == "info"
+    // / moderation), icons, info and workers are fixed lists — name is
+    // not user-editable. Single source of truth so gating can't drift.
+    val isFixedList = isFixedListCategory(fixedCategory)
 
     var resetTick by remember { mutableStateOf(0) }
     var name by remember(resetTick) { mutableStateOf(internalPrompt?.name ?: "") }
@@ -140,6 +143,10 @@ fun InternalPromptEditScreen(
     var model by remember(resetTick) { mutableStateOf(internalPrompt?.model ?: "") }
     var providerDialogOpen by remember { mutableStateOf(false) }
     var modelDialogOpen by remember { mutableStateOf(false) }
+    // "workers" category: an ordered list of worker rows replaces the
+    // single agent / provider+model picker. Execution is not wired yet.
+    val isWorkers = category.equals("workers", ignoreCase = true)
+    var workers by remember(resetTick) { mutableStateOf(internalPrompt?.workers ?: emptyList()) }
     // Per-prompt Parameters / System-prompt preset NAMES ("*NONE" = unset).
     var selectedParametersName by remember(resetTick) { mutableStateOf(internalPrompt?.parameters ?: "*NONE") }
     var selectedSystemPromptName by remember(resetTick) { mutableStateOf(internalPrompt?.systemPrompt ?: "*NONE") }
@@ -224,12 +231,13 @@ fun InternalPromptEditScreen(
                 onSave(
                     InternalPrompt(
                         id = id, name = name.trim(), reference = reference, category = category,
-                        agent = if (pmActive) AGENT_SELECT else agent,
+                        agent = if (isWorkers) AGENT_SELECT else if (pmActive) AGENT_SELECT else agent,
                         text = text, title = title.trim(),
-                        provider = if (pmActive) providerId else null,
-                        model = if (pmActive) model else null,
+                        provider = if (!isWorkers && pmActive) providerId else null,
+                        model = if (!isWorkers && pmActive) model else null,
                         parameters = selectedParametersName,
-                        systemPrompt = selectedSystemPromptName
+                        systemPrompt = selectedSystemPromptName,
+                        workers = if (isWorkers) workers else emptyList()
                     )
                 )
             },
@@ -278,6 +286,7 @@ fun InternalPromptEditScreen(
                 }
             }
 
+          if (!isWorkers) {
             SectionCard {
                 Text("Run on", fontSize = 12.sp, color = AppColors.TextTertiary)
                 // Either/or: bind to a named Agent, or pin a Provider +
@@ -395,6 +404,33 @@ fun InternalPromptEditScreen(
                     )
                 } else modelDialogOpen = false
             }
+          } else {
+            // Workers category: edit an ordered list of worker rows
+            // (each one agent OR provider+model). Intended as a fallback
+            // chain; execution is not wired yet.
+            SectionCard {
+                Text("Workers — ordered fallback chain", fontSize = 12.sp, color = AppColors.TextTertiary)
+                if (workers.isEmpty()) {
+                    Text("No workers yet — add at least one.", fontSize = 12.sp, color = AppColors.TextDim)
+                }
+                workers.forEachIndexed { idx, w ->
+                    WorkerRowEditor(
+                        index = idx,
+                        worker = w,
+                        agentNames = agentNames,
+                        aiSettings = aiSettings,
+                        onChange = { nw -> workers = workers.toMutableList().also { it[idx] = nw } },
+                        onRemove = { workers = workers.toMutableList().also { it.removeAt(idx) } }
+                    )
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { workers = workers + Worker(agent = AGENT_SELECT) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text("+ Add worker", fontSize = 13.sp) }
+            }
+          }
 
             // Per-prompt Parameters / System-prompt presets. When set,
             // these override the agent/flock/swarm/provider/app-wide
@@ -455,5 +491,130 @@ fun InternalPromptEditScreen(
             }
         }
 
+    }
+}
+
+/** One editable worker row for the "workers" category. Mode is derived
+ *  from the worker, not held as separate state, so add/remove can't
+ *  desync: `agent == "*N/A"` ⇒ Provider+Model mode, otherwise Agent
+ *  mode. Each user action emits a fresh normalised [Worker] via
+ *  [onChange]. Reuses the same controls as the single-prompt editor. */
+@Composable
+private fun WorkerRowEditor(
+    index: Int,
+    worker: Worker,
+    agentNames: List<String>,
+    aiSettings: Settings,
+    onChange: (Worker) -> Unit,
+    onRemove: () -> Unit
+) {
+    val pmMode = worker.agent == "*N/A"
+    var agentMenuOpen by remember { mutableStateOf(false) }
+    var providerDialogOpen by remember { mutableStateOf(false) }
+    var modelDialogOpen by remember { mutableStateOf(false) }
+    val providerId = worker.provider.takeIf { it != "*N/A" } ?: ""
+    val model = worker.model.takeIf { it != "*N/A" } ?: ""
+
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Worker ${index + 1}", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
+                TextButton(onClick = onRemove) { Text("✕ Remove", fontSize = 12.sp, color = AppColors.Red) }
+            }
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = !pmMode,
+                    onClick = { onChange(Worker(agent = AGENT_SELECT)) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                ) { Text("Agent", fontSize = 13.sp) }
+                SegmentedButton(
+                    selected = pmMode,
+                    onClick = { onChange(Worker(agent = "*N/A")) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                ) { Text("Provider + Model", fontSize = 13.sp) }
+            }
+            if (!pmMode) {
+                Box {
+                    OutlinedButton(
+                        onClick = { agentMenuOpen = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedButtonColors()
+                    ) {
+                        Text(
+                            worker.agent, modifier = Modifier.weight(1f), fontSize = 13.sp,
+                            color = if (worker.agent == AGENT_SELECT) AppColors.TextTertiary else Color.White,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text("▾", color = AppColors.TextTertiary)
+                    }
+                    DropdownMenu(
+                        expanded = agentMenuOpen,
+                        onDismissRequest = { agentMenuOpen = false },
+                        modifier = Modifier.background(Color(0xFF2D2D2D))
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(AGENT_SELECT, fontSize = 13.sp, color = if (worker.agent == AGENT_SELECT) AppColors.Blue else Color.White) },
+                            onClick = { onChange(Worker(agent = AGENT_SELECT)); agentMenuOpen = false }
+                        )
+                        agentNames.sortedBy { it.lowercase() }.forEach { n ->
+                            DropdownMenuItem(
+                                text = { Text(n, fontSize = 13.sp, color = if (worker.agent == n) AppColors.Blue else Color.White) },
+                                onClick = { onChange(Worker(agent = n)); agentMenuOpen = false }
+                            )
+                        }
+                    }
+                }
+            } else {
+                OutlinedButton(
+                    onClick = { providerDialogOpen = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = AppColors.outlinedButtonColors()
+                ) {
+                    Text(
+                        providerId.ifBlank { "Select provider…" }, modifier = Modifier.weight(1f), fontSize = 13.sp,
+                        color = if (providerId.isBlank()) AppColors.TextTertiary else Color.White,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text("▾", color = AppColors.TextTertiary)
+                }
+                OutlinedButton(
+                    onClick = { modelDialogOpen = true },
+                    enabled = providerId.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = AppColors.outlinedButtonColors()
+                ) {
+                    Text(
+                        model.ifBlank { "Select model…" }, modifier = Modifier.weight(1f), fontSize = 13.sp,
+                        color = if (model.isBlank()) AppColors.TextTertiary else Color.White,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Text("▾", color = AppColors.TextTertiary)
+                }
+            }
+        }
+    }
+    if (providerDialogOpen) {
+        com.ai.ui.report.start.ReportSelectProviderDialog(
+            aiSettings = aiSettings,
+            onSelectProvider = { svc ->
+                onChange(Worker(agent = "*N/A", provider = svc.id, model = "*N/A"))  // new provider clears the model
+                providerDialogOpen = false
+            },
+            onDismiss = { providerDialogOpen = false }
+        )
+    }
+    if (modelDialogOpen) {
+        val svc = com.ai.data.AppService.findById(providerId)
+        if (svc != null) {
+            com.ai.ui.report.start.ReportSelectModelDialog(
+                provider = svc,
+                aiSettings = aiSettings,
+                onSelectModel = { m -> onChange(Worker(agent = "*N/A", provider = providerId, model = m)); modelDialogOpen = false },
+                onDismiss = { modelDialogOpen = false }
+            )
+        } else modelDialogOpen = false
     }
 }

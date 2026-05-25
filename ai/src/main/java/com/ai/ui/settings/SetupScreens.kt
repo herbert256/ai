@@ -227,7 +227,8 @@ fun PromptsSetupScreen(
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
         val internalTotal = countByCategory("meta") + countByCategory("fan_out") +
             countByCategory("fan_in") + countByCategory("fan-in-model") +
-            countByCategory("icons") + countByCategory("internal")
+            countByCategory("icons") + countByCategory("internal") +
+            countByCategory("info") + countByCategory("workers")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
@@ -277,6 +278,8 @@ fun InternalPromptsHubScreen(
                 onClick = { onOpenInternalPrompts("icons") })
             ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Intro)", "${countByCategory("internal")}",
                 onClick = { onOpenInternalPrompts("internal") })
+            ModelsSetupNavCard("👷", "Worker prompts", "Prompts that run on an ordered list of workers (agent or provider+model) tried as a fallback chain. Edit-only — wiring comes later.", "${countByCategory("workers")}",
+                onClick = { onOpenInternalPrompts("workers") })
         }
     }
 }
