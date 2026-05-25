@@ -94,6 +94,8 @@ object NavRoutes {
     const val AI_STAT_REPORTS = "ai_stat_reports"
     const val AI_STAT_PROVIDERS = "ai_stat_providers"
     const val AI_USAGE_PROVIDER = "ai_usage_provider/{providerId}"
+    const val AI_TRACE_STATS = "ai_trace_stats"
+    const val AI_LOG_STATS = "ai_log_stats"
     const val AI_COST_CONFIG = "ai_cost_config"
     const val AI_COSTS_MAINTENANCE = "ai_costs_maintenance"
     const val AI_SETUP = "ai_setup"

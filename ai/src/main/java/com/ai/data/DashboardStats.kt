@@ -413,3 +413,131 @@ internal suspend fun computeKnowledgeStats(context: Context): KnowledgeData = wi
         kbFailed = allSources.count { it.errorMessage != null },
     )
 }
+
+// =====================================================================
+// API trace statistics
+// =====================================================================
+
+internal data class TraceStatsData(
+    val tracingEnabled: Boolean,
+    val total: Int,
+    val partial: Int,
+    val runs: Int,
+    val ok2xx: Int,
+    val rate429: Int,
+    val client4xx: Int,        // 4xx excluding 429
+    val server5xx: Int,
+    val failed0: Int,          // statusCode 0 — transport failure
+    val other: Int,
+    val withReport: Int,
+    val distinctReports: Int,
+    val today: Int,
+    val last7d: Int,
+    val last30d: Int,
+    val oldest: Long?,
+    val newest: Long?,
+    val byHost: List<Pair<String, Int>>,
+    val byModel: List<Pair<String, Int>>,
+    val byCategory: List<Pair<String, Int>>,
+)
+
+private fun <T> top(counts: Map<T, Int>, n: Int): List<Pair<T, Int>> =
+    counts.entries.sortedByDescending { it.value }.take(n).map { it.key to it.value }
+
+/** One pass over the cached trace list. Cheap once the cache is warm. */
+internal suspend fun computeTraceStats(): TraceStatsData = withContext(Dispatchers.IO) {
+    val traces = ApiTracer.getTraceFiles()
+    val now = System.currentTimeMillis()
+    val dayMs = 24L * 60 * 60 * 1000
+    val hosts = HashMap<String, Int>()
+    val models = HashMap<String, Int>()
+    val cats = HashMap<String, Int>()
+    val runs = HashSet<String>()
+    val reports = HashSet<String>()
+    var ok2xx = 0; var r429 = 0; var c4xx = 0; var s5xx = 0; var f0 = 0; var other = 0
+    var partial = 0; var withReport = 0
+    var today = 0; var w7 = 0; var w30 = 0
+    for (t in traces) {
+        when {
+            t.statusCode in 200..299 -> ok2xx++
+            t.statusCode == 429 -> r429++
+            t.statusCode in 400..499 -> c4xx++
+            t.statusCode in 500..599 -> s5xx++
+            t.statusCode == 0 -> f0++
+            else -> other++
+        }
+        if (t.partial) partial++
+        if (t.hostname.isNotBlank()) hosts[t.hostname] = (hosts[t.hostname] ?: 0) + 1
+        t.model?.takeIf { it.isNotBlank() }?.let { models[it] = (models[it] ?: 0) + 1 }
+        cats[t.category?.takeIf { it.isNotBlank() } ?: "(uncategorised)"] = (cats[t.category?.takeIf { it.isNotBlank() } ?: "(uncategorised)"] ?: 0) + 1
+        t.runId?.let { runs.add(it) }
+        t.reportId?.let { withReport++; reports.add(it) }
+        val age = now - t.timestamp
+        if (age < dayMs) today++
+        if (age < 7 * dayMs) w7++
+        if (age < 30 * dayMs) w30++
+    }
+    TraceStatsData(
+        tracingEnabled = ApiTracer.isTracingEnabled,
+        total = traces.size, partial = partial, runs = runs.size,
+        ok2xx = ok2xx, rate429 = r429, client4xx = c4xx, server5xx = s5xx, failed0 = f0, other = other,
+        withReport = withReport, distinctReports = reports.size,
+        today = today, last7d = w7, last30d = w30,
+        oldest = traces.minOfOrNull { it.timestamp }, newest = traces.maxOfOrNull { it.timestamp },
+        byHost = top(hosts, 8), byModel = top(models, 8), byCategory = top(cats, 8),
+    )
+}
+
+// =====================================================================
+// App log statistics
+// =====================================================================
+
+internal data class LogStatsData(
+    val level: String,
+    val writerError: String?,
+    val droppedLines: Long,
+    val fileCount: Int,
+    val totalBytes: Long,
+    val oldestDate: String?,
+    val newestDate: String?,
+    val totalEntries: Int,
+    val byLevel: Map<String, Int>,     // ERROR/WARN/INFO/DEBUG/TRACE seeded
+    val topTags: List<Pair<String, Int>>,
+    val files: List<Pair<String, Long>>,   // (date, sizeBytes), newest first
+)
+
+/** Header line of a log entry: "yyyy-MM-dd HH:mm:ss.SSS LEVEL Tag: message".
+ *  Continuation lines (stack traces) don't match. */
+private val LOG_HEADER = Regex("""^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} (\w+) ([^:\s]+)""")
+private const val LOG_FILES_TO_PARSE = 14
+
+internal suspend fun computeLogStats(): LogStatsData = withContext(Dispatchers.IO) {
+    val files = AppLog.getLogFiles()                 // newest-first
+    val byLevel = linkedMapOf("ERROR" to 0, "WARN" to 0, "INFO" to 0, "DEBUG" to 0, "TRACE" to 0)
+    val tags = HashMap<String, Int>()
+    var entries = 0
+    for (f in files.take(LOG_FILES_TO_PARSE)) {
+        val content = AppLog.readLogFile(f.filename) ?: continue
+        for (line in content.lineSequence()) {
+            val m = LOG_HEADER.find(line) ?: continue
+            entries++
+            val lvl = m.groupValues[1]
+            if (lvl in byLevel) byLevel[lvl] = (byLevel[lvl] ?: 0) + 1
+            val tag = m.groupValues[2]
+            if (tag.isNotBlank()) tags[tag] = (tags[tag] ?: 0) + 1
+        }
+    }
+    LogStatsData(
+        level = AppLog.threshold.name,
+        writerError = AppLog.lastWriterError,
+        droppedLines = AppLog.droppedLineCount,
+        fileCount = files.size,
+        totalBytes = files.sumOf { it.sizeBytes },
+        oldestDate = files.minByOrNull { it.date }?.date,
+        newestDate = files.maxByOrNull { it.date }?.date,
+        totalEntries = entries,
+        byLevel = byLevel,
+        topTags = top(tags, 10),
+        files = files.take(LOG_FILES_TO_PARSE).map { it.date to it.sizeBytes },
+    )
+}

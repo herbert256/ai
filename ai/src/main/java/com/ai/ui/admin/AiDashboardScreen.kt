@@ -51,6 +51,7 @@ import com.ai.data.ApiTracer
 import com.ai.data.AppLog
 import com.ai.data.AppService
 import com.ai.data.KnowledgeData
+import com.ai.data.LogStatsData
 import com.ai.data.ModelCooldownStore
 import com.ai.data.ModelTestRunState
 import com.ai.data.NetworkSettings
@@ -61,8 +62,11 @@ import com.ai.data.ProviderThrottle
 import com.ai.data.ReportSectionData
 import com.ai.data.ReportStats
 import com.ai.data.SecondaryKind
+import com.ai.data.TraceStatsData
 import com.ai.data.UsageGroupsResult
 import com.ai.data.computeKnowledgeStats
+import com.ai.data.computeLogStats
+import com.ai.data.computeTraceStats
 import com.ai.data.computeProviderModelStats
 import com.ai.data.computeReportStats
 import com.ai.data.computeTierCounts
@@ -174,6 +178,8 @@ fun AiStatisticsScreen(
     onNavigateToCostsTier: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
     onNavigateToProviders: () -> Unit = {},
+    onNavigateToTraceStats: () -> Unit = {},
+    onNavigateToLogStats: () -> Unit = {},
     onHousekeeping: (() -> Unit)? = null,
 ) {
     BackHandler { onBack() }
@@ -209,10 +215,178 @@ fun AiStatisticsScreen(
             item { LinkCard("🔌", "Providers / Models", "Providers, models and catalog freshness", onNavigateToProviders) }
             item { LinkCard("💰", "Spend & usage", "Calls, tokens and cost per provider", onNavigateToSpendUsage) }
             item { LinkCard("🧮", "Costs tiers", "Pricing tier per model + catalog freshness", onNavigateToCostsTier) }
+            item { LinkCard("🐞", "API trace statistics", "Status, hosts, models, categories", onNavigateToTraceStats) }
+            item { LinkCard("📜", "App log statistics", "Levels, tags, files, writer health", onNavigateToLogStats) }
             kb?.let { if (it.kbCount > 0) item { KnowledgeSection(it) } }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
+}
+
+/** API trace statistics — aggregate view over the API traces. */
+@Composable
+fun AiTraceStatsScreen(
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateToStatistics: () -> Unit = {},
+) {
+    BackHandler { onBack() }
+    val refreshTick = resumeRefreshTick()
+    val d by produceState<TraceStatsData?>(null, refreshTick) { value = computeTraceStats() }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_trace_stats", title = "API trace statistics", subject = "What hit the network",
+            onBackClick = onBack, reportIcon = "📈",
+            onReportIconClick = onNavigateToStatistics, onTitleClick = onNavigateToStatistics
+        )
+        val s = d
+        when {
+            s == null -> Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            s.total == 0 -> Text(
+                if (s.tracingEnabled) "No API traces recorded yet."
+                else "No API traces. Tracing is OFF — enable it in Settings → API tracing to collect them.",
+                color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)
+            )
+            else -> LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { Spacer(Modifier.height(4.dp)) }
+                item {
+                    SectionCard("🐞", "Overview", AppColors.Indigo) {
+                        KeyVal("Tracing", if (s.tracingEnabled) "on" else "off", if (s.tracingEnabled) AppColors.Green else AppColors.Orange)
+                        KeyVal("Total traces", "${s.total}")
+                        KeyVal("Distinct runs", "${s.runs}")
+                        if (s.partial > 0) KeyVal("Partial (streaming)", "${s.partial}", AppColors.TextSecondary)
+                    }
+                }
+                item {
+                    SectionCard("📡", "Status", AppColors.Blue) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("✅", "2xx", s.ok2xx, AppColors.Green)
+                            StatChip("🚧", "429", s.rate429, if (s.rate429 > 0) AppColors.Orange else AppColors.TextDim)
+                            StatChip("⚠️", "4xx", s.client4xx, if (s.client4xx > 0) AppColors.Orange else AppColors.TextDim)
+                            StatChip("🔥", "5xx", s.server5xx, if (s.server5xx > 0) AppColors.Red else AppColors.TextDim)
+                            StatChip("💥", "Failed", s.failed0, if (s.failed0 > 0) AppColors.Red else AppColors.TextDim)
+                            StatChip("▫️", "Other", s.other, AppColors.TextDim)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        val rate = if (s.total > 0) s.ok2xx * 100.0 / s.total else 0.0
+                        KeyVal("Success rate", String.format(Locale.US, "%.1f%%", rate),
+                            if (rate >= 90) AppColors.Green else if (rate >= 70) AppColors.Orange else AppColors.Red)
+                        Bar(if (s.total > 0) s.ok2xx.toFloat() / s.total else 0f, AppColors.Green)
+                    }
+                }
+                if (s.byHost.isNotEmpty()) item {
+                    SectionCard("🌐", "Top hosts", AppColors.Green) { s.byHost.forEach { (h, c) -> KeyVal(h, "$c") } }
+                }
+                if (s.byModel.isNotEmpty()) item {
+                    SectionCard("🧠", "Top models", AppColors.Purple) { s.byModel.forEach { (m, c) -> KeyVal(com.ai.ui.shared.shortModelName(m), "$c") } }
+                }
+                if (s.byCategory.isNotEmpty()) item {
+                    SectionCard("🏷️", "Top categories", AppColors.Indigo) { s.byCategory.forEach { (cat, c) -> KeyVal(cat, "$c") } }
+                }
+                item {
+                    SectionCard("🗓️", "Activity", AppColors.Blue) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("☀️", "Today", s.today, AppColors.Green)
+                            StatChip("📅", "7 days", s.last7d, AppColors.Blue)
+                            StatChip("🗓️", "30 days", s.last30d, AppColors.Indigo)
+                        }
+                        s.newest?.let { Spacer(Modifier.height(4.dp)); KeyVal("Newest", fmtFetched(it)) }
+                        s.oldest?.let { KeyVal("Oldest", fmtFetched(it)) }
+                    }
+                }
+                item {
+                    SectionCard("📋", "Reports", AppColors.Orange) {
+                        KeyVal("Traces tied to a report", "${s.withReport}")
+                        KeyVal("Distinct reports", "${s.distinctReports}")
+                        val avg = if (s.distinctReports > 0) s.withReport.toDouble() / s.distinctReports else 0.0
+                        KeyVal("Avg traces / report", String.format(Locale.US, "%.1f", avg), AppColors.TextSecondary)
+                    }
+                }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+    }
+}
+
+/** App log statistics — aggregate view over the in-app application log. */
+@Composable
+fun AiLogStatsScreen(
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateToStatistics: () -> Unit = {},
+) {
+    BackHandler { onBack() }
+    val refreshTick = resumeRefreshTick()
+    val d by produceState<LogStatsData?>(null, refreshTick) { value = computeLogStats() }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_log_stats", title = "App log statistics", subject = "The in-app log",
+            onBackClick = onBack, reportIcon = "📈",
+            onReportIconClick = onNavigateToStatistics, onTitleClick = onNavigateToStatistics
+        )
+        val s = d
+        when {
+            s == null -> Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            s.fileCount == 0 -> Text("No log files yet.", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            else -> LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { Spacer(Modifier.height(4.dp)) }
+                item {
+                    SectionCard("🩺", "Health", AppColors.Green) {
+                        KeyVal("Log level", s.level)
+                        KeyVal("Writer", if (s.writerError == null) "OK" else "ERROR", if (s.writerError == null) AppColors.Green else AppColors.Red)
+                        if (s.writerError != null) Text(s.writerError, fontSize = 11.sp, color = AppColors.Red)
+                        KeyVal("Dropped lines", "${s.droppedLines}", if (s.droppedLines > 0) AppColors.Orange else Color.White)
+                    }
+                }
+                item {
+                    SectionCard("📊", "By level", AppColors.Indigo) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("❌", "Error", s.byLevel["ERROR"] ?: 0, if ((s.byLevel["ERROR"] ?: 0) > 0) AppColors.Red else AppColors.TextDim)
+                            StatChip("⚠️", "Warn", s.byLevel["WARN"] ?: 0, if ((s.byLevel["WARN"] ?: 0) > 0) AppColors.Orange else AppColors.TextDim)
+                            StatChip("ℹ️", "Info", s.byLevel["INFO"] ?: 0, AppColors.Green)
+                            StatChip("🔧", "Debug", s.byLevel["DEBUG"] ?: 0, AppColors.Blue)
+                            StatChip("🔬", "Trace", s.byLevel["TRACE"] ?: 0, AppColors.TextSecondary)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        KeyVal("Total entries", "${s.totalEntries}")
+                    }
+                }
+                if (s.topTags.isNotEmpty()) item {
+                    SectionCard("🏷️", "Top tags", AppColors.Purple) { s.topTags.forEach { (tag, c) -> KeyVal(tag, "$c") } }
+                }
+                item {
+                    SectionCard("🗂️", "Files", AppColors.Blue) {
+                        KeyVal("Log files", "${s.fileCount}")
+                        KeyVal("Total size", fmtBytes(s.totalBytes))
+                        if (s.oldestDate != null && s.newestDate != null) KeyVal("Date range", "${s.oldestDate} → ${s.newestDate}", AppColors.TextSecondary)
+                        Spacer(Modifier.height(6.dp))
+                        s.files.forEach { (date, bytes) ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(date, fontSize = 12.sp, color = Color.White)
+                                Text(fmtBytes(bytes), fontSize = 12.sp, color = AppColors.TextSecondary)
+                            }
+                        }
+                    }
+                }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+    }
+}
+
+/** Compact byte size — "12 KB", "3.4 MB". */
+private fun fmtBytes(b: Long): String = when {
+    b >= 1_000_000 -> String.format(Locale.US, "%.1f MB", b / 1_000_000.0)
+    b >= 1_000 -> "${b / 1_000} KB"
+    else -> "$b B"
 }
 
 /** Statistics - Reports — report + secondary-result lifetime totals. */

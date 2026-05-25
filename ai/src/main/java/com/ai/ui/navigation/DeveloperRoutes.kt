@@ -44,6 +44,14 @@ internal fun NavGraphBuilder.developerRoutes(
     safePopBack: () -> Unit,
     navigateHome: () -> Unit
 ) {
+        // Icon + title on the Statistics sub-screens jump back to the
+        // AI Statistics screen (popping any existing instance, not stacking).
+        val toStatistics: () -> Unit = {
+            navController.navigate(NavRoutes.AI_STATISTICS) {
+                popUpTo(NavRoutes.AI_STATISTICS) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
         composable(NavRoutes.AI_LIVE_DASHBOARD) {
             AiLiveDashboardScreen(
                 appViewModel = appViewModel,
@@ -57,15 +65,15 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToCostsTier = { navController.navigate(NavRoutes.AI_COSTS_TIER) },
                 onNavigateToReports = { navController.navigate(NavRoutes.AI_STAT_REPORTS) },
                 onNavigateToProviders = { navController.navigate(NavRoutes.AI_STAT_PROVIDERS) },
+                onNavigateToTraceStats = { navController.navigate(NavRoutes.AI_TRACE_STATS) },
+                onNavigateToLogStats = { navController.navigate(NavRoutes.AI_LOG_STATS) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
-        // Icon + title on the Statistics sub-screens jump back to the
-        // AI Statistics screen (popping any existing instance, not stacking).
-        val toStatistics: () -> Unit = {
-            navController.navigate(NavRoutes.AI_STATISTICS) {
-                popUpTo(NavRoutes.AI_STATISTICS) { inclusive = true }
-                launchSingleTop = true
-            }
+        composable(NavRoutes.AI_TRACE_STATS) {
+            AiTraceStatsScreen(onBack = safePopBack, onNavigateHome = navigateHome, onNavigateToStatistics = toStatistics)
+        }
+        composable(NavRoutes.AI_LOG_STATS) {
+            AiLogStatsScreen(onBack = safePopBack, onNavigateHome = navigateHome, onNavigateToStatistics = toStatistics)
         }
         composable(NavRoutes.AI_STAT_REPORTS) {
             AiStatReportsScreen(

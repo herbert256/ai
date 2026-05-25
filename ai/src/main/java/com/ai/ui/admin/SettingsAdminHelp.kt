@@ -626,7 +626,31 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("🔌 Providers / Models →", "Own page: providers configured / with key, total models, and model-list cache freshness."),
             HelpCard("💰 Spend & usage →", "Own page: calls / tokens / cost over expandable per-provider cards, model→Model Info drill-in, and 🧹 clear-stats. Runs getPricing per used model."),
             HelpCard("🧮 Costs tiers →", "Own page: which pricing tier each model resolves to (Config vs Runtime columns) plus the pricing-cache catalog table."),
+            HelpCard("🐞 API trace statistics →", "Own page: status breakdown, success rate, top hosts / models / categories, and trace activity over time."),
+            HelpCard("📜 App log statistics →", "Own page: log level, writer health, entries by level, top tags, and per-file sizes."),
             HelpCard("📚 Knowledge", "Knowledge-base count, total chunks, indexed character count, failed sources, and a breakdown of sources by type. Shown inline; hidden when there are no knowledge bases."),
+        )
+    ),
+    "ai_trace_stats" to HelpContent(
+        title = "Help - API trace statistics",
+        cards = listOf(
+            HelpCard("Overview", "Aggregate stats over the API traces (the per-call request/response records the 🐞 viewer shows individually). Reached from AI Statistics. Reads the cached trace list, so it's fast. Empty when tracing is off."),
+            HelpCard("🐞 Overview", "Whether tracing is on, total traces, distinct batch runs, and how many are partial (a streaming response still being read)."),
+            HelpCard("📡 Status", "HTTP outcome split — 2xx success / 429 rate-limited / other 4xx / 5xx / transport-failed (status 0) / other — plus an overall success-rate bar."),
+            HelpCard("Top hosts / models / categories", "The busiest provider hosts, models, and call categories (Report / meta / chat / pricing fetch / …) by trace count."),
+            HelpCard("🗓️ Activity", "Traces from today / the last 7 / 30 days, plus the timestamps of the oldest and newest trace."),
+            HelpCard("📋 Reports", "How many traces are tied to a report, across how many distinct reports, and the average traces per report."),
+        )
+    ),
+    "ai_log_stats" to HelpContent(
+        title = "Help - App log statistics",
+        cards = listOf(
+            HelpCard("Overview", "Aggregate stats over the in-app application log (what the App log viewer shows line by line). Reached from AI Statistics. File-level numbers are instant; line-level counts parse the most recent log files."),
+            HelpCard("🩺 Health", "The current log level (Settings → Logging), whether the file writer is OK, and how many lines were dropped on write failures."),
+            HelpCard("📊 By level", "Entry counts by level — Error / Warn / Info / Debug / Trace — plus the total entries parsed."),
+            HelpCard("🏷️ Top tags", "The most frequent log tags (ApiTrace / Throttle / FanOut / Report / …)."),
+            HelpCard("🗂️ Files", "Number of daily log files, total size on disk, the date range, and a per-file size list (most recent first)."),
+            HelpCard("Pitfalls", "To stay fast, line-level counts (levels / tags / total entries) parse only the most recent ~14 daily files; file count and total size cover them all."),
         )
     ),
     "ai_stat_reports" to HelpContent(
