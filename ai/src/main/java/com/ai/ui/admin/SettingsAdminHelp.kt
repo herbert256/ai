@@ -656,11 +656,22 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_spend_usage" to HelpContent(
         title = "Help - Spend & usage",
         cards = listOf(
-            HelpCard("Overview", "Per-provider usage breakdown — calls, tokens and cost — for every model you've actually called. Reached from AI Statistics. Computed only when opened (it runs getPricing per used model), and on entry it refreshes OpenRouter pricing once if a key is set."),
-            HelpCard("Summary", "Top card: total calls, total tokens, total cost (green), and the pricing-source stats line."),
-            HelpCard("Provider rows", "Expandable per-provider cards sorted by spend; expand to see per-model rows with cost and the winning pricing-source tag. Tap a model row to drill into Model Info."),
+            HelpCard("Overview", "Calls, tokens and cost across every model you've actually called. Reached from AI Statistics. Computed only when opened (it runs getPricing per used model), and on entry it refreshes OpenRouter pricing once if a key is set."),
+            HelpCard("Summary", "Top card: total calls, total tokens, and total cost (green)."),
+            HelpCard("Provider table", "Columns Provider · Calls · Tokens · Cost, one row per provider, sorted by spend. Tap a row to open that provider's usage detail."),
+            HelpCard("Provider detail", "The detail page shows totals + avg/call, a By type breakdown (report / meta / rerank / translate / …), a By pricing source breakdown, and a per-model list (tap a model → Model Info)."),
             HelpCard("Clear", "The 🧹 in the title bar clears every usage counter back to zero (confirm dialog). Cannot be undone."),
             HelpCard("Pitfalls", "Rerank rows bill per search-unit, not per token. A model never called won't appear; costs need pricing data loaded."),
+        )
+    ),
+    "ai_usage_provider" to HelpContent(
+        title = "Help - Provider usage",
+        cards = listOf(
+            HelpCard("Overview", "One provider's usage, opened by tapping its row on Spend & usage."),
+            HelpCard("💰 Totals", "Calls, tokens, cost, average cost per call, and how many distinct models were used."),
+            HelpCard("🏷️ By type", "Spend split by call kind — Report / Meta / Rerank / Moderation / Translate / Title / etc. — with each kind's call count and cost."),
+            HelpCard("📐 By pricing source", "How many of this provider's used models priced from each catalog tier (LiteLLM, models.dev, OpenRouter, … or the 25/75 default)."),
+            HelpCard("By model", "Every used model with its cost, call count, token count and winning pricing tier. Tap a model to open Model Info."),
         )
     ),
     "ai_costs_tier" to HelpContent(

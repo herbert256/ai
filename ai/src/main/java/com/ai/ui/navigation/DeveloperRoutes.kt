@@ -86,9 +86,17 @@ internal fun NavGraphBuilder.developerRoutes(
                     AppService.entries.firstOrNull { it.crossProviderModelList }?.let { uiState.aiSettings.getApiKey(it) } ?: ""
                 },
                 onBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onOpenProvider = { pid -> navController.navigate(NavRoutes.aiUsageProvider(pid)) },
                 onNavigateToStatistics = toStatistics,
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
+        }
+        composable(NavRoutes.AI_USAGE_PROVIDER) { entry ->
+            val pid = try { java.net.URLDecoder.decode(entry.arguments?.getString("providerId") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            AiSpendUsageProviderScreen(
+                providerId = pid,
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToStatistics = toStatistics)
         }
         composable(NavRoutes.AI_COSTS_TIER) {
             AiCostsTierScreen(

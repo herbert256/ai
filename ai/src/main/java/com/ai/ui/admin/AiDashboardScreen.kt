@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiCallCaps
@@ -556,7 +557,7 @@ fun AiSpendUsageScreen(
     openRouterApiKey: String,
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
-    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onOpenProvider: (String) -> Unit = {},
     onNavigateToStatistics: () -> Unit = {},
     onHousekeeping: (() -> Unit)? = null,
 ) {
@@ -580,7 +581,6 @@ fun AiSpendUsageScreen(
     val data by produceState<UsageGroupsResult?>(null, refreshTick, reloadTick) {
         value = computeUsageGroups(context, settingsPrefs)
     }
-    var expandedProvidersList by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
     var confirmClear by remember { mutableStateOf(false) }
 
     Column(
@@ -613,23 +613,30 @@ fun AiSpendUsageScreen(
                     Column(Modifier.padding(14.dp)) {
                         Text("Total: ${d.totalCalls} calls, ${formatCompactNumber(d.totalTokens)} tokens", fontSize = 13.sp, color = Color.White)
                         Text("Cost: ${money(d.totalCost)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = AppColors.Green)
-                        Text("Pricing: ${d.pricingStats}", fontSize = 10.sp, color = AppColors.TextTertiary)
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
+                    Text("Provider", fontSize = 10.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1.8f))
+                    Text("Calls", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+                    Text("Tokens", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(0.9f))
+                    Text("Cost", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(1.0f))
+                }
+                LazyColumn(modifier = Modifier.weight(1f)) {
                     items(d.groups, key = { it.provider.id }) { group ->
-                        val isExpanded = group.provider.id in expandedProvidersList
-                        UsageProviderCard(
-                            group = group,
-                            isExpanded = isExpanded,
-                            onToggle = {
-                                expandedProvidersList =
-                                    if (isExpanded) expandedProvidersList - group.provider.id
-                                    else expandedProvidersList + group.provider.id
-                            },
-                            onModelClick = { model -> onNavigateToModelInfo(group.provider, model) }
-                        )
+                        val tokens = group.models.sumOf { it.stat.totalTokens }
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { onOpenProvider(group.provider.id) }
+                                .padding(horizontal = 4.dp, vertical = 9.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(group.provider.id, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.8f))
+                            Text("${group.totalCalls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+                            Text(formatCompactNumber(tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.9f))
+                            Text(money(group.totalCost), fontSize = 13.sp, color = AppColors.Green, textAlign = TextAlign.End, modifier = Modifier.weight(1.0f))
+                        }
+                        HorizontalDivider(color = AppColors.DividerDark)
                     }
                     item { Spacer(Modifier.height(24.dp)) }
                 }
@@ -655,6 +662,121 @@ fun AiSpendUsageScreen(
             }
         )
     }
+}
+
+/** Per-provider usage detail — opened by tapping a row on Spend & usage.
+ *  By type / by pricing source / by model, all for one provider. */
+@Composable
+fun AiSpendUsageProviderScreen(
+    providerId: String,
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onNavigateToStatistics: () -> Unit = {},
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
+    val refreshTick = resumeRefreshTick()
+    val group by produceState<ProviderCostGroup?>(null, refreshTick, providerId) {
+        value = computeUsageGroups(context, settingsPrefs).groups.firstOrNull { it.provider.id == providerId }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_usage_provider",
+            title = providerId,
+            subject = "Usage detail",
+            onBackClick = onBack,
+            reportIcon = "📈",
+            onReportIconClick = onNavigateToStatistics,
+            onTitleClick = onNavigateToStatistics
+        )
+        val g = group
+        if (g == null) {
+            Text("Loading… (no usage = nothing here)", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+        } else {
+            val tokens = g.models.sumOf { it.stat.totalTokens }
+            // Group by call kind and by pricing source.
+            val byKind = g.models.groupBy { it.stat.kind }
+            val bySource = g.models.groupingBy { it.pricingSource }.eachCount()
+            val sortedModels = g.models.sortedByDescending { it.totalCost }
+
+            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { Spacer(Modifier.height(4.dp)) }
+                item {
+                    SectionCard("💰", "Totals", AppColors.Green) {
+                        KeyVal("Calls", "${g.totalCalls}")
+                        KeyVal("Tokens", formatCompactNumber(tokens))
+                        KeyVal("Cost", money(g.totalCost), AppColors.Green)
+                        val avg = if (g.totalCalls > 0) g.totalCost / g.totalCalls else 0.0
+                        KeyVal("Avg / call", money(avg), AppColors.TextSecondary)
+                        KeyVal("Distinct models", "${g.models.size}")
+                    }
+                }
+                item {
+                    SectionCard("🏷️", "By type", AppColors.Indigo) {
+                        byKind.entries.sortedByDescending { e -> e.value.sumOf { it.totalCost } }.forEach { (kind, rows) ->
+                            val calls = rows.sumOf { it.stat.callCount }
+                            val cost = rows.sumOf { it.totalCost }
+                            KeyVal(kindLabel(kind), "$calls calls · ${money(cost)}")
+                        }
+                    }
+                }
+                item {
+                    SectionCard("📐", "By pricing source", AppColors.Purple) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            bySource.entries.sortedByDescending { it.value }.forEach { (src, count) ->
+                                StatChip("•", tierLabel(src), count, AppColors.TextSecondary)
+                            }
+                        }
+                    }
+                }
+                item {
+                    Text("By model — tap for Model Info", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp, start = 2.dp))
+                }
+                items(sortedModels, key = { it.stat.model + "|" + it.stat.kind }) { swc ->
+                    Column(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable { onNavigateToModelInfo(g.provider, swc.stat.model) }
+                            .padding(horizontal = 4.dp, vertical = 8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(com.ai.ui.shared.shortModelName(swc.stat.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            if (swc.stat.kind != "report") {
+                                Text(swc.stat.kind, fontSize = 9.sp, color = AppColors.TextSecondary,
+                                    modifier = Modifier.padding(end = 6.dp).clip(RoundedCornerShape(4.dp)).background(AppColors.SurfaceDark).padding(horizontal = 4.dp, vertical = 1.dp))
+                            }
+                            Text(money(swc.totalCost), fontSize = 13.sp, color = AppColors.Green)
+                        }
+                        Text(
+                            "${swc.stat.callCount} calls · ${formatCompactNumber(swc.stat.totalTokens)} tokens · ${tierLabel(swc.pricingSource)}",
+                            fontSize = 11.sp, color = AppColors.TextTertiary
+                        )
+                    }
+                    HorizontalDivider(color = AppColors.DividerDark)
+                }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+    }
+}
+
+/** Display label for a usage call-kind. */
+private fun kindLabel(kind: String): String = when (kind) {
+    "report" -> "Report"
+    "rerank" -> "Rerank"
+    "summarize" -> "Summarize"
+    "compare" -> "Compare"
+    "moderation" -> "Moderation"
+    "translate" -> "Translate"
+    "title" -> "Title"
+    else -> kind.replaceFirstChar { it.uppercase() }
 }
 
 /** Costs tier — own screen (per-model getPricing for the whole catalog).
