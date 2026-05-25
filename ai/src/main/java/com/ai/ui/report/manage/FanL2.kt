@@ -374,12 +374,14 @@ internal fun FanOutL2Screen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (isTitlesMode) {
-                            // TITLES: the pair's responder model label +
-                            // its generated title, left-aligned text.
+                            // META: the pair's found icon, then its model
+                            // label + generated title (Fan Meta produces both).
                             val label = if (role == "Responder")
                                 (agentLabels[p.sourceAgentId] ?: p.sourceAgentId)
                                 else resolveModelLabel("${p.providerId}|${p.model}")
-                            Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                            Text(p.icon ?: "⬜", fontSize = 28.sp, modifier = Modifier.padding(start = 8.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     p.title ?: "—",
                                     fontSize = 15.sp, color = Color.White,
