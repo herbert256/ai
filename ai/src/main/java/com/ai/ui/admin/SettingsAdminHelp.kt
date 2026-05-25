@@ -628,7 +628,8 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("🔌 Providers & models", "Providers configured, how many have an API key, total models across providers, and model-list cache freshness (cached / stale > 7 days)."),
             HelpCard("📚 Knowledge", "Knowledge-base count, total chunks, indexed character count, failed sources, and a breakdown of sources by type. Hidden when there are no knowledge bases."),
             HelpCard("🏷️ Pricing cache", "Pricing-source stats, OpenRouter pricing-cache age, and the number of manual cost overrides on file."),
-            HelpCard("Pitfalls", "Numbers lag a few seconds behind (10 s tick); costs need pricing data, fetched once on entry when an OpenRouter key is set."),
+            HelpCard("🧮 Costs tier", "For every configured model, which pricing tier PricingCache.getPricing would resolve it to — counted per tier in lookup-precedence order: OpenRouter/Together self-report, Manual override, LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter cross-provider, Helicone, then the 25/75 default fallback for models no catalog covers. A big '25/75 default' count means those models have no real price and bill at the placeholder rate."),
+            HelpCard("Pitfalls", "Numbers lag a few seconds behind (10 s tick); costs need pricing data, fetched once on entry when an OpenRouter key is set. Cost-tier resolution runs getPricing for every configured model, so it reflects the catalogs currently loaded."),
         )
     ),
     "cost_config" to HelpContent(

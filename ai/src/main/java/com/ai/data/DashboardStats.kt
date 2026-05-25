@@ -36,6 +36,16 @@ internal data class DashboardAggregates(
     val pricingStats: String,
     val openRouterCacheAge: String,
     val manualOverrides: Int,
+    /** For every configured model, the pricing tier [PricingCache.getPricing]
+     *  would resolve it to, keyed by source tag in precedence order. */
+    val tierCounts: Map<String, Int>,
+)
+
+/** Pricing-tier source tags in [PricingCache.getPricing]'s precedence order —
+ *  drives the "Costs tier" card so it lists every tier even at zero. */
+internal val PRICING_TIER_ORDER = listOf(
+    "OPENROUTER-SELF", "TOGETHER-SELF", "OVERRIDE", "LITELLM", "MODELSDEV",
+    "LLMPRICES", "AA", "OPENROUTER", "HELICONE", "DEFAULT"
 )
 
 internal data class ReportStats(
@@ -121,6 +131,17 @@ internal suspend fun computeDashboardAggregates(
         if (now - at > MODEL_CACHE_STALE_MS) stale++
     }
 
+    // Per-model pricing-tier resolution: for every configured model, which
+    // tier getPricing would resolve to (same precedence a real call uses).
+    val tierCounts = LinkedHashMap<String, Int>().apply { PRICING_TIER_ORDER.forEach { put(it, 0) } }
+    for (p in providers) {
+        for (m in aiSettings.getProvider(p).models) {
+            if (m.isBlank()) continue
+            val src = PricingCache.getPricing(context, p, m).source
+            tierCounts[src] = (tierCounts[src] ?: 0) + 1
+        }
+    }
+
     // Knowledge bases.
     val kbs = KnowledgeStore.listKnowledgeBases(context)
     val allSources = kbs.flatMap { it.sources }
@@ -146,5 +167,6 @@ internal suspend fun computeDashboardAggregates(
         pricingStats = PricingCache.getPricingStats(context),
         openRouterCacheAge = PricingCache.getOpenRouterCacheAge(context),
         manualOverrides = PricingCache.getAllManualPricing(context).size,
+        tierCounts = tierCounts,
     )
 }

@@ -242,6 +242,7 @@ fun AiStatisticsScreen(
                 item { ProvidersSection(agg) }
                 if (agg.kbCount > 0) item { KnowledgeSection(agg) }
                 item { PricingSection(agg) }
+                item { CostTierSection(agg.tierCounts) }
             }
             item { Spacer(Modifier.height(24.dp)) }
         }
@@ -491,6 +492,39 @@ private fun KnowledgeSection(agg: DashboardAggregates) {
             }
         }
     }
+}
+
+@Composable
+private fun CostTierSection(tierCounts: Map<String, Int>) {
+    SectionCard("🧮", "Costs tier", AppColors.Blue) {
+        Text(
+            "Which pricing tier each configured model resolves to",
+            fontSize = 10.sp, color = AppColors.TextTertiary
+        )
+        Spacer(Modifier.height(6.dp))
+        val total = tierCounts.values.sum()
+        tierCounts.forEach { (src, count) ->
+            KeyVal(tierLabel(src), "$count", if (count > 0) Color.White else AppColors.TextDim)
+        }
+        Spacer(Modifier.height(4.dp))
+        KeyVal("Total models", "$total", AppColors.TextSecondary)
+    }
+}
+
+/** Display label for a [PricingCache] source tag (DEFAULT is the 25/75
+ *  fallback). */
+private fun tierLabel(src: String): String = when (src) {
+    "OPENROUTER-SELF" -> "OpenRouter (self-report)"
+    "TOGETHER-SELF" -> "Together (self-report)"
+    "OVERRIDE" -> "Manual override"
+    "LITELLM" -> "LiteLLM"
+    "MODELSDEV" -> "models.dev"
+    "LLMPRICES" -> "llm-prices"
+    "AA" -> "Artificial Analysis"
+    "OPENROUTER" -> "OpenRouter (cross-provider)"
+    "HELICONE" -> "Helicone"
+    "DEFAULT" -> "25/75 default"
+    else -> src
 }
 
 @Composable
