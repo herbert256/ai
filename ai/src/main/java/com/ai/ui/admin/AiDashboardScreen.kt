@@ -67,34 +67,26 @@ import kotlinx.coroutines.withContext
 import java.util.Locale
 
 /**
- * AI Dashboard — one screen for everything the app knows about its own
- * runtime. Two halves:
+ * Two homepage screens, sharing the section composables + UI helpers below:
  *
- *  - **Live ops monitor** (top): the concurrency caps, per-host
- *    throttle, in-flight batches, model cooldowns, an active "Test all
- *    models" run, and log/trace health. Driven by a 750 ms ticker that
- *    only reads cheap in-memory snapshots; it stops the moment the
- *    screen leaves composition.
- *  - **Lifetime aggregates** (bottom): reports, secondaries, spend &
- *    usage (folds in the former AI Usage screen), providers/models,
- *    knowledge bases, and pricing-cache freshness. One disk pass on a
- *    10 s / on-resume tick via [computeDashboardAggregates].
+ *  - [AiLiveDashboardScreen] — the **live ops monitor** (what's happening right
+ *    now): concurrency caps, per-host throttle, model cooldowns, an active
+ *    "Test all models" run, and log/trace health. Driven by a 750 ms ticker
+ *    that only reads cheap in-memory snapshots; it stops the moment the screen
+ *    leaves composition.
+ *  - [AiStatisticsScreen] — the **lifetime aggregates** (costs & totals):
+ *    reports, secondaries, spend & usage (folds in the former AI Usage screen),
+ *    providers/models, knowledge bases, and pricing-cache freshness. One disk
+ *    pass on a 10 s / on-resume tick via [computeDashboardAggregates].
  */
 @Composable
-fun AiDashboardScreen(
+fun AiLiveDashboardScreen(
     appViewModel: AppViewModel,
     reportViewModel: ReportViewModel,
-    openRouterApiKey: String,
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
-    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
-    onHousekeeping: (() -> Unit)? = null,
 ) {
     BackHandler { onBack() }
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
-    val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
-    val uiState by appViewModel.uiState.collectAsState()
 
     // ---- live ticker: cheap in-memory snapshots only ----
     val liveTick by produceState(0) { while (true) { delay(750); value++ } }
@@ -110,36 +102,14 @@ fun AiDashboardScreen(
     val thrTitles by appViewModel.throttledFanTitlesPairs.collectAsState()
     val cooldowns by ModelCooldownStore.cooldowns.collectAsState()
     val testRun by reportViewModel.modelTestEngine.run.collectAsState()
-    val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
 
-    // ---- aggregates: one disk pass, slow cadence ----
+    // Trace-file count for the Health card — disk read, so off the 750 ms
+    // ticker: refresh on resume + a slow 10 s tick.
     val refreshTick = resumeRefreshTick()
     val slowTick by produceState(0) { while (true) { delay(10_000); value++ } }
-    var reloadTick by remember { mutableStateOf(0) }
-
-    // One-time OpenRouter pricing refresh so usage costs resolve, then
-    // recompute aggregates once it lands.
-    LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) {
-            if (openRouterApiKey.isNotBlank() && PricingCache.needsOpenRouterRefresh(context)) {
-                val p = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
-                if (p.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, p)
-            }
-        }
-        reloadTick++
-    }
-
-    val aggregates by produceState<DashboardAggregates?>(
-        null, refreshTick, slowTick, reloadTick, translationRuns
-    ) {
-        value = computeDashboardAggregates(context, uiState.aiSettings, settingsPrefs, translationRuns)
-    }
     val traceCount by produceState(0, refreshTick, slowTick) {
         value = withContext(Dispatchers.IO) { ApiTracer.getTraceCount() }
     }
-
-    var expandedProvidersList by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
-    var confirmClear by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -147,13 +117,11 @@ fun AiDashboardScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
-            helpTopic = "ai_dashboard",
-            title = "AI Dashboard",
-            subject = "Live activity, throttling and lifetime stats",
+            helpTopic = "ai_live_dashboard",
+            title = "AI Live Dashboard",
+            subject = "What's happening right now",
             onBackClick = onBack,
-            reportIcon = "📊", reportIconGoesHome = true,
-            onDelete = { confirmClear = true },
-            onHousekeeping = onHousekeeping
+            reportIcon = "📡", reportIconGoesHome = true
         )
 
         LazyColumn(
@@ -178,6 +146,74 @@ fun AiDashboardScreen(
                     busy = caps.globalInFlight > 0
                 )
             }
+            item { Spacer(Modifier.height(24.dp)) }
+        }
+    }
+}
+
+@Composable
+fun AiStatisticsScreen(
+    appViewModel: AppViewModel,
+    reportViewModel: ReportViewModel,
+    openRouterApiKey: String,
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onHousekeeping: (() -> Unit)? = null,
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
+    val uiState by appViewModel.uiState.collectAsState()
+    val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
+
+    // ---- aggregates: one disk pass, slow cadence ----
+    val refreshTick = resumeRefreshTick()
+    val slowTick by produceState(0) { while (true) { delay(10_000); value++ } }
+    var reloadTick by remember { mutableStateOf(0) }
+
+    // One-time OpenRouter pricing refresh so usage costs resolve, then
+    // recompute aggregates once it lands.
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) {
+            if (openRouterApiKey.isNotBlank() && PricingCache.needsOpenRouterRefresh(context)) {
+                val p = PricingCache.fetchOpenRouterPricing(openRouterApiKey)
+                if (p.isNotEmpty()) PricingCache.saveOpenRouterPricing(context, p)
+            }
+        }
+        reloadTick++
+    }
+
+    val aggregates by produceState<DashboardAggregates?>(
+        null, refreshTick, slowTick, reloadTick, translationRuns
+    ) {
+        value = computeDashboardAggregates(context, uiState.aiSettings, settingsPrefs, translationRuns)
+    }
+
+    var expandedProvidersList by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
+    var confirmClear by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_statistics",
+            title = "AI Statistics",
+            subject = "Costs, usage and lifetime totals",
+            onBackClick = onBack,
+            reportIcon = "📈", reportIconGoesHome = true,
+            onDelete = { confirmClear = true },
+            onHousekeeping = onHousekeeping
+        )
+
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item { Spacer(Modifier.height(4.dp)) }
 
             val agg = aggregates
             if (agg == null) {

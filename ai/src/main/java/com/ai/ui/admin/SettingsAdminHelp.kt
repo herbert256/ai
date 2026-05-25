@@ -605,23 +605,30 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("After it runs", "A four-button banner appears at the top of the page: Refresh all, Refresh providers/models/default agents, Restart application, or Import API keys. Pick one — the in-memory state isn't fresh until you restart (directly or via one of the Refresh paths)."),
         )
     ),
-    "ai_dashboard" to HelpContent(
-        title = "Help - AI Dashboard",
+    "ai_live_dashboard" to HelpContent(
+        title = "Help - AI Live Dashboard",
         cards = listOf(
-            HelpCard("Overview", "One screen for everything the app knows about its own runtime. The top half is a LIVE ops monitor (auto-refreshing ~every 0.75 s while open); the bottom half is LIFETIME aggregate stats (re-read from disk on resume and every ~10 s). Opened from the home 📊 AI Dashboard card. The former AI Usage screen is folded in as the Spend & usage section."),
+            HelpCard("Overview", "A live ops monitor — what's happening right now. Auto-refreshes ~every 0.75 s while it's on top and stops the moment you leave it. Opened from the home 📡 AI Live Dashboard card. Lifetime totals + costs live on the separate 📈 AI Statistics screen."),
             HelpCard("🟢 Live activity", "Hero number is global API calls in flight / the global cap, with an Idle / Active / Saturated badge. Six bars show in-use/max for each concurrency cap (Global, Report, Translation, Fan-out, Fan-icons, Fan-titles) — green under 60 %, orange approaching the cap, red at the cap. The caps are owned by Settings → Network settings and count live API calls (a pair parked on a provider's rate-limit holds no cap permit). An orange Throttled row appears when batches are waiting on a provider rate-limit."),
             HelpCard("🌐 Provider throttle", "One row per host with an active gate, busiest first: 'con' = concurrency in-use/limit, 'min' = calls in the trailing 60 s window vs the per-minute cap. Red when no concurrency slot is free. \"Idle — no active hosts\" when nothing is running. Mirrors ProviderThrottle.diagnostics() from the stall watchdog."),
             HelpCard("❄️ Model cooldowns", "Models benched by a long 429 retry-hint, with time remaining; hidden when none are cooling down. Manage/clear them from Housekeeping → Model states."),
             HelpCard("🧪 Test all models", "Shown only while a \"Test all models\" run is active: progress bar plus passed / failed / running / queued / cost / elapsed."),
             HelpCard("🩺 System health", "Log-writer status (OK / ERROR), dropped log lines, trace-file count, API activity, the streaming/non-streaming read timeouts and the per-minute cap currently in effect."),
+            HelpCard("Tips", "Open this while a Stress test (Housekeeping → Test) runs to watch the caps fill, hosts saturate and batches move through throttling in real time."),
+            HelpCard("Pitfalls", "The live ticker only runs while the screen is on top — navigate away and it stops."),
+        )
+    ),
+    "ai_statistics" to HelpContent(
+        title = "Help - AI Statistics",
+        cards = listOf(
+            HelpCard("Overview", "Lifetime aggregate stats and costs, re-read from disk on resume and every ~10 s. Opened from the home 📈 AI Statistics card. The former AI Usage screen is folded in here as the Spend & usage section. Live runtime state is on the separate 📡 AI Live Dashboard screen."),
             HelpCard("📋 Reports", "Lifetime totals: total / running / problems / completed reports, total agent calls, error rate (errored agent calls), stopped agents, and total report spend. Running/problems use the same predicates as the AI Reports hub."),
             HelpCard("🔗 Secondary results", "Counts of every stored secondary by kind (Rerank / Meta / Moderation / Translate) plus the top meta-prompt names."),
             HelpCard("💰 Spend & usage", "Summary (calls, tokens, total cost, pricing-source stats) over expandable per-provider cards. Tap a model row to drill into Model Info. The 🧹 in the title bar clears all usage counters (confirm dialog). Rerank rows bill per search-unit, not per token."),
             HelpCard("🔌 Providers & models", "Providers configured, how many have an API key, total models across providers, and model-list cache freshness (cached / stale > 7 days)."),
             HelpCard("📚 Knowledge", "Knowledge-base count, total chunks, indexed character count, failed sources, and a breakdown of sources by type. Hidden when there are no knowledge bases."),
             HelpCard("🏷️ Pricing cache", "Pricing-source stats, OpenRouter pricing-cache age, and the number of manual cost overrides on file."),
-            HelpCard("Tips", "Open this while a Stress test (Housekeeping → Test) runs to watch the caps fill, hosts saturate and batches move through throttling in real time."),
-            HelpCard("Pitfalls", "The live ticker only runs while the screen is on top — navigate away and it stops. Lifetime numbers lag a few seconds behind (10 s tick); costs need pricing data, fetched once on entry when an OpenRouter key is set."),
+            HelpCard("Pitfalls", "Numbers lag a few seconds behind (10 s tick); costs need pricing data, fetched once on entry when an OpenRouter key is set."),
         )
     ),
     "cost_config" to HelpContent(

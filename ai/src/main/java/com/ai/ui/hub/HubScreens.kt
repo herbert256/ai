@@ -57,7 +57,8 @@ fun HubScreen(
     onNavigateToHelp: () -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToReportsHub: () -> Unit,
-    onNavigateToDashboard: () -> Unit,
+    onNavigateToLiveDashboard: () -> Unit,
+    onNavigateToStatistics: () -> Unit,
     onNavigateToChatsHub: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
     onNavigateToHousekeeping: () -> Unit,
@@ -108,7 +109,7 @@ fun HubScreen(
     // inside), but we keep the math simple — logo just shrinks a
     // touch when the cards are showing, still bounded by the
     // coerceIn(100, 220) below.
-    val cardCount = (if (tracingEnabled) 11 else 10)
+    val cardCount = (if (tracingEnabled) 12 else 11)
     val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + 32.dp
 
     BoxWithConstraints(
@@ -177,7 +178,9 @@ fun HubScreen(
                 Spacer(modifier = Modifier.height(12.dp))
             }
             if (hasAnyAgent) {
-                HubCard(icon = "\uD83D\uDCCA", title = "AI Dashboard", onClick = onNavigateToDashboard)
+                HubCard(icon = "\uD83D\uDCE1", title = "AI Live Dashboard", onClick = onNavigateToLiveDashboard)
+                Spacer(modifier = Modifier.height(12.dp))
+                HubCard(icon = "\uD83D\uDCC8", title = "AI Statistics", onClick = onNavigateToStatistics)
                 Spacer(modifier = Modifier.height(12.dp))
             }
             if (tracingEnabled && hasTraces) {

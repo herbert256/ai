@@ -44,9 +44,15 @@ internal fun NavGraphBuilder.developerRoutes(
     safePopBack: () -> Unit,
     navigateHome: () -> Unit
 ) {
-        composable(NavRoutes.AI_DASHBOARD) {
+        composable(NavRoutes.AI_LIVE_DASHBOARD) {
+            AiLiveDashboardScreen(
+                appViewModel = appViewModel,
+                reportViewModel = reportViewModel,
+                onBack = safePopBack, onNavigateHome = navigateHome)
+        }
+        composable(NavRoutes.AI_STATISTICS) {
             val uiState by appViewModel.uiState.collectAsState()
-            AiDashboardScreen(
+            AiStatisticsScreen(
                 appViewModel = appViewModel,
                 reportViewModel = reportViewModel,
                 openRouterApiKey = uiState.generalSettings.openRouterApiKey.ifBlank {
