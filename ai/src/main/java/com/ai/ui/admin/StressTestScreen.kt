@@ -24,7 +24,8 @@ import com.ai.viewmodel.StressTestEngine
 fun StressTestScreen(
     engine: StressTestEngine,
     onBack: () -> Unit,
-    onSettings: (() -> Unit)? = null
+    onSettings: (() -> Unit)? = null,
+    onStarted: () -> Unit = {},
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -106,7 +107,7 @@ fun StressTestScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = { showConfirm = false; engine.start(context) }) {
+                TextButton(onClick = { showConfirm = false; engine.start(context); onStarted() }) {
                     Text("Start", color = AppColors.Green, maxLines = 1, softWrap = false)
                 }
             },

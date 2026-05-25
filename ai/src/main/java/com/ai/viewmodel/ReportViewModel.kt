@@ -785,7 +785,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  single-report UI state (no dialog, no _agentResults, no progress, no
      *  currentReportId). Returns immediately. Backs the Stress test, which
      *  submits every Example Prompt and finishes at once. */
-    fun submitBackgroundReport(context: Context, prompt: String, title: String, swarmId: String) {
+    fun submitBackgroundReport(
+        context: Context, prompt: String, title: String, swarmId: String,
+        onReportCreated: ((String) -> Unit)? = null,
+    ) {
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
@@ -805,6 +808,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 reportType = ReportType.CLASSIC, runId = runId
             )
             val reportId = report.id
+            onReportCreated?.invoke(reportId)
             val startMs = System.currentTimeMillis()
             withContext(AppLog.currentLogId.asContextElement(reportId)) {
                 withTracerTags(reportId = reportId, category = "Report", runId = runId) {

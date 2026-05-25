@@ -185,7 +185,20 @@ internal fun NavGraphBuilder.developerRoutes(
         composable(NavRoutes.AI_STRESS_TEST) {
             com.ai.ui.admin.StressTestScreen(
                 engine = reportViewModel.stressTestEngine,
-                onBack = safePopBack
+                onBack = safePopBack,
+                onStarted = {
+                    navController.navigate(NavRoutes.AI_STRESS_DASHBOARD) {
+                        popUpTo(NavRoutes.AI_STRESS_TEST) { inclusive = true }
+                        launchSingleTop = true
+                    }
+                }
+            )
+        }
+        composable(NavRoutes.AI_STRESS_DASHBOARD) {
+            com.ai.ui.admin.StressTestDashboardScreen(
+                engine = reportViewModel.stressTestEngine,
+                onBack = safePopBack,
+                onNavigateToLiveDashboard = { navController.navigate(NavRoutes.AI_LIVE_DASHBOARD) }
             )
         }
         composable(NavRoutes.AI_APPLOG_LIST) {

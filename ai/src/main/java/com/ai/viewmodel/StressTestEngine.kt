@@ -8,6 +8,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** Orchestrates the Housekeeping → Test "Stress test": SUBMIT one AI report
@@ -32,8 +33,25 @@ class StressTestEngine internal constructor(
         val errorMessage: String? = null,
     )
 
+    /** Cumulative across every stress run this session — the IDs of every
+     *  report any run launched, plus run-count and timing. The Stress Test
+     *  Dashboard scopes all its metrics to [reportIds]. Reset clears it. */
+    data class TrackedRuns(
+        val reportIds: Set<String> = emptySet(),
+        val runCount: Int = 0,
+        val firstStartedAt: Long = 0L,
+        val lastStartedAt: Long = 0L,
+    )
+
     private val _state = MutableStateFlow<State?>(null)
     val state: StateFlow<State?> = _state.asStateFlow()
+
+    private val _tracked = MutableStateFlow(TrackedRuns())
+    val tracked: StateFlow<TrackedRuns> = _tracked.asStateFlow()
+
+    /** Clear cumulative tracking. Reports already launched keep generating —
+     *  this only empties what the dashboard counts. */
+    fun reset() { _tracked.value = TrackedRuns() }
 
     @Volatile private var job: Job? = null
     val isRunning: Boolean get() = job?.isActive == true
@@ -62,14 +80,27 @@ class StressTestEngine internal constructor(
                 }
                 val total = prompts.size
 
+                // Record this run in the cumulative tracking the dashboard reads.
+                val nowMs = System.currentTimeMillis()
+                _tracked.update { t ->
+                    t.copy(
+                        runCount = t.runCount + 1,
+                        firstStartedAt = if (t.firstStartedAt == 0L) nowMs else t.firstStartedAt,
+                        lastStartedAt = nowMs,
+                    )
+                }
+
                 // 2. Submit one report per example prompt — fire-and-forget.
                 //    Each runs on its own independent background coroutine;
                 //    we do NOT wait for any of them, and existing runtime data
-                //    is left untouched.
+                //    is left untouched. As each report is created we add its id
+                //    to the tracked set so the dashboard can scope to this run.
                 _state.value = State(Phase.SUBMITTING, total = total)
                 AppLog.i("StressTest", "→ start: submitting $total report(s) with swarm '$SWARM_NAME'")
                 prompts.forEach { ex ->
-                    reportViewModel.submitBackgroundReport(context, ex.text, ex.title, level2.id)
+                    reportViewModel.submitBackgroundReport(context, ex.text, ex.title, level2.id) { rid ->
+                        _tracked.update { it.copy(reportIds = it.reportIds + rid) }
+                    }
                 }
 
                 _state.value = State(Phase.DONE, total = total)
