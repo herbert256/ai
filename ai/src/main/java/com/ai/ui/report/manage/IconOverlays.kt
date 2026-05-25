@@ -302,10 +302,10 @@ internal fun AgentIconDetailOverlay(
     onClose: () -> Unit,
 ): Boolean {
     val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "report_2"
+        it.category == "icons" && it.name == "report_1"
     }
     val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "report"
+        it.category == "icons" && it.name == "report_2"
     }
     val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
         it.category == "icons" && it.name == "report_3"
@@ -325,8 +325,8 @@ internal fun AgentIconDetailOverlay(
     // back to deriving from `iconWinningTier`.
     val subject = agent.iconPromptUsed
         ?: when (agent.iconWinningTier) {
-            1 -> "report_2"; 2 -> "report"; 3 -> "report_3"
-            else -> "report"
+            1 -> "report_1"; 2 -> "report_2"; 3 -> "report_3"
+            else -> "report_2"
         }
     // API interaction transcript varies with tier — chat-continuation
     // is a 4-message exchange; tier 2 / 3 are one-shot dual /

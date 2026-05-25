@@ -1069,7 +1069,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // post-strip-`_icon` names (Internal-prompts hub already
                 // labels these with the "icons" category badge; the
                 // suffix is pure redundancy and got dropped).
-                "main", "meta", "report", "report_2", "report_3",
+                "main", "meta", "report_1", "report_2", "report_3",
                 "fan_out_1", "fan_out_2", "fan_out_3", "translation",
                 "main_alt", "meta_alt", "report_alt", "fan_out_alt",
                 "language_alt", "translation_alt"
@@ -1113,7 +1113,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // emoji prompt arrives via delta-merge of the bundled
                 // internal-prompts/ with name `language`.
                 "language_icon" to Rename("language", newCategory = "internal"),
-                "report_icon_chat" to Rename("report_2"),
+                "report_icon_chat" to Rename("report_1"),
                 "report_icon_3th" to Rename("report_3"),
                 "fan_out_icon_chat" to Rename("fan_out_1"),
                 "fan_out_icon_3th" to Rename("fan_out_3")
@@ -1144,8 +1144,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val strip = mapOf(
                 "main_icon" to "main",
                 "meta_icon" to "meta",
-                "report_icon" to "report",
-                "report_icon_2" to "report_2",
+                "report_icon" to "report_2",
+                "report_icon_2" to "report_1",
                 "report_icon_3" to "report_3",
                 "fan_out_icon" to "fan_out_2",
                 "fan_out_icon_2" to "fan_out_1",
@@ -1209,7 +1209,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         // One-shot text upgrade: the tier-1 chat-continuation icon
-        // prompts (now `fan_out_1` / `report_2` after the strip-`_icon`
+        // prompts (now `fan_out_1` / `report_1` after the strip-`_icon`
         // pass; legacy `_chat` / `_icon_2` names matched here too in
         // case a rename hasn't run yet) used to say "give your previous
         // response back as an emoji" — models read that literally and
@@ -1224,7 +1224,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val targets = setOf(
                 "fan_out_icon_chat", "report_icon_chat",
                 "fan_out_icon_2", "report_icon_2",
-                "fan_out_1", "report_2"
+                "fan_out_1", "report_1"
             )
             val upgraded = ai.internalPrompts.map { p ->
                 if (p.name.lowercase() in targets && p.text == oldText) p.copy(text = newText) else p

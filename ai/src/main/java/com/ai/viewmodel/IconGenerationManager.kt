@@ -1850,15 +1850,15 @@ class IconGenerationManager(
         models: List<ReportModel>,
         aiSettings: Settings
     ) {
-        // Find-alternative-icons composes `report` (the base
+        // Find-alternative-icons composes `report_2` (the base
         // template — tier-2 of the per-agent 3-tier chain, with
         // @PROMPT@ + @RESPONSE@ slots) + blank line + `report_alt`
         // (the "pick something distinct" nudge) so the alt stays
         // short.
         val basePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report"
+            it.category == "icons" && it.name == "report_2"
         } ?: run {
-            AppLog.w("AgentIconAlt", "internal/report prompt not found — skipping (agent=$agentId)")
+            AppLog.w("AgentIconAlt", "internal/report_2 prompt not found — skipping (agent=$agentId)")
             return
         }
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
@@ -2076,10 +2076,10 @@ class IconGenerationManager(
         ra: ReportAgent, reportPrompt: String, aiSettings: Settings
     ) {
         val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report_2"
+            it.category == "icons" && it.name == "report_1"
         }
         val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report"
+            it.category == "icons" && it.name == "report_2"
         }
         val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name == "report_3"
@@ -2366,8 +2366,8 @@ class IconGenerationManager(
         // Map tier number to the bundled prompt name that produced
         // the icon — surfaces on the Icon lookup screen's subject row.
         val promptUsed = when (winningTier) {
-            1 -> "report_2"
-            2 -> "report"
+            1 -> "report_1"
+            2 -> "report_2"
             3 -> "report_3"
             else -> null
         }

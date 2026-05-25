@@ -66,7 +66,7 @@ data class ReportAgent(
      *  null (legacy rows). */
     var iconWinningTier: Int? = null,
     /** Bundled prompt name that produced the currently-displayed
-     *  emoji on this agent — e.g. "report" / "report_2" / "report_3"
+     *  emoji on this agent — e.g. "report_1" / "report_2" / "report_3"
      *  for the 3-tier chain or "report_alt" after a Find-alt pick.
      *  Surfaces on the Icon lookup screen as the green subject row.
      *  Null on legacy rows; the screen falls back to deriving the

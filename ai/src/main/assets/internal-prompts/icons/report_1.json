@@ -1,6 +1,6 @@
 {
-  "name": "report",
-  "title": "Find a fitting emoji for a model report",
+  "name": "report_1",
+  "title": "Find a fitting emoji for a report, chat version",
   "reference": false,
   "agent": "*N/A",
   "parameters": "*NONE",

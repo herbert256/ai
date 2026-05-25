@@ -851,8 +851,8 @@ object ReportStorage {
     fun setReportAgentIconAndTier(
         context: Context, reportId: String, agentId: String,
         icon: String, winningTier: Int?,
-        /** Bundled prompt that produced [icon] — "report_2" for
-         *  tier 1, "report" for tier 2, "report_3" for tier 3.
+        /** Bundled prompt that produced [icon] — "report_1" for
+         *  tier 1, "report_2" for tier 2, "report_3" for tier 3.
          *  Surfaces on the Icon lookup screen. */
         promptUsed: String? = null,
         traceFile: String? = null
