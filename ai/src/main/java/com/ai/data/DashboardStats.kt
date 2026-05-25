@@ -11,24 +11,31 @@ import com.ai.viewmodel.TranslationRunState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Lifetime/aggregate counters shown on the lower half of the AI
- *  Dashboard. Everything here is a one-shot disk computation produced
- *  by [computeDashboardAggregates] — distinct from the live in-memory
- *  ops state (caps, throttle, cooldowns) the screen polls separately. */
-internal data class DashboardAggregates(
+/** Report + secondary-result lifetime totals — the "Statistics - Reports"
+ *  screen. Heavy (one report scan + a secondary read per report). */
+internal data class ReportSectionData(
     val reports: ReportStats,
     val secondaries: Map<SecondaryKind, Int>,
     val metaByName: Map<String, Int>,
+)
+
+/** Provider / model counts + model-list cache freshness — the
+ *  "Statistics - Providers / Models" screen. Cheap. */
+internal data class ProviderModelData(
     val providersConfigured: Int,
     val providersWithKey: Int,
     val totalModels: Int,
+    val modelsCached: Int,
+    val modelCacheStale: Int,
+)
+
+/** Knowledge-base totals — shown on AI Statistics. */
+internal data class KnowledgeData(
     val kbCount: Int,
     val kbChunks: Int,
     val kbChars: Long,
     val kbSourcesByType: Map<KnowledgeSourceType, Int>,
     val kbFailed: Int,
-    val modelsCached: Int,
-    val modelCacheStale: Int,
 )
 
 /** Spend & usage breakdown — heavy enough (per-model getPricing) that it lives
@@ -124,18 +131,13 @@ internal data class ReportStats(
 
 private const val MODEL_CACHE_STALE_MS = 7L * 24 * 60 * 60 * 1000
 
-/** Single-pass aggregate computation for the AI Dashboard. Reuses the
- *  hub's running/problems predicates and the AI Usage cost-grouping so
- *  the numbers match those screens exactly. Disk-heavy (one report
- *  scan + one secondary read per report + usage stats + KB manifests)
- *  — always call on [Dispatchers.IO] via the screen's slow tick, never
- *  on the live ticker. */
-internal suspend fun computeDashboardAggregates(
+/** Reports + secondaries for the "Statistics - Reports" screen. Reuses the
+ *  hub's running/problems predicates so the numbers match the AI Reports hub.
+ *  Disk-heavy: one report scan + a secondary read per report. */
+internal suspend fun computeReportStats(
     context: Context,
-    aiSettings: Settings,
-    settingsPrefs: SettingsPreferences,
     translationRuns: Map<String, TranslationRunState>,
-): DashboardAggregates = withContext(Dispatchers.IO) {
+): ReportSectionData = withContext(Dispatchers.IO) {
     val all = ReportStorage.getAllReports(context)
 
     val activeTranslationReportIds = translationRuns.values
@@ -175,8 +177,18 @@ internal suspend fun computeDashboardAggregates(
         stopped = all.sumOf { r -> r.agents.count { it.reportStatus == ReportStatus.STOPPED } },
         spend = all.sumOf { it.totalCost },
     )
+    ReportSectionData(
+        reports = reportStats,
+        secondaries = secByKind,
+        metaByName = metaByName.entries.sortedByDescending { it.value }.associate { it.key to it.value },
+    )
+}
 
-    // Providers / models / model-list cache freshness.
+/** Provider / model counts + model-list cache freshness. Cheap. */
+internal suspend fun computeProviderModelStats(
+    context: Context,
+    aiSettings: Settings,
+): ProviderModelData = withContext(Dispatchers.IO) {
     val providers = ProviderRegistry.getAll()
     val now = System.currentTimeMillis()
     var cached = 0
@@ -186,24 +198,24 @@ internal suspend fun computeDashboardAggregates(
         cached++
         if (now - at > MODEL_CACHE_STALE_MS) stale++
     }
-
-    // Knowledge bases.
-    val kbs = KnowledgeStore.listKnowledgeBases(context)
-    val allSources = kbs.flatMap { it.sources }
-
-    DashboardAggregates(
-        reports = reportStats,
-        secondaries = secByKind,
-        metaByName = metaByName.entries.sortedByDescending { it.value }.associate { it.key to it.value },
+    ProviderModelData(
         providersConfigured = providers.size,
         providersWithKey = providers.count { aiSettings.getApiKey(it).isNotBlank() },
         totalModels = providers.sumOf { aiSettings.getProvider(it).models.size },
+        modelsCached = cached,
+        modelCacheStale = stale,
+    )
+}
+
+/** Knowledge-base totals. */
+internal suspend fun computeKnowledgeStats(context: Context): KnowledgeData = withContext(Dispatchers.IO) {
+    val kbs = KnowledgeStore.listKnowledgeBases(context)
+    val allSources = kbs.flatMap { it.sources }
+    KnowledgeData(
         kbCount = kbs.size,
         kbChunks = kbs.sumOf { it.totalChunks },
         kbChars = kbs.sumOf { it.totalChars },
         kbSourcesByType = allSources.groupingBy { it.type }.eachCount(),
         kbFailed = allSources.count { it.errorMessage != null },
-        modelsCached = cached,
-        modelCacheStale = stale,
     )
 }

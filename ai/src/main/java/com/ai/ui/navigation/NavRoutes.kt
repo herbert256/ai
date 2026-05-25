@@ -91,6 +91,8 @@ object NavRoutes {
     const val AI_STATISTICS = "ai_statistics"
     const val AI_SPEND_USAGE = "ai_spend_usage"
     const val AI_COSTS_TIER = "ai_costs_tier"
+    const val AI_STAT_REPORTS = "ai_stat_reports"
+    const val AI_STAT_PROVIDERS = "ai_stat_providers"
     const val AI_COST_CONFIG = "ai_cost_config"
     const val AI_COSTS_MAINTENANCE = "ai_costs_maintenance"
     const val AI_SETUP = "ai_setup"

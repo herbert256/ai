@@ -48,16 +48,20 @@ import com.ai.data.ApiCallCaps
 import com.ai.data.ApiTracer
 import com.ai.data.AppLog
 import com.ai.data.AppService
-import com.ai.data.DashboardAggregates
+import com.ai.data.KnowledgeData
 import com.ai.data.ModelCooldownStore
 import com.ai.data.ModelTestRunState
 import com.ai.data.NetworkSettings
 import com.ai.data.PricingCache
+import com.ai.data.ProviderModelData
 import com.ai.data.ProviderThrottle
+import com.ai.data.ReportSectionData
 import com.ai.data.ReportStats
 import com.ai.data.SecondaryKind
 import com.ai.data.UsageGroupsResult
-import com.ai.data.computeDashboardAggregates
+import com.ai.data.computeKnowledgeStats
+import com.ai.data.computeProviderModelStats
+import com.ai.data.computeReportStats
 import com.ai.data.computeTierCounts
 import com.ai.data.computeTierCountsRuntime
 import com.ai.data.computeUsageGroups
@@ -81,10 +85,11 @@ import java.util.Locale
  *    "Test all models" run, and log/trace health. Driven by a 750 ms ticker
  *    that only reads cheap in-memory snapshots; it stops the moment the screen
  *    leaves composition.
- *  - [AiStatisticsScreen] — the **lifetime aggregates** (costs & totals):
- *    reports, secondaries, spend & usage (folds in the former AI Usage screen),
- *    providers/models, knowledge bases, and pricing-cache freshness. One disk
- *    pass on a 10 s / on-resume tick via [computeDashboardAggregates].
+ *  - [AiStatisticsScreen] — a hub of **lifetime aggregate** pages. Knowledge
+ *    totals inline; Reports/secondaries ([AiStatReportsScreen]),
+ *    providers/models ([AiStatProvidersScreen]), spend & usage
+ *    ([AiSpendUsageScreen]) and cost tiers ([AiCostsTierScreen]) each on their
+ *    own page so they compute only when opened.
  */
 @Composable
 fun AiLiveDashboardScreen(
@@ -160,30 +165,21 @@ fun AiLiveDashboardScreen(
 
 @Composable
 fun AiStatisticsScreen(
-    appViewModel: AppViewModel,
-    reportViewModel: ReportViewModel,
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
     onNavigateToSpendUsage: () -> Unit = {},
     onNavigateToCostsTier: () -> Unit = {},
+    onNavigateToReports: () -> Unit = {},
+    onNavigateToProviders: () -> Unit = {},
     onHousekeeping: (() -> Unit)? = null,
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
-    val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
-    val uiState by appViewModel.uiState.collectAsState()
-    val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
-
-    // ---- lightweight aggregates: one disk pass, slow cadence. The heavy
-    // per-model pricing work (Spend & usage, Costs tier) lives on its own
-    // screen, reached via the link cards, so it only runs when opened.
     val refreshTick = resumeRefreshTick()
-    val slowTick by produceState(0) { while (true) { delay(10_000); value++ } }
-    val aggregates by produceState<DashboardAggregates?>(
-        null, refreshTick, slowTick, translationRuns
-    ) {
-        value = computeDashboardAggregates(context, uiState.aiSettings, settingsPrefs, translationRuns)
+    // Only the (cheap) Knowledge totals are shown inline; everything heavier
+    // is its own page reached via a link card.
+    val kb by produceState<KnowledgeData?>(null, refreshTick) {
+        value = computeKnowledgeStats(context)
     }
 
     Column(
@@ -194,7 +190,7 @@ fun AiStatisticsScreen(
         TitleBar(
             helpTopic = "ai_statistics",
             title = "AI Statistics",
-            subject = "Lifetime totals (costs on their own pages)",
+            subject = "Lifetime totals",
             onBackClick = onBack,
             reportIcon = "📈", reportIconGoesHome = true,
             onHousekeeping = onHousekeeping
@@ -205,27 +201,94 @@ fun AiStatisticsScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
-
-            // Heavy cost breakdowns get their own pages.
+            item { LinkCard("📋", "Statistics - Reports", "Reports + secondary results totals", onNavigateToReports) }
+            item { LinkCard("🔌", "Statistics - Providers / Models", "Providers, models and catalog freshness", onNavigateToProviders) }
             item { LinkCard("💰", "Spend & usage", "Calls, tokens and cost per provider", onNavigateToSpendUsage) }
-            item { LinkCard("🧮", "Costs tiers", "Pricing tier per model (configured vs runtime) + catalog freshness", onNavigateToCostsTier) }
-
-            val agg = aggregates
-            if (agg == null) {
-                item {
-                    Text(
-                        "Loading lifetime stats…",
-                        color = AppColors.TextTertiary, fontSize = 13.sp,
-                        modifier = Modifier.padding(8.dp)
-                    )
-                }
-            } else {
-                item { ReportsSection(agg.reports) }
-                item { SecondariesSection(agg.secondaries, agg.metaByName) }
-                item { ProvidersSection(agg) }
-                if (agg.kbCount > 0) item { KnowledgeSection(agg) }
-            }
+            item { LinkCard("🧮", "Costs tiers", "Pricing tier per model + catalog freshness", onNavigateToCostsTier) }
+            kb?.let { if (it.kbCount > 0) item { KnowledgeSection(it) } }
             item { Spacer(Modifier.height(24.dp)) }
+        }
+    }
+}
+
+/** Statistics - Reports — report + secondary-result lifetime totals. */
+@Composable
+fun AiStatReportsScreen(
+    reportViewModel: ReportViewModel,
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val refreshTick = resumeRefreshTick()
+    val slowTick by produceState(0) { while (true) { delay(10_000); value++ } }
+    val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
+    val data by produceState<ReportSectionData?>(null, refreshTick, slowTick, translationRuns) {
+        value = computeReportStats(context, translationRuns)
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_stat_reports",
+            title = "Statistics - Reports",
+            subject = "Reports and secondary results",
+            onBackClick = onBack,
+            reportIcon = "📋", reportIconGoesHome = true
+        )
+        val d = data
+        if (d == null) {
+            Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { Spacer(Modifier.height(4.dp)) }
+                item { ReportsSection(d.reports) }
+                item { SecondariesSection(d.secondaries, d.metaByName) }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+    }
+}
+
+/** Statistics - Providers / Models — provider/model counts + cache freshness. */
+@Composable
+fun AiStatProvidersScreen(
+    appViewModel: AppViewModel,
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val uiState by appViewModel.uiState.collectAsState()
+    val refreshTick = resumeRefreshTick()
+    val data by produceState<ProviderModelData?>(null, refreshTick) {
+        value = computeProviderModelStats(context, uiState.aiSettings)
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_stat_providers",
+            title = "Statistics - Providers / Models",
+            subject = "Providers, models and catalog freshness",
+            onBackClick = onBack,
+            reportIcon = "🔌", reportIconGoesHome = true
+        )
+        val d = data
+        if (d == null) {
+            Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { Spacer(Modifier.height(4.dp)) }
+                item { ProvidersSection(d) }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
         }
     }
 }
@@ -560,27 +623,27 @@ private fun SecondariesSection(byKind: Map<SecondaryKind, Int>, metaByName: Map<
 }
 
 @Composable
-private fun ProvidersSection(agg: DashboardAggregates) {
+private fun ProvidersSection(d: ProviderModelData) {
     SectionCard("🔌", "Providers & models", AppColors.Indigo) {
-        KeyVal("Providers configured", "${agg.providersConfigured}")
-        KeyVal("With API key", "${agg.providersWithKey}", AppColors.Green)
-        KeyVal("Models (total)", "${agg.totalModels}")
-        KeyVal("Model lists cached", "${agg.modelsCached}")
-        if (agg.modelCacheStale > 0) KeyVal("Stale (>7d)", "${agg.modelCacheStale}", AppColors.Orange)
+        KeyVal("Providers configured", "${d.providersConfigured}")
+        KeyVal("With API key", "${d.providersWithKey}", AppColors.Green)
+        KeyVal("Models (total)", "${d.totalModels}")
+        KeyVal("Model lists cached", "${d.modelsCached}")
+        if (d.modelCacheStale > 0) KeyVal("Stale (>7d)", "${d.modelCacheStale}", AppColors.Orange)
     }
 }
 
 @Composable
-private fun KnowledgeSection(agg: DashboardAggregates) {
+private fun KnowledgeSection(d: KnowledgeData) {
     SectionCard("📚", "Knowledge", AppColors.Yellow) {
-        KeyVal("Knowledge bases", "${agg.kbCount}")
-        KeyVal("Chunks", formatCompactNumber(agg.kbChunks.toLong()))
-        KeyVal("Indexed text", "${formatCompactNumber(agg.kbChars)} chars")
-        if (agg.kbFailed > 0) KeyVal("Failed sources", "${agg.kbFailed}", AppColors.Red)
-        if (agg.kbSourcesByType.isNotEmpty()) {
+        KeyVal("Knowledge bases", "${d.kbCount}")
+        KeyVal("Chunks", formatCompactNumber(d.kbChunks.toLong()))
+        KeyVal("Indexed text", "${formatCompactNumber(d.kbChars)} chars")
+        if (d.kbFailed > 0) KeyVal("Failed sources", "${d.kbFailed}", AppColors.Red)
+        if (d.kbSourcesByType.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                agg.kbSourcesByType.entries.sortedByDescending { it.value }.forEach { (type, count) ->
+                d.kbSourcesByType.entries.sortedByDescending { it.value }.forEach { (type, count) ->
                     StatChip("📄", type.name, count, AppColors.TextSecondary)
                 }
             }

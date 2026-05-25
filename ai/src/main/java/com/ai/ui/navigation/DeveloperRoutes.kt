@@ -52,12 +52,22 @@ internal fun NavGraphBuilder.developerRoutes(
         }
         composable(NavRoutes.AI_STATISTICS) {
             AiStatisticsScreen(
-                appViewModel = appViewModel,
-                reportViewModel = reportViewModel,
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToSpendUsage = { navController.navigate(NavRoutes.AI_SPEND_USAGE) },
                 onNavigateToCostsTier = { navController.navigate(NavRoutes.AI_COSTS_TIER) },
+                onNavigateToReports = { navController.navigate(NavRoutes.AI_STAT_REPORTS) },
+                onNavigateToProviders = { navController.navigate(NavRoutes.AI_STAT_PROVIDERS) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
+        }
+        composable(NavRoutes.AI_STAT_REPORTS) {
+            AiStatReportsScreen(
+                reportViewModel = reportViewModel,
+                onBack = safePopBack, onNavigateHome = navigateHome)
+        }
+        composable(NavRoutes.AI_STAT_PROVIDERS) {
+            AiStatProvidersScreen(
+                appViewModel = appViewModel,
+                onBack = safePopBack, onNavigateHome = navigateHome)
         }
         composable(NavRoutes.AI_SPEND_USAGE) {
             val uiState by appViewModel.uiState.collectAsState()
