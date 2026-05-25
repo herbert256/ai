@@ -1635,6 +1635,34 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 context, reportId, report.prompt, overrideParams, task,
                 effectiveImage, effectiveImageMime, isRegeneration = true
             )
+
+            // The per-model title + icon are derived from THIS agent's
+            // response, so the fresh response invalidates them. Re-fire the
+            // per-model enrichment exactly as the initial generation does in
+            // runReportPrimaryCalls — a bare regenerateAgent calls
+            // executeReportTask directly and would otherwise skip it, leaving
+            // the "Report - Get info" model-title / model-icon rows spinning
+            // on the hourglass forever (a SUCCESS agent with no title/icon
+            // reads as RUNNING, but nothing was ever launched). Gated by the
+            // same two toggles that decide whether those rows exist at all.
+            val gen = appViewModel.uiState.value.generalSettings
+            val iconOn = gen.perModelIconOn()
+            val titleOn = gen.perModelTitleOn()
+            if (iconOn || titleOn) {
+                val freshRa = ReportStorage.getReport(context, reportId)
+                    ?.agents?.firstOrNull { it.agentId == agentId }
+                if (freshRa?.reportStatus == ReportStatus.SUCCESS && !freshRa.responseBody.isNullOrBlank()) {
+                    // Wipe the now-stale per-model enrichment (icon + any
+                    // prior title error) so the new response's title/icon
+                    // regenerate cleanly and a previous ❌ is retried.
+                    if (iconOn) ReportStorage.clearReportAgentIconState(context, reportId, agentId)
+                    if (titleOn) ReportStorage.clearReportAgentModelTitleError(context, reportId, agentId)
+                    iconGen.runPerModelEnrichment(
+                        context, reportId, freshRa, report.prompt, aiSettings, iconOn, titleOn
+                    )
+                    appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+                }
+            }
             }
         }
     }
