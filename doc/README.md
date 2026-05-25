@@ -18,6 +18,8 @@ metadata repositories layered into one resolved view per
 - **[manual.md](manual.md)** — Functional walkthrough of every screen
   and feature, from first-run setup through Reports, Chat, Dual Chat,
   Translation, Fan-out / Fan-in, exports, and Housekeeping.
+- **[screens.md](screens.md)** — Quick reference table of every screen
+  title and its subtitle line.
 
 ### For developers
 - **[architecture.md](architecture.md)** — Big-picture map of the app:
