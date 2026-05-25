@@ -444,10 +444,10 @@ internal fun PairIconDetailOverlay(
     }
     val provider = AppService.findById(pair.providerId) ?: return false
     val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "fan_out_2"
+        it.category == "icons" && it.name == "fan_out_1"
     }
     val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "fan_out"
+        it.category == "icons" && it.name == "fan_out_2"
     }
     val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
         it.category == "icons" && it.name == "fan_out_3"
@@ -467,8 +467,8 @@ internal fun PairIconDetailOverlay(
     )
     val subject = pair.iconPromptUsed
         ?: when (pair.iconWinningTier) {
-            1 -> "fan_out_2"; 2 -> "fan_out"; 3 -> "fan_out_3"
-            else -> "fan_out"
+            1 -> "fan_out_1"; 2 -> "fan_out_2"; 3 -> "fan_out_3"
+            else -> "fan_out_2"
         }
     // Reconstruct the EXACT meta-prompt text the pair was sent so
     // the API-interaction card matches what hit the wire. The

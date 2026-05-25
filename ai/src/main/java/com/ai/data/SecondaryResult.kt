@@ -353,8 +353,8 @@ object SecondaryResultStorage {
     fun setFanOutIconAndTier(
         context: Context, reportId: String, resultId: String,
         icon: String, winningTier: Int?, iconRunId: String? = null,
-        /** Bundled prompt that produced [icon] — "fan_out_2" for
-         *  tier 1, "fan_out" for tier 2, "fan_out_3" for tier 3
+        /** Bundled prompt that produced [icon] — "fan_out_1" for
+         *  tier 1, "fan_out_2" for tier 2, "fan_out_3" for tier 3
          *  (or "fan_out_alt" after a future Find-alt pick).
          *  Surfaces on the Icon lookup screen. */
         promptUsed: String? = null

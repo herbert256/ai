@@ -944,7 +944,7 @@ class IconGenerationManager(
 
     // ── Per-fan-out-pair icon Find-alt ──────────────────────────
     // Mirrors startAgentIconFanOut for fan-out pairs. Composes the
-    // bundled `fan_out_alt` (the nudge) FIRST, then `fan_out` (the
+    // bundled `fan_out_alt` (the nudge) FIRST, then `fan_out_2` (the
     // one-shot template), substitutes @QUESTION@ / @SOURCE_RESPONSE@ /
     // @META_PROMPT@ / @RESPONSE@, fires one call per picked
     // (provider, model), attributes cost to the pair's SR + the
@@ -962,9 +962,9 @@ class IconGenerationManager(
         aiSettings: Settings
     ) {
         val basePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "fan_out"
+            it.category == "icons" && it.name == "fan_out_2"
         } ?: run {
-            AppLog.w("PairIconAlt", "internal/fan_out prompt not found — skipping (pair=$pairId)")
+            AppLog.w("PairIconAlt", "internal/fan_out_2 prompt not found — skipping (pair=$pairId)")
             return
         }
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
@@ -2429,10 +2429,10 @@ class IconGenerationManager(
         rateLimitedHosts: MutableSet<String>
     ) {
         val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "fan_out_2"
+            it.category == "icons" && it.name == "fan_out_1"
         }
         val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "fan_out"
+            it.category == "icons" && it.name == "fan_out_2"
         }
         val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "icons" && it.name == "fan_out_3"
@@ -3325,8 +3325,8 @@ class IconGenerationManager(
         // Map tier number to the bundled prompt name for the Icon
         // lookup screen's subject row.
         val promptUsed = when (winningTier) {
-            1 -> "fan_out_2"
-            2 -> "fan_out"
+            1 -> "fan_out_1"
+            2 -> "fan_out_2"
             3 -> "fan_out_3"
             else -> null
         }
