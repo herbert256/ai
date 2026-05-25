@@ -186,6 +186,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     val translation = TranslationRunManager(appViewModel, this)
     val iconGen = IconGenerationManager(appViewModel, this)
     val secondary = SecondaryRunManager(appViewModel, this)
+    /** Round-robin + 429-fallback runner for "workers"-category prompts.
+     *  Reusable engine; no batch is converted onto it yet. */
+    val workerRunner = WorkerRunner(appViewModel)
 
     private data class ReportTask(
         val resultId: String,

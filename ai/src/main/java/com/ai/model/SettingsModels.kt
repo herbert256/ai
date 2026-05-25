@@ -689,6 +689,24 @@ data class Settings(
         }
         return agents.firstOrNull { it.name.equals(prompt.agent, ignoreCase = true) }
     }
+
+    /** Resolve a single [Worker] (one entry of a "workers"-category
+     *  prompt's chain) to a dispatchable [Agent], same two modes as
+     *  [resolvePromptAgent]: a pinned provider+model (agent="*N/A")
+     *  yields a synthetic agent; otherwise the named agent is looked up
+     *  in [agents]. Returns null when neither resolves (unknown provider
+     *  / agent, or "*N/A" / "*select" sentinels). */
+    fun resolveWorker(w: Worker): Agent? {
+        if (w.provider != "*N/A" && w.provider.isNotBlank() &&
+            w.model != "*N/A" && w.model.isNotBlank()) {
+            val svc = AppService.findById(w.provider) ?: return null
+            return Agent(id = "", name = "${w.provider} / ${w.model}", provider = svc, model = w.model, apiKey = "")
+        }
+        if (w.agent != "*N/A" && w.agent.isNotBlank() && w.agent != "*select")
+            return agents.firstOrNull { it.name.equals(w.agent, ignoreCase = true) }
+        return null
+    }
+
     fun getConfiguredAgents() = agents.filter { it.apiKey.isNotBlank() || getApiKey(it.provider).isNotBlank() }
 
     fun getFlockById(id: String) = flocks.find { it.id == id }

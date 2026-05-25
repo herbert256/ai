@@ -1,6 +1,6 @@
 {
-  "name": "title",
-  "title": "Decide a title for a response.",
+  "name": "titles",
+  "title": "Find a long and a short title for a report",
   "reference": false,
   "workers":
     [

@@ -194,6 +194,35 @@ internal fun resolveRetryAfter(response: Response, defaultMs: Long, hostForLog: 
     }.getOrDefault(defaultMs)
 }
 
+/** Default worker-fallback cooldown applied to a 429'd worker when the
+ *  response carries no wait hint. The WorkerRunner round-robin uses this. */
+internal const val WORKER_429_DEFAULT_MS = 5_000L
+
+/** Parse a `Retry-After` hint (milliseconds) out of the formatted header
+ *  block captured on [com.ai.data.AnalysisResponse.httpHeaders] (a
+ *  newline-separated "Name: value" string). Seconds form or HTTP-date
+ *  form; null when the header is absent or unparseable. Sibling of
+ *  [retryAfterHintMs] for callers that only have the formatted string,
+ *  not the live OkHttp [Response]. */
+internal fun retryAfterFromHeaderBlock(headers: String?): Long? {
+    if (headers.isNullOrBlank()) return null
+    val line = headers.lineSequence()
+        .firstOrNull { it.trimStart().startsWith("retry-after:", ignoreCase = true) }
+        ?: return null
+    val raw = line.substringAfter(':').trim()
+    raw.toLongOrNull()?.let { secs -> if (secs > 0) return secs * 1000 }
+    runCatching {
+        val date = java.time.ZonedDateTime.parse(
+            raw, java.time.format.DateTimeFormatter.RFC_1123_DATE_TIME
+        )
+        val delta = java.time.Duration.between(
+            java.time.ZonedDateTime.now(date.zone), date
+        ).toMillis()
+        if (delta > 0) return delta
+    }
+    return null
+}
+
 /** Resolve a 429's retry-after hint, **unclamped**, in
  *  milliseconds. Reads the generic `Retry-After` header first
  *  (seconds or HTTP-date — works for any provider), then falls

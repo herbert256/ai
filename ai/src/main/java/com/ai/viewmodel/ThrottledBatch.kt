@@ -73,9 +73,18 @@ import kotlinx.coroutines.withTimeout
  *                  hung call can't pin its permits forever. Wrapped inside
  *                  the permits; [body] should treat a
  *                  TimeoutCancellationException as a failed item.
+ * @param dynamicHost when true the item has NO fixed host — [body] chooses
+ *                  the host(s) itself per call (the worker round-robin chain
+ *                  spans several providers and changes on 429-fallback). In
+ *                  that mode only `subCap` + `global` are acquired here and
+ *                  `permitPreAcquired` is NOT set, so each inner call acquires
+ *                  its own per-host permit through `ProviderThrottleInterceptor`
+ *                  (sub → global → host order preserved, no same-host
+ *                  re-acquire). [hostOf] is ignored. Default false keeps the
+ *                  fixed-host path (and its null = skip) byte-for-byte.
  * @param body      the per-item work (the network call + its own persist /
  *                  status / deleted-check logic). Runs with the permits
- *                  held and `permitPreAcquired = true`.
+ *                  held and `permitPreAcquired = true` (fixed-host mode).
  */
 internal suspend fun <T> runThrottledBatch(
     items: List<T>,
@@ -85,12 +94,31 @@ internal suspend fun <T> runThrottledBatch(
     onCleared: (T) -> Unit = {},
     register: (T, Deferred<*>) -> Unit = { _, _ -> },
     timeoutMs: Long? = null,
+    dynamicHost: Boolean = false,
     body: suspend (T) -> Unit,
 ) {
     if (items.isEmpty()) return
     coroutineScope {
-        interleaveByHost(items) { hostOf(it) }.map { item ->
+        interleaveByHost(items) { if (dynamicHost) null else hostOf(it) }.map { item ->
             val deferred = async(start = CoroutineStart.LAZY) {
+                if (dynamicHost) {
+                    // Worker-style: host is picked per call inside body, so
+                    // acquire only subCap + global (blank host = no-op gate)
+                    // and DON'T set permitPreAcquired — each inner worker call
+                    // self-throttles its own provider host via the interceptor.
+                    val hold = acquireThrottledPermits(
+                        subCap, "",
+                        onThrottled = { onThrottled(item) },
+                        onCleared = { onCleared(item) }
+                    )
+                    try {
+                        if (timeoutMs != null) withTimeout(timeoutMs) { body(item) }
+                        else body(item)
+                    } finally {
+                        hold.dispose()
+                    }
+                    return@async
+                }
                 val host = hostOf(item) ?: return@async
                 // Acquire sub-cap → global → host, but with the outer two
                 // RELEASED while parked on the per-host gate, so a per-flow

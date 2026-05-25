@@ -377,12 +377,17 @@ object ApiCallCaps {
     // running icons batch on a shared semaphore. Same limit as fan-icons —
     // no separate user setting.
     @Volatile private var fanTitlesSem: kotlinx.coroutines.sync.Semaphore = sem(50)
+    // Worker batches (round-robin worker chains) get their own pool too, on
+    // the same limit as fan-icons — so a future worker batch doesn't starve
+    // (or get starved by) the icon/title pools on a shared semaphore.
+    @Volatile private var workersSem: kotlinx.coroutines.sync.Semaphore = sem(50)
     @Volatile private var globalCap: Int = 100
     @Volatile private var reportCap: Int = 50
     @Volatile private var translationCap: Int = 50
     @Volatile private var fanOutCap: Int = 50
     @Volatile private var fanIconsCap: Int = 50
     @Volatile private var fanTitlesCap: Int = 50
+    @Volatile private var workersCap: Int = 50
 
     val global: kotlinx.coroutines.sync.Semaphore get() = globalSem
     val report: kotlinx.coroutines.sync.Semaphore get() = reportSem
@@ -390,6 +395,7 @@ object ApiCallCaps {
     val fanOut: kotlinx.coroutines.sync.Semaphore get() = fanOutSem
     val fanIcons: kotlinx.coroutines.sync.Semaphore get() = fanIconsSem
     val fanTitles: kotlinx.coroutines.sync.Semaphore get() = fanTitlesSem
+    val workers: kotlinx.coroutines.sync.Semaphore get() = workersSem
 
     fun resetForNewLimits(
         globalMax: Int, reportMax: Int,
@@ -402,12 +408,14 @@ object ApiCallCaps {
         fanOutCap = fanOutMax.coerceAtLeast(1)
         fanIconsCap = fanIconsMax.coerceAtLeast(1)
         fanTitlesCap = fanIconsMax.coerceAtLeast(1)  // shares the fan-icons limit, own pool
+        workersCap = fanIconsMax.coerceAtLeast(1)    // shares the fan-icons limit, own pool
         globalSem = sem(globalCap)
         reportSem = sem(reportCap)
         translationSem = sem(translationCap)
         fanOutSem = sem(fanOutCap)
         fanIconsSem = sem(fanIconsCap)
         fanTitlesSem = sem(fanTitlesCap)
+        workersSem = sem(workersCap)
     }
 
     private fun sem(n: Int) = kotlinx.coroutines.sync.Semaphore(n.coerceAtLeast(1))
@@ -422,7 +430,8 @@ object ApiCallCaps {
         val translationInFlight: Int, val translationMax: Int,
         val fanOutInFlight: Int, val fanOutMax: Int,
         val fanIconsInFlight: Int, val fanIconsMax: Int,
-        val fanTitlesInFlight: Int, val fanTitlesMax: Int
+        val fanTitlesInFlight: Int, val fanTitlesMax: Int,
+        val workersInFlight: Int = 0, val workersMax: Int = 0
     )
 
     fun snapshot(): Snapshot = Snapshot(
@@ -437,7 +446,9 @@ object ApiCallCaps {
         fanIconsInFlight = fanIconsCap - fanIconsSem.availablePermits,
         fanIconsMax = fanIconsCap,
         fanTitlesInFlight = fanTitlesCap - fanTitlesSem.availablePermits,
-        fanTitlesMax = fanTitlesCap
+        fanTitlesMax = fanTitlesCap,
+        workersInFlight = workersCap - workersSem.availablePermits,
+        workersMax = workersCap
     )
 
     /** True when any cap has at least one permit checked out — i.e. work
@@ -448,14 +459,15 @@ object ApiCallCaps {
             translationSem.availablePermits < translationCap ||
             fanOutSem.availablePermits < fanOutCap ||
             fanIconsSem.availablePermits < fanIconsCap ||
-            fanTitlesSem.availablePermits < fanTitlesCap
+            fanTitlesSem.availablePermits < fanTitlesCap ||
+            workersSem.availablePermits < workersCap
 
     /** One-line `in-flight/max` summary of every cap for the watchdog. */
     fun diagnosticLine(): String = snapshot().let {
         "global ${it.globalInFlight}/${it.globalMax} report ${it.reportInFlight}/${it.reportMax} " +
             "translation ${it.translationInFlight}/${it.translationMax} " +
             "fanOut ${it.fanOutInFlight}/${it.fanOutMax} fanIcons ${it.fanIconsInFlight}/${it.fanIconsMax} " +
-            "fanTitles ${it.fanTitlesInFlight}/${it.fanTitlesMax}"
+            "fanTitles ${it.fanTitlesInFlight}/${it.fanTitlesMax} workers ${it.workersInFlight}/${it.workersMax}"
     }
 }
 
