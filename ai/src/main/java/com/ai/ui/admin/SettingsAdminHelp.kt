@@ -641,8 +641,11 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_stat_providers" to HelpContent(
         title = "Help - Providers / Models",
         cards = listOf(
-            HelpCard("Overview", "Provider / model counts and model-list cache freshness. Reached from AI Statistics."),
-            HelpCard("🔌 Providers & models", "Providers configured, how many have an API key, total models across providers, and model-list cache freshness (cached, plus how many are stale > 7 days)."),
+            HelpCard("Overview", "A full view of your model fleet — aggregate cards on top, then one expandable card per provider. All in-memory or a cheap file-stat, so it opens fast (no pricing lookups or network)."),
+            HelpCard("Aggregate cards", "Providers (configured / active / with key / inactive); API formats (OpenAI-compatible / Anthropic / Google); Models (total + Vision / Web search / Reasoning / Embedding); Models by type (chat / image / tts / embedding / rerank / …); Model states (blocked / inaccessible / test-excluded / cooling); Catalog cache (cached / stale > 7 days / never fetched); Workers (agents / flocks / swarms); and the last Test-all-models result when one exists."),
+            HelpCard("Per-provider rows", "One card per provider, active first then by model count. Header: a green/grey dot for active, the provider id, an API-format tag, and the model count; a compact line shows the non-zero signals (👁 vision, 🌐 web, 🧠 reasoning, ❄️ cooling, ⛔ blocked) and \"no key\" if unconfigured."),
+            HelpCard("Expand a provider", "Tap to reveal: default model, host, API key, the concurrency + per-minute caps (the per-provider override or the inherited global), catalog age, a by-type breakdown, a model-state breakdown, and this provider's passed/failed from the last Test-all-models run."),
+            HelpCard("Reconciles with", "Total/cached/stale match the old summary; blocked / inaccessible / test-excluded / cooling match Housekeeping → Model states; capability counts come from each provider's /models response (the same layered lookup used everywhere)."),
         )
     ),
     "ai_spend_usage" to HelpContent(

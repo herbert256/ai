@@ -8,6 +8,7 @@ import com.ai.ui.hub.reportHasProblems
 import com.ai.ui.hub.reportIsRunning
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.viewmodel.TranslationRunState
+import com.ai.viewmodel.providerHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -19,14 +20,61 @@ internal data class ReportSectionData(
     val metaByName: Map<String, Int>,
 )
 
-/** Provider / model counts + model-list cache freshness — the
- *  "Statistics - Providers / Models" screen. Cheap. */
+/** One provider's row on the "Providers / Models" screen. */
+internal data class ProviderRow(
+    val id: String,
+    val active: Boolean,
+    val format: String,                  // ApiFormat.name
+    val host: String,
+    val defaultModel: String,
+    val hasKey: Boolean,
+    val models: Int,
+    val vision: Int,
+    val webSearch: Int,
+    val reasoning: Int,
+    val embedding: Int,
+    val blocked: Int,
+    val inaccessible: Int,
+    val testExcluded: Int,
+    val cooling: Int,
+    val cacheAgeMs: Long?,               // null = never fetched
+    val concCap: Int?,                   // per-provider override (null = inherits)
+    val perMinCap: Int?,
+    val modelsByType: Map<String, Int>,
+    val testPassed: Int,
+    val testFailed: Int,
+)
+
+/** Summary of the last persisted "Test all models" run. */
+internal data class TestRunSummary(
+    val forTesting: Int, val passed: Int, val failed: Int, val cost: Double, val startedAt: Long,
+)
+
+/** Provider / model fleet stats — the "Providers / Models" screen. All
+ *  in-memory or a cheap per-provider file-stat; no getPricing / network. */
 internal data class ProviderModelData(
     val providersConfigured: Int,
+    val providersActive: Int,
     val providersWithKey: Int,
     val totalModels: Int,
-    val modelsCached: Int,
-    val modelCacheStale: Int,
+    val byFormat: Map<String, Int>,      // ApiFormat.name -> provider count
+    val modelsByType: Map<String, Int>,
+    val vision: Int,
+    val webSearch: Int,
+    val reasoning: Int,
+    val embedding: Int,
+    val blocked: Int,
+    val inaccessible: Int,
+    val testExcluded: Int,
+    val cooling: Int,
+    val cached: Int,
+    val stale: Int,
+    val neverCached: Int,
+    val agents: Int,
+    val flocks: Int,
+    val swarms: Int,
+    val lastTest: TestRunSummary?,
+    val providers: List<ProviderRow>,    // active first, then model count desc
 )
 
 /** Knowledge-base totals — shown on AI Statistics. */
@@ -193,26 +241,90 @@ internal suspend fun computeReportStats(
     )
 }
 
-/** Provider / model counts + model-list cache freshness. Cheap. */
+/** Provider / model fleet stats. One in-memory pass over the registry +
+ *  a cheap file-stat per provider for catalog freshness. No getPricing. */
 internal suspend fun computeProviderModelStats(
     context: Context,
     aiSettings: Settings,
 ): ProviderModelData = withContext(Dispatchers.IO) {
     val providers = ProviderRegistry.getAll()
     val now = System.currentTimeMillis()
-    var cached = 0
-    var stale = 0
-    for (p in providers) {
-        val at = ModelListCache.fetchedAt(context, p.id) ?: continue
-        cached++
-        if (now - at > MODEL_CACHE_STALE_MS) stale++
+    val cooldowns = ModelCooldownStore.cooldowns.value
+    val lastRun = ModelTestRunStore.load(context)
+
+    val rows = providers.map { p ->
+        val cfg = aiSettings.getProvider(p)
+        val models = cfg.models.filter { it.isNotBlank() }
+        val modelSet = models.toHashSet()
+        val typeCounts = LinkedHashMap<String, Int>()
+        for (m in models) {
+            val t = aiSettings.getModelType(p, m) ?: ModelType.UNKNOWN
+            typeCounts[t] = (typeCounts[t] ?: 0) + 1
+        }
+        val at = ModelListCache.fetchedAt(context, p.id)
+        val (pass, fail) = lastRun?.itemsForProvider(p.id)?.let { items ->
+            items.count { it.status == TestStatus.PASS } to items.count { it.status == TestStatus.FAIL }
+        } ?: (0 to 0)
+        ProviderRow(
+            id = p.id,
+            active = aiSettings.isProviderActive(p),
+            format = p.apiFormat.name,
+            host = providerHost(p),
+            defaultModel = p.defaultModel,
+            hasKey = aiSettings.getApiKey(p).isNotBlank(),
+            models = models.size,
+            vision = cfg.visionCapableComputed.count { it in modelSet },
+            webSearch = cfg.webSearchCapableComputed.count { it in modelSet },
+            reasoning = cfg.reasoningCapableComputed.count { it in modelSet },
+            embedding = typeCounts[ModelType.EMBEDDING] ?: 0,
+            blocked = models.count { aiSettings.isBlocked(p.id, it) },
+            inaccessible = models.count { aiSettings.isInaccessible(p.id, it) },
+            testExcluded = models.count { aiSettings.isTestExcluded(p.id, it) },
+            cooling = models.count { (cooldowns["${p.id}:$it"] ?: 0L) > now },
+            cacheAgeMs = at?.let { now - it },
+            concCap = p.maxConcurrentCallsPerProvider,
+            perMinCap = p.maxCallsPerProviderPerMinute,
+            modelsByType = typeCounts,
+            testPassed = pass,
+            testFailed = fail,
+        )
     }
+
+    fun mergeTypeCounts(): Map<String, Int> {
+        val agg = LinkedHashMap<String, Int>()
+        rows.forEach { r -> r.modelsByType.forEach { (t, c) -> agg[t] = (agg[t] ?: 0) + c } }
+        // Present in canonical ModelType order, unknowns last.
+        val ordered = LinkedHashMap<String, Int>()
+        ModelType.ALL.forEach { t -> agg[t]?.let { ordered[t] = it } }
+        agg.forEach { (t, c) -> if (t !in ordered) ordered[t] = c }
+        return ordered
+    }
+
     ProviderModelData(
         providersConfigured = providers.size,
-        providersWithKey = providers.count { aiSettings.getApiKey(it).isNotBlank() },
-        totalModels = providers.sumOf { aiSettings.getProvider(it).models.size },
-        modelsCached = cached,
-        modelCacheStale = stale,
+        providersActive = rows.count { it.active },
+        providersWithKey = rows.count { it.hasKey },
+        totalModels = rows.sumOf { it.models },
+        byFormat = rows.groupingBy { it.format }.eachCount(),
+        modelsByType = mergeTypeCounts(),
+        vision = rows.sumOf { it.vision },
+        webSearch = rows.sumOf { it.webSearch },
+        reasoning = rows.sumOf { it.reasoning },
+        embedding = rows.sumOf { it.embedding },
+        blocked = rows.sumOf { it.blocked },
+        inaccessible = rows.sumOf { it.inaccessible },
+        testExcluded = rows.sumOf { it.testExcluded },
+        cooling = rows.sumOf { it.cooling },
+        cached = rows.count { it.cacheAgeMs != null },
+        stale = rows.count { it.cacheAgeMs != null && it.cacheAgeMs > MODEL_CACHE_STALE_MS },
+        neverCached = rows.count { it.cacheAgeMs == null },
+        agents = aiSettings.agents.size,
+        flocks = aiSettings.flocks.size,
+        swarms = aiSettings.swarms.size,
+        lastTest = lastRun?.let {
+            TestRunSummary(it.forTestingAtStart, it.doneCount, it.errorCount, it.totalCost, it.startedAt)
+        },
+        providers = rows.sortedWith(compareByDescending<ProviderRow> { it.active }.thenByDescending { it.models }),
     )
 }
 

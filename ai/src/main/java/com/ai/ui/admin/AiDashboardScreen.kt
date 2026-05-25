@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -54,6 +55,7 @@ import com.ai.data.ModelTestRunState
 import com.ai.data.NetworkSettings
 import com.ai.data.PricingCache
 import com.ai.data.ProviderModelData
+import com.ai.data.ProviderRow
 import com.ai.data.ProviderThrottle
 import com.ai.data.ReportSectionData
 import com.ai.data.ReportStats
@@ -272,6 +274,7 @@ fun AiStatProvidersScreen(
     val data by produceState<ProviderModelData?>(null, refreshTick) {
         value = computeProviderModelStats(context, uiState.aiSettings)
     }
+    var expanded by rememberSaveable { mutableStateOf<List<String>>(emptyList()) }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -281,7 +284,7 @@ fun AiStatProvidersScreen(
         TitleBar(
             helpTopic = "ai_stat_providers",
             title = "Providers / Models",
-            subject = "Providers, models and catalog freshness",
+            subject = "The whole model fleet",
             onBackClick = onBack,
             reportIcon = "📈",
             onReportIconClick = onNavigateToStatistics,
@@ -293,12 +296,182 @@ fun AiStatProvidersScreen(
         } else {
             LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { Spacer(Modifier.height(4.dp)) }
-                item { ProvidersSection(d) }
+
+                item {
+                    SectionCard("🔌", "Providers", AppColors.Indigo) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("🔢", "Configured", d.providersConfigured, Color.White)
+                            StatChip("🟢", "Active", d.providersActive, AppColors.Green)
+                            StatChip("🔑", "With key", d.providersWithKey, AppColors.Blue)
+                            StatChip("⚪", "Inactive", d.providersConfigured - d.providersActive, AppColors.TextDim)
+                        }
+                    }
+                }
+                item {
+                    SectionCard("🔣", "API formats", AppColors.Blue) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("🤝", "OpenAI-compatible", d.byFormat["OPENAI_COMPATIBLE"] ?: 0, AppColors.Green)
+                            StatChip("🅰️", "Anthropic", d.byFormat["ANTHROPIC"] ?: 0, AppColors.Orange)
+                            StatChip("🔷", "Google", d.byFormat["GOOGLE"] ?: 0, AppColors.Blue)
+                        }
+                    }
+                }
+                item {
+                    SectionCard("🧠", "Models", AppColors.Purple) {
+                        KeyVal("Total configured", "${d.totalModels}")
+                        Spacer(Modifier.height(6.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("👁", "Vision", d.vision, AppColors.Blue)
+                            StatChip("🌐", "Web search", d.webSearch, AppColors.Green)
+                            StatChip("🧠", "Reasoning", d.reasoning, AppColors.Purple)
+                            StatChip("🔢", "Embedding", d.embedding, AppColors.Indigo)
+                        }
+                    }
+                }
+                if (d.modelsByType.isNotEmpty()) item {
+                    SectionCard("🏷️", "Models by type", AppColors.Indigo) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            d.modelsByType.forEach { (type, count) -> StatChip("•", type, count, AppColors.TextSecondary) }
+                        }
+                    }
+                }
+                item {
+                    SectionCard("🚦", "Model states", AppColors.Orange) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("⛔", "Blocked", d.blocked, if (d.blocked > 0) AppColors.Red else AppColors.TextDim)
+                            StatChip("🚫", "Inaccessible", d.inaccessible, if (d.inaccessible > 0) AppColors.Orange else AppColors.TextDim)
+                            StatChip("⏭️", "Test-excluded", d.testExcluded, AppColors.TextSecondary)
+                            StatChip("❄️", "Cooling", d.cooling, if (d.cooling > 0) AppColors.Orange else AppColors.TextDim)
+                        }
+                    }
+                }
+                item {
+                    SectionCard("🗂️", "Catalog cache", AppColors.Green) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("✅", "Cached", d.cached, AppColors.Green)
+                            StatChip("⏳", "Stale >7d", d.stale, if (d.stale > 0) AppColors.Orange else AppColors.TextDim)
+                            StatChip("➖", "Never", d.neverCached, AppColors.TextDim)
+                        }
+                    }
+                }
+                item {
+                    SectionCard("👥", "Workers", AppColors.Blue) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("🤖", "Agents", d.agents, AppColors.Blue)
+                            StatChip("🐦", "Flocks", d.flocks, AppColors.Green)
+                            StatChip("🐝", "Swarms", d.swarms, AppColors.Orange)
+                        }
+                    }
+                }
+                d.lastTest?.let { t ->
+                    item {
+                        SectionCard("🧪", "Last test-all-models", AppColors.Purple) {
+                            KeyVal("For testing", "${t.forTesting}")
+                            KeyVal("Passed", "${t.passed}", AppColors.Green)
+                            KeyVal("Failed", "${t.failed}", if (t.failed > 0) AppColors.Red else Color.White)
+                            KeyVal("Cost", money(t.cost), AppColors.Green)
+                            KeyVal("When", fmtFetched(t.startedAt))
+                        }
+                    }
+                }
+
+                item {
+                    Text("Per provider", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp, start = 2.dp))
+                }
+                items(d.providers, key = { it.id }) { row ->
+                    ProviderStatCard(
+                        row = row,
+                        isExpanded = row.id in expanded,
+                        onToggle = { expanded = if (row.id in expanded) expanded - row.id else expanded + row.id }
+                    )
+                }
                 item { Spacer(Modifier.height(24.dp)) }
             }
         }
     }
 }
+
+@Composable
+private fun ProviderStatCard(row: ProviderRow, isExpanded: Boolean, onToggle: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+        modifier = Modifier.fillMaxWidth().clickable { onToggle() }
+    ) {
+        Column(Modifier.fillMaxWidth().padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(if (row.active) "🟢" else "⚪", fontSize = 11.sp)
+                Spacer(Modifier.width(6.dp))
+                Text(row.id, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, modifier = Modifier.weight(1f))
+                Text(
+                    formatTag(row.format), fontSize = 9.sp, color = AppColors.TextSecondary,
+                    modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(AppColors.SurfaceDark).padding(horizontal = 5.dp, vertical = 1.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("${row.models} models", fontSize = 12.sp, color = AppColors.TextSecondary)
+                Spacer(Modifier.width(6.dp))
+                Text(if (isExpanded) "▾" else "▸", color = AppColors.TextTertiary)
+            }
+            // Compact signal chips — only the non-zero ones.
+            val signals = buildList {
+                if (row.vision > 0) add("👁" to row.vision)
+                if (row.webSearch > 0) add("🌐" to row.webSearch)
+                if (row.reasoning > 0) add("🧠" to row.reasoning)
+                if (row.cooling > 0) add("❄️" to row.cooling)
+                if (row.blocked > 0) add("⛔" to row.blocked)
+            }
+            if (signals.isNotEmpty() || !row.hasKey) {
+                Spacer(Modifier.height(4.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!row.hasKey) Text("no key", fontSize = 11.sp, color = AppColors.Orange)
+                    signals.forEach { (e, n) -> Text("$e $n", fontSize = 11.sp, color = AppColors.TextSecondary) }
+                }
+            }
+            if (isExpanded) {
+                HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.padding(vertical = 8.dp))
+                KeyVal("Default model", row.defaultModel.ifBlank { "—" })
+                KeyVal("Host", row.host.ifBlank { "—" })
+                KeyVal("API key", if (row.hasKey) "yes" else "no", if (row.hasKey) AppColors.Green else AppColors.Orange)
+                KeyVal("Concurrency cap", capLabel(row.concCap, NetworkSettings.maxConcurrentCallsPerProvider))
+                KeyVal("Per-minute cap", capLabel(row.perMinCap, NetworkSettings.maxCallsPerProviderPerMinute))
+                KeyVal("Catalog", row.cacheAgeMs?.let { fmtDuration(it) + " ago" } ?: "never fetched")
+                if (row.modelsByType.isNotEmpty()) {
+                    Spacer(Modifier.height(6.dp))
+                    Text("By type", fontSize = 10.sp, color = AppColors.TextTertiary)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.modelsByType.forEach { (t, c) -> StatChip("•", t, c, AppColors.TextSecondary) }
+                    }
+                }
+                if (row.blocked + row.inaccessible + row.testExcluded + row.cooling > 0) {
+                    Spacer(Modifier.height(6.dp))
+                    Text("States", fontSize = 10.sp, color = AppColors.TextTertiary)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (row.blocked > 0) StatChip("⛔", "Blocked", row.blocked, AppColors.Red)
+                        if (row.inaccessible > 0) StatChip("🚫", "Inaccessible", row.inaccessible, AppColors.Orange)
+                        if (row.testExcluded > 0) StatChip("⏭️", "Excluded", row.testExcluded, AppColors.TextSecondary)
+                        if (row.cooling > 0) StatChip("❄️", "Cooling", row.cooling, AppColors.Orange)
+                    }
+                }
+                if (row.testPassed + row.testFailed > 0) {
+                    Spacer(Modifier.height(4.dp))
+                    KeyVal("Last test", "${row.testPassed} passed · ${row.testFailed} failed",
+                        if (row.testFailed > 0) AppColors.Orange else AppColors.Green)
+                }
+            }
+        }
+    }
+}
+
+/** Compact API-format tag. */
+private fun formatTag(format: String): String = when (format) {
+    "OPENAI_COMPATIBLE" -> "OpenAI"
+    "ANTHROPIC" -> "Anthropic"
+    "GOOGLE" -> "Google"
+    else -> format
+}
+
+/** Per-provider cap: the override value + "(override)", or the inherited global. */
+private fun capLabel(override: Int?, global: Int): String =
+    if (override != null) "$override (override)" else "$global (default)"
 
 /** Spend & usage — own screen (per-model getPricing). Reached from AI
  *  Statistics. Computes its breakdown only on open. */
@@ -630,17 +803,6 @@ private fun SecondariesSection(byKind: Map<SecondaryKind, Int>, metaByName: Map<
             Text("By meta prompt", fontSize = 11.sp, color = AppColors.TextTertiary)
             metaByName.entries.take(6).forEach { (name, count) -> KeyVal(name, "$count") }
         }
-    }
-}
-
-@Composable
-private fun ProvidersSection(d: ProviderModelData) {
-    SectionCard("🔌", "Providers & models", AppColors.Indigo) {
-        KeyVal("Providers configured", "${d.providersConfigured}")
-        KeyVal("With API key", "${d.providersWithKey}", AppColors.Green)
-        KeyVal("Models (total)", "${d.totalModels}")
-        KeyVal("Model lists cached", "${d.modelsCached}")
-        if (d.modelCacheStale > 0) KeyVal("Stale (>7d)", "${d.modelCacheStale}", AppColors.Orange)
     }
 }
 
