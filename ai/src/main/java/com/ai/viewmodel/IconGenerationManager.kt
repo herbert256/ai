@@ -1060,14 +1060,11 @@ class IconGenerationManager(
     private fun translationIconKey(language: String): String =
         "translation_icon" + "" + language
 
-    /** Background helper that resolves the bundled
-     *  `icons/translation` prompt against its pinned agent
-     *  and caches a one-emoji result for [language] in
-     *  [InternalPromptIconCache]. Idempotent (same dedupe rules as
-     *  [kickOffInternalPromptIcon]). Bails when
-     *  [com.ai.viewmodel.GeneralSettings.useInternalPromptsIcons]
-     *  is off — the master switch covers every internal-prompt
-     *  icon flow. */
+    /** Background helper that runs the bundled `workers/translation`
+     *  prompt (round-robin / 429-fallback worker engine) and caches a
+     *  one-emoji result for [language] in [InternalPromptIconCache].
+     *  Idempotent (same dedupe rules as [kickOffInternalPromptIcon]).
+     *  Bails when the metadata-icons master switch is off. */
     fun kickOffTranslationIcon(
         context: Context,
         language: String,
@@ -1079,71 +1076,47 @@ class IconGenerationManager(
         if (!InternalPromptIconCache.markInFlight("translation_icon", language)) return
 
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name.equals("translation", ignoreCase = true)
+            it.category == "workers" && it.name.equals("translation", ignoreCase = true)
         }
-        if (iconPrompt == null) {
-            AppLog.w("TranslationIcon", "internal/translation not configured — skipping")
+        if (iconPrompt == null || iconPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
+            AppLog.w("TranslationIcon", "workers/translation not configured — skipping")
             InternalPromptIconCache.clearInFlight("translation_icon", language)
             return
         }
-        val rawAgent = aiSettings.resolvePromptAgent(iconPrompt)
-        if (rawAgent == null) {
-            AppLog.w("TranslationIcon", "agent '${iconPrompt.agent}' not found — skipping")
-            InternalPromptIconCache.clearInFlight("translation_icon", language)
-            return
-        }
-        val agent = rawAgent.copy(
-            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
-            model = aiSettings.getEffectiveModelForAgent(rawAgent)
-        )
         val resolved = iconPrompt.text.replace("@LANGUAGE@", language)
-        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, iconPrompt, agent)
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             withTracerTags(category = "icon_translation") {
-                runCatching {
-                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-                    val response = appViewModel.repository.analyzeWithAgent(
-                        agent, "", resolved, secParams,
-                        null, context, baseUrl
+                val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context)
+                if (outcome is WorkerOutcome.Success) {
+                    val emoji = extractFirstEmoji(outcome.response.analysis) ?: "📝"
+                    val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
+                        it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+                    }
+                    val tu = outcome.response.tokenUsage
+                    val inT = tu?.inputTokens ?: 0
+                    val outT = tu?.outputTokens ?: 0
+                    val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
+                    val inC = inT * (pricing?.promptPrice ?: 0.0)
+                    val outC = outT * (pricing?.completionPrice ?: 0.0)
+                    InternalPromptIconCache.recordInitial(
+                        name = "translation_icon", title = language,
+                        emoji = emoji,
+                        providerId = winAgent?.provider?.id ?: "", model = winAgent?.model ?: "",
+                        promptText = resolved,
+                        responseText = outcome.response.analysis.orEmpty(),
+                        inputTokens = inT, outputTokens = outT,
+                        inputCost = inC, outputCost = outC,
+                        promptName = "translation"
                     )
-                    if (response.error == null) {
-                        val emoji = extractFirstEmoji(response.analysis) ?: "📝"
-                        val tu = response.tokenUsage
-                        val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
-                        val inT = tu?.inputTokens ?: 0
-                        val outT = tu?.outputTokens ?: 0
-                        val inC = inT * pricing.promptPrice
-                        val outC = outT * pricing.completionPrice
-                        InternalPromptIconCache.recordInitial(
-                            name = "translation_icon", title = language,
-                            emoji = emoji,
-                            providerId = agent.provider.id, model = agent.model,
-                            promptText = resolved,
-                            responseText = response.analysis.orEmpty(),
-                            inputTokens = inT, outputTokens = outT,
-                            inputCost = inC, outputCost = outC,
-                            promptName = "translation"
-                        )
-                        if (inT > 0 || outT > 0) {
-                            appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                agent.provider, agent.model, inT, outT, kind = "icon"
-                            )
-                        }
-                        appViewModel.updateUiState {
-                            it.copy(iconRefreshTick = it.iconRefreshTick + 1)
-                        }
-                    } else {
-                        AppLog.w(
-                            "TranslationIcon",
-                            "call failed for language='$language': ${response.error}"
+                    if ((inT > 0 || outT > 0) && winAgent != null) {
+                        appViewModel.settingsPrefs.updateUsageStatsAsync(
+                            winAgent.provider, winAgent.model, inT, outT, kind = "icon"
                         )
                     }
-                }.onFailure { e ->
-                    AppLog.w(
-                        "TranslationIcon",
-                        "exception generating icon for language='$language': ${e.message}"
-                    )
+                    appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+                } else {
+                    AppLog.w("TranslationIcon", "no worker produced an icon for language='$language'")
                 }
                 InternalPromptIconCache.clearInFlight("translation_icon", language)
             }

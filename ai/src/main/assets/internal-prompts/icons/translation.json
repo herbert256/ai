@@ -1,8 +1,0 @@
-{
-  "name": "translation",
-  "title": "Find a fitting emoji for a translation",
-  "reference": false,
-  "agent": "DeepSeek",
-  "parameters": "*NONE",
-  "systemPrompt": "*NONE"
-}

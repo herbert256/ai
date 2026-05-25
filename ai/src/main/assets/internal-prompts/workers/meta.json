@@ -1,0 +1,20 @@
+{
+  "name": "meta",
+  "title": "Find a fitting emoji for an internal prompt",
+  "reference": false,
+  "workers":
+    [
+      {
+        "agent": "*N/A",
+        "provider": "OpenAI",
+        "model": "gpt-4o-mini"
+      },
+      {
+        "agent": "DeepSeek",
+        "provider": "*N/A",
+        "model": "*N/A"
+      }
+    ],
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}
