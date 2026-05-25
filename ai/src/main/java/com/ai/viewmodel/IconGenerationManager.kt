@@ -518,11 +518,11 @@ class IconGenerationManager(
             ?.takeIf { it.isNotBlank() }
     }
 
-    /** Background helper that resolves the bundled `icons/meta`
-     *  prompt against its pinned agent and caches a one-emoji result for
-     *  [prompt] in [InternalPromptIconCache]. Idempotent: bails when the
-     *  master switch is off, when the cache already has a value, or when
-     *  another call for the same `(name, title)` is already in flight.
+    /** Background helper that runs the bundled `workers/meta` prompt
+     *  (round-robin / 429-fallback worker engine) and caches a one-emoji
+     *  result for [prompt] in [InternalPromptIconCache]. Idempotent: bails
+     *  when the master switch is off, when the cache already has a value, or
+     *  when another call for the same `(name, title)` is already in flight.
      *  Lives on AppViewModel.viewModelScope so it survives the user
      *  navigating away from whatever screen kicked it off. */
     fun kickOffInternalPromptIcon(
@@ -538,79 +538,53 @@ class IconGenerationManager(
         if (!InternalPromptIconCache.markInFlight(prompt.name, prompt.title)) return
 
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name.equals("meta", ignoreCase = true)
+            it.category == "workers" && it.name.equals("meta", ignoreCase = true)
         }
-        if (iconPrompt == null) {
-            AppLog.w("InternalPromptIcon", "internal/meta not configured — skipping")
+        if (iconPrompt == null || iconPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
+            AppLog.w("InternalPromptIcon", "workers/meta not configured — skipping")
             InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
             return
         }
-        val rawAgent = aiSettings.resolvePromptAgent(iconPrompt)
-        if (rawAgent == null) {
-            AppLog.w("InternalPromptIcon", "agent '${iconPrompt.agent}' not found — skipping")
-            InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
-            return
-        }
-        val agent = rawAgent.copy(
-            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
-            model = aiSettings.getEffectiveModelForAgent(rawAgent)
-        )
         val resolved = iconPrompt.text
             .replace("@NAME@", prompt.name)
             .replace("@TITLE@", prompt.title)
-        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, prompt, agent)
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             withTracerTags(category = "icon_meta") {
-                runCatching {
-                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-                    val response = appViewModel.repository.analyzeWithAgent(
-                        agent, "", resolved, secParams,
-                        null, context, baseUrl
+                val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context)
+                if (outcome is WorkerOutcome.Success) {
+                    val emoji = extractFirstEmoji(outcome.response.analysis) ?: "📝"
+                    val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
+                        it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+                    }
+                    val tu = outcome.response.tokenUsage
+                    val inT = tu?.inputTokens ?: 0
+                    val outT = tu?.outputTokens ?: 0
+                    val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
+                    val inC = inT * (pricing?.promptPrice ?: 0.0)
+                    val outC = outT * (pricing?.completionPrice ?: 0.0)
+                    InternalPromptIconCache.recordInitial(
+                        name = prompt.name, title = prompt.title,
+                        emoji = emoji,
+                        providerId = winAgent?.provider?.id ?: "", model = winAgent?.model ?: "",
+                        promptText = resolved,
+                        responseText = outcome.response.analysis.orEmpty(),
+                        inputTokens = inT, outputTokens = outT,
+                        inputCost = inC, outputCost = outC,
+                        promptName = "meta"
                     )
-                    if (response.error == null) {
-                        val emoji = extractFirstEmoji(response.analysis) ?: "📝"
-                        // Compute cost from this call's token usage ×
-                        // the (provider, model) pricing tier. Same
-                        // shape as kickOffIconGeneration.
-                        val tu = response.tokenUsage
-                        val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
-                        val inT = tu?.inputTokens ?: 0
-                        val outT = tu?.outputTokens ?: 0
-                        val inC = inT * pricing.promptPrice
-                        val outC = outT * pricing.completionPrice
-                        InternalPromptIconCache.recordInitial(
-                            name = prompt.name, title = prompt.title,
-                            emoji = emoji,
-                            providerId = agent.provider.id, model = agent.model,
-                            promptText = resolved,
-                            responseText = response.analysis.orEmpty(),
-                            inputTokens = inT, outputTokens = outT,
-                            inputCost = inC, outputCost = outC,
-                            promptName = "meta"
-                        )
-                        // Post to global UsageStats with kind="icon"
-                        // — matches the per-agent 3-tier chain. Only
-                        // post when the call actually used tokens
-                        // (some providers report 0 on error).
-                        if (inT > 0 || outT > 0) {
-                            appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                agent.provider, agent.model, inT, outT, kind = "icon"
-                            )
-                        }
-                        appViewModel.updateUiState {
-                            it.copy(iconRefreshTick = it.iconRefreshTick + 1)
-                        }
-                    } else {
-                        AppLog.w(
-                            "InternalPromptIcon",
-                            "call failed for name='${prompt.name}': ${response.error}"
+                    if ((inT > 0 || outT > 0) && winAgent != null) {
+                        appViewModel.settingsPrefs.updateUsageStatsAsync(
+                            winAgent.provider, winAgent.model, inT, outT, kind = "icon"
                         )
                     }
-                }.onFailure { e ->
+                    appViewModel.updateUiState {
+                        it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                    }
+                } else {
                     AppLog.w(
                         "InternalPromptIcon",
-                        "exception generating icon for name='${prompt.name}': ${e.message}"
+                        "no worker produced an icon for name='${prompt.name}'"
                     )
                 }
                 InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
