@@ -101,6 +101,15 @@ internal data class ProviderModelData(
     val swarms: Int,
     val lastTest: TestRunSummary?,
     val providers: List<ProviderRow>,    // active first, then model count desc
+    // Model-capability extras (from each provider's /models metadata).
+    val fnCalling: Int,
+    val pdfInput: Int,
+    val reasoningLevels: Int,
+    val deprecated: Int,
+    val withCaps: Int,
+    val contextBuckets: Map<String, Int>,
+    val maxContextModel: String?,
+    val maxContextTokens: Int,
 )
 
 /** Knowledge-base totals — shown on AI Statistics. */
@@ -325,6 +334,12 @@ internal suspend fun computeProviderModelStats(
     val cooldowns = ModelCooldownStore.cooldowns.value
     val lastRun = ModelTestRunStore.load(context)
 
+    // Model-capability aggregates (from /models metadata), accumulated across
+    // every provider's configured models in the same pass.
+    var fnCalling = 0; var pdfInput = 0; var reasoningLevels = 0; var deprecated = 0; var withCaps = 0
+    var maxCtxModel: String? = null; var maxCtxTokens = 0
+    val contextBuckets = linkedMapOf("≥1M" to 0, "128K–1M" to 0, "32–128K" to 0, "<32K" to 0, "unknown" to 0)
+
     val rows = providers.map { p ->
         val cfg = aiSettings.getProvider(p)
         val models = cfg.models.filter { it.isNotBlank() }
@@ -333,6 +348,22 @@ internal suspend fun computeProviderModelStats(
         for (m in models) {
             val t = aiSettings.getModelType(p, m) ?: ModelType.UNKNOWN
             typeCounts[t] = (typeCounts[t] ?: 0) + 1
+            val caps = cfg.modelCapabilities[m]
+            if (caps != null) withCaps++
+            if (caps?.supportsFunctionCalling == true) fnCalling++
+            if (caps?.supportsPdfInput == true) pdfInput++
+            if (!(caps?.reasoningEffortLevels).isNullOrEmpty()) reasoningLevels++
+            if (!(caps?.deprecationDate).isNullOrBlank()) deprecated++
+            val ctx = caps?.contextLength
+            val bucket = when {
+                ctx == null || ctx <= 0 -> "unknown"
+                ctx >= 1_000_000 -> "≥1M"
+                ctx >= 128_000 -> "128K–1M"
+                ctx >= 32_000 -> "32–128K"
+                else -> "<32K"
+            }
+            contextBuckets[bucket] = (contextBuckets[bucket] ?: 0) + 1
+            if (ctx != null && ctx > maxCtxTokens) { maxCtxTokens = ctx; maxCtxModel = m }
         }
         val at = ModelListCache.fetchedAt(context, p.id)
         val (pass, fail) = lastRun?.itemsForProvider(p.id)?.let { items ->
@@ -398,6 +429,14 @@ internal suspend fun computeProviderModelStats(
             TestRunSummary(it.forTestingAtStart, it.doneCount, it.errorCount, it.totalCost, it.startedAt)
         },
         providers = rows.sortedWith(compareByDescending<ProviderRow> { it.active }.thenByDescending { it.models }),
+        fnCalling = fnCalling,
+        pdfInput = pdfInput,
+        reasoningLevels = reasoningLevels,
+        deprecated = deprecated,
+        withCaps = withCaps,
+        contextBuckets = contextBuckets,
+        maxContextModel = maxCtxModel,
+        maxContextTokens = maxCtxTokens,
     )
 }
 

@@ -65,6 +65,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToCostsTier = { navController.navigate(NavRoutes.AI_COSTS_TIER) },
                 onNavigateToReports = { navController.navigate(NavRoutes.AI_STAT_REPORTS) },
                 onNavigateToProviders = { navController.navigate(NavRoutes.AI_STAT_PROVIDERS) },
+                onNavigateToModels = { navController.navigate(NavRoutes.AI_STAT_MODELS) },
                 onNavigateToTraceStats = { navController.navigate(NavRoutes.AI_TRACE_STATS) },
                 onNavigateToLogStats = { navController.navigate(NavRoutes.AI_LOG_STATS) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
@@ -83,6 +84,12 @@ internal fun NavGraphBuilder.developerRoutes(
         }
         composable(NavRoutes.AI_STAT_PROVIDERS) {
             AiStatProvidersScreen(
+                appViewModel = appViewModel,
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToStatistics = toStatistics)
+        }
+        composable(NavRoutes.AI_STAT_MODELS) {
+            AiStatModelsScreen(
                 appViewModel = appViewModel,
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToStatistics = toStatistics)

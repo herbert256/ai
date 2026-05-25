@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
@@ -178,6 +180,7 @@ fun AiStatisticsScreen(
     onNavigateToCostsTier: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
     onNavigateToProviders: () -> Unit = {},
+    onNavigateToModels: () -> Unit = {},
     onNavigateToTraceStats: () -> Unit = {},
     onNavigateToLogStats: () -> Unit = {},
     onHousekeeping: (() -> Unit)? = null,
@@ -199,7 +202,7 @@ fun AiStatisticsScreen(
         TitleBar(
             helpTopic = "ai_statistics",
             title = "AI Statistics",
-            subject = "Lifetime totals",
+            subject = "Everything you want to know and more",
             onBackClick = onBack,
             reportIcon = "📈", reportIconGoesHome = true,
             onTitleClick = onNavigateHome,
@@ -212,7 +215,8 @@ fun AiStatisticsScreen(
         ) {
             item { Spacer(Modifier.height(4.dp)) }
             item { LinkCard("📋", "Reports", "Reports + secondary results totals", onNavigateToReports) }
-            item { LinkCard("🔌", "Providers / Models", "Providers, models and catalog freshness", onNavigateToProviders) }
+            item { LinkCard("🔌", "Providers", "Per-provider keys, formats, caches, test runs", onNavigateToProviders) }
+            item { LinkCard("🧠", "Models", "Capabilities, types, context, states", onNavigateToModels) }
             item { LinkCard("💰", "Spend & usage", "Calls, tokens and cost per provider", onNavigateToSpendUsage) }
             item { LinkCard("🧮", "Costs tiers", "Pricing tier per model + catalog freshness", onNavigateToCostsTier) }
             item { LinkCard("🐞", "API trace statistics", "Status, hosts, models, categories", onNavigateToTraceStats) }
@@ -568,35 +572,6 @@ fun AiStatProvidersScreen(
                     }
                 }
                 item {
-                    SectionCard("🧠", "Models", AppColors.Purple) {
-                        KeyVal("Total configured", "${d.totalModels}")
-                        Spacer(Modifier.height(6.dp))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("👁", "Vision", d.vision, AppColors.Blue)
-                            StatChip("🌐", "Web search", d.webSearch, AppColors.Green)
-                            StatChip("🧠", "Reasoning", d.reasoning, AppColors.Purple)
-                            StatChip("🔢", "Embedding", d.embedding, AppColors.Indigo)
-                        }
-                    }
-                }
-                if (d.modelsByType.isNotEmpty()) item {
-                    SectionCard("🏷️", "Models by type", AppColors.Indigo) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            d.modelsByType.forEach { (type, count) -> StatChip("•", type, count, AppColors.TextSecondary) }
-                        }
-                    }
-                }
-                item {
-                    SectionCard("🚦", "Model states", AppColors.Orange) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("⛔", "Blocked", d.blocked, if (d.blocked > 0) AppColors.Red else AppColors.TextDim)
-                            StatChip("🚫", "Inaccessible", d.inaccessible, if (d.inaccessible > 0) AppColors.Orange else AppColors.TextDim)
-                            StatChip("⏭️", "Test-excluded", d.testExcluded, AppColors.TextSecondary)
-                            StatChip("❄️", "Cooling", d.cooling, if (d.cooling > 0) AppColors.Orange else AppColors.TextDim)
-                        }
-                    }
-                }
-                item {
                     SectionCard("🗂️", "Catalog cache", AppColors.Green) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             StatChip("✅", "Cached", d.cached, AppColors.Green)
@@ -635,6 +610,108 @@ fun AiStatProvidersScreen(
                         isExpanded = row.id in expanded,
                         onToggle = { expanded = if (row.id in expanded) expanded - row.id else expanded + row.id }
                     )
+                }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+    }
+}
+
+/** Models — capability / type / context / state stats over the whole catalog. */
+@Composable
+fun AiStatModelsScreen(
+    appViewModel: AppViewModel,
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateToStatistics: () -> Unit = {},
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val uiState by appViewModel.uiState.collectAsState()
+    val refreshTick = resumeRefreshTick()
+    val data by produceState<ProviderModelData?>(null, refreshTick) {
+        value = computeProviderModelStats(context, uiState.aiSettings)
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_stat_models", title = "Models", subject = "The whole catalog",
+            onBackClick = onBack, reportIcon = "📈",
+            onReportIconClick = onNavigateToStatistics, onTitleClick = onNavigateToStatistics
+        )
+        val d = data
+        if (d == null) {
+            Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+        } else {
+            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { Spacer(Modifier.height(4.dp)) }
+                item {
+                    SectionCard("🧠", "Models", AppColors.Purple) {
+                        KeyVal("Total configured", "${d.totalModels}")
+                        Spacer(Modifier.height(6.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("👁", "Vision", d.vision, AppColors.Blue)
+                            StatChip("🌐", "Web search", d.webSearch, AppColors.Green)
+                            StatChip("🧠", "Reasoning", d.reasoning, AppColors.Purple)
+                            StatChip("🔢", "Embedding", d.embedding, AppColors.Indigo)
+                        }
+                    }
+                }
+                item {
+                    SectionCard("🛠️", "Capabilities", AppColors.Blue) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("🧰", "Function calling", d.fnCalling, AppColors.Green)
+                            StatChip("📄", "PDF input", d.pdfInput, AppColors.Blue)
+                            StatChip("🎚️", "Reasoning levels", d.reasoningLevels, AppColors.Purple)
+                            StatChip("🗒️", "With metadata", d.withCaps, AppColors.TextSecondary)
+                        }
+                    }
+                }
+                if (d.modelsByType.isNotEmpty()) item {
+                    SectionCard("🏷️", "By type", AppColors.Indigo) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            d.modelsByType.forEach { (type, count) -> StatChip("•", type, count, AppColors.TextSecondary) }
+                        }
+                    }
+                }
+                item {
+                    SectionCard("📏", "Context length", AppColors.Green) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            d.contextBuckets.forEach { (bucket, count) -> StatChip("•", bucket, count, AppColors.TextSecondary) }
+                        }
+                        if (d.maxContextModel != null) {
+                            Spacer(Modifier.height(4.dp))
+                            KeyVal("Largest", "${com.ai.ui.shared.shortModelName(d.maxContextModel!!)} (${formatCompactNumber(d.maxContextTokens.toLong())})", AppColors.TextSecondary)
+                        }
+                    }
+                }
+                item {
+                    SectionCard("🚦", "States", AppColors.Orange) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("⛔", "Blocked", d.blocked, if (d.blocked > 0) AppColors.Red else AppColors.TextDim)
+                            StatChip("🚫", "Inaccessible", d.inaccessible, if (d.inaccessible > 0) AppColors.Orange else AppColors.TextDim)
+                            StatChip("⏭️", "Test-excluded", d.testExcluded, AppColors.TextSecondary)
+                            StatChip("❄️", "Cooling", d.cooling, if (d.cooling > 0) AppColors.Orange else AppColors.TextDim)
+                        }
+                    }
+                }
+                if (d.deprecated > 0) item {
+                    SectionCard("⚰️", "Deprecated", AppColors.Red) {
+                        KeyVal("Models flagged deprecated", "${d.deprecated}", AppColors.Orange)
+                    }
+                }
+                item {
+                    SectionCard("🔌", "Models per provider", AppColors.Blue) {
+                        val withModels = d.providers.filter { it.models > 0 }
+                        val avg = if (withModels.isNotEmpty()) withModels.sumOf { it.models }.toDouble() / withModels.size else 0.0
+                        KeyVal("Avg per provider", String.format(Locale.US, "%.1f", avg))
+                        KeyVal("Max", "${withModels.maxOfOrNull { it.models } ?: 0}")
+                        Spacer(Modifier.height(4.dp))
+                        withModels.sortedByDescending { it.models }.take(6).forEach { KeyVal(it.id, "${it.models}") }
+                    }
                 }
                 item { Spacer(Modifier.height(24.dp)) }
             }
@@ -790,29 +867,31 @@ fun AiSpendUsageScreen(
                     }
                 }
                 Spacer(Modifier.height(8.dp))
-                Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp)) {
-                    Text("Provider", fontSize = 10.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1.8f))
-                    Text("Calls", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
-                    Text("Tokens", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(0.9f))
-                    Text("Cost", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(1.0f))
-                }
-                LazyColumn(modifier = Modifier.weight(1f)) {
-                    items(d.groups, key = { it.provider.id }) { group ->
+                // Content-width table, centered (not stretched edge-to-edge).
+                val cProv = 150.dp; val cCalls = 56.dp; val cTok = 78.dp; val cCost = 86.dp
+                Column(
+                    modifier = Modifier.align(Alignment.CenterHorizontally).weight(1f).verticalScroll(rememberScrollState())
+                ) {
+                    Row(Modifier.padding(vertical = 4.dp)) {
+                        Text("Provider", fontSize = 10.sp, color = AppColors.TextTertiary, modifier = Modifier.width(cProv))
+                        Text("Calls", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
+                        Text("Tokens", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
+                        Text("Cost", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
+                    }
+                    d.groups.forEach { group ->
                         val tokens = group.models.sumOf { it.stat.totalTokens }
                         Row(
-                            modifier = Modifier.fillMaxWidth()
-                                .clickable { onOpenProvider(group.provider.id) }
-                                .padding(horizontal = 4.dp, vertical = 9.dp),
+                            modifier = Modifier.clickable { onOpenProvider(group.provider.id) }.padding(vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(group.provider.id, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.8f))
-                            Text("${group.totalCalls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
-                            Text(formatCompactNumber(tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.9f))
-                            Text(money(group.totalCost), fontSize = 13.sp, color = AppColors.Green, textAlign = TextAlign.End, modifier = Modifier.weight(1.0f))
+                            Text(group.provider.id, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cProv))
+                            Text("${group.totalCalls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
+                            Text(formatCompactNumber(tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
+                            Text(money(group.totalCost), fontSize = 13.sp, color = AppColors.Green, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
                         }
-                        HorizontalDivider(color = AppColors.DividerDark)
+                        HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.width(cProv + cCalls + cTok + cCost))
                     }
-                    item { Spacer(Modifier.height(24.dp)) }
+                    Spacer(Modifier.height(24.dp))
                 }
             }
         }

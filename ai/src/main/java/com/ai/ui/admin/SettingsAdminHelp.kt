@@ -623,7 +623,8 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "A hub of lifetime-stat pages. Opened from the home 📈 AI Statistics card; live runtime state is on the separate 📡 AI Live Dashboard. Each heavier breakdown is its own page (the link cards), so they only compute when opened; only the cheap Knowledge totals show inline."),
             HelpCard("📋 Reports →", "Own page: report totals (running / problems / completed, agent calls, error rate, spend) and secondary-result counts by kind."),
-            HelpCard("🔌 Providers / Models →", "Own page: providers configured / with key, total models, and model-list cache freshness."),
+            HelpCard("🔌 Providers →", "Own page: per-provider keys, API formats, catalog caches, throttle caps, and last test-run results."),
+            HelpCard("🧠 Models →", "Own page: capabilities, types, context-length buckets, model states, deprecation, and models-per-provider."),
             HelpCard("💰 Spend & usage →", "Own page: calls / tokens / cost over expandable per-provider cards, model→Model Info drill-in, and 🧹 clear-stats. Runs getPricing per used model."),
             HelpCard("🧮 Costs tiers →", "Own page: which pricing tier each model resolves to (Config vs Runtime columns) plus the pricing-cache catalog table."),
             HelpCard("🐞 API trace statistics →", "Own page: status breakdown, success rate, top hosts / models / categories, and trace activity over time."),
@@ -668,13 +669,24 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "ai_stat_providers" to HelpContent(
-        title = "Help - Providers / Models",
+        title = "Help - Providers",
         cards = listOf(
-            HelpCard("Overview", "A full view of your model fleet — aggregate cards on top, then one expandable card per provider. All in-memory or a cheap file-stat, so it opens fast (no pricing lookups or network)."),
-            HelpCard("Aggregate cards", "Providers (configured / active / with key / inactive); API formats (OpenAI-compatible / Anthropic / Google); Models (total + Vision / Web search / Reasoning / Embedding); Models by type (chat / image / tts / embedding / rerank / …); Model states (blocked / inaccessible / test-excluded / cooling); Catalog cache (cached / stale > 7 days / never fetched); Workers (agents / flocks / swarms); and the last Test-all-models result when one exists."),
+            HelpCard("Overview", "A provider-focused view — aggregate cards on top, then one expandable card per provider. All in-memory or a cheap file-stat, so it opens fast (no pricing lookups or network). Model-level stats are on the separate Models page."),
+            HelpCard("Aggregate cards", "Providers (configured / active / with key / inactive); API formats (OpenAI-compatible / Anthropic / Google); Catalog cache (cached / stale > 7 days / never fetched); Workers (agents / flocks / swarms); and the last Test-all-models result when one exists."),
             HelpCard("Per-provider rows", "One card per provider, active first then by model count. Header: a green/grey dot for active, the provider id, an API-format tag, and the model count; a compact line shows the non-zero signals (👁 vision, 🌐 web, 🧠 reasoning, ❄️ cooling, ⛔ blocked) and \"no key\" if unconfigured."),
             HelpCard("Expand a provider", "Tap to reveal: default model, host, API key, the concurrency + per-minute caps (the per-provider override or the inherited global), catalog age, a by-type breakdown, a model-state breakdown, and this provider's passed/failed from the last Test-all-models run."),
-            HelpCard("Reconciles with", "Total/cached/stale match the old summary; blocked / inaccessible / test-excluded / cooling match Housekeeping → Model states; capability counts come from each provider's /models response (the same layered lookup used everywhere)."),
+        )
+    ),
+    "ai_stat_models" to HelpContent(
+        title = "Help - Models",
+        cards = listOf(
+            HelpCard("Overview", "Catalog-wide model stats across every configured model. In-memory; opens fast. Provider-level info is on the separate Providers page."),
+            HelpCard("🧠 Models", "Total configured models plus how many are Vision / Web-search / Reasoning capable and how many are Embedding models."),
+            HelpCard("🛠️ Capabilities", "From each provider's /models metadata: models supporting function calling, native PDF input, exposing reasoning-effort levels, and how many have capability metadata at all."),
+            HelpCard("🏷️ By type", "Model count per type (chat / image / tts / embedding / rerank / …)."),
+            HelpCard("📏 Context length", "Models bucketed by context window (< 32K / 32–128K / 128K–1M / ≥ 1M / unknown) plus the single largest-context model."),
+            HelpCard("🚦 States", "Blocked / inaccessible / test-excluded / cooling counts — matches Housekeeping → Model states."),
+            HelpCard("⚰️ Deprecated / 🔌 Models per provider", "How many models carry a deprecation flag, and the average / max models per provider with a top-6 leaderboard."),
         )
     ),
     "ai_spend_usage" to HelpContent(
