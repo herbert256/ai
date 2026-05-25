@@ -120,7 +120,7 @@ Each entry has:
 
 Every prompt — Rerank, every chat-type Meta entry, Fan-out, Fan-in,
 Translate, plus the fixed internal templates (Intro, Model info) —
-lives as an `InternalPrompt` row seeded from `assets/prompts.json`
+lives as an `InternalPrompt` row seeded from `assets/internal-prompts/`
 on first launch. The CRUD lets the user add / rename / delete
 freely after that; the JSON only gates fresh-install seeding (no
 in-code `DEFAULT_*` constants exist).

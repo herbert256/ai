@@ -1,0 +1,8 @@
+{
+  "name": "translation_alt",
+  "title": "Find an ALTERNATIVE fitting emoji for a translation",
+  "reference": false,
+  "agent": "DeepSeek",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

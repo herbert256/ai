@@ -1,0 +1,8 @@
+{
+  "name": "meta_alt",
+  "title": "Find an ALTERNATIVE fitting emoji for an internal prompt",
+  "reference": false,
+  "agent": "DeepSeek",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

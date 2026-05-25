@@ -1,0 +1,8 @@
+{
+  "name": "model_info",
+  "title": "Detailed model self-description",
+  "reference": false,
+  "agent": "*select",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

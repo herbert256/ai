@@ -1,0 +1,8 @@
+{
+  "name": "intro",
+  "title": "Brief two-sentence model introduction",
+  "reference": false,
+  "agent": "*select",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

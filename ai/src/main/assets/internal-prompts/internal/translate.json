@@ -1,0 +1,8 @@
+{
+  "name": "translate",
+  "title": "Translate text into another language",
+  "reference": false,
+  "agent": "*select",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

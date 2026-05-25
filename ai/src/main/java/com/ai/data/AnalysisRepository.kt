@@ -72,7 +72,7 @@ class AnalysisRepository {
         /** Body of the OK-probe sent by every model-test path
          *  (provider screen test, Test all models, ApiDispatch
          *  testModel). Default mirrors the bundled `test_model`
-         *  internal prompt in assets/prompts.json; AppViewModel
+         *  internal prompt in assets/internal-prompts/; AppViewModel
          *  pushes the live prompt body in here whenever settings
          *  load or change so the user's edit wins everywhere
          *  without threading aiSettings through every call site. */

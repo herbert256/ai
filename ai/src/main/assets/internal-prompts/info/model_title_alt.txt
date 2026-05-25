@@ -1,0 +1,3 @@
+Please see the text after the @@@ marker in this request, give it an ALTERNATIVE title — distinct from the most obvious phrasing, max 4 words, max 325 characters including spaces. Only give this title back, nothing more.
+@@@
+@RESPONSE@

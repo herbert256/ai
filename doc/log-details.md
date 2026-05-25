@@ -198,7 +198,7 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/InternalPromptSeed.kt`
 
-- **L64** `"InternalPromptSeed"` — "Failed to load prompts.json: ${e.message}"
+- **L64** `"InternalPromptSeed"` — "Failed to load internal-prompts/: ${e.message}"
 - **L142** `"InternalPromptSeed"` — "upsertFromJson failed: ${e.message}"
 
 ### `data/Knowledge.kt`
@@ -303,7 +303,7 @@ Severity is chosen at the call site by which method is invoked:
 
 - **L928** `tag` — "First-run providers.json import failed"
 - **L959** `tag` — "← providers.json delta-sync failed in ${System.currentTimeMillis() - tSync}ms"
-- **L1244** `tag` — "← prompts.json delta-merge failed in ${System.currentTimeMillis() - tPrompts}ms"
+- **L1244** `tag` — "← internal-prompts/ delta-merge failed in ${System.currentTimeMillis() - tPrompts}ms"
 - **L1273** `tag` — "← examples.json delta-merge failed in ${System.currentTimeMillis() - tExamples}ms"
 - **L1300** `tag` — "← system-prompts.json delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms"
 - **L1326** `tag` — "← excluded.json delta-merge failed in ${System.currentTimeMillis() - tExcluded}ms"
@@ -660,9 +660,9 @@ Severity is chosen at the call site by which method is invoked:
 - **L935** `tag` — "← First-run seed done in ${System.currentTimeMillis() - tFirst}ms"
 - **L950** `tag` — "→ providers.json delta-sync"
 - **L957** `tag` — "← providers.json delta-sync done in ${System.currentTimeMillis() - tSync}ms (synced=$syncCount, added=$addCount)"
-- **L1224** `tag` — "→ prompts.json delta-merge"
-- **L1239** `tag` — "← prompts.json delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (added=$added)"
-- **L1241** `tag` — "← prompts.json delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (empty asset)"
+- **L1224** `tag` — "→ internal-prompts/ delta-merge"
+- **L1239** `tag` — "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (added=$added)"
+- **L1241** `tag` — "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (empty asset)"
 - **L1253** `tag` — "→ examples.json delta-merge"
 - **L1268** `tag` — "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (added=$added)"
 - **L1270** `tag` — "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (empty asset)"
@@ -792,7 +792,7 @@ Severity is chosen at the call site by which method is invoked:
 - **L933** `tag` — " not a first run; skipping seed"
 - **L954** `tag` — " syncFromAsset: $syncCount unedited fields refreshed"
 - **L956** `tag` — " importFromAsset: $addCount new providers appended"
-- **L1228** `tag` — " bundled prompts.json entries: ${bundled.size}"
+- **L1228** `tag` — " bundled internal-prompts/ entries: ${bundled.size}"
 - **L1233** `tag` — " merge: before=$before merged=${merged.size} added=$added"
 - **L1237** `tag` — " settings saved with $added new prompts"
 - **L1257** `tag` — " bundled examples.json entries: ${bundled.size}"

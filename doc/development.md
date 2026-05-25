@@ -158,7 +158,7 @@ The first run after install reads `providers.json` and persists each
 provider into `ProviderRegistry`. To force a re-import on an existing
 install: AI Setup → Providers → Refresh providers (or
 Housekeeping → Reset → Refresh bundled assets, which re-pulls
-`providers.json` *and* `prompts.json`).
+`providers.json` *and* the `internal-prompts/` tree).
 
 `ProviderRegistry.importFromAsset` rejects duplicate ids, drops
 malformed provider entries instead of NPEing later, and case-
@@ -262,7 +262,7 @@ Internal prompts have a free-form `category` string —
 `"meta"`, `"fan_out"`, `"fan_in"`, `"internal"` are the four in
 use today. Adding a new one means:
 
-1. Bump the `assets/prompts.json` to seed a default row.
+1. Bump the `assets/internal-prompts/` to seed a default row.
 2. Add a sub-hub entry to `SetupScreens.kt` →
    `InternalPromptsHubScreen` (the place that counts entries by
    category and routes to `settingsInternalPromptsByCategory`).
@@ -401,7 +401,7 @@ unit tests verify code correctness, not feature correctness here.
 - **No bundled `setup.json` anymore.** The provider catalog is
   `assets/providers.json` and ships in a flat
   `{"providers": [...]}` shape — the older `version + providerDefinitions`
-  schema is gone. Internal Prompts come from `assets/prompts.json`,
+  schema is gone. Internal Prompts come from `assets/internal-prompts/`,
   Example Prompts from `assets/examples.json`. None of the three
   carry a top-level version.
 - **`ApiFactory.fetchUrlAsString` is preferred over
@@ -459,7 +459,7 @@ unit tests verify code correctness, not feature correctness here.
   `ProviderFieldTimestamps` — a field the user has edited (the
   timestamp is non-null) is left alone; an un-edited field
   tracks the asset.
-- `assets/prompts.json` — bundled rows missing by
+- `assets/internal-prompts/` — bundled rows missing by
   `(category, name)` are added; existing rows are never
   overwritten. So shipping new bundled `internal/…` prompts
   (e.g. the icon-prompt set, `chat_title`, …) reaches existing

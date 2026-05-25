@@ -1,0 +1,8 @@
+{
+  "name": "main_alt",
+  "title": "Find an ALTERNATIVE fitting emoji for a report title",
+  "reference": false,
+  "agent": "DeepSeek",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

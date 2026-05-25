@@ -1,0 +1,15 @@
+The following are @COUNT@ AI responses to the same question. Synthesize a single,
+authoritative answer that captures the best of all responses.
+
+QUESTION:
+@QUESTION@
+
+RESPONSES:
+@RESULTS@
+
+Guidelines:
+- Combine the strongest, most accurate points from each response.
+- Resolve contradictions explicitly; if responses disagree on a fact, say so.
+- Drop redundancy. Do not repeat the question.
+- Match the tone and depth of the original responses.
+- Do not mention that you are summarizing or reference the source responses by number.

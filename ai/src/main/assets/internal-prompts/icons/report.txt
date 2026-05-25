@@ -1,0 +1,9 @@
+Please give a fitting emoji for below text, it is a request to an AI model, first the prompt that is send to this model, then the response from that AI model, your task is to give a fitting emoji for the response of that model, give only this emoji as feedback, nothing more !!!
+
+***PROMPT***
+
+@PROMPT@
+
+***RESPONSE***
+
+@RESPONSE@

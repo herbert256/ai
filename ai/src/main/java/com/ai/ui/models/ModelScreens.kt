@@ -390,7 +390,7 @@ fun ModelInfoScreen(
     // Model-info template lives in Settings.internalPrompts under
     // the "Model info" name. Falls back to empty when the user has
     // deleted that entry (the next app start will re-seed it from
-    // assets/prompts.json). Default AgentParameters — there's no
+    // assets/internal-prompts/). Default AgentParameters — there's no
     // longer an agent binding to inherit temperature / max_tokens
     // preset from.
     val modelInfoPromptTemplate = remember(aiSettings) {

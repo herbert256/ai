@@ -1,0 +1,8 @@
+{
+  "name": "meta",
+  "title": "Find a fitting emoji for an internal prompt",
+  "reference": false,
+  "agent": "DeepSeek",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}
