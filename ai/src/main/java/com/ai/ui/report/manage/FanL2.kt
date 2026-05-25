@@ -49,7 +49,6 @@ import com.ai.data.PairStatus
 import com.ai.data.Report
 import com.ai.data.ReportStorage
 import com.ai.data.effectiveStatus
-import com.ai.data.iconStatus
 import com.ai.data.titleStatus
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
@@ -101,8 +100,6 @@ internal fun FanOutL2Screen(
     // matching the source's (provider, model) — that requires
     // engine.runs's hydration to have populated answererAgentId
     // for every pair.)
-    val isIconsMode = false  // Fan Icons removed; kept as a const so the
-                             // legacy icon-only branches dead-code away.
     val isTitlesMode = mode == FanOutMode.META
     val isMetaMode = isTitlesMode
     fun lens(p: PairState, set: Set<String>): PairStatus = when (mode) {
@@ -143,15 +140,10 @@ internal fun FanOutL2Screen(
             ?: emptyMap()
     }
     // agentId → agent-level icon (the icon-gen result for that agent's
-    // original report response). Drives the big icon-list rendering
-    // in Fan icons L2.
+    // original report response). Drives the responder-side glyph in
+    // the Fan Meta L2 list.
     val agentIcons: Map<String, String?> = remember(report) {
         report?.agents?.associate { it.agentId to it.icon } ?: emptyMap()
-    }
-    // Active model's own agent-level icon, looked up by matching the
-    // (provider, model) key. Shown big at the top of the Initiator view.
-    val activeAgentIcon: String? = remember(report, answererKey) {
-        report?.agents?.firstOrNull { "${it.provider}|${it.model}" == answererKey }?.icon
     }
 
     // Display order: Running / Queued first, then Errored, then
@@ -332,7 +324,7 @@ internal fun FanOutL2Screen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        } // end of MAIN-mode buttons block (paired with `if (isIconsMode)` above)
+        } // end of MAIN-mode buttons block
 
         if (rows.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -343,27 +335,11 @@ internal fun FanOutL2Screen(
                 )
             }
         } else if (isMetaMode) {
-            // Fan icons / titles — focused list. ICONS: big emoji
-            // glyphs. TITLES: the per-pair title text. No status
-            // icons / progress fills. Tapping a row opens the L3
-            // pair detail.
+            // Fan Meta — focused list: the per-pair found icon + its
+            // generated title. No status icons / progress fills.
+            // Tapping a row opens the L3 pair detail.
             val rowsTotalCost = rows.sumOf { it.totalCost }
             LazyColumn(modifier = Modifier.weight(1f)) {
-                if (isIconsMode && role == "Initiator" && !activeAgentIcon.isNullOrBlank()) {
-                    item(key = "icon-initiator-header") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                activeAgentIcon,
-                                fontSize = 56.sp,
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
-                        }
-                        HorizontalDivider(color = AppColors.DividerDark, thickness = 2.dp)
-                    }
-                }
                 items(rows, key = { it.key }) { p ->
                     Row(
                         modifier = Modifier.fillMaxWidth()
@@ -442,13 +418,12 @@ internal fun FanOutL2Screen(
             // Whole L2 list finished — every row would show ✅ on a
             // full green fill. Drop both per row (mirrors L1's allDone).
             val allDone = rows.isNotEmpty() && rows.all {
-                (if (isIconsMode) it.iconStatus(runningSet) else it.effectiveStatus(runningSet)) == PairStatus.DONE
+                it.effectiveStatus(runningSet) == PairStatus.DONE
             }
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rows, key = { it.key }) { p ->
                     val otherAgentId = if (role == "Responder") p.sourceAgentId else p.answererAgentId
-                    val effStatus = if (isIconsMode) p.iconStatus(runningSet)
-                        else p.effectiveStatus(runningSet)
+                    val effStatus = p.effectiveStatus(runningSet)
                     // Per-pair rows are binary — full green when the
                     // pair is DONE, empty otherwise. Mirrors the L1
                     // row-background progress bar.
@@ -470,7 +445,7 @@ internal fun FanOutL2Screen(
                     ) {
                         // Leading cell:
                         //   - When the pair has its own icon (the
-                        //     optional Fan Icons sweep landed one),
+                        //     optional Fan Meta sweep landed one),
                         //     always show it — even after every row is
                         //     done, so the user can long-press to open
                         //     the unified Icon-lookup screen (the 6th

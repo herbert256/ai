@@ -29,7 +29,7 @@
 <li><a href="#crud">Generic CRUD list</a></li>
 <li><a href="#overlay">Full-screen overlay pattern</a></li>
 <li><a href="#meta-scope">Two-step Meta scope</a></li>
-<li><a href="#fan">Fan-out / Fan-in / Fan-icons</a></li>
+<li><a href="#fan">Fan-out / Fan-in / Fan Meta</a></li>
 <li><a href="#concurrency">Concurrency</a></li>
 <li><a href="#streaming">Streaming</a></li>
 <li><a href="#recovery">State recovery</a></li>
@@ -259,7 +259,7 @@ ceilings — <code>maxConcurrentApiCalls</code> (50),
 <code>maxConcurrentReportCalls</code> (15),
 <code>maxConcurrentTranslationCalls</code> (15),
 <code>maxConcurrentFanOutCalls</code> (15),
-<code>maxConcurrentFanIconsCalls</code> (15),
+<code>maxConcurrentFanMetaCalls</code> (15),
 <code>maxTestApiCalls</code> (40) — mirrored into
 <code>ApiCallCaps</code> semaphores on every Settings update.</p>
 </div>
@@ -313,9 +313,9 @@ registered with <code>CoroutineStart.LAZY</code> BEFORE
 a specific pair before deleting its disk row. Sizes its in-flight IO
 semaphore from <code>maxConcurrentFanOutCalls</code>, layered on top
 of the per-host <code>ProviderThrottle</code>.</p>
-<p>Hosts the <strong>fan-icons</strong> batch (a parallel emoji chain
+<p>Hosts the <strong>Fan Meta</strong> batch (a parallel emoji chain
 across every completed pair) — same shape, separate budget via
-<code>maxConcurrentFanIconsCalls</code>. Hydrates lazily from disk via
+<code>maxConcurrentFanMetaCalls</code>. Hydrates lazily from disk via
 <code>hydrate(context, reportId)</code> and delegates HTTP + save to
 <code>ReportViewModel.executeSecondaryTask</code>.</p>
 </div>
@@ -561,7 +561,7 @@ silently widening to AllReports. See
 <a href="secondary-results.html">secondary-results</a> for the full
 flow.</p>
 
-<h2 id="fan">Fan-out / Fan-in / Fan-icons</h2>
+<h2 id="fan">Fan-out / Fan-in / Fan Meta</h2>
 
 <p>Fan-out execution is owned by the <strong>FanOutEngine</strong>
 view model (<code>viewmodel/FanOutEngine.kt</code>). Each pair runs
@@ -606,11 +606,11 @@ in the pair; the trailing divider sits tight against the response.</dd>
 </div>
 </dl>
 
-<p><strong>Fan-icons mode</strong> runs a parallel 3-tier emoji chain
+<p><strong>Fan Meta mode</strong> runs a parallel 3-tier emoji chain
 across every completed pair. Same screen file structure
 (<code>FanOutIconsScreens.kt</code>), separate semaphore from
-<code>maxConcurrentFanIconsCalls</code>, separate Costs row tagged
-<code>fan-icons</code>, and a <strong>Clear fan-icons</strong> button
+<code>maxConcurrentFanMetaCalls</code>, separate Costs row tagged
+<code>Fan Meta</code>, and a <strong>Clear Fan Meta</strong> button
 wipes icon state without deleting pairs. When the user opens a report
 mid-batch the icons batch auto-resumes on screen entry.</p>
 
@@ -638,7 +638,7 @@ See <a href="throttle.html">throttle</a>.</li>
 <code>ApiCallCaps</code> (mirrored from <code>GeneralSettings</code>
 on every Settings update): <code>global</code> (50),
 <code>report</code> (15), <code>translation</code> (15),
-<code>fanOut</code> (15), <code>fanIcons</code> (15), and the test
+<code>fanOut</code> (15), <code>fanMeta</code> (15), and the test
 sweep's standalone <code>maxTestApiCalls</code> (40, read directly by
 <code>ModelTestEngine</code>). Each request
 <code>withPermit</code>-wraps through the relevant per-kind semaphore
@@ -652,7 +652,7 @@ Pacific midnight) routes through
 <code>ModelCooldownStore.markUnavailable(providerId, model,
 availableAtMs, traceFile)</code>; pickers dim the row and engines
 skip it. See <a href="cooldowns.html">cooldowns</a>.</li>
-<li><code>FanOutEngine</code>, the fan-icons batch, the per-agent
+<li><code>FanOutEngine</code>, the Fan Meta batch, the per-agent
 report-icon chain, and the Find-alternative-icons fan-out all
 pre-acquire permits on the coroutine side and set
 <code>ProviderThrottle.permitPreAcquired</code> so the OkHttp

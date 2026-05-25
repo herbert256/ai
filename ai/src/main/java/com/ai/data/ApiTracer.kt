@@ -395,16 +395,16 @@ object ApiCallCaps {
     fun resetForNewLimits(
         globalMax: Int, reportMax: Int,
         translationMax: Int, fanOutMax: Int,
-        // Still sourced from the persisted maxConcurrentFanIconsCalls setting;
+        // Sourced from the persisted maxConcurrentFanMetaCalls setting;
         // drives the fan-meta + workers pools.
-        fanIconsMax: Int
+        fanMetaMax: Int
     ) {
         globalCap = globalMax.coerceAtLeast(1)
         reportCap = reportMax.coerceAtLeast(1)
         translationCap = translationMax.coerceAtLeast(1)
         fanOutCap = fanOutMax.coerceAtLeast(1)
-        fanMetaCap = fanIconsMax.coerceAtLeast(1)
-        workersCap = fanIconsMax.coerceAtLeast(1)
+        fanMetaCap = fanMetaMax.coerceAtLeast(1)
+        workersCap = fanMetaMax.coerceAtLeast(1)
         globalSem = sem(globalCap)
         reportSem = sem(reportCap)
         translationSem = sem(translationCap)

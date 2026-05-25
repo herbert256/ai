@@ -501,7 +501,7 @@ order).</p>
 <div><dt>tokenUsage</dt><div class="meta"><code>TokenUsage?</code></div></div>
 <div><dt>timestamp</dt><div class="meta"><code>Long</code></div></div>
 <div><dt>icon, iconWinningTier</dt><div class="meta"><code>String? / Int?</code></div>
-<dd>Fan-icons fields.</dd></div>
+<dd>Fan Meta fields.</dd></div>
 <div><dt>iconInputCost, iconOutputCost</dt><div class="meta"><code>Double</code></div></div>
 <div><dt>iconErrorMessage</dt><div class="meta"><code>String?</code></div></div>
 </dl>
@@ -567,8 +567,8 @@ latest.</p>
 <dd>Total across all in-flight Translate runs.</dd></div>
 <div><dt>maxConcurrentFanOutCalls</dt><div class="meta">default 15</div>
 <dd>Fan-out pair calls.</dd></div>
-<div><dt>maxConcurrentFanIconsCalls</dt><div class="meta">default 15</div>
-<dd>Fan-icons batch — separate budget.</dd></div>
+<div><dt>maxConcurrentFanMetaCalls</dt><div class="meta">default 15</div>
+<dd>Fan Meta batch — separate budget.</dd></div>
 <div><dt>maxTestApiCalls</dt><div class="meta">default 40</div>
 <dd>"Test all models" sweep. Read directly by
 <code>ModelTestEngine</code>; NOT mirrored into

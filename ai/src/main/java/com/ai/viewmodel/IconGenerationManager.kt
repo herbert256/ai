@@ -1961,7 +1961,7 @@ class IconGenerationManager(
     // Fan-meta batch — ONE workers/fan-meta call per fan-out pair
     // returns BOTH a title and an icon (a "title:" / "icon:" two-line
     // reply), via the round-robin / 429-fallback worker engine.
-    // Replaces the old separate fan-titles + fan-icons batches.
+    // One Fan Meta call per pair yields both the title and the icon.
     // ============================================================
 
     fun runFanMetaBatch(
@@ -1969,7 +1969,7 @@ class IconGenerationManager(
         reportId: String,
         metaPromptId: String
     ): Job? {
-        if (!appViewModel.uiState.value.generalSettings.fanIconsTitlesOn()) return null
+        if (!appViewModel.uiState.value.generalSettings.fanMetaOn()) return null
         rvm.fanMetaJobs[rvm.fanMetaJobKey(reportId, metaPromptId)]?.let { existing ->
             if (existing.isActive) return existing
         }

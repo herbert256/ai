@@ -1103,7 +1103,7 @@ private fun MaximalApiCallsSubScreen(
     var reportText by remember { mutableStateOf(generalSettings.maxConcurrentReportCalls.toString()) }
     var translationText by remember { mutableStateOf(generalSettings.maxConcurrentTranslationCalls.toString()) }
     var fanOutText by remember { mutableStateOf(generalSettings.maxConcurrentFanOutCalls.toString()) }
-    var fanIconsText by remember { mutableStateOf(generalSettings.maxConcurrentFanIconsCalls.toString()) }
+    var fanMetaText by remember { mutableStateOf(generalSettings.maxConcurrentFanMetaCalls.toString()) }
     var testText by remember { mutableStateOf(generalSettings.maxTestApiCalls.toString()) }
 
     fun build(): GeneralSettings = generalSettings.copy(
@@ -1115,13 +1115,13 @@ private fun MaximalApiCallsSubScreen(
             ?: generalSettings.maxConcurrentTranslationCalls,
         maxConcurrentFanOutCalls = fanOutText.toIntOrNull()?.coerceAtLeast(1)
             ?: generalSettings.maxConcurrentFanOutCalls,
-        maxConcurrentFanIconsCalls = fanIconsText.toIntOrNull()?.coerceAtLeast(1)
-            ?: generalSettings.maxConcurrentFanIconsCalls,
+        maxConcurrentFanMetaCalls = fanMetaText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.maxConcurrentFanMetaCalls,
         maxTestApiCalls = testText.toIntOrNull()?.coerceAtLeast(1)
             ?: generalSettings.maxTestApiCalls
     )
 
-    LaunchedEffect(apiText, reportText, translationText, fanOutText, fanIconsText, testText) {
+    LaunchedEffect(apiText, reportText, translationText, fanOutText, fanMetaText, testText) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1196,13 +1196,13 @@ private fun MaximalApiCallsSubScreen(
                 )
             }
             SettingCard(
-                "Concurrent Fan Icons API calls",
-                "Cap on the fan-icons batch — the emoji-generation chain the user launches from a fan-out's Find Icons button. Separate from the fan-out cap so the two can run side-by-side without halving each other's budget. Default 50."
+                "Concurrent Fan Meta API calls",
+                "Cap on the Fan Meta batch — the title+icon generation the user launches from a fan-out's Fan Meta button. Separate from the fan-out cap so the two can run side-by-side without halving each other's budget. Default 50."
             ) {
                 OutlinedTextField(
-                    value = fanIconsText,
-                    onValueChange = { fanIconsText = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Concurrent Fan Icons calls") },
+                    value = fanMetaText,
+                    onValueChange = { fanMetaText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Concurrent Fan Meta calls") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
@@ -1383,7 +1383,7 @@ private fun MetadataSettingsSubScreen(
     var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
     var perModelTitleGenEnabled by remember { mutableStateOf(generalSettings.perModelTitleGenEnabled) }
     var useInternalPromptsIcons by remember { mutableStateOf(generalSettings.useInternalPromptsIcons) }
-    var autostartFanIconsAndTitles by remember { mutableStateOf(generalSettings.autostartFanIconsAndTitles) }
+    var autostartFanMeta by remember { mutableStateOf(generalSettings.autostartFanMeta) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         metadataEnabled = metadataEnabled,
@@ -1393,10 +1393,10 @@ private fun MetadataSettingsSubScreen(
         perModelIconGenEnabled = perModelIconGenEnabled,
         perModelTitleGenEnabled = perModelTitleGenEnabled,
         useInternalPromptsIcons = useInternalPromptsIcons,
-        autostartFanIconsAndTitles = autostartFanIconsAndTitles
+        autostartFanMeta = autostartFanMeta
     )
 
-    LaunchedEffect(metadataEnabled, reportTitleMode, iconGenEnabled, reportLanguageGenEnabled, perModelIconGenEnabled, perModelTitleGenEnabled, useInternalPromptsIcons, autostartFanIconsAndTitles) {
+    LaunchedEffect(metadataEnabled, reportTitleMode, iconGenEnabled, reportLanguageGenEnabled, perModelIconGenEnabled, perModelTitleGenEnabled, useInternalPromptsIcons, autostartFanMeta) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1467,10 +1467,10 @@ private fun MetadataSettingsSubScreen(
                     onCheckedChange = { useInternalPromptsIcons = it }
                 )
                 ToggleSettingCard(
-                    title = "Autostart Fan Icons & Titles",
-                    description = "When a Fan Out finishes with no errored pairs, automatically kick off its Fan Icons and Fan Titles batches — so you don't have to tap the Icons / Titles buttons by hand. A run with any error pair is left alone; you can still start the batches manually.",
-                    checked = autostartFanIconsAndTitles,
-                    onCheckedChange = { autostartFanIconsAndTitles = it }
+                    title = "Autostart Fan Meta",
+                    description = "When a Fan Out finishes with no errored pairs, automatically kick off its Fan Meta batch (one call per pair produces both the title and the icon) — so you don't have to tap the Fan Meta button by hand. A run with any error pair is left alone; you can still start it manually.",
+                    checked = autostartFanMeta,
+                    onCheckedChange = { autostartFanMeta = it }
                 )
             }
         }
@@ -1498,8 +1498,6 @@ private fun DefaultIconsSubScreen(
     var meta by remember { mutableStateOf(generalSettings.metadataIcons.meta) }
     var fanOutRow by remember { mutableStateOf(generalSettings.metadataIcons.fanOutRow) }
     var fanInRow by remember { mutableStateOf(generalSettings.metadataIcons.fanInRow) }
-    var fanIconsRow by remember { mutableStateOf(generalSettings.metadataIcons.fanIconsRow) }
-    var fanIconsResult by remember { mutableStateOf(generalSettings.metadataIcons.fanIconsResult) }
 
     fun build(): GeneralSettings {
         fun f(v: String, d: String) = v.trim().ifBlank { d }
@@ -1512,13 +1510,11 @@ private fun DefaultIconsSubScreen(
             translationRow = f(translationRow, factory.translationRow),
             meta = f(meta, factory.meta),
             fanOutRow = f(fanOutRow, factory.fanOutRow),
-            fanInRow = f(fanInRow, factory.fanInRow),
-            fanIconsRow = f(fanIconsRow, factory.fanIconsRow),
-            fanIconsResult = f(fanIconsResult, factory.fanIconsResult)
+            fanInRow = f(fanInRow, factory.fanInRow)
         ))
     }
 
-    LaunchedEffect(reportIcon, reportModelIcon, rerank, moderate, languageIcon, translationRow, meta, fanOutRow, fanInRow, fanIconsRow, fanIconsResult) {
+    LaunchedEffect(reportIcon, reportModelIcon, rerank, moderate, languageIcon, translationRow, meta, fanOutRow, fanInRow) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1542,7 +1538,6 @@ private fun DefaultIconsSubScreen(
                 rerank = factory.rerank; moderate = factory.moderate
                 languageIcon = factory.languageIcon; translationRow = factory.translationRow
                 meta = factory.meta; fanOutRow = factory.fanOutRow; fanInRow = factory.fanInRow
-                fanIconsRow = factory.fanIconsRow; fanIconsResult = factory.fanIconsResult
             }
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1564,8 +1559,6 @@ private fun DefaultIconsSubScreen(
                     IconDefaultRow("Meta", meta) { meta = it }
                     IconDefaultRow("Fan Out row", fanOutRow) { fanOutRow = it }
                     IconDefaultRow("Fan In row", fanInRow) { fanInRow = it }
-                    IconDefaultRow("Fan Icons row", fanIconsRow) { fanIconsRow = it }
-                    IconDefaultRow("Fan Icons result", fanIconsResult) { fanIconsResult = it }
                     // "Reset all to defaults" moved to the 🧽 bottom-bar icon.
                 }
             }

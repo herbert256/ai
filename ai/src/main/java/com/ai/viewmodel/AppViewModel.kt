@@ -139,10 +139,10 @@ data class GeneralSettings(
      *  for re-enable. */
     val useInternalPromptsIcons: Boolean = true,
     /** When true (default), finishing a Fan Out run with no errored pairs
-     *  automatically kicks off that run's Fan Icons and Fan Titles
-     *  batches — no need to tap the Icons / Titles buttons by hand. A
-     *  run with any error pair is left alone. */
-    val autostartFanIconsAndTitles: Boolean = true,
+     *  automatically kicks off that run's Fan Meta batch (one call per
+     *  pair produces both title and icon) — no need to tap the Fan Meta
+     *  button by hand. A run with any error pair is left alone. */
+    val autostartFanMeta: Boolean = true,
     /** When true (default), finishing a report's agent run automatically
      *  creates one Rerank and one Moderation secondary result, each using
      *  the first rerank- / moderation-capable model found across active
@@ -221,11 +221,11 @@ data class GeneralSettings(
      *  top of the per-host throttle, so a fan-out against a
      *  single 3-per-host provider still bottlenecks at 3. */
     val maxConcurrentFanOutCalls: Int = 50,
-    /** Cap on concurrent fan-icons batch calls. The fan-icons batch
-     *  generates emojis for completed fan-out pair responses; gated
+    /** Cap on concurrent Fan Meta batch calls. The Fan Meta batch
+     *  generates a title+icon for completed fan-out pair responses; gated
      *  separately so it doesn't compete with the parent fan-out's
      *  budget. Mirrors the per-host cap structure used by fan-out. */
-    val maxConcurrentFanIconsCalls: Int = 50,
+    val maxConcurrentFanMetaCalls: Int = 50,
     /** Cap on concurrent calls in the "Test all models" run
      *  (Housekeeping → Test). Read directly by
      *  [com.ai.viewmodel.ModelTestEngine] to size its in-flight
@@ -293,7 +293,7 @@ data class GeneralSettings(
     fun perModelIconOn() = metadataEnabled && perModelIconGenEnabled
     fun perModelTitleOn() = metadataEnabled && perModelTitleGenEnabled
     fun metaIconsOn() = metadataEnabled && useInternalPromptsIcons
-    fun fanIconsTitlesOn() = metadataEnabled
+    fun fanMetaOn() = metadataEnabled
 }
 
 // Prompt history entry
@@ -791,7 +791,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Stall watchdog. Every 15s WHILE work is in flight, log the cap
         // snapshot + per-host throttle state. If the global in-flight count
         // doesn't change for 60s straight (4 ticks) while still > 0, that's
-        // the signature of a deadlock (a big fan-out / fan-icons / Test-all
+        // the signature of a deadlock (a big fan-out / Fan Meta / Test-all
         // sweep wedged on the throttle gates) — escalate to a WARN (which
         // also toasts) carrying the exact cap + per-host state so the next
         // occurrence is self-diagnosing. Idle ticks log nothing.
@@ -842,7 +842,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 reportMax = bs.first.maxConcurrentReportCalls,
                 translationMax = bs.first.maxConcurrentTranslationCalls,
                 fanOutMax = bs.first.maxConcurrentFanOutCalls,
-                fanIconsMax = bs.first.maxConcurrentFanIconsCalls
+                fanMetaMax = bs.first.maxConcurrentFanMetaCalls
             )
             AppLog.v(
                 startTag,
@@ -1852,14 +1852,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             || settings.maxConcurrentReportCalls != previous.maxConcurrentReportCalls
             || settings.maxConcurrentTranslationCalls != previous.maxConcurrentTranslationCalls
             || settings.maxConcurrentFanOutCalls != previous.maxConcurrentFanOutCalls
-            || settings.maxConcurrentFanIconsCalls != previous.maxConcurrentFanIconsCalls
+            || settings.maxConcurrentFanMetaCalls != previous.maxConcurrentFanMetaCalls
         ) {
             ApiCallCaps.resetForNewLimits(
                 globalMax = settings.maxConcurrentApiCalls,
                 reportMax = settings.maxConcurrentReportCalls,
                 translationMax = settings.maxConcurrentTranslationCalls,
                 fanOutMax = settings.maxConcurrentFanOutCalls,
-                fanIconsMax = settings.maxConcurrentFanIconsCalls
+                fanMetaMax = settings.maxConcurrentFanMetaCalls
             )
         }
         if (settings.logLevel != previous.logLevel) {

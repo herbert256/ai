@@ -131,15 +131,15 @@ data class SecondaryResult(
      *  filtered to exactly this batch's API calls. Null on legacy
      *  rows written before this field existed. */
     val runId: String? = null,
-    /** UUID of the most recent fan-icons sweep that touched this
-     *  row. Stamped at icon commit time so the fan-icons L1 screen
+    /** UUID of the most recent Fan Meta sweep that touched this
+     *  row. Stamped at icon commit time so the Fan Meta L1 screen
      *  can deep-link 🐞 to that sweep's traces independently from
      *  the row's own [runId] (which records the fan-out that
      *  created the row). Null when no icon sweep has run, or on
      *  legacy rows. */
     val iconRunId: String? = null,
-    /** Per-fan-out-pair title produced by the fan-titles batch
-     *  ([com.ai.viewmodel.IconGenerationManager.runFanTitlesBatch]) —
+    /** Per-fan-out-pair title produced by the Fan Meta batch
+     *  ([com.ai.viewmodel.IconGenerationManager.runFanMetaBatch]) —
      *  a chat-continuation call to the pair's own model titling its
      *  own response. Parallel to [icon] but single-tier (no fallback
      *  tiers, no fallback glyph). Null until the batch runs; empty /
@@ -156,7 +156,7 @@ data class SecondaryResult(
     /** Bundled prompt name that produced the currently-displayed
      *  [title]. "fan_out_title" on success. Null on legacy rows. */
     val titlePromptUsed: String? = null,
-    /** UUID of the most recent fan-titles sweep that touched this row
+    /** UUID of the most recent Fan Meta sweep that touched this row
      *  (parallel to [iconRunId]). Null when no title sweep has run. */
     val titleRunId: String? = null,
     /** Trace filename captured for the specific API call that

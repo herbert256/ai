@@ -134,7 +134,7 @@ internal fun FanOutL1Screen(
         p != null && m != null && (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
 
     // 🐞 deep-link target: in ICONS mode the L1 spans the most
-    // recent fan-icons sweep on these pairs (iconRunId); in MAIN
+    // recent Fan Meta sweep on these pairs (iconRunId); in MAIN
     // mode the run is the fan-out that created the rows (runId).
     // First non-null wins so a sparse / legacy run still surfaces
     // the icon for sibling rows that were stamped.

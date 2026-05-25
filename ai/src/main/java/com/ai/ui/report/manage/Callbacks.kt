@@ -104,8 +104,8 @@ data class InternalPromptIconCallbacks(
     val onPickRow: (reportId: String, rowId: String, emoji: String) -> Unit = { _, _, _ -> }
 )
 
-/** Bundle of fan-out + fan-icons runtime state for [ReportsScreen].
- *  Packs the throttled + running pair sets + the fan-icons batch
+/** Bundle of fan-out + Fan Meta runtime state for [ReportsScreen].
+ *  Packs the throttled + running pair sets + the Fan Meta batch
  *  launch callback so [ReportsScreen]'s parameter count stays
  *  under the JVM 64 KB per-method bytecode limit. */
 data class FanRuntimeBundle(

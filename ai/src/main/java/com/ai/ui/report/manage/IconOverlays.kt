@@ -384,7 +384,7 @@ internal fun PairIconDetailOverlay(
     onClose: () -> Unit
 ): Boolean {
     val context = LocalContext.current
-    // Re-read the SR on each iconRefreshTick so a fan-icons
+    // Re-read the SR on each iconRefreshTick so a Fan Meta
     // run / Find-alt pick reflects immediately. Returns null on
     // first composition; the overlay falls through to a brief
     // "loading" branch then re-renders.

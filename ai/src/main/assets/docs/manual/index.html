@@ -296,13 +296,13 @@ so even 6 reports against one provider keeps three in flight; against
     left-swipe = next response, right-swipe = previous.</li>
   </ul>
 </li>
-<li><strong>Fan-icons mode</strong> — tap <strong>Show icons</strong>
+<li><strong>Fan Meta mode</strong> — tap <strong>Show icons</strong>
 on L1 to flip the drill-in into a parallel emoji chain. Each
 completed pair gets a 3-tier icon-generation run; the icons batch is
 gated by its own concurrency cap
-(<code>maxConcurrentFanIconsCalls</code>, default 15) and costs
-surface on a dedicated <code>fan-icons</code> row in the Costs view.
-A <strong>Clear fan-icons</strong> button wipes icon state without
+(<code>maxConcurrentFanMetaCalls</code>, default 15) and costs
+surface on a dedicated <code>Fan Meta</code> row in the Costs view.
+A <strong>Clear Fan Meta</strong> button wipes icon state without
 deleting pairs.</li>
 <li><strong>Run a fan-in</strong> — pick a Fan-in prompt to combine
 every per-pair row into a single combined-report row. The
@@ -556,8 +556,8 @@ ceilings applied across hosts:</p>
 <dd>Total across all in-flight Translate runs.</dd></div>
 <div><dt>Fan-out calls</dt><div class="meta">15</div>
 <dd>Fan-out pair calls.</dd></div>
-<div><dt>Fan-icons calls</dt><div class="meta">15</div>
-<dd>Fan-icons batch — independent of Fan-out.</dd></div>
+<div><dt>Fan Meta calls</dt><div class="meta">15</div>
+<dd>Fan Meta batch — independent of Fan-out.</dd></div>
 <div><dt>Test sweep calls</dt><div class="meta">40</div>
 <dd>"Test all models" sweep.</dd></div>
 </dl>

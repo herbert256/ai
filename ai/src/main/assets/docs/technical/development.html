@@ -463,7 +463,7 @@ treats 408 / 425 / 429 as transient.</li>
 <li><strong>Per-provider throttle.</strong>
 <code>ProviderThrottle</code> keeps one semaphore + sliding-window
 deque per host. Flows that pre-acquire (Fan-out via
-<code>FanOutEngine</code>, fan-icons batch, report-icon chain,
+<code>FanOutEngine</code>, Fan Meta batch, report-icon chain,
 alternative-icons fan-out, the model-test sweep via
 <code>ModelTestEngine</code>) MUST also set
 <code>ProviderThrottle.permitPreAcquired</code> on the coroutine so
@@ -478,7 +478,7 @@ effect on the next acquire. See <a href="throttle.html">throttle</a>.</li>
 <code>ApiCallCaps</code> and mirror <code>GeneralSettings</code>
 knobs on every Settings update: <code>global</code> (50),
 <code>report</code> (15), <code>translation</code> (15),
-<code>fanOut</code> (15), <code>fanIcons</code> (15),
+<code>fanOut</code> (15), <code>fanMeta</code> (15),
 <code>maxTestApiCalls</code> (40 — read directly by
 <code>ModelTestEngine</code>, not part of <code>ApiCallCaps</code>).
 Surfaced in Settings → Network → <strong>Maximal API calls</strong>.

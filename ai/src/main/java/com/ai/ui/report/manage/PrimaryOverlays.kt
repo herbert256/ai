@@ -92,7 +92,7 @@ internal fun ReportPrimaryOverlays(
     onHtmlPreviewDetailChange: (ReportExportDetail?) -> Unit,
     onOpenMetaResultIdChange: (String?) -> Unit,
     onOpenTranslationRunIdChange: (String?) -> Unit,
-    onListTargetChange: (SecondaryKind?, String?, Boolean) -> Unit,
+    onListTargetChange: (SecondaryKind?, String?) -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToTrace: (String) -> Unit,
     onNavigateToAppLog: (String, String) -> Unit,
@@ -174,7 +174,7 @@ internal fun ReportPrimaryOverlays(
             onShowViewerChange(false)
             onShowIconsViewChange(false)
             onHtmlPreviewDetailChange(null)
-            onListTargetChange(null, null, false)
+            onListTargetChange(null, null)
             onSingleResultAgentIdChange(null)
             resetTickHolder?.let { it.value = it.value + 1 }
             onShowViewReportScreenChange(true)
@@ -317,7 +317,7 @@ internal fun ReportPrimaryOverlays(
                 },
                 onViewSecondaryName = { name, kind, lang ->
                     onListLockedLanguageChange(lang)
-                    onListTargetChange(kind, name, false)
+                    onListTargetChange(kind, name)
                 },
                 onOpenTranslationRun = { runId -> onOpenTranslationRunIdChange(runId) },
                 reportLanguageName = reportLanguageName,

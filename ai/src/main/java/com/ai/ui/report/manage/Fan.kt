@@ -44,10 +44,10 @@ import kotlinx.coroutines.withContext
  *  - [MAIN]: the existing fan-out drill-in (per-pair response,
  *    fan-in, etc.). Status / counters derive from `pair.status`
  *    + the running/throttled sets for the main response.
- *  - [ICONS]: the fan-icons batch drill-in. Status / counters
- *    derive from `pair.iconStatus(...)` over the
- *    runningFanIcons / throttledFanIcons sets. Tier-1/2/3
- *    buttons drive [com.ai.viewmodel.ReportViewModel.runFanIconsBatch]
+ *  - [META]: the Fan Meta batch drill-in. Status / counters
+ *    derive from `pair.titleStatus(...)` over the
+ *    runningFanMetaPairs / throttledFanMetaPairs sets. The
+ *    button drives [com.ai.viewmodel.IconGenerationManager.runFanMetaBatch]
  *    instead of the fan-out runner. */
 enum class FanOutMode { MAIN, META }
 

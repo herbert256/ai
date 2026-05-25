@@ -76,14 +76,14 @@ data class PairState(
     val iconWinningTier: Int? = null,
     val iconInputCost: Double = 0.0,
     val iconOutputCost: Double = 0.0,
-    /** Error message from the last fan-icons attempt for this pair.
+    /** Error message from the last Fan Meta attempt for this pair.
      *  Non-null only when every tier of the chain failed. */
     val iconErrorMessage: String? = null,
     /** UUID of the batch that created this pair (the [runFanOutPrompt]
      *  invocation). Null on legacy rows hydrated from disk before this
      *  field existed. */
     val runId: String? = null,
-    /** UUID of the most recent fan-icons sweep on this pair. Null
+    /** UUID of the most recent Fan Meta sweep on this pair. Null
      *  when no sweep has run, or on legacy rows. */
     val iconRunId: String? = null,
     /** Bundled prompt name that produced the currently-displayed
@@ -92,15 +92,15 @@ data class PairState(
      *  legacy rows or when no icon has been generated. Drives the
      *  green subject row on the unified Icon-lookup screen. */
     val iconPromptUsed: String? = null,
-    /** Title produced by the fan-titles batch — a chat-continuation
+    /** Title produced by the Fan Meta batch — a chat-continuation
      *  call to the pair's own model. Null until the batch runs.
      *  Parallel to [icon] but single-tier. */
     val title: String? = null,
     val titleInputCost: Double = 0.0,
     val titleOutputCost: Double = 0.0,
-    /** Error message from the last fan-titles attempt for this pair. */
+    /** Error message from the last Fan Meta attempt for this pair. */
     val titleErrorMessage: String? = null,
-    /** UUID of the most recent fan-titles sweep on this pair. */
+    /** UUID of the most recent Fan Meta sweep on this pair. */
     val titleRunId: String? = null,
     /** Bundled prompt name that produced [title] — "fan_out_title". */
     val titlePromptUsed: String? = null
@@ -127,7 +127,7 @@ fun PairState.effectiveStatus(runningSet: Set<String>): PairStatus = when (statu
 }
 
 /** Icon-chain lifecycle for this pair. Mirrors [effectiveStatus]
- *  but for the fan-icons batch:
+ *  but for the Fan Meta batch:
  *    - DONE when an emoji has landed on [icon].
  *    - ERROR when every tier of the chain failed
  *      ([iconErrorMessage] non-null), OR the underlying fan-out

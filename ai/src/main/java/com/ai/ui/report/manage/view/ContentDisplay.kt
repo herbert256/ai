@@ -1116,7 +1116,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     //   - per-agent report icons → agentId is a real ReportAgent id
     //     → "report-icons" bucket
     //   - fan-out pair icons     → agentId is the pair's UUID (not a
-    //     report agent) → "fan-icons" bucket
+    //     report agent) → "Fan Meta" bucket
     // The report-level internal/icon prompt is NOT in iconCalls — it
     // surfaces separately as `iconRow` (the "icon" bucket, 1 row).
     // The recorded provider on each record is the model that actually
@@ -1195,7 +1195,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
     // Fan-out icon-chain cost is already captured per-call in
-    // report.iconCalls (split into the "fan-icons" bucket by
+    // report.iconCalls (split into the "Fan Meta" bucket by
     // iconCallRows above) — no separate pass over SecondaryResult
     // .iconInputCost, which would double-count.
     val rows = (agentRows + secondaryRows + listOfNotNull(iconRow, languageDetectRow, languageIconRow, titleRow) + modelTitleRows + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }

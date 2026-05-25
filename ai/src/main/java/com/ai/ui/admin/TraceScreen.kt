@@ -70,7 +70,7 @@ fun TraceListScreen(
     initialStatusClass: String? = null,
     /** Run-id filter. When set, the list is scoped to traces that
      *  carry this runId — every API call produced by one user-
-     *  launched batch (fan-out, fan-icons, translation, model-test,
+     *  launched batch (fan-out, Fan Meta, translation, model-test,
      *  report). Wired by the L1 🐞 icon on those screens. */
     runIdFilter: String? = null,
     /** Navigate to the MAIN AI API Traces list. Wired on scoped lists so

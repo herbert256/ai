@@ -60,7 +60,6 @@ internal fun SecondaryResultsListMount(
     openListKind: SecondaryKind,
     internalPrompts: List<InternalPrompt>,
     listFilterByName: String?,
-    listIsFanIcons: Boolean,
     listIsFanMeta: Boolean = false,
     isBatching: Boolean,
     runningFanOutPairs: Set<String>,
@@ -78,7 +77,6 @@ internal fun SecondaryResultsListMount(
     onModelFanInActiveChange: (String?, String?) -> Unit,
     onModelFanInPickerPromptChange: (InternalPrompt?) -> Unit,
     onCloseList: () -> Unit,
-    onShowFanIcons: () -> Unit,
     onShowResponses: () -> Unit,
     onShowFanMeta: () -> Unit = {},
     onSecondaryRefresh: () -> Unit,
@@ -104,8 +102,6 @@ internal fun SecondaryResultsListMount(
      *  — set by the parent ReportsScreen to flip
      *  `pairIconDetailFor = pairId`. */
     onOpenPairIconLookup: (String) -> Unit = {},
-    onClearFanIconErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
-    onRestartFanIconErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> }
 ) {
     val rid = reportId
     val fanInList = internalPrompts.filter { it.category == "fan_in" }
@@ -163,10 +159,8 @@ internal fun SecondaryResultsListMount(
             isBatching = isBatching,
             runningFanOutPairs = runningFanOutPairs,
             fanRuntime = fanRuntime,
-            onShowFanIcons = onShowFanIcons,
             onShowResponses = onShowResponses,
             onShowFanMeta = onShowFanMeta,
-            isFanIconsDrillIn = listIsFanIcons,
             isFanMetaDrillIn = listIsFanMeta,
             fanOutEngine = fanOutEngine,
             fanInPrompts = fanInList,
@@ -227,9 +221,7 @@ internal fun SecondaryResultsListMount(
                 onSecondaryRefresh()
             },
             forcedLanguage = forcedLanguage,
-            onOpenPairIconLookup = onOpenPairIconLookup,
-            onClearFanIconErrors = onClearFanIconErrors,
-            onRestartFanIconErrors = onRestartFanIconErrors
+            onOpenPairIconLookup = onOpenPairIconLookup
         )
     }
 }

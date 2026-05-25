@@ -276,12 +276,9 @@ internal data class GenerationPhaseHandlers(
     val onRequestExport: () -> Unit = {},
     val onCancelTranslation: (String) -> Unit = { _ -> },
     val onViewSecondaryName: (String, SecondaryKind) -> Unit = { _, _ -> },
-    /** Open the fan-icons drill-in for a fan-out's metaPrompt
-     *  name. Routes to SecondaryResultsScreen with the icon-mode
-     *  flag, which mounts FanOutScreen in ICONS mode. */
-    val onViewFanIcons: (String) -> Unit = { _ -> },
-    /** Title counterpart of [onViewFanIcons] — opens the fan-out
-     *  drill-in in TITLES mode for a fan-out's metaPrompt name. */
+    /** Open the Fan Meta drill-in for a fan-out's metaPrompt name.
+     *  Routes to SecondaryResultsScreen with the meta-mode flag,
+     *  which mounts FanOutScreen in META mode. */
     val onViewFanMeta: (String) -> Unit = { _ -> },
     val onOpenSecondaryRun: (String) -> Unit = { _ -> },
     val onOpenTranslationRun: (String) -> Unit = { _ -> },
@@ -449,7 +446,6 @@ internal fun ColumnScope.GenerationPhase(
     val onRequestExport = handlers.onRequestExport
     val onCancelTranslation = handlers.onCancelTranslation
     val onViewSecondaryName = handlers.onViewSecondaryName
-    val onViewFanIcons = handlers.onViewFanIcons
     val onViewFanMeta = handlers.onViewFanMeta
     val onOpenSecondaryRun = handlers.onOpenSecondaryRun
     val onOpenTranslationRun = handlers.onOpenTranslationRun
@@ -528,7 +524,7 @@ internal fun ColumnScope.GenerationPhase(
     // "every:" buttons + Row 3 picker. Each item knows how to open
     // its detail directly. Builder hoisted to top-level so the new
     // [ViewAiReportScreen] shares the same grouping logic.
-    // (Fan-icons are surfaced as a sibling list row off each
+    // (Fan Meta are surfaced as a sibling list row off each
     //  fanOutSummary — see the items(fanOutSummaries) block —
     //  not as a View-row group, since the fan-out pair rows that
     //  carry the icons never enter `secondaryRuns`.)
@@ -1154,46 +1150,12 @@ internal fun ColumnScope.GenerationPhase(
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
 
-                // Sibling "fan-icons" row — shown once a Find Icons
-                // batch has landed at least one emoji / icon error on
-                // this run's pairs. Tap opens the same pair drill-in
-                // in ICONS mode.
-                if (run.iconCount > 0) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
-                            onViewFanIcons(run.metaPromptName)
-                        },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        when {
-                            run.iconPendingCount > 0 -> Box(
-                                modifier = Modifier.width(24.dp),
-                                contentAlignment = Alignment.Center
-                            ) { AnimatedHourglass(fontSize = 16.sp) }
-                            run.iconErrorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                            else -> Text(com.ai.ui.shared.LocalMetadataIcons.current.fanIconsRow, fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                        }
-                        RowTypeCell("fan-icons")
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "${run.metaPromptName} · ${run.iconCount} icon${if (run.iconCount == 1) "" else "s"}",
-                                fontSize = 13.sp, color = Color.White,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        if (run.iconCost > 0.0) {
-                            Text(formatCents(run.iconCost), fontSize = 10.sp,
-                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                        }
-                    }
-                    HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-                }
-
-                // Sibling "fan-meta" row — mirror of the fan-icons
-                // row above, shown once a Fan Out Titles batch has
-                // landed at least one title / title error on this run's
-                // pairs. Tap opens the same pair drill-in in TITLES mode.
-                if (run.titleCount > 0) {
+                // Sibling "fan-meta" row — shown once a Fan Meta batch
+                // has landed at least one title/icon (or error) on this
+                // run's pairs. One Fan Meta call produces both the title
+                // and the icon, so this single row covers both. Tap opens
+                // the pair drill-in in META mode.
+                if (run.titleCount > 0 || run.iconCount > 0) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
                             onViewFanMeta(run.metaPromptName)
@@ -1636,7 +1598,7 @@ internal data class SecondaryTotals(
     val outputCost: Double,
     /** Sum of `SecondaryResult.iconInputCost + iconOutputCost`
      *  across every fan-out pair. Folded into the Report-Manage
-     *  grand-total so the per-pair Fan-icons chain spend doesn't
+     *  grand-total so the per-pair Fan Meta chain spend doesn't
      *  silently vanish from the headline number. */
     val fanOutIconCost: Double = 0.0
 ) {
@@ -1686,19 +1648,19 @@ internal data class FanOutRunSummary(
     val pendingCount: Int,
     val errorCount: Int,
     /** Pairs that have a fan-out icon (emoji landed) or an icon-chain
-     *  error. > 0 surfaces a sibling "fan-icons" row in the list. */
+     *  error. > 0 surfaces a sibling "Fan Meta" row in the list. */
     val iconCount: Int,
-    /** Pairs the fan-icons batch still has to process — content present
+    /** Pairs the Fan Meta batch still has to process — content present
      *  but no icon and no icon error yet. > 0 keeps the spinner on the
-     *  sibling "fan-icons" row while a Find-Icons batch is in flight. */
+     *  sibling "Fan Meta" row while a Find-Icons batch is in flight. */
     val iconPendingCount: Int,
     /** Pairs whose icon chain ended in an error (iconErrorMessage set,
-     *  no icon). > 0 puts a ❌ on the sibling "fan-icons" row once the
+     *  no icon). > 0 puts a ❌ on the sibling "Fan Meta" row once the
      *  batch is no longer pending, so a run that finished WITH errors
      *  reads as failed instead of silently showing the plain icon. */
     val iconErrorCount: Int,
     /** Summed icon-chain (tier 1/2/3) call cost across the run's
-     *  pairs — rendered on the sibling "fan-icons" row. Separate from
+     *  pairs — rendered on the sibling "Fan Meta" row. Separate from
      *  [totalCost], which covers only the fan-out pair calls. */
     val iconCost: Double,
     /** Title counterparts of [iconCount] / [iconPendingCount] /

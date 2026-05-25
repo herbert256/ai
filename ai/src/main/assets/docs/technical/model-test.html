@@ -113,7 +113,7 @@ the catalog-stats snapshot stays stable for the lifetime of the run
 <code>GeneralSettings.maxTestApiCalls</code> (default 40). Read
 directly by the engine — <strong>not</strong> part of
 <code>ApiCallCaps</code>, so it doesn't compete with report-gen /
-fan-out / fan-icons budgets.</li>
+fan-out / Fan Meta budgets.</li>
 <li>Per-host caps come from <code>ProviderThrottle</code> like every
 other flow (30 / min × 3 concurrent default, per-provider overrides
 apply).</li>

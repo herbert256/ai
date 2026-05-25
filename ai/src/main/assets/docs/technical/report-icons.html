@@ -322,7 +322,7 @@ data class IconCallRecord(
     val timestamp: Long
 )</code></pre>
 
-<h2>Fan-icons (parallel feature)</h2>
+<h2>Fan Meta (parallel feature)</h2>
 
 <p>A separate emoji chain runs on every Fan-out <strong>pair</strong>
 (not on report agents), driven by <code>FanOutEngine</code>. Same
@@ -335,18 +335,18 @@ agent) and same emoji-normalisation rules. Lives in
 
 <ul>
 <li>Runs separately from the parent fan-out, gated by
-<code>maxConcurrentFanIconsCalls</code> so it doesn't starve the
+<code>maxConcurrentFanMetaCalls</code> so it doesn't starve the
 parent's budget.</li>
 <li>Stamps <code>PairState.icon</code>, <code>iconWinningTier</code>,
 <code>iconInputCost</code>, <code>iconOutputCost</code>,
 <code>iconErrorMessage</code> so the L1 stats and Costs view reflect
 both the pair and its icon side-by-side. Costs surface on a dedicated
-<code>fan-icons</code> row in the report Costs view.</li>
+<code>Fan Meta</code> row in the report Costs view.</li>
 <li>Auto-resumes on screen entry if the user closed the report
 mid-batch. A 429 on a chain tier benches the model in
 <code>ModelCooldownStore</code>; subsequent pairs skip the benched
 (provider, model).</li>
-<li>Has its own <strong>Clear fan-icons</strong> action that wipes
+<li>Has its own <strong>Clear Fan Meta</strong> action that wipes
 icon state without deleting pairs.</li>
 </ul>
 

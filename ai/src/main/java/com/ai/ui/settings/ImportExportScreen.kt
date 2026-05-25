@@ -287,7 +287,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("perModelIconGenEnabled", g.perModelIconGenEnabled)
     addProperty("perModelTitleGenEnabled", g.perModelTitleGenEnabled)
     addProperty("useInternalPromptsIcons", g.useInternalPromptsIcons)
-    addProperty("autostartFanIconsAndTitles", g.autostartFanIconsAndTitles)
+    addProperty("autostartFanMeta", g.autostartFanMeta)
     add("metadataIcons", createAppGson().toJsonTree(g.metadataIcons))
     // App-wide / report-model default prompt + params.
     g.appWideSystemPromptId?.let { addProperty("appWideSystemPromptId", it) }
@@ -303,7 +303,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("maxConcurrentReportCalls", g.maxConcurrentReportCalls)
     addProperty("maxConcurrentTranslationCalls", g.maxConcurrentTranslationCalls)
     addProperty("maxConcurrentFanOutCalls", g.maxConcurrentFanOutCalls)
-    addProperty("maxConcurrentFanIconsCalls", g.maxConcurrentFanIconsCalls)
+    addProperty("maxConcurrentFanMetaCalls", g.maxConcurrentFanMetaCalls)
     addProperty("maxTestApiCalls", g.maxTestApiCalls)
     addProperty("maxRetriesOn429", g.maxRetriesOn429)
     addProperty("retryBackoffMs429", g.retryBackoffMs429)
@@ -369,7 +369,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         perModelIconGenEnabled = bool("perModelIconGenEnabled") ?: current.perModelIconGenEnabled,
         perModelTitleGenEnabled = bool("perModelTitleGenEnabled") ?: current.perModelTitleGenEnabled,
         useInternalPromptsIcons = bool("useInternalPromptsIcons") ?: current.useInternalPromptsIcons,
-        autostartFanIconsAndTitles = bool("autostartFanIconsAndTitles") ?: current.autostartFanIconsAndTitles,
+        autostartFanMeta = bool("autostartFanMeta") ?: current.autostartFanMeta,
         metadataIcons = metadataIcons ?: current.metadataIcons,
         appWideSystemPromptId = if (obj.has("appWideSystemPromptId")) str("appWideSystemPromptId") else current.appWideSystemPromptId,
         appWideParametersIds = strList("appWideParametersIds") ?: current.appWideParametersIds,
@@ -384,7 +384,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         maxConcurrentReportCalls = int("maxConcurrentReportCalls") ?: current.maxConcurrentReportCalls,
         maxConcurrentTranslationCalls = int("maxConcurrentTranslationCalls") ?: current.maxConcurrentTranslationCalls,
         maxConcurrentFanOutCalls = int("maxConcurrentFanOutCalls") ?: current.maxConcurrentFanOutCalls,
-        maxConcurrentFanIconsCalls = int("maxConcurrentFanIconsCalls") ?: current.maxConcurrentFanIconsCalls,
+        maxConcurrentFanMetaCalls = int("maxConcurrentFanMetaCalls") ?: current.maxConcurrentFanMetaCalls,
         maxTestApiCalls = int("maxTestApiCalls") ?: current.maxTestApiCalls,
         maxRetriesOn429 = int("maxRetriesOn429") ?: current.maxRetriesOn429,
         retryBackoffMs429 = long("retryBackoffMs429") ?: current.retryBackoffMs429,

@@ -14,7 +14,7 @@ import kotlinx.coroutines.withTimeout
 /**
  * The one place that owns the app's concurrent-batch throttle contract,
  * shared by every "fire N API calls, throttled" flow (Test all models,
- * Fan-out, Fan-in, Fan-icons, Fan-titles). Hand-rolling this six times
+ * Fan-out, Fan-in, Fan Meta, workers). Hand-rolling this several times
  * is what let the acquisition order drift and deadlock — keeping it here
  * means the order is defined exactly once.
  *
@@ -23,10 +23,10 @@ import kotlinx.coroutines.withTimeout
  *   [subCap]  →  [ApiCallCaps.global]  →  per-host ([acquireOrRequeue])
  *
  * The per-flow [subCap] is acquired BEFORE the shared `global` cap on
- * purpose: an item queued on its own flow cap (e.g. one of 1000 fan-icons
- * pairs waiting for a fan-icons permit) then holds NOTHING shared, so it
- * can't hog `global` from other flows — which is what let a fan-icons run
- * starve a concurrent fan-titles run of every global permit. Acquiring the
+ * purpose: an item queued on its own flow cap (e.g. one of 1000 Fan Meta
+ * pairs waiting for a Fan Meta permit) then holds NOTHING shared, so it
+ * can't hog `global` from other flows — which is what let a Fan Meta run
+ * starve a concurrent fan-out run of every global permit. Acquiring the
  * private cap first and the shared cap last is also the standard
  * deadlock-avoidance ordering (only one flow ever waits on a given
  * `subCap`, and everyone acquires the shared `global` last). `global` is
@@ -63,7 +63,7 @@ import kotlinx.coroutines.withTimeout
  * @param items     the work items.
  * @param hostOf    resolves an item's provider host; an item that returns
  *                  null is skipped (no host to throttle against).
- * @param subCap    the per-flow cap (`ApiCallCaps.fanOut` / `fanIcons`, or
+ * @param subCap    the per-flow cap (`ApiCallCaps.fanOut` / `fanMeta`, or
  *                  a flow-private `Semaphore` like Test-all's ioCap).
  * @param onThrottled / onCleared  per-item UI marks while the host gate
  *                  makes the item wait / clears it.
@@ -228,7 +228,7 @@ internal class PermitHold(
 
 /**
  * Shared resume/rerun guard for the per-row batch flows (fan-out pairs,
- * fan-in reruns, fan-icons, fan-titles, single Meta). The 30 s background
+ * fan-in reruns, Fan Meta, single Meta). The 30 s background
  * sweep / report-open relaunch re-dispatches any row still missing its
  * result (content / icon / title); without a bound, a row that can *never*
  * complete (provider since removed, etc.) would be re-run — and re-billed —

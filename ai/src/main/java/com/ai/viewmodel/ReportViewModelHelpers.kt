@@ -223,7 +223,7 @@ internal suspend fun acquireOrRequeue(
  *  provider's concurrency cap / per-minute window is full) holds NEITHER the
  *  sub-cap NOR global while it waits: the outer two are released before each
  *  back-off `delay` and re-taken in order on the next poll. So a per-flow cap
- *  (e.g. fan-icons = 30) bounds only pairs that hold a live provider slot —
+ *  (e.g. Fan Meta = 30) bounds only pairs that hold a live provider slot —
  *  real in-flight connections — not pairs merely queued behind a busy
  *  provider. The Settings values are about real TCP/IP calls, not permits held
  *  while waiting.

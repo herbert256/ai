@@ -15,7 +15,7 @@
 <p>When a provider answers a 429 with a Retry-After hint longer than
 <strong>1 hour</strong>, the model gets benched in
 <code>ModelCooldownStore</code> until the hint expires. Every flow that
-picks a (provider, model) pair — Fan-out, fan-icons, the model-test
+picks a (provider, model) pair — Fan-out, Fan Meta, the model-test
 sweep, the report-icon chain, every model picker — skips or dims
 benched pairs.</p>
 
@@ -116,7 +116,7 @@ with a "rate-limited · back …" caption. Tap-target stays live so the
 user can override if they want to try anyway.</p>
 
 <h3>Engines</h3>
-<p><code>FanOutEngine</code>, the fan-icons batch,
+<p><code>FanOutEngine</code>, the Fan Meta batch,
 <code>ModelTestEngine</code>, and the per-agent report-icon chain all
 consult <code>isUnavailable</code> before committing a pair to the
 run — benched pairs are skipped or shifted to ERROR with a reason.

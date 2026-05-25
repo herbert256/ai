@@ -62,7 +62,7 @@ enum class RegenerateTaskState {
      *  row's success / failure. */
     RUNNING,
     /** The underlying row now has content (or an icon for the
-     *  fan-icons phase) and no errorMessage. */
+     *  Fan Meta phase) and no errorMessage. */
     SUCCESS,
     /** The underlying row carries an errorMessage / iconErrorMessage
      *  after the dispatch fired. */
@@ -99,8 +99,8 @@ data class RegenerateTask(
     /** Stable id of the underlying row — agent.agentId for AGENTS,
      *  SecondaryResult.id for every other phase. The orchestrator
      *  polls this row off disk to detect success / failure. For
-     *  FAN_ICONS the rowId is still the SecondaryResult.id of the
-     *  fan-out pair row whose icon is being regenerated. */
+     *  FAN_META the rowId is still the SecondaryResult.id of the
+     *  fan-out pair row whose title+icon is being regenerated. */
     val rowId: String,
     val phase: RegeneratePhase,
     /** Human-readable label rendered in the detail screen

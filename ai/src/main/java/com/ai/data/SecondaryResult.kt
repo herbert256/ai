@@ -379,7 +379,7 @@ object SecondaryResultStorage {
     }
 
     /** Stamp an icon-chain failure on the pair row. Called when
-     *  every tier of the fan-icons chain has failed. Mirrors
+     *  every tier of the Fan Meta chain has failed. Mirrors
      *  [setFanOutIconAndTier] but writes [iconErrorMessage] only.
      *  Restart / retry paths clear it by writing a successful
      *  icon back. */
@@ -426,7 +426,7 @@ object SecondaryResultStorage {
 
     /** Regenerate-batch variant of [clearFanOutIconState] — clears
      *  the icon + iconErrorMessage + winning tier so the row
-     *  re-reads as "icon-less" (FAN_ICONS phase will re-fire the
+     *  re-reads as "icon-less" (FAN_META phase will re-fire the
      *  chain) BUT preserves icon* cost / token counters. The
      *  dispatcher's additive cost write adds the new chain's
      *  expenditure onto the prior. */
@@ -451,7 +451,7 @@ object SecondaryResultStorage {
     }
 
     /** Drop any prior icon / error state from the pair row so a
-     *  re-launched fan-icons batch starts clean for these pairs.
+     *  re-launched Fan Meta batch starts clean for these pairs.
      *  Leaves the row's main response untouched. */
     fun clearFanOutIconState(
         context: Context, reportId: String, resultId: String
@@ -467,6 +467,12 @@ object SecondaryResultStorage {
                 icon = null,
                 iconWinningTier = null,
                 iconErrorMessage = null,
+                // iconRunId too: the report-open + 30 s resume detectors treat a
+                // non-null iconRunId as "a Fan Meta batch was started here" and
+                // relaunch it. Leaving it set is what made a deleted Fan Meta
+                // reappear (as a regenerated icon row) on every Manage open —
+                // the same trap the title clear already guards against.
+                iconRunId = null,
                 iconInputTokens = 0,
                 iconOutputTokens = 0,
                 iconInputCost = 0.0,
@@ -477,7 +483,7 @@ object SecondaryResultStorage {
         }
     }
 
-    // ---- Per-pair TITLE state (single-tier fan-titles batch) ----
+    // ---- Per-pair TITLE state (single-tier Fan Meta batch) ----
     // Parallel to the icon setters above; no "winning tier" since the
     // title batch runs a single chat-continuation call per pair.
 
@@ -571,7 +577,7 @@ object SecondaryResultStorage {
         }
     }
 
-    /** Drop any prior title / error / cost so a re-launched fan-titles
+    /** Drop any prior title / error / cost so a re-launched Fan Meta
      *  batch starts clean. Mirrors [clearFanOutIconState]. */
     fun clearFanOutTitleState(
         context: Context, reportId: String, resultId: String
@@ -589,7 +595,7 @@ object SecondaryResultStorage {
                 // titleRunId too: the report-open + 30s resume detectors
                 // treat a non-null titleRunId as "a titles batch was
                 // started here" and relaunch it. Leaving it set is what
-                // made a deleted fan-titles run reappear on every Manage
+                // made a deleted Fan Meta run reappear on every Manage
                 // open, even after the cancel-join race was closed.
                 titleRunId = null,
                 titleInputTokens = 0,

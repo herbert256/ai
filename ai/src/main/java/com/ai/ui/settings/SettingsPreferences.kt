@@ -83,7 +83,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             perModelIconGenEnabled = prefs.getBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, true),
             perModelTitleGenEnabled = prefs.getBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, true),
             useInternalPromptsIcons = prefs.getBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, true),
-            autostartFanIconsAndTitles = prefs.getBoolean(KEY_AUTOSTART_FAN_ICONS_TITLES, true),
+            autostartFanMeta = prefs.getBoolean(KEY_AUTOSTART_FAN_META, true),
             autoCreateRerankAndModeration = prefs.getBoolean(KEY_AUTO_CREATE_RERANK_MODERATION, true),
             metadataIcons = metadataIcons,
             appWideSystemPromptId = prefs.getString(KEY_APP_WIDE_SYSTEM_PROMPT_ID, null),
@@ -107,7 +107,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             maxConcurrentReportCalls = prefs.getInt(KEY_MAX_CONCURRENT_REPORT_CALLS, 15),
             maxConcurrentTranslationCalls = prefs.getInt(KEY_MAX_CONCURRENT_TRANSLATION_CALLS, 15),
             maxConcurrentFanOutCalls = prefs.getInt(KEY_MAX_CONCURRENT_FAN_OUT_CALLS, 15),
-            maxConcurrentFanIconsCalls = prefs.getInt(KEY_MAX_CONCURRENT_FAN_ICONS_CALLS, 15),
+            maxConcurrentFanMetaCalls = prefs.getInt(KEY_MAX_CONCURRENT_FAN_META_CALLS, 15),
             maxTestApiCalls = prefs.getInt(KEY_MAX_TEST_API_CALLS, 40),
             maxRetriesOn429 = prefs.getInt(KEY_MAX_RETRIES_ON_429, 3),
             retryBackoffMs429 = prefs.getLong(KEY_RETRY_BACKOFF_MS_429, 1_000L),
@@ -145,7 +145,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, settings.perModelIconGenEnabled)
             putBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, settings.perModelTitleGenEnabled)
             putBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, settings.useInternalPromptsIcons)
-            putBoolean(KEY_AUTOSTART_FAN_ICONS_TITLES, settings.autostartFanIconsAndTitles)
+            putBoolean(KEY_AUTOSTART_FAN_META, settings.autostartFanMeta)
             putBoolean(KEY_AUTO_CREATE_RERANK_MODERATION, settings.autoCreateRerankAndModeration)
             putString(KEY_METADATA_ICONS, gson.toJson(settings.metadataIcons))
             putString(KEY_APP_WIDE_SYSTEM_PROMPT_ID, settings.appWideSystemPromptId)
@@ -165,7 +165,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putInt(KEY_MAX_CONCURRENT_REPORT_CALLS, settings.maxConcurrentReportCalls)
             putInt(KEY_MAX_CONCURRENT_TRANSLATION_CALLS, settings.maxConcurrentTranslationCalls)
             putInt(KEY_MAX_CONCURRENT_FAN_OUT_CALLS, settings.maxConcurrentFanOutCalls)
-            putInt(KEY_MAX_CONCURRENT_FAN_ICONS_CALLS, settings.maxConcurrentFanIconsCalls)
+            putInt(KEY_MAX_CONCURRENT_FAN_META_CALLS, settings.maxConcurrentFanMetaCalls)
             putInt(KEY_MAX_TEST_API_CALLS, settings.maxTestApiCalls)
             putInt(KEY_MAX_RETRIES_ON_429, settings.maxRetriesOn429)
             putLong(KEY_RETRY_BACKOFF_MS_429, settings.retryBackoffMs429)
@@ -556,7 +556,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_PER_MODEL_ICON_GEN_ENABLED = "per_model_icon_gen_enabled"
         private const val KEY_PER_MODEL_TITLE_GEN_ENABLED = "per_model_title_gen_enabled"
         private const val KEY_USE_INTERNAL_PROMPTS_ICONS = "use_internal_prompts_icons"
-        private const val KEY_AUTOSTART_FAN_ICONS_TITLES = "autostart_fan_icons_titles"
+        private const val KEY_AUTOSTART_FAN_META = "autostart_fan_meta"
         private const val KEY_AUTO_CREATE_RERANK_MODERATION = "auto_create_rerank_moderation"
         private const val KEY_METADATA_ICONS = "metadata_icons"
         private const val KEY_APP_WIDE_SYSTEM_PROMPT_ID = "app_wide_system_prompt_id"
@@ -574,7 +574,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_MAX_CONCURRENT_REPORT_CALLS = "max_concurrent_report_calls"
         private const val KEY_MAX_CONCURRENT_TRANSLATION_CALLS = "max_concurrent_translation_calls"
         private const val KEY_MAX_CONCURRENT_FAN_OUT_CALLS = "max_concurrent_fan_out_calls"
-        private const val KEY_MAX_CONCURRENT_FAN_ICONS_CALLS = "max_concurrent_fan_icons_calls"
+        private const val KEY_MAX_CONCURRENT_FAN_META_CALLS = "max_concurrent_fan_meta_calls"
         private const val KEY_MAX_TEST_API_CALLS = "max_test_api_calls"
         private const val KEY_MAX_RETRIES_ON_429 = "max_retries_on_429"
         private const val KEY_RETRY_BACKOFF_MS_429 = "retry_backoff_ms_429"

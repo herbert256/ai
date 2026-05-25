@@ -52,23 +52,15 @@ internal fun SecondaryResultsScreen(
     nameFilter: String? = null,
     isBatching: Boolean = false,
     runningFanOutPairs: Set<String> = emptySet(),
-    /** Bundle of fan-out throttled state + fan-icons batch state
+    /** Bundle of fan-out throttled state + Fan Meta batch state
      *  + the launcher callback. See [FanRuntimeBundle]. */
     fanRuntime: FanRuntimeBundle = FanRuntimeBundle(),
-    /** Flip the drill-in into ICONS mode — fired right after the
-     *  "Find icons" button kicks off a fan-icons batch so the user
-     *  watches the icon progress instead of the static MAIN page. */
-    onShowFanIcons: () -> Unit = {},
     /** Flip the drill-in back to MAIN mode — the L1 "Responses"
      *  mode-toggle. */
     onShowResponses: () -> Unit = {},
-    /** Flip the drill-in into TITLES mode — the L1 "Titles" toggle. */
+    /** Flip the drill-in into META mode — the L1 "Fan Meta" toggle. */
     onShowFanMeta: () -> Unit = {},
-    /** When true, the fan-out drill-in mounts in ICONS mode —
-     *  L1 / L2 / L3 classify pairs by their icon-chain status.
-     *  Wired by the main report's "Fan-icons" View button. */
-    isFanIconsDrillIn: Boolean = false,
-    /** When true, the fan-out drill-in mounts in TITLES mode. */
+    /** When true, the fan-out drill-in mounts in META mode. */
     isFanMetaDrillIn: Boolean = false,
     /** Authoritative Fan Out runtime. When non-null and the screen
      *  is in fan-out drill-in mode, the redesigned FanOutScreen
@@ -125,13 +117,7 @@ internal fun SecondaryResultsScreen(
     /** Open the unified Icon-lookup screen for a fan-out pair.
      *  Plumbed through to [FanOutActions.onOpenPairIconLookup]
      *  for the L2 long-press / L3 big-icon entry points. */
-    onOpenPairIconLookup: (String) -> Unit = {},
-    /** ICONS-mode "Remove errors" — bridged into
-     *  [FanOutActions.onClearFanIconErrors] by splitting the
-     *  runKey. (reportId, metaPromptId). */
-    onClearFanIconErrors: (String, String) -> Unit = { _, _ -> },
-    /** ICONS-mode "Restart errors". (reportId, metaPromptId). */
-    onRestartFanIconErrors: (String, String) -> Unit = { _, _ -> }
+    onOpenPairIconLookup: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -201,13 +187,13 @@ internal fun SecondaryResultsScreen(
             recentlySettled = recentlySettled - finished
         }
     }
-    // Same disk-refresh trigger for the fan-icons batch. During a
-    // fan-icons run `runningFanOutPairs` never changes, and the
+    // Same disk-refresh trigger for the Fan Meta batch. During a
+    // Fan Meta run `runningFanOutPairs` never changes, and the
     // `isBatching` poll burst above only covers the first ~2.5 s — so
     // without this the icon progress page froze on "queued" mid-batch
     // and only re-read disk once the batch ended (jumping straight to
     // the final state). `commitFanOutIconResult` writes the emoji to
-    // disk *before* the pair leaves `runningFanIconsPairs`, so a bump
+    // disk *before* the pair leaves `runningFanMetaPairs`, so a bump
     // on every removal lands a fresh read with the icon already there.
     var prevRunningIcons by remember { mutableStateOf(emptySet<String>()) }
     LaunchedEffect(fanRuntime.runningFanMetaPairs) {
@@ -229,7 +215,7 @@ internal fun SecondaryResultsScreen(
     //       happen OUTSIDE a batch (user actions, restarts, etc).
     //   (b) Polling loop while isBatching — fires every 500 ms
     //       regardless of refreshTick. The bump-on-pair-leave plumbing
-    //       is unreliable during fan-icons bursts (the set churns
+    //       is unreliable during Fan Meta bursts (the set churns
     //       faster than the LaunchedEffect can react and ticks get
     //       coalesced); a fixed-period poll guarantees the L1 stats
     //       update at least 2× per second while a batch is in flight.

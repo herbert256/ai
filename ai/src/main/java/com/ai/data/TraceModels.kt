@@ -33,7 +33,7 @@ data class ApiTrace(
      *  existed or from sites that don't bracket their calls. */
     val category: String? = null,
     /** Opaque id (UUID) shared by every trace produced by a single
-     *  user-launched batch — a fan-out, a fan-icons sweep, a
+     *  user-launched batch — a fan-out, a Fan Meta sweep, a
      *  translation, a model-test, a report generation. Lets the L1
      *  "🐞" icon on those screens deep-link the trace list to exactly
      *  this batch's traces. Null on legacy traces and on call sites

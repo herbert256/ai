@@ -69,7 +69,7 @@ entry is independently viewable and deletable.</p>
 <li><a href="#scope-encoding">Scope encoding</a></li>
 <li><a href="#storage">Storage</a></li>
 <li><a href="#cost">Cost tracking</a></li>
-<li><a href="#fan">Fan-out / Fan-in / Fan-icons</a></li>
+<li><a href="#fan">Fan-out / Fan-in / Fan Meta</a></li>
 <li><a href="#export">HTML export</a></li>
 <li><a href="#concurrency">Concurrency and gating</a></li>
 <li><a href="#native">Native rerank / moderation endpoints</a></li>
@@ -363,7 +363,7 @@ their fixed labels. Fan-out per-pair rows surface as
 <code>cross-out</code> or the prompt's lowercased name; Fan-in
 combined-report rows as <code>cross-in</code>.</p>
 
-<h2 id="fan">Fan-out / Fan-in / Fan-icons</h2>
+<h2 id="fan">Fan-out / Fan-in / Fan Meta</h2>
 
 <h3>FanOutEngine — the runtime</h3>
 
@@ -425,10 +425,10 @@ every level subscribes to
 
 <p>A <code>FanOutMode</code> enum (<code>MAIN</code> vs
 <code>ICONS</code>) flips the screen tree between standard fan-out
-and <strong>fan-icons mode</strong> — a parallel 3-tier emoji chain
+and <strong>Fan Meta mode</strong> — a parallel 3-tier emoji chain
 across every completed pair. Same screen files, separate budget
-(<code>maxConcurrentFanIconsCalls</code>), separate Costs row tagged
-<code>fan-icons</code>, and a <strong>Clear fan-icons</strong> button
+(<code>maxConcurrentFanMetaCalls</code>), separate Costs row tagged
+<code>Fan Meta</code>, and a <strong>Clear Fan Meta</strong> button
 wipes icon state without deleting pairs. When the user opens a report
 mid-batch the icons batch auto-resumes on screen entry.</p>
 
@@ -560,7 +560,7 @@ per-provider throttle (<code>ProviderThrottle</code> — defaults 30
 calls / min, 3 concurrent per provider host). Across hosts every flow
 goes through one of the six <code>ApiCallCaps</code> ceilings
 (<code>global</code> / <code>report</code> / <code>translation</code>
-/ <code>fanOut</code> / <code>fanIcons</code>, plus the standalone
+/ <code>fanOut</code> / <code>fanMeta</code>, plus the standalone
 <code>maxTestApiCalls</code> for the model-test sweep). See
 <a href="throttle.html">throttle</a>.</li>
 <li>Fan-out pre-acquires the per-provider permit on the coroutine

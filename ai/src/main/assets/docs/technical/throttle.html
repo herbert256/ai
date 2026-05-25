@@ -110,7 +110,7 @@ action feels slow.</p>
 <h3>ProviderThrottle.permitPreAcquired</h3>
 <p><code>ThreadLocal&lt;Boolean&gt;</code>. True on threads where the
 calling flow already acquired a permit explicitly
-(<code>FanOutEngine</code>, fan-icons batch,
+(<code>FanOutEngine</code>, Fan Meta batch,
 <code>ModelTestEngine</code>, Find alternative icons, the per-agent
 report-icon chain). <code>ProviderThrottleInterceptor</code> reads it
 on the OkHttp worker and skips its own acquire — without the flag the
@@ -145,8 +145,8 @@ first, then through <code>ProviderThrottle.acquire(host)</code>.</p>
 <dd>Fan-out pair calls (FanOutEngine).</dd>
 </div>
 <div>
-<dt>fanIcons</dt><div class="meta">default <code>15</code></div>
-<dd>Fan-icons batch calls (separate from fanOut).</dd>
+<dt>fanMeta</dt><div class="meta">default <code>15</code></div>
+<dd>Fan Meta batch calls (separate from fanOut).</dd>
 </div>
 </dl>
 
@@ -297,8 +297,8 @@ HTTP call, releases after the response settles. The engine's internal
 IO semaphore (<code>maxConcurrentFanOutCalls</code>) bounds total
 in-flight pair coroutines. Pairs whose per-host throttle is full
 surface as <code>Throttled</code> on the L1 stats panel.</li>
-<li><strong>Fan-icons batch</strong> — same shape, separate budget
-(<code>maxConcurrentFanIconsCalls</code>).</li>
+<li><strong>Fan Meta batch</strong> — same shape, separate budget
+(<code>maxConcurrentFanMetaCalls</code>).</li>
 <li><strong>ModelTestEngine</strong> — pre-acquires per probe; the
 <code>throttledKeys: StateFlow&lt;Set&lt;String&gt;&gt;</code>
 exposes which pairs are currently blocked in

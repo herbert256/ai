@@ -90,19 +90,11 @@ internal fun buildGenerationPhaseHandlers(
             st.listLockedLanguage.value = null
             st.listKind.value = kind
             st.listFilterByName.value = name
-            st.listIsFanIcons.value = false
-            st.listIsFanMeta.value = false
-        },
-        onViewFanIcons = { name ->
-            st.listKind.value = SecondaryKind.META
-            st.listFilterByName.value = name
-            st.listIsFanIcons.value = true
             st.listIsFanMeta.value = false
         },
         onViewFanMeta = { name ->
             st.listKind.value = SecondaryKind.META
             st.listFilterByName.value = name
-            st.listIsFanIcons.value = false
             st.listIsFanMeta.value = true
         },
         onOpenSecondaryRun = { id ->

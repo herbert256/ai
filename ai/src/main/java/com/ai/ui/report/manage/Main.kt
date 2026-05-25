@@ -60,7 +60,7 @@ fun ReportsScreen(
     uiState: UiState,
     reportsAgentResults: Map<String, AnalysisResponse>,
     runningFanOutPairs: Set<String> = emptySet(),
-    /** See [FanRuntimeBundle] — three pair sets + the fan-icons
+    /** See [FanRuntimeBundle] — three pair sets + the Fan Meta
      *  batch launcher bundled to keep this composable under the
      *  JVM 64 KB per-method bytecode limit. */
     fanRuntime: FanRuntimeBundle = FanRuntimeBundle(),
@@ -584,11 +584,8 @@ fun ReportsScreen(
     var listKind by st.listKind
     var listFilterByName by st.listFilterByName
     /** When true, the SecondaryResultsScreen for the active
-     *  (kind, name) renders the fan-icons drill-in (FanOutScreen
-     *  in ICONS mode) instead of the regular fan-out detail. */
-    var listIsFanIcons by st.listIsFanIcons
-    // Parallel to listIsFanIcons — drives FanOutScreen TITLES mode.
-    // Only one of the two is ever true at a time.
+     *  (kind, name) renders the Fan Meta drill-in (FanOutScreen in
+     *  META mode) instead of the regular fan-out detail. */
     var listIsFanMeta by st.listIsFanMeta
 
     // Screen keepalive during generation
@@ -657,10 +654,9 @@ fun ReportsScreen(
             onHtmlPreviewDetailChange = { htmlPreviewDetail = it },
             onOpenMetaResultIdChange = { openMetaResultId = it },
             onOpenTranslationRunIdChange = { openTranslationRunId = it },
-            onListTargetChange = { kind, name, icons ->
+            onListTargetChange = { kind, name ->
                 listKind = kind
                 listFilterByName = name
-                listIsFanIcons = icons
                 listIsFanMeta = false
             },
             onNavigateHome = onNavigateHome,
@@ -891,7 +887,6 @@ fun ReportsScreen(
                     // run progress instead of the report screen.
                     listKind = SecondaryKind.META
                     listFilterByName = mp.name
-                    listIsFanIcons = false
                     listIsFanMeta = false
                 }
             )
@@ -1279,7 +1274,6 @@ fun ReportsScreen(
             openListKind = openListKind,
             internalPrompts = aiSettings.internalPrompts,
             listFilterByName = listFilterByName,
-            listIsFanIcons = listIsFanIcons,
             listIsFanMeta = listIsFanMeta,
             isBatching = uiState.activeSecondaryBatches > 0,
             runningFanOutPairs = runningFanOutPairs,
@@ -1299,13 +1293,11 @@ fun ReportsScreen(
             onCloseList = {
                 listKind = null
                 listFilterByName = null
-                listIsFanIcons = false
                 listIsFanMeta = false
                 listLockedLanguage = null
             },
-            onShowFanIcons = { listIsFanIcons = true; listIsFanMeta = false },
-            onShowResponses = { listIsFanIcons = false; listIsFanMeta = false },
-            onShowFanMeta = { listIsFanMeta = true; listIsFanIcons = false },
+            onShowResponses = { listIsFanMeta = false },
+            onShowFanMeta = { listIsFanMeta = true },
             onSecondaryRefresh = onSecondaryRefresh,
             onCreateReportFromFanOut = onCreateReportFromFanOut,
             onDeleteSecondaryWithRefresh = onDeleteSecondaryWithRefresh,
