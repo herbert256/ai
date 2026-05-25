@@ -166,7 +166,7 @@ fun AiLiveDashboardScreen(
 @Composable
 fun AiStatisticsScreen(
     onBack: () -> Unit,
-    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateHome: () -> Unit,
     onNavigateToSpendUsage: () -> Unit = {},
     onNavigateToCostsTier: () -> Unit = {},
     onNavigateToReports: () -> Unit = {},
@@ -193,6 +193,7 @@ fun AiStatisticsScreen(
             subject = "Lifetime totals",
             onBackClick = onBack,
             reportIcon = "📈", reportIconGoesHome = true,
+            onTitleClick = onNavigateHome,
             onHousekeeping = onHousekeeping
         )
 
@@ -217,6 +218,7 @@ fun AiStatReportsScreen(
     reportViewModel: ReportViewModel,
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateToStatistics: () -> Unit = {},
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -237,7 +239,9 @@ fun AiStatReportsScreen(
             title = "Statistics - Reports",
             subject = "Reports and secondary results",
             onBackClick = onBack,
-            reportIcon = "📋", reportIconGoesHome = true
+            reportIcon = "📈",
+            onReportIconClick = onNavigateToStatistics,
+            onTitleClick = onNavigateToStatistics
         )
         val d = data
         if (d == null) {
@@ -259,6 +263,7 @@ fun AiStatProvidersScreen(
     appViewModel: AppViewModel,
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateToStatistics: () -> Unit = {},
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -278,7 +283,9 @@ fun AiStatProvidersScreen(
             title = "Statistics - Providers / Models",
             subject = "Providers, models and catalog freshness",
             onBackClick = onBack,
-            reportIcon = "🔌", reportIconGoesHome = true
+            reportIcon = "📈",
+            onReportIconClick = onNavigateToStatistics,
+            onTitleClick = onNavigateToStatistics
         )
         val d = data
         if (d == null) {
@@ -301,6 +308,7 @@ fun AiSpendUsageScreen(
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onNavigateToStatistics: () -> Unit = {},
     onHousekeeping: (() -> Unit)? = null,
 ) {
     BackHandler { onBack() }
@@ -336,7 +344,9 @@ fun AiSpendUsageScreen(
             title = "Spend & usage",
             subject = "Calls, tokens and cost per provider",
             onBackClick = onBack,
-            reportIcon = "💰", reportIconGoesHome = true,
+            reportIcon = "📈",
+            onReportIconClick = onNavigateToStatistics,
+            onTitleClick = onNavigateToStatistics,
             onDelete = { confirmClear = true },
             onHousekeeping = onHousekeeping
         )
@@ -405,6 +415,7 @@ fun AiCostsTierScreen(
     appViewModel: AppViewModel,
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateToStatistics: () -> Unit = {},
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -431,7 +442,9 @@ fun AiCostsTierScreen(
             title = "Costs tiers",
             subject = "Pricing tier per model + catalog freshness",
             onBackClick = onBack,
-            reportIcon = "🧮", reportIconGoesHome = true
+            reportIcon = "📈",
+            onReportIconClick = onNavigateToStatistics,
+            onTitleClick = onNavigateToStatistics
         )
         Spacer(Modifier.height(8.dp))
         LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {

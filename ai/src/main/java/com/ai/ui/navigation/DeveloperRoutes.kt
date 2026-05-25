@@ -59,15 +59,25 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToProviders = { navController.navigate(NavRoutes.AI_STAT_PROVIDERS) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
+        // Icon + title on the Statistics sub-screens jump back to the
+        // AI Statistics screen (popping any existing instance, not stacking).
+        val toStatistics: () -> Unit = {
+            navController.navigate(NavRoutes.AI_STATISTICS) {
+                popUpTo(NavRoutes.AI_STATISTICS) { inclusive = true }
+                launchSingleTop = true
+            }
+        }
         composable(NavRoutes.AI_STAT_REPORTS) {
             AiStatReportsScreen(
                 reportViewModel = reportViewModel,
-                onBack = safePopBack, onNavigateHome = navigateHome)
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToStatistics = toStatistics)
         }
         composable(NavRoutes.AI_STAT_PROVIDERS) {
             AiStatProvidersScreen(
                 appViewModel = appViewModel,
-                onBack = safePopBack, onNavigateHome = navigateHome)
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToStatistics = toStatistics)
         }
         composable(NavRoutes.AI_SPEND_USAGE) {
             val uiState by appViewModel.uiState.collectAsState()
@@ -77,12 +87,14 @@ internal fun NavGraphBuilder.developerRoutes(
                 },
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToStatistics = toStatistics,
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
         composable(NavRoutes.AI_COSTS_TIER) {
             AiCostsTierScreen(
                 appViewModel = appViewModel,
-                onBack = safePopBack, onNavigateHome = navigateHome)
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToStatistics = toStatistics)
         }
         composable(NavRoutes.AI_HOUSEKEEPING) {
             val uiState by appViewModel.uiState.collectAsState()
