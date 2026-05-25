@@ -1072,7 +1072,7 @@ internal fun ViewAiReportScreen(
         } ?: navToManageMain
         ViewTitleBar(
             reportTitle = loadedReport?.barTitle ?: promptTitle,
-            screenTitle = "View an AI report",
+            screenTitle = "View a report",
             subject = null,
             helpTopic = "view_ai_report",
             onOpenManage = onOpenManageJump,

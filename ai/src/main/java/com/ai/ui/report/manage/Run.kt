@@ -254,13 +254,13 @@ internal fun ReportRunScreen(
             costText = totalCostForBar.takeIf { it > 0.0 }?.let { com.ai.ui.shared.formatCents(it, 2) },
             onCostClick = generationHandlers.onViewCosts,
             // Tapping the "Manage report" screen title opens the main
-            // View hub ("View an AI report") — same target as the report
+            // View hub ("View a report") — same target as the report
             // icon, the green report-name and the bottom-bar 👁.
             onTitleClick = onOpenViewReport,
             subject = promptTitleForBar,
             reportIcon = if (iconGenEnabled) reportIcon?.takeIf { it.isNotEmpty() } ?: "📝" else null,
             // On the Manage report screen the report icon opens the main
-            // View hub ("View an AI report") — same target as the green
+            // View hub ("View a report") — same target as the green
             // report-name line and the bottom-bar 👁.
             onReportIconClick = onOpenViewReport,
             // ℹ️ → the standalone "Report information" screen (real route).

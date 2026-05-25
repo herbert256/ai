@@ -249,7 +249,7 @@ then subtitle.
 | Trim by age | Delete reports, chats & traces by age |
 | UI tweaks | Visual and layout preferences |
 | Update from cloud | Install the latest APK from a synced file |
-| View an AI report | \<report title\> |
+| View a report | \<report title\> |
 | View in one page | \<section title\> |
 | View Reports | Read each model's full answer |
 | Workers | Agents, flocks and swarms |

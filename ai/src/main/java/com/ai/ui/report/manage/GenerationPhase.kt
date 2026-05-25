@@ -324,7 +324,7 @@ internal fun ColumnScope.GenerationPhase(
     currentReportId: String?,
     handlers: GenerationPhaseHandlers,
     /** Tapping the green report-name line opens the main View hub
-     *  ("View an AI report"). Plumbed from ReportRunScreen's
+     *  ("View a report"). Plumbed from ReportRunScreen's
      *  onOpenViewReport (= Main's openViewReportFromManage). */
     onOpenViewReport: () -> Unit = {},
     /** Reports the running total cost up to the host so it can show it
