@@ -632,10 +632,15 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_stat_reports" to HelpContent(
         title = "Help - Reports",
         cards = listOf(
-            HelpCard("Overview", "Report + secondary-result lifetime totals, re-read from disk on resume and every ~10 s. Reached from AI Statistics."),
-            HelpCard("📋 Reports", "Total / running / problems / completed reports, total agent calls, error rate (errored agent calls), stopped agents, and total report spend. Running/problems use the same predicates as the AI Reports hub."),
+            HelpCard("Overview", "Everything the reports on disk add up to, re-read on resume and every ~10 s. Reached from AI Statistics."),
+            HelpCard("📋 Reports", "Total / running / problems / completed, total agent calls, error rate, stopped agents, report spend. Running/problems use the same predicates as the AI Reports hub."),
+            HelpCard("🤖 Agent calls", "Status split (success / error / stopped / in-flight) across every per-model call in every report, the error-rate bar, and the average number of models per report."),
+            HelpCard("💵 Tokens & spend", "Input / output / total tokens over all agent calls, plus secondary tokens; report spend, secondary spend and the combined total; average cost per report and per call; and total compute time (summed call durations)."),
+            HelpCard("🗓️ Activity", "Reports created today / in the last 7 / 30 days, how many are pinned, and the age of the oldest report (by stable creation time, falling back to last-changed for legacy reports)."),
+            HelpCard("✨ Features used", "How many reports used Vision (image), Web search, Reasoning, Knowledge (RAG), are Translated copies, or are Table-type reports."),
+            HelpCard("🏆 Top models / 🔌 Top providers", "The six most-called models and providers across all reports, by number of agent calls."),
             HelpCard("🔗 Secondary results", "Counts of every stored secondary by kind (Rerank / Meta / Moderation / Translate) plus the top meta-prompt names."),
-            HelpCard("Pitfalls", "Heavy — one report scan plus a secondary read per report — so it lives on its own page and refreshes on a 10 s tick."),
+            HelpCard("Pitfalls", "Heavy — one report scan plus a secondary read per report — so it lives on its own page and refreshes on a 10 s tick. Token/duration totals only count what providers reported."),
         )
     ),
     "ai_stat_providers" to HelpContent(

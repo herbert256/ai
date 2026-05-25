@@ -252,6 +252,82 @@ fun AiStatReportsScreen(
             LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { Spacer(Modifier.height(4.dp)) }
                 item { ReportsSection(d.reports) }
+
+                item {
+                    SectionCard("🤖", "Agent calls", AppColors.Blue) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("✅", "Success", d.agentSuccess, AppColors.Green)
+                            StatChip("❌", "Error", d.reports.erroredCalls, if (d.reports.erroredCalls > 0) AppColors.Red else AppColors.TextDim)
+                            StatChip("⏹️", "Stopped", d.reports.stopped, AppColors.TextSecondary)
+                            StatChip("⏳", "In flight", d.agentPending, if (d.agentPending > 0) AppColors.Orange else AppColors.TextDim)
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        val errRate = if (d.reports.agentCalls > 0) d.reports.erroredCalls * 100.0 / d.reports.agentCalls else 0.0
+                        KeyVal("Error rate", String.format(Locale.US, "%.1f%%", errRate),
+                            if (errRate >= 10.0) AppColors.Red else if (errRate > 0) AppColors.Orange else AppColors.Green)
+                        Bar(if (d.reports.agentCalls > 0) d.reports.erroredCalls.toFloat() / d.reports.agentCalls else 0f, AppColors.Red)
+                        val avgAgents = if (d.reports.total > 0) d.reports.agentCalls.toDouble() / d.reports.total else 0.0
+                        KeyVal("Avg models / report", String.format(Locale.US, "%.1f", avgAgents))
+                    }
+                }
+
+                item {
+                    SectionCard("💵", "Tokens & spend", AppColors.Green) {
+                        KeyVal("Input tokens", formatCompactNumber(d.inputTokens))
+                        KeyVal("Output tokens", formatCompactNumber(d.outputTokens))
+                        KeyVal("Total tokens", formatCompactNumber(d.inputTokens + d.outputTokens))
+                        KeyVal("Secondary tokens", formatCompactNumber(d.secondaryTokens), AppColors.TextSecondary)
+                        Spacer(Modifier.height(4.dp))
+                        KeyVal("Report spend", money(d.reports.spend), AppColors.Green)
+                        KeyVal("Secondary spend", money(d.secondaryCost), AppColors.Green)
+                        KeyVal("Total spend", money(d.reports.spend + d.secondaryCost), AppColors.Green)
+                        val avgPerReport = if (d.reports.total > 0) d.reports.spend / d.reports.total else 0.0
+                        val avgPerCall = if (d.reports.agentCalls > 0) d.reports.spend / d.reports.agentCalls else 0.0
+                        KeyVal("Avg / report", money(avgPerReport), AppColors.TextSecondary)
+                        KeyVal("Avg / call", money(avgPerCall), AppColors.TextSecondary)
+                        KeyVal("Total compute", fmtDuration(d.totalDurationMs))
+                    }
+                }
+
+                item {
+                    SectionCard("🗓️", "Activity", AppColors.Indigo) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("☀️", "Today", d.createdToday, AppColors.Green)
+                            StatChip("📅", "7 days", d.created7d, AppColors.Blue)
+                            StatChip("🗓️", "30 days", d.created30d, AppColors.Indigo)
+                            StatChip("📌", "Pinned", d.pinned, AppColors.Yellow)
+                        }
+                        d.oldestCreatedAt?.let {
+                            Spacer(Modifier.height(4.dp))
+                            KeyVal("Oldest report", fmtDuration(System.currentTimeMillis() - it) + " ago", AppColors.TextSecondary)
+                        }
+                    }
+                }
+
+                item {
+                    SectionCard("✨", "Features used", AppColors.Purple) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StatChip("👁", "Vision", d.withImage, AppColors.Blue)
+                            StatChip("🌐", "Web search", d.withWebSearch, AppColors.Green)
+                            StatChip("🧠", "Reasoning", d.withReasoning, AppColors.Purple)
+                            StatChip("📚", "Knowledge", d.withKnowledge, AppColors.Yellow)
+                            StatChip("🌍", "Translated", d.translated, AppColors.Blue)
+                            StatChip("📊", "Table", d.tableReports, AppColors.TextSecondary)
+                        }
+                    }
+                }
+
+                if (d.topModels.isNotEmpty()) item {
+                    SectionCard("🏆", "Top models (by calls)", AppColors.Orange) {
+                        d.topModels.forEach { (model, calls) -> KeyVal(com.ai.ui.shared.shortModelName(model), "$calls") }
+                    }
+                }
+                if (d.topProviders.isNotEmpty()) item {
+                    SectionCard("🔌", "Top providers (by calls)", AppColors.Blue) {
+                        d.topProviders.forEach { (provider, calls) -> KeyVal(provider, "$calls") }
+                    }
+                }
+
                 item { SecondariesSection(d.secondaries, d.metaByName) }
                 item { Spacer(Modifier.height(24.dp)) }
             }

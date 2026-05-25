@@ -12,12 +12,38 @@ import com.ai.viewmodel.providerHost
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Report + secondary-result lifetime totals — the "Statistics - Reports"
- *  screen. Heavy (one report scan + a secondary read per report). */
+/** Report + secondary-result lifetime totals — the "Reports" stats screen.
+ *  Heavy (one report scan + a secondary read per report). */
 internal data class ReportSectionData(
     val reports: ReportStats,
     val secondaries: Map<SecondaryKind, Int>,
     val metaByName: Map<String, Int>,
+    // Agent-call status breakdown (erroredCalls/stopped live on ReportStats).
+    val agentSuccess: Int,
+    val agentPending: Int,                 // PENDING + RUNNING
+    // Tokens & compute across all agent calls.
+    val inputTokens: Long,
+    val outputTokens: Long,
+    val totalDurationMs: Long,
+    // Secondary spend / tokens.
+    val secondaryCost: Double,
+    val secondaryTokens: Long,
+    // Report-level feature usage.
+    val pinned: Int,
+    val withImage: Int,
+    val withWebSearch: Int,
+    val withReasoning: Int,
+    val withKnowledge: Int,
+    val translated: Int,
+    val tableReports: Int,                 // ReportType.TABLE
+    // Activity over time (by createdAt, falling back to timestamp).
+    val createdToday: Int,
+    val created7d: Int,
+    val created30d: Int,
+    val oldestCreatedAt: Long?,
+    // Leaderboards (call counts), top 6.
+    val topModels: List<Pair<String, Int>>,
+    val topProviders: List<Pair<String, Int>>,
 )
 
 /** One provider's row on the "Providers / Models" screen. */
@@ -212,6 +238,8 @@ internal suspend fun computeReportStats(
     )
     val metaByName = HashMap<String, Int>()
     var problems = 0
+    var secondaryCost = 0.0
+    var secondaryTokens = 0L
     for (r in all) {
         val secs = SecondaryResultStorage.listForReport(context, r.id)
         for (s in secs) {
@@ -220,24 +248,69 @@ internal suspend fun computeReportStats(
                 val name = s.metaPromptName?.takeIf { it.isNotBlank() } ?: "Meta"
                 metaByName[name] = (metaByName[name] ?: 0) + 1
             }
+            secondaryCost += (s.inputCost ?: 0.0) + (s.outputCost ?: 0.0)
+            s.tokenUsage?.let { secondaryTokens += it.totalTokens.toLong() }
         }
         if (r.id !in runningIds && reportHasProblems(r, secs)) problems++
     }
+
+    // Agent-call rollups (status, tokens, compute, leaderboards) + report-level
+    // feature usage + activity-over-time, all in one in-memory pass.
+    val now = System.currentTimeMillis()
+    val dayMs = 24L * 60 * 60 * 1000
+    var agentCalls = 0; var errored = 0; var stopped = 0; var success = 0; var pending = 0
+    var inputTokens = 0L; var outputTokens = 0L; var totalDurationMs = 0L
+    val modelCalls = HashMap<String, Int>()
+    val providerCalls = HashMap<String, Int>()
+    for (r in all) for (a in r.agents) {
+        agentCalls++
+        when (a.reportStatus) {
+            ReportStatus.ERROR -> errored++
+            ReportStatus.STOPPED -> stopped++
+            ReportStatus.SUCCESS -> success++
+            ReportStatus.PENDING, ReportStatus.RUNNING -> pending++
+        }
+        a.tokenUsage?.let { inputTokens += it.inputTokens.toLong(); outputTokens += it.outputTokens.toLong() }
+        a.durationMs?.let { totalDurationMs += it }
+        if (a.model.isNotBlank()) modelCalls[a.model] = (modelCalls[a.model] ?: 0) + 1
+        if (a.provider.isNotBlank()) providerCalls[a.provider] = (providerCalls[a.provider] ?: 0) + 1
+    }
+    fun createdAtOf(r: Report) = if (r.createdAt > 0L) r.createdAt else r.timestamp
 
     val reportStats = ReportStats(
         total = all.size,
         running = running.size,
         problems = problems,
         completed = all.count { it.completedAt != null },
-        agentCalls = all.sumOf { it.agents.size },
-        erroredCalls = all.sumOf { r -> r.agents.count { it.reportStatus == ReportStatus.ERROR } },
-        stopped = all.sumOf { r -> r.agents.count { it.reportStatus == ReportStatus.STOPPED } },
+        agentCalls = agentCalls,
+        erroredCalls = errored,
+        stopped = stopped,
         spend = all.sumOf { it.totalCost },
     )
     ReportSectionData(
         reports = reportStats,
         secondaries = secByKind,
         metaByName = metaByName.entries.sortedByDescending { it.value }.associate { it.key to it.value },
+        agentSuccess = success,
+        agentPending = pending,
+        inputTokens = inputTokens,
+        outputTokens = outputTokens,
+        totalDurationMs = totalDurationMs,
+        secondaryCost = secondaryCost,
+        secondaryTokens = secondaryTokens,
+        pinned = all.count { it.pinned },
+        withImage = all.count { it.imageBase64 != null },
+        withWebSearch = all.count { it.webSearchTool },
+        withReasoning = all.count { it.reasoningEffort != null },
+        withKnowledge = all.count { it.knowledgeBaseIds.isNotEmpty() },
+        translated = all.count { it.sourceReportId != null },
+        tableReports = all.count { it.reportType == ReportType.TABLE },
+        createdToday = all.count { now - createdAtOf(it) < dayMs },
+        created7d = all.count { now - createdAtOf(it) < 7 * dayMs },
+        created30d = all.count { now - createdAtOf(it) < 30 * dayMs },
+        oldestCreatedAt = all.minOfOrNull { createdAtOf(it) }?.takeIf { it > 0L },
+        topModels = modelCalls.entries.sortedByDescending { it.value }.take(6).map { it.key to it.value },
+        topProviders = providerCalls.entries.sortedByDescending { it.value }.take(6).map { it.key to it.value },
     )
 }
 
