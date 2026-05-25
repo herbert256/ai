@@ -90,9 +90,12 @@ object ProviderThrottle {
         }
     }
 
-    class Releaser internal constructor(private val sem: java.util.concurrent.Semaphore) {
+    class Releaser internal constructor(private val sem: java.util.concurrent.Semaphore?) {
         private val released = java.util.concurrent.atomic.AtomicBoolean(false)
-        fun release() { if (released.compareAndSet(false, true)) sem.release() }
+        // sem == null is the no-op releaser (blank host / no real permit) —
+        // releasing it must do nothing, NOT bump a sentinel Semaphore past
+        // its max (which throws "Maximum permit count exceeded").
+        fun release() { if (released.compareAndSet(false, true)) sem?.release() }
     }
 
     /** Result of [tryAcquire]. */
@@ -169,7 +172,7 @@ object ProviderThrottle {
         if (host.isBlank()) {
             // Hostless requests (rare; only with a malformed URL) get
             // a stub releaser so the interceptor's finally is a no-op.
-            return Releaser(java.util.concurrent.Semaphore(Int.MAX_VALUE))
+            return Releaser(null)
         }
         val override = ProviderRegistry.findByHost(host)
         val perMinuteLimit = (override?.maxCallsPerProviderPerMinute
@@ -221,7 +224,7 @@ object ProviderThrottle {
      *  miss the concurrency permit is released so nothing leaks. */
     fun tryAcquire(host: String): Outcome {
         if (host.isBlank()) {
-            return Outcome.Acquired(Releaser(java.util.concurrent.Semaphore(Int.MAX_VALUE)))
+            return Outcome.Acquired(Releaser(null))
         }
         val override = ProviderRegistry.findByHost(host)
         val perMinuteLimit = (override?.maxCallsPerProviderPerMinute
