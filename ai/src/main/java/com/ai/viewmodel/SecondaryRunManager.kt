@@ -150,7 +150,7 @@ class SecondaryRunManager(
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
-                withTracerTags(reportId = reportId, category = "Report rerank") {
+                withTracerTags(reportId = reportId, category = "${rerankPrompt.category}/${rerankPrompt.name}") {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
                     val successfulCount = report.agents.count {
@@ -219,7 +219,7 @@ class SecondaryRunManager(
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
-                withTracerTags(reportId = reportId, category = "Report moderation") {
+                withTracerTags(reportId = reportId, category = "${moderationPrompt.category}/${moderationPrompt.name}") {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
                     val successfulCount = report.agents.count {
@@ -294,7 +294,7 @@ class SecondaryRunManager(
         val fanOutStartMs = System.currentTimeMillis()
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val cat = "Report meta: ${metaPrompt.name}"
+            val cat = "${metaPrompt.category}/${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat, runId = runId) {
                     val state = appViewModel.uiState.value
@@ -483,7 +483,7 @@ class SecondaryRunManager(
         if (placeholders.isEmpty()) return null
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val cat = "Report meta: ${metaPrompt.name}"
+            val cat = "${metaPrompt.category}/${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
                     val state = appViewModel.uiState.value
@@ -947,7 +947,7 @@ class SecondaryRunManager(
         val kind = placeholder.kind
         val lang = placeholder.targetLanguage
         val langNative = placeholder.targetLanguageNative
-        val cat = "Report ${kind.name.lowercase()}: ${metaPrompt.name}"
+        val cat = "${metaPrompt.category}/${metaPrompt.name}"
 
         AppLog.i("Resume", "→ re-issue ${kind.name} \"${metaPrompt.name}\" report=$reportId row=${placeholder.id} via ${provider.id}/$model")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -1297,7 +1297,7 @@ class SecondaryRunManager(
         AppLog.i("FanIn", "→ start \"${metaPrompt.name}\" report=$reportId via ${pick.first.id}/${pick.second}")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val cat = "Report meta: ${metaPrompt.name}"
+            val cat = "${metaPrompt.category}/${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
                     val state = appViewModel.uiState.value
@@ -1452,7 +1452,7 @@ class SecondaryRunManager(
         AppLog.i("ModelFanIn", "→ start \"${metaPrompt.name}\" report=$reportId active=$activeProviderId/$activeModel via ${pick.first.id}/${pick.second}")
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val cat = "Report meta: ${metaPrompt.name}"
+            val cat = "${metaPrompt.category}/${metaPrompt.name}"
             try {
                 withTracerTags(reportId = reportId, category = cat) {
                     val state = appViewModel.uiState.value
@@ -1711,7 +1711,7 @@ class SecondaryRunManager(
             // reportId=null and the report's JSON export wouldn't
             // pull them in. withTracerTags saves and restores both
             // values so this works correctly when nested.
-            val cat = "Report meta: ${metaPrompt.name}"
+            val cat = "${metaPrompt.category}/${metaPrompt.name}"
             try {
               withTracerTags(reportId = reportId, category = cat) {
                 val state = appViewModel.uiState.value

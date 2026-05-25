@@ -383,23 +383,10 @@ private fun formatCentsValue(cents: Double, decimals: Int = 4): String =
 /** Roll-up label for one cost bucket on the Costs view screen. */
 private data class BucketTotal(val key: String, val cents: Double, val calls: Int)
 
-/** Map a [CostRow.type] to a human-readable bucket label + emoji. The
- *  bucket order in the LinkedHashMap is the iteration order of the
- *  rows (which the rest of the aggregator sorted by absolute spend),
- *  and we re-sort by spend after grouping anyway. */
-private fun bucketFor(type: String): String = when {
-    type == "report" -> "Reports 📊"
-    type.startsWith("icon_") -> "Icons 🖼"
-    type == "language" -> "Language 🌐"
-    type == "model_title" -> "Model titles 🏷"
-    type == "fan-out" -> "Fan-out 🌀"
-    type == "fan-in" -> "Fan-in 🪢"
-    type == "rerank" -> "Rerank 🏆"
-    type == "moderation" -> "Moderation 🚩"
-    type == "translate" -> "Translate 🌍"
-    type == "meta" -> "Meta 🧠"
-    else -> "${type.replaceFirstChar { it.titlecase() }} 🧠"
-}
+/** The bucket key IS the row's literal `<category>/<prompt>` type — no
+ *  translation, no lumping. Each distinct internal prompt (and the
+ *  `report` rows) groups on its own key. */
+private fun bucketFor(type: String): String = type
 
 /** Per-bucket horizontal bar — bar length is fraction of total.
  *  [onClick] (when set) drills into the next level. */

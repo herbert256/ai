@@ -116,18 +116,17 @@ private fun CandidateRow(
             initialValue = null, reportId, candidate.model, candidate::class
         ) {
             value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                // Alt-icon fan-out calls are traced under per-flow
-                // categories: icon_report_alt / icon_meta_alt /
-                // icon_main_alt / icon_language_alt / icon_translation_alt
-                // / icon_fan_out_alt. Some flows don't tag reportId, so
-                // match the model + any "icon_*_alt" category (preferring
-                // the report when the trace carries one) and take the most
-                // recent — that's this screen's just-run call.
+                // Alt-icon/title fan-out calls are traced under the
+                // `alt/*` categories (alt/report, alt/meta, alt/main,
+                // alt/language, alt/translation, alt/fan_out, …). Some
+                // flows don't tag reportId, so match the model + any
+                // "alt/" category (preferring the report when the trace
+                // carries one) and take the most recent — that's this
+                // screen's just-run call.
                 com.ai.data.ApiTracer.getTraceFiles()
                     .filter {
                         it.model == candidate.model &&
-                            it.category?.startsWith("icon_") == true &&
-                            it.category!!.endsWith("_alt") &&
+                            it.category?.startsWith("alt/") == true &&
                             (it.reportId == null || it.reportId == reportId)
                     }
                     .maxByOrNull { it.timestamp }

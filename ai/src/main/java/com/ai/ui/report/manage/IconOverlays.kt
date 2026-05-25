@@ -68,16 +68,12 @@ internal fun rememberAgentIconTrace(
 ): String? = rememberIconTrace(
     reportId = reportId,
     model = agentModel,
-    // Prefer the exact `iconPromptUsed` stamp on fresh writes; on
-    // legacy rows (null `iconPromptUsed`) fall back to deriving the
-    // category set from `iconWinningTier`. Always include the alt
-    // category so a user-picked alt still resolves a 🐞 link.
-    categories = when {
-        promptUsed != null -> listOf("icon_$promptUsed")
-        winningTier == 1 -> listOf("icon_report_2", "icon_report_alt")
-        winningTier == 2 -> listOf("icon_report", "icon_report_alt")
-        winningTier == 3 -> listOf("icon_report_3", "icon_report_alt")
-        else -> listOf("icon_report", "icon_report_2", "icon_report_3", "icon_report_alt")
+    // Per-agent icons come from workers/model-icons; a Find-alternative
+    // pick (iconPromptUsed "report_alt") comes from alt/report. Match
+    // those trace categories so the 🐞 link resolves.
+    categories = when (promptUsed) {
+        "report_alt" -> listOf("alt/report")
+        else -> listOf("workers/model-icons", "alt/report")
     }
 )
 
@@ -434,7 +430,7 @@ internal fun PairIconDetailOverlay(
     val pairIconTraceFile = rememberIconTrace(
         reportId = reportId,
         model = pair.model,
-        categories = listOf("fan_meta", "icon_fan_out_alt")
+        categories = listOf("workers/fan-meta", "alt/fan_out")
     )
     val subject = pair.iconPromptUsed ?: "fan-meta"
     // Reconstruct what hit the wire. A Find-alternative pick
@@ -527,7 +523,7 @@ internal fun MetaIconDetailOverlay(
         val metaTraceFile = rememberIconTrace(
             reportId = null,
             model = entry?.model,
-            categories = listOf("icon_meta", "icon_meta_alt")
+            categories = listOf("workers/meta", "alt/meta")
         )
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_meta",
@@ -585,7 +581,7 @@ internal fun TranslationIconDetailOverlay(
         val translationTraceFile = rememberIconTrace(
             reportId = null,
             model = entry?.model,
-            categories = listOf("icon_translation", "icon_translation_alt")
+            categories = listOf("workers/translation", "alt/translation")
         )
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_translation",

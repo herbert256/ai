@@ -66,7 +66,7 @@ class IconGenerationManager(
         } ?: return
         if (iconPrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withTracerTags(reportId = reportId, category = "icon_main") {
+            withTracerTags(reportId = reportId, category = "workers/report-icon") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 appViewModel.updateRunningInfoJobs { it + "$reportId|icon" }
                 // Feed the long title (fall back to short title, then the
@@ -174,7 +174,7 @@ class IconGenerationManager(
         if (titlePrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
         val resolved = titlePrompt.text.replace("@PROMPT@", promptText)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withTracerTags(reportId = reportId, category = "report_title") {
+            withTracerTags(reportId = reportId, category = "workers/report-title") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 appViewModel.updateRunningInfoJobs { it + "$reportId|title" }
                 val started = System.currentTimeMillis()
@@ -301,7 +301,7 @@ class IconGenerationManager(
         val resolved = titlePrompt.text.replace("@RESPONSE@", agentResponse)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             var generatedTitle: String? = null
-            withTracerTags(reportId = reportId, category = "model_title") {
+            withTracerTags(reportId = reportId, category = "workers/model-titles") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 val started = System.currentTimeMillis()
                 val outcome = withTraceFilenameSink(traceSink) {
@@ -384,7 +384,7 @@ class IconGenerationManager(
         // (regenerate) replaces rather than accumulates — matches the
         // 3-tier chain's clearReportAgentIconState at its own start.
         ReportStorage.clearReportAgentIconState(context, reportId, ra.agentId)
-        return withTracerTags(reportId = reportId, category = "icon_report_title") {
+        return withTracerTags(reportId = reportId, category = "workers/model-icons") {
             val started = System.currentTimeMillis()
             val resolved = prompt.text.replace("@TITLE@", title)
             val outcome = rvm.workerRunner.run(prompt, resolved, aiSettings, context)
@@ -402,7 +402,8 @@ class IconGenerationManager(
                         context, reportId, ra.agentId, tier = 2,
                         provider = winAgent.provider, model = winAgent.model,
                         inT = inT, outT = outT, durationMs = durationMs,
-                        success = emoji != null
+                        success = emoji != null,
+                        type = "workers/model-icons"
                     )
                 }
                 if (emoji != null) {
@@ -441,7 +442,7 @@ class IconGenerationManager(
         if (languagePrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
         val resolved = languagePrompt.text.replace("@PROMPT@", promptText)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withTracerTags(reportId = reportId, category = "Language") {
+            withTracerTags(reportId = reportId, category = "workers/language") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 appViewModel.updateRunningInfoJobs { it + "$reportId|language" }
                 val started = System.currentTimeMillis()
@@ -549,7 +550,7 @@ class IconGenerationManager(
             .replace("@TITLE@", prompt.title)
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            withTracerTags(category = "icon_meta") {
+            withTracerTags(category = "workers/meta") {
                 val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context)
                 if (outcome is WorkerOutcome.Success) {
                     val emoji = extractFirstEmoji(outcome.response.analysis) ?: "📝"
@@ -672,7 +673,7 @@ class IconGenerationManager(
         val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             unique.forEach { item ->
                 launch(Dispatchers.IO) {
-                    withTracerTags(category = "icon_meta_alt") {
+                    withTracerTags(category = "alt/meta") {
                         val agent = Agent(
                             id = "internal-prompt-icon-alt",
                             name = "internal-prompt-icon-alt",
@@ -720,7 +721,7 @@ class IconGenerationManager(
                                         inputTokens = inT, outputTokens = outT,
                                         inputCost = inC, outputCost = outC,
                                         success = response.error == null,
-                                        type = "icon_meta_alt",
+                                        type = "alt/meta",
                                         attributedToSecondaryId = attributedSecondaryId
                                     ))
                                 }
@@ -888,7 +889,7 @@ class IconGenerationManager(
                     val releaser = ProviderThrottle.acquire(host)
                     try {
                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                            withTracerTags(reportId = reportId, category = "icon_fan_out_alt") {
+                            withTracerTags(reportId = reportId, category = "alt/fan_out") {
                                 runCatching {
                                     val syntheticAgent = Agent(
                                         id = "pair-icon-alt-${pairId}-${item.provider.id}-${item.model}",
@@ -933,7 +934,7 @@ class IconGenerationManager(
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC,
                                             success = response.error == null,
-                                            type = "icon_fan_out_alt",
+                                            type = "alt/fan_out",
                                             attributedToSecondaryId = pairId
                                         ))
                                     }
@@ -1045,7 +1046,7 @@ class IconGenerationManager(
         val resolved = iconPrompt.text.replace("@LANGUAGE@", language)
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            withTracerTags(category = "icon_translation") {
+            withTracerTags(category = "workers/translation") {
                 val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context)
                 if (outcome is WorkerOutcome.Success) {
                     val emoji = extractFirstEmoji(outcome.response.analysis) ?: "📝"
@@ -1130,7 +1131,7 @@ class IconGenerationManager(
         val outer = appViewModel.viewModelScope.launch(Dispatchers.IO) {
             unique.forEach { item ->
                 launch(Dispatchers.IO) {
-                    withTracerTags(category = "icon_translation_alt") {
+                    withTracerTags(category = "alt/translation") {
                         val agent = Agent(
                             id = "translation-icon-alt",
                             name = "translation-icon-alt",
@@ -1178,7 +1179,7 @@ class IconGenerationManager(
                                         inputTokens = inT, outputTokens = outT,
                                         inputCost = inC, outputCost = outC,
                                         success = response.error == null,
-                                        type = "icon_translation_alt",
+                                        type = "alt/translation",
                                         attributedToSecondaryId = attributedSecondaryId
                                     ))
                                 }
@@ -1313,7 +1314,7 @@ class IconGenerationManager(
                     val releaser = ProviderThrottle.acquire(host)
                     try {
                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                            withTracerTags(reportId = reportId, category = "icon_main_alt") {
+                            withTracerTags(reportId = reportId, category = "alt/main") {
                                 runCatching {
                                     val syntheticAgent = Agent(
                                         id = "icon-alt-${item.provider.id}-${item.model}",
@@ -1354,7 +1355,7 @@ class IconGenerationManager(
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC,
                                             success = response.error == null,
-                                            type = "icon_main_alt"
+                                            type = "alt/main"
                                         ))
                                     }
                                     val totalCost = inC + outC
@@ -1435,7 +1436,7 @@ class IconGenerationManager(
         appViewModel.updateReportTitleFanOut(reportId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             unique.forEach { item ->
-                launch { runTitleCandidate(context, reportId, null, item, resolved, "title_report_alt", aiSettings, paramsIds, systemPromptId, altPrompt) }
+                launch { runTitleCandidate(context, reportId, null, item, resolved, "alt/$altPromptName", aiSettings, paramsIds, systemPromptId, altPrompt) }
             }
         }
         rvm.registerIconFanOutJob("rt:$reportId", outer)
@@ -1457,7 +1458,7 @@ class IconGenerationManager(
             val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@launch
             val resolved = altPrompt.text.replace("@RESPONSE@", ra.responseBody.orEmpty())
             unique.forEach { item ->
-                launch { runTitleCandidate(context, reportId, agentId, item, resolved, "title_model_alt", aiSettings, paramsIds, systemPromptId, altPrompt) }
+                launch { runTitleCandidate(context, reportId, agentId, item, resolved, "alt/model_title", aiSettings, paramsIds, systemPromptId, altPrompt) }
             }
         }
         rvm.registerIconFanOutJob("mt:$agentId", outer)
@@ -1592,7 +1593,7 @@ class IconGenerationManager(
                     val releaser = ProviderThrottle.acquire(host)
                     try {
                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                            withTracerTags(reportId = reportId, category = "icon_language_alt") {
+                            withTracerTags(reportId = reportId, category = "alt/language") {
                                 runCatching {
                                     val syntheticAgent = Agent(
                                         id = "language-icon-alt-${item.provider.id}-${item.model}",
@@ -1636,7 +1637,7 @@ class IconGenerationManager(
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC,
                                             success = response.error == null,
-                                            type = "icon_language_alt"
+                                            type = "alt/language"
                                         ))
                                     }
                                     if (response.error == null && emoji.isNotEmpty()) {
@@ -1728,7 +1729,7 @@ class IconGenerationManager(
                     val releaser = ProviderThrottle.acquire(host)
                     try {
                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                            withTracerTags(reportId = reportId, category = "icon_report_alt") {
+                            withTracerTags(reportId = reportId, category = "alt/report") {
                                 runCatching {
                                     val syntheticAgent = Agent(
                                         id = "icon-alt-agent-${agentId}-${item.provider.id}-${item.model}",
@@ -1774,7 +1775,7 @@ class IconGenerationManager(
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC,
                                             success = response.error == null,
-                                            type = "icon_report_alt"
+                                            type = "alt/report"
                                         ))
                                     }
                                     val totalCost = inC + outC
@@ -1896,7 +1897,8 @@ class IconGenerationManager(
     private suspend fun recordTierCall(
         context: Context, reportId: String, agentId: String, tier: Int,
         provider: AppService, model: String,
-        inT: Int, outT: Int, durationMs: Long, success: Boolean
+        inT: Int, outT: Int, durationMs: Long, success: Boolean,
+        type: String? = null
     ) {
         val pricing = PricingCache.getPricing(context, provider, model)
         val inC = inT * pricing.promptPrice
@@ -1920,7 +1922,8 @@ class IconGenerationManager(
                 inputTokens = inT, outputTokens = outT,
                 inputCost = inC, outputCost = outC,
                 durationMs = durationMs,
-                success = success
+                success = success,
+                type = type
             )
         )
     }
@@ -1999,7 +2002,7 @@ class IconGenerationManager(
                     return@launch
                 }
                 AppLog.i("FanMeta", "→ start (report=$reportId, ${pending.size} pairs)")
-                withTracerTags(reportId = reportId, category = "fan_meta", runId = fanRunId) {
+                withTracerTags(reportId = reportId, category = "workers/fan-meta", runId = fanRunId) {
                     // Dynamic-host: each worker call self-throttles its own
                     // provider (the worker chain spans providers); the batch
                     // holds only the fan-meta + global caps.

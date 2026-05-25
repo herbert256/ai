@@ -970,10 +970,10 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         .mapValues { (_, list) ->
             list.sumOf { it.inputCost } * 100 to list.sumOf { it.outputCost } * 100
         }
-    val mainAltInCents = altByType["icon_main_alt"]?.first ?: 0.0
-    val mainAltOutCents = altByType["icon_main_alt"]?.second ?: 0.0
-    val languageAltInCents = altByType["icon_language_alt"]?.first ?: 0.0
-    val languageAltOutCents = altByType["icon_language_alt"]?.second ?: 0.0
+    val mainAltInCents = altByType["alt/main"]?.first ?: 0.0
+    val mainAltOutCents = altByType["alt/main"]?.second ?: 0.0
+    val languageAltInCents = altByType["alt/language"]?.first ?: 0.0
+    val languageAltOutCents = altByType["alt/language"]?.second ?: 0.0
 
     // Icon-gen call surfaces as its own row so the cost table totals
     // match the report total. Hidden when icon-gen wasn't run or the
@@ -996,7 +996,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = iconParts?.getOrNull(1) ?: iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "icon_main",
+            type = "workers/report-icon",
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -1030,7 +1030,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = agent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "language",
+            type = "workers/language",
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -1051,7 +1051,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = pickedParts?.getOrNull(1) ?: iconAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "icon_language",
+            type = "workers/language",
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -1078,7 +1078,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = parts?.getOrNull(1) ?: titleAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "title",
+            type = "workers/report-title",
             providerDisplay = provider?.id ?: parts?.firstOrNull() ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -1099,7 +1099,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = parts?.getOrNull(1) ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "model_title",
+            type = "workers/model-titles",
             providerDisplay = provider?.id ?: parts?.firstOrNull() ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -1125,21 +1125,14 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val reportAgentIds = report.agents.map { it.agentId }.toSet()
     val iconCallRows = report.iconCalls.map { c ->
         val providerEnum = AppService.findById(c.provider)
-        // `c.type` (set by Find-alt fan-out launchers to the
-        // bundled `_alt` prompt name like `icon_main_alt`) takes
-        // precedence. Otherwise we infer the bundled prompt name
-        // from `c.tier` (1=_2 chat-continuation / 2=base / 3=_3
-        // fixed-agent) and the `c.agentId`-based discriminator
-        // (real ReportAgent id → report chain; anything else → fan-
-        // out pair chain).
+        // `c.type` is the literal `<category>/<prompt>` stamped at call
+        // time (model-icon = workers/model-icons; Find-alt = alt/<name>).
+        // Records with no stored type (legacy) fall back to the worker
+        // prompt that produces icons for that row: per-agent → model-icons,
+        // fan-out pair → fan-meta.
         val resolvedType = c.type ?: run {
             val isAgentChain = c.agentId in reportAgentIds
-            val base = if (isAgentChain) "icon_report" else "icon_fan_out"
-            when (c.tier) {
-                1 -> "${base}_2"
-                3 -> "${base}_3"
-                else -> base
-            }
+            if (isAgentChain) "workers/model-icons" else "workers/fan-meta"
         }
         CostRow(
             type = resolvedType,
@@ -1181,15 +1174,21 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         // Result page. Other secondaries use the user-given Meta
         // prompt name; rerank / moderation / translate keep their
         // routing labels.
+        // Type = the literal `<category>/<prompt>` of the internal prompt
+        // that drove this secondary call. Resolve the prompt by its id;
+        // fall back to the conventional prompt for the kind, else to
+        // `meta/<name>` when only the name was stored (fan-out / fan-in /
+        // plain Meta all read as their Meta prompt — the out/in role is
+        // visible in the row's drill-in, not the type string).
+        val mp = s.metaPromptId?.let { id -> ai?.internalPrompts?.firstOrNull { it.id == id } }
         val type = when {
-            s.fanOutSourceAgentId != null -> "fan-out"
-            s.fanInOf != null -> "fan-in"
-            !s.metaPromptName.isNullOrBlank() -> s.metaPromptName.lowercase()
+            mp != null -> "${mp.category}/${mp.name}"
+            !s.metaPromptName.isNullOrBlank() -> "meta/${s.metaPromptName}"
             else -> when (s.kind) {
-                SecondaryKind.RERANK -> "rerank"
-                SecondaryKind.META -> "meta"
-                SecondaryKind.MODERATION -> "moderation"
-                SecondaryKind.TRANSLATE -> "translate"
+                SecondaryKind.RERANK -> ai?.getInternalPromptByName("rerank")?.let { "${it.category}/${it.name}" } ?: "internal/rerank"
+                SecondaryKind.MODERATION -> ai?.getInternalPromptByName("moderation")?.let { "${it.category}/${it.name}" } ?: "internal/moderation"
+                SecondaryKind.TRANSLATE -> ai?.getInternalPromptByName("Translate")?.let { "${it.category}/${it.name}" } ?: "internal/Translate"
+                SecondaryKind.META -> "meta/meta"
             }
         }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
@@ -1205,22 +1204,10 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     // shape as the All-calls list below); "By type" keeps the single
     // key column. (GroupTotal hoisted to top-level — see below.)
     fun groupByType(): List<GroupTotal> =
-        // Every icon flow (initial gen + per-tier chain + Find-alt
-        // fan-out) carries an `icon_<prompt>` type on its per-call
-        // rows. The By-type view collapses every variant into a
-        // single "icons" group so the user sees one summary line for
-        // all icon spend; the All API calls view keeps the granular
-        // per-prompt labels. Non-icon types group on their own key.
-        rows.groupBy {
-            when {
-                it.type.startsWith("icon_") -> "icons"
-                // Find-alt title spend folds into the matching title line
-                // (symmetry with icon alts folding into "icons").
-                it.type == "model_title" || it.type == "title_model_alt" -> "model titles"
-                it.type == "title_report_alt" -> "title"
-                else -> it.type
-            }
-        }.map { (k, gs) ->
+        // Each row groups strictly by its literal `<category>/<prompt>`
+        // type — no translation, no lumping (e.g. icons are NOT collapsed
+        // into one bucket). Every distinct prompt gets its own line.
+        rows.groupBy { it.type }.map { (k, gs) ->
             var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
             gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inputCents; oC += it.outputCents }
             GroupTotal(k, null, null, gs.size, iT, oT, iC, oC)
@@ -1509,20 +1496,16 @@ private sealed class CostPopup {
     data class Call(val r: CostRow) : CostPopup()
 }
 
-private fun costTypeColor(type: String): Color = when (type) {
-    "rerank" -> AppColors.Orange
-    "summarize" -> AppColors.Indigo
-    "compare" -> AppColors.Purple
-    "moderation" -> AppColors.Red
-    "fan-out" -> AppColors.Indigo
-    "fan-in" -> AppColors.Green
-    "language" -> AppColors.Yellow
-    // Every icon-related per-call row (initial gen, per-tier chain,
-    // Find-alt fan-out) uses the same hue — they collapse into a
-    // single "icons" group on the By-type view, so a uniform
-    // colour reads as one visual cluster on the All API calls list.
-    "icons" -> AppColors.Brown
-    else -> if (type.startsWith("icon_")) AppColors.Brown else AppColors.TextSecondary
+// Colour by the prompt's category prefix (`<category>/<prompt>`). This is
+// only a row tint — the label always shows the full literal type, so this
+// doesn't translate or group anything.
+private fun costTypeColor(type: String): Color = when (type.substringBefore('/')) {
+    "workers", "alt" -> AppColors.Brown
+    "meta" -> AppColors.Indigo
+    "fan_out" -> AppColors.Indigo
+    "fan_in", "fan-in-model" -> AppColors.Green
+    "internal" -> AppColors.Orange
+    else -> AppColors.TextSecondary
 }
 
 @Composable

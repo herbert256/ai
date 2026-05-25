@@ -343,11 +343,9 @@ private fun ReportInfoTableLine(
     }
 }
 
-private fun reportInfoCostType(type: String): String = when {
-    type.startsWith("icon_") -> "icons"
-    type == "model_title" -> "model titles"
-    else -> type
-}
+// The row's literal `<category>/<prompt>` type IS the group key — no
+// translation, no lumping (icons are not collapsed into one group).
+private fun reportInfoCostType(type: String): String = type
 
 /** Sum of every persisted per-call duration on the report — agents,
  *  secondaries, the 3-tier icon chain, and the report-level metadata

@@ -94,13 +94,13 @@ fun ReportEditTitleScreen(
 
     // The report title is filled in dynamically by a one-shot API call
     // (IconGenerationManager.kickOffReportTitleGeneration, traced under
-    // category "report_title"). Surface that call's trace via the 🐞 icon
-    // when it exists. Read off the main thread — getTraceFiles parses
-    // every trace file.
+    // category "workers/report-title"). Surface that call's trace via the
+    // 🐞 icon when it exists. Read off the main thread — getTraceFiles
+    // parses every trace file.
     val titleTraceFilenameState = produceState<String?>(initialValue = null, reportId) {
         value = withContext(Dispatchers.IO) {
             ApiTracer.getTraceFiles()
-                .filter { it.reportId == reportId && it.category == "report_title" }
+                .filter { it.reportId == reportId && it.category == "workers/report-title" }
                 .maxByOrNull { it.timestamp }?.filename
         }
     }
@@ -156,7 +156,7 @@ fun ReportEditTitleScreen(
  * [com.ai.data.ReportAgent.modelTitle] in place — it doesn't re-run anything.
  * The 🐞 trace icon opens this agent's model_title call trace, looked up from
  * the stored [com.ai.data.ReportAgent.modelTitleTraceFile] (reliable per-agent,
- * unlike scanning the shared "model_title" trace category).
+ * unlike scanning the shared "workers/model-titles" trace category).
  */
 @Composable
 fun ReportEditModelTitleScreen(

@@ -290,7 +290,7 @@ class TranslationRunManager(
             // Tag every translation call's trace with the SOURCE report
             // id — translations live on that report now, no separate
             // translated copy to keep traces with.
-            withTracerTags(reportId = sourceReportId, category = "Translation", runId = runId) {
+            withTracerTags(reportId = sourceReportId, category = aiSettings.getInternalPromptByName("Translate")?.let { "${it.category}/${it.name}" } ?: "internal/Translate", runId = runId) {
                 coroutineScope {
                     distinctModels.map { (p, m) ->
                         val ctx = ctxByKey[p.id to m]
@@ -1498,7 +1498,7 @@ class TranslationRunManager(
         // existing finalize path turns into a terminal ERROR row.
         val callBudgetMs = 90_000L
         try {
-            withTracerTags(reportId = sourceReportId, category = "Translation", runId = runId) {
+            withTracerTags(reportId = sourceReportId, category = aiSettings.getInternalPromptByName("Translate")?.let { "${it.category}/${it.name}" } ?: "internal/Translate", runId = runId) {
                 coroutineScope {
                     assignments.map { (item, ctx) ->
                         async {
