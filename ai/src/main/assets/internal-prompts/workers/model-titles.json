@@ -1,6 +1,6 @@
 {
-  "name": "icon",
-  "title": "Decide an icon for a given title",
+  "name": "model-titles",
+  "title": "Decide a title for a response.",
   "reference": false,
   "workers":
     [

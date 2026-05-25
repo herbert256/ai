@@ -1,6 +1,6 @@
 {
-  "name": "title",
-  "title": "Decide a title for a response.",
+  "name": "report-icon",
+  "title": "Decide the report icon",
   "reference": false,
   "workers":
     [

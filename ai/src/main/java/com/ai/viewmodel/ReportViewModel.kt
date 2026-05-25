@@ -367,9 +367,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             withTracerTags(reportId = reportId, category = "Report", runId = runId) {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
-                iconGen.kickOffIconGeneration(context, reportId, aiPrompt, aiSettings)
                 iconGen.kickOffLanguageGeneration(context, reportId, aiPrompt, aiSettings)
-                iconGen.kickOffReportTitleGeneration(context, reportId, aiPrompt, aiSettings)
+                // Title first, then icon (icon is derived from the long title).
+                iconGen.kickOffReportTitleGeneration(context, reportId, aiPrompt, aiSettings, thenIcon = true)
 
                 try {
                     runReportPrimaryCalls(
@@ -816,9 +816,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             withContext(AppLog.currentLogId.asContextElement(reportId)) {
                 withTracerTags(reportId = reportId, category = "Report", runId = runId) {
                     AppLog.i("Report", "→ start (bg) \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")
-                    iconGen.kickOffIconGeneration(context, reportId, prompt, aiSettings)
                     iconGen.kickOffLanguageGeneration(context, reportId, prompt, aiSettings)
-                    iconGen.kickOffReportTitleGeneration(context, reportId, prompt, aiSettings)
+                    // Title first, then icon (icon is derived from the long title).
+                    iconGen.kickOffReportTitleGeneration(context, reportId, prompt, aiSettings, thenIcon = true)
                     runReportPrimaryCalls(
                         context, reportId, prompt, null, reportTasks,
                         aiSettings, null, null, headless = true
@@ -935,18 +935,23 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val ai = appViewModel.uiState.value.aiSettings
             val g = appViewModel.uiState.value.generalSettings
             withTracerTags(reportId = reportId, category = "Report info restart errors") {
-                // Report-level rows.
-                if (!report.iconErrorMessage.isNullOrBlank()) {
+                // Report-level rows. Icon is derived from the title, so when
+                // the title errored we re-run title→icon together (chaining the
+                // icon only if it also errored); an icon-only error regenerates
+                // just the icon from the stored long title.
+                val titleErr = !report.titleErrorMessage.isNullOrBlank()
+                val iconErr = !report.iconErrorMessage.isNullOrBlank()
+                if (titleErr) {
+                    ReportStorage.clearReportTitleError(context, reportId)
+                    if (iconErr) ReportStorage.clearReportIcon(context, reportId)
+                    iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai, thenIcon = iconErr)
+                } else if (iconErr) {
                     ReportStorage.clearReportIcon(context, reportId)
                     iconGen.kickOffIconGeneration(context, reportId, report.prompt, ai)
                 }
                 if (!report.languageIconErrorMessage.isNullOrBlank()) {
                     ReportStorage.clearReportLanguage(context, reportId)
                     iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
-                }
-                if (!report.titleErrorMessage.isNullOrBlank()) {
-                    ReportStorage.clearReportTitleError(context, reportId)
-                    iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai)
                 }
                 // Per-model rows: re-run just the agents whose icon or model-title
                 // errored (and only the side that failed).
@@ -973,9 +978,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val ai = appViewModel.uiState.value.aiSettings
             val g = appViewModel.uiState.value.generalSettings
             withTracerTags(reportId = reportId, category = "Report info regenerate") {
-                iconGen.kickOffIconGeneration(context, reportId, report.prompt, ai)
                 iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
-                iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai)
+                // Title first, then icon (icon is derived from the long title).
+                iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai, thenIcon = true)
                 if (g.perModelIconOn() || g.perModelTitleOn()) {
                     report.agents
                         .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
@@ -1065,8 +1070,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 // existing icon — the report's content didn't change.
                 if (state.hasPendingPromptChange) {
                     ReportStorage.clearReportIcon(context, reportId)
+                    ReportStorage.clearReportTitleError(context, reportId)
                     appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
-                    iconGen.kickOffIconGeneration(context, reportId, report.prompt, ai)
+                    // Prompt changed → regenerate the title too, then the icon
+                    // (which derives from the new long title).
+                    iconGen.kickOffReportTitleGeneration(context, reportId, report.prompt, ai, thenIcon = true)
                     iconGen.kickOffLanguageGeneration(context, reportId, report.prompt, ai)
                 }
                 for (id in removedIds) ReportStorage.removeAgent(context, reportId, id)
