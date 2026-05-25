@@ -339,7 +339,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // context element is applied here rather than at the
             // launch site (cf. reportLogContext used elsewhere).
             withContext(AppLog.currentLogId.asContextElement(reportId)) {
-            withTracerTags(reportId = reportId, category = "Report", runId = runId) {
+            withTracerTags(reportId = reportId, category = "report/prompt", runId = runId) {
                 appViewModel.updateUiState { it.copy(currentReportId = reportId) }
 
                 iconGen.kickOffLanguageGeneration(context, reportId, aiPrompt, aiSettings)
@@ -789,7 +789,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             onReportCreated?.invoke(reportId)
             val startMs = System.currentTimeMillis()
             withContext(AppLog.currentLogId.asContextElement(reportId)) {
-                withTracerTags(reportId = reportId, category = "Report", runId = runId) {
+                withTracerTags(reportId = reportId, category = "report/prompt", runId = runId) {
                     AppLog.i("Report", "→ start (bg) \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))")
                     iconGen.kickOffLanguageGeneration(context, reportId, prompt, aiSettings)
                     // Title first, then icon (icon is derived from the long title).

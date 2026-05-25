@@ -947,7 +947,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         }
         val inCents = inDollars * 100
         val outCents = outDollars * 100
-        CostRow("report", providerEnum?.id ?: agent.provider, agent.model, pricing?.source ?: "", agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
+        CostRow("report/prompt", providerEnum?.id ?: agent.provider, agent.model, pricing?.source ?: "", agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
     // Find-alternative-icons fan-out cost subtraction. Every alt
     // call is recorded as its own IconCallRecord with `type` set to
