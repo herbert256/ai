@@ -29,11 +29,6 @@ internal data class DashboardAggregates(
     val kbFailed: Int,
     val modelsCached: Int,
     val modelCacheStale: Int,
-    val pricingStats: String,
-    val openRouterCacheAge: String,
-    val manualOverrides: Int,
-    /** Entry count + retrieval timestamp for the six external pricing catalogs. */
-    val catalogStats: List<PricingCache.CatalogStat>,
 )
 
 /** Spend & usage breakdown — heavy enough (per-model getPricing) that it lives
@@ -210,9 +205,5 @@ internal suspend fun computeDashboardAggregates(
         kbFailed = allSources.count { it.errorMessage != null },
         modelsCached = cached,
         modelCacheStale = stale,
-        pricingStats = PricingCache.getPricingStats(context),
-        openRouterCacheAge = PricingCache.getOpenRouterCacheAge(context),
-        manualOverrides = PricingCache.getAllManualPricing(context).size,
-        catalogStats = PricingCache.catalogStats(context),
     )
 }

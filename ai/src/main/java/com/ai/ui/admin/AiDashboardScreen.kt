@@ -226,7 +226,6 @@ fun AiStatisticsScreen(
                 item { SecondariesSection(agg.secondaries, agg.metaByName) }
                 item { ProvidersSection(agg) }
                 if (agg.kbCount > 0) item { KnowledgeSection(agg) }
-                item { PricingSection(agg) }
             }
             item { Spacer(Modifier.height(24.dp)) }
         }
@@ -358,6 +357,12 @@ fun AiCostsTierScreen(
         value = if (runtime) computeTierCountsRuntime(context)
                 else computeTierCounts(context, uiState.aiSettings)
     }
+    // Pricing-cache catalog table — independent of the tier mode.
+    val pricing by produceState<Pair<List<PricingCache.CatalogStat>, Int>?>(null, refreshTick) {
+        value = withContext(Dispatchers.IO) {
+            PricingCache.catalogStats(context) to PricingCache.getAllManualPricing(context).size
+        }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -367,7 +372,7 @@ fun AiCostsTierScreen(
         TitleBar(
             helpTopic = "ai_costs_tier",
             title = "Costs tier",
-            subject = "Pricing tier per model",
+            subject = "Pricing tier per model + catalog freshness",
             onBackClick = onBack,
             reportIcon = "🧮", reportIconGoesHome = true
         )
@@ -377,16 +382,16 @@ fun AiCostsTierScreen(
             ModeButton("Runtime", selected = runtime, modifier = Modifier.weight(1f)) { runtime = true }
         }
         Spacer(Modifier.height(8.dp))
-        val tc = tierCounts
-        if (tc == null) {
-            Text(
-                if (runtime) "Loading… (reading API traces)" else "Loading… (checking every configured model)",
-                color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)
-            )
-        } else {
-            LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item { Spacer(Modifier.height(4.dp)) }
-                item {
+        LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            item { Spacer(Modifier.height(4.dp)) }
+            item {
+                val tc = tierCounts
+                if (tc == null) {
+                    Text(
+                        if (runtime) "Loading… (reading API traces)" else "Loading… (checking every configured model)",
+                        color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)
+                    )
+                } else {
                     CostTierSection(
                         tierCounts = tc,
                         subtitle = if (runtime) "Tier of each model actually called (from API traces)"
@@ -394,8 +399,9 @@ fun AiCostsTierScreen(
                         totalLabel = if (runtime) "Models called" else "Total models"
                     )
                 }
-                item { Spacer(Modifier.height(24.dp)) }
             }
+            pricing?.let { (cats, overrides) -> item { PricingSection(cats, overrides) } }
+            item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
@@ -642,7 +648,7 @@ private fun tierLabel(src: String): String = when (src) {
 }
 
 @Composable
-private fun PricingSection(agg: DashboardAggregates) {
+private fun PricingSection(catalogStats: List<com.ai.data.PricingCache.CatalogStat>, manualOverrides: Int) {
     SectionCard("🏷️", "Pricing cache", AppColors.Purple) {
         // Header
         Row(Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
@@ -650,7 +656,7 @@ private fun PricingSection(agg: DashboardAggregates) {
             Text("Entries", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
             Text("Retrieved", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(1.2f))
         }
-        agg.catalogStats.forEach { c ->
+        catalogStats.forEach { c ->
             val dim = c.entries == 0
             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(c.name, fontSize = 12.sp, color = if (dim) AppColors.TextDim else Color.White, maxLines = 1, modifier = Modifier.weight(1.5f))
@@ -663,7 +669,7 @@ private fun PricingSection(agg: DashboardAggregates) {
             }
         }
         Spacer(Modifier.height(6.dp))
-        KeyVal("Manual overrides", "${agg.manualOverrides}")
+        KeyVal("Manual overrides", "$manualOverrides")
     }
 }
 

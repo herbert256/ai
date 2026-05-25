@@ -628,7 +628,6 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("🔗 Secondary results", "Counts of every stored secondary by kind (Rerank / Meta / Moderation / Translate) plus the top meta-prompt names."),
             HelpCard("🔌 Providers & models", "Providers configured, how many have an API key, total models across providers, and model-list cache freshness (cached / stale > 7 days)."),
             HelpCard("📚 Knowledge", "Knowledge-base count, total chunks, indexed character count, failed sources, and a breakdown of sources by type. Hidden when there are no knowledge bases."),
-            HelpCard("🏷️ Pricing cache", "A table of the six external pricing info-providers (LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Helicone) with each catalog's entry count and when it was last retrieved ('never' if not yet fetched), plus the number of manual cost overrides on file. Refresh the catalogs from Housekeeping → Costs maintenance."),
             HelpCard("Pitfalls", "Numbers lag a few seconds behind (10 s tick)."),
         )
     ),
@@ -649,6 +648,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Configuration / Runtime", "Two modes. Configuration = every configured model in each provider's catalog. Runtime = only the DISTINCT (provider, model) pairs that were actually called, read from the API traces (host → provider, plus the recorded model). Runtime mirrors Configuration but over what really happened."),
             HelpCard("Tiers", "Listed by the source tag the lookup returns: Manual override, LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Together, Helicone, then the 25/75 default fallback for models no catalog covers."),
             HelpCard("25/75 default", "A big default count means those models have no real catalog price and would bill at the $25/$75-per-million placeholder. Add a manual override or refresh catalogs to fix."),
+            HelpCard("🏷️ Pricing cache", "Below the tiers: a table of the six external pricing info-providers (LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Helicone) with each catalog's entry count and when it was last retrieved ('never' if not yet fetched), plus the number of manual cost overrides on file. These catalogs are exactly what feeds the tier resolution above. Refresh them from Housekeeping → Costs maintenance."),
             HelpCard("Pitfalls", "Tier resolution reflects the catalogs currently loaded — a model can shift tiers after a refresh. Runtime depends on tracing having been enabled when the calls were made; with no traces it shows zeros."),
         )
     ),
