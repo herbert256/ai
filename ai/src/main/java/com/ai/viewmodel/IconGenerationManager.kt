@@ -266,9 +266,13 @@ class IconGenerationManager(
         iconOn: Boolean, titleOn: Boolean
     ) {
         when {
-            titleOn && iconOn -> runModelTitleForAgent(context, reportId, ra, aiSettings, reportPrompt, thenIconFromTitle = true)
-            iconOn -> runReportIconsForAgent(context, reportId, ra, reportPrompt, aiSettings)
-            titleOn -> runModelTitleForAgent(context, reportId, ra, aiSettings)
+            // Title row on → generate + store the model title; chain the icon
+            // from it when the icon is on too.
+            titleOn -> runModelTitleForAgent(context, reportId, ra, aiSettings, reportPrompt, thenIconFromTitle = iconOn, storeTitle = true)
+            // Icon-only → still derive the icon from a title (workers/model-icons
+            // needs @TITLE@), but generate that title transiently — never store
+            // or surface it, since the per-model title row is off.
+            iconOn -> runModelTitleForAgent(context, reportId, ra, aiSettings, reportPrompt, thenIconFromTitle = true, storeTitle = false)
         }
     }
 
@@ -279,89 +283,82 @@ class IconGenerationManager(
         aiSettings: Settings,
         reportPrompt: String = "",
         /** When true, after the title resolves, build the per-agent icon
-         *  FROM the title (report_title_icon); fall back to the response-
+         *  FROM the title (workers/model-icons); fall back to the response-
          *  based 3-tier chain when no usable title is produced. */
-        thenIconFromTitle: Boolean = false
+        thenIconFromTitle: Boolean = false,
+        /** When false the resolved title is used ONLY to feed the icon
+         *  (@TITLE@) and is never written to [ReportAgent.modelTitle] — the
+         *  icon-only config, where the per-model title row is hidden. */
+        storeTitle: Boolean = true
     ) {
+        // Worker-based: round-robin / 429-fallback over workers/model-titles.
         val titlePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "info" && it.name == "model_title"
+            it.category == "workers" && it.name == "model-titles"
         } ?: return
-        val rawAgent = aiSettings.resolvePromptAgent(titlePrompt) ?: return
-        val agent = rawAgent.copy(
-            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
-            model = aiSettings.getEffectiveModelForAgent(rawAgent)
-        )
+        if (titlePrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
         val agentResponse = ra.responseBody.orEmpty()
         if (agentResponse.isBlank()) return
         val resolved = titlePrompt.text.replace("@RESPONSE@", agentResponse)
-        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, titlePrompt, agent)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             var generatedTitle: String? = null
             withTracerTags(reportId = reportId, category = "model_title") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-                runCatching {
-                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-                    val started = System.currentTimeMillis()
-                    val response = withTraceFilenameSink(traceSink) {
-                        appViewModel.repository.analyzeWithAgent(
-                            agent, "", resolved, secParams,
-                            null, context, baseUrl, retry = false
-                        )
-                    }
-                    val durationMs = System.currentTimeMillis() - started
-                    if (response.error == null) {
-                        val raw = (response.analysis ?: "").trim()
-                            .removePrefix("Title:").trim()
-                            .removeSurrounding("\"").trim()
-                            .removeSurrounding("'").trim()
-                            .lineSequence().firstOrNull { it.isNotBlank() }
-                            ?.trim().orEmpty()
-                        val generated = raw.take(325)
+                val started = System.currentTimeMillis()
+                val outcome = withTraceFilenameSink(traceSink) {
+                    rvm.workerRunner.run(titlePrompt, resolved, aiSettings, context)
+                }
+                val durationMs = System.currentTimeMillis() - started
+                when (outcome) {
+                    is WorkerOutcome.Success -> {
+                        val generated = (outcome.response.analysis ?: "")
+                            .lineSequence().map { cleanTitleLine(it) }
+                            .firstOrNull { it.isNotBlank() }.orEmpty().take(325)
                         if (generated.isBlank()) {
-                            ReportStorage.updateReportAgentModelTitleError(
+                            if (storeTitle) ReportStorage.updateReportAgentModelTitleError(
                                 context, reportId, ra.agentId, "empty title"
                             )
                         } else {
                             generatedTitle = generated
-                            val tu = response.tokenUsage
-                            val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
-                            val inT = tu?.inputTokens ?: 0
-                            val outT = tu?.outputTokens ?: 0
-                            val inC = inT * pricing.promptPrice
-                            val outC = outT * pricing.completionPrice
-                            ReportStorage.updateReportAgentModelTitle(
-                                context, reportId, ra.agentId, generated,
-                                model = "${agent.provider.id}/${agent.model}",
-                                inputTokens = inT, outputTokens = outT,
-                                inputCost = inC, outputCost = outC,
-                                traceFile = traceSink.get(),
-                                promptUsed = "model_title",
-                                durationMs = durationMs
-                            )
-                            if (inT > 0 || outT > 0) {
-                                appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                    agent.provider, agent.model, inT, outT, kind = "title"
+                            if (storeTitle) {
+                                val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
+                                    it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+                                }
+                                val tu = outcome.response.tokenUsage
+                                val inT = tu?.inputTokens ?: 0
+                                val outT = tu?.outputTokens ?: 0
+                                val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
+                                val inC = inT * (pricing?.promptPrice ?: 0.0)
+                                val outC = outT * (pricing?.completionPrice ?: 0.0)
+                                ReportStorage.updateReportAgentModelTitle(
+                                    context, reportId, ra.agentId, generated,
+                                    model = winAgent?.let { "${it.provider.id}/${it.model}" },
+                                    inputTokens = inT, outputTokens = outT,
+                                    inputCost = inC, outputCost = outC,
+                                    traceFile = traceSink.get(),
+                                    promptUsed = "model_title",
+                                    durationMs = durationMs
                                 )
+                                if ((inT > 0 || outT > 0) && winAgent != null) {
+                                    appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                        winAgent.provider, winAgent.model, inT, outT, kind = "title"
+                                    )
+                                }
                             }
                         }
-                    } else {
-                        ReportStorage.updateReportAgentModelTitleError(
-                            context, reportId, ra.agentId, response.error
-                        )
                     }
-                }.onFailure {
-                    ReportStorage.updateReportAgentModelTitleError(
+                    else -> if (storeTitle) ReportStorage.updateReportAgentModelTitleError(
                         context, reportId, ra.agentId,
-                        it.message ?: "model-title gen failed"
+                        if (outcome is WorkerOutcome.AllRateLimited) "model-title: all workers rate-limited"
+                        else "model-title: no worker produced a title"
                     )
                 }
                 appViewModel.updateUiState {
                     it.copy(iconRefreshTick = it.iconRefreshTick + 1)
                 }
             }
-            // Chain the icon when both per-model jobs are on: derive it from
-            // the title, falling back to the response-based 3-tier chain when
-            // there's no usable title (or the title→icon call yields no emoji).
+            // Chain the icon: derive it from the title, falling back to the
+            // response-based 3-tier chain when there's no usable title (or the
+            // title→icon call yields no emoji).
             if (thenIconFromTitle) {
                 val t = generatedTitle
                 val iconOk = if (t != null) generateIconFromTitle(context, reportId, ra, t, aiSettings) else false
@@ -379,38 +376,36 @@ class IconGenerationManager(
         context: Context, reportId: String, ra: ReportAgent,
         title: String, aiSettings: Settings
     ): Boolean {
+        // Worker-based: round-robin / 429-fallback over workers/model-icons.
         val prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "info" && it.name == "report_title_icon"
+            it.category == "workers" && it.name == "model-icons"
         } ?: return false
-        val rawAgent = aiSettings.resolvePromptAgent(prompt) ?: return false
-        val agent = rawAgent.copy(
-            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
-            model = aiSettings.getEffectiveModelForAgent(rawAgent)
-        )
+        if (prompt.workers.none { aiSettings.resolveWorker(it) != null }) return false
         // Reset this agent's icon fields + iconCalls so a re-fire
         // (regenerate) replaces rather than accumulates — matches the
         // 3-tier chain's clearReportAgentIconState at its own start.
         ReportStorage.clearReportAgentIconState(context, reportId, ra.agentId)
         return withTracerTags(reportId = reportId, category = "icon_report_title") {
             val started = System.currentTimeMillis()
-            runCatching {
-                val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-                val resolved = prompt.text.replace("@TITLE@", title)
-                val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, prompt, agent)
-                val response = appViewModel.repository.analyzeWithAgent(
-                    agent, "", resolved, secParams, null, context, baseUrl, retry = false
-                )
-                val durationMs = System.currentTimeMillis() - started
-                val tu = response.tokenUsage
+            val resolved = prompt.text.replace("@TITLE@", title)
+            val outcome = rvm.workerRunner.run(prompt, resolved, aiSettings, context)
+            val durationMs = System.currentTimeMillis() - started
+            if (outcome is WorkerOutcome.Success) {
+                val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
+                    it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+                }
+                val tu = outcome.response.tokenUsage
                 val inT = tu?.inputTokens ?: 0
                 val outT = tu?.outputTokens ?: 0
-                val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
-                recordTierCall(
-                    context, reportId, ra.agentId, tier = 2,
-                    provider = agent.provider, model = agent.model,
-                    inT = inT, outT = outT, durationMs = durationMs,
-                    success = emoji != null
-                )
+                val emoji = extractFirstEmoji(outcome.response.analysis)
+                if (winAgent != null) {
+                    recordTierCall(
+                        context, reportId, ra.agentId, tier = 2,
+                        provider = winAgent.provider, model = winAgent.model,
+                        inT = inT, outT = outT, durationMs = durationMs,
+                        success = emoji != null
+                    )
+                }
                 if (emoji != null) {
                     ReportStorage.setReportAgentIconAndTier(
                         context, reportId, ra.agentId, emoji,
@@ -419,10 +414,7 @@ class IconGenerationManager(
                     appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
                     true
                 } else false
-            }.getOrElse { e ->
-                AppLog.w("ReportIcons", "title-icon failed for ${ra.agentId}: ${e.message}")
-                false
-            }
+            } else false
         }
     }
 

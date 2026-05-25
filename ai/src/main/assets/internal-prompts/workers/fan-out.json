@@ -1,0 +1,20 @@
+{
+  "name": "model-titles",
+  "title": "Decide a title for a response.",
+  "reference": false,
+  "workers":
+    [
+      {
+        "agent": "*N/A",
+        "provider": "OpenAI",
+        "model": "gpt-4o-mini"
+      },
+      {
+        "agent": "DeepSeek",
+        "provider": "*N/A",
+        "model": "*N/A"
+      }
+    ],
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}
