@@ -233,6 +233,8 @@ fun AiTraceStatsScreen(
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
     onNavigateToStatistics: () -> Unit = {},
+    onOpenTraceFilter: (field: String, value: String) -> Unit = { _, _ -> },
+    onOpenBreakdown: (dim: String) -> Unit = {},
 ) {
     BackHandler { onBack() }
     val refreshTick = resumeRefreshTick()
@@ -267,29 +269,31 @@ fun AiTraceStatsScreen(
                 }
                 item {
                     SectionCard("📡", "Status", AppColors.Blue) {
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("✅", "2xx", s.ok2xx, AppColors.Green)
-                            StatChip("🚧", "429", s.rate429, if (s.rate429 > 0) AppColors.Orange else AppColors.TextDim)
-                            StatChip("⚠️", "4xx", s.client4xx, if (s.client4xx > 0) AppColors.Orange else AppColors.TextDim)
-                            StatChip("🔥", "5xx", s.server5xx, if (s.server5xx > 0) AppColors.Red else AppColors.TextDim)
-                            StatChip("💥", "Failed", s.failed0, if (s.failed0 > 0) AppColors.Red else AppColors.TextDim)
-                            StatChip("▫️", "Other", s.other, AppColors.TextDim)
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        val rate = if (s.total > 0) s.ok2xx * 100.0 / s.total else 0.0
-                        KeyVal("Success rate", String.format(Locale.US, "%.1f%%", rate),
-                            if (rate >= 90) AppColors.Green else if (rate >= 70) AppColors.Orange else AppColors.Red)
-                        Bar(if (s.total > 0) s.ok2xx.toFloat() / s.total else 0f, AppColors.Green)
+                        StatRow("✅ 2xx", "${s.ok2xx}", AppColors.Green) { onOpenTraceFilter("status", "2xx") }
+                        StatRow("🚧 429", "${s.rate429}", if (s.rate429 > 0) AppColors.Orange else AppColors.TextDim) { onOpenTraceFilter("status", "429") }
+                        StatRow("⚠️ 4xx", "${s.client4xx}", if (s.client4xx > 0) AppColors.Orange else AppColors.TextDim) { onOpenTraceFilter("status", "4xx") }
+                        StatRow("🔥 5xx", "${s.server5xx}", if (s.server5xx > 0) AppColors.Red else AppColors.TextDim) { onOpenTraceFilter("status", "5xx") }
+                        StatRow("💥 Failed", "${s.failed0}", if (s.failed0 > 0) AppColors.Red else AppColors.TextDim) { onOpenTraceFilter("status", "0") }
+                        StatRow("▫️ Other", "${s.other}", AppColors.TextDim) { onOpenTraceFilter("status", "other") }
                     }
                 }
                 if (s.byHost.isNotEmpty()) item {
-                    SectionCard("🌐", "Top hosts", AppColors.Green) { s.byHost.forEach { (h, c) -> KeyVal(h, "$c") } }
+                    SectionCard("🌐", "Top hosts", AppColors.Green, onClick = { onOpenBreakdown("host") }) {
+                        s.byHost.take(5).forEach { (h, c) -> KeyVal(h, "$c") }
+                        if (s.byHost.size > 5) KeyVal("+${s.byHost.size - 5} more", "→", AppColors.TextTertiary)
+                    }
                 }
                 if (s.byModel.isNotEmpty()) item {
-                    SectionCard("🧠", "Top models", AppColors.Purple) { s.byModel.forEach { (m, c) -> KeyVal(com.ai.ui.shared.shortModelName(m), "$c") } }
+                    SectionCard("🧠", "Top models", AppColors.Purple, onClick = { onOpenBreakdown("model") }) {
+                        s.byModel.take(5).forEach { (m, c) -> KeyVal(com.ai.ui.shared.shortModelName(m), "$c") }
+                        if (s.byModel.size > 5) KeyVal("+${s.byModel.size - 5} more", "→", AppColors.TextTertiary)
+                    }
                 }
                 if (s.byCategory.isNotEmpty()) item {
-                    SectionCard("🏷️", "Top categories", AppColors.Indigo) { s.byCategory.forEach { (cat, c) -> KeyVal(cat, "$c") } }
+                    SectionCard("🏷️", "Top categories", AppColors.Indigo, onClick = { onOpenBreakdown("category") }) {
+                        s.byCategory.take(5).forEach { (cat, c) -> KeyVal(cat, "$c") }
+                        if (s.byCategory.size > 5) KeyVal("+${s.byCategory.size - 5} more", "→", AppColors.TextTertiary)
+                    }
                 }
                 item {
                     SectionCard("🗓️", "Activity", AppColors.Blue) {
@@ -308,6 +312,56 @@ fun AiTraceStatsScreen(
                         KeyVal("Distinct reports", "${s.distinctReports}")
                         val avg = if (s.distinctReports > 0) s.withReport.toDouble() / s.distinctReports else 0.0
                         KeyVal("Avg traces / report", String.format(Locale.US, "%.1f", avg), AppColors.TextSecondary)
+                    }
+                }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+    }
+}
+
+/** Full breakdown of API traces by one dimension (host / model /
+ *  category). Reached by tapping a "Top …" card on the API-trace-
+ *  statistics screen; every row drills into the trace list filtered
+ *  to that value. */
+@Composable
+fun AiTraceBreakdownScreen(
+    dim: String,
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateToStatistics: () -> Unit = {},
+    onOpenTraceFilter: (field: String, value: String) -> Unit = { _, _ -> },
+) {
+    BackHandler { onBack() }
+    val refreshTick = resumeRefreshTick()
+    val d by produceState<TraceStatsData?>(null, refreshTick) { value = computeTraceStats() }
+    val (emoji, title, accent) = when (dim) {
+        "host" -> Triple("🌐", "Trace hosts", AppColors.Green)
+        "model" -> Triple("🧠", "Trace models", AppColors.Purple)
+        else -> Triple("🏷️", "Trace categories", AppColors.Indigo)
+    }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_trace_breakdown", title = title, subject = "Every $dim, by trace count",
+            onBackClick = onBack, reportIcon = "📈",
+            onReportIconClick = onNavigateToStatistics, onTitleClick = onNavigateToStatistics
+        )
+        val s = d
+        val rows = when (dim) { "host" -> s?.byHost; "model" -> s?.byModel; else -> s?.byCategory } ?: emptyList()
+        when {
+            s == null -> Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            rows.isEmpty() -> Text("No traces.", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            else -> LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { Spacer(Modifier.height(4.dp)) }
+                item {
+                    SectionCard(emoji, "$title (${rows.size})", accent) {
+                        rows.forEach { (k, c) ->
+                            val label = if (dim == "model") com.ai.ui.shared.shortModelName(k) else k
+                            StatRow(label, "$c") { onOpenTraceFilter(dim, k) }
+                        }
                     }
                 }
                 item { Spacer(Modifier.height(24.dp)) }
@@ -1379,16 +1433,17 @@ private fun LinkCard(emoji: String, title: String, subtitle: String, onClick: ()
 }
 
 @Composable
-private fun SectionCard(emoji: String, title: String, accent: Color, content: @Composable ColumnScope.() -> Unit) {
+private fun SectionCard(emoji: String, title: String, accent: Color, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier.fillMaxWidth().let { if (onClick != null) it.clickable { onClick() } else it }
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(emoji, fontSize = 16.sp)
                 Spacer(Modifier.width(8.dp))
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent)
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.weight(1f))
+                if (onClick != null) Text("›", fontSize = 22.sp, color = AppColors.TextTertiary)
             }
             Spacer(Modifier.height(8.dp))
             content()
@@ -1446,6 +1501,23 @@ private fun KeyVal(label: String, value: String, valueColor: Color = Color.White
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
         Text(value, fontSize = 12.sp, color = valueColor, fontWeight = FontWeight.Medium)
+    }
+}
+
+/** KeyVal that's tappable — label left, count right, a faint "›" to
+ *  signal the row drills into a filtered API-trace list. */
+@Composable
+private fun StatRow(label: String, value: String, valueColor: Color = Color.White, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f),
+            maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Spacer(Modifier.width(8.dp))
+        Text(value, fontSize = 12.sp, color = valueColor, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.width(6.dp))
+        Text("›", fontSize = 16.sp, color = AppColors.TextTertiary)
     }
 }
 

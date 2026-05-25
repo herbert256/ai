@@ -52,6 +52,16 @@ internal fun NavGraphBuilder.developerRoutes(
                 launchSingleTop = true
             }
         }
+        // Open the API-trace list pre-filtered to one dimension value.
+        // Shared by the trace-stats Status card and the breakdown screens.
+        val openTraceFilter: (String, String) -> Unit = { field, value ->
+            navController.navigate(NavRoutes.traceListFiltered(
+                host = value.takeIf { field == "host" },
+                status = value.takeIf { field == "status" },
+                category = value.takeIf { field == "category" },
+                model = value.takeIf { field == "model" },
+            ))
+        }
         composable(NavRoutes.AI_LIVE_DASHBOARD) {
             AiLiveDashboardScreen(
                 appViewModel = appViewModel,
@@ -71,7 +81,15 @@ internal fun NavGraphBuilder.developerRoutes(
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
         composable(NavRoutes.AI_TRACE_STATS) {
-            AiTraceStatsScreen(onBack = safePopBack, onNavigateHome = navigateHome, onNavigateToStatistics = toStatistics)
+            AiTraceStatsScreen(onBack = safePopBack, onNavigateHome = navigateHome, onNavigateToStatistics = toStatistics,
+                onOpenTraceFilter = openTraceFilter,
+                onOpenBreakdown = { navController.navigate(NavRoutes.aiTraceBreakdown(it)) })
+        }
+        composable(NavRoutes.AI_TRACE_BREAKDOWN) { entry ->
+            AiTraceBreakdownScreen(
+                dim = entry.arguments?.getString("dim") ?: "host",
+                onBack = safePopBack, onNavigateHome = navigateHome, onNavigateToStatistics = toStatistics,
+                onOpenTraceFilter = openTraceFilter)
         }
         composable(NavRoutes.AI_LOG_STATS) {
             AiLogStatsScreen(onBack = safePopBack, onNavigateHome = navigateHome, onNavigateToStatistics = toStatistics)
@@ -413,6 +431,29 @@ internal fun NavGraphBuilder.developerRoutes(
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onClearTraces = { appViewModel.clearTraces() }, runIdFilter = runId,
+                onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) },
+                onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
+        }
+        composable(
+            NavRoutes.TRACE_LIST_FILTERED,
+            arguments = listOf(
+                navArgument("host") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("status") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("category") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("model") { type = NavType.StringType; nullable = true; defaultValue = null },
+            )
+        ) { entry ->
+            fun arg(k: String) = entry.arguments?.getString(k)?.let {
+                try { java.net.URLDecoder.decode(it, "UTF-8") } catch (_: Exception) { it }
+            }
+            val uiState by appViewModel.uiState.collectAsState()
+            TraceListScreen(aiSettings = uiState.aiSettings,
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
+                onClearTraces = { appViewModel.clearTraces() },
+                initialHostname = arg("host"), initialStatusClass = arg("status"),
+                initialCategory = arg("category"), modelFilter = arg("model"),
                 onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })

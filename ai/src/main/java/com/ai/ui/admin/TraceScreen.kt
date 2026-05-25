@@ -59,6 +59,15 @@ fun TraceListScreen(
      *  Translation run's Trace button opens the list pre-filtered
      *  to category="Translation"). */
     initialCategory: String? = null,
+    /** Initial hostname-dropdown selection — biases the first render
+     *  to one host. Wired by the API-trace-statistics "Top hosts"
+     *  drill-down so a tapped host opens its slice. */
+    initialHostname: String? = null,
+    /** Initial HTTP status-class filter: "2xx" | "429" | "4xx" |
+     *  "5xx" | "0" | "other". Mirrors computeTraceStats' buckets.
+     *  Wired by the API-trace-statistics Status card; no dropdown —
+     *  it's a deep-link slice, cleared by backing out. */
+    initialStatusClass: String? = null,
     /** Run-id filter. When set, the list is scoped to traces that
      *  carry this runId — every API call produced by one user-
      *  launched batch (fan-out, fan-icons, translation, model-test,
@@ -128,7 +137,7 @@ fun TraceListScreen(
     val hostnames = remember(allTraceFiles) {
         listOf("(All)") + allTraceFiles.map { it.hostname }.distinct().sorted()
     }
-    var selectedHostname by rememberSaveable { mutableStateOf("(All)") }
+    var selectedHostname by rememberSaveable { mutableStateOf(initialHostname ?: "(All)") }
 
     // Model filter — chosen via the Model picker overlay. null = no filter.
     var selectedModel by rememberSaveable { mutableStateOf<String?>(null) }
@@ -138,8 +147,11 @@ fun TraceListScreen(
     // level failures). Off by default; the user opts in to triage a
     // failed run.
     var errorsOnly by rememberSaveable { mutableStateOf(false) }
+    // Deep-link status-class slice (no dropdown — set once by a caller,
+    // cleared by backing out). Buckets match computeTraceStats exactly.
+    val statusClass = initialStatusClass
 
-    val traceFiles = remember(allTraceFiles, selectedCategory, selectedProvider, selectedHostname, selectedModel, errorsOnly) {
+    val traceFiles = remember(allTraceFiles, selectedCategory, selectedProvider, selectedHostname, selectedModel, errorsOnly, statusClass) {
         allTraceFiles
             .filter { t -> when (selectedCategory) {
                 "(All)" -> true
@@ -156,6 +168,17 @@ fun TraceListScreen(
             } }
             .filter { t -> selectedModel == null || t.model == selectedModel }
             .filter { t -> !errorsOnly || t.statusCode == 0 || t.statusCode >= 400 }
+            .filter { t -> when (statusClass) {
+                null -> true
+                "2xx" -> t.statusCode in 200..299
+                "429" -> t.statusCode == 429
+                "4xx" -> t.statusCode in 400..499 && t.statusCode != 429
+                "5xx" -> t.statusCode in 500..599
+                "0" -> t.statusCode == 0
+                "other" -> t.statusCode !in 200..299 && t.statusCode != 429 &&
+                    t.statusCode !in 400..499 && t.statusCode !in 500..599 && t.statusCode != 0
+                else -> true
+            } }
     }
     // Auto-collapse: when a 🐞 link lands here with preset filters
     // (reportId / category / model) and the resulting list has exactly

@@ -637,10 +637,18 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Aggregate stats over the API traces (the per-call request/response records the 🐞 viewer shows individually). Reached from AI Statistics. Reads the cached trace list, so it's fast. Empty when tracing is off."),
             HelpCard("🐞 Overview", "Whether tracing is on, total traces, distinct batch runs, and how many are partial (a streaming response still being read)."),
-            HelpCard("📡 Status", "HTTP outcome split — 2xx success / 429 rate-limited / other 4xx / 5xx / transport-failed (status 0) / other — plus an overall success-rate bar."),
-            HelpCard("Top hosts / models / categories", "The busiest provider hosts, models, and call categories (Report / meta / chat / pricing fetch / …) by trace count."),
+            HelpCard("📡 Status", "HTTP outcome split — 2xx success / 429 rate-limited / other 4xx / 5xx / transport-failed (status 0) / other. Tap any row to open the API Traces list showing only that outcome."),
+            HelpCard("Top hosts / models / categories", "The busiest provider hosts, models, and call categories (Report / meta / chat / pricing fetch / …) by trace count. Shows the top 5; tap the card to see every entry, then tap a row to open the traces for just that host / model / category."),
             HelpCard("🗓️ Activity", "Traces from today / the last 7 / 30 days, plus the timestamps of the oldest and newest trace."),
             HelpCard("📋 Reports", "How many traces are tied to a report, across how many distinct reports, and the average traces per report."),
+        )
+    ),
+    "ai_trace_breakdown" to HelpContent(
+        title = "Help - Trace breakdown",
+        cards = listOf(
+            HelpCard("Overview", "The full list behind a 'Top hosts / models / categories' card on API trace statistics — every host, model, or category, ranked by trace count (not just the top 5)."),
+            HelpCard("Drill down", "Tap any row to open the API Traces list filtered to just that host / model / category. If the filter matches a single trace, it opens that trace directly."),
+            HelpCard("📈", "The chart icon (or the title) returns to AI Statistics."),
         )
     ),
     "ai_log_stats" to HelpContent(

@@ -483,6 +483,10 @@ internal data class TraceStatsData(
 private fun <T> top(counts: Map<T, Int>, n: Int): List<Pair<T, Int>> =
     counts.entries.sortedByDescending { it.value }.take(n).map { it.key to it.value }
 
+/** Full count breakdown, sorted desc. Callers slice with .take(n). */
+private fun <T> sortedDesc(counts: Map<T, Int>): List<Pair<T, Int>> =
+    counts.entries.sortedByDescending { it.value }.map { it.key to it.value }
+
 /** One pass over the cached trace list. Cheap once the cache is warm. */
 internal suspend fun computeTraceStats(): TraceStatsData = withContext(Dispatchers.IO) {
     val traces = ApiTracer.getTraceFiles()
@@ -523,7 +527,7 @@ internal suspend fun computeTraceStats(): TraceStatsData = withContext(Dispatche
         withReport = withReport, distinctReports = reports.size,
         today = today, last7d = w7, last30d = w30,
         oldest = traces.minOfOrNull { it.timestamp }, newest = traces.maxOfOrNull { it.timestamp },
-        byHost = top(hosts, 8), byModel = top(models, 8), byCategory = top(cats, 8),
+        byHost = sortedDesc(hosts), byModel = sortedDesc(models), byCategory = sortedDesc(cats),
     )
 }
 

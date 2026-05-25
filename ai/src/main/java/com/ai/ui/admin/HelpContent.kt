@@ -177,6 +177,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "ai_stat_providers" to listOf("help_home_info_providers"),
     "ai_stat_models" to listOf("help_home_info_providers"),
     "ai_trace_stats" to listOf("concepts", "help_privacy"),
+    "ai_trace_breakdown" to listOf("ai_trace_stats", "concepts"),
     "ai_log_stats" to listOf("concepts", "help_privacy"),
     "cost_config" to listOf("help_costs", "help_home_info_providers"),
     "cost_override" to listOf("help_costs", "help_home_info_providers"),

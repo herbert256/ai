@@ -33,6 +33,10 @@ object NavRoutes {
     const val TRACE_LIST_FOR_REPORT_CATEGORY = "trace_list/{reportId}/category/{category}"
     const val TRACE_LIST_FOR_MODEL = "trace_list_for_model/{provider}/{model}"
     const val TRACE_LIST_FOR_RUN = "trace_list_for_run/{runId}"
+    /** Trace list pre-filtered by an arbitrary dimension — wired by the
+     *  API-trace-statistics drill-downs. All four args optional. */
+    const val TRACE_LIST_FILTERED =
+        "trace_list_filtered?host={host}&status={status}&category={category}&model={model}"
     const val TRACE_DETAIL = "trace_detail/{filename}"
     const val AI_HISTORY = "ai_history"
     const val AI_REPORTS_HUB = "ai_reports_hub"
@@ -96,6 +100,7 @@ object NavRoutes {
     const val AI_STAT_MODELS = "ai_stat_models"
     const val AI_USAGE_PROVIDER = "ai_usage_provider/{providerId}"
     const val AI_TRACE_STATS = "ai_trace_stats"
+    const val AI_TRACE_BREAKDOWN = "ai_trace_breakdown/{dim}"
     const val AI_LOG_STATS = "ai_log_stats"
     const val AI_COST_CONFIG = "ai_cost_config"
     const val AI_COSTS_MAINTENANCE = "ai_costs_maintenance"
@@ -167,6 +172,18 @@ object NavRoutes {
     fun settingsInternalPromptsByCategory(category: String) = "settings_internal_prompts/${encode(category)}"
     fun traceListForModel(provider: String, model: String) = "trace_list_for_model/$provider/${encode(model)}"
     fun traceListForRun(runId: String) = "trace_list_for_run/${encode(runId)}"
+    /** Build a filtered trace-list route, encoding only the present args. */
+    fun traceListFiltered(host: String? = null, status: String? = null,
+                          category: String? = null, model: String? = null): String {
+        val q = listOfNotNull(
+            host?.let { "host=${encode(it)}" },
+            status?.let { "status=${encode(it)}" },
+            category?.let { "category=${encode(it)}" },
+            model?.let { "model=${encode(it)}" },
+        ).joinToString("&")
+        return "trace_list_filtered" + if (q.isEmpty()) "" else "?$q"
+    }
+    fun aiTraceBreakdown(dim: String) = "ai_trace_breakdown/$dim"
     fun aiUsageProvider(providerId: String) = "ai_usage_provider/${encode(providerId)}"
     fun aiModelInfo(provider: String, model: String) = "ai_model_info/$provider/${encode(model)}"
     fun aiModelInfoView(provider: String, model: String) = "ai_model_info_view/$provider/${encode(model)}"
