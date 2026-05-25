@@ -1,0 +1,8 @@
+Please analyse below text
+
+Reply with EXACTLY two lines and nothing else:
+title: <a title for the text, maximum 30 characters>
+icon: <single fitting emoji>
+
+TEXT:
+@PROMPT@

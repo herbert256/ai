@@ -432,143 +432,77 @@ class IconGenerationManager(
         aiSettings: Settings
     ) {
         if (!appViewModel.uiState.value.generalSettings.reportLanguageOn()) return
+        // Worker-based: a single workers/language call returns BOTH the
+        // language name and a fitting emoji (the prompt asks for a
+        // "language:" / "icon:" two-line reply), via the round-robin /
+        // 429-fallback engine — no chained second call.
         val languagePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "info" && it.name == "language"
+            it.category == "workers" && it.name == "language"
         } ?: return
-        val rawAgent = aiSettings.resolvePromptAgent(languagePrompt) ?: return
-        val agent = rawAgent.copy(
-            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
-            model = aiSettings.getEffectiveModelForAgent(rawAgent)
-        )
+        if (languagePrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
         val resolved = languagePrompt.text.replace("@PROMPT@", promptText)
-        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, languagePrompt, agent)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withTracerTags(reportId = reportId, category = "Language") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 appViewModel.updateRunningInfoJobs { it + "$reportId|language" }
-                val detectedName = runCatching {
-                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-                    val started = System.currentTimeMillis()
-                    val response = withTraceFilenameSink(traceSink) {
-                        appViewModel.repository.analyzeWithAgent(
-                            agent, "", resolved, secParams,
-                            null, context, baseUrl, retry = false
-                        )
+                val started = System.currentTimeMillis()
+                val outcome = withTraceFilenameSink(traceSink) {
+                    rvm.workerRunner.run(languagePrompt, resolved, aiSettings, context)
+                }
+                val durationMs = System.currentTimeMillis() - started
+                when (outcome) {
+                    is WorkerOutcome.Success -> {
+                        val analysis = outcome.response.analysis
+                        val name = parseLanguageDetectionResponse(analysis)
+                        if (name.isNullOrBlank()) {
+                            ReportStorage.updateReportLanguageError(context, reportId, "unparseable response")
+                        } else {
+                            // Emoji from the `icon:` line; fall back to scanning the whole reply.
+                            val iconLine = analysis?.lineSequence()?.firstOrNull { it.trim().startsWith("icon", ignoreCase = true) }
+                            val emoji = extractFirstEmoji(iconLine ?: analysis.orEmpty()) ?: "🌐"
+                            val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
+                                it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+                            }
+                            val tu = outcome.response.tokenUsage
+                            val inT = tu?.inputTokens ?: 0
+                            val outT = tu?.outputTokens ?: 0
+                            val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
+                            val inC = inT * (pricing?.promptPrice ?: 0.0)
+                            val outC = outT * (pricing?.completionPrice ?: 0.0)
+                            // One call → attribute its cost to the detection row;
+                            // the icon row stays 0 (the Get-Info row sums both).
+                            ReportStorage.updateReportLanguageDetect(
+                                context, reportId,
+                                name = name,
+                                inputTokens = inT, outputTokens = outT,
+                                inputCost = inC, outputCost = outC,
+                                traceFile = traceSink.get(),
+                                rawResponse = analysis,
+                                durationMs = durationMs
+                            )
+                            ReportStorage.updateReportLanguageIcon(
+                                context, reportId,
+                                icon = emoji,
+                                model = winAgent?.let { "${it.provider.id}/${it.model}" },
+                                inputTokens = 0, outputTokens = 0,
+                                inputCost = 0.0, outputCost = 0.0,
+                                traceFile = traceSink.get(),
+                                rawResponse = analysis,
+                                promptUsed = "language",
+                                durationMs = durationMs
+                            )
+                        }
                     }
-                    val durationMs = System.currentTimeMillis() - started
-                    if (response.error != null) {
-                        ReportStorage.updateReportLanguageError(
-                            context, reportId, response.error
-                        )
-                        return@runCatching null
-                    }
-                    val name = parseLanguageDetectionResponse(response.analysis)
-                    val tu = response.tokenUsage
-                    val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
-                    val inT = tu?.inputTokens ?: 0
-                    val outT = tu?.outputTokens ?: 0
-                    val inC = inT * pricing.promptPrice
-                    val outC = outT * pricing.completionPrice
-                    ReportStorage.updateReportLanguageDetect(
+                    else -> ReportStorage.updateReportLanguageError(
                         context, reportId,
-                        name = name,
-                        inputTokens = inT, outputTokens = outT,
-                        inputCost = inC, outputCost = outC,
-                        traceFile = traceSink.get(),
-                        rawResponse = response.analysis,
-                        durationMs = durationMs
+                        if (outcome is WorkerOutcome.AllRateLimited) "language: all workers rate-limited"
+                        else "language: no worker produced a result"
                     )
-                    if (name.isNullOrBlank()) {
-                        ReportStorage.updateReportLanguageError(
-                            context, reportId, "unparseable response"
-                        )
-                    }
-                    name
-                }.onFailure {
-                    ReportStorage.updateReportLanguageError(
-                        context, reportId,
-                        it.message ?: "language-detection failed"
-                    )
-                }.getOrNull()
+                }
                 appViewModel.updateUiState {
                     it.copy(iconRefreshTick = it.iconRefreshTick + 1)
                 }
-                if (!detectedName.isNullOrBlank()) {
-                    kickOffLanguageIconForDetected(context, reportId, detectedName, aiSettings)
-                }
                 appViewModel.updateRunningInfoJobs { it - "$reportId|language" }
-            }
-        }
-    }
-
-    /** Second call in the two-step language flow: picks a fitting
-     *  emoji for the already-detected [languageName] using the
-     *  bundled `icons/language` prompt (template copied from
-     *  `icons/translation`, substitutes `@LANGUAGE@`). Persists the
-     *  emoji + second-call cost / tokens / trace into the existing
-     *  `Report.languageIcon*` fields so the cost table picks it up
-     *  as a row of type `"language-icon"`. Errors only update
-     *  [Report.languageIconErrorMessage]; the detected language name
-     *  from the first call stays intact. */
-    private suspend fun kickOffLanguageIconForDetected(
-        context: Context,
-        reportId: String,
-        languageName: String,
-        aiSettings: Settings
-    ) {
-        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "language"
-        } ?: return
-        val rawAgent = aiSettings.resolvePromptAgent(iconPrompt) ?: return
-        val agent = rawAgent.copy(
-            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
-            model = aiSettings.getEffectiveModelForAgent(rawAgent)
-        )
-        val resolved = iconPrompt.text.replace("@LANGUAGE@", languageName)
-        val secParams = resolveSecondaryParams(appViewModel.uiState.value.generalSettings, aiSettings, emptyList(), null, iconPrompt, agent)
-        withTracerTags(reportId = reportId, category = "icon_language") {
-            val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-            runCatching {
-                val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent)
-                val started = System.currentTimeMillis()
-                val response = withTraceFilenameSink(traceSink) {
-                    appViewModel.repository.analyzeWithAgent(
-                        agent, "", resolved, secParams,
-                        null, context, baseUrl, retry = false
-                    )
-                }
-                val durationMs = System.currentTimeMillis() - started
-                if (response.error != null) {
-                    ReportStorage.updateReportLanguageError(
-                        context, reportId, response.error
-                    )
-                    return@runCatching
-                }
-                val emoji = extractFirstEmoji(response.analysis.orEmpty()) ?: "🌐"
-                val tu = response.tokenUsage
-                val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
-                val inT = tu?.inputTokens ?: 0
-                val outT = tu?.outputTokens ?: 0
-                val inC = inT * pricing.promptPrice
-                val outC = outT * pricing.completionPrice
-                ReportStorage.updateReportLanguageIcon(
-                    context, reportId,
-                    icon = emoji,
-                    inputTokens = inT, outputTokens = outT,
-                    inputCost = inC, outputCost = outC,
-                    traceFile = traceSink.get(),
-                    durationMs = durationMs,
-                    rawResponse = response.analysis,
-                    promptUsed = "language"
-                )
-            }.onFailure {
-                ReportStorage.updateReportLanguageError(
-                    context, reportId,
-                    it.message ?: "language-icon failed"
-                )
-            }
-            appViewModel.updateUiState {
-                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
             }
         }
     }

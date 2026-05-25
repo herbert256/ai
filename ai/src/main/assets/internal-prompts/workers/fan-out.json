@@ -1,6 +1,6 @@
 {
-  "name": "model-titles",
-  "title": "Decide a title for a response.",
+  "name": "fan-out",
+  "title": "Decide title & icon for a fan-out response.",
   "reference": false,
   "workers":
     [
