@@ -652,11 +652,6 @@ private fun KnowledgeSection(d: KnowledgeData) {
 @Composable
 private fun CostTierSection(config: Map<String, Int>, runtime: Map<String, Int>) {
     SectionCard("🧮", "Costs tiers", AppColors.Blue) {
-        Text(
-            "Pricing tier per model — Config = configured catalog, Runtime = actually called (API traces). API-reported = cost comes from the response, not a tier.",
-            fontSize = 10.sp, color = AppColors.TextTertiary
-        )
-        Spacer(Modifier.height(6.dp))
         // Header
         Row(Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
             Text("Tier", fontSize = 10.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1.6f))
