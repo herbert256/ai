@@ -115,10 +115,8 @@ fun ReportsScreenNav(
     val agentResults by reportViewModel.agentResults.collectAsState()
     val runningFanOutPairs by viewModel.runningFanOutPairs.collectAsState()
     val throttledFanOutPairs by viewModel.throttledFanOutPairs.collectAsState()
-    val runningFanIconsPairs by viewModel.runningFanIconsPairs.collectAsState()
-    val throttledFanIconsPairs by viewModel.throttledFanIconsPairs.collectAsState()
-    val runningFanTitlesPairs by viewModel.runningFanTitlesPairs.collectAsState()
-    val throttledFanTitlesPairs by viewModel.throttledFanTitlesPairs.collectAsState()
+    val runningFanMetaPairs by viewModel.runningFanMetaPairs.collectAsState()
+    val throttledFanMetaPairs by viewModel.throttledFanMetaPairs.collectAsState()
     val iconFanOutByReport by viewModel.iconFanOutByReport.collectAsState()
     val agentIconFanOutByAgent by viewModel.agentIconFanOutByAgent.collectAsState()
     val runningInfoJobs by viewModel.runningInfoJobs.collectAsState()
@@ -312,27 +310,16 @@ fun ReportsScreenNav(
         runningFanOutPairs = runningFanOutPairs,
         fanRuntime = FanRuntimeBundle(
             throttledFanOutPairs = throttledFanOutPairs,
-            runningFanIconsPairs = runningFanIconsPairs,
-            throttledFanIconsPairs = throttledFanIconsPairs,
-            onLaunchFanIconsBatch = { rid, metaPromptId ->
-                reportViewModel.iconGen.runFanIconsBatch(context, rid, metaPromptId)
+            runningFanMetaPairs = runningFanMetaPairs,
+            throttledFanMetaPairs = throttledFanMetaPairs,
+            onLaunchFanMetaBatch = { rid, metaPromptId ->
+                reportViewModel.iconGen.runFanMetaBatch(context, rid, metaPromptId)
             },
-            onClearFanIconErrors = { rid, mp ->
-                reportViewModel.iconGen.clearFanIconErrors(context, rid, mp)
+            onClearFanMetaErrors = { rid, mp ->
+                reportViewModel.iconGen.clearFanMetaErrors(context, rid, mp)
             },
-            onRestartFanIconErrors = { rid, mp ->
-                reportViewModel.iconGen.restartFanIconErrors(context, rid, mp)
-            },
-            runningFanTitlesPairs = runningFanTitlesPairs,
-            throttledFanTitlesPairs = throttledFanTitlesPairs,
-            onLaunchFanTitlesBatch = { rid, metaPromptId ->
-                reportViewModel.iconGen.runFanTitlesBatch(context, rid, metaPromptId)
-            },
-            onClearFanTitleErrors = { rid, mp ->
-                reportViewModel.iconGen.clearFanTitleErrors(context, rid, mp)
-            },
-            onRestartFanTitleErrors = { rid, mp ->
-                reportViewModel.iconGen.restartFanTitleErrors(context, rid, mp)
+            onRestartFanMetaErrors = { rid, mp ->
+                reportViewModel.iconGen.restartFanMetaErrors(context, rid, mp)
             }
         ),
         fanOutEngine = reportViewModel.fanOutEngine,

@@ -208,8 +208,7 @@ fun StressTestDashboardScreen(
                         CapBar("Global", caps.globalInFlight, caps.globalMax)
                         CapBar("Reports", caps.reportInFlight, caps.reportMax)
                         CapBar("Fan-out", caps.fanOutInFlight, caps.fanOutMax)
-                        CapBar("Fan-icons", caps.fanIconsInFlight, caps.fanIconsMax)
-                        CapBar("Fan-titles", caps.fanTitlesInFlight, caps.fanTitlesMax)
+                        CapBar("Fan-meta", caps.fanMetaInFlight, caps.fanMetaMax)
                         if (hosts.isNotEmpty()) {
                             Spacer(Modifier.height(8.dp))
                             Text("Active hosts", fontSize = 11.sp, color = AppColors.TextTertiary)

@@ -91,19 +91,19 @@ internal fun buildGenerationPhaseHandlers(
             st.listKind.value = kind
             st.listFilterByName.value = name
             st.listIsFanIcons.value = false
-            st.listIsFanTitles.value = false
+            st.listIsFanMeta.value = false
         },
         onViewFanIcons = { name ->
             st.listKind.value = SecondaryKind.META
             st.listFilterByName.value = name
             st.listIsFanIcons.value = true
-            st.listIsFanTitles.value = false
+            st.listIsFanMeta.value = false
         },
-        onViewFanTitles = { name ->
+        onViewFanMeta = { name ->
             st.listKind.value = SecondaryKind.META
             st.listFilterByName.value = name
             st.listIsFanIcons.value = false
-            st.listIsFanTitles.value = true
+            st.listIsFanMeta.value = true
         },
         onOpenSecondaryRun = { id ->
             st.secondaryLockedLanguage.value = null

@@ -566,13 +566,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _throttledFanOutPairs.update(block)
     }
 
-    /** Pair ids currently mid-icon-chain. Parallel to
-     *  [runningFanOutPairs] but for the fan-icons batch — the
-     *  L1 ICONS-mode stats panel reads from this. */
-    private val _runningFanIconsPairs = MutableStateFlow<Set<String>>(emptySet())
-    val runningFanIconsPairs: StateFlow<Set<String>> = _runningFanIconsPairs.asStateFlow()
-    internal fun updateRunningFanIconsPairs(block: (Set<String>) -> Set<String>) {
-        _runningFanIconsPairs.update(block)
+    /** Pair ids currently mid-fan-meta call. Parallel to
+     *  [runningFanOutPairs] but for the fan-meta batch — the
+     *  L1 META-mode stats panel reads from this. */
+    private val _runningFanMetaPairs = MutableStateFlow<Set<String>>(emptySet())
+    val runningFanMetaPairs: StateFlow<Set<String>> = _runningFanMetaPairs.asStateFlow()
+    internal fun updateRunningFanMetaPairs(block: (Set<String>) -> Set<String>) {
+        _runningFanMetaPairs.update(block)
     }
 
     /** Row ids of single-call secondaries (auto/manual Meta, Rerank,
@@ -599,31 +599,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _runningInfoJobs.update(block)
     }
 
-    /** Pair ids whose fan-icons attempt is blocked inside
+    /** Pair ids whose fan-meta attempt is blocked inside
      *  [com.ai.data.ProviderThrottle.acquire]. Same role as
-     *  [throttledFanOutPairs] for the icons batch. */
-    private val _throttledFanIconsPairs = MutableStateFlow<Set<String>>(emptySet())
-    val throttledFanIconsPairs: StateFlow<Set<String>> = _throttledFanIconsPairs.asStateFlow()
-    internal fun updateThrottledFanIconsPairs(block: (Set<String>) -> Set<String>) {
-        _throttledFanIconsPairs.update(block)
-    }
-
-    /** Pair ids currently mid-title-call. Parallel to
-     *  [runningFanIconsPairs] but for the fan-titles batch — the
-     *  L1 TITLES-mode stats panel reads from this. */
-    private val _runningFanTitlesPairs = MutableStateFlow<Set<String>>(emptySet())
-    val runningFanTitlesPairs: StateFlow<Set<String>> = _runningFanTitlesPairs.asStateFlow()
-    internal fun updateRunningFanTitlesPairs(block: (Set<String>) -> Set<String>) {
-        _runningFanTitlesPairs.update(block)
-    }
-
-    /** Pair ids whose fan-titles attempt is blocked inside
-     *  [com.ai.data.ProviderThrottle.acquire]. Same role as
-     *  [throttledFanIconsPairs] for the titles batch. */
-    private val _throttledFanTitlesPairs = MutableStateFlow<Set<String>>(emptySet())
-    val throttledFanTitlesPairs: StateFlow<Set<String>> = _throttledFanTitlesPairs.asStateFlow()
-    internal fun updateThrottledFanTitlesPairs(block: (Set<String>) -> Set<String>) {
-        _throttledFanTitlesPairs.update(block)
+     *  [throttledFanOutPairs] for the fan-meta batch. */
+    private val _throttledFanMetaPairs = MutableStateFlow<Set<String>>(emptySet())
+    val throttledFanMetaPairs: StateFlow<Set<String>> = _throttledFanMetaPairs.asStateFlow()
+    internal fun updateThrottledFanMetaPairs(block: (Set<String>) -> Set<String>) {
+        _throttledFanMetaPairs.update(block)
     }
 
     /** Live state of any "Find alternative icons" fan-out, keyed by

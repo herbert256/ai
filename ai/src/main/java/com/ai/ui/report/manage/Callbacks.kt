@@ -110,23 +110,12 @@ data class InternalPromptIconCallbacks(
  *  under the JVM 64 KB per-method bytecode limit. */
 data class FanRuntimeBundle(
     val throttledFanOutPairs: Set<String> = emptySet(),
-    val runningFanIconsPairs: Set<String> = emptySet(),
-    val throttledFanIconsPairs: Set<String> = emptySet(),
-    val onLaunchFanIconsBatch: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
-    /** Drop the iconError sentinel + emoji state on every errored
-     *  fan-out pair so they read as "no icon yet" rather than ❌.
-     *  Wired to the L1 ICONS "Remove errors" button. */
-    val onClearFanIconErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
-    /** Clear errors via [onClearFanIconErrors] and re-fire the
-     *  fan-icons batch on the just-cleared pairs. Wired to the L1
-     *  ICONS "Restart errors" button. */
-    val onRestartFanIconErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
-    // ---- fan-titles batch (parallel to the fan-icons fields above) ----
-    val runningFanTitlesPairs: Set<String> = emptySet(),
-    val throttledFanTitlesPairs: Set<String> = emptySet(),
-    val onLaunchFanTitlesBatch: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
-    val onClearFanTitleErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
-    val onRestartFanTitleErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> }
+    // ---- fan-meta batch ----
+    val runningFanMetaPairs: Set<String> = emptySet(),
+    val throttledFanMetaPairs: Set<String> = emptySet(),
+    val onLaunchFanMetaBatch: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
+    val onClearFanMetaErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
+    val onRestartFanMetaErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> }
 )
 
 // ===== Main Reports Screen =====

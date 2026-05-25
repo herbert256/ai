@@ -282,7 +282,7 @@ internal data class GenerationPhaseHandlers(
     val onViewFanIcons: (String) -> Unit = { _ -> },
     /** Title counterpart of [onViewFanIcons] — opens the fan-out
      *  drill-in in TITLES mode for a fan-out's metaPrompt name. */
-    val onViewFanTitles: (String) -> Unit = { _ -> },
+    val onViewFanMeta: (String) -> Unit = { _ -> },
     val onOpenSecondaryRun: (String) -> Unit = { _ -> },
     val onOpenTranslationRun: (String) -> Unit = { _ -> },
     val onOpenMeta: () -> Unit = {},
@@ -450,7 +450,7 @@ internal fun ColumnScope.GenerationPhase(
     val onCancelTranslation = handlers.onCancelTranslation
     val onViewSecondaryName = handlers.onViewSecondaryName
     val onViewFanIcons = handlers.onViewFanIcons
-    val onViewFanTitles = handlers.onViewFanTitles
+    val onViewFanMeta = handlers.onViewFanMeta
     val onOpenSecondaryRun = handlers.onOpenSecondaryRun
     val onOpenTranslationRun = handlers.onOpenTranslationRun
     val onOpenMeta = handlers.onOpenMeta
@@ -1189,14 +1189,14 @@ internal fun ColumnScope.GenerationPhase(
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }
 
-                // Sibling "fan-titles" row — mirror of the fan-icons
+                // Sibling "fan-meta" row — mirror of the fan-icons
                 // row above, shown once a Fan Out Titles batch has
                 // landed at least one title / title error on this run's
                 // pairs. Tap opens the same pair drill-in in TITLES mode.
                 if (run.titleCount > 0) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).clickable {
-                            onViewFanTitles(run.metaPromptName)
+                            onViewFanMeta(run.metaPromptName)
                         },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -1208,7 +1208,7 @@ internal fun ColumnScope.GenerationPhase(
                             run.titleErrorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                             else -> Text("🏷️", fontSize = 16.sp, modifier = Modifier.width(24.dp))
                         }
-                        RowTypeCell("fan-titles")
+                        RowTypeCell("fan-meta")
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 "${run.metaPromptName} · ${run.titleCount} title${if (run.titleCount == 1) "" else "s"}",
@@ -1702,7 +1702,7 @@ internal data class FanOutRunSummary(
      *  [totalCost], which covers only the fan-out pair calls. */
     val iconCost: Double,
     /** Title counterparts of [iconCount] / [iconPendingCount] /
-     *  [iconErrorCount] / [iconCost] — drive the sibling "fan-titles" row. */
+     *  [iconErrorCount] / [iconCost] — drive the sibling "fan-meta" row. */
     val titleCount: Int,
     val titlePendingCount: Int,
     val titleErrorCount: Int,

@@ -56,7 +56,7 @@ import kotlinx.coroutines.withContext
  * pair's L3 detail (Responder role).
  */
 @Composable
-internal fun FanOutL1TitlesScreen(
+internal fun FanOutL1MetaScreen(
     run: FanOutRunState,
     onOpenPair: (answererKey: String, sourceAgentId: String, role: String) -> Unit,
     onBack: () -> Unit
@@ -88,7 +88,7 @@ internal fun FanOutL1TitlesScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
-            helpTopic = "fan_titles",
+            helpTopic = "fan_meta",
             title = "Fan out - titles",
             subject = subject,
             onBackClick = onBack
@@ -151,7 +151,7 @@ internal fun FanOutL1TitlesScreen(
  * tappable text row per pair. Tap a row to open L3 for that pair.
  */
 @Composable
-internal fun FanOutL2TitlesScreen(
+internal fun FanOutL2MetaScreen(
     run: FanOutRunState,
     answererKey: String,
     role: String,
@@ -190,7 +190,7 @@ internal fun FanOutL2TitlesScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
-            helpTopic = "fan_titles",
+            helpTopic = "fan_meta",
             title = "Fan out - model titles",
             subject = subject,
             onBackClick = onBack

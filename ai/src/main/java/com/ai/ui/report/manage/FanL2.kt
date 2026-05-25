@@ -82,7 +82,6 @@ internal fun FanOutL2Screen(
     onSwitchRole: (String) -> Unit,
     onOpenPair: (String) -> Unit,
     onOpenOnePage: () -> Unit,
-    onOpenIcons: () -> Unit,
     onOpenTitles: () -> Unit = {},
     onBack: () -> Unit
 ) {
@@ -102,12 +101,12 @@ internal fun FanOutL2Screen(
     // matching the source's (provider, model) — that requires
     // engine.runs's hydration to have populated answererAgentId
     // for every pair.)
-    val isIconsMode = mode == FanOutMode.ICONS
-    val isTitlesMode = mode == FanOutMode.TITLES
-    val isMetaMode = isIconsMode || isTitlesMode
+    val isIconsMode = false  // Fan Icons removed; kept as a const so the
+                             // legacy icon-only branches dead-code away.
+    val isTitlesMode = mode == FanOutMode.META
+    val isMetaMode = isTitlesMode
     fun lens(p: PairState, set: Set<String>): PairStatus = when (mode) {
-        FanOutMode.ICONS -> p.iconStatus(set)
-        FanOutMode.TITLES -> p.titleStatus(set)
+        FanOutMode.META -> p.titleStatus(set)
         else -> p.effectiveStatus(set)
     }
     val rawRows: List<PairState> = remember(run, role, answererKey) {
@@ -186,8 +185,7 @@ internal fun FanOutL2Screen(
         TitleBar(
             helpTopic = "secondary_fan_out_l2",
             title = when (mode) {
-                FanOutMode.ICONS -> "Fan icons - model"
-                FanOutMode.TITLES -> "Fan titles - model"
+                FanOutMode.META -> "Fan Meta - model"
                 else -> "Fan out - model"
             },
             subject = subject,
@@ -269,21 +267,13 @@ internal fun FanOutL2Screen(
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
                 ) { Text("onepage", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
-            if (hasIcons) {
-                Button(
-                    onClick = onOpenIcons,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
-                    modifier = Modifier.weight(1f).heightIn(min = 32.dp)
-                ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            }
             if (hasTitles) {
                 Button(
                     onClick = onOpenTitles,
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
-                ) { Text("Titles", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                ) { Text("Fan Meta", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
         }
 

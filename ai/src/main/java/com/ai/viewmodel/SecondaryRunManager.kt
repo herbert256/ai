@@ -739,21 +739,20 @@ class SecondaryRunManager(
             }
         }
 
-        // 2b. Fan-out TITLE batches: relaunch any fan-titles sweep the
-        //     user started (some pair already carries a title / title
-        //     error / titleRunId) so a batch interrupted by an app kill
-        //     resumes from this same app-start / periodic / report-open
-        //     orchestrator — exactly like the fan-out pairs above and the
-        //     fan-icons relaunch on report open. runFanTitlesBatch dedupes
-        //     in-flight jobs and is a no-op when no pair is pending a title.
+        // 2b. Fan Meta batches: relaunch any fan-meta sweep the user
+        //     started (some pair already carries a title/icon / error /
+        //     run id) so a batch interrupted by an app kill resumes from
+        //     this same orchestrator. runFanMetaBatch dedupes in-flight
+        //     jobs and is a no-op when no pair is pending.
         rows.filter {
             it.kind == SecondaryKind.META && it.fanOutSourceAgentId != null && it.fanInOf == null &&
-                (!it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank() || it.titleRunId != null)
+                (!it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank() || it.titleRunId != null ||
+                    !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() || it.iconRunId != null)
         }
             .mapNotNull { it.metaPromptId }
             .distinct()
             .filter { pid -> aiSettings.internalPrompts.any { it.id == pid } }
-            .forEach { promptId -> rvm.iconGen.runFanTitlesBatch(context, reportId, promptId) }
+            .forEach { promptId -> rvm.iconGen.runFanMetaBatch(context, reportId, promptId) }
 
         // 3. Single-call Meta/Rerank/Moderation: re-issue each stale
         //    placeholder via executeSecondaryTask. Fan-in single

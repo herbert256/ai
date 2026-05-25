@@ -589,7 +589,7 @@ fun ReportsScreen(
     var listIsFanIcons by st.listIsFanIcons
     // Parallel to listIsFanIcons — drives FanOutScreen TITLES mode.
     // Only one of the two is ever true at a time.
-    var listIsFanTitles by st.listIsFanTitles
+    var listIsFanMeta by st.listIsFanMeta
 
     // Screen keepalive during generation
     DisposableEffect(isGenerating, isComplete) {
@@ -661,7 +661,7 @@ fun ReportsScreen(
                 listKind = kind
                 listFilterByName = name
                 listIsFanIcons = icons
-                listIsFanTitles = false
+                listIsFanMeta = false
             },
             onNavigateHome = onNavigateHome,
             onNavigateToTrace = onNavigateToTrace,
@@ -892,7 +892,7 @@ fun ReportsScreen(
                     listKind = SecondaryKind.META
                     listFilterByName = mp.name
                     listIsFanIcons = false
-                    listIsFanTitles = false
+                    listIsFanMeta = false
                 }
             )
         }
@@ -1280,7 +1280,7 @@ fun ReportsScreen(
             internalPrompts = aiSettings.internalPrompts,
             listFilterByName = listFilterByName,
             listIsFanIcons = listIsFanIcons,
-            listIsFanTitles = listIsFanTitles,
+            listIsFanMeta = listIsFanMeta,
             isBatching = uiState.activeSecondaryBatches > 0,
             runningFanOutPairs = runningFanOutPairs,
             fanRuntime = fanRuntime,
@@ -1300,12 +1300,12 @@ fun ReportsScreen(
                 listKind = null
                 listFilterByName = null
                 listIsFanIcons = false
-                listIsFanTitles = false
+                listIsFanMeta = false
                 listLockedLanguage = null
             },
-            onShowFanIcons = { listIsFanIcons = true; listIsFanTitles = false },
-            onShowResponses = { listIsFanIcons = false; listIsFanTitles = false },
-            onShowFanTitles = { listIsFanTitles = true; listIsFanIcons = false },
+            onShowFanIcons = { listIsFanIcons = true; listIsFanMeta = false },
+            onShowResponses = { listIsFanIcons = false; listIsFanMeta = false },
+            onShowFanMeta = { listIsFanMeta = true; listIsFanIcons = false },
             onSecondaryRefresh = onSecondaryRefresh,
             onCreateReportFromFanOut = onCreateReportFromFanOut,
             onDeleteSecondaryWithRefresh = onDeleteSecondaryWithRefresh,
@@ -1325,9 +1325,7 @@ fun ReportsScreen(
             onRerunFanOutPair = onRerunFanOutPair,
             onDeleteFanOutModel = onDeleteFanOutModel,
             forcedLanguage = listLockedLanguage,
-            onOpenPairIconLookup = { pairId -> pairIconDetailFor = pairId },
-            onClearFanIconErrors = fanRuntime.onClearFanIconErrors,
-            onRestartFanIconErrors = fanRuntime.onRestartFanIconErrors
+            onOpenPairIconLookup = { pairId -> pairIconDetailFor = pairId }
         )
         return
     }

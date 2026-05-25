@@ -80,18 +80,12 @@ internal fun FanOutL1Screen(
     throttledSet: Set<String>,
     actions: FanOutActions,
     mode: FanOutMode = FanOutMode.MAIN,
-    onLaunchFanIcons: (FanOutRunKey) -> Unit = {},
-    /** Switch the screen to ICONS mode without launching anything —
-     *  used by the mode-toggle "Icons" button when a fan-icons run
-     *  already exists for this fan-out. */
-    onShowFanIcons: () -> Unit = {},
     /** Switch the screen back to MAIN mode — the mode-toggle
-     *  "Responses" button in ICONS mode. */
+     *  "Responses" button in META mode. */
     onShowResponses: () -> Unit = {},
-    onLaunchFanTitles: (FanOutRunKey) -> Unit = {},
-    onShowFanTitles: () -> Unit = {},
+    onLaunchFanMeta: (FanOutRunKey) -> Unit = {},
+    onShowFanMeta: () -> Unit = {},
     onOpenModel: (String) -> Unit,
-    onOpenIcons: () -> Unit,
     onOpenTitles: () -> Unit = {},
     onBack: () -> Unit
 ) {
@@ -100,7 +94,6 @@ internal fun FanOutL1Screen(
     var confirmRemoveFailed by remember { mutableStateOf(false) }
     var confirmRemoveBenched by remember { mutableStateOf(false) }
     var confirmRestartFailed by remember { mutableStateOf(false) }
-    var confirmStartIcons by remember { mutableStateOf(false) }
     var confirmStartTitles by remember { mutableStateOf(false) }
     // True while a delete-run is in flight — drives the blocking
     // "Deleting Fan Out" popup so the screen stays put until the
@@ -110,30 +103,24 @@ internal fun FanOutL1Screen(
 
     val subject = run.metaPrompt.title.takeIf { it.isNotBlank() }
         ?.let { "${run.metaPrompt.name} — $it" } ?: run.metaPrompt.name
-    val isIconsMode = mode == FanOutMode.ICONS
-    val isTitlesMode = mode == FanOutMode.TITLES
-    // ICONS + TITLES share the "secondary metadata batch" shape: a
-    // status lens over a per-pair result, a launch/clear/restart cycle,
-    // and a "Show …" grid/list sub-screen.
-    val isMetaMode = isIconsMode || isTitlesMode
+    val isTitlesMode = mode == FanOutMode.META
+    // META mode: a status lens over a per-pair result, a launch / clear /
+    // restart cycle, and a "Show …" list sub-screen.
+    val isMetaMode = isTitlesMode
 
-    // Status lens for the active mode — iconStatus / titleStatus fold
-    // in the "finished but no content" ERROR case the raw fields miss.
+    // Status lens for the active mode — titleStatus folds in the
+    // "finished but no content" ERROR case the raw field misses.
     fun lens(p: PairState, set: Set<String>): PairStatus = when (mode) {
-        FanOutMode.ICONS -> p.iconStatus(set)
-        FanOutMode.TITLES -> p.titleStatus(set)
+        FanOutMode.META -> p.titleStatus(set)
         else -> p.effectiveStatus(set)
     }
-    fun metaDone(p: PairState): Boolean =
-        if (isTitlesMode) !p.title.isNullOrBlank() else !p.icon.isNullOrBlank()
+    fun metaDone(p: PairState): Boolean = !p.title.isNullOrBlank()
 
-    // Per-pair cost for the active mode only: MAIN counts the
-    // fan-out response call, ICONS the icon-chain spend, TITLES the
-    // title spend. (PairState.totalCost lumps all, so it can't be
-    // used as-is here.)
+    // Per-pair cost for the active mode only: MAIN counts the fan-out
+    // response call, META the fan-meta spend (lumped on the title cost
+    // fields). (PairState.totalCost lumps all, so it can't be used here.)
     fun pairCost(p: PairState): Double = when (mode) {
-        FanOutMode.ICONS -> p.iconInputCost + p.iconOutputCost
-        FanOutMode.TITLES -> p.titleInputCost + p.titleOutputCost
+        FanOutMode.META -> p.titleInputCost + p.titleOutputCost + p.iconInputCost + p.iconOutputCost
         else -> (p.inputCost ?: 0.0) + (p.outputCost ?: 0.0)
     }
 
@@ -152,8 +139,7 @@ internal fun FanOutL1Screen(
     // First non-null wins so a sparse / legacy run still surfaces
     // the icon for sibling rows that were stamped.
     val l1RunId = when (mode) {
-        FanOutMode.ICONS -> run.pairs.values.firstNotNullOfOrNull { it.iconRunId }
-        FanOutMode.TITLES -> run.pairs.values.firstNotNullOfOrNull { it.titleRunId }
+        FanOutMode.META -> run.pairs.values.firstNotNullOfOrNull { it.titleRunId }
         else -> run.pairs.values.firstNotNullOfOrNull { it.runId }
     }
 
@@ -161,8 +147,7 @@ internal fun FanOutL1Screen(
         TitleBar(
             helpTopic = "secondary_fan_out_l1",
             title = when (mode) {
-                FanOutMode.ICONS -> "Fan icons"
-                FanOutMode.TITLES -> "Fan titles"
+                FanOutMode.META -> "Fan Meta"
                 else -> "Fan out"
             },
             subject = subject,
@@ -259,10 +244,7 @@ internal fun FanOutL1Screen(
 
         // Mode-toggle moved to the bottom button row (next to Run a
         // Fan in prompt / Show icons) so the stats area stays tight.
-        val hasFanIcons = remember(run) {
-            run.pairs.values.any { !it.icon.isNullOrBlank() || !it.iconErrorMessage.isNullOrBlank() }
-        }
-        val hasFanTitles = remember(run) {
+        val hasFanMeta = remember(run) {
             run.pairs.values.any { !it.title.isNullOrBlank() || !it.titleErrorMessage.isNullOrBlank() }
         }
 
@@ -326,19 +308,13 @@ internal fun FanOutL1Screen(
                 // so the labels always render in full.
                 val tightPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
                 Button(
-                    onClick = {
-                        if (isTitlesMode) actions.onClearFanTitleErrors(run.key)
-                        else actions.onClearFanIconErrors(run.key)
-                    },
+                    onClick = { actions.onClearFanMetaErrors(run.key) },
                     modifier = Modifier.weight(1f),
                     contentPadding = tightPadding,
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
                 ) { Text("Remove errors", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 Button(
-                    onClick = {
-                        if (isTitlesMode) actions.onRestartFanTitleErrors(run.key)
-                        else actions.onRestartFanIconErrors(run.key)
-                    },
+                    onClick = { actions.onRestartFanMetaErrors(run.key) },
                     modifier = Modifier.weight(1f),
                     contentPadding = tightPadding
                 ) { Text("Restart errors", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -351,17 +327,17 @@ internal fun FanOutL1Screen(
             }
         }
         if (showIconErrorsDialog) {
-            val errored = remember(run, errorCount, isTitlesMode) {
+            val errored = remember(run, errorCount) {
                 run.pairs.values
                     .filter {
-                        val msg = if (isTitlesMode) it.titleErrorMessage else it.iconErrorMessage
+                        val msg = it.titleErrorMessage ?: it.iconErrorMessage
                         !msg.isNullOrBlank() && !benched(it.providerId, it.model)
                     }
                     .sortedWith(compareBy({ it.providerId }, { it.model }))
             }
             AlertDialog(
                 onDismissRequest = { showIconErrorsDialog = false },
-                title = { Text("${if (isTitlesMode) "Fan titles" else "Fan icons"} — errors (${errored.size})") },
+                title = { Text("Fan Meta — errors (${errored.size})") },
                 text = {
                     Column(modifier = Modifier.fillMaxWidth().heightIn(max = 480.dp)
                         .verticalScroll(rememberScrollState())) {
@@ -577,41 +553,29 @@ internal fun FanOutL1Screen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             if (isMetaMode) {
-                // ICONS / TITLES: back to responses + "Show …" grid/list.
+                // META: back to responses + "Show Fan Meta" list.
                 Button(
                     onClick = onShowResponses,
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
                 ) { Text("Responses", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                if (isIconsMode && hasIcons) {
-                    Button(
-                        onClick = onOpenIcons,
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                    ) { Text("Show icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                } else if (isTitlesMode && hasTitles) {
+                if (hasTitles) {
                     Button(
                         onClick = onOpenTitles,
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                    ) { Text("Show titles", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    ) { Text("Show Fan Meta", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             } else {
-                // MAIN: the two metadata-mode entry buttons. Tapping
-                // shows the existing batch (mode flip) or confirms a
-                // fresh job when none exists yet. Hidden entirely when the
-                // grand-master metadata switch is off.
+                // MAIN: the Fan Meta entry button. Shows the existing
+                // batch (mode flip) or confirms a fresh job. Hidden when
+                // the grand-master metadata switch is off.
                 if (com.ai.ui.shared.LocalMetadataEnabled.current) {
                     Button(
-                        onClick = { if (hasFanIcons) onShowFanIcons() else confirmStartIcons = true },
+                        onClick = { if (hasFanMeta) onShowFanMeta() else confirmStartTitles = true },
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                    ) { Text("Icons", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                    Button(
-                        onClick = { if (hasFanTitles) onShowFanTitles() else confirmStartTitles = true },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                    ) { Text("Titles", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    ) { Text("Fan Meta", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
         }
@@ -644,36 +608,18 @@ internal fun FanOutL1Screen(
         )
     }
 
-    // "Icons" tapped in MAIN mode with no fan-icons run yet — confirm
-    // before starting the job. "Yes" launches it and switches to
-    // ICONS mode; "No" stays put in MAIN mode.
-    if (confirmStartIcons) {
-        AlertDialog(
-            onDismissRequest = { confirmStartIcons = false },
-            title = { Text("Start Icons job") },
-            text = { Text("No fan-icons have been generated for this fan-out yet. Start the icons job now?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmStartIcons = false
-                    onLaunchFanIcons(run.key)
-                }) { Text("Yes", maxLines = 1, softWrap = false) }
-            },
-            dismissButton = {
-                TextButton(onClick = { confirmStartIcons = false }) { Text("No", maxLines = 1, softWrap = false) }
-            }
-        )
-    }
-
-    // "Titles" tapped in MAIN mode with no fan-titles run yet.
+    // "Fan Meta" tapped in MAIN mode with no fan-meta run yet — confirm
+    // before starting the job. "Yes" launches it and switches to META
+    // mode; "No" stays put in MAIN mode.
     if (confirmStartTitles) {
         AlertDialog(
             onDismissRequest = { confirmStartTitles = false },
-            title = { Text("Start Titles job") },
-            text = { Text("No fan-titles have been generated for this fan-out yet. Start the titles job now?") },
+            title = { Text("Start Fan Meta job") },
+            text = { Text("No Fan Meta (titles + icons) generated for this fan-out yet. Start the job now?") },
             confirmButton = {
                 TextButton(onClick = {
                     confirmStartTitles = false
-                    onLaunchFanTitles(run.key)
+                    onLaunchFanMeta(run.key)
                 }) { Text("Yes", maxLines = 1, softWrap = false) }
             },
             dismissButton = {
@@ -686,20 +632,16 @@ internal fun FanOutL1Screen(
         val totalRows = run.totalPairs + run.combinedReports.size
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            // ICONS / TITLES mode wipes only that metadata; MAIN mode
-            // deletes the whole fan-out run (which takes its icons /
-            // titles with it).
+            // META mode wipes only the Fan Meta (title + icon); MAIN mode
+            // deletes the whole fan-out run (which takes its meta with it).
             title = { Text(when (mode) {
-                FanOutMode.ICONS -> "Delete fan-icons?"
-                FanOutMode.TITLES -> "Delete fan-titles?"
+                FanOutMode.META -> "Delete Fan Meta?"
                 else -> "Delete fan-out run?"
             }) },
             text = {
                 when (mode) {
-                    FanOutMode.ICONS ->
-                        Text("Drop every emoji and icon-chain cost for this run's ${run.totalPairs} pair${if (run.totalPairs == 1) "" else "s"}. The fan-out responses themselves are kept. Can't be undone.")
-                    FanOutMode.TITLES ->
-                        Text("Drop every title and title cost for this run's ${run.totalPairs} pair${if (run.totalPairs == 1) "" else "s"}. The fan-out responses themselves are kept. Can't be undone.")
+                    FanOutMode.META ->
+                        Text("Drop every title + icon (and their cost) for this run's ${run.totalPairs} pair${if (run.totalPairs == 1) "" else "s"}. The fan-out responses themselves are kept. Can't be undone.")
                     else -> {
                         val suffix = if (run.combinedReports.isNotEmpty()) " plus the combined-report follow-up" else ""
                         Text("Drop every per-pair response for this fan-out run$suffix — $totalRows rows. Can't be undone.")
@@ -715,8 +657,7 @@ internal fun FanOutL1Screen(
                     // would show a half-done row on the report screen.
                     scope.launch {
                         when (mode) {
-                            FanOutMode.ICONS -> actions.onClearFanIcons(run.key)
-                            FanOutMode.TITLES -> actions.onClearFanTitles(run.key)
+                            FanOutMode.META -> actions.onClearFanMeta(run.key)
                             else -> actions.onDeleteRun(run.key)
                         }?.join()
                         deleting = false
@@ -737,8 +678,7 @@ internal fun FanOutL1Screen(
         AlertDialog(
             onDismissRequest = { },
             title = { Text(when (mode) {
-                FanOutMode.ICONS -> "Deleting Fan Icons"
-                FanOutMode.TITLES -> "Deleting Fan Titles"
+                FanOutMode.META -> "Deleting Fan Meta"
                 else -> "Deleting Fan Out"
             }) },
             text = {
@@ -747,8 +687,7 @@ internal fun FanOutL1Screen(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         when (mode) {
-                            FanOutMode.ICONS -> "Clearing the icons — this can take a moment."
-                            FanOutMode.TITLES -> "Clearing the titles — this can take a moment."
+                            FanOutMode.META -> "Clearing the Fan Meta — this can take a moment."
                             else -> "Removing every row — this can take a moment."
                         },
                         fontSize = 13.sp

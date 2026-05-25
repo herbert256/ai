@@ -49,14 +49,10 @@ enum class RegeneratePhase {
      *  distinct translationRunId via startMissingTranslations. */
     TRANSLATIONS,
 
-    /** Per-fan-out-pair icon-chain re-runs. One task per fan-out
-     *  pair row that previously carried an icon (or icon error). */
-    FAN_ICONS,
-
-    /** Per-fan-out-pair title re-runs. One task per fan-out pair row
-     *  that previously carried a title (or title error). Mirrors
-     *  [FAN_ICONS]; runs last so titles regenerate after icons. */
-    FAN_TITLES
+    /** Per-fan-out-pair Fan Meta re-runs. One task per fan-out pair
+     *  row that previously carried a title and/or icon (or an error).
+     *  One worker call regenerates both the title and the icon. */
+    FAN_META
 }
 
 enum class RegenerateTaskState {

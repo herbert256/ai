@@ -49,17 +49,15 @@ import kotlinx.coroutines.withContext
  *    runningFanIcons / throttledFanIcons sets. Tier-1/2/3
  *    buttons drive [com.ai.viewmodel.ReportViewModel.runFanIconsBatch]
  *    instead of the fan-out runner. */
-enum class FanOutMode { MAIN, ICONS, TITLES }
+enum class FanOutMode { MAIN, META }
 
 sealed class FanOutNav {
     object L1 : FanOutNav()
     data class L2(val answererKey: String, val role: String) : FanOutNav()
     data class L3(val answererKey: String, val sourceAgentId: String, val role: String) : FanOutNav()
     data class L2OnePage(val answererKey: String, val role: String) : FanOutNav()
-    object L1Icons : FanOutNav()
-    data class L2Icons(val answererKey: String, val role: String) : FanOutNav()
-    object L1Titles : FanOutNav()
-    data class L2Titles(val answererKey: String, val role: String) : FanOutNav()
+    object L1Meta : FanOutNav()
+    data class L2Meta(val answererKey: String, val role: String) : FanOutNav()
 }
 
 /** Custom Saver — serialises to a 4-string list so rememberSaveable
@@ -71,10 +69,8 @@ private val fanOutNavSaver: Saver<FanOutNav, Any> = Saver(
             is FanOutNav.L2 -> listOf("L2", nav.answererKey, "", nav.role)
             is FanOutNav.L3 -> listOf("L3", nav.answererKey, nav.sourceAgentId, nav.role)
             is FanOutNav.L2OnePage -> listOf("L2OP", nav.answererKey, "", nav.role)
-            is FanOutNav.L1Icons -> listOf("L1IC", "", "", "")
-            is FanOutNav.L2Icons -> listOf("L2IC", nav.answererKey, "", nav.role)
-            is FanOutNav.L1Titles -> listOf("L1TI", "", "", "")
-            is FanOutNav.L2Titles -> listOf("L2TI", nav.answererKey, "", nav.role)
+            is FanOutNav.L1Meta -> listOf("L1TI", "", "", "")
+            is FanOutNav.L2Meta -> listOf("L2TI", nav.answererKey, "", nav.role)
         }
     },
     restore = { list ->
@@ -85,10 +81,8 @@ private val fanOutNavSaver: Saver<FanOutNav, Any> = Saver(
             "L2" -> FanOutNav.L2(l[1], l[3].ifEmpty { "Responder" })
             "L3" -> FanOutNav.L3(l[1], l[2], l[3].ifEmpty { "Responder" })
             "L2OP" -> FanOutNav.L2OnePage(l[1], l[3].ifEmpty { "Responder" })
-            "L1IC" -> FanOutNav.L1Icons
-            "L2IC" -> FanOutNav.L2Icons(l[1], l[3].ifEmpty { "Responder" })
-            "L1TI" -> FanOutNav.L1Titles
-            "L2TI" -> FanOutNav.L2Titles(l[1], l[3].ifEmpty { "Responder" })
+            "L1TI" -> FanOutNav.L1Meta
+            "L2TI" -> FanOutNav.L2Meta(l[1], l[3].ifEmpty { "Responder" })
             else -> FanOutNav.L1
         }
     }
@@ -104,14 +98,9 @@ data class FanOutActions(
     /** Returns the delete Job so the caller can show a "Deleting…"
      *  popup and only navigate back once the run is really gone. */
     val onDeleteRun: (FanOutRunKey) -> kotlinx.coroutines.Job? = { null },
-    /** ICONS-mode 🗑 — clears just the fan-icons (each pair's icon
-     *  state + the fan-out iconCalls audit rows), keeping the
-     *  fan-out itself. Returns the Job for the same "Deleting…"
-     *  popup treatment as [onDeleteRun]. */
-    val onClearFanIcons: (FanOutRunKey) -> kotlinx.coroutines.Job? = { null },
-    /** TITLES-mode 🗑 — clears just the fan-titles (each pair's title
-     *  state), keeping the fan-out itself. */
-    val onClearFanTitles: (FanOutRunKey) -> kotlinx.coroutines.Job? = { null },
+    /** Fan-Meta 🗑 — clears each pair's title + icon state (and the
+     *  fan-out iconCalls audit rows), keeping the fan-out itself. */
+    val onClearFanMeta: (FanOutRunKey) -> kotlinx.coroutines.Job? = { null },
     val onRerunComplete: (FanOutRunKey) -> Unit = {},
     val onRemoveFailedPairs: (FanOutRunKey) -> Unit = {},
     /** Drop only the errored pairs whose model is currently benched. */
@@ -138,19 +127,12 @@ data class FanOutActions(
      *  L3 big centred icon. Argument is the pair's
      *  [com.ai.data.SecondaryResult.id]. */
     val onOpenPairIconLookup: (String) -> Unit = {},
-    /** ICONS-mode counterpart of onRemoveFailedPairs: clear the
-     *  iconError sentinel + emoji state on every pair whose
-     *  icon-chain failed in this fan-out, so they read as
-     *  fresh-pending without dropping the underlying pair row. */
-    val onClearFanIconErrors: (FanOutRunKey) -> Unit = {},
-    /** ICONS-mode counterpart of onRestartFailedPairs: clear the
-     *  iconError sentinel on every errored pair, then re-fire
-     *  the fan-icons batch (its pending filter picks them up). */
-    val onRestartFanIconErrors: (FanOutRunKey) -> Unit = {},
-    /** TITLES-mode counterpart of [onClearFanIconErrors]. */
-    val onClearFanTitleErrors: (FanOutRunKey) -> Unit = {},
-    /** TITLES-mode counterpart of [onRestartFanIconErrors]. */
-    val onRestartFanTitleErrors: (FanOutRunKey) -> Unit = {}
+    /** Clear the title+icon error state on every errored pair in this
+     *  fan-out, so they read as fresh-pending without dropping the row. */
+    val onClearFanMetaErrors: (FanOutRunKey) -> Unit = {},
+    /** Clear the errored pairs' state, then re-fire the fan-meta batch
+     *  (its pending filter picks them up). */
+    val onRestartFanMetaErrors: (FanOutRunKey) -> Unit = {}
 )
 
 /**
@@ -184,36 +166,21 @@ fun FanOutScreen(
      *  from a different lens (e.g. icon-chain lifecycle for
      *  ICONS). Title bars and action buttons swap accordingly. */
     mode: FanOutMode = FanOutMode.MAIN,
-    /** Live in-flight pair ids for the fan-icons batch. Empty
-     *  unless [mode] is [FanOutMode.ICONS]. */
-    runningIconsSet: Set<String> = emptySet(),
-    /** Throttled pair ids for the fan-icons batch. Empty unless
-     *  [mode] is [FanOutMode.ICONS]. */
-    throttledIconsSet: Set<String> = emptySet(),
-    /** Called when the user taps "Icons" on the L1 main screen with
-     *  no fan-icons run yet (after the "Start Icons job" confirm).
-     *  Wires to [com.ai.viewmodel.ReportViewModel.runFanIconsBatch]
-     *  plus a switch to ICONS mode. */
-    onLaunchFanIcons: (FanOutRunKey) -> Unit = {},
-    /** Switch the drill-in to ICONS mode without launching a batch
-     *  — the L1 "Icons" mode-toggle uses this when a fan-icons run
-     *  already exists. */
-    onShowFanIcons: () -> Unit = {},
     /** Switch the drill-in back to MAIN mode — the L1 "Responses"
      *  mode-toggle. */
     onShowResponses: () -> Unit = {},
-    /** Live in-flight pair ids for the fan-titles batch. Empty
-     *  unless [mode] is [FanOutMode.TITLES]. */
-    runningTitlesSet: Set<String> = emptySet(),
-    /** Throttled pair ids for the fan-titles batch. */
-    throttledTitlesSet: Set<String> = emptySet(),
-    /** Called when the user taps "Titles" on the L1 main screen with
-     *  no fan-titles run yet (after the "Start Titles job" confirm).
-     *  Wires to [com.ai.viewmodel.IconGenerationManager.runFanTitlesBatch]
-     *  plus a switch to TITLES mode. */
-    onLaunchFanTitles: (FanOutRunKey) -> Unit = {},
-    /** Switch the drill-in to TITLES mode without launching a batch. */
-    onShowFanTitles: () -> Unit = {},
+    /** Live in-flight pair ids for the fan-meta batch. Empty
+     *  unless [mode] is [FanOutMode.META]. */
+    runningMetaSet: Set<String> = emptySet(),
+    /** Throttled pair ids for the fan-meta batch. */
+    throttledMetaSet: Set<String> = emptySet(),
+    /** Called when the user taps "Fan Meta" on the L1 main screen with
+     *  no fan-meta run yet (after the confirm). Wires to
+     *  [com.ai.viewmodel.IconGenerationManager.runFanMetaBatch] plus a
+     *  switch to META mode. */
+    onLaunchFanMeta: (FanOutRunKey) -> Unit = {},
+    /** Switch the drill-in to META mode without launching a batch. */
+    onShowFanMeta: () -> Unit = {},
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -252,10 +219,8 @@ fun FanOutScreen(
             is FanOutNav.L2 -> FanOutNav.L1
             is FanOutNav.L3 -> FanOutNav.L2(n.answererKey, n.role)
             is FanOutNav.L2OnePage -> FanOutNav.L2(n.answererKey, n.role)
-            FanOutNav.L1Icons -> FanOutNav.L1
-            is FanOutNav.L2Icons -> FanOutNav.L2(n.answererKey, n.role)
-            FanOutNav.L1Titles -> FanOutNav.L1
-            is FanOutNav.L2Titles -> FanOutNav.L2(n.answererKey, n.role)
+            FanOutNav.L1Meta -> FanOutNav.L1
+            is FanOutNav.L2Meta -> FanOutNav.L2(n.answererKey, n.role)
         }
     }
 
@@ -272,8 +237,7 @@ fun FanOutScreen(
             TitleBar(
                 helpTopic = "secondary_fan_out_l1",
                 title = when (mode) {
-                    FanOutMode.ICONS -> "Fan icons"
-                    FanOutMode.TITLES -> "Fan titles"
+                    FanOutMode.META -> "Fan Meta"
                     else -> "Fan out"
                 },
                 subject = "Loading the fan-out…",
@@ -289,13 +253,11 @@ fun FanOutScreen(
     // icon- / title-batch status off pair.iconStatus(...) /
     // pair.titleStatus(...) — fed by these sets.
     val effectiveRunningSet = when (mode) {
-        FanOutMode.ICONS -> runningIconsSet
-        FanOutMode.TITLES -> runningTitlesSet
+        FanOutMode.META -> runningMetaSet
         else -> runningSet
     }
     val effectiveThrottledSet = when (mode) {
-        FanOutMode.ICONS -> throttledIconsSet
-        FanOutMode.TITLES -> throttledTitlesSet
+        FanOutMode.META -> throttledMetaSet
         else -> throttledSet
     }
 
@@ -307,19 +269,15 @@ fun FanOutScreen(
             throttledSet = effectiveThrottledSet,
             actions = actions,
             mode = mode,
-            onLaunchFanIcons = onLaunchFanIcons,
-            onShowFanIcons = onShowFanIcons,
             onShowResponses = onShowResponses,
-            onLaunchFanTitles = onLaunchFanTitles,
-            onShowFanTitles = onShowFanTitles,
-            // Fan icons / titles start at the Initiator view (active
-            // model is the source) so the user sees their model's
-            // result up top and a list of what every other model
-            // produced in reply. Fan out starts at Responder (the
-            // active model is the answerer of every row).
+            onLaunchFanMeta = onLaunchFanMeta,
+            onShowFanMeta = onShowFanMeta,
+            // Fan Meta starts at the Initiator view (active model is the
+            // source) so the user sees their model's result up top and a
+            // list of what every other model produced in reply. Fan out
+            // starts at Responder (the active model answers every row).
             onOpenModel = { ak -> nav = FanOutNav.L2(ak, if (mode != FanOutMode.MAIN) "Initiator" else "Responder") },
-            onOpenIcons = { nav = FanOutNav.L1Icons },
-            onOpenTitles = { nav = FanOutNav.L1Titles },
+            onOpenTitles = { nav = FanOutNav.L1Meta },
             onBack = onBack
         )
         is FanOutNav.L2 -> FanOutL2Screen(
@@ -335,14 +293,11 @@ fun FanOutScreen(
                 nav = FanOutNav.L3(n.answererKey, sourceAgentId, n.role)
             },
             onOpenOnePage = { nav = FanOutNav.L2OnePage(n.answererKey, n.role) },
-            // Fan out L2's "Icons" button flips the top-level mode to
-            // ICONS — the FanOutScreen's nav state (rememberSaveable
-            // L2(answererKey, role)) is preserved across the mode
-            // change since there's only one FanOutScreen composition,
-            // so the user lands on Fan icons L2 for the same model
-            // instead of an icons-grid sub-screen.
-            onOpenIcons = onShowFanIcons,
-            onOpenTitles = onShowFanTitles,
+            // L2's "Fan Meta" button flips the top-level mode to META;
+            // the FanOutScreen nav state is preserved across the mode
+            // change (single composition), so the user lands on Fan Meta
+            // L2 for the same model.
+            onOpenTitles = onShowFanMeta,
             onBack = { nav = FanOutNav.L1 }
         )
         is FanOutNav.L3 -> FanOutL3Screen(
@@ -367,35 +322,18 @@ fun FanOutScreen(
             onSwitchRole = { newRole -> nav = FanOutNav.L2OnePage(n.answererKey, newRole) },
             onBack = { nav = FanOutNav.L2(n.answererKey, n.role) }
         )
-        FanOutNav.L1Icons -> FanOutL1IconsScreen(
+        FanOutNav.L1Meta -> FanOutL1MetaScreen(
             run = runState,
             onOpenPair = { ak, srcAgentId, r ->
                 nav = FanOutNav.L3(ak, srcAgentId, r)
             },
             onBack = { nav = FanOutNav.L1 }
         )
-        is FanOutNav.L2Icons -> FanOutL2IconsScreen(
+        is FanOutNav.L2Meta -> FanOutL2MetaScreen(
             run = runState,
             answererKey = n.answererKey,
             role = n.role,
-            onSwitchRole = { newRole -> nav = FanOutNav.L2Icons(n.answererKey, newRole) },
-            onOpenPair = { srcAgentId ->
-                nav = FanOutNav.L3(n.answererKey, srcAgentId, n.role)
-            },
-            onBack = { nav = FanOutNav.L2(n.answererKey, n.role) }
-        )
-        FanOutNav.L1Titles -> FanOutL1TitlesScreen(
-            run = runState,
-            onOpenPair = { ak, srcAgentId, r ->
-                nav = FanOutNav.L3(ak, srcAgentId, r)
-            },
-            onBack = { nav = FanOutNav.L1 }
-        )
-        is FanOutNav.L2Titles -> FanOutL2TitlesScreen(
-            run = runState,
-            answererKey = n.answererKey,
-            role = n.role,
-            onSwitchRole = { newRole -> nav = FanOutNav.L2Titles(n.answererKey, newRole) },
+            onSwitchRole = { newRole -> nav = FanOutNav.L2Meta(n.answererKey, newRole) },
             onOpenPair = { srcAgentId ->
                 nav = FanOutNav.L3(n.answererKey, srcAgentId, n.role)
             },

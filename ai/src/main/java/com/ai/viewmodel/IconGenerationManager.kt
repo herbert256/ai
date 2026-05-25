@@ -2342,160 +2342,34 @@ class IconGenerationManager(
     private fun isRateLimitFailure(t: Throwable): Boolean =
         t.message?.contains("API error: 429") == true
 
-    /** Per-pair 3-tier icon chain. Returns when the chain has
-     *  committed a result (emoji + winning tier, or 📝 fallback)
-     *  to disk for [pair] — OR early, without committing, when a
-     *  tier is rate-limited (429): the chain stops, the pair's host
-     *  is added to [rateLimitedHosts] so the batch skips its other
-     *  pairs, and the pair is left icon-less for a later relaunch.
-     *  Suspending — the caller is responsible for outer cap
-     *  acquisition. */
-    private suspend fun runIconChainForPair(
-        context: Context, reportId: String,
-        pair: SecondaryResult,
-        metaPromptText: String,
-        reportPrompt: String,
-        sourceResponse: String,
-        aiSettings: Settings,
-        rateLimitedHosts: MutableSet<String>
-    ) {
-        val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "fan_out_1"
-        }
-        val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "fan_out_2"
-        }
-        val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "fan_out_3"
-        }
-        if (chatPrompt == null && tier2Prompt == null && tier3Prompt == null) {
-            AppLog.w("FanOutIcons", "no icon prompts configured — skipping (pair=${pair.id})")
-            return
-        }
-        val pairProvider = AppService.findById(pair.providerId) ?: return
-        val pairContent = pair.content
-        if (pairContent.isNullOrBlank()) return
-        val pairHost = providerHost(pairProvider)
+    // ============================================================
+    // Fan-meta batch — ONE workers/fan-meta call per fan-out pair
+    // returns BOTH a title and an icon (a "title:" / "icon:" two-line
+    // reply), via the round-robin / 429-fallback worker engine.
+    // Replaces the old separate fan-titles + fan-icons batches.
+    // ============================================================
 
-        val tier1 = chatPrompt?.let { p ->
-            runFanOutTier1(
-                context, reportId, pairProvider, pair, p,
-                reportPrompt, sourceResponse, metaPromptText, pairContent, aiSettings
-            )
-        } ?: TierResult.Miss
-        when (tier1) {
-            is TierResult.Emoji -> {
-                commitFanOutIconResult(context, reportId, pair.id, tier1.value, winningTier = 1)
-                return
-            }
-            TierResult.RateLimited -> {
-                rateLimitedHosts.add(pairHost)
-                AppLog.w("FanOutIcons", "tier 1 rate-limited (429) for pair=${pair.id} on $pairHost — chain stopped")
-                // Persist an error so the L1/L2/L3 row flips to ❌
-                // instead of sitting at 🕓 forever. Relaunching the
-                // fan-icons batch will retry this pair (pending
-                // filter gates on icon == null).
-                SecondaryResultStorage.setFanOutIconError(
-                    context, reportId, pair.id,
-                    "rate-limited at tier 1 (chat-continuation) — host $pairHost hit 429, relaunch to retry"
-                )
-                return
-            }
-            TierResult.Miss -> { /* cascade to tier 2 */ }
-        }
-
-        val tier2 = tier2Prompt?.let { p ->
-            runFanOutTier2(
-                context, reportId, pairProvider, pair, p,
-                reportPrompt, sourceResponse, metaPromptText, pairContent, aiSettings
-            )
-        } ?: TierResult.Miss
-        when (tier2) {
-            is TierResult.Emoji -> {
-                commitFanOutIconResult(context, reportId, pair.id, tier2.value, winningTier = 2)
-                return
-            }
-            TierResult.RateLimited -> {
-                rateLimitedHosts.add(pairHost)
-                AppLog.w("FanOutIcons", "tier 2 rate-limited (429) for pair=${pair.id} on $pairHost — chain stopped")
-                SecondaryResultStorage.setFanOutIconError(
-                    context, reportId, pair.id,
-                    "rate-limited at tier 2 (one-shot) — host $pairHost hit 429, relaunch to retry"
-                )
-                return
-            }
-            TierResult.Miss -> { /* cascade to tier 3 */ }
-        }
-
-        val tier3 = tier3Prompt?.let { p ->
-            runFanOutTier3(context, reportId, pair, p, pairContent, aiSettings)
-        } ?: TierResult.Miss
-        when (tier3) {
-            is TierResult.Emoji -> {
-                commitFanOutIconResult(context, reportId, pair.id, tier3.value, winningTier = 3)
-                return
-            }
-            TierResult.RateLimited -> {
-                // Tier 3 is the shared fixed agent — don't mark its
-                // host (that would wrongly skip pairs whose own model
-                // is that provider). Just stop this pair's chain.
-                AppLog.w("FanOutIcons", "tier 3 rate-limited (429) for pair=${pair.id} — chain stopped")
-                SecondaryResultStorage.setFanOutIconError(
-                    context, reportId, pair.id,
-                    "rate-limited at tier 3 (fixed agent) — relaunch to retry"
-                )
-                return
-            }
-            TierResult.Miss -> { /* fall through to the 📝 fallback */ }
-        }
-
-        commitFanOutIconResult(context, reportId, pair.id, "📝", winningTier = null)
-    }
-
-    /** Launch a fan-icons batch — generate emojis for every
-     *  successful pair of the fan-out identified by
-     *  ([reportId], [metaPromptId]) that doesn't have one yet.
-     *  Dispatched with the same suspending-semaphore + per-host
-     *  throttle plumbing as a primary fan-out, gated by the
-     *  dedicated [ApiCallCaps.fanIcons] cap. Pairs that already
-     *  have an icon are skipped (use [relaunchFanIconsBatch] to
-     *  re-fire everything). De-duped on a second launch attempt:
-     *  the existing job is returned if one is already in flight
-     *  for the same (reportId, metaPromptId). */
-    fun runFanIconsBatch(
+    fun runFanMetaBatch(
         context: Context,
         reportId: String,
         metaPromptId: String
     ): Job? {
-        // Master metadata switch off → fan icons are neither shown nor
-        // generated.
         if (!appViewModel.uiState.value.generalSettings.fanIconsTitlesOn()) return null
-        rvm.fanIconsJobs[rvm.fanIconsJobKey(reportId, metaPromptId)]?.let { existing ->
+        rvm.fanMetaJobs[rvm.fanMetaJobKey(reportId, metaPromptId)]?.let { existing ->
             if (existing.isActive) return existing
         }
+        val fanMetaPrompt = appViewModel.uiState.value.aiSettings.internalPrompts.firstOrNull {
+            it.category == "workers" && it.name == "fan-meta"
+        }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val iconRunId = java.util.UUID.randomUUID().toString()
+        val fanRunId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             try {
-                val state = appViewModel.uiState.value
-                val aiSettings = state.aiSettings
-                val metaPrompt = aiSettings.internalPrompts.firstOrNull { it.id == metaPromptId }
-                    ?: return@launch
-                val report = ReportStorage.getReport(context, reportId) ?: return@launch
-                val sourceBodies = report.agents
-                    .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                    .associate { it.agentId to it.responseBody!! }
-                val resolvedBase = resolveSecondaryPrompt(
-                    metaPrompt.text,
-                    question = report.prompt,
-                    results = "",
-                    count = sourceBodies.size,
-                    title = report.title
-                )
-
-                // Pairs to process: same metaPromptId, has fan-out source,
-                // has content (chain needs something to look at), AND no
-                // emoji yet (skip already-done pairs).
+                val aiSettings = appViewModel.uiState.value.aiSettings
+                if (fanMetaPrompt == null || fanMetaPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
+                    AppLog.w("FanMeta", "workers/fan-meta not configured — skipping")
+                    return@launch
+                }
                 val pending = SecondaryResultStorage
                     .listForReport(context, reportId, SecondaryKind.META)
                     .filter {
@@ -2503,771 +2377,162 @@ class IconGenerationManager(
                             it.fanOutSourceAgentId != null &&
                             it.fanInOf == null &&
                             !it.content.isNullOrBlank() &&
-                            it.icon.isNullOrBlank()
+                            it.title.isNullOrBlank() && it.icon.isNullOrBlank()
                     }
                 if (pending.isEmpty()) {
-                    AppLog.i("FanIcons", "no pending pairs for ${metaPrompt.name} on $reportId — nothing to do")
+                    AppLog.i("FanMeta", "no pending pairs on $reportId — nothing to do")
                     return@launch
                 }
-                AppLog.i("FanIcons", "→ start ${metaPrompt.name} (report=$reportId, ${pending.size} pairs)")
-
-                // Hosts that returned a 429 during this batch. Once a
-                // host is in here, the icon chain stopped a pair on it;
-                // remaining pairs on that host skip immediately rather
-                // than firing another doomed call. Thread-safe — many
-                // per-pair coroutines read/write it concurrently.
-                val rateLimitedHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-
-                withTracerTags(reportId = reportId, category = "icon_fan_out", runId = iconRunId) {
-                    // Shared runner owns the interleave + global → fanIcons →
-                    // per-host order + permitPreAcquired. Body runs with the
-                    // permits held.
+                AppLog.i("FanMeta", "→ start (report=$reportId, ${pending.size} pairs)")
+                withTracerTags(reportId = reportId, category = "fan_meta", runId = fanRunId) {
+                    // Dynamic-host: each worker call self-throttles its own
+                    // provider (the worker chain spans providers); the batch
+                    // holds only the fan-meta + global caps.
                     runThrottledBatch(
                         items = pending,
-                        hostOf = { AppService.findById(it.providerId)?.let { s -> providerHost(s) } },
-                        subCap = ApiCallCaps.fanIcons,
-                        onThrottled = { pair -> appViewModel.updateThrottledFanIconsPairs { it + pair.id } },
-                        onCleared = { pair -> appViewModel.updateThrottledFanIconsPairs { it - pair.id } }
+                        hostOf = { null },
+                        subCap = ApiCallCaps.fanMeta,
+                        onThrottled = { pair -> appViewModel.updateThrottledFanMetaPairs { it + pair.id } },
+                        onCleared = { pair -> appViewModel.updateThrottledFanMetaPairs { it - pair.id } },
+                        dynamicHost = true
                     ) { pair ->
-                        val host = AppService.findById(pair.providerId)?.let { providerHost(it) }
-                            ?: return@runThrottledBatch
-                        if (host in rateLimitedHosts) {
-                            AppLog.d("FanIcons", "skip pair ${pair.id} — host $host rate-limited earlier this batch")
-                            // Persist a sentinel so the UI flips from PENDING
-                            // (🕓 forever) to ERROR (❌). Relaunching the batch
-                            // picks these up (the `pending` filter gates on
-                            // `icon == null`, not errorMessage), so the user can
-                            // retry without first clearing.
-                            SecondaryResultStorage.setFanOutIconError(
-                                context, reportId, pair.id,
-                                "rate-limited — host $host hit 429 mid-batch, relaunch to retry"
-                            )
-                            return@runThrottledBatch
-                        }
-                        if (!SecondaryResultStorage.exists(context, reportId, pair.id)) {
-                            AppLog.d("FanIcons", "skip pair ${pair.id} — deleted before launch")
-                            return@runThrottledBatch
-                        }
-                        val sourceBody = sourceBodies[pair.fanOutSourceAgentId.orEmpty()].orEmpty()
-                        val resolvedMeta = resolvedBase.replace("@RESPONSE@", sourceBody)
-                        appViewModel.updateRunningFanIconsPairs { it + pair.id }
-                        val pairStart = System.currentTimeMillis()
+                        if (!SecondaryResultStorage.exists(context, reportId, pair.id)) return@runThrottledBatch
+                        appViewModel.updateRunningFanMetaPairs { it + pair.id }
                         try {
-                            runIconChainForPair(
-                                context, reportId, pair,
-                                metaPromptText = resolvedMeta,
-                                reportPrompt = report.prompt,
-                                sourceResponse = sourceBody,
-                                aiSettings = aiSettings,
-                                rateLimitedHosts = rateLimitedHosts
-                            )
+                            runFanMetaForPair(context, reportId, pair, fanMetaPrompt, aiSettings)
                         } finally {
-                            appViewModel.updateRunningFanIconsPairs { it - pair.id }
-                            AppLog.d("FanIcons", "← pair ${pair.id} ${System.currentTimeMillis() - pairStart}ms")
+                            appViewModel.updateRunningFanMetaPairs { it - pair.id }
                         }
                     }
                 }
-                AppLog.i("FanIcons", "← end ${metaPrompt.name} (report=$reportId)")
+                AppLog.i("FanMeta", "← end (report=$reportId)")
             } finally {
                 appViewModel.updateUiState {
                     it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0))
                 }
-                // Run-end finalize (shared guard): any pair with content but
-                // still no icon and not in flight (skipped because its
-                // provider didn't resolve, or the run was stopped) gets a
-                // terminal ❌ now, so it stops being re-picked on every
-                // report-open relaunch. "content but no icon" is never a
-                // valid done state, so this can't mislabel a real result.
                 kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                    val running = appViewModel.runningFanIconsPairs.value
+                    val running = appViewModel.runningFanMetaPairs.value
                     val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                         .filter {
                             it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null &&
                                 it.fanInOf == null && !it.content.isNullOrBlank() &&
-                                it.icon.isNullOrBlank() && it.id !in running
+                                it.title.isNullOrBlank() && it.icon.isNullOrBlank() && it.id !in running
                         }
                     BatchResume.finalizeLeftover(leftover) {
-                        SecondaryResultStorage.setFanOutIconError(context, reportId, it.id, "Interrupted — run stopped before this icon finished")
+                        SecondaryResultStorage.setFanOutTitleError(context, reportId, it.id, "Interrupted — run stopped before this finished")
+                        SecondaryResultStorage.setFanOutIconError(context, reportId, it.id, "Interrupted — run stopped before this finished")
                     }
                 }
             }
         }
-        rvm.registerFanIconsJob(reportId, metaPromptId, job)
+        rvm.registerFanMetaJob(reportId, metaPromptId, job)
         return job
     }
 
-    /** Re-fire the fan-icons chain on every pair of this fan-out,
-     *  including ones that already have an emoji. Clears each
-     *  pair's prior icon / iconError fields first via
-     *  [SecondaryResultStorage.clearFanOutIconState] so the new
-     *  run starts from a clean slate. */
-    fun relaunchFanIconsBatch(
-        context: Context,
-        reportId: String,
-        metaPromptId: String
-    ): Job? {
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val existing = SecondaryResultStorage
-                .listForReport(context, reportId, SecondaryKind.META)
-                .filter {
-                    it.metaPromptId == metaPromptId &&
-                        it.fanOutSourceAgentId != null &&
-                        it.fanInOf == null
-                }
-            for (e in existing) SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
-        }.let { /* fire-and-forget */ }
-        // Kick off the regular batch — it now sees every pair as
-        // "icon-less" and dispatches them.
-        return runFanIconsBatch(context, reportId, metaPromptId)
-    }
-
-    /** Cancel the in-flight fan-icons batch for this fan-out, if
-     *  any. The currently-running per-pair chains finish their
-     *  HTTP call; queued pairs are dropped. */
-    fun cancelFanIconsBatch(reportId: String, metaPromptId: String): Job? =
-        rvm.fanIconsJobs[rvm.fanIconsJobKey(reportId, metaPromptId)]?.also { it.cancel() }
-
-    /** Wipe the icon state on every fan-out pair of [metaPromptId]
-     *  whose icon-chain failed (iconErrorMessage != null). Doesn't
-     *  drop the pair row — just the icon + iconError + tier info,
-     *  so the L1/L2/L3 classifier reads the pair as "no icon yet"
-     *  rather than ❌. A subsequent fan-icons batch will pick them
-     *  up via the standard `icon == null` pending filter. */
-    /** A pair counts as "in error from the icon-chain's POV"
-     *  whenever it has either an explicit iconErrorMessage stamp
-     *  OR landed as a "no content, but the original call
-     *  finished" SR (Gemini safety filter, etc.). The latter
-     *  can't ever produce an icon — runFanIconsBatch skips
-     *  no-content pairs at its pending filter — but iconStatus
-     *  still surfaces them as ERROR, so the L1 stats counter
-     *  treats them as errors and so should Remove / Restart. */
-    private fun isFanIconError(sr: SecondaryResult): Boolean =
-        !sr.iconErrorMessage.isNullOrBlank() ||
-            (sr.content.isNullOrBlank() && (sr.errorMessage != null || sr.durationMs != null))
-
-    fun clearFanIconErrors(context: Context, reportId: String, metaPromptId: String) {
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withContext(Dispatchers.IO) {
-                val errored = SecondaryResultStorage
-                    .listForReport(context, reportId, SecondaryKind.META)
-                    .filter {
-                        it.metaPromptId == metaPromptId &&
-                            it.fanOutSourceAgentId != null &&
-                            it.fanInOf == null &&
-                            isFanIconError(it)
-                    }
-                for (e in errored) {
-                    if (e.content.isNullOrBlank()) {
-                        // No-content pair — the icon chain can never
-                        // run on it, so the user pressing Remove or
-                        // Restart on this row should commit the 📝
-                        // sentinel as a permanent "no source content
-                        // to inspect" marker. The pair flips to DONE
-                        // in iconStatus and stops appearing as an
-                        // error on subsequent loads.
-                        SecondaryResultStorage.setFanOutIconAndTier(
-                            context, reportId, e.id,
-                            icon = "📝", winningTier = null,
-                            promptUsed = null
-                        )
-                    } else {
-                        SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
-                    }
-                }
-                AppLog.i(
-                    "FanIcons",
-                    "cleared icon state on ${errored.size} errored pair(s) for ${metaPromptId.take(8)}"
-                )
-            }
-            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
-        }
-    }
-
-    /** Clear errors via the [isFanIconError] filter, then re-fire
-     *  the fan-icons batch. Pairs with content get their icon
-     *  state cleared and a fresh chain attempt; no-content pairs
-     *  get the 📝 fallback stamped directly because the batch's
-     *  pending filter would skip them anyway. */
-    fun restartFanIconErrors(context: Context, reportId: String, metaPromptId: String): Job? {
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withContext(Dispatchers.IO) {
-                val errored = SecondaryResultStorage
-                    .listForReport(context, reportId, SecondaryKind.META)
-                    .filter {
-                        it.metaPromptId == metaPromptId &&
-                            it.fanOutSourceAgentId != null &&
-                            it.fanInOf == null &&
-                            isFanIconError(it)
-                    }
-                var cleared = 0
-                var stamped = 0
-                for (e in errored) {
-                    if (e.content.isNullOrBlank()) {
-                        SecondaryResultStorage.setFanOutIconAndTier(
-                            context, reportId, e.id,
-                            icon = "📝", winningTier = null,
-                            promptUsed = null
-                        )
-                        stamped++
-                    } else {
-                        SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
-                        cleared++
-                    }
-                }
-                AppLog.i(
-                    "FanIcons",
-                    "restart: $cleared pair(s) cleared for re-chain, $stamped no-content pair(s) stamped 📝"
-                )
-            }
-            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
-        }
-        return runFanIconsBatch(context, reportId, metaPromptId)
-    }
-
-    // ============================================================
-    // Fan-titles batch — the "Titles" sibling of the fan-icons
-    // batch. Generates a per-pair title by asking the pair's OWN
-    // model (chat-continuation, like the icons tier 1) to title its
-    // own response. Single tier: no one-shot / fixed-agent fallback,
-    // no glyph fallback — a blank reply is just an error the user can
-    // retry. Shares the [ApiCallCaps.fanIcons] cap (the two batches
-    // rarely overlap).
-    // ============================================================
-
-    fun runFanTitlesBatch(
-        context: Context,
-        reportId: String,
-        metaPromptId: String
-    ): Job? {
-        // Master metadata switch off → fan titles are neither shown nor
-        // generated.
-        if (!appViewModel.uiState.value.generalSettings.fanIconsTitlesOn()) return null
-        rvm.fanTitlesJobs[rvm.fanTitlesJobKey(reportId, metaPromptId)]?.let { existing ->
-            if (existing.isActive) return existing
-        }
-        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val titleRunId = java.util.UUID.randomUUID().toString()
-        val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            try {
-                val state = appViewModel.uiState.value
-                val aiSettings = state.aiSettings
-                val metaPrompt = aiSettings.internalPrompts.firstOrNull { it.id == metaPromptId }
-                    ?: return@launch
-                val titlePrompt = aiSettings.internalPrompts.firstOrNull {
-                    it.category == "info" && it.name == "fan_out_title"
-                }
-                if (titlePrompt == null) {
-                    AppLog.w("FanTitles", "no fan_out_title prompt configured — skipping")
-                    return@launch
-                }
-                val report = ReportStorage.getReport(context, reportId) ?: return@launch
-                val sourceBodies = report.agents
-                    .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                    .associate { it.agentId to it.responseBody!! }
-                val resolvedBase = resolveSecondaryPrompt(
-                    metaPrompt.text,
-                    question = report.prompt,
-                    results = "",
-                    count = sourceBodies.size,
-                    title = report.title
-                )
-
-                // Pairs to process: same metaPromptId, has fan-out source,
-                // has content, AND no title yet (skip already-done pairs).
-                val pending = SecondaryResultStorage
-                    .listForReport(context, reportId, SecondaryKind.META)
-                    .filter {
-                        it.metaPromptId == metaPromptId &&
-                            it.fanOutSourceAgentId != null &&
-                            it.fanInOf == null &&
-                            !it.content.isNullOrBlank() &&
-                            it.title.isNullOrBlank()
-                    }
-                if (pending.isEmpty()) {
-                    AppLog.i("FanTitles", "no pending pairs for ${metaPrompt.name} on $reportId — nothing to do")
-                    return@launch
-                }
-                AppLog.i("FanTitles", "→ start ${metaPrompt.name} (report=$reportId, ${pending.size} pairs)")
-
-                val rateLimitedHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-
-                withTracerTags(reportId = reportId, category = "title_fan_out", runId = titleRunId) {
-                    runThrottledBatch(
-                        items = pending,
-                        hostOf = { AppService.findById(it.providerId)?.let { s -> providerHost(s) } },
-                        subCap = ApiCallCaps.fanTitles,
-                        onThrottled = { pair -> appViewModel.updateThrottledFanTitlesPairs { it + pair.id } },
-                        onCleared = { pair -> appViewModel.updateThrottledFanTitlesPairs { it - pair.id } }
-                    ) { pair ->
-                        val provider = AppService.findById(pair.providerId) ?: return@runThrottledBatch
-                        val host = providerHost(provider)
-                        if (host in rateLimitedHosts) {
-                            AppLog.d("FanTitles", "skip pair ${pair.id} — host $host rate-limited earlier this batch")
-                            SecondaryResultStorage.setFanOutTitleError(
-                                context, reportId, pair.id,
-                                "rate-limited — host $host hit 429 mid-batch, relaunch to retry"
-                            )
-                            return@runThrottledBatch
-                        }
-                        if (!SecondaryResultStorage.exists(context, reportId, pair.id)) {
-                            AppLog.d("FanTitles", "skip pair ${pair.id} — deleted before launch")
-                            return@runThrottledBatch
-                        }
-                        val sourceBody = sourceBodies[pair.fanOutSourceAgentId.orEmpty()].orEmpty()
-                        val resolvedMeta = resolvedBase.replace("@RESPONSE@", sourceBody)
-                        appViewModel.updateRunningFanTitlesPairs { it + pair.id }
-                        val pairStart = System.currentTimeMillis()
-                        try {
-                            runTitleForPair(
-                                context, reportId, provider, pair, titlePrompt,
-                                metaPromptText = resolvedMeta,
-                                pairContent = pair.content!!,
-                                titleRunId = titleRunId,
-                                aiSettings = aiSettings,
-                                rateLimitedHosts = rateLimitedHosts
-                            )
-                        } finally {
-                            appViewModel.updateRunningFanTitlesPairs { it - pair.id }
-                            AppLog.d("FanTitles", "← pair ${pair.id} ${System.currentTimeMillis() - pairStart}ms")
-                        }
-                    }
-                }
-                AppLog.i("FanTitles", "← end ${metaPrompt.name} (report=$reportId)")
-            } finally {
-                appViewModel.updateUiState {
-                    it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0))
-                }
-            }
-        }
-        rvm.registerFanTitlesJob(reportId, metaPromptId, job)
-        return job
-    }
-
-    /** Re-fire the fan-titles batch on every pair (incl. ones that
-     *  already have a title), clearing prior title state first. */
-    fun relaunchFanTitlesBatch(
-        context: Context, reportId: String, metaPromptId: String
-    ): Job? {
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val existing = SecondaryResultStorage
-                .listForReport(context, reportId, SecondaryKind.META)
-                .filter {
-                    it.metaPromptId == metaPromptId &&
-                        it.fanOutSourceAgentId != null &&
-                        it.fanInOf == null
-                }
-            for (e in existing) SecondaryResultStorage.clearFanOutTitleState(context, reportId, e.id)
-        }
-        return runFanTitlesBatch(context, reportId, metaPromptId)
-    }
-
-    /** Cancel the in-flight fan-titles batch for this fan-out, if any. */
-    fun cancelFanTitlesBatch(reportId: String, metaPromptId: String): Job? =
-        rvm.fanTitlesJobs[rvm.fanTitlesJobKey(reportId, metaPromptId)]?.also { it.cancel() }
-
-    private fun isFanTitleError(sr: SecondaryResult): Boolean =
-        !sr.titleErrorMessage.isNullOrBlank() ||
-            (sr.content.isNullOrBlank() && (sr.errorMessage != null || sr.durationMs != null))
-
-    /** Clear title state on every pair of [metaPromptId] whose title
-     *  call failed, so the L1/L2/L3 classifier reads them as "no title
-     *  yet" rather than ❌. No-content pairs (which can never produce a
-     *  title) get a "—" sentinel stamped so they settle to DONE. */
-    fun clearFanTitleErrors(context: Context, reportId: String, metaPromptId: String) {
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withContext(Dispatchers.IO) {
-                val errored = SecondaryResultStorage
-                    .listForReport(context, reportId, SecondaryKind.META)
-                    .filter {
-                        it.metaPromptId == metaPromptId &&
-                            it.fanOutSourceAgentId != null &&
-                            it.fanInOf == null &&
-                            isFanTitleError(it)
-                    }
-                for (e in errored) {
-                    if (e.content.isNullOrBlank()) {
-                        SecondaryResultStorage.setFanOutTitle(context, reportId, e.id, title = "—")
-                    } else {
-                        SecondaryResultStorage.clearFanOutTitleState(context, reportId, e.id)
-                    }
-                }
-                AppLog.i("FanTitles", "cleared title state on ${errored.size} errored pair(s) for ${metaPromptId.take(8)}")
-            }
-            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
-        }
-    }
-
-    /** Clear title errors then re-fire the fan-titles batch. */
-    fun restartFanTitleErrors(context: Context, reportId: String, metaPromptId: String): Job? {
-        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withContext(Dispatchers.IO) {
-                val errored = SecondaryResultStorage
-                    .listForReport(context, reportId, SecondaryKind.META)
-                    .filter {
-                        it.metaPromptId == metaPromptId &&
-                            it.fanOutSourceAgentId != null &&
-                            it.fanInOf == null &&
-                            isFanTitleError(it)
-                    }
-                for (e in errored) {
-                    if (e.content.isNullOrBlank()) {
-                        SecondaryResultStorage.setFanOutTitle(context, reportId, e.id, title = "—")
-                    } else {
-                        SecondaryResultStorage.clearFanOutTitleState(context, reportId, e.id)
-                    }
-                }
-            }
-            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
-        }
-        return runFanTitlesBatch(context, reportId, metaPromptId)
-    }
-
-    /** A reasoning-effort value safe to send to [model] for a trivial
-     *  title / icon call, or null. Picks the LEAST-effort level the model
-     *  actually lists in its `reasoningEffortLevels` capability so a
-     *  reasoning model doesn't burn 20-120s thinking on a one-line title /
-     *  single emoji. Returns null when the model lists no levels (or none
-     *  of the low ones): several reasoning models 400 on an effort value
-     *  they don't accept — xAI grok-* reject the parameter outright,
-     *  Mistral accepts only none/high — so we send nothing unless the
-     *  catalog says a low value is valid. Mirrors the validation the
-     *  chat-screen effort picker does against the same capability list. */
-    private fun minimalReasoningEffort(
-        aiSettings: Settings, provider: AppService, model: String
-    ): String? {
-        val levels = aiSettings.getProvider(provider).modelCapabilities[model]?.reasoningEffortLevels
-        if (levels.isNullOrEmpty()) return null
-        val byLower = levels.associateBy { it.lowercase() }
-        return listOf("none", "minimal", "low").firstNotNullOfOrNull { byLower[it] }
-    }
-
-    /** Single-tier title call for one fan-out pair — mirror of
-     *  [runFanOutTier1] but produces a title (via [cleanTitle]) rather
-     *  than an emoji, and writes it straight to storage. Reproduces the
-     *  pair's real 1-turn conversation, then appends the [titlePrompt]
-     *  chat-continuation asking the pair's own model to title it. */
-    private suspend fun runTitleForPair(
-        context: Context, reportId: String, provider: AppService,
-        pair: SecondaryResult, titlePrompt: InternalPrompt,
-        metaPromptText: String, pairContent: String,
-        titleRunId: String, aiSettings: Settings,
-        rateLimitedHosts: MutableSet<String>
+    /** One workers/fan-meta call for [pair]: parses the title: / icon:
+     *  reply and stores BOTH. Worker engine handles round-robin + 429. */
+    private suspend fun runFanMetaForPair(
+        context: Context, reportId: String, pair: SecondaryResult,
+        fanMetaPrompt: InternalPrompt, aiSettings: Settings
     ) {
-        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-            withTracerTags(reportId = reportId, category = "title_fan_out") {
-                val started = System.currentTimeMillis()
-                runCatching {
-                    val messages = listOf(
-                        ChatMessage(role = "user", content = metaPromptText),
-                        ChatMessage(role = "assistant", content = pairContent),
-                        ChatMessage(role = "user", content = titlePrompt.text)
+        val started = System.currentTimeMillis()
+        val resolved = fanMetaPrompt.text.replace("@PROMPT@", pair.content.orEmpty())
+        val outcome = rvm.workerRunner.run(fanMetaPrompt, resolved, aiSettings, context)
+        when (outcome) {
+            is WorkerOutcome.Success -> {
+                val analysis = outcome.response.analysis
+                val titleRaw = analysis?.lineSequence()
+                    ?.firstOrNull { it.trim().startsWith("title", ignoreCase = true) }
+                    ?.substringAfter(":") ?: analysis
+                val title = cleanTitle(titleRaw)
+                val iconLine = analysis?.lineSequence()?.firstOrNull { it.trim().startsWith("icon", ignoreCase = true) }
+                val emoji = extractFirstEmoji(iconLine ?: analysis.orEmpty()) ?: "📝"
+                val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
+                    it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+                }
+                val tu = outcome.response.tokenUsage
+                val inT = tu?.inputTokens ?: 0
+                val outT = tu?.outputTokens ?: 0
+                if ((inT > 0 || outT > 0) && winAgent != null) {
+                    val pricing = PricingCache.getPricing(context, winAgent.provider, winAgent.model)
+                    SecondaryResultStorage.bumpFanOutTitleCost(
+                        context, reportId, pair.id,
+                        inputTokens = inT, outputTokens = outT,
+                        inputCost = inT * pricing.promptPrice, outputCost = outT * pricing.completionPrice
                     )
-                    val apiKey = aiSettings.getApiKey(provider)
-                    val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
-                    val responseText = appViewModel.repository.sendChat(
-                        service = provider, apiKey = apiKey, model = pair.model,
-                        messages = messages, params = ChatParameters(
-                            reasoningEffort = minimalReasoningEffort(aiSettings, provider, pair.model)
-                        ), baseUrl = baseUrl
+                    appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, inT, outT, kind = "title")
+                }
+                if (title.isNotBlank()) {
+                    SecondaryResultStorage.setFanOutTitle(
+                        context, reportId, pair.id, title,
+                        titleRunId = ApiTracer.currentRunId, promptUsed = "fan-meta",
+                        durationMs = System.currentTimeMillis() - started
                     )
-                    val inT = messages.sumOf { AppViewModel.estimateTokens(it.content) }
-                    val outT = AppViewModel.estimateTokens(responseText)
-                    if (inT > 0 || outT > 0) {
-                        val pricing = PricingCache.getPricing(context, provider, pair.model)
-                        SecondaryResultStorage.bumpFanOutTitleCost(
-                            context, reportId, pair.id,
-                            inputTokens = inT, outputTokens = outT,
-                            inputCost = inT * pricing.promptPrice,
-                            outputCost = outT * pricing.completionPrice
-                        )
-                        appViewModel.settingsPrefs.updateUsageStatsAsync(
-                            provider, pair.model, inT, outT, kind = "title"
-                        )
-                    }
-                    val title = cleanTitle(responseText)
-                    if (title.isNotBlank()) {
-                        SecondaryResultStorage.setFanOutTitle(
-                            context, reportId, pair.id, title,
-                            titleRunId = titleRunId, promptUsed = "fan_out_title",
-                            durationMs = System.currentTimeMillis() - started
-                        )
-                    } else {
-                        SecondaryResultStorage.setFanOutTitleError(
-                            context, reportId, pair.id, "model returned no usable title"
-                        )
-                    }
-                }.getOrElse { e ->
-                    AppLog.w("FanTitles", "title call failed for pair=${pair.id}: ${e.message}")
-                    if (isRateLimitFailure(e)) {
-                        rateLimitedHosts.add(providerHost(provider))
-                        SecondaryResultStorage.setFanOutTitleError(
-                            context, reportId, pair.id,
-                            "rate-limited (429) — relaunch to retry"
-                        )
-                    } else {
-                        SecondaryResultStorage.setFanOutTitleError(
-                            context, reportId, pair.id,
-                            e.message ?: "title generation failed"
-                        )
-                    }
+                } else {
+                    SecondaryResultStorage.setFanOutTitleError(context, reportId, pair.id, "no title in reply")
                 }
-                AppLog.d("FanTitles", "title pair=${pair.id} ${System.currentTimeMillis() - started}ms")
+                SecondaryResultStorage.setFanOutIconAndTier(
+                    context, reportId, pair.id, emoji, winningTier = null,
+                    iconRunId = ApiTracer.currentRunId, promptUsed = "fan-meta"
+                )
+                appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+            }
+            else -> {
+                val msg = if (outcome is WorkerOutcome.AllRateLimited) "fan-meta: all workers rate-limited"
+                          else "fan-meta: no worker produced a result"
+                SecondaryResultStorage.setFanOutTitleError(context, reportId, pair.id, msg)
+                SecondaryResultStorage.setFanOutIconError(context, reportId, pair.id, msg)
+                appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
             }
         }
     }
 
-    private suspend fun runFanOutTier1(
-        context: Context, reportId: String, provider: AppService,
-        pair: SecondaryResult, chatPrompt: InternalPrompt,
-        reportPrompt: String, sourceResponse: String,
-        metaPromptText: String, pairContent: String,
-        aiSettings: Settings
-    ): TierResult {
-        // ProviderThrottle for this pair's host is already held by
-        // runFanIconsBatch (acquireOrRequeue) — re-acquiring the
-        // non-reentrant per-host semaphore here deadlocked the batch.
-        // permitPreAcquired is inherited from the batch's context.
-        return run {
-            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                withTracerTags(reportId = reportId, category = "icon_fan_out_2") {
-                    val started = System.currentTimeMillis()
-                    runCatching {
-                        // Reproduce the pair's actual conversation: the
-                        // pair was sent ONE user message — the resolved
-                        // meta prompt with @RESPONSE@ substituted to the
-                        // source body — and produced ONE assistant
-                        // response (pairContent). Then we add the chat-
-                        // continuation icon prompt. The previous 5-turn
-                        // shape (report prompt → source response → meta
-                        // → pair → ask) prepended a 2-turn exchange the
-                        // pair never actually had — confusing the model
-                        // and yielding a duplicate `metaPromptText` ==
-                        // sourceResponse cell when the meta template
-                        // was bare `@RESPONSE@`.
-                        val messages = listOf(
-                            ChatMessage(role = "user", content = metaPromptText),
-                            ChatMessage(role = "assistant", content = pairContent),
-                            ChatMessage(role = "user", content = chatPrompt.text)
-                        )
-                        val apiKey = aiSettings.getApiKey(provider)
-                        val baseUrl = aiSettings.getEffectiveEndpointUrl(provider)
-                        // Sink captures the filename of this call's trace
-                        // so a tier-1 miss can tag it "-miss" afterwards.
-                        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-                        val responseText = withTraceFilenameSink(traceSink) {
-                            appViewModel.repository.sendChat(
-                                service = provider, apiKey = apiKey, model = pair.model,
-                                messages = messages, params = ChatParameters(
-                                    reasoningEffort = minimalReasoningEffort(aiSettings, provider, pair.model)
-                                ), baseUrl = baseUrl
-                            )
-                        }
-                        val durationMs = System.currentTimeMillis() - started
-                        val inT = messages.sumOf { AppViewModel.estimateTokens(it.content) }
-                        val outT = AppViewModel.estimateTokens(responseText)
-                        val emoji = extractFirstEmoji(responseText)
-                        // Tier-1 miss → tag this call's trace "-miss" so
-                        // tier-1 misses can be filtered / analysed later.
-                        if (emoji == null) {
-                            traceSink.get()?.let { ApiTracer.appendCategorySuffix(it, "-miss") }
-                        }
-                        recordFanOutTierCall(
-                            context, reportId, pair, tier = 1,
-                            provider = provider, model = pair.model,
-                            inT = inT, outT = outT, durationMs = durationMs,
-                            success = emoji != null
-                        )
-                        if (emoji != null) TierResult.Emoji(emoji) else TierResult.Miss
-                    }.getOrElse { e ->
-                        AppLog.w("FanOutIcons", "tier 1 failed for pair=${pair.id}: ${e.message}")
-                        if (isRateLimitFailure(e)) TierResult.RateLimited else TierResult.Miss
-                    }
+    /** Re-fire fan-meta after clearing every pair's title+icon. */
+    fun relaunchFanMetaBatch(context: Context, reportId: String, metaPromptId: String): Job? {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            SecondaryResultStorage
+                .listForReport(context, reportId, SecondaryKind.META)
+                .filter { it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null && it.fanInOf == null }
+                .forEach {
+                    SecondaryResultStorage.clearFanOutTitleState(context, reportId, it.id)
+                    SecondaryResultStorage.clearFanOutIconState(context, reportId, it.id)
+                }
+        }
+        return runFanMetaBatch(context, reportId, metaPromptId)
+    }
+
+    fun cancelFanMetaBatch(reportId: String, metaPromptId: String): Job? =
+        rvm.fanMetaJobs[rvm.fanMetaJobKey(reportId, metaPromptId)]?.also { it.cancel() }
+
+    private fun isFanMetaError(sr: SecondaryResult): Boolean =
+        !sr.titleErrorMessage.isNullOrBlank() || !sr.iconErrorMessage.isNullOrBlank()
+
+    private fun erroredFanMetaPairs(context: Context, reportId: String, metaPromptId: String) =
+        SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+            .filter { it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null && it.fanInOf == null && isFanMetaError(it) }
+
+    fun clearFanMetaErrors(context: Context, reportId: String, metaPromptId: String) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            withContext(Dispatchers.IO) {
+                for (e in erroredFanMetaPairs(context, reportId, metaPromptId)) {
+                    SecondaryResultStorage.clearFanOutTitleState(context, reportId, e.id)
+                    SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
                 }
             }
+            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
         }
     }
 
-    private suspend fun runFanOutTier2(
-        context: Context, reportId: String, provider: AppService,
-        pair: SecondaryResult, tier2Prompt: InternalPrompt,
-        reportPrompt: String, sourceResponse: String,
-        metaPromptText: String, pairContent: String,
-        aiSettings: Settings
-    ): TierResult {
-        // ProviderThrottle for this pair's host is already held by
-        // runFanIconsBatch (acquireOrRequeue) — re-acquiring the
-        // non-reentrant per-host semaphore here deadlocked the batch.
-        // permitPreAcquired is inherited from the batch's context.
-        return run {
-            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                withTracerTags(reportId = reportId, category = "icon_fan_out") {
-                    val started = System.currentTimeMillis()
-                    runCatching {
-                        val syntheticAgent = Agent(
-                            id = "fan-out-icon-tier2-${pair.id}",
-                            name = pair.agentName,
-                            provider = provider,
-                            model = pair.model,
-                            apiKey = aiSettings.getApiKey(provider)
-                        )
-                        val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
-                        val resolved = tier2Prompt.text
-                            .replace("@QUESTION@", reportPrompt)
-                            .replace("@SOURCE_RESPONSE@", sourceResponse)
-                            .replace("@META_PROMPT@", metaPromptText)
-                            .replace("@RESPONSE@", pairContent)
-                        val response = appViewModel.repository.analyzeWithAgent(
-                            syntheticAgent, "", resolved, AgentParameters(
-                                reasoningEffort = minimalReasoningEffort(aiSettings, provider, pair.model)
-                            ),
-                            null, context, baseUrl
-                        )
-                        val durationMs = System.currentTimeMillis() - started
-                        val tu = response.tokenUsage
-                        val inT = tu?.inputTokens ?: 0
-                        val outT = tu?.outputTokens ?: 0
-                        val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
-                        recordFanOutTierCall(
-                            context, reportId, pair, tier = 2,
-                            provider = provider, model = pair.model,
-                            inT = inT, outT = outT, durationMs = durationMs,
-                            success = emoji != null
-                        )
-                        when {
-                            emoji != null -> TierResult.Emoji(emoji)
-                            response.httpStatusCode == 429 -> TierResult.RateLimited
-                            else -> TierResult.Miss
-                        }
-                    }.getOrElse { e ->
-                        AppLog.w("FanOutIcons", "tier 2 failed for pair=${pair.id}: ${e.message}")
-                        if (isRateLimitFailure(e)) TierResult.RateLimited else TierResult.Miss
-                    }
+    fun restartFanMetaErrors(context: Context, reportId: String, metaPromptId: String): Job? {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            withContext(Dispatchers.IO) {
+                for (e in erroredFanMetaPairs(context, reportId, metaPromptId)) {
+                    SecondaryResultStorage.clearFanOutTitleState(context, reportId, e.id)
+                    SecondaryResultStorage.clearFanOutIconState(context, reportId, e.id)
                 }
             }
+            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
         }
-    }
-
-    private suspend fun runFanOutTier3(
-        context: Context, reportId: String,
-        pair: SecondaryResult, tier3Prompt: InternalPrompt,
-        pairContent: String, aiSettings: Settings
-    ): TierResult {
-        val rawAgent = aiSettings.resolvePromptAgent(tier3Prompt) ?: run {
-            AppLog.w("FanOutIcons", "tier 3 skipped — no agent matching '${tier3Prompt.agent}' configured")
-            return TierResult.Miss
-        }
-        val effectiveAgent = rawAgent.copy(
-            apiKey = aiSettings.getEffectiveApiKeyForAgent(rawAgent),
-            model = aiSettings.getEffectiveModelForAgent(rawAgent)
-        )
-        // ProviderThrottle is already held by runFanIconsBatch
-        // (acquireOrRequeue) for this pair — re-acquiring the
-        // non-reentrant per-host semaphore here deadlocked the batch.
-        // permitPreAcquired is inherited from the batch's context.
-        return run {
-            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
-                withTracerTags(reportId = reportId, category = "icon_fan_out_3") {
-                    val started = System.currentTimeMillis()
-                    runCatching {
-                        val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(effectiveAgent)
-                        val resolved = tier3Prompt.text.replace("@RESPONSE@", pairContent)
-                        val response = appViewModel.repository.analyzeWithAgent(
-                            effectiveAgent, "", resolved, AgentParameters(
-                                reasoningEffort = minimalReasoningEffort(
-                                    aiSettings, effectiveAgent.provider, effectiveAgent.model
-                                )
-                            ),
-                            null, context, baseUrl
-                        )
-                        val durationMs = System.currentTimeMillis() - started
-                        val tu = response.tokenUsage
-                        val inT = tu?.inputTokens ?: 0
-                        val outT = tu?.outputTokens ?: 0
-                        val emoji = if (response.error == null) extractFirstEmoji(response.analysis) else null
-                        recordFanOutTierCall(
-                            context, reportId, pair, tier = 3,
-                            // Cost attribution goes to the actual model
-                            // that ran (DeepSeek), matching the report-
-                            // icon tier 3 behaviour.
-                            provider = effectiveAgent.provider, model = effectiveAgent.model,
-                            inT = inT, outT = outT, durationMs = durationMs,
-                            success = emoji != null
-                        )
-                        when {
-                            emoji != null -> TierResult.Emoji(emoji)
-                            response.httpStatusCode == 429 -> TierResult.RateLimited
-                            else -> TierResult.Miss
-                        }
-                    }.getOrElse { e ->
-                        AppLog.w("FanOutIcons", "tier 3 failed for pair=${pair.id}: ${e.message}")
-                        if (isRateLimitFailure(e)) TierResult.RateLimited else TierResult.Miss
-                    }
-                }
-            }
-        }
-    }
-
-    /** Shared write-side of a fan-out icon tier call. Bumps the per-
-     *  pair iconInput/OutputCost on the SecondaryResult so the row's
-     *  L2 / L1 cost cells absorb the cost, updates the global
-     *  UsageStats ledger with kind="icon" attributed to the actual
-     *  (provider, model) that billed, and appends an IconCallRecord
-     *  to Report.iconCalls for the export's per-call All-tab.
-     *
-     *  IconCallRecord.agentId is set to the pair's UUID so the audit
-     *  log can distinguish fan-out icon rows from per-agent icon
-     *  rows (which use the agentId of the parent ReportAgent). */
-    private suspend fun recordFanOutTierCall(
-        context: Context, reportId: String, pair: SecondaryResult, tier: Int,
-        provider: AppService, model: String,
-        inT: Int, outT: Int, durationMs: Long, success: Boolean
-    ) {
-        val pricing = PricingCache.getPricing(context, provider, model)
-        val inC = inT * pricing.promptPrice
-        val outC = outT * pricing.completionPrice
-        if (inT > 0 || outT > 0) {
-            SecondaryResultStorage.bumpFanOutIconCost(
-                context, reportId, pair.id,
-                inputTokens = inT, outputTokens = outT,
-                inputCost = inC, outputCost = outC
-            )
-            appViewModel.settingsPrefs.updateUsageStatsAsync(
-                provider, model, inT, outT, kind = "icon"
-            )
-        }
-        ReportStorage.appendIconCall(
-            context, reportId,
-            IconCallRecord(
-                agentId = pair.id, tier = tier,
-                provider = provider.id, model = model,
-                pricingTier = pricing.source,
-                inputTokens = inT, outputTokens = outT,
-                inputCost = inC, outputCost = outC,
-                durationMs = durationMs,
-                success = success
-            )
-        )
-    }
-
-    private suspend fun commitFanOutIconResult(
-        context: Context, reportId: String, pairId: String,
-        emoji: String, winningTier: Int?
-    ) {
-        // Map tier number to the bundled prompt name for the Icon
-        // lookup screen's subject row.
-        val promptUsed = when (winningTier) {
-            1 -> "fan_out_1"
-            2 -> "fan_out_2"
-            3 -> "fan_out_3"
-            else -> null
-        }
-        SecondaryResultStorage.setFanOutIconAndTier(
-            context, reportId, pairId, emoji, winningTier,
-            iconRunId = ApiTracer.currentRunId,
-            promptUsed = promptUsed
-        )
-        appViewModel.updateUiState {
-            it.copy(iconRefreshTick = it.iconRefreshTick + 1)
-        }
+        return runFanMetaBatch(context, reportId, metaPromptId)
     }
 }

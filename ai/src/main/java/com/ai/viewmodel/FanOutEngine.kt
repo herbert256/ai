@@ -665,59 +665,36 @@ class FanOutEngine internal constructor(
             ReportStorage.bumpReportTimestamp(context, run.reportId)
         }
 
-    /** Clear the fan-icons for this run — wipes each pair's icon /
-     *  tier / error / token / cost fields and drops the fan-out
+    /** Clear the Fan Meta for this run — wipes each pair's title AND
+     *  icon (text / tier / error / token / cost) and drops the fan-out
      *  entries from the report's iconCalls audit log, leaving the
      *  fan-out pairs (and their main responses) intact. Backs the
-     *  ICONS-mode 🗑 button, where the user wants only the icons
-     *  gone, not the fan-out. */
-    fun clearFanIcons(context: Context, runKey: FanOutRunKey): Job =
+     *  Fan-Meta 🗑 button. */
+    fun clearFanMeta(context: Context, runKey: FanOutRunKey): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             val run = _runs.value[runKey] ?: return@launch
-            // Stop any in-flight fan-icons batch first so a tier call
-            // mid-flight doesn't write an icon back onto a row we're
-            // about to clear. join() (not just cancel()) is load-bearing:
-            // a pair whose HTTP call already returned would otherwise run
-            // its setFanOutIcon write AFTER the clear, leaving a marker
-            // the 30s resume sweep treats as "in progress" and relaunches.
-            reportViewModel.iconGen.cancelFanIconsBatch(run.reportId, run.metaPrompt.id)?.join()
-            // Roll the icon-chain spend we're about to wipe into the
-            // report's Deleted-items tally so the cost view stays whole
-            // (clearFanOutIconState zeroes the per-pair icon cost fields).
-            val costDelta = run.pairs.values.sumOf { it.iconInputCost + it.iconOutputCost }
+            // Stop any in-flight fan-meta batch first so a call returning
+            // mid-flight doesn't write back onto a row we're about to
+            // clear. join() (not just cancel()) is load-bearing: a pair
+            // whose HTTP call already returned would otherwise run its
+            // write AFTER the clear, leaving a marker the resume sweep
+            // treats as "in progress" and relaunches.
+            reportViewModel.iconGen.cancelFanMetaBatch(run.reportId, run.metaPrompt.id)?.join()
+            // Roll the title + icon spend we're about to wipe into the
+            // report's Deleted-items tally so the cost view stays whole.
+            val costDelta = run.pairs.values.sumOf {
+                it.iconInputCost + it.iconOutputCost + it.titleInputCost + it.titleOutputCost
+            }
             val pairIds = run.pairs.values.map { it.id }.toSet()
             run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.clearFanOutIconState(context, run.reportId, pair.id)
+                SecondaryResultStorage.clearFanOutTitleState(context, run.reportId, pair.id)
             }
             ReportStorage.removeFanOutIconCalls(context, run.reportId, pairIds)
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, run.reportId)
             // Re-hydrate so the engine's in-memory pairs lose their
-            // icons too — unlike deleteRun, the run itself stays.
-            hydrate(context, run.reportId)
-        }
-
-    /** TITLES-mode 🗑 counterpart of [clearFanIcons]: drops every
-     *  pair's title state (title + error + cost) for this run,
-     *  leaving the fan-out responses intact. No iconCalls-style
-     *  audit log for titles, so just the per-pair clear + re-hydrate. */
-    fun clearFanTitles(context: Context, runKey: FanOutRunKey): Job =
-        appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[runKey] ?: return@launch
-            // join() (not just cancel()) so an in-flight title call whose
-            // HTTP request already returned can't run its setFanOutTitle
-            // write AFTER the clear — that surviving marker is what made a
-            // deleted fan-titles batch reappear on the next resume sweep.
-            reportViewModel.iconGen.cancelFanTitlesBatch(run.reportId, run.metaPrompt.id)?.join()
-            // Roll the title spend we're about to wipe into the report's
-            // Deleted-items tally so the cost view stays whole
-            // (clearFanOutTitleState zeroes the per-pair title cost fields).
-            val costDelta = run.pairs.values.sumOf { it.titleInputCost + it.titleOutputCost }
-            run.pairs.values.forEach { pair ->
-                SecondaryResultStorage.clearFanOutTitleState(context, run.reportId, pair.id)
-            }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
-            ReportStorage.bumpReportTimestamp(context, run.reportId)
+            // title+icon too — unlike deleteRun, the run itself stays.
             hydrate(context, run.reportId)
         }
 

@@ -121,8 +121,7 @@ internal fun FanOutL3Screen(
             TitleBar(
                 helpTopic = "secondary_fan_out_l3",
                 title = when (mode) {
-                    FanOutMode.ICONS -> "Fan icons - pair"
-                    FanOutMode.TITLES -> "Fan titles - pair"
+                    FanOutMode.META -> "Fan Meta - pair"
                     else -> "Fan out - pair"
                 },
                 subject = "This pair no longer exists",
@@ -204,8 +203,7 @@ internal fun FanOutL3Screen(
             TitleBar(
                 helpTopic = "secondary_fan_out_l3",
                 title = when (mode) {
-                    FanOutMode.ICONS -> "Fan icons - pair"
-                    FanOutMode.TITLES -> "Fan titles - pair"
+                    FanOutMode.META -> "Fan Meta - pair"
                     else -> "Fan out - pair"
                 },
                 subject = answererLabel,
@@ -351,7 +349,7 @@ internal fun FanOutL3Screen(
                 Spacer(Modifier.height(6.dp))
                 // TITLES mode: surface the pair's generated title (or
                 // its error) prominently above the response body.
-                if (mode == FanOutMode.TITLES) {
+                if (mode == FanOutMode.META) {
                     val titleText = pair.title?.takeIf { it.isNotBlank() }
                     Text(
                         titleText?.let { "🏷️ $it" }

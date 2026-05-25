@@ -119,8 +119,7 @@ fun AiLiveDashboardScreen(
 
     // ---- live reactive flows ----
     val thrFanOut by appViewModel.throttledFanOutPairs.collectAsState()
-    val thrIcons by appViewModel.throttledFanIconsPairs.collectAsState()
-    val thrTitles by appViewModel.throttledFanTitlesPairs.collectAsState()
+    val thrMeta by appViewModel.throttledFanMetaPairs.collectAsState()
     val cooldowns by ModelCooldownStore.cooldowns.collectAsState()
     val testRun by reportViewModel.modelTestEngine.run.collectAsState()
 
@@ -151,7 +150,7 @@ fun AiLiveDashboardScreen(
         ) {
             item { Spacer(Modifier.height(4.dp)) }
 
-            item { LiveActivitySection(caps, thrFanOut, thrIcons, thrTitles) }
+            item { LiveActivitySection(caps, thrFanOut, thrMeta) }
             item { ThrottleSection(hosts) }
 
             val activeCooldowns = cooldowns.filterValues { it > now }
@@ -1192,7 +1191,7 @@ fun AiCostsTierScreen(
 @Composable
 private fun LiveActivitySection(
     caps: ApiCallCaps.Snapshot,
-    thrFanOut: Set<String>, thrIcons: Set<String>, thrTitles: Set<String>,
+    thrFanOut: Set<String>, thrMeta: Set<String>,
 ) {
     val (statusWord, statusColor) = when {
         caps.globalInFlight == 0 -> "Idle" to AppColors.TextDim
@@ -1217,17 +1216,15 @@ private fun LiveActivitySection(
         CapBar("Report", caps.reportInFlight, caps.reportMax)
         CapBar("Translation", caps.translationInFlight, caps.translationMax)
         CapBar("Fan-out", caps.fanOutInFlight, caps.fanOutMax)
-        CapBar("Fan-icons", caps.fanIconsInFlight, caps.fanIconsMax)
-        CapBar("Fan-titles", caps.fanTitlesInFlight, caps.fanTitlesMax)
+        CapBar("Fan-meta", caps.fanMetaInFlight, caps.fanMetaMax)
 
-        val throttled = thrFanOut.size + thrIcons.size + thrTitles.size
+        val throttled = thrFanOut.size + thrMeta.size
         if (throttled > 0) {
             Spacer(Modifier.height(8.dp))
             Text("Throttled — waiting on a provider rate-limit", fontSize = 11.sp, color = AppColors.Orange)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (thrFanOut.isNotEmpty()) StatChip("🌫️", "Fan-out", thrFanOut.size, AppColors.Orange)
-                if (thrIcons.isNotEmpty()) StatChip("🎨", "Icons", thrIcons.size, AppColors.Orange)
-                if (thrTitles.isNotEmpty()) StatChip("🏷️", "Titles", thrTitles.size, AppColors.Orange)
+                if (thrMeta.isNotEmpty()) StatChip("🪄", "Fan-meta", thrMeta.size, AppColors.Orange)
             }
         }
     }

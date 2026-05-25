@@ -53,25 +53,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         job.invokeOnCompletion { fanOutJobs.remove(key, job) }
     }
 
-    /** Tracks in-flight fan-icons batches keyed by
+    /** Tracks in-flight fan-meta batches keyed by
      *  (reportId, metaPromptId). Separate map from [fanOutJobs] so
-     *  a launched fan-icons batch on the same fan-out doesn't get
+     *  a launched fan-meta batch on the same fan-out doesn't get
      *  cancelled by deleteFanOutModel etc. */
-    internal val fanIconsJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
-    internal fun fanIconsJobKey(reportId: String, metaPromptId: String) = "$reportId|icons|$metaPromptId"
-    internal fun registerFanIconsJob(reportId: String, metaPromptId: String, job: Job) {
-        val key = fanIconsJobKey(reportId, metaPromptId)
-        fanIconsJobs[key] = job
-        job.invokeOnCompletion { fanIconsJobs.remove(key, job) }
-    }
-
-    /** Same role as [fanIconsJobs] but for the fan-titles batch. */
-    internal val fanTitlesJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
-    internal fun fanTitlesJobKey(reportId: String, metaPromptId: String) = "$reportId|titles|$metaPromptId"
-    internal fun registerFanTitlesJob(reportId: String, metaPromptId: String, job: Job) {
-        val key = fanTitlesJobKey(reportId, metaPromptId)
-        fanTitlesJobs[key] = job
-        job.invokeOnCompletion { fanTitlesJobs.remove(key, job) }
+    internal val fanMetaJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    internal fun fanMetaJobKey(reportId: String, metaPromptId: String) = "$reportId|meta|$metaPromptId"
+    internal fun registerFanMetaJob(reportId: String, metaPromptId: String, job: Job) {
+        val key = fanMetaJobKey(reportId, metaPromptId)
+        fanMetaJobs[key] = job
+        job.invokeOnCompletion { fanMetaJobs.remove(key, job) }
     }
 
     /** Coroutine context for a report-section launch: `Dispatchers.IO`

@@ -101,7 +101,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Regenerate report",
         cards = listOf(
             HelpCard("Overview", "The 🔁 icon on the Manage screen opens a confirm dialog; OK enqueues an app-restart-survivable batch that re-runs everything on the report in a fixed order. Replaces the legacy one-shot regenerate that only touched the agent rows."),
-            HelpCard("Phase order", "1) Report icon. 2) Language (detection + language-icon). 3) Model reports (agents). 4) Meta — single-call meta + rerank + moderation. 5) Fan-out — every fan-out pair. 6) Fan-in — combined-report rows. 7) Translations. 8) Fan-icons — re-runs the icon chain for every fan-out pair that previously had an icon. The batch moves to the next phase only when every row in the current phase is SUCCESS."),
+            HelpCard("Phase order", "1) Report icon. 2) Language (detection + language-icon). 3) Model reports (agents). 4) Meta — single-call meta + rerank + moderation. 5) Fan-out — every fan-out pair. 6) Fan-in — combined-report rows. 7) Translations. 8) Fan Meta — one worker call per fan-out pair regenerates its title + icon. The batch moves to the next phase only when every row in the current phase is SUCCESS."),
             HelpCard("Halt + restart on error", "Halts on the first row that ends ❌ in any phase. The Regenerate row on Manage turns ❌. Fix the offending row (delete + rerun via the existing per-row UI), then either tap Restart on the Regenerate detail screen OR wait — the same 30 s background sweep that resumes stuck translation / fan-out runs also auto-resumes a paused Regenerate batch once the row's error clears."),
             HelpCard("Survives app kill", "The job's task list + status lives on disk under <filesDir>/regenerate/<reportId>.json. App-restart sweep at ReportViewModel.startBackgroundResumeSweep rehydrates the engine + revives the orchestrator coroutine; rows mid-flight finish themselves and the batch picks up from the current phase."),
             HelpCard("Cancel + re-enqueue", "The detail screen's Cancel button stops scheduling new phases (in-flight HTTP calls finish normally). Tap Restart to resume from where it stopped. A fresh enqueue (tap 🔁 again) replaces the existing job and starts from phase 1."),
@@ -355,12 +355,12 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Pitfalls", "Long fan-out runs render many MB of text; rendering can be slow on dense reports. Use L2 + tap-into-cell when you only need one pair."),
         )
     ),
-    "fan_titles" to HelpContent(
-        title = "Help - Fan titles",
+    "fan_meta" to HelpContent(
+        title = "Help - Fan Meta",
         cards = listOf(
-            HelpCard("What you see", "The fan-titles view of a fan-out run — the text sibling of fan-icons. The L1 'Titles' button runs a batch that asks each pair's OWN model to give its reply a short title (a chat-continuation call, single try — no fallback). 'Show titles' then lists, per source model, every responder's generated title as a tappable row."),
-            HelpCard("Status & errors", "While the batch runs, L1/L2/L3 classify pairs by their title status (queued → running → done / error). 'Remove errors' clears failed pairs so they read as 'no title yet'; 'Restart errors' clears and re-fires the batch on them. The 🗑 in Titles mode drops every title for the run, keeping the fan-out responses."),
-            HelpCard("Drill in", "Tap a title to open the pair (L3), where the title shows above the response. The per-model L2 'Titles' button focuses one model's pair titles. Titles and icons are independent — a pair can carry both.")
+            HelpCard("What you see", "The Fan Meta view of a fan-out run. The L1 'Fan Meta' button runs ONE worker call per pair (workers/fan-meta, round-robin + 429-fallback) that returns BOTH a short title and a fitting icon. 'Show Fan Meta' then lists, per source model, every responder's generated title as a tappable row (each row carries its icon too)."),
+            HelpCard("Status & errors", "While the batch runs, L1/L2/L3 classify pairs by their status (queued → running → done / error). 'Remove errors' clears failed pairs so they read as pending; 'Restart errors' clears and re-fires the batch on them. The 🗑 in Fan Meta mode drops every title + icon for the run, keeping the fan-out responses."),
+            HelpCard("Drill in", "Tap a row to open the pair (L3), where the title + icon show above the response. The per-model L2 'Fan Meta' button focuses one model's pairs.")
         )
     ),
     "fan_out_view" to HelpContent(

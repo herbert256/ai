@@ -63,13 +63,13 @@ internal fun SecondaryResultsScreen(
      *  mode-toggle. */
     onShowResponses: () -> Unit = {},
     /** Flip the drill-in into TITLES mode — the L1 "Titles" toggle. */
-    onShowFanTitles: () -> Unit = {},
+    onShowFanMeta: () -> Unit = {},
     /** When true, the fan-out drill-in mounts in ICONS mode —
      *  L1 / L2 / L3 classify pairs by their icon-chain status.
      *  Wired by the main report's "Fan-icons" View button. */
     isFanIconsDrillIn: Boolean = false,
     /** When true, the fan-out drill-in mounts in TITLES mode. */
-    isFanTitlesDrillIn: Boolean = false,
+    isFanMetaDrillIn: Boolean = false,
     /** Authoritative Fan Out runtime. When non-null and the screen
      *  is in fan-out drill-in mode, the redesigned FanOutScreen
      *  takes over; legacy FanOutDrillInView remains only for the
@@ -210,9 +210,9 @@ internal fun SecondaryResultsScreen(
     // disk *before* the pair leaves `runningFanIconsPairs`, so a bump
     // on every removal lands a fresh read with the icon already there.
     var prevRunningIcons by remember { mutableStateOf(emptySet<String>()) }
-    LaunchedEffect(fanRuntime.runningFanIconsPairs) {
-        val finished = prevRunningIcons - fanRuntime.runningFanIconsPairs
-        prevRunningIcons = fanRuntime.runningFanIconsPairs
+    LaunchedEffect(fanRuntime.runningFanMetaPairs) {
+        val finished = prevRunningIcons - fanRuntime.runningFanMetaPairs
+        prevRunningIcons = fanRuntime.runningFanMetaPairs
         if (finished.isNotEmpty()) refreshTick++
     }
     // Effective in-flight set passed downstream — the classifier
@@ -566,14 +566,9 @@ internal fun SecondaryResultsScreen(
                     // linger half-deleted on the report screen.
                     fanOutEngine.deleteRun(context, rk)
                 },
-                onClearFanIcons = { rk ->
-                    // ICONS-mode 🗑 — clears the fan-icons only, keeps
-                    // the fan-out. Job awaited behind the same popup.
-                    fanOutEngine.clearFanIcons(context, rk)
-                },
-                onClearFanTitles = { rk ->
-                    // TITLES-mode 🗑 — clears the fan-titles only.
-                    fanOutEngine.clearFanTitles(context, rk)
+                onClearFanMeta = { rk ->
+                    // META-mode 🗑 — clears the Fan Meta (title+icon) only.
+                    fanOutEngine.clearFanMeta(context, rk)
                 },
                 onRerunComplete = { rk ->
                     fanOutEngine.rerunComplete(context, rk)
@@ -629,32 +624,20 @@ internal fun SecondaryResultsScreen(
                 onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
                 onOpenSecondary = { id -> openId = id },
                 onOpenPairIconLookup = onOpenPairIconLookup,
-                onClearFanIconErrors = { rk ->
+                onClearFanMetaErrors = { rk ->
                     val parts = rk.split("|", limit = 2)
-                    if (parts.size == 2) onClearFanIconErrors(parts[0], parts[1])
+                    if (parts.size == 2) fanRuntime.onClearFanMetaErrors(parts[0], parts[1])
                 },
-                onRestartFanIconErrors = { rk ->
+                onRestartFanMetaErrors = { rk ->
                     val parts = rk.split("|", limit = 2)
-                    if (parts.size == 2) onRestartFanIconErrors(parts[0], parts[1])
-                },
-                onClearFanTitleErrors = { rk ->
-                    val parts = rk.split("|", limit = 2)
-                    if (parts.size == 2) fanRuntime.onClearFanTitleErrors(parts[0], parts[1])
-                },
-                onRestartFanTitleErrors = { rk ->
-                    val parts = rk.split("|", limit = 2)
-                    if (parts.size == 2) fanRuntime.onRestartFanTitleErrors(parts[0], parts[1])
+                    if (parts.size == 2) fanRuntime.onRestartFanMetaErrors(parts[0], parts[1])
                 }
             )
-            val fanMode = when {
-                isFanTitlesDrillIn -> FanOutMode.TITLES
-                isFanIconsDrillIn -> FanOutMode.ICONS
-                else -> FanOutMode.MAIN
-            }
+            val fanMode = if (isFanMetaDrillIn) FanOutMode.META else FanOutMode.MAIN
             // 🗂️ pick-another-report → the picker filtered to reports that
             // have a fan-out, returning to the View grid (where the new
             // report's fan-out is chosen). MAIN mode only — not the Fan
-            // icons / Fan titles drill-ins.
+            // Meta drill-in.
             val managePick = com.ai.ui.shared.LocalNavigateToManagePicker.current
             androidx.compose.runtime.CompositionLocalProvider(
                 com.ai.ui.shared.LocalManagePickReport provides
@@ -670,21 +653,14 @@ internal fun SecondaryResultsScreen(
                 runningSet = effectiveRunningFanOutPairs,
                 throttledSet = fanRuntime.throttledFanOutPairs,
                 mode = fanMode,
-                runningIconsSet = fanRuntime.runningFanIconsPairs,
-                throttledIconsSet = fanRuntime.throttledFanIconsPairs,
-                onLaunchFanIcons = { _ ->
-                    fanRuntime.onLaunchFanIconsBatch(reportId, fanOutPrompt.id)
-                    onShowFanIcons()
-                },
-                onShowFanIcons = onShowFanIcons,
                 onShowResponses = onShowResponses,
-                runningTitlesSet = fanRuntime.runningFanTitlesPairs,
-                throttledTitlesSet = fanRuntime.throttledFanTitlesPairs,
-                onLaunchFanTitles = { _ ->
-                    fanRuntime.onLaunchFanTitlesBatch(reportId, fanOutPrompt.id)
-                    onShowFanTitles()
+                runningMetaSet = fanRuntime.runningFanMetaPairs,
+                throttledMetaSet = fanRuntime.throttledFanMetaPairs,
+                onLaunchFanMeta = { _ ->
+                    fanRuntime.onLaunchFanMetaBatch(reportId, fanOutPrompt.id)
+                    onShowFanMeta()
                 },
-                onShowFanTitles = onShowFanTitles,
+                onShowFanMeta = onShowFanMeta,
                 onBack = onBack
             )
             }
