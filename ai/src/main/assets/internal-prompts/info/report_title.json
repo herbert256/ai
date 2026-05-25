@@ -2,7 +2,9 @@
   "name": "report_title",
   "title": "Decide the report title",
   "reference": false,
-  "agent": "Anthropic",
+  "agent": "OpenAI",
+  "provider": "OpenAI",
+  "model": "gpt-4o-mini",
   "parameters": "*NONE",
   "systemPrompt": "*NONE"
 }

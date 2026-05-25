@@ -2,7 +2,9 @@
   "name": "report_title_icon",
   "title": "Decide the icon for a model, based on the title",
   "reference": false,
-  "agent": "Anthropic",
+  "agent": "OpenAI",
+  "provider": "OpenAI",
+  "model": "gpt-4o-mini",
   "parameters": "*NONE",
   "systemPrompt": "*NONE"
 }
