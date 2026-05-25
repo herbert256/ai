@@ -46,7 +46,7 @@ class StressTestEngine internal constructor(
             try {
                 val settings = appViewModel.uiState.value.aiSettings
 
-                // 1. Validate BEFORE the destructive wipe.
+                // 1. Validate before submitting anything.
                 val level2 = settings.swarms.find { it.name == SWARM_NAME }
                 if (level2 == null || level2.members.none { settings.isProviderActive(it.provider) }) {
                     _state.value = State(
