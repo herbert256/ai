@@ -124,22 +124,25 @@ fun ModelInfoViewScreen(
      *  no-op leaves the name un-clickable on legacy call sites. */
     onOpenProvider: ((AppService) -> Unit)? = null,
     onOpenManage: (() -> Unit)? = null,
-    /** Open the Trace screen filtered to an `info/…` category. Null/no-op
-     *  hides the per-source 🐞. */
-    onNavigateToTraceCategory: (String) -> Unit = {},
+    /** Open the Trace screen filtered to a category (+ optional model).
+     *  No-op hides the per-source 🐞. */
+    onNavigateToTraceFiltered: (category: String, model: String?) -> Unit = { _, _ -> },
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // Per-source 🐞 gate: which info/* trace categories have ≥1 trace on
-    // disk (one cached off-thread load). These categories aren't model-
-    // scoped (the source fetches don't tag a model), so the 🐞 opens the
-    // category-filtered trace list across all models.
-    val infoTraceCats by androidx.compose.runtime.produceState(emptySet<String>()) {
+    // Per-source 🐞 gate (one cached off-thread load). The HuggingFace
+    // lookup is per-model — its trace is model-tagged, so the 🐞 shows only
+    // when THIS model was looked up and filters to it. The OpenRouter fetch
+    // is a bulk all-models call (no per-model trace), so its 🐞 is
+    // category-only.
+    val infoFlags by androidx.compose.runtime.produceState(false to false, modelName) {
         value = withContext(Dispatchers.IO) {
-            com.ai.data.ApiTracer.getTraceFiles().mapNotNull { it.category }
-                .filter { it == "info/huggingface" || it == "info/provider" }.toSet()
+            val files = com.ai.data.ApiTracer.getTraceFiles()
+            val hf = files.any { it.category == "info/huggingface" && it.model == modelName }
+            val or = files.any { it.category == "info/provider" }
+            hf to or
         }
     }
 
@@ -185,7 +188,7 @@ fun ModelInfoViewScreen(
             var found: HuggingFaceModelInfo? = null
             for (cand in variants) {
                 try {
-                    val resp = withTraceCategory("info/huggingface") {
+                    val resp = com.ai.data.withTracerTags(category = "info/huggingface", model = modelName) {
                         ApiFactory.createHuggingFaceApi().getModelInfo(cand, "Bearer $huggingFaceApiKey")
                     }
                     if (resp.isSuccessful) { found = resp.body(); break }
@@ -386,8 +389,8 @@ fun ModelInfoViewScreen(
                     heliconeRaw = heliconeRaw,
                     llmPricesRaw = llmPricesRaw,
                     aaRaw = aaRaw,
-                    hfTrace = if ("info/huggingface" in infoTraceCats) ({ onNavigateToTraceCategory("info/huggingface") }) else null,
-                    orTrace = if ("info/provider" in infoTraceCats) ({ onNavigateToTraceCategory("info/provider") }) else null,
+                    hfTrace = if (infoFlags.first) ({ onNavigateToTraceFiltered("info/huggingface", modelName) }) else null,
+                    orTrace = if (infoFlags.second) ({ onNavigateToTraceFiltered("info/provider", null) }) else null,
                     onOpen = { name, body, url ->
                         sourceOverlay = SourceOverlayState(name, body, url)
                     }

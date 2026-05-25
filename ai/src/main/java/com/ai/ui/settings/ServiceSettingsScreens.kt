@@ -355,6 +355,18 @@ fun ProviderModelSettingsScreen(
         if (modelSource != ModelSource.MANUAL) { manualInput = ""; editingOriginal = null }
     }
 
+    // 🐞 → this provider's most-recent model-list retrieval trace
+    // (category "model/list", scoped to the provider's host). Reuses the
+    // filename-based onNavigateToTrace already wired in.
+    val modelListTraceFile by androidx.compose.runtime.produceState<String?>(null, service.id) {
+        value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val host = runCatching { java.net.URI(service.baseUrl).host?.lowercase() }.getOrNull()
+            com.ai.data.ApiTracer.getTraceFiles()
+                .filter { it.category == "model/list" && (host == null || it.hostname.equals(host, ignoreCase = true)) }
+                .maxByOrNull { it.timestamp }?.filename
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -362,7 +374,8 @@ fun ProviderModelSettingsScreen(
             helpTopic = "models_per_provider",
             title = "Models",
             subject = service.id,
-            onBackClick = onBack
+            onBackClick = onBack,
+            onTrace = modelListTraceFile?.takeIf { onNavigateToTrace != null }?.let { fn -> { onNavigateToTrace!!(fn) } }
         )
         Spacer(modifier = Modifier.height(12.dp))
 

@@ -68,7 +68,10 @@ class TracingInterceptor : Interceptor {
             if (seg.isEmpty()) null
             else seg.substringBefore("/").substringBefore(":").takeIf { it.isNotBlank() }
         }
-        val model = modelFromBody ?: modelFromUrl
+        // An explicit model tag ([withTracerTags] model=) wins — for calls
+        // whose model isn't in the body/URL (the per-model HuggingFace info
+        // lookup tags itself so its trace is model-scoped).
+        val model = ApiTracer.currentModel ?: modelFromBody ?: modelFromUrl
 
         // Capture the call-site tags now, on the originating thread —
         // OkHttp may finish the body read on a different worker thread,

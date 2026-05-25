@@ -81,6 +81,7 @@ suspend fun <R> withTracerTags(
     reportId: String? = null,
     category: String? = null,
     runId: String? = null,
+    model: String? = null,
     block: suspend () -> R
 ): R {
     val tl = ApiTracer.currentTags
@@ -88,7 +89,8 @@ suspend fun <R> withTracerTags(
     val newTags = ApiTracer.TraceTags(
         reportId = reportId ?: previous.reportId,
         category = category ?: previous.category,
-        runId = runId ?: previous.runId
+        runId = runId ?: previous.runId,
+        model = model ?: previous.model
     )
     return kotlinx.coroutines.withContext(tl.asContextElement(newTags)) {
         block()

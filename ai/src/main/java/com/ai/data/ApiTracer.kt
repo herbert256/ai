@@ -46,7 +46,7 @@ object ApiTracer {
      *  no longer race a process-wide @Volatile var — each gets its
      *  own ThreadLocal value, copied onto the dispatcher worker
      *  thread when the OkHttp Call's Runnable is submitted. */
-    @PublishedApi internal data class TraceTags(val reportId: String?, val category: String?, val runId: String? = null)
+    @PublishedApi internal data class TraceTags(val reportId: String?, val category: String?, val runId: String? = null, val model: String? = null)
     @PublishedApi internal val currentTags: ThreadLocal<TraceTags> = ThreadLocal.withInitial { TraceTags(null, null, null) }
 
     /** Public accessors — kept for binding-compatibility with read
@@ -55,6 +55,10 @@ object ApiTracer {
     val currentReportId: String? get() = currentTags.get()?.reportId
     val currentCategory: String? get() = currentTags.get()?.category
     val currentRunId: String? get() = currentTags.get()?.runId
+    /** Explicit model override for calls whose model isn't in the request
+     *  body/URL (e.g. the per-model HuggingFace info lookup). Null = let
+     *  the interceptor derive it from the body/URL as before. */
+    val currentModel: String? get() = currentTags.get()?.model
 
     /** Filename of the most recent trace written on this thread.
      *  [TracingInterceptor] sets it right after persisting a trace;
