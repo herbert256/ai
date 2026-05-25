@@ -741,7 +741,7 @@ class IconGenerationManager(
             return
         }
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name.equals("meta_alt", ignoreCase = true)
+            it.category == "alt" && it.name.equals("meta_alt", ignoreCase = true)
         } ?: run {
             AppLog.w("InternalPromptIconAlt", "internal/meta_alt not configured — skipping fan-out")
             return
@@ -968,7 +968,7 @@ class IconGenerationManager(
             return
         }
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "fan_out_alt"
+            it.category == "alt" && it.name == "fan_out_alt"
         } ?: run {
             AppLog.w("PairIconAlt", "internal/fan_out_alt prompt not found — skipping (pair=$pairId)")
             return
@@ -1247,7 +1247,7 @@ class IconGenerationManager(
             return
         }
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name.equals("translation_alt", ignoreCase = true)
+            it.category == "alt" && it.name.equals("translation_alt", ignoreCase = true)
         } ?: run {
             AppLog.w("TranslationIconAlt", "internal/translation_alt not configured — skipping fan-out")
             return
@@ -1435,7 +1435,7 @@ class IconGenerationManager(
             it.category == "icons" && it.name == "main"
         } ?: return
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "main_alt"
+            it.category == "alt" && it.name == "main_alt"
         } ?: return
         // Dedupe by "provider:model" so picking the same pair via two
         // different sources (e.g. an agent + a direct +Model) only
@@ -1574,7 +1574,7 @@ class IconGenerationManager(
     ) {
         val altPromptName = if (long) "report_title_alt_long" else "report_title_alt"
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "info" && it.name == altPromptName
+            it.category == "alt" && it.name == altPromptName
         } ?: return
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
@@ -1594,7 +1594,7 @@ class IconGenerationManager(
         paramsIds: List<String> = emptyList(), systemPromptId: String? = null
     ) {
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "info" && it.name == "model_title_alt"
+            it.category == "alt" && it.name == "model_title_alt"
         } ?: return
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
@@ -1720,7 +1720,7 @@ class IconGenerationManager(
             it.category == "icons" && it.name == "language"
         } ?: return
         val altLanguagePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "language_alt"
+            it.category == "alt" && it.name == "language_alt"
         } ?: return
         val report = ReportStorage.getReport(context, reportId) ?: return
         val languageName = report.languageName.orEmpty()
@@ -1862,7 +1862,7 @@ class IconGenerationManager(
             return
         }
         val altPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "icons" && it.name == "report_alt"
+            it.category == "alt" && it.name == "report_alt"
         } ?: run {
             AppLog.w("AgentIconAlt", "internal/report_alt prompt not found — skipping (agent=$agentId)")
             return

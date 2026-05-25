@@ -63,6 +63,7 @@ fun categoryDisplayName(category: String): String = when (category) {
     "internal" -> "Other internal prompts"
     "info" -> "Info prompts"
     "icons" -> "Icons prompts"
+    "alt" -> "Alt prompts"
     else -> category
 }
 
@@ -70,7 +71,7 @@ fun categoryDisplayName(category: String): String = when (category) {
  *  Delete). Single source of truth so the CRUD gating can't drift from the
  *  category definitions above. */
 fun isFixedListCategory(category: String): Boolean =
-    category == "internal" || category == "icons" || category == "info"
+    category == "internal" || category == "icons" || category == "info" || category == "alt"
 
 /** Singular label for a single [InternalPrompt.category] entry — used
  *  for View-page titles and delete-confirm copy. Carried explicitly per
@@ -85,6 +86,7 @@ fun categorySingularName(category: String): String = when (category) {
     "internal" -> "Internal prompt"
     "info" -> "Info prompt"
     "icons" -> "Icon prompt"
+    "alt" -> "Alt prompt"
     else -> category
 }
 @Composable
@@ -107,7 +109,7 @@ fun InternalPromptEditScreen(
     val isFanCategory = fixedCategory in FAN_CATEGORIES
     // Other Internal prompts (intro / model_info / translate / rerank
     // / moderation) are a fixed list — name is not user-editable.
-    val isFixedList = fixedCategory == "internal" || fixedCategory == "icons" || fixedCategory == "info"
+    val isFixedList = fixedCategory == "internal" || fixedCategory == "icons" || fixedCategory == "info" || fixedCategory == "alt"
 
     var resetTick by remember { mutableStateOf(0) }
     var name by remember(resetTick) { mutableStateOf(internalPrompt?.name ?: "") }

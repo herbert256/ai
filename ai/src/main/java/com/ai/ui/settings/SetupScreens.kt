@@ -227,7 +227,7 @@ fun PromptsSetupScreen(
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
         val internalTotal = countByCategory("meta") + countByCategory("fan_out") +
             countByCategory("fan_in") + countByCategory("fan-in-model") +
-            countByCategory("icons") + countByCategory("internal")
+            countByCategory("icons") + countByCategory("alt") + countByCategory("internal")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
@@ -275,6 +275,8 @@ fun InternalPromptsHubScreen(
                 onClick = { onOpenInternalPrompts("info") })
             ModelsSetupNavCard("🎨", "Icons prompts", "Bundled prompts the icon chains use (report icon, fan-out icon, internal-prompt icon, translation icon). Edit-only — can't be removed or added to.", "${countByCategory("icons")}",
                 onClick = { onOpenInternalPrompts("icons") })
+            ModelsSetupNavCard("🔁", "Alt prompts", "The 'Find alternative' variants — alternative report/model titles and alternative icon picks. Edit-only — can't be removed or added to.", "${countByCategory("alt")}",
+                onClick = { onOpenInternalPrompts("alt") })
             ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Intro)", "${countByCategory("internal")}",
                 onClick = { onOpenInternalPrompts("internal") })
         }

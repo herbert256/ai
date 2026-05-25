@@ -139,7 +139,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Subject (green row)", "Always `main` (or `main_alt` after a Find-alt pick). Legacy rows whose `iconPromptUsed` is null fall back to `main`."),
             HelpCard("Title-bar icons", "💬 Continue in chat (preseeds a chat with the prompt + emoji). ℹ️ Model info for the model that ran the call. 📋 Copy the API-interaction body. 📤 Share via the system sheet. 🐞 jumps to the captured API trace (only when tracing was on at call time)."),
             HelpCard("Model / API interaction / Emoji cards", "Standard layout — the same shape for every Icon-lookup scope: provider + model + cumulative cost, plain `[user] … [assistant] …` 2-message transcript, big centred glyph (⏳ pending, ❌ on error)."),
-            HelpCard("Find alternative icons", "Runs the bundled `icons/main_alt` variant across user-picked (provider, model) pairs. Composed at runtime as `alt.text + \"\\n\\n\" + base.text` — alt nudge first so the model reads the 'pick something distinct' constraint before the template body. Pick a returned emoji to commit it on the report."),
+            HelpCard("Find alternative icons", "Runs the bundled `alt/main_alt` variant across user-picked (provider, model) pairs. Composed at runtime as `alt.text + \"\\n\\n\" + base.text` — alt nudge first so the model reads the 'pick something distinct' constraint before the template body. Pick a returned emoji to commit it on the report."),
             HelpCard("Cost attribution", "Initial call + every alt attempt is bumped on `Report.iconInputCost / iconOutputCost`. On the Report → API cost table the alt calls surface as per-call `icon_main_alt` rows; the initial generation as `icon_main`. By-type collapses every `icon_*` row into one `icons` group."),
             HelpCard("Trace category", "`icon_main` for the initial generation, `icon_main_alt` for every Find-alt call.")
         )
@@ -151,7 +151,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Subject (green row)", "The bundled prompt name that won — `report_2`, `report`, or `report_3`. After a Find-alt pick the subject flips to `report_alt`. Legacy rows fall back to deriving the name from `iconWinningTier`."),
             HelpCard("Title-bar icons", "ℹ️ Model info / 📋 Copy / 📤 Share / 🐞 trace. Continue-in-chat is intentionally NOT wired here — the agent's response already lives on the result screen's row, not here."),
             HelpCard("API interaction card", "Tier-aware — tier 1 (`report_2`) shows the 4-message chat-continuation exchange (`[user] report.prompt → [assistant] agent.response → [user] icon prompt → [assistant] emoji`). Tier 2 and 3 show a 2-message one-shot exchange with the relevant template substituted."),
-            HelpCard("Find alternative icons", "Runs the bundled `icons/report_alt` variant across picked models — composed as `alt.text + \"\\n\\n\" + report.text`. Pick lands on `ReportAgent.icon` for this agent only."),
+            HelpCard("Find alternative icons", "Runs the bundled `alt/report_alt` variant across picked models — composed as `alt.text + \"\\n\\n\" + report.text`. Pick lands on `ReportAgent.icon` for this agent only."),
             HelpCard("Cost attribution", "Bumped on `ReportAgent.iconInputCost / iconOutputCost`. Per-call audit rows are `icon_report` / `icon_report_2` / `icon_report_3` / `icon_report_alt`."),
             HelpCard("Trace category", "`icon_report` (tier 2), `icon_report_2` (tier 1), `icon_report_3` (tier 3), `icon_report_alt` (Find-alt).")
         )
@@ -163,7 +163,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Subject (green row)", "The cached `promptName` field on the cache entry — defaults to `meta`. Find-alt picks flip it to `meta_alt`."),
             HelpCard("Title-bar icons", "ℹ️ is NOT wired (the cache entry doesn't track a specific model). 📋 / 📤 work on the 2-message transcript. 🐞 looks up the most recent `icon_meta` / `icon_meta_alt` trace for the cache's stored model — cross-report (the cache itself is cross-report)."),
             HelpCard("API interaction card", "2-message one-shot exchange: the resolved `icons/meta` prompt with `@NAME@ @TITLE@` substituted, then the returned emoji."),
-            HelpCard("Find alternative icons", "Runs `icons/meta_alt` (composed as `alt.text + \"\\n\\n\" + meta.text`) across picked models. The picked emoji is committed via `InternalPromptIconCache.pickAlternative` with `promptName = meta_alt`."),
+            HelpCard("Find alternative icons", "Runs `alt/meta_alt` (composed as `alt.text + \"\\n\\n\" + meta.text`) across picked models. The picked emoji is committed via `InternalPromptIconCache.pickAlternative` with `promptName = meta_alt`."),
             HelpCard("Cost attribution", "Each call bumps the cache entry's cumulative `inputCost / outputCost`. Per-row attribution: when the prompt has a matching SecondaryResult on the current report, the call also bumps that SR's `inputCost / outputCost` so the Report → Manage row total includes the alt spend. Per-call audit rows are `icon_meta` / `icon_meta_alt`."),
             HelpCard("Trace category", "`icon_meta` (initial), `icon_meta_alt` (Find-alt).")
         )
@@ -175,7 +175,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Subject (green row)", "`translation` (or `translation_alt` after a Find-alt pick)."),
             HelpCard("Title-bar icons", "ℹ️ NOT wired. 📋 / 📤 work on the 2-message transcript. 🐞 looks up the most recent `icon_translation` / `icon_translation_alt` trace for the cache's stored model — cross-report."),
             HelpCard("API interaction card", "2-message one-shot exchange: bundled `icons/translation` prompt with `@LANGUAGE@` substituted, then the returned emoji."),
-            HelpCard("Find alternative icons", "Runs `icons/translation_alt` (composed as `alt.text + \"\\n\\n\" + translation.text`) across picked models. The picked emoji is committed via `InternalPromptIconCache.pickAlternative` with `promptName = translation_alt`."),
+            HelpCard("Find alternative icons", "Runs `alt/translation_alt` (composed as `alt.text + \"\\n\\n\" + translation.text`) across picked models. The picked emoji is committed via `InternalPromptIconCache.pickAlternative` with `promptName = translation_alt`."),
             HelpCard("Cost attribution", "Each call bumps the cache entry's cumulative cost; per-row attribution into the first TRANSLATE SR for the language. Per-call audit rows are `icon_translation` / `icon_translation_alt`."),
             HelpCard("Trace category", "`icon_translation` (initial), `icon_translation_alt` (Find-alt). The `_alt` variant is for picking a different country / language emoji.")
         )
@@ -187,7 +187,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Subject (green row)", "`language` (or `language_alt` after a Find-alt pick). Legacy rows fall back to `language`."),
             HelpCard("Title-bar icons", "💬 Continue in chat (preseeds a chat about the language). ℹ️ Model info / 📋 / 📤 / 🐞."),
             HelpCard("API interaction card", "2-message one-shot exchange: bundled `icons/language` prompt with `@LANGUAGE@` substituted, then the returned emoji."),
-            HelpCard("Find alternative icons", "Runs `icons/language_alt` (composed as `alt.text + \"\\n\\n\" + language.text`) across picked models. Pick commits onto `Report.languageIcon`."),
+            HelpCard("Find alternative icons", "Runs `alt/language_alt` (composed as `alt.text + \"\\n\\n\" + language.text`) across picked models. Pick commits onto `Report.languageIcon`."),
             HelpCard("Cost attribution", "Bumped on `Report.languageIconInputCost / languageIconOutputCost`. Per-call audit rows are `icon_language` / `icon_language_alt`."),
             HelpCard("Trace category", "`icon_language` (initial), `icon_language_alt` (Find-alt). The `_alt` nudge says 'do not use a country flag emoji' — picks a more abstract glyph.")
         )
@@ -199,7 +199,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Subject (green row)", "The bundled prompt name that won — `fan_out_2`, `fan_out`, or `fan_out_3`. After a Find-alt pick the subject flips to `fan_out_alt`."),
             HelpCard("Title-bar icons", "ℹ️ NOT wired. 📋 / 📤 work on the tier-aware transcript. 🐞 looks up the most recent `icon_fan_out*` trace for the pair's model under this report."),
             HelpCard("API interaction card", "Tier-aware. Tier 1 shows the 6-message chat-continuation transcript (`[user] report.prompt → [assistant] source.response → [user] meta.prompt → [assistant] pair.response → [user] icon prompt → [assistant] emoji`) matching `runFanOutTier1`. Tiers 2/3 show a 2-message one-shot exchange with the relevant template substituted."),
-            HelpCard("Find alternative icons", "Runs `icons/fan_out_alt` (composed as `alt.text + \"\\n\\n\" + fan_out.text`) across picked models. The picked emoji is committed to the pair via `setFanOutIconAndTier` with `promptUsed = fan_out_alt`."),
+            HelpCard("Find alternative icons", "Runs `alt/fan_out_alt` (composed as `alt.text + \"\\n\\n\" + fan_out.text`) across picked models. The picked emoji is committed to the pair via `setFanOutIconAndTier` with `promptUsed = fan_out_alt`."),
             HelpCard("Cost attribution", "Bumped on the pair's `SecondaryResult.iconInputCost / iconOutputCost` (visible in the Cost line here and in the L2/L3 row totals). On Report → Manage the cost rolls up into the fan-out summary row's 🎨 fan-icons sibling. Per-call audit rows are `icon_fan_out` / `icon_fan_out_2` / `icon_fan_out_3` / `icon_fan_out_alt`, all attributed to the pair's SR."),
             HelpCard("Trace category", "`icon_fan_out_2` (tier 1), `icon_fan_out` (tier 2), `icon_fan_out_3` (tier 3), `icon_fan_out_alt` (Find-alt)."),
             HelpCard("How to reach this screen", "Fan Out → L2 (MAIN mode) — tap the pair's icon on its row (the icon replaces the leading ✅ when present). Fan Out → L3 (MAIN mode) — tap the small icon in the answerer pane's header row (just before the model name).")

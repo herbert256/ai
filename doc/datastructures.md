@@ -128,7 +128,7 @@ translate, rerank, moderation).
 | id | `String` (UUID) | |
 | name | `String` | unique within (category, name) |
 | reference | `Boolean` (default false) | when true on a meta entry, executor appends `[N] = Provider / Model` legend |
-| category | `String` (default `"internal"`) | one of `meta`, `fan_out`, `fan_in`, `internal` |
+| category | `String` (default `"internal"`) | one of `meta`, `fan_out`, `fan_in`, `fan-in-model`, `info`, `icons`, `alt`, `internal` |
 | agent | `String` (default `"*select"`) | `"*select"` = ask the user; otherwise an `Agent.name` |
 | text | `String` | template body. Top-level placeholders: `@QUESTION@`, `@RESULTS@`, `@COUNT@`, `@TITLE@`, `@DATE@`, `@RESPONSE@`, `@PROMPT@`, `@LANGUAGE@`, `@TEXT@`, `@FAN_OUT_COUNT@`, `@MODEL@`, `@PROVIDER@`. Iterable block: `***Report*** @REPORT@@RESPONSES@` (whitespace-tolerant; one expansion per source-report). Model-scoped fan-in (`category` of `initiator` / `requester` / `model`) adds `@INITIATOR@` (active model's own report response), `@RESPONDERS@` (block of fan-out responses where the active model is the source), `@RESPONDER_PAIRS@` (iterable list of `***Report*** {body} ***Response*** {body}` pairs where the active model is the answerer) |
 | title | `String` (default empty) | one-line description shown alongside `name` on Fan out and the prompt-edit screen |
