@@ -1,8 +1,0 @@
-{
-  "name": "report_3",
-  "title": "Find a fitting emoji for a report, 3th try",
-  "reference": false,
-  "agent": "DeepSeek",
-  "parameters": "*NONE",
-  "systemPrompt": "*NONE"
-}

@@ -301,14 +301,11 @@ internal fun AgentIconDetailOverlay(
     onFindAlternativeIcons: (Boolean) -> Unit,
     onClose: () -> Unit,
 ): Boolean {
-    val chatPrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "report_1"
+    val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "workers" && it.name == "model-icons"
     }
-    val tier2Prompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "report_2"
-    }
-    val tier3Prompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "icons" && it.name == "report_3"
+    val altPrompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "alt" && it.name == "report"
     }
     val agent = agentRecordsByAgentId[agentId] ?: return false
     val provider = AppService.findById(agent.provider) ?: return false
@@ -320,41 +317,21 @@ internal fun AgentIconDetailOverlay(
         winningTier = agent.iconWinningTier,
         promptUsed = agent.iconPromptUsed
     )
-    // Subject = bundled prompt name that produced the displayed
-    // emoji. Fresh writes stamp `iconPromptUsed`; legacy rows fall
-    // back to deriving from `iconWinningTier`.
-    val subject = agent.iconPromptUsed
-        ?: when (agent.iconWinningTier) {
-            1 -> "report_1"; 2 -> "report_2"; 3 -> "report_3"
-            else -> "report_2"
-        }
-    // API interaction transcript varies with tier — chat-continuation
-    // is a 4-message exchange; tier 2 / 3 are one-shot dual /
-    // single-substitution prompts.
-    val apiInteraction = when (agent.iconWinningTier) {
-        1 -> {
-            val txt = chatPrompt?.text.orEmpty()
-            buildChatContinuationApiInteraction(loadedReportPrompt, agent.responseBody, txt, agent.icon)
-        }
-        2 -> {
-            val resolved = (tier2Prompt?.text.orEmpty())
-                .replace("@PROMPT@", loadedReportPrompt)
-                .replace("@RESPONSE@", agent.responseBody.orEmpty())
-            buildOneShotApiInteraction(resolved, agent.icon)
-        }
-        3 -> {
-            val resolved = (tier3Prompt?.text.orEmpty())
-                .replace("@RESPONSE@", agent.responseBody.orEmpty())
-            buildOneShotApiInteraction(resolved, agent.icon)
-        }
-        else -> {
-            // Manual alt pick or no successful tier — show the
-            // base report prompt + emoji as a 2-turn approximation.
-            val resolved = (tier2Prompt?.text.orEmpty())
-                .replace("@PROMPT@", loadedReportPrompt)
-                .replace("@RESPONSE@", agent.responseBody.orEmpty())
-            buildOneShotApiInteraction(resolved, agent.icon)
-        }
+    // Subject = bundled prompt name that produced the displayed emoji.
+    val subject = agent.iconPromptUsed ?: "report_title_icon"
+    // Reconstruct the API interaction. A Find-alternative pick ran
+    // alt/report (@PROMPT@ + @RESPONSE@ against the agent's own
+    // model); every other icon is the worker title→icon result
+    // (workers/model-icons with @TITLE@ = the model title).
+    val apiInteraction = if (agent.iconPromptUsed == "report_alt") {
+        val resolved = (altPrompt?.text.orEmpty())
+            .replace("@PROMPT@", loadedReportPrompt)
+            .replace("@RESPONSE@", agent.responseBody.orEmpty())
+        buildOneShotApiInteraction(resolved, agent.icon)
+    } else {
+        val resolved = (iconPrompt?.text.orEmpty())
+            .replace("@TITLE@", agent.modelTitle.orEmpty())
+        buildOneShotApiInteraction(resolved, agent.icon)
     }
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,

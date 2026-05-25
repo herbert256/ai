@@ -1335,6 +1335,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // One-shot: drop the retired response-based per-agent report-icon
+        // chain prompts. icons/report_1/2/3 (tier 1/2/3) are no longer
+        // bundled or referenced — per-agent model icons come solely from
+        // the worker engine (workers/model-icons). Remove the orphaned
+        // persisted rows so they don't linger in the Icons CRUD.
+        // Idempotent (nothing matches once removed).
+        run {
+            val retired = setOf("report_1", "report_2", "report_3")
+            val pruned = ai.internalPrompts.filterNot {
+                it.category.equals("icons", ignoreCase = true) && it.name.lowercase() in retired
+            }
+            if (pruned.size != ai.internalPrompts.size) {
+                AppLog.i(tag, "Removed ${ai.internalPrompts.size - pruned.size} retired icons/report_1/2/3 prompt(s)")
+                ai = ai.copy(internalPrompts = pruned)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
         // existing rows. New prompts shipped in an APK upgrade get
