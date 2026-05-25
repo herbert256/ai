@@ -492,7 +492,8 @@ object SecondaryResultStorage {
     fun bumpFanOutTitleCost(
         context: Context, reportId: String, resultId: String,
         inputTokens: Int, outputTokens: Int,
-        inputCost: Double, outputCost: Double
+        inputCost: Double, outputCost: Double,
+        model: String? = null
     ) {
         init(context)
         lock.withLock {
@@ -505,7 +506,8 @@ object SecondaryResultStorage {
                 titleInputTokens = current.titleInputTokens + inputTokens,
                 titleOutputTokens = current.titleOutputTokens + outputTokens,
                 titleInputCost = current.titleInputCost + inputCost,
-                titleOutputCost = current.titleOutputCost + outputCost
+                titleOutputCost = current.titleOutputCost + outputCost,
+                titleModel = model ?: current.titleModel
             )
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)
@@ -601,7 +603,8 @@ object SecondaryResultStorage {
                 titleInputTokens = 0,
                 titleOutputTokens = 0,
                 titleInputCost = 0.0,
-                titleOutputCost = 0.0
+                titleOutputCost = 0.0,
+                titleModel = null
             )
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)

@@ -2076,7 +2076,8 @@ class IconGenerationManager(
                     SecondaryResultStorage.bumpFanOutTitleCost(
                         context, reportId, pair.id,
                         inputTokens = inT, outputTokens = outT,
-                        inputCost = inT * pricing.promptPrice, outputCost = outT * pricing.completionPrice
+                        inputCost = inT * pricing.promptPrice, outputCost = outT * pricing.completionPrice,
+                        model = "${winAgent.provider.id}/${winAgent.model}"
                     )
                     appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, inT, outT, kind = "title")
                 }

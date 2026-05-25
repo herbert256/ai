@@ -1193,11 +1193,26 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
     }
-    // Fan-out icon-chain cost is already captured per-call in
-    // report.iconCalls (split into the "Fan Meta" bucket by
-    // iconCallRows above) — no separate pass over SecondaryResult
-    // .iconInputCost, which would double-count.
-    val rows = (agentRows + secondaryRows + listOfNotNull(iconRow, languageDetectRow, languageIconRow, titleRow) + modelTitleRows + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
+    // Fan Meta (workers/fan-meta) — one title+icon call per fan-out pair,
+    // recorded on the pair's SecondaryResult title* cost. It gets its OWN
+    // cost row (provider/model from the stored titleModel = the worker
+    // that billed); the pair's response row above uses inputCost/outputCost
+    // only, so there's no double-count.
+    val fanMetaRows = secondary.mapNotNull { s ->
+        if (s.fanOutSourceAgentId == null || s.fanInOf != null) return@mapNotNull null
+        if (s.titleInputCost <= 0.0 && s.titleOutputCost <= 0.0) return@mapNotNull null
+        val parts = s.titleModel?.split("/", limit = 2)
+        val providerEnum = parts?.firstOrNull()?.let { AppService.findById(it) }
+        val model = parts?.getOrNull(1) ?: ""
+        val pricing = providerEnum?.let { PricingCache.getPricing(context, it, model) }
+        CostRow(
+            "workers/fan-meta", providerEnum?.id ?: parts?.firstOrNull() ?: "", model,
+            pricing?.source ?: "", s.titleDurationMs,
+            s.titleInputTokens, s.titleOutputTokens,
+            s.titleInputCost * 100, s.titleOutputCost * 100
+        )
+    }
+    val rows = (agentRows + secondaryRows + fanMetaRows + listOfNotNull(iconRow, languageDetectRow, languageIconRow, titleRow) + modelTitleRows + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
 
     // GroupTotal carries an optional (provider, model) split so the
     // "By model" table can render the two as separate columns (same
