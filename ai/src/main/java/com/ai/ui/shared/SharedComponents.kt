@@ -1680,10 +1680,10 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             return@BoxWithConstraints
         }
 
-        // Help layout (every non-View screen). Icons fill up to 6 per
+        // Help layout (every non-View screen). Icons fill up to 7 per
         // row, then wrap to a new LEFT-aligned row; the ❓ help glyph is
         // pinned to the right of the LAST row and never counts toward the
-        // 6-per-row cap. The cost readout (when present) sits at the right
+        // 7-per-row cap. The cost readout (when present) sits at the right
         // of the FIRST row. A uniform per-icon cell width keeps columns
         // aligned vertically across rows.
         val helpW = 32f
@@ -1696,10 +1696,10 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             ?.takeIf { com.ai.ui.admin.HELP_TOPICS.containsKey(it) }
         val showIconHelp = iconTopic != null && specs.size > 3
         val cell = 24                       // uniform column width (dp) — tight spacing
-        // Fill rows of up to 6, but put the SMALLEST (remainder) row on
+        // Fill rows of up to 7, but put the SMALLEST (remainder) row on
         // TOP so the full rows sit at the bottom. ❓ pins to the right of
         // the last (bottom) row; the cost readout to the first (top) row.
-        val per = 6
+        val per = 7
         val rem = specs.size % per
         val rows = when {
             specs.isEmpty() -> listOf(emptyList())
