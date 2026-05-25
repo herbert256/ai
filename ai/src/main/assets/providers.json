@@ -12,6 +12,8 @@
       "defaultModelSource": "API",
       "extractApiCost": false,
       "id": "OpenAI",
+      "maxCallsPerProviderPerMinute": 120,
+      "maxConcurrentCallsPerProvider": 10,
       "mergeHardcodedModels": true,
       "modelFilter": "gpt|o1|o3|o4",
       "modelListFormat": "object",
