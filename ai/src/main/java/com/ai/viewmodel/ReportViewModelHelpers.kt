@@ -213,6 +213,89 @@ internal suspend fun acquireOrRequeue(
     }
 }
 
+/** Acquire all three throttle permits for one [runThrottledBatch] item — the
+ *  per-flow [subCap], the shared [com.ai.data.ApiCallCaps.global] cap, and the
+ *  per-host gate — in the canonical **sub-cap → global → host** order, and
+ *  return a [PermitHold] that owns all three.
+ *
+ *  The point of this over a plain `subCap.acquire(); global.acquire();
+ *  acquireOrRequeue(host)` is that a pair PARKED on the per-host gate (the
+ *  provider's concurrency cap / per-minute window is full) holds NEITHER the
+ *  sub-cap NOR global while it waits: the outer two are released before each
+ *  back-off `delay` and re-taken in order on the next poll. So a per-flow cap
+ *  (e.g. fan-icons = 30) bounds only pairs that hold a live provider slot —
+ *  real in-flight connections — not pairs merely queued behind a busy
+ *  provider. The Settings values are about real TCP/IP calls, not permits held
+ *  while waiting.
+ *
+ *  Ordering is preserved exactly as before: global is always taken before the
+ *  host gate (the reverse deadlocked report-vs-metadata calls), and the shared
+ *  global after the private sub-cap (so a flow queued on its own cap can't hog
+ *  global). The per-host FIFO [hostAcquireFairness] mutex still serialises each
+ *  attempt so two big runs take the host in arrival order.
+ *
+ *  [onThrottled] fires once when the pair first parks; [onCleared] fires on
+ *  EVERY exit once it parked — success OR cancellation — so a cancelled wait
+ *  can't leave the id stuck in the caller's throttled set. */
+internal suspend fun acquireThrottledPermits(
+    subCap: kotlinx.coroutines.sync.Semaphore,
+    host: String,
+    onThrottled: () -> Unit = {},
+    onCleared: () -> Unit = {},
+): PermitHold {
+    val gate = hostAcquireFairness.computeIfAbsent(host) { kotlinx.coroutines.sync.Mutex() }
+    var throttledNotified = false
+    try {
+        while (true) {
+            subCap.acquire()
+            var subHeld = true
+            var globalHeld = false
+            var waitMs = -1L
+            try {
+                com.ai.data.ApiCallCaps.global.acquire()
+                globalHeld = true
+                gate.lock()
+                val outcome = try {
+                    com.ai.data.ProviderThrottle.tryAcquire(host)
+                } finally {
+                    gate.unlock()
+                }
+                when (outcome) {
+                    is com.ai.data.ProviderThrottle.Outcome.Acquired -> {
+                        // Hand all three to the hold; clear the local flags so
+                        // the finally below keeps (doesn't release) them.
+                        val hold = PermitHold(subCap, com.ai.data.ApiCallCaps.global, host, outcome.releaser)
+                        subHeld = false
+                        globalHeld = false
+                        return hold
+                    }
+                    is com.ai.data.ProviderThrottle.Outcome.Blocked -> {
+                        if (!throttledNotified) {
+                            onThrottled()
+                            throttledNotified = true
+                        }
+                        waitMs = (outcome.availableAtMs - System.currentTimeMillis())
+                            .coerceIn(100L, 10_000L)
+                    }
+                }
+            } finally {
+                // Release whatever is still held: the Blocked path (so the
+                // wait below holds NOTHING), or an exception / cancellation
+                // mid-acquire. No-op on the Acquired path (flags cleared).
+                if (globalHeld) com.ai.data.ApiCallCaps.global.release()
+                if (subHeld) subCap.release()
+            }
+            kotlinx.coroutines.delay(waitMs)
+        }
+    } finally {
+        // Clear the throttled mark on every exit (acquire, cancellation, or a
+        // thrown acquire) once it was set — mirrors acquireOrRequeue.
+        if (throttledNotified) onCleared()
+    }
+    @Suppress("UNREACHABLE_CODE")
+    throw IllegalStateException("unreachable")
+}
+
 /** Translate-mode caller for prompt + results: when [language] is
  *  null, returns the report's untranslated prompt + result block.
  *  Otherwise looks up the per-target translation rows and substitutes

@@ -1,6 +1,5 @@
 package com.ai.viewmodel
 
-import com.ai.data.ApiCallCaps
 import com.ai.data.ProviderThrottle
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
@@ -93,43 +92,29 @@ internal suspend fun <T> runThrottledBatch(
         interleaveByHost(items) { hostOf(it) }.map { item ->
             val deferred = async(start = CoroutineStart.LAZY) {
                 val host = hostOf(item) ?: return@async
-                // Manual acquire in canonical order (sub-cap → global →
-                // host) instead of withPermit, so PermitHold owns all
-                // three and the backoff yielder can release+re-take them.
-                // `ok` guards the cancellation window: until the hold owns
-                // the permits, the unwinding finallys release what was
-                // taken; once it does, dispose() is the sole releaser.
-                subCap.acquire()
-                var ok = false
+                // Acquire sub-cap → global → host, but with the outer two
+                // RELEASED while parked on the per-host gate, so a per-flow
+                // cap counts only pairs holding a live provider slot (real
+                // in-flight calls) — not pairs queued behind a busy provider.
+                // Returns a hold owning all three; a cancellation mid-wait
+                // releases everything + clears the throttled mark internally,
+                // so there's nothing to dispose if it throws.
+                val hold = acquireThrottledPermits(
+                    subCap, host,
+                    onThrottled = { onThrottled(item) },
+                    onCleared = { onCleared(item) }
+                )
                 try {
-                    ApiCallCaps.global.acquire()
-                    try {
-                        val hold = PermitHold(
-                            subCap, ApiCallCaps.global, host,
-                            acquireOrRequeue(
-                                host,
-                                onThrottled = { onThrottled(item) },
-                                onCleared = { onCleared(item) }
-                            )
-                        )
-                        ok = true
-                        try {
-                            withContext(
-                                ProviderThrottle.permitPreAcquired.asContextElement(true) +
-                                    ProviderThrottle.backoffPermitYielder
-                                        .asContextElement({ ms -> hold.yieldFor(ms) })
-                            ) {
-                                if (timeoutMs != null) withTimeout(timeoutMs) { body(item) }
-                                else body(item)
-                            }
-                        } finally {
-                            hold.dispose()
-                        }
-                    } finally {
-                        if (!ok) ApiCallCaps.global.release()
+                    withContext(
+                        ProviderThrottle.permitPreAcquired.asContextElement(true) +
+                            ProviderThrottle.backoffPermitYielder
+                                .asContextElement({ ms -> hold.yieldFor(ms) })
+                    ) {
+                        if (timeoutMs != null) withTimeout(timeoutMs) { body(item) }
+                        else body(item)
                     }
                 } finally {
-                    if (!ok) subCap.release()
+                    hold.dispose()
                 }
             }
             register(item, deferred)
@@ -151,7 +136,7 @@ internal suspend fun <T> runThrottledBatch(
  * blocking re-acquire is done OUTSIDE the lock so cancellation isn't stuck
  * behind it.
  */
-private class PermitHold(
+internal class PermitHold(
     private val subCap: Semaphore,
     private val global: Semaphore,
     private val host: String,
