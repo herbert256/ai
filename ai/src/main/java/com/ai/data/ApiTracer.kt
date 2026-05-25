@@ -367,22 +367,22 @@ object ApiTracer {
  *  holder keeps a reference). New withPermit calls always read
  *  the current getter. */
 object ApiCallCaps {
-    @Volatile private var globalSem: kotlinx.coroutines.sync.Semaphore = sem(30)
-    @Volatile private var reportSem: kotlinx.coroutines.sync.Semaphore = sem(15)
-    @Volatile private var translationSem: kotlinx.coroutines.sync.Semaphore = sem(15)
-    @Volatile private var fanOutSem: kotlinx.coroutines.sync.Semaphore = sem(15)
-    @Volatile private var fanIconsSem: kotlinx.coroutines.sync.Semaphore = sem(15)
+    @Volatile private var globalSem: kotlinx.coroutines.sync.Semaphore = sem(100)
+    @Volatile private var reportSem: kotlinx.coroutines.sync.Semaphore = sem(50)
+    @Volatile private var translationSem: kotlinx.coroutines.sync.Semaphore = sem(50)
+    @Volatile private var fanOutSem: kotlinx.coroutines.sync.Semaphore = sem(50)
+    @Volatile private var fanIconsSem: kotlinx.coroutines.sync.Semaphore = sem(50)
     // Fan-titles has its OWN permit pool (not shared with fan-icons) so the
     // two batches can run concurrently instead of titles starving behind a
     // running icons batch on a shared semaphore. Same limit as fan-icons —
     // no separate user setting.
-    @Volatile private var fanTitlesSem: kotlinx.coroutines.sync.Semaphore = sem(15)
-    @Volatile private var globalCap: Int = 30
-    @Volatile private var reportCap: Int = 15
-    @Volatile private var translationCap: Int = 15
-    @Volatile private var fanOutCap: Int = 15
-    @Volatile private var fanIconsCap: Int = 15
-    @Volatile private var fanTitlesCap: Int = 15
+    @Volatile private var fanTitlesSem: kotlinx.coroutines.sync.Semaphore = sem(50)
+    @Volatile private var globalCap: Int = 100
+    @Volatile private var reportCap: Int = 50
+    @Volatile private var translationCap: Int = 50
+    @Volatile private var fanOutCap: Int = 50
+    @Volatile private var fanIconsCap: Int = 50
+    @Volatile private var fanTitlesCap: Int = 50
 
     val global: kotlinx.coroutines.sync.Semaphore get() = globalSem
     val report: kotlinx.coroutines.sync.Semaphore get() = reportSem
@@ -466,13 +466,13 @@ object NetworkSettings {
      *  hostname tracks the timestamps of its recent calls; once the
      *  count in the last 60 s hits this value, the next call waits
      *  until the oldest entry ages out. */
-    @Volatile var maxCallsPerProviderPerMinute: Int = 30
+    @Volatile var maxCallsPerProviderPerMinute: Int = 60
     /** Global per-provider concurrency cap. At most this many in-flight
      *  requests per hostname; further calls block on a per-host
      *  semaphore in [ProviderThrottle]. Replaces the per-batch
      *  fan-out semaphore so the limit holds across overlapping flows
      *  (report + meta + chat on the same provider). */
-    @Volatile var maxConcurrentCallsPerProvider: Int = 3
+    @Volatile var maxConcurrentCallsPerProvider: Int = 5
     /** Maximum number of in-line 429 retries [RateLimitRetryInterceptor]
      *  attempts per call. Defaults to 3 (matches the legacy constructor
      *  default that was hardcoded before this knob was exposed). */

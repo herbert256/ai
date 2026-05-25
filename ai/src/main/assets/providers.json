@@ -222,6 +222,8 @@
         { "id": "mistral-codestral", "name": "Codestral", "url": "https://codestral.mistral.ai/v1/chat/completions" }
       ],
       "id": "Mistral",
+      "maxCallsPerProviderPerMinute": 30,
+      "maxConcurrentCallsPerProvider": 3,
       "modelFilter": "mistral|open-mistral|codestral|pixtral",
       "modelListFormat": "object",
       "nativeModerationUrl": "https://api.mistral.ai/v1/moderations",

@@ -1030,7 +1030,7 @@ private fun NetworkSettingsSubScreen(
             }
             SettingCard(
                 "Per-provider throttling",
-                "Caps the load the app puts on any single provider. Calls beyond the per-minute rate sleep until the sliding window opens up; concurrent calls beyond the cap queue on a per-host semaphore. Defaults: 30 calls/minute, 3 in flight at once."
+                "Caps the load the app puts on any single provider. Calls beyond the per-minute rate sleep until the sliding window opens up; concurrent calls beyond the cap queue on a per-host semaphore. Defaults: 60 calls/minute, 5 in flight at once."
             ) {
                 OutlinedTextField(
                     value = maxCallsPerMinuteText,
@@ -1149,7 +1149,7 @@ private fun MaximalApiCallsSubScreen(
         ) {
             SettingCard(
                 "Concurrent API calls at the same time",
-                "Hard global ceiling on every API call the app keeps in flight at once — reports, translations, fan-out, and any sub-dispatcher under them. Calls beyond the cap suspend until a permit frees up. Default 50."
+                "Hard global ceiling on every API call the app keeps in flight at once — reports, translations, fan-out, and any sub-dispatcher under them. Calls beyond the cap suspend until a permit frees up. Default 100."
             ) {
                 OutlinedTextField(
                     value = apiText,
@@ -1161,7 +1161,7 @@ private fun MaximalApiCallsSubScreen(
             }
             SettingCard(
                 "Concurrent Model reports API calls",
-                "Cap on the primary per-agent calls fired during a new-report run. The global cap still wins if it's lower. Default 15."
+                "Cap on the primary per-agent calls fired during a new-report run. The global cap still wins if it's lower. Default 50."
             ) {
                 OutlinedTextField(
                     value = reportText,
@@ -1173,7 +1173,7 @@ private fun MaximalApiCallsSubScreen(
             }
             SettingCard(
                 "Concurrent Translations API calls",
-                "Cap on per-item translation calls inside a translation run. With multi-model translation runs, the cap is on the total across models, not per model. Default 15."
+                "Cap on per-item translation calls inside a translation run. With multi-model translation runs, the cap is on the total across models, not per model. Default 50."
             ) {
                 OutlinedTextField(
                     value = translationText,
@@ -1185,7 +1185,7 @@ private fun MaximalApiCallsSubScreen(
             }
             SettingCard(
                 "Concurrent Fan Out API calls",
-                "Cap on per-pair fan-out calls. The per-provider cap (Network settings → Per-provider throttling) still applies on top, so a single-provider fan-out still respects that limit. Default 15."
+                "Cap on per-pair fan-out calls. The per-provider cap (Network settings → Per-provider throttling) still applies on top, so a single-provider fan-out still respects that limit. Default 50."
             ) {
                 OutlinedTextField(
                     value = fanOutText,
@@ -1197,7 +1197,7 @@ private fun MaximalApiCallsSubScreen(
             }
             SettingCard(
                 "Concurrent Fan Icons API calls",
-                "Cap on the fan-icons batch — the emoji-generation chain the user launches from a fan-out's Find Icons button. Separate from the fan-out cap so the two can run side-by-side without halving each other's budget. Default 15."
+                "Cap on the fan-icons batch — the emoji-generation chain the user launches from a fan-out's Find Icons button. Separate from the fan-out cap so the two can run side-by-side without halving each other's budget. Default 50."
             ) {
                 OutlinedTextField(
                     value = fanIconsText,
@@ -1209,7 +1209,7 @@ private fun MaximalApiCallsSubScreen(
             }
             SettingCard(
                 "Concurrent Test all models API calls",
-                "Cap on the \"Test all models\" run (Housekeeping → Test). A run probes every configured model of every active provider, so this controls how hard that sweep hits the network. Default 40."
+                "Cap on the \"Test all models\" run (Housekeeping → Test). A run probes every configured model of every active provider, so this controls how hard that sweep hits the network. Default 50."
             ) {
                 OutlinedTextField(
                     value = testText,
