@@ -1,6 +1,6 @@
 {
-  "name": "report_title_alt_long",
-  "title": "Find an ALTERNATIVE long report title",
+  "name": "report_title",
+  "title": "Find an ALTERNATIVE report title",
   "reference": false,
   "agent": "*N/A",
   "parameters": "*NONE",

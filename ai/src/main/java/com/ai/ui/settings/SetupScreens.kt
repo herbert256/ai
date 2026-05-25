@@ -228,7 +228,7 @@ fun PromptsSetupScreen(
         val internalTotal = countByCategory("meta") + countByCategory("fan_out") +
             countByCategory("fan_in") + countByCategory("fan-in-model") +
             countByCategory("icons") + countByCategory("internal") +
-            countByCategory("info") + countByCategory("workers")
+            countByCategory("info") + countByCategory("workers") + countByCategory("alt")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
@@ -280,6 +280,8 @@ fun InternalPromptsHubScreen(
                 onClick = { onOpenInternalPrompts("internal") })
             ModelsSetupNavCard("👷", "Worker prompts", "Prompts that run on an ordered list of workers (agent or provider+model) tried as a fallback chain. Edit-only — wiring comes later.", "${countByCategory("workers")}",
                 onClick = { onOpenInternalPrompts("workers") })
+            ModelsSetupNavCard("✨", "Alternative prompts", "The *_alt variants the Find-alternative-icons / titles flows compose with their base prompt (distinct-emoji / no-flag nudges). Edit-only.", "${countByCategory("alt")}",
+                onClick = { onOpenInternalPrompts("alt") })
         }
     }
 }

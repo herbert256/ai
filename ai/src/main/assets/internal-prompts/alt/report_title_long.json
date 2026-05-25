@@ -1,6 +1,6 @@
 {
-  "name": "report_alt",
-  "title": "Find an ALTERNATIVE fitting emoji for a model report",
+  "name": "report_title_long",
+  "title": "Find an ALTERNATIVE long report title",
   "reference": false,
   "agent": "*N/A",
   "parameters": "*NONE",

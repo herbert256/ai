@@ -318,6 +318,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Icons prompts", "category=\"icons\". The bundled icon-chain prompts (report icon, fan-out icon, internal-prompt icon, translation icon). Edit-only — can't be added to or removed."),
             HelpCard("Other internal prompts", "category=\"internal\". Templates consumed by app features (Translate, Model info, Intro). Last on the page so the more commonly-edited buckets sit at the top."),
             HelpCard("Worker prompts", "category=\"workers\". Prompts that carry an ordered list of workers (each an Agent or a Provider+Model) tried as a fallback chain. Edit-only; the chain isn't executed yet — wiring comes later."),
+            HelpCard("Alternative prompts", "category=\"alt\". The *_alt variants the Find-alternative-icons / titles flows compose with their base prompt (the distinct-emoji / no-country-flag nudges). Edit-only."),
             HelpCard("Counts", "Each card's badge is the live count of prompts in that category (or the sum across the three fan-* categories for Fan out/in)."),
         )
     ),

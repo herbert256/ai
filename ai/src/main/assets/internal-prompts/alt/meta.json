@@ -1,6 +1,6 @@
 {
-  "name": "main_alt",
-  "title": "Find an ALTERNATIVE fitting emoji for a report title",
+  "name": "meta",
+  "title": "Find an ALTERNATIVE fitting emoji for an internal prompt",
   "reference": false,
   "agent": "DeepSeek",
   "parameters": "*NONE",

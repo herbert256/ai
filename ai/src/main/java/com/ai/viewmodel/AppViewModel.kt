@@ -1275,6 +1275,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // One-shot: gather every "*_alt" prompt (the Find-alternative
+        // icon/title variants, previously under icons/ + info/) into a new
+        // "alt" category and drop the "_alt" suffix from the name. Runs
+        // AFTER the strip-`_icon` / trim / info-recategorise passes so the
+        // names are already normalised to "*_alt". Idempotent (no "_alt"
+        // left ⇒ skip); safe — those source categories are fixed-list, so
+        // no user prompts, and the stripped names don't collide in "alt".
+        run {
+            val migrated = ai.internalPrompts.map { p ->
+                if (p.category.lowercase() in setOf("icons", "info", "internal") && p.name.contains("_alt"))
+                    p.copy(category = "alt", name = p.name.replace("_alt", ""))
+                else p
+            }
+            if (migrated != ai.internalPrompts) {
+                AppLog.i(tag, "Moved ${migrated.zip(ai.internalPrompts).count { (a, b) -> a !== b }} '*_alt' prompt(s) into the 'alt' category")
+                ai = ai.copy(internalPrompts = migrated)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // Every-start delta-merge of bundled prompts. Appends any
         // (category, name) pair not already present; never overwrites
         // existing rows. New prompts shipped in an APK upgrade get
