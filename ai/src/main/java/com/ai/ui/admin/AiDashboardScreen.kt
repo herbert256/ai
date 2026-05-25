@@ -653,7 +653,7 @@ private fun KnowledgeSection(d: KnowledgeData) {
 private fun CostTierSection(config: Map<String, Int>, runtime: Map<String, Int>) {
     SectionCard("🧮", "Costs tiers", AppColors.Blue) {
         Text(
-            "Pricing tier per model — Config = configured catalog, Runtime = actually called (API traces)",
+            "Pricing tier per model — Config = configured catalog, Runtime = actually called (API traces). API-reported = cost comes from the response, not a tier.",
             fontSize = 10.sp, color = AppColors.TextTertiary
         )
         Spacer(Modifier.height(6.dp))
@@ -688,6 +688,7 @@ private fun CostTierSection(config: Map<String, Int>, runtime: Map<String, Int>)
 /** Display label for a [PricingCache] source tag (DEFAULT is the 25/75
  *  fallback). */
 private fun tierLabel(src: String): String = when (src) {
+    "API_REPORTED" -> "API-reported"
     "OVERRIDE" -> "Manual override"
     "LITELLM" -> "LiteLLM"
     "MODELSDEV" -> "models.dev"

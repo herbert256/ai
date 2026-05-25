@@ -76,9 +76,10 @@ internal suspend fun computeTierCounts(
 ): Map<String, Int> = withContext(Dispatchers.IO) {
     val tierCounts = LinkedHashMap<String, Int>().apply { PRICING_TIER_ORDER.forEach { put(it, 0) } }
     for (p in ProviderRegistry.getAll()) {
+        val reportsCost = p.reportsCost()
         for (m in aiSettings.getProvider(p).models) {
             if (m.isBlank()) continue
-            val src = PricingCache.getPricing(context, p, m).source
+            val src = if (reportsCost) "API_REPORTED" else PricingCache.getPricing(context, p, m).source
             tierCounts[src] = (tierCounts[src] ?: 0) + 1
         }
     }
@@ -101,22 +102,30 @@ internal suspend fun computeTierCountsRuntime(
         val model = t.model?.takeIf { it.isNotBlank() } ?: continue
         val provider = ProviderRegistry.findByHost(t.hostname) ?: continue
         if (!seen.add("${provider.id}:$model")) continue
-        val src = PricingCache.getPricing(context, provider, model).source
+        val src = if (provider.reportsCost()) "API_REPORTED"
+                  else PricingCache.getPricing(context, provider, model).source
         tierCounts[src] = (tierCounts[src] ?: 0) + 1
     }
     tierCounts
 }
 
-/** Pricing-tier source tags as they appear on [PricingCache.ModelPricing.source]
- *  (set by the catalog parsers / explicit constructions — NOT getPricing's log
- *  labels). Drives the "Costs tier" card so it lists every tier even at zero.
- *  Note: OpenRouter self-report and cross-provider both tag "OPENROUTER", and
- *  Together self-report tags "TOGETHER" — the source can't tell self from
- *  fallback, so each appears once. */
+/** Buckets for the "Costs tiers" card, in display order. The first,
+ *  "API_REPORTED", is synthetic: models whose provider ships the cost in the
+ *  response ([AppService.extractApiCost] / [AppService.costTicksDivisor]) are
+ *  counted there instead of resolving a tier, since their real cost never comes
+ *  from the local pricing lookup. The rest are [PricingCache.ModelPricing.source]
+ *  tags as the catalog parsers set them (NOT getPricing's log labels). Note:
+ *  OpenRouter self-report and cross-provider both tag "OPENROUTER", and Together
+ *  self-report tags "TOGETHER" — the source can't tell self from fallback. */
 internal val PRICING_TIER_ORDER = listOf(
+    "API_REPORTED",
     "OVERRIDE", "LITELLM", "MODELSDEV", "LLMPRICES", "ARTIFICIALANALYSIS",
     "OPENROUTER", "TOGETHER", "HELICONE", "DEFAULT"
 )
+
+/** True when [provider] reports the per-call cost in its response, so the cost
+ *  is taken straight off the body rather than from a pricing tier. */
+private fun AppService.reportsCost(): Boolean = extractApiCost || costTicksDivisor != null
 
 internal data class ReportStats(
     val total: Int,
