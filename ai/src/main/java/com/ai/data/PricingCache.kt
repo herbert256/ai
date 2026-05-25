@@ -659,6 +659,25 @@ object PricingCache {
         return sources.joinToString(" + ")
     }
 
+    /** One external pricing catalog's loaded state — entry count + last fetch
+     *  ([fetchedAt] = 0 means never retrieved). */
+    data class CatalogStat(val name: String, val entries: Int, val fetchedAt: Long)
+
+    /** Entry count + retrieval timestamp for each of the six external pricing
+     *  info-providers, in lookup-precedence order. Drives the AI Statistics
+     *  "Pricing cache" table. Cheap — map sizes + volatile longs. */
+    fun catalogStats(context: Context): List<CatalogStat> {
+        ensureLoaded(context)
+        return listOf(
+            CatalogStat("LiteLLM", litellmPricing?.size ?: 0, litellmTimestamp),
+            CatalogStat("models.dev", modelsDevPricing?.size ?: 0, modelsDevTimestamp),
+            CatalogStat("llm-prices", llmPricesPricing?.size ?: 0, llmPricesTimestamp),
+            CatalogStat("Artificial Analysis", aaPricing?.size ?: 0, aaTimestamp),
+            CatalogStat("OpenRouter", openRouterPricing?.size ?: 0, openRouterTimestamp),
+            CatalogStat("Helicone", heliconePricing?.size ?: 0, heliconeTimestamp),
+        )
+    }
+
     /** Per-tier pricing snapshot for a single (provider, model) — mirrors the
      *  exact key-resolution logic getPricing() uses but reports each tier
      *  independently so callers can show or export the layered view.

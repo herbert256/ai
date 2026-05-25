@@ -628,7 +628,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("🔗 Secondary results", "Counts of every stored secondary by kind (Rerank / Meta / Moderation / Translate) plus the top meta-prompt names."),
             HelpCard("🔌 Providers & models", "Providers configured, how many have an API key, total models across providers, and model-list cache freshness (cached / stale > 7 days)."),
             HelpCard("📚 Knowledge", "Knowledge-base count, total chunks, indexed character count, failed sources, and a breakdown of sources by type. Hidden when there are no knowledge bases."),
-            HelpCard("🏷️ Pricing cache", "Pricing-source stats, OpenRouter pricing-cache age, and the number of manual cost overrides on file."),
+            HelpCard("🏷️ Pricing cache", "A table of the six external pricing info-providers (LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Helicone) with each catalog's entry count and when it was last retrieved ('never' if not yet fetched), plus the number of manual cost overrides on file. Refresh the catalogs from Housekeeping → Costs maintenance."),
             HelpCard("Pitfalls", "Numbers lag a few seconds behind (10 s tick)."),
         )
     ),

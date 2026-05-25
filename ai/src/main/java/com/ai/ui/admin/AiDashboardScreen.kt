@@ -43,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiCallCaps
@@ -643,12 +644,33 @@ private fun tierLabel(src: String): String = when (src) {
 @Composable
 private fun PricingSection(agg: DashboardAggregates) {
     SectionCard("🏷️", "Pricing cache", AppColors.Purple) {
-        Text(agg.pricingStats, fontSize = 11.sp, color = AppColors.TextSecondary)
-        Spacer(Modifier.height(4.dp))
-        KeyVal("OpenRouter cache", agg.openRouterCacheAge)
+        // Header
+        Row(Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
+            Text("Source", fontSize = 10.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1.5f))
+            Text("Entries", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+            Text("Retrieved", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(1.2f))
+        }
+        agg.catalogStats.forEach { c ->
+            val dim = c.entries == 0
+            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(c.name, fontSize = 12.sp, color = if (dim) AppColors.TextDim else Color.White, maxLines = 1, modifier = Modifier.weight(1.5f))
+                Text("${c.entries}", fontSize = 12.sp, color = if (dim) AppColors.TextDim else AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+                Text(
+                    fmtFetched(c.fetchedAt), fontSize = 11.sp,
+                    color = if (c.fetchedAt == 0L) AppColors.TextDim else AppColors.TextSecondary,
+                    textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1.2f)
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
         KeyVal("Manual overrides", "${agg.manualOverrides}")
     }
 }
+
+/** Compact absolute timestamp for the pricing-cache table; "never" at 0. */
+private fun fmtFetched(ms: Long): String =
+    if (ms <= 0L) "never"
+    else java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.US).format(java.util.Date(ms))
 
 // =====================================================================
 // Reusable building blocks
