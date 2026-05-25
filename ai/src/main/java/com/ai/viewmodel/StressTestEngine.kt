@@ -10,23 +10,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-/** Orchestrates the Housekeeping → Test "Stress test": wipe all runtime
- *  data, then SUBMIT one AI report per Example Prompt using the swarm
- *  named "Level 2" — fire-and-forget. The submit loop returns at once;
- *  the reports then generate concurrently in the background (each on its
- *  own coroutine via [ReportViewModel.submitBackgroundReport]), which is
- *  exactly the concurrent load a stress test wants. The engine itself
- *  finishes as soon as everything is submitted — it does NOT wait for the
- *  reports to complete.
+/** Orchestrates the Housekeeping → Test "Stress test": SUBMIT one AI report
+ *  per Example Prompt using the swarm named "Level 2" — fire-and-forget. The
+ *  submit loop returns at once; the reports then generate concurrently in the
+ *  background (each on its own coroutine via
+ *  [ReportViewModel.submitBackgroundReport]), which is exactly the concurrent
+ *  load a stress test wants. The engine itself finishes as soon as everything
+ *  is submitted — it does NOT wait for the reports to complete.
  *
- *  Config (swarm + example prompts) is validated BEFORE the destructive
- *  wipe, so a misconfiguration surfaces an error and leaves runtime data
- *  intact. */
+ *  Existing runtime data is left untouched — the submitted reports are simply
+ *  added alongside whatever is already there. */
 class StressTestEngine internal constructor(
     private val appViewModel: AppViewModel,
     private val reportViewModel: ReportViewModel,
 ) {
-    enum class Phase { CLEARING, SUBMITTING, DONE, ERROR }
+    enum class Phase { SUBMITTING, DONE, ERROR }
 
     data class State(
         val phase: Phase,
@@ -64,17 +62,12 @@ class StressTestEngine internal constructor(
                 }
                 val total = prompts.size
 
-                // 2. Wipe runtime data (mirrors Housekeeping → Reset → Clear
-                //    runtime data, incl. the in-memory test-run reset).
-                _state.value = State(Phase.CLEARING, total = total)
-                AppLog.i("StressTest", "→ start: clearing runtime data, then submitting $total report(s) with swarm '$SWARM_NAME'")
-                appViewModel.clearAllRuntimeData(context)
-                reportViewModel.modelTestEngine.clearRun()
-
-                // 3. Submit one report per example prompt — fire-and-forget.
+                // 2. Submit one report per example prompt — fire-and-forget.
                 //    Each runs on its own independent background coroutine;
-                //    we do NOT wait for any of them.
+                //    we do NOT wait for any of them, and existing runtime data
+                //    is left untouched.
                 _state.value = State(Phase.SUBMITTING, total = total)
+                AppLog.i("StressTest", "→ start: submitting $total report(s) with swarm '$SWARM_NAME'")
                 prompts.forEach { ex ->
                     reportViewModel.submitBackgroundReport(context, ex.text, ex.title, level2.id)
                 }

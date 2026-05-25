@@ -15,9 +15,10 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.StressTestEngine
 
-/** Housekeeping → Test → Stress test. Confirm → wipe runtime data → one
- *  AI report per Example Prompt with swarm "Level 2", sequentially. The
- *  whole run lives on [StressTestEngine]; this screen just drives it and
+/** Housekeeping → Test → Stress test. Confirm → submit one AI report per
+ *  Example Prompt with swarm "Level 2", fire-and-forget (they generate
+ *  concurrently in the background). Existing runtime data is left untouched.
+ *  The whole run lives on [StressTestEngine]; this screen just drives it and
  *  reflects its state. */
 @Composable
 fun StressTestScreen(
@@ -34,7 +35,7 @@ fun StressTestScreen(
         TitleBar(
             helpTopic = "stress_test",
             title = "Stress test",
-            subject = "Wipe runtime data, then report every example prompt with swarm \"Level 2\"",
+            subject = "Report every example prompt with swarm \"Level 2\"",
             onBackClick = onBack,
             onSettings = onSettings
         )
@@ -45,10 +46,6 @@ fun StressTestScreen(
         ) {
             val s = state
             when (s?.phase) {
-                StressTestEngine.Phase.CLEARING -> {
-                    Text("Clearing runtime data…", color = Color.White, fontWeight = FontWeight.Bold)
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
                 StressTestEngine.Phase.SUBMITTING -> {
                     Text("Submitting ${s.total} report${if (s.total == 1) "" else "s"}…", color = Color.White, fontWeight = FontWeight.Bold)
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -68,26 +65,25 @@ fun StressTestScreen(
                     Text(s.errorMessage ?: "Unknown error", color = AppColors.TextSecondary, fontSize = 13.sp)
                 }
                 null -> {
-                    Text("Runs a full end-to-end stress test:", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Runs an end-to-end stress test:", color = Color.White, fontWeight = FontWeight.Bold)
                     Text(
-                        "1. Clears ALL runtime data (logs, chats, traces, reports, prompt history, " +
-                            "usage stats, test runs) — exactly like Housekeeping → Reset → Clear runtime data.\n\n" +
-                            "2. Submits one AI report per Example Prompt, each using the models of swarm " +
+                        "Submits one AI report per Example Prompt, each using the models of swarm " +
                             "\"Level 2\". The reports are fired off all at once and generate concurrently in " +
                             "the background — this screen finishes as soon as they're submitted.\n\n" +
-                            "Configuration (providers, agents, swarms, prompts, keys) is preserved.",
+                            "Existing runtime data (reports, chats, etc.) is left untouched — the new reports " +
+                            "are added alongside it.",
                         color = AppColors.TextSecondary, fontSize = 13.sp
                     )
                 }
             }
 
-            // Start / Run-again — hidden only during the brief clear+submit window.
-            val running = s?.phase == StressTestEngine.Phase.CLEARING || s?.phase == StressTestEngine.Phase.SUBMITTING
+            // Start / Run-again — hidden only during the brief submit window.
+            val running = s?.phase == StressTestEngine.Phase.SUBMITTING
             if (!running) {
                 Button(
                     onClick = { showConfirm = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
                 ) {
                     Text(
                         if (s?.phase == StressTestEngine.Phase.DONE || s?.phase == StressTestEngine.Phase.ERROR)
@@ -105,14 +101,13 @@ fun StressTestScreen(
             title = { Text("Start stress test?") },
             text = {
                 Text(
-                    "This DELETES all runtime data (reports, chats, traces, logs, prompt history, " +
-                        "usage stats), then generates one report per Example Prompt with swarm \"Level 2\". " +
-                        "This can be a lot of API calls."
+                    "Generates one report per Example Prompt with swarm \"Level 2\", all at once. " +
+                        "This can be a lot of API calls. Existing data is left untouched."
                 )
             },
             confirmButton = {
                 TextButton(onClick = { showConfirm = false; engine.start(context) }) {
-                    Text("Start", color = AppColors.Red, maxLines = 1, softWrap = false)
+                    Text("Start", color = AppColors.Green, maxLines = 1, softWrap = false)
                 }
             },
             dismissButton = {
