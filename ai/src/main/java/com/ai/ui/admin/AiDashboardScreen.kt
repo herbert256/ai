@@ -945,11 +945,11 @@ fun AiSpendUsageScreen(
                 }
                 Spacer(Modifier.height(8.dp))
                 // Content-width table, centered (not stretched edge-to-edge).
-                // cGap widens the space between Tokens and Cost; cBug is the
-                // trailing 🐞 column.
+                // cGap widens the space between Tokens and Cost; cBugGap
+                // separates Cost from the trailing 🐞 column (cBug).
                 val cProv = 150.dp; val cCalls = 56.dp; val cTok = 78.dp
-                val cGap = 24.dp; val cCost = 92.dp; val cBug = 28.dp
-                val tableWidth = cProv + cCalls + cTok + cGap + cCost + cBug
+                val cGap = 24.dp; val cCost = 92.dp; val cBugGap = 12.dp; val cBug = 28.dp
+                val tableWidth = cProv + cCalls + cTok + cGap + cCost + cBugGap + cBug
                 // Sorted view: provider by id, others numeric; direction from sortAsc.
                 val rows = remember(d.groups, sortCol, sortAsc) {
                     val withTokens = d.groups.map { it to it.models.sumOf { m -> m.stat.totalTokens } }
@@ -983,6 +983,7 @@ fun AiSpendUsageScreen(
                         HeaderCell("Tokens", UsageSort.TOKENS, cTok, alignEnd = true)
                         Spacer(Modifier.width(cGap))
                         HeaderCell("Cost", UsageSort.COST, cCost, alignEnd = true)
+                        Spacer(Modifier.width(cBugGap))
                         Spacer(Modifier.width(cBug))
                     }
                     rows.forEach { (group, tokens) ->
@@ -996,6 +997,7 @@ fun AiSpendUsageScreen(
                             Text(formatCompactNumber(tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
                             Spacer(Modifier.width(cGap))
                             Text(money4(group.totalCost), fontSize = 13.sp, color = AppColors.Green, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
+                            Spacer(Modifier.width(cBugGap))
                             Box(Modifier.width(cBug), contentAlignment = Alignment.Center) {
                                 if (hasTrace) Text("🐞", fontSize = 13.sp, modifier = Modifier.clickable { onNavigateToTraceProvider(group.provider.id) })
                             }
