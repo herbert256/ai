@@ -25,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -32,7 +33,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import com.ai.data.SecondaryKind
+import com.ai.data.SecondaryResultStorage
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -90,7 +96,15 @@ fun ViewTitleBar(
     onToggleOneOrAll: (() -> Unit)? = null,
     /** Optional left-aligned 🗂️ bottom-bar icon → pick-a-report-to-view
      *  (View hub only). */
-    onViewList: (() -> Unit)? = null
+    onViewList: (() -> Unit)? = null,
+    /** When set together with a non-blank [activeLanguage], the orange
+     *  report title swaps to its translated variant for that language —
+     *  the report long title's TITLE_LONG translation (when the report
+     *  has a long title) else the short TITLE translation, falling back
+     *  to [reportTitle] when no translation row exists. Left null on
+     *  screens with no language context (title stays original). */
+    reportId: String? = null,
+    activeLanguage: String? = null
 ) {
     val navigateHome = LocalNavigateHome.current
     val logoInteractionSource = remember { MutableInteractionSource() }
@@ -117,11 +131,32 @@ fun ViewTitleBar(
     // LocalNavigateToCurrentReport / onTitleClick).
     val navToCurrentReport = LocalNavigateToCurrentReport.current
     val titleClick: () -> Unit = onTitleClick ?: navToCurrentReport ?: onBack
+    // When a non-Original language is active, swap the orange report
+    // title to its translated variant (TITLE_LONG when the report has a
+    // long title, else TITLE). produceState is called unconditionally
+    // and re-keys on (reportId, activeLanguage); it resolves to null —
+    // leaving the original [reportTitle] — when there's no language
+    // context or no translation row.
+    val context = LocalContext.current
+    val translatedTitle by produceState<String?>(null, reportId, activeLanguage) {
+        value = if (reportId != null && !activeLanguage.isNullOrBlank()) {
+            withContext(Dispatchers.IO) {
+                val rep = ViewReportCache.get(context, reportId)
+                val rows = SecondaryResultStorage
+                    .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                    .filter { it.targetLanguage == activeLanguage && !it.content.isNullOrBlank() }
+                val shortT = rows.firstOrNull { it.translateSourceKind == "TITLE" }?.content
+                val longT = rows.firstOrNull { it.translateSourceKind == "TITLE_LONG" }?.content
+                if (!rep?.titleLong.isNullOrBlank()) (longT ?: shortT) else shortT
+            }
+        } else null
+    }
+    val effectiveReportTitle = translatedTitle ?: reportTitle
     // The single shared chrome: report glyph left, white screen title /
     // orange report title / green subject centre, AI logo right.
     com.ai.ui.shared.AppTopBarChrome(
         screenTitle = screenTitle,
-        secondLine = reportTitle,
+        secondLine = effectiveReportTitle,
         thirdLine = subject,
         reportIcon = LocalReportIcon.current?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
         onReportIconClick = titleClick,

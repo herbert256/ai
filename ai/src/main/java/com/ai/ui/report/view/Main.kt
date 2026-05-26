@@ -1052,6 +1052,8 @@ internal fun ViewAiReportScreen(
         } ?: navToManageMain
         ViewTitleBar(
             reportTitle = loadedReport?.barTitle ?: promptTitle,
+            reportId = reportId,
+            activeLanguage = currentLanguageState.value,
             screenTitle = "View a report",
             subject = null,
             helpTopic = "view_ai_report",

@@ -139,6 +139,8 @@ fun TranslateViewScreen(
         }
         ViewTitleBar(
             reportTitle = report?.barTitle,
+            reportId = currentReportId,
+            activeLanguage = rows.firstOrNull()?.targetLanguage,
             screenTitle = "Translate",
             subject = rows.firstOrNull()?.let { it.targetLanguageNative ?: it.targetLanguage }?.takeIf { it.isNotBlank() },
             helpTopic = "translate_view",

@@ -128,11 +128,14 @@ fun ReportsViewScreen(
         // card's language pager so the user sees the translated
         // prompt text on every non-Original page, not the original
         // prompt repeated.
-        val translatedPromptByLang: Map<String, String>
+        val translatedPromptByLang: Map<String, String>,
+        // Per-language → per-agent model-response title (AGENT_TITLE).
+        // Swaps the green card title to the active language.
+        val agentTitleByLang: Map<String, Map<String, String>>
     )
 
     val loadedState = produceState<Loaded>(
-        initialValue = Loaded(null, emptyMap(), emptyMap()),
+        initialValue = Loaded(null, emptyMap(), emptyMap(), emptyMap()),
         currentReportId
     ) {
         value = withContext(Dispatchers.IO) {
@@ -155,12 +158,22 @@ fun ReportsViewScreen(
             val promptByLang = translateRows
                 .filter { it.translateSourceKind == "PROMPT" }
                 .associate { it.targetLanguage!! to it.content!! }
-            Loaded(rep, byLang, promptByLang)
+            val titleByLang = translateRows
+                .filter {
+                    it.translateSourceKind == "AGENT_TITLE" &&
+                        !it.translateSourceTargetId.isNullOrBlank()
+                }
+                .groupBy { it.targetLanguage!! }
+                .mapValues { (_, list) ->
+                    list.associate { it.translateSourceTargetId!! to it.content!! }
+                }
+            Loaded(rep, byLang, promptByLang, titleByLang)
         }
     }
     val loaded = loadedState.value
     val report = loaded.report
     val translatedByAgentId = loaded.translatedByLang[activeLanguage].orEmpty()
+    val translatedTitleByAgentId = loaded.agentTitleByLang[activeLanguage].orEmpty()
 
     val agents = report?.agents?.filter {
         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
@@ -208,6 +221,8 @@ fun ReportsViewScreen(
         }
         ViewTitleBar(
             reportTitle = report?.barTitle,
+            reportId = currentReportId,
+            activeLanguage = activeLanguage,
             screenTitle = "Model reports",
             subject = null,
             helpTopic = "reports_view",
@@ -388,7 +403,8 @@ fun ReportsViewScreen(
                         agents.forEach { agent ->
                             ModelReportCard(
                                 agent = agent,
-                                overrideBody = translatedByAgentId[agent.agentId]
+                                overrideBody = translatedByAgentId[agent.agentId],
+                                overrideTitle = translatedTitleByAgentId[agent.agentId]
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -562,11 +578,14 @@ private fun AgentResponseCard(
 @Composable
 private fun ModelReportCard(
     agent: ReportAgent,
-    overrideBody: String?
+    overrideBody: String?,
+    overrideTitle: String? = null
 ) {
     var expanded by rememberSaveable(agent.agentId) { mutableStateOf(false) }
     val emoji = agent.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon
-    val title = agent.modelTitle?.takeIf { it.isNotBlank() } ?: shortModelName(agent.model)
+    val title = overrideTitle?.takeIf { it.isNotBlank() }
+        ?: agent.modelTitle?.takeIf { it.isNotBlank() }
+        ?: shortModelName(agent.model)
     val provider = com.ai.data.AppService.findById(agent.provider)
     Column(
         modifier = Modifier.fillMaxWidth()

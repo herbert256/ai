@@ -146,6 +146,14 @@ as a copy. The Result screen surfaces:
 - A language pulldown at the top — switching it re-renders agent
   bodies and chat-type Meta rows from the matching TRANSLATE rows
   for that language.
+- **Titles follow the active language too.** `ViewTitleBar`
+  (`ui/report/view/helpers/ViewTitleBar.kt`) swaps the orange report
+  title to its `TITLE_LONG` (or `TITLE`) translation when given a
+  `reportId` + non-blank `activeLanguage`; the green model-response
+  card title (`Agent.kt` `ModelReportCard`) uses the `AGENT_TITLE`
+  translation, and the fan-out responder card title (`Fan.kt`
+  `FanOutResponderCard`) uses `FANOUT_TITLE`. Each falls back to the
+  original when no translation row exists for the active language.
 - The original (`null`) language option always renders the
   untranslated content.
 - The Zipped HTML export creates one folder per language plus a

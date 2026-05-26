@@ -161,6 +161,8 @@ fun PromptViewScreen(
         }
         ViewTitleBar(
             reportTitle = report?.barTitle,
+            reportId = currentReportId,
+            activeLanguage = currentLanguage,
             screenTitle = "Prompt",
             // Language flag moved to the top-right of the prompt card
             // (see PromptPageCard). Leaving the title bar's subject

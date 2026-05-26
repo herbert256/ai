@@ -174,6 +174,8 @@ fun FanInViewScreen(
         val screenTitleLabel = if (metaPromptName != null) "Fan In - $metaPromptName" else "Fan In"
         ViewTitleBar(
             reportTitle = report?.barTitle,
+            reportId = currentReportId,
+            activeLanguage = activeLanguage,
             screenTitle = screenTitleLabel,
             subject = null,
             helpTopic = "fan_in_view",

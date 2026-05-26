@@ -181,6 +181,8 @@ fun MetaViewScreen(
         val screenTitleLabel = if (metaPromptName != null) "Meta - $metaPromptName" else "Meta"
         ViewTitleBar(
             reportTitle = report?.barTitle,
+            reportId = currentReportId,
+            activeLanguage = activeLanguage,
             screenTitle = screenTitleLabel,
             subject = null,
             helpTopic = "meta_view",

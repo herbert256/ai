@@ -131,7 +131,8 @@ fun FanOutViewScreen(
             val translates = allSecondary.filter {
                 it.kind == SecondaryKind.TRANSLATE &&
                     (it.translateSourceKind == "META" ||
-                        it.translateSourceKind == "AGENT") &&
+                        it.translateSourceKind == "AGENT" ||
+                        it.translateSourceKind == "FANOUT_TITLE") &&
                     !it.content.isNullOrBlank()
             }
             Loaded(rep, pairs, translates)
@@ -255,6 +256,8 @@ fun FanOutViewScreen(
         val titleText = "Fan-out" + currentPromptName.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty()
         ViewTitleBar(
             reportTitle = report?.barTitle,
+            reportId = currentReportId,
+            activeLanguage = language,
             screenTitle = titleText,
             subject = null,
             helpTopic = "fan_out_view",
@@ -413,11 +416,25 @@ fun FanOutViewScreen(
                 fun responderBody(pair: SecondaryResult): String {
                     val translated = if (!language.isNullOrEmpty()) {
                         translates.firstOrNull {
-                            it.translateSourceTargetId == pair.id &&
+                            it.translateSourceKind == "META" &&
+                                it.translateSourceTargetId == pair.id &&
                                 it.targetLanguage == language
                         }?.content?.takeIf { it.isNotBlank() }
                     } else null
                     return translated ?: pair.content.orEmpty()
+                }
+                // The fan-out pair's title (SecondaryResult.title) swapped
+                // to the active language via its FANOUT_TITLE row (keyed on
+                // pair.id, same as the META body but distinct kind).
+                fun responderTitle(pair: SecondaryResult): String? {
+                    val translated = if (!language.isNullOrEmpty()) {
+                        translates.firstOrNull {
+                            it.translateSourceKind == "FANOUT_TITLE" &&
+                                it.translateSourceTargetId == pair.id &&
+                                it.targetLanguage == language
+                        }?.content?.takeIf { it.isNotBlank() }
+                    } else null
+                    return translated ?: pair.title
                 }
                 if (responders.isEmpty()) {
                     Box(
@@ -459,7 +476,7 @@ fun FanOutViewScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         responders.forEach { pair ->
-                            FanOutResponderCard(pair = pair, body = responderBody(pair))
+                            FanOutResponderCard(pair = pair, body = responderBody(pair), overrideTitle = responderTitle(pair))
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                     }
@@ -590,10 +607,12 @@ private fun FanOutBodyCard(
  *  the model name and the full reply. Mirrors `ModelReportCard` on the
  *  Model reports screen but for a fan-out pair ([SecondaryResult]). */
 @Composable
-private fun FanOutResponderCard(pair: SecondaryResult, body: String) {
+private fun FanOutResponderCard(pair: SecondaryResult, body: String, overrideTitle: String? = null) {
     var expanded by rememberSaveable(pair.id) { mutableStateOf(false) }
     val emoji = pair.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon
-    val title = pair.title?.takeIf { it.isNotBlank() } ?: shortModelName(pair.model)
+    val title = overrideTitle?.takeIf { it.isNotBlank() }
+        ?: pair.title?.takeIf { it.isNotBlank() }
+        ?: shortModelName(pair.model)
     val provider = com.ai.data.AppService.findById(pair.providerId)
     Column(
         modifier = Modifier.fillMaxWidth()
