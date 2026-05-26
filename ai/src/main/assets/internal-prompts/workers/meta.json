@@ -2,19 +2,53 @@
   "name": "meta",
   "title": "Find a fitting emoji for an internal prompt",
   "reference": false,
-  "workers":
-    [
-      {
-        "agent": "*N/A",
-        "provider": "OpenAI",
-        "model": "gpt-4o-mini"
-      },
-      {
-        "agent": "DeepSeek",
-        "provider": "*N/A",
-        "model": "*N/A"
-      }
-    ],
+  "workers": [
+    {
+      "agent": "*N/A",
+      "provider": "OpenAI",
+      "model": "gpt-4o-mini"
+    },
+    {
+      "agent": "DeepSeek",
+      "provider": "*N/A",
+      "model": "*N/A"
+    },
+    {
+      "agent": "*N/A",
+      "provider": "Groq",
+      "model": "llama-3.1-8b-instant"
+    },
+    {
+      "agent": "*N/A",
+      "provider": "Cerebras",
+      "model": "llama3.1-8b"
+    },
+    {
+      "agent": "*N/A",
+      "provider": "SambaNova",
+      "model": "Meta-Llama-3.1-8B-Instruct"
+    },
+    {
+      "agent": "*N/A",
+      "provider": "Google",
+      "model": "gemini-2.5-flash-lite"
+    },
+    {
+      "agent": "*N/A",
+      "provider": "OpenAI",
+      "model": "gpt-4.1-nano"
+    },
+    {
+      "agent": "*N/A",
+      "provider": "Mistral",
+      "model": "ministral-8b-latest"
+    },
+    {
+      "agent": "*N/A",
+      "provider": "xAI",
+      "model": "grok-4-1-fast-non-reasoning"
+    }
+  ],
   "parameters": "*NONE",
   "systemPrompt": "*NONE"
 }
