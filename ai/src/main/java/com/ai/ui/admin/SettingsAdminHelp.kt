@@ -610,7 +610,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_live_dashboard" to HelpContent(
         title = "Help - Live Dashboard",
         cards = listOf(
-            HelpCard("Overview", "A live ops monitor — what's happening right now. Auto-refreshes ~every 0.75 s while it's on top and stops the moment you leave it. Opened from the home 📡 AI Live Dashboard card. Lifetime totals + costs live on the separate 📈 AI Statistics screen."),
+            HelpCard("Overview", "A live ops monitor — what's happening right now. Auto-refreshes ~every 0.75 s while it's on top and stops the moment you leave it. Opened from the home 📡 AI Live Dashboard card. Lifetime totals + costs live on the other cards of the Monitor hub."),
             HelpCard("🟢 Live activity", "Hero number is global API calls in flight / the global cap, with an Idle / Active / Saturated badge. Six bars show in-use/max for each concurrency cap (Global, Report, Translation, Fan-out, Fan Meta, Workers) — green under 60 %, orange approaching the cap, red at the cap. The caps are owned by Settings → Network settings and count live API calls (a pair parked on a provider's rate-limit holds no cap permit). An orange Throttled row appears when batches are waiting on a provider rate-limit."),
             HelpCard("🌐 Provider throttle", "One row per host with an active gate, busiest first: 'con' = concurrency in-use/limit, 'min' = calls in the trailing 60 s window vs the per-minute cap. Red when no concurrency slot is free. \"Idle — no active hosts\" when nothing is running. Mirrors ProviderThrottle.diagnostics() from the stall watchdog."),
             HelpCard("❄️ Model cooldowns", "Models benched by a long 429 retry-hint, with time remaining; hidden when none are cooling down. Manage/clear them from Housekeeping → Model states."),
@@ -623,31 +623,22 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_monitor" to HelpContent(
         title = "Help - Monitor",
         cards = listOf(
-            HelpCard("Overview", "A small hub for watching what the app is doing — live and after the fact. Opened from the home 📡 AI Monitor card. Each row opens its own screen."),
+            HelpCard("Overview", "The hub for watching what the app is doing — live and after the fact — plus the lifetime-aggregate stat pages. Opened from the home 📡 AI Monitor card. Each row opens its own screen, so the heavier breakdowns only compute when opened; the cheap Knowledge totals show inline. (The old standalone Statistics hub was retired and folded in here.)"),
             HelpCard("📡 AI Live Dashboard →", "Real-time runtime state: in-flight calls, per-provider concurrency caps, and throttle / cooldown status."),
-            HelpCard("📈 AI Statistics →", "Lifetime-stat hub: reports, providers, models, spend & usage, cost tiers, API-trace and app-log breakdowns."),
-            HelpCard("🐞 AI API Traces →", "The per-call request/response records (filterable by category, provider, host, model). Needs API tracing enabled in Settings."),
-            HelpCard("📜 Application log →", "The in-app application log, line by line — the same viewer previously reached from Housekeeping."),
-        )
-    ),
-    "ai_statistics" to HelpContent(
-        title = "Help - Statistics",
-        cards = listOf(
-            HelpCard("Overview", "A hub of lifetime-stat pages. Opened from the home 📈 AI Statistics card; live runtime state is on the separate 📡 AI Live Dashboard. Each heavier breakdown is its own page (the link cards), so they only compute when opened; only the cheap Knowledge totals show inline."),
+            HelpCard("🐞 AI API Traces →", "The per-call request/response records (filterable by category, provider, host, model). Needs API tracing enabled in Settings. Its 📈 icon opens the API trace statistics."),
+            HelpCard("📜 Application log →", "The in-app application log, line by line. Its 📈 icon opens the App log statistics."),
             HelpCard("📋 Reports →", "Own page: report totals (running / problems / completed, agent calls, error rate, spend) and secondary-result counts by kind."),
             HelpCard("🔌 Providers →", "Own page: per-provider keys, API formats, catalog caches, throttle caps, and last test-run results."),
             HelpCard("🧠 Models →", "Own page: capabilities, types, context-length buckets, model states, deprecation, and models-per-provider."),
             HelpCard("💰 Spend & usage →", "Own page: calls / tokens / cost over expandable per-provider cards, model→Model Info drill-in, and 🧹 clear-stats. Runs getPricing per used model."),
             HelpCard("🧮 Costs tiers →", "Own page: which pricing tier each model resolves to (Config vs Runtime columns) plus the pricing-cache catalog table."),
-            HelpCard("🐞 API trace statistics →", "Own page: status breakdown, success rate, top hosts / models / categories, and trace activity over time."),
-            HelpCard("📜 App log statistics →", "Own page: log level, writer health, entries by level, top tags, and per-file sizes."),
             HelpCard("📚 Knowledge", "Knowledge-base count, total chunks, indexed character count, failed sources, and a breakdown of sources by type. Shown inline; hidden when there are no knowledge bases."),
         )
     ),
     "ai_trace_stats" to HelpContent(
         title = "Help - API trace statistics",
         cards = listOf(
-            HelpCard("Overview", "Aggregate stats over the API traces (the per-call request/response records the 🐞 viewer shows individually). Reached from AI Statistics. Reads the cached trace list, so it's fast. Empty when tracing is off."),
+            HelpCard("Overview", "Aggregate stats over the API traces (the per-call request/response records the 🐞 viewer shows individually). Reached from the 📈 icon on the API Traces screen. Reads the cached trace list, so it's fast. Empty when tracing is off."),
             HelpCard("🐞 Overview", "Whether tracing is on, total traces, distinct batch runs, and how many are partial (a streaming response still being read)."),
             HelpCard("📡 Status", "HTTP outcome split — 2xx success / 429 rate-limited / other 4xx / 5xx / transport-failed (status 0) / other. Tap any row to open the API Traces list showing only that outcome."),
             HelpCard("Top hosts / models / categories", "The busiest provider hosts, models, and call categories (Report / meta / chat / pricing fetch / …) by trace count. Shows the top 5; tap the card to see every entry, then tap a row to open the traces for just that host / model / category."),
@@ -660,13 +651,13 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "The full list behind a 'Top hosts / models / categories' card on API trace statistics — every host, model, or category, ranked by trace count (not just the top 5)."),
             HelpCard("Drill down", "Tap any row to open the API Traces list filtered to just that host / model / category. If the filter matches a single trace, it opens that trace directly."),
-            HelpCard("📈", "The chart icon (or the title) returns to AI Statistics."),
+            HelpCard("📈", "The chart icon (or the title) returns to the Monitor hub."),
         )
     ),
     "ai_log_stats" to HelpContent(
         title = "Help - App log statistics",
         cards = listOf(
-            HelpCard("Overview", "Aggregate stats over the in-app application log (what the App log viewer shows line by line). Reached from AI Statistics. File-level numbers are instant; line-level counts parse the most recent log files."),
+            HelpCard("Overview", "Aggregate stats over the in-app application log (what the App log viewer shows line by line). Reached from the 📈 icon on the Application log screen. File-level numbers are instant; line-level counts parse the most recent log files."),
             HelpCard("🩺 Health", "The current log level (Settings → Logging), whether the file writer is OK, and how many lines were dropped on write failures."),
             HelpCard("📊 By level", "Entry counts by level — Error / Warn / Info / Debug / Trace — plus the total entries parsed."),
             HelpCard("🏷️ Top tags", "The most frequent log tags (ApiTrace / Throttle / FanOut / Report / …)."),
@@ -677,7 +668,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_stat_reports" to HelpContent(
         title = "Help - Reports",
         cards = listOf(
-            HelpCard("Overview", "Everything the reports on disk add up to, re-read on resume and every ~10 s. Reached from AI Statistics."),
+            HelpCard("Overview", "Everything the reports on disk add up to, re-read on resume and every ~10 s. Reached from the Monitor hub."),
             HelpCard("📋 Reports", "Total / running / problems / completed, total agent calls, error rate, stopped agents, report spend. Running/problems use the same predicates as the AI Reports hub."),
             HelpCard("🤖 Agent calls", "Status split (success / error / stopped / in-flight) across every per-model call in every report, the error-rate bar, and the average number of models per report."),
             HelpCard("💵 Tokens & spend", "Input / output / total tokens over all agent calls, plus secondary tokens; report spend, secondary spend and the combined total; average cost per report and per call; and total compute time (summed call durations)."),
@@ -712,7 +703,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_spend_usage" to HelpContent(
         title = "Help - Spend & usage",
         cards = listOf(
-            HelpCard("Overview", "Calls, tokens and cost across every model you've actually called. Reached from AI Statistics. Computed only when opened (it runs getPricing per used model), and on entry it refreshes OpenRouter pricing once if a key is set."),
+            HelpCard("Overview", "Calls, tokens and cost across every model you've actually called. Reached from the Monitor hub. Computed only when opened (it runs getPricing per used model), and on entry it refreshes OpenRouter pricing once if a key is set."),
             HelpCard("Summary", "Top card: total calls, total tokens, and total cost (green)."),
             HelpCard("Provider table", "Columns Provider · Calls · Tokens · Cost, one row per provider, sorted by spend. Tap a row to open that provider's usage detail."),
             HelpCard("Provider detail", "The detail page shows totals + avg/call, a By type breakdown (report / meta / rerank / translate / …), a By pricing source breakdown, and a per-model list (tap a model → Model Info)."),
@@ -733,7 +724,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_costs_tier" to HelpContent(
         title = "Help - Costs tiers",
         cards = listOf(
-            HelpCard("Overview", "Which pricing tier PricingCache.getPricing resolves each model to, counted per tier. Reached from AI Statistics; runs getPricing per model, so it's computed only when opened."),
+            HelpCard("Overview", "Which pricing tier PricingCache.getPricing resolves each model to, counted per tier. Reached from the Monitor hub; runs getPricing per model, so it's computed only when opened."),
             HelpCard("Config / Runtime columns", "Two columns side by side. Config = every configured model in each provider's catalog. Runtime = only the DISTINCT (provider, model) pairs that were actually called, read from the API traces (host → provider, plus the recorded model). Runtime mirrors Config but over what really happened."),
             HelpCard("API-reported", "First row: models whose provider ships the per-call cost in the response (OpenRouter, Together, Perplexity, xAI — anything with Extract API cost or a cost-ticks divisor). Their real cost is read off the body, so no pricing tier applies and they're counted here instead of in a tier."),
             HelpCard("Tiers", "The rest, by the source tag the lookup returns: Manual override, LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Together, Helicone, then the 25/75 default fallback for models no catalog covers."),

@@ -37,7 +37,9 @@ import kotlinx.coroutines.withContext
 @Composable
 fun AppLogListScreen(
     onBack: () -> Unit,
-    onSelectLog: (String) -> Unit
+    onSelectLog: (String) -> Unit,
+    /** 📈 jump to the App log statistics aggregate page. Null → glyph hidden. */
+    onStats: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -65,7 +67,8 @@ fun AppLogListScreen(
             helpTopic = "applog_list",
             title = "Application log", subject = "Daily app logs for diagnosing issues",
             onBackClick = onBack,
-            onDelete = if (files.isNotEmpty()) { { confirmClearAll = true } } else null
+            onDelete = if (files.isNotEmpty()) { { confirmClearAll = true } } else null,
+            onStats = onStats
         )
 
 

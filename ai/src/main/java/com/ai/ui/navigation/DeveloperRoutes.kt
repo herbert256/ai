@@ -44,11 +44,12 @@ internal fun NavGraphBuilder.developerRoutes(
     safePopBack: () -> Unit,
     navigateHome: () -> Unit
 ) {
-        // Icon + title on the Statistics sub-screens jump back to the
-        // AI Statistics screen (popping any existing instance, not stacking).
+        // The 📈 icon + title on the aggregate sub-screens jump back to the
+        // Monitor hub (popping any existing instance, not stacking). The
+        // standalone Statistics hub was retired and folded into Monitor.
         val toStatistics: () -> Unit = {
-            navController.navigate(NavRoutes.AI_STATISTICS) {
-                popUpTo(NavRoutes.AI_STATISTICS) { inclusive = true }
+            navController.navigate(NavRoutes.AI_MONITOR) {
+                popUpTo(NavRoutes.AI_MONITOR) { inclusive = true }
                 launchSingleTop = true
             }
         }
@@ -66,27 +67,20 @@ internal fun NavGraphBuilder.developerRoutes(
             AiMonitorScreen(
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToLiveDashboard = { navController.navigate(NavRoutes.AI_LIVE_DASHBOARD) },
-                onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
                 onNavigateToTraces = { navController.navigate(NavRoutes.TRACE_LIST) },
-                onNavigateToAppLog = { navController.navigate(NavRoutes.AI_APPLOG_LIST) })
+                onNavigateToAppLog = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                onNavigateToSpendUsage = { navController.navigate(NavRoutes.AI_SPEND_USAGE) },
+                onNavigateToCostsTier = { navController.navigate(NavRoutes.AI_COSTS_TIER) },
+                onNavigateToReports = { navController.navigate(NavRoutes.AI_STAT_REPORTS) },
+                onNavigateToProviders = { navController.navigate(NavRoutes.AI_STAT_PROVIDERS) },
+                onNavigateToModels = { navController.navigate(NavRoutes.AI_STAT_MODELS) },
+                onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
         composable(NavRoutes.AI_LIVE_DASHBOARD) {
             AiLiveDashboardScreen(
                 appViewModel = appViewModel,
                 reportViewModel = reportViewModel,
                 onBack = safePopBack, onNavigateHome = navigateHome)
-        }
-        composable(NavRoutes.AI_STATISTICS) {
-            AiStatisticsScreen(
-                onBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToSpendUsage = { navController.navigate(NavRoutes.AI_SPEND_USAGE) },
-                onNavigateToCostsTier = { navController.navigate(NavRoutes.AI_COSTS_TIER) },
-                onNavigateToReports = { navController.navigate(NavRoutes.AI_STAT_REPORTS) },
-                onNavigateToProviders = { navController.navigate(NavRoutes.AI_STAT_PROVIDERS) },
-                onNavigateToModels = { navController.navigate(NavRoutes.AI_STAT_MODELS) },
-                onNavigateToTraceStats = { navController.navigate(NavRoutes.AI_TRACE_STATS) },
-                onNavigateToLogStats = { navController.navigate(NavRoutes.AI_LOG_STATS) },
-                onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
         composable(NavRoutes.AI_TRACE_STATS) {
             AiTraceStatsScreen(onBack = safePopBack, onNavigateHome = navigateHome, onNavigateToStatistics = toStatistics,
@@ -204,7 +198,8 @@ internal fun NavGraphBuilder.developerRoutes(
         composable(NavRoutes.AI_APPLOG_LIST) {
             com.ai.ui.admin.AppLogListScreen(
                 onBack = safePopBack,
-                onSelectLog = { name -> navController.navigate(NavRoutes.aiAppLogDetail(name)) }
+                onSelectLog = { name -> navController.navigate(NavRoutes.aiAppLogDetail(name)) },
+                onStats = { navController.navigate(NavRoutes.AI_LOG_STATS) }
             )
         }
         composable(NavRoutes.AI_BACKUP_RESTORE) {
@@ -385,7 +380,8 @@ internal fun NavGraphBuilder.developerRoutes(
                 onSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) },
                 onClearTraces = { appViewModel.clearTraces() },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
-                onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
+                onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) },
+                onStats = { navController.navigate(NavRoutes.AI_TRACE_STATS) })
         }
         composable(NavRoutes.TRACE_LIST_FOR_REPORT) { entry ->
             val reportId = entry.arguments?.getString("reportId") ?: ""

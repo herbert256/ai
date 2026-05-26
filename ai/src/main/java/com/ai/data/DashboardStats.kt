@@ -112,7 +112,7 @@ internal data class ProviderModelData(
     val maxContextTokens: Int,
 )
 
-/** Knowledge-base totals — shown on AI Statistics. */
+/** Knowledge-base totals — shown on the Monitor hub. */
 internal data class KnowledgeData(
     val kbCount: Int,
     val kbChunks: Int,

@@ -664,7 +664,7 @@ object PricingCache {
     data class CatalogStat(val name: String, val entries: Int, val fetchedAt: Long)
 
     /** Entry count + retrieval timestamp for each of the six external pricing
-     *  info-providers, in lookup-precedence order. Drives the AI Statistics
+     *  info-providers, in lookup-precedence order. Drives the Monitor hub's
      *  "Pricing cache" table. Cheap — map sizes + volatile longs. */
     fun catalogStats(context: Context): List<CatalogStat> {
         ensureLoaded(context)

@@ -78,7 +78,9 @@ fun TraceListScreen(
      *  (where they go Home instead). */
     onNavigateToTraceList: (() -> Unit)? = null,
     onHousekeeping: (() -> Unit)? = null,
-    onSettings: (() -> Unit)? = null
+    onSettings: (() -> Unit)? = null,
+    /** 📈 jump to the API trace statistics aggregate page. Null → glyph hidden. */
+    onStats: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -274,7 +276,8 @@ fun TraceListScreen(
                 onBackClick = onBack,
                 onDelete = if (canClear) { { confirmClearAll = true } } else null,
                 onHousekeeping = onHousekeeping,
-                onSettings = onSettings
+                onSettings = onSettings,
+                onStats = onStats
             )
 
             // Category / Provider / Hostname / Model selectors share

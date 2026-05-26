@@ -702,6 +702,11 @@ data class TitleBarIcons(
      *  [onHousekeeping] (e.g. Housekeeping → Test ↔ AI Setup →
      *  Test-excluded models). Null → glyph hidden. */
     val onSettings: (() -> Unit)? = null,
+    /** Optional 📈 jump-to-statistics hook. Screens with a matching
+     *  aggregate-stats page (API Traces → API trace statistics,
+     *  Application log → App log statistics) publish it so the bottom
+     *  bar carries the action. Null → glyph hidden. */
+    val onStats: (() -> Unit)? = null,
     /** Optional ❓ help hook. Set by the regular [TitleBar] (every
      *  non-View screen), which moved its top-bar help glyph down here.
      *  When non-null the bottom bar uses the help layout — action
@@ -1046,6 +1051,8 @@ fun TitleBar(
     onHousekeeping: (() -> Unit)? = null,
     /** Optional ⚙️ jump-to-AI-Setup/Settings hook. Null → glyph hidden. */
     onSettings: (() -> Unit)? = null,
+    /** Optional 📈 jump-to-statistics hook. Null → glyph hidden. */
+    onStats: (() -> Unit)? = null,
     /** When false, this bar renders its top chrome but does NOT publish
      *  its icons into [LocalBottomIconState]. Used by screens drawn as a
      *  visual layer ON TOP of a still-composed host (e.g. "Report - Get
@@ -1112,6 +1119,7 @@ fun TitleBar(
         validatePromptActive = validatePromptActive,
         onHousekeeping = onHousekeeping,
         onSettings = onSettings,
+        onStats = onStats,
         // ❓ help moved out of the top bar into the bottom icons bar
         // (right-aligned, other icons left). View screens keep their
         // top-bar ❓ — see ViewScreenTitleBar.
@@ -1549,6 +1557,7 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // AI Setup / Settings screen — grouped with the other nav-jumps.
     icons.onHousekeeping?.let { add(BottomBarIcon("🧹", Color.Unspecified, it, 28)) }
     icons.onSettings?.let { add(BottomBarIcon("⚙️", Color.Unspecified, it, 28)) }
+    icons.onStats?.let { add(BottomBarIcon("📈", Color.Unspecified, it, 28)) }
     icons.onInfo?.let { add(BottomBarIcon("ℹ️", Color.Unspecified, it, 28)) }
     // 🌡️ parameters + 🎭 system prompt — paired config actions, kept
     // adjacent so they read as a couple wherever a screen exposes them.
