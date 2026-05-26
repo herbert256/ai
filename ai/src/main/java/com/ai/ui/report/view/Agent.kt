@@ -188,6 +188,11 @@ fun ReportsViewScreen(
         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
     }.orEmpty()
     val pagerState = rememberWrapPager(agents.size, 0)
+    // Tapping the response card's icon (single mode) advances to the
+    // next model, wrapping past the last back to the first.
+    val advanceModel: () -> Unit = {
+        scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+    }
     // When called with an initialAgentId, jump to that agent's page
     // once the report has finished loading and the pager has its real
     // count. Keyed on (agents, initialAgentId) so the jump only fires
@@ -416,7 +421,8 @@ fun ReportsViewScreen(
                             val agent = agents[page.wrapTo(agents.size)]
                             AgentResponseCard(
                                 agent = agent,
-                                overrideBody = translatedByAgentId[agent.agentId]
+                                overrideBody = translatedByAgentId[agent.agentId],
+                                onIconClick = advanceModel
                             )
                         }
                     }
@@ -487,8 +493,9 @@ private fun PromptCard(
     languageIcon: String?,
     promptOverride: String?,
     onCollapse: (() -> Unit)? = null,
-    /** When set, tapping the top-right language flag advances to the
-     *  next language (wrapping). Null → the flag is a static indicator. */
+    /** When set, tapping the top-right language flag OR the centred
+     *  report icon advances to the next language (wrapping). Null → both
+     *  are static indicators. */
     onLanguageClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier.fillMaxWidth()
 ) {
@@ -519,11 +526,13 @@ private fun PromptCard(
         ) {
             // Transparent oversized glyph — no background tint, no Box
             // wrapper, just the emoji centred above the prompt text.
+            // Tapping it advances to the next language (same as the flag).
             Text(
                 text = displayedIcon,
                 fontSize = 44.sp,
                 modifier = Modifier
                     .align(Alignment.CenterHorizontally)
+                    .then(if (onLanguageClick != null) Modifier.clickable(onClick = onLanguageClick) else Modifier)
                     .padding(top = 0.dp, bottom = 2.dp)
             )
             if (bodyText.isBlank()) {
@@ -574,7 +583,10 @@ private fun PromptCard(
 @Composable
 private fun AgentResponseCard(
     agent: ReportAgent,
-    overrideBody: String?
+    overrideBody: String?,
+    /** When set, tapping the card's icon advances to the next model
+     *  (wrapping). Null → the icon is a static glyph. */
+    onIconClick: (() -> Unit)? = null
 ) {
     val body = overrideBody ?: agent.responseBody.orEmpty()
     val emoji = agent.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon
@@ -592,11 +604,13 @@ private fun AgentResponseCard(
     ) {
         // Transparent oversized glyph — no background tint, no Box
         // wrapper, just the emoji centred above the response body.
+        // Tapping it (single mode) jumps to the next model.
         Text(
             text = emoji,
             fontSize = 44.sp,
             modifier = Modifier
                 .align(Alignment.CenterHorizontally)
+                .then(if (onIconClick != null) Modifier.clickable(onClick = onIconClick) else Modifier)
                 .padding(top = 0.dp, bottom = 2.dp)
         )
         if (body.isBlank()) {
