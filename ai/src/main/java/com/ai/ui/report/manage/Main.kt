@@ -190,9 +190,6 @@ fun ReportsScreen(
     onTranslateMissingItems: (String, List<com.ai.viewmodel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
     onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?, List<String>, String?) -> Unit = { _, _, _, _, _, _, _ -> },
     onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String?, List<String>, String?) -> Unit = { _, _, _, _, _, _ -> },
-    /** Model-scoped fan-in run path. Args: reportId, prompt, picked
-     *  model, active provider id (the L2 page's), active model name. */
-    onRunModelFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String, String, String?, List<String>, String?) -> Unit = { _, _, _, _, _, _, _, _ -> },
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Args: source reportId, active provider id,
      *  active model. The new report's id is built inside the
@@ -486,7 +483,7 @@ fun ReportsScreen(
     // ℹ️ icon. Replaces the model-info AlertDialog that used to live
     // on that slot (now removed). Surfaces every "look at this report"
     // sub-view (Prompt / Costs / Reports / HTML / Log / Icons +
-    // conditional Meta / Rerank / Fan-out / Fan-in / Fan-in-model /
+    // conditional Meta / Rerank / Fan-out / Fan-in /
     // Translate) as a tile grid; tapping a tile routes through the
     // same handlers the old Row 2 "View" buttons fired, so every
     // destination is unchanged.
@@ -556,22 +553,11 @@ fun ReportsScreen(
     // Source language inherited from the parent fan-out (null =
     // Original). Captured at trigger time so the picker → onRunFanIn
     // chain can forward it to runFanInPrompt without re-reading the
-    // engine. Shared by the plain and model-scoped fan-in flows; the
-    // model-scoped flow stashes its own copy via the same setter.
+    // engine.
     var fanInPickerSourceLanguage by st.fanInPickerSourceLanguage
     // First step of the fan_in flow: pick which fan_in prompt
     // to run. Once chosen we hand off to fanInPickerPrompt above.
     var showFanInPromptPicker by st.showFanInPromptPicker
-    // Model-scoped fan-in (categories initiator / requester /
-    // model) flow state. Triggered from L2's "Create a model fan
-    // in report" expandable. The active provider/model identify the
-    // L2 page that was active when the user tapped a sub-button —
-    // they're stored here so the picker → model picker chain can
-    // reach all the way to ReportViewModel.runModelFanInPrompt
-    // without re-deriving them.
-    var modelFanInActivePid by st.modelFanInActivePid
-    var modelFanInActiveMdl by st.modelFanInActiveMdl
-    var modelFanInPickerPrompt by st.modelFanInPickerPrompt
     // Unified Meta screen overlay reached from the Actions card.
     var showMetaScreen by st.showMetaScreen
     // Per-name (or per-legacy-kind) list overlay reached from the View
@@ -992,75 +978,6 @@ fun ReportsScreen(
         return
     }
 
-    // Model-scoped fan-in flow (single fan-in-model category).
-    // Triggered from L2's "New Fan In" button. Two-step picker
-    // chain mirroring the legacy fan-in path — first pick a prompt
-    // from the fan-in-model bucket, then pick the model the run
-    // will fire on. After model confirm we call the model-scoped
-    // runner and pop back so the L2 page's polling tick surfaces
-    // the placeholder row at the top.
-    val modelFanInPicker = modelFanInPickerPrompt
-    if (modelFanInPicker == null && modelFanInActivePid != null && modelFanInActiveMdl != null && currentReportId != null) {
-        val list = aiSettings.internalPrompts.filter { it.category == "fan-in-model" }
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides {
-            modelFanInActivePid = null
-            modelFanInActiveMdl = null
-        }) {
-            ReportSelectInternalPromptScreen(
-                titleText = "Pick a Fan In, model prompt",
-                category = "fan-in-model",
-                prompts = list,
-                onSelectPrompt = { modelFanInPickerPrompt = it },
-                onBack = {
-                    modelFanInActivePid = null
-                    modelFanInActiveMdl = null
-                },
-                onEditPrompts = {
-                    modelFanInActivePid = null
-                    modelFanInActiveMdl = null
-                    onNavigateToInternalPromptsByCategory("fan-in-model")
-                }
-            )
-        }
-        return
-    }
-    if (modelFanInPicker != null && currentReportId != null
-        && modelFanInActivePid != null && modelFanInActiveMdl != null
-    ) {
-        val rid = currentReportId
-        val activePid = modelFanInActivePid!!
-        val activeMdl = modelFanInActiveMdl!!
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides {
-            modelFanInActivePid = null
-            modelFanInActiveMdl = null
-            modelFanInPickerPrompt = null
-        }) {
-            ReportSelectModelsScreen(
-                aiSettings = aiSettings,
-                titleText = "${modelFanInPicker.name} — pick model",
-                modelTypeFilter = null,
-                recentEntries = recentReportPairs,
-                onRecordRecent = { (p, m) -> onRecordRecentReportModel(p.id, m) },
-                onConfirm = { /* secondary picker uses onSecondaryParamsConfirm */ },
-                onSecondaryParamsConfirm = { pick, pIds, spId ->
-                    onRunModelFanIn(rid, modelFanInPicker, pick, activePid, activeMdl, fanInPickerSourceLanguage, pIds, spId)
-                    modelFanInActivePid = null
-                    modelFanInActiveMdl = null
-                    modelFanInPickerPrompt = null
-                    fanInPickerSourceLanguage = null
-                },
-                onBack = {
-                    modelFanInActivePid = null
-                    modelFanInActiveMdl = null
-                    modelFanInPickerPrompt = null
-                    fanInPickerSourceLanguage = null
-                },
-                onNavigateHome = onNavigateHome
-            )
-        }
-        return
-    }
-
     // Translate overlays. Order: language picker → model picker →
     // progress screen. The first two close the picker once a choice is
     // made; the progress screen sticks around until the run finishes
@@ -1285,11 +1202,6 @@ fun ReportsScreen(
             onShowFanInPromptPickerChange = { showFanInPromptPicker = it },
             onFanInPickerPromptChange = { fanInPickerPrompt = it },
             onFanInPickerSourceLanguageChange = { fanInPickerSourceLanguage = it },
-            onModelFanInActiveChange = { pid, mdl ->
-                modelFanInActivePid = pid
-                modelFanInActiveMdl = mdl
-            },
-            onModelFanInPickerPromptChange = { modelFanInPickerPrompt = it },
             onCloseList = {
                 listKind = null
                 listFilterByName = null

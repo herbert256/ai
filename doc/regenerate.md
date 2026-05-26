@@ -81,7 +81,7 @@ prepending a phase can't silently skip it.
 | 3 | `AGENTS` | one task per `ReportAgent` | `forceRegenerateAllAgents` | `ReportAgent.reportStatus` + `responseBody` |
 | 4 | `META` | single-call meta + RERANK + MODERATION | `secondary.resumeStaleMetaPlaceholder` (per row) | `SecondaryResult.content` / `errorMessage` |
 | 5 | `FAN_OUT` | fan-out per-pair rows (`fanOutSourceAgentId != null`) | `secondary.resumeStaleFanOutPairs` (per `metaPromptId`) | `SecondaryResult.content` / `errorMessage` |
-| 6 | `FAN_IN` | fan-in combined + model-scoped rows (`fanInOf != null` OR `scopeProviderId != null`) | `secondary.resumeStaleMetaPlaceholder` (per row) | `SecondaryResult.content` / `errorMessage` |
+| 6 | `FAN_IN` | fan-in combined rows (`fanInOf != null`) | `secondary.resumeStaleMetaPlaceholder` (per row) | `SecondaryResult.content` / `errorMessage` |
 | 7 | `TRANSLATIONS` | every TRANSLATE row | `translation.startMissingTranslations` (per `translationRunId`) | `SecondaryResult.content` / `errorMessage` |
 | 8 | `FAN_ICONS` | per-fan-out-pair icon chain (pairs that previously had an icon/icon-error) | `iconGen.runFanIconsBatch` (per `metaPromptId`) | `SecondaryResult.icon` / `iconErrorMessage` |
 | 9 | `FAN_TITLES` | per-fan-out-pair title (pairs that previously had a title/title-error) | `iconGen.runFanTitlesBatch` (per `metaPromptId`) | `SecondaryResult.title` / `titleErrorMessage` |

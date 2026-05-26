@@ -328,7 +328,7 @@ internal fun SecondaryResultDetailScreen(
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         // 👁 → matching View sub-screen, per-kind dispatch.
         // RERANK → Rerank, MODERATION → Moderation, META → Meta /
-        // FanIn / FanInModel by flavour. State lives in
+        // FanIn by flavour. State lives in
         // ReportsScreenNav via LocalPendingViewOverManage; the
         // top-of-chain block in ReportPrimaryOverlays consumes it.
         val pendingViewHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
@@ -338,7 +338,6 @@ internal fun SecondaryResultDetailScreen(
                     result.kind == SecondaryKind.RERANK -> com.ai.ui.shared.ViewJump.Rerank(result.id)
                     result.kind == SecondaryKind.MODERATION -> com.ai.ui.shared.ViewJump.Moderation(result.id)
                     result.kind == SecondaryKind.META && result.fanInOf != null -> com.ai.ui.shared.ViewJump.FanIn(result.id)
-                    result.kind == SecondaryKind.META && (result.scopeProviderId != null || result.scopeModel != null) -> com.ai.ui.shared.ViewJump.FanInModel(result.id)
                     result.kind == SecondaryKind.META -> com.ai.ui.shared.ViewJump.Meta(result.id)
                     else -> com.ai.ui.shared.ViewJump.Main
                 }

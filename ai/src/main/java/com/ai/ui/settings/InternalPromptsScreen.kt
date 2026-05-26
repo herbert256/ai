@@ -34,12 +34,12 @@ private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
 }
 
 /** Categories whose prompts are pure templates (no agent dispatch).
- *  All five fan-* categories share the same agent-N/A treatment —
+ *  All fan-* categories share the same agent-N/A treatment —
  *  they're consumed by the Fan out / Fan in flow which already
  *  resolves the model to run on through its own picker, not via
  *  [Settings.agents]. */
 private val FAN_CATEGORIES = setOf(
-    "fan_out", "fan_in", "fan-in-model"
+    "fan_out", "fan_in"
 )
 
 /** Sentinel meaning the run-time picker should ask the user which
@@ -59,7 +59,6 @@ fun categoryDisplayName(category: String): String = when (category) {
     "meta" -> "Meta prompts"
     "fan_out" -> "Fan-out prompts"
     "fan_in" -> "Fan-in prompts"
-    "fan-in-model" -> "Fan In, model"
     "internal" -> "Other internal prompts"
     "workers" -> "Worker prompts"
     "alt" -> "Alternative prompts"
@@ -75,13 +74,11 @@ fun isFixedListCategory(category: String): Boolean =
 /** Singular label for a single [InternalPrompt.category] entry — used
  *  for View-page titles and delete-confirm copy. Carried explicitly per
  *  category instead of string-munging the plural (a naive `removeSuffix("s")`
- *  produced awkward singulars like "Fan-in-model" → "Fan-in-model" or
- *  "Icons prompt" → "Icons prompt"). */
+ *  produced awkward singulars like "Icons prompt" → "Icons prompt"). */
 fun categorySingularName(category: String): String = when (category) {
     "meta" -> "Meta prompt"
     "fan_out" -> "Fan-out prompt"
     "fan_in" -> "Fan-in prompt"
-    "fan-in-model" -> "Fan-in model prompt"
     "internal" -> "Internal prompt"
     "workers" -> "Worker prompt"
     "alt" -> "Alternative prompt"
@@ -483,7 +480,6 @@ fun InternalPromptEditScreen(
                     when (fixedCategory) {
                         "fan_out" -> "Placeholders: @RESPONSE@ (per-call source response), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Runs across every pair of report-models — N×(N-1) calls."
                         "fan_in" -> "Placeholders: @COUNT@ (N reports), @FAN_OUT_COUNT@ (N-1 responses each), @QUESTION@, @TITLE@, @DATE@. Repeat the iterable block `***Report*** @REPORT@@RESPONSES@` (with @RESPONSE@ inside @RESPONSES@) once per report. Runs once on a picked model."
-                        "fan-in-model" -> "Placeholders: @INITIATOR@ (active model's report response), @RESPONDERS@ (other models' fan-out responses to the active model), @RESPONDER_PAIRS@ (pairs where the active model is the responder — `***Report***` + `***Response***` per pair), @QUESTION@, @TITLE@, @DATE@, @COUNT@. Scoped to the L2 active model — runs once on a picked model."
                         else -> "Chat placeholders: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@."
                     },
                     fontSize = 11.sp, color = AppColors.TextTertiary

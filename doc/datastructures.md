@@ -130,16 +130,14 @@ translate, rerank, moderation).
 | reference | `Boolean` (default false) | when true on a meta entry, executor appends `[N] = Provider / Model` legend |
 | category | `String` (default `"internal"`) | one of `meta`, `fan_out`, `fan_in`, `internal` |
 | agent | `String` (default `"*select"`) | `"*select"` = ask the user; otherwise an `Agent.name` |
-| text | `String` | template body. Top-level placeholders: `@QUESTION@`, `@RESULTS@`, `@COUNT@`, `@TITLE@`, `@DATE@`, `@RESPONSE@`, `@PROMPT@`, `@LANGUAGE@`, `@TEXT@`, `@FAN_OUT_COUNT@`, `@MODEL@`, `@PROVIDER@`. Iterable block: `***Report*** @REPORT@@RESPONSES@` (whitespace-tolerant; one expansion per source-report). Model-scoped fan-in (`category` of `initiator` / `requester` / `model`) adds `@INITIATOR@` (active model's own report response), `@RESPONDERS@` (block of fan-out responses where the active model is the source), `@RESPONDER_PAIRS@` (iterable list of `***Report*** {body} ***Response*** {body}` pairs where the active model is the answerer) |
+| text | `String` | template body. Top-level placeholders: `@QUESTION@`, `@RESULTS@`, `@COUNT@`, `@TITLE@`, `@DATE@`, `@RESPONSE@`, `@PROMPT@`, `@LANGUAGE@`, `@TEXT@`, `@FAN_OUT_COUNT@`, `@MODEL@`, `@PROVIDER@`. Iterable block: `***Report*** @REPORT@@RESPONSES@` (whitespace-tolerant; one expansion per source-report) |
 | title | `String` (default empty) | one-line description shown alongside `name` on Fan out and the prompt-edit screen |
 | scope | `String` (default `"Default"`) | meta-prompt + fan-out launch scope. `"Default"` runs against every report agent / every present language with no extra picker step; `"Select"` routes the user through `SecondaryScopeScreen` first so they can pick a subset / top-N / language fan-out. Other categories carry the value verbatim so round-tripping through `prompts.json` and the export bundle is lossless |
 
 > The legacy `type` field is gone — routing is now derived from
 > `category`. `category="meta"` plus a `name` matching `"rerank"`,
 > `"moderation"`, etc. drives `metaTypeToKind` resolution at
-> runtime. Categories `initiator` / `requester` / `model` drive
-> the model-scoped fan-in flow (`resolveModelFanInPrompt` produces
-> their text; rows carry `scopeProviderId` / `scopeModel`).
+> runtime.
 
 ### `ExamplePrompt`
 Stand-alone (title, text) pair the user curates as a starter library
@@ -304,7 +302,6 @@ translation, fan-out per-pair row, or fan-in combined-report row.
 | targetLanguageNative | `String?` | TRANSLATE only — native rendering (e.g. `"Nederlands"`) |
 | translationRunId | `String?` | TRANSLATE only — UUID shared by every row of one Translate batch so the result page can group them |
 | translatedFromSecondaryId | `String?` | Legacy field from the old "translation creates a copy" flow — preserved on disk so old reports still load |
-| scopeProviderId, scopeModel | `String?` | Set on a model-scoped fan-in row (Internal Prompt categories `initiator` / `requester` / `model`). Identifies which (provider, model) pair the L2 page should surface this row under so the per-model drill-in can filter to its own. Null on every other row including the legacy "total" `fan_in` (which combines the whole report and shows on L1's combinedRows section) |
 
 ### `SecondaryScope` (sealed)
 - `AllReports` — every successful agent feeds the meta-result.

@@ -13,8 +13,8 @@ import com.ai.data.SecondaryResultStorage
  *
  * Walks the newest-first report id list from the current report
  * outward in the chosen direction and stops at the first candidate
- * that satisfies the filter. Drill-deeper screens (FanInModel,
- * FanOutPair, IconsView) opt out by simply not passing swipe
+ * that satisfies the filter. Drill-deeper screens (FanOutPair,
+ * IconsView) opt out by simply not passing swipe
  * lambdas to the title bar.
  */
 sealed class ViewSwipeFilter {

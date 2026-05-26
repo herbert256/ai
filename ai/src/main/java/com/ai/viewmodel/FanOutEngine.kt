@@ -791,22 +791,4 @@ class FanOutEngine internal constructor(
         }
         return job
     }
-
-    /** Per-model fan-in: combine the L2 active model's view via the
-     *  picked prompt. Delegates as above. */
-    fun runModelFanIn(
-        context: Context,
-        runKey: FanOutRunKey,
-        providerId: String,
-        model: String,
-        fanInPrompt: InternalPrompt,
-        pick: Pair<AppService, String>
-    ): Job? {
-        val run = _runs.value[runKey] ?: return null
-        val job = reportViewModel.secondary.runModelFanInPrompt(context, run.reportId, fanInPrompt, pick, providerId, model, run.sourceLanguage)
-        job?.invokeOnCompletion {
-            appViewModel.viewModelScope.launch(Dispatchers.IO) { hydrate(context, run.reportId) }
-        }
-        return job
-    }
 }

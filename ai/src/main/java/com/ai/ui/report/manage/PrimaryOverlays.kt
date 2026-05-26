@@ -214,9 +214,6 @@ internal fun ReportPrimaryOverlays(
                     reportId = rid, resultId = jump.id, language = null,
                     onBack = { _ -> close() }
                 )
-                is com.ai.ui.shared.ViewJump.FanInModel -> FanInModelViewScreen(
-                    reportId = rid, resultId = jump.id, onBack = close
-                )
                 is com.ai.ui.shared.ViewJump.FanOut -> FanOutViewScreen(
                     reportId = rid, metaPromptName = jump.metaPromptName,
                     language = null, onBack = close

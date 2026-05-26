@@ -756,10 +756,9 @@ class SecondaryRunManager(
 
         // 3. Single-call Meta/Rerank/Moderation: re-issue each stale
         //    placeholder via executeSecondaryTask. Fan-in single
-        //    (fanInOf != null) and model-fan-in (scopeProviderId != null)
-        //    rows are skipped here — they go to the legacy mark-as-❌
-        //    branch below since their substitution inputs aren't
-        //    derivable from the placeholder alone.
+        //    (fanInOf != null) rows are skipped here — they go to the
+        //    legacy mark-as-❌ branch below since their substitution
+        //    inputs aren't derivable from the placeholder alone.
         val staleSingleMeta = rows.filter {
             it.kind != SecondaryKind.TRANSLATE &&
                 it.content.isNullOrBlank() &&
@@ -767,8 +766,6 @@ class SecondaryRunManager(
                 it.durationMs == null &&
                 it.fanOutSourceAgentId == null &&
                 it.fanInOf == null &&
-                it.scopeProviderId == null &&
-                it.scopeModel == null &&
                 it.translationRunId == null &&
                 it.id !in running &&
                 it.metaPromptId != null &&
@@ -1409,184 +1406,6 @@ class SecondaryRunManager(
                         targetLanguage = sourceLanguage,
                         targetLanguageNative = langCtx?.native,
                         fanInOf = metaPrompt.id,
-                        paramsIds = paramsIds, systemPromptId = systemPromptId
-                    )
-                }
-            } finally {
-                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-            }
-        }
-    }
-
-    /** Model-scoped variant of [runFanInPrompt]. Combines only the
-     *  fan-out entries that involve the specified active model
-     *  (provider, modelName) into one combined-report row, instead
-     *  of the legacy "total" fan_in that combines every entry on the
-     *  report. Driven by the three new categories `initiator`
-     *  (active is source), `requester` (active is answerer), and
-     *  `model` (both). The resulting row carries scopeProviderId /
-     *  scopeModel so the L2 page can filter to its own model's rows.
-     *
-     *  Math for 10 models with active = A:
-     *    initiator — 9 fan-out responses where A is the source.
-     *               @RESPONDERS@ holds those bodies; @INITIATOR@ is
-     *               A's own report response.
-     *    requester — 9 pairs (other_i's report response, A's fan-out
-     *               response to other_i). @RESPONDER_PAIRS@ holds them.
-     *    model — both blocks populated. */
-    fun runModelFanInPrompt(
-        context: Context,
-        reportId: String,
-        metaPrompt: com.ai.model.InternalPrompt,
-        pick: Pair<AppService, String>,
-        activeProviderId: String,
-        activeModel: String,
-        /** Inherited from the parent fan-out; same semantics as
-         *  [runFanInPrompt]. Drives the substituted text for
-         *  @QUESTION@, @TITLE@, @INITIATOR@, and the source-body
-         *  half of every @RESPONDER_PAIRS@ entry. */
-        sourceLanguage: String? = null,
-        paramsIds: List<String> = emptyList(),
-        systemPromptId: String? = null
-    ): Job? {
-        AppLog.i("ModelFanIn", "→ start \"${metaPrompt.name}\" report=$reportId active=$activeProviderId/$activeModel via ${pick.first.id}/${pick.second}")
-        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val cat = "${metaPrompt.category}/${metaPrompt.name}"
-            try {
-                withTracerTags(reportId = reportId, category = cat) {
-                    val state = appViewModel.uiState.value
-                    val aiSettings = state.aiSettings
-                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
-                    ReportStorage.bumpReportTimestamp(context, reportId)
-                    // Wait for in-flight fan-out runs on this report —
-                    // same race-free pattern as runFanInPrompt.
-                    val fanOutJobsForReport = rvm.fanOutJobs.entries
-                        .filter { it.key.startsWith("$reportId|") }
-                        .map { it.value }
-                    fanOutJobsForReport.forEach { it.join() }
-
-                    // Resolve the active model's agents on this report.
-                    // Swarm with duplicate (provider, model) members can
-                    // produce multiple agentIds for the same model — we
-                    // count rows from any of them.
-                    val activeAgents = report.agents.filter {
-                        it.reportStatus == ReportStatus.SUCCESS
-                            && it.provider == activeProviderId
-                            && it.model == activeModel
-                            && !it.responseBody.isNullOrBlank()
-                    }
-                    val activeAgentIds = activeAgents.map { it.agentId }.toHashSet()
-                    // Translation context inherited from the parent
-                    // fan-out. When set, @INITIATOR@ and the source-
-                    // body half of every @RESPONDER_PAIRS@ entry come
-                    // from the per-agent translation rows.
-                    val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
-                    val langCtx = lookupLanguageTranslations(report, allSecondaries, sourceLanguage)
-                    val initiatorBody = activeAgents.firstOrNull()?.let { agent ->
-                        langCtx?.bodiesByAgentId?.get(agent.agentId)
-                            ?: agent.responseBody?.trim().orEmpty()
-                    }.orEmpty()
-
-                    // Per-pair fan-out rows on this report.
-                    val fanOutRows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-                        .filter { it.fanOutSourceAgentId != null && it.fanInOf == null }
-                        .filter { it.errorMessage == null && !it.content.isNullOrBlank() }
-                        .sortedBy { it.timestamp }
-
-                    // The unified fan-in-model template can use both
-                    // @RESPONDERS@ and @RESPONDER_PAIRS@; resolve both
-                    // unconditionally and let the prompt body opt in
-                    // by reference.
-
-                    // @RESPONDERS@: rows where the active model is the
-                    // SOURCE (others responded TO active's report). One
-                    // row per other answerer; bucket and pick the
-                    // freshest non-errored row per (other-provider,
-                    // other-model, source-agent) triple.
-                    val responders: List<String> = fanOutRows
-                        .filter { it.fanOutSourceAgentId in activeAgentIds }
-                        .groupBy { "${it.providerId}|${it.model}" }
-                        .values
-                        .mapNotNull { bucket -> bucket.lastOrNull()?.content?.trim()?.takeIf { it.isNotBlank() } }
-
-                    // @RESPONDER_PAIRS@: rows where the active model is
-                    // the ANSWERER (active responded to others). Each
-                    // pair = (other's report response, active's fan-out
-                    // response). Bucket by source agent.
-                    val responderPairs: List<Pair<String, String>> = fanOutRows
-                        .filter { it.providerId == activeProviderId && it.model == activeModel }
-                        .groupBy { it.fanOutSourceAgentId.orEmpty() }
-                        .mapNotNull { (srcAgentId, bucket) ->
-                            if (srcAgentId.isBlank()) return@mapNotNull null
-                            val source = report.agents.firstOrNull { it.agentId == srcAgentId } ?: return@mapNotNull null
-                            val srcBody = langCtx?.bodiesByAgentId?.get(source.agentId)
-                                ?: source.responseBody?.trim().orEmpty()
-                            val resp = bucket.lastOrNull()?.content?.trim().orEmpty()
-                            if (srcBody.isBlank() || resp.isBlank()) null else srcBody to resp
-                        }
-
-                    val (provider, model) = pick
-
-                    // Bail with an error placeholder when there's
-                    // nothing to combine — same shape as the legacy
-                    // fan_in does for empty fan-out states.
-                    val nothingToCombine = responders.isEmpty() && responderPairs.isEmpty()
-                    if (nothingToCombine) {
-                        val agentName = "${provider.id} / ${shortModelName(model)}"
-                        SecondaryResultStorage.create(
-                            context, reportId, SecondaryKind.META, provider.id, model, agentName
-                        ) {
-                            it.copy(
-                                metaPromptId = metaPrompt.id,
-                                metaPromptName = metaPrompt.name,
-                                fanInOf = metaPrompt.id,
-                                scopeProviderId = activeProviderId,
-                                scopeModel = activeModel,
-                                errorMessage = "No fan-out responses available for ${activeProviderId} / ${activeModel} — run the fan-out prompt first."
-                            )
-                        }
-                        return@withTracerTags
-                    }
-
-                    val resolved = com.ai.data.resolveModelFanInPrompt(
-                        template = metaPrompt.text,
-                        question = langCtx?.prompt ?: report.prompt,
-                        title = langCtx?.title ?: report.title,
-                        initiatorBody = initiatorBody,
-                        responders = responders,
-                        responderPairs = responderPairs
-                    )
-
-                    // Pre-create the placeholder so the scope fields
-                    // are persisted from the start (executeSecondaryTask
-                    // doesn't take scopeProviderId / scopeModel — we
-                    // pass the staged row in via existingPlaceholder).
-                    // Language tag goes here too so the row groups
-                    // under the right language section.
-                    val langSuffix = sourceLanguage?.let { " [$it]" } ?: ""
-                    val agentName = "${provider.id} / ${shortModelName(model)}$langSuffix"
-                    val placeholder = SecondaryResultStorage.create(
-                        context, reportId, SecondaryKind.META, provider.id, model, agentName
-                    ) {
-                        it.copy(
-                            metaPromptId = metaPrompt.id,
-                            metaPromptName = metaPrompt.name,
-                            fanInOf = metaPrompt.id,
-                            scopeProviderId = activeProviderId,
-                            scopeModel = activeModel,
-                            targetLanguage = sourceLanguage,
-                            targetLanguageNative = langCtx?.native
-                        )
-                    }
-
-                    executeSecondaryTask(
-                        context, reportId, SecondaryKind.META, metaPrompt,
-                        provider, model, resolved, aiSettings, report,
-                        targetLanguage = sourceLanguage,
-                        targetLanguageNative = langCtx?.native,
-                        fanInOf = metaPrompt.id,
-                        existingPlaceholder = placeholder,
                         paramsIds = paramsIds, systemPromptId = systemPromptId
                     )
                 }

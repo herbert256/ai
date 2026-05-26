@@ -232,12 +232,6 @@ internal fun FanOutL2Screen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Button(
-                onClick = { actions.onRunModelFanIn(run.key, activePid, activeMdl) },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
-                modifier = Modifier.weight(1f).heightIn(min = 32.dp)
-            ) { Text("Fan in", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             if (erroredHere > 0) {
                 Button(
                     onClick = { confirmRemoveFailed = true },
@@ -270,59 +264,6 @@ internal fun FanOutL2Screen(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-
-        // Combined-report rows scoped to this model (model-fan-in).
-        val modelScopedFanIn = run.combinedReports.filter {
-            it.isModelScoped &&
-                it.scopeProviderId.equals(activePid, ignoreCase = true) &&
-                it.scopeModel == activeMdl
-        }
-        if (modelScopedFanIn.isNotEmpty()) {
-            Text("Model fan-ins", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-            for (cr in modelScopedFanIn.sortedByDescending { it.timestamp }) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                        .clickable { actions.onOpenSecondary(cr.id) },
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val icon = when (cr.status) {
-                        PairStatus.ERROR -> "❌"
-                        PairStatus.DONE -> "✅"
-                        else -> null
-                    }
-                    if (icon != null) {
-                        Text(
-                            icon, fontSize = 16.sp,
-                            modifier = Modifier.width(20.dp)
-                                .background(MaterialTheme.colorScheme.background)
-                        )
-                    } else {
-                        Box(
-                            Modifier.width(20.dp)
-                                .background(MaterialTheme.colorScheme.background),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            AnimatedHourglass(fontSize = 16.sp)
-                        }
-                    }
-                    Text(
-                        cr.fanInPromptName,
-                        fontSize = 13.sp, color = Color.White,
-                        modifier = Modifier.weight(1f).padding(start = 4.dp),
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
-                    if (cr.totalCost > 0.0) {
-                        Text(
-                            formatCents(cr.totalCost), fontSize = 11.sp,
-                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.padding(end = 8.dp)
-                        )
-                    }
-                }
-                HorizontalDivider(color = AppColors.DividerDark)
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
 
         } // end of MAIN-mode buttons block
 

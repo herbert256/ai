@@ -120,7 +120,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "view_ai_report" to HelpContent(
         title = "Help - View report",
         cards = listOf(
-            HelpCard("What you see", "The View home for a report — a grid of tiles, one per thing this report has to look at: the original prompt, the per-model responses, the cost breakdown, the in-app HTML preview, plus one tile for each kind of post-run result the report carries (Meta, Rerank, Moderation, Fan-out, Fan-in, Fan-in-model, Translate). The title bar carries the AI logo (taps go to the app home), the report's own title centred in white, and the help icon."),
+            HelpCard("What you see", "The View home for a report — a grid of tiles, one per thing this report has to look at: the original prompt, the per-model responses, the cost breakdown, the in-app HTML preview, plus one tile for each kind of post-run result the report carries (Meta, Rerank, Moderation, Fan-out, Fan-in, Translate). The title bar carries the AI logo (taps go to the app home), the report's own title centred in white, and the help icon."),
             HelpCard("How to read it", "Each tile shows an emoji, a label, and — when a kind has more than one item — a small count badge in the top-right. Tiles you can tap are at full colour; tiles for kinds this report doesn't have yet aren't shown at all. Tap a tile to open the matching View screen. Long-press a tile and drag it onto another to swap their positions — your order persists across reports, so once you've arranged the grid the way you like it, it stays that way. When the report has translations, a row of large flag-style icons at the top picks the active language; that language is carried into every tile you open.")
         )
     ),
@@ -398,13 +398,6 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("How to read it", "The target language shows as the green subject in the title bar so you always know which language you're reading. Long bodies collapse to a preview with a 'Read more' toggle — tap to expand, tap again to collapse. Source and translation use the same markdown rendering so headings, lists, tables, and code blocks line up between the two.")
         )
     ),
-    "fan_in_model_view" to HelpContent(
-        title = "Help - Fan-in-model",
-        cards = listOf(
-            HelpCard("What you see", "One per-model synthesis at a time, with a tab strip across the top — one chip per model that contributed a synthesis. The active model is bold and blue-tinted; the others sit dimmer next to it. The card below shows that model's synthesis on a blue-gradient background, with a 'Synthesised from' strip at the bottom naming each source response that fed into it."),
-            HelpCard("How to read it", "Swipe left or right between models, or tap a chip in the strip to jump straight there. Each model's synthesis renders with full markdown — headings, tables, lists, code blocks, reasoning sections all behave the way they do elsewhere in the app. The credits strip uses each source agent's own emoji so you can spot at a glance which models fed the synthesis.")
-        )
-    ),
     "fan_in_view" to HelpContent(
         title = "Help - Fan-in",
         cards = listOf(
@@ -613,7 +606,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "report_pick_model" to HelpContent(
         title = "Help - Pick model",
         cards = listOf(
-            HelpCard("Overview", "Full-screen single-select model picker reached by +Model on the New AI Report selection phase, and by the secondary-result launchers (Meta / Fan-out / Fan-in / Fan-in-model / Translate / Rerank) when they need a model."),
+            HelpCard("Overview", "Full-screen single-select model picker reached by +Model on the New AI Report selection phase, and by the secondary-result launchers (Meta / Fan-out / Fan-in / Translate / Rerank) when they need a model."),
             HelpCard("List", "Joins every active provider's catalog."),
             HelpCard("Provider filter", "Dropdown above the list — All Providers or one specific provider (count shown next to each name)."),
             HelpCard("Type filter", "When opened with a modelTypeFilter (RERANK / MODERATION / EMBEDDING / etc.), a checkbox '<Type> models only' is shown ON by default — untick to widen to the full catalog."),

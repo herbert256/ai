@@ -111,7 +111,6 @@ then subtitle.
 | Fan titles - model | \<provider\> / \<model\> |
 | Fan titles - pair | This pair no longer exists |
 | Fan titles - pair | \<answerer label\> |
-| Fan-in-model | \<report title\> |
 | Fan-out | \<report title\> |
 | Fan-out pair | \<report title\> |
 | Flock | \<flock name\> |

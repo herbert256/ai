@@ -87,13 +87,9 @@ internal fun ColumnScope.FanOutDrillInView(
     results: List<SecondaryResult>,
     combinedRows: List<SecondaryResult> = emptyList(),
     fanInPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    /** Per-model fan-in prompt list driving the L2 "New Fan In"
-     *  button. Filtered to category="fan-in-model". */
-    fanInModelPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanOutPrompt: com.ai.model.InternalPrompt? = null,
     runningFanOutPairs: Set<String> = emptySet(),
     onRunFanIn: (() -> Unit)? = null,
-    onRunModelFanIn: ((activeProviderId: String, activeModel: String) -> Unit)? = null,
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. */
     onCreateReportFromFanOut: ((activeProviderId: String, activeModel: String) -> Unit)? = null,
@@ -657,12 +653,10 @@ internal fun ColumnScope.FanOutDrillInView(
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(6.dp))
-        // Row 2: Create Report + New Fan In on their own row, equal weight.
+        // Row 2: Create Report on its own row.
         // Disabled when the L2 active model has no fan-out rows where
         // it is the source — those rows become the new report's
-        // agents (Create Report) or the responder set the fan-in
-        // template walks over (New Fan In), so without them there's
-        // nothing to feed in.
+        // agents, so without them there's nothing to feed in.
         val hasInitiatorRows = remember(latestByPair, activeAgentIds) {
             latestByPair.values.any { it.fanOutSourceAgentId in activeAgentIds }
         }
@@ -677,13 +671,6 @@ internal fun ColumnScope.FanOutDrillInView(
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.weight(1f).heightIn(min = 32.dp)
             ) { Text("Create Report", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Button(
-                onClick = { onRunModelFanIn?.invoke(activePid, activeMdl) },
-                enabled = onRunModelFanIn != null && fanInModelPrompts.isNotEmpty(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                modifier = Modifier.weight(1f).heightIn(min = 32.dp)
-            ) { Text("New Fan In", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
         // L2-scoped error count: failed pair rows where the active
         // (provider, model) is the answerer. Errors on OTHER models'
@@ -759,31 +746,9 @@ internal fun ColumnScope.FanOutDrillInView(
             )
         }
 
-        // Model-scoped fan-in rows for THIS L2 active model. Filtered
-        // out of `combinedRows` (which itself is `fanInRows` — every
-        // fan_in row on the report) by scopeProviderId / scopeModel.
-        // Rendered at the top of the L2 list above the per-pair rows.
-        val modelScopedFanIn = remember(combinedRows, activePid, activeMdl) {
-            combinedRows.filter { it.scopeProviderId == activePid && it.scopeModel == activeMdl }
-                .sortedByDescending { it.timestamp }
-        }
-        // Auto-scroll the L2 list to the top whenever a new
-        // model-scoped fan-in row appears (mirroring L1's
-        // combinedRows scroll-on-grow behaviour).
         val l2ListState = androidx.compose.foundation.lazy.rememberLazyListState()
-        var lastModelScopedSize by remember { mutableIntStateOf(modelScopedFanIn.size) }
-        LaunchedEffect(modelScopedFanIn.size) {
-            // Only yank to the top when the user is already near it — a
-            // newly-arrived fan-in row shouldn't pull the scroll up from
-            // under someone reading a per-pair row further down.
-            if (modelScopedFanIn.size > lastModelScopedSize &&
-                l2ListState.firstVisibleItemIndex <= 1) {
-                l2ListState.animateScrollToItem(0)
-            }
-            lastModelScopedSize = modelScopedFanIn.size
-        }
 
-        if (l2Rows.isEmpty() && modelScopedFanIn.isEmpty()) {
+        if (l2Rows.isEmpty()) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text(
                     if (selectedRole == "Responder") "No responses for this model yet"
@@ -793,62 +758,6 @@ internal fun ColumnScope.FanOutDrillInView(
             }
         } else {
             LazyColumn(state = l2ListState, modifier = Modifier.weight(1f)) {
-                // Model-scoped fan-in rows (created by the
-                // "Create a model fan in report" button above) sit
-                // at the top of the list, before the per-pair rows.
-                // Each row's status icon mirrors L1's combinedRows
-                // (✅ on success / errored / ⏳ while in flight).
-                if (modelScopedFanIn.isNotEmpty()) {
-                    item(key = "msfi-header") {
-                        Text("Model fan in", fontSize = 12.sp,
-                            color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(bottom = 4.dp))
-                    }
-                    items(modelScopedFanIn, key = { "msfi-${it.id}" }) { row ->
-                        val cost = (row.inputCost ?: 0.0) + (row.outputCost ?: 0.0)
-                        val provLabel = AppService.findById(row.providerId)?.id ?: row.providerId
-                        val nameLabel = row.metaPromptName?.takeIf { it.isNotBlank() }
-                        Row(
-                            modifier = Modifier.fillMaxWidth()
-                                .clickable { onOpen(row.id) }
-                                .padding(vertical = 10.dp, horizontal = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(modifier = Modifier.padding(end = 8.dp).width(20.dp),
-                                contentAlignment = Alignment.Center) {
-                                when {
-                                    row.errorMessage != null -> Text("❌", fontSize = 16.sp)
-                                    !row.content.isNullOrBlank() || row.durationMs != null ->
-                                        Text("✅", fontSize = 16.sp)
-                                    else -> com.ai.ui.shared.AnimatedHourglass(fontSize = 16.sp)
-                                }
-                            }
-                            val rowText = if (nameLabel != null) "$nameLabel · ${com.ai.ui.shared.modelLabel(provLabel, row.model)}"
-                                else com.ai.ui.shared.modelLabel(provLabel, row.model)
-                            Text(
-                                rowText, fontSize = 14.sp, color = Color.White,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
-                            if (cost > 0.0) {
-                                Text(formatCents(cost), fontSize = 11.sp,
-                                    color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                                    modifier = Modifier.padding(end = 8.dp))
-                            }
-                            Text(">", fontSize = 16.sp, color = AppColors.Blue)
-                        }
-                        HorizontalDivider(color = AppColors.DividerDark)
-                    }
-                    if (l2Rows.isNotEmpty()) {
-                        item(key = "msfi-section-gap") {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(if (selectedRole == "Responder") "Responses" else "Pairs",
-                                fontSize = 12.sp,
-                                color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
-                                modifier = Modifier.padding(bottom = 4.dp))
-                        }
-                    }
-                }
                 items(l2Rows, key = { it.key }) { row ->
                     val rowProv = AppService.findById(row.provider)?.id ?: row.provider
                     val state = rowState(row.pair)

@@ -718,12 +718,11 @@ class RegenerateBatchEngine internal constructor(
             )
         }
 
-        // FAN_IN — combined-report rows (fanInOf != null) AND
-        // model-scoped fan-in (scopeProviderId != null).
+        // FAN_IN — combined-report rows (fanInOf != null).
         val fanInRows = all.filter {
             it.kind == SecondaryKind.META &&
                 it.fanOutSourceAgentId == null &&
-                (it.fanInOf != null || it.scopeProviderId != null)
+                it.fanInOf != null
         }
         for (row in fanInRows) {
             tasks += RegenerateTask(
@@ -768,9 +767,7 @@ class RegenerateBatchEngine internal constructor(
     private fun isMetaPhaseRow(r: SecondaryResult): Boolean =
         r.kind != SecondaryKind.TRANSLATE &&
             r.fanOutSourceAgentId == null &&
-            r.fanInOf == null &&
-            r.scopeProviderId == null &&
-            r.scopeModel == null
+            r.fanInOf == null
 
     private fun labelForSecondary(r: SecondaryResult): String {
         val name = r.metaPromptName?.takeIf { it.isNotBlank() }

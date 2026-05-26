@@ -246,16 +246,6 @@ title / prompt template. Walk the resulting compile errors:
 
 The same pattern documents itself; lean on the compiler.
 
-> Note: model-scoped fan-in adds a parallel surface — three
-> Internal Prompt categories (`initiator`, `requester`, `model`)
-> drive runs whose row carries `scopeProviderId` / `scopeModel`
-> so the L2 page surfaces them under their own (provider, model)
-> bucket distinct from the legacy total `fan_in`. The resolver is
-> `resolveModelFanInPrompt` (separate from `resolveFanInPrompt`)
-> with placeholders `@INITIATOR@`, `@RESPONDERS@`,
-> `@RESPONDER_PAIRS@`. Adding a new SecondaryKind that needs a
-> similar model-scoped flavour means walking those sites too.
-
 ### A new Internal Prompt category
 
 Internal prompts have a free-form `category` string —

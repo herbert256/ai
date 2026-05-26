@@ -430,9 +430,6 @@ fun ReportsScreenNav(
         onRunFanIn = { reportId, metaPrompt, pick, sourceLanguage, paramsIds, systemPromptId ->
             reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, pick, sourceLanguage, paramsIds, systemPromptId)
         },
-        onRunModelFanIn = { reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage, paramsIds, systemPromptId ->
-            reportViewModel.secondary.runModelFanInPrompt(context, reportId, metaPrompt, pick, activePid, activeMdl, sourceLanguage, paramsIds, systemPromptId)
-        },
         onCreateReportFromFanOut = { sourceRid, activePid, activeMdl ->
             scope.launch {
                 val newId = reportViewModel.secondary.createReportFromFanOut(context, sourceRid, activePid, activeMdl)

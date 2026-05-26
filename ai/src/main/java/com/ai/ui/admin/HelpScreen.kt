@@ -40,7 +40,6 @@ private val VIEW_CHILD_HELP_TOPICS = setOf(
     "rerank_view",
     "moderation_view",
     "fan_in_view",
-    "fan_in_model_view",
     "translate_view",
     "prompt_view_screen",
     "reports_view",

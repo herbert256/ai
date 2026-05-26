@@ -1,6 +1,6 @@
 {
-  "name": "m__n_",
-  "title": "model (b)",
+  "name": "translate-title",
+  "title": "Translate a title",
   "reference": false,
   "agent": "*select",
   "parameters": "*NONE",

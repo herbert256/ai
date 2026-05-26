@@ -782,54 +782,6 @@ fun resolveFanInPrompt(
         .replace("@RESPONSE@", "")
 }
 
-/** Resolve the prompt template for a model-scoped fan-in run
- *  (categories initiator / requester / model). Distinct from
- *  [resolveFanInPrompt] — the model-scoped resolver pre-builds the
- *  iterable blocks in code (not via regex expansion of an
- *  `***Report*** @REPORT@@RESPONSES@` template fragment) because
- *  the data shape is per-pair list rather than per-source iterable.
- *
- *  Variables (all plain string substitutions):
- *  - `@QUESTION@` — original report prompt
- *  - `@TITLE@` — report title (or empty)
- *  - `@DATE@` — current date/time, `yyyy-MM-dd HH:mm`
- *  - `@COUNT@` — `max(responders.size, responderPairs.size)`
- *  - `@INITIATOR@` — active model's own report response. Used by
- *    initiator / model. Empty for requester where the active model
- *    is the answerer, not the source.
- *  - `@RESPONDERS@` — block of fan-out responses where the active
- *    model is the source (other models responded TO active's report).
- *    One `***Response*** {body}` line per responder, separated by
- *    blank lines. Same `***Response***` prefix the legacy fan-in
- *    iterable uses for parallel rendering. Used by initiator / model.
- *  - `@RESPONDER_PAIRS@` — iterable list of pairs where the active
- *    model is the answerer. Each pair renders as
- *    `***Report*** {other's report body}\n\n***Response*** {active's
- *    fan-out response}`. Pairs separated by blank lines. Used by
- *    requester / model. */
-fun resolveModelFanInPrompt(
-    template: String,
-    question: String,
-    title: String?,
-    initiatorBody: String,
-    responders: List<String>,
-    responderPairs: List<Pair<String, String>>
-): String {
-    val now = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date())
-    val respondersBlock = responders.joinToString("\n\n") { "***Response*** $it" }
-    val pairsBlock = responderPairs.joinToString("\n\n") { (rep, resp) ->
-        "***Report*** $rep\n\n***Response*** $resp"
-    }
-    return template
-        .replace("@QUESTION@", question)
-        .replace("@TITLE@", title ?: "")
-        .replace("@DATE@", now)
-        .replace("@COUNT@", maxOf(responders.size, responderPairs.size).toString())
-        .replace("@INITIATOR@", initiatorBody)
-        .replace("@RESPONDERS@", respondersBlock)
-        .replace("@RESPONDER_PAIRS@", pairsBlock)
-}
-
 /** Build the @RESULTS@ block: per-agent text, prefixed only with the
  *  bracketed `[N]` id (no provider / model identifiers — those reach
  *  the user via the appended Compare legend, not the prompt). The

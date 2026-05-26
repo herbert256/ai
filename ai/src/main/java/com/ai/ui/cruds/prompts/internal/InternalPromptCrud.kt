@@ -32,7 +32,7 @@ private sealed interface Mode {
 
 /**
  * Uniform CRUD for the internal prompts of one [category]
- * (meta / fan_out / fan_in / fan-in-model / icons / internal / info /
+ * (meta / fan_out / fan_in / icons / internal / info /
  * workers). The `internal`, `icons`, `info` and `workers` categories are
  * FIXED lists: rows are editable but can't be added, copied or deleted
  * (they're built-in templates). `workers` rows additionally carry a

@@ -92,14 +92,6 @@ data class SecondaryResult(
      *  before this field existed; cascade defaults to AllReports
      *  there, matching prior behaviour. */
     val secondaryScope: String? = null,
-    /** Set when this row is a model-scoped fan-in (categories
-     *  initiator / requester / model). Identifies which (provider,
-     *  model) pair the L2 page should surface this row under so the
-     *  per-model drill-in can filter to just its own. Null on every
-     *  other row including the legacy "total" fan_in (which combines
-     *  the whole report and is shown on L1's combinedRows section). */
-    val scopeProviderId: String? = null,
-    val scopeModel: String? = null,
     /** Per-fan-out-pair emoji produced by the
      *  [com.ai.viewmodel.ReportViewModel.runFanOutIconChain] 3-tier
      *  chain (chat continuation → one-shot fan_out_icon →

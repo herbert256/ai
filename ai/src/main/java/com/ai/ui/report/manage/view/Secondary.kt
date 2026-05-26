@@ -70,15 +70,8 @@ internal fun SecondaryResultsScreen(
      *  the legacy path entirely. */
     fanOutEngine: com.ai.viewmodel.FanOutEngine? = null,
     fanInPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
-    /** Per-model fan-in prompt list driving the L2 "New Fan In"
-     *  button. Filtered to category="fan-in-model". */
-    fanInModelPrompts: List<com.ai.model.InternalPrompt> = emptyList(),
     fanOutPrompt: com.ai.model.InternalPrompt? = null,
     onRunFanIn: (() -> Unit)? = null,
-    /** Open the per-model fan-in prompt picker scoped to the L2
-     *  active (provider, model). Wired by the L2 "New Fan In"
-     *  button. */
-    onRunModelFanIn: ((activeProviderId: String, activeModel: String) -> Unit)? = null,
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Wired by the "Create Report" button next to
      *  "Switch role" on the L2 header. */
@@ -602,7 +595,6 @@ internal fun SecondaryResultsScreen(
                     refreshTick++
                 },
                 onRunFanIn = { _ -> onRunFanIn?.invoke() },
-                onRunModelFanIn = { _, prov, mdl -> onRunModelFanIn?.invoke(prov, mdl) },
                 onCreateReportFromFanOut = { _, prov, mdl -> onCreateReportFromFanOut?.invoke(prov, mdl) },
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToTraceRunList = onNavigateToTraceRunList,
@@ -661,11 +653,9 @@ internal fun SecondaryResultsScreen(
                 results = fanOutRowsAll,
                 combinedRows = fanInRows,
                 fanInPrompts = fanInPrompts,
-                fanInModelPrompts = fanInModelPrompts,
                 fanOutPrompt = fanOutPrompt,
                 runningFanOutPairs = effectiveRunningFanOutPairs,
                 onRunFanIn = onRunFanIn,
-                onRunModelFanIn = onRunModelFanIn,
                 onCreateReportFromFanOut = onCreateReportFromFanOut,
                 onDelete = { id -> onDelete(id); refreshTick++ },
                 onBulkDelete = { ids -> onBulkDelete(ids); refreshTick++ },

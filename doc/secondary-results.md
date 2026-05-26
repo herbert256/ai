@@ -36,15 +36,6 @@ broken into category buckets:
   every (answerer × source) pair.
 - **Fan-in prompts** (`category = "fan_in"`) — combines fan-out
   responses back into a single combined-report row.
-- **Model-scoped fan-in prompts** (`category = "initiator"` /
-  `"requester"` / `"model"`) — produces per-(provider, model)
-  rows that the Fan-out L2 page surfaces under each model's own
-  bucket. Distinct from the legacy total `fan_in` (which combines
-  the whole report and shows on L1's combined-rows section).
-  Resolver is `resolveModelFanInPrompt` with placeholders
-  `@INITIATOR@`, `@RESPONDERS@`, `@RESPONDER_PAIRS@`. Rows carry
-  `scopeProviderId` / `scopeModel` so the L2 page can filter to
-  the active model.
 - **Other internal** (`category = "internal"`) — fixed list of
   five fixed-name templates: `intro`, `model_info`, `translate`,
   `rerank`, `moderation`. No Add / Delete in this bucket.
@@ -149,9 +140,6 @@ Templates substitute these variables:
 | `@RESPONSE@` | Fan-out only — the source agent's response body |
 | `@FAN_OUT_COUNT@` | Fan-in only — the number of fan-out source agents |
 | `***Report*** @REPORT@@RESPONSES@` | Fan-in only — iterable block; expands once per source agent, with `@RESPONSES@` populated by every fan-out response for that source |
-| `@INITIATOR@` | Model-scoped fan-in only — active model's own report response. Used by `initiator` / `model` categories; empty for `requester` (where the active model is the answerer, not the source) |
-| `@RESPONDERS@` | Model-scoped fan-in only — block of fan-out responses where the active model is the source (other models responded TO active's report). One `***Response*** {body}` line per responder. Used by `initiator` / `model` |
-| `@RESPONDER_PAIRS@` | Model-scoped fan-in only — iterable list of pairs where the active model is the answerer. Each pair renders as `***Report*** {other's report body}\n\n***Response*** {active's fan-out response}`. Used by `requester` / `model` |
 
 ## The @RESULTS@ block
 

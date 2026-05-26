@@ -190,11 +190,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             swarms = loadList(KEY_AI_SWARMS, TypeTokens.listSwarmType),
             parameters = loadList(KEY_AI_PARAMETERS, TypeTokens.listParametersType),
             systemPrompts = loadList(KEY_AI_SYSTEM_PROMPTS, TypeTokens.listSystemPromptType),
-            // Migrate legacy category="model" → "fan-in-model" so users
-            // who hand-curated Fan In templates under the old name keep
-            // their content after the three-way category collapse.
-            // Idempotent — runs every load, no-ops once persisted prefs
-            // are clean (next save flushes the migrated list back).
             internalPrompts = loadList<InternalPrompt>(KEY_AI_INTERNAL_PROMPTS, TypeTokens.listInternalPromptType).map { raw ->
                 // Gson allocates without the constructor, so a non-null Kotlin
                 // field is left null when older stored JSON predates it (e.g.
@@ -212,7 +207,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                     parameters = (raw.parameters as String?) ?: "*NONE",
                     systemPrompt = (raw.systemPrompt as String?) ?: "*NONE"
                 )
-                if (p.category == "model") p.copy(category = "fan-in-model") else p
+                p
             },
             examplePrompts = loadList(KEY_AI_EXAMPLE_PROMPTS, TypeTokens.listExamplePromptType),
             endpoints = loadEndpoints(),

@@ -72,10 +72,8 @@ internal fun SecondaryResultsListMount(
     onFanInPickerPromptChange: (InternalPrompt?) -> Unit,
     /** Captured from the parent fan-out run's [FanOutRunState.sourceLanguage]
      *  so the downstream picker can forward the language to runFanInPrompt
-     *  / runModelFanInPrompt. Null when the fan-out ran on the original. */
+     *  Null when the fan-out ran on the original. */
     onFanInPickerSourceLanguageChange: (String?) -> Unit,
-    onModelFanInActiveChange: (String?, String?) -> Unit,
-    onModelFanInPickerPromptChange: (InternalPrompt?) -> Unit,
     onCloseList: () -> Unit,
     onShowResponses: () -> Unit,
     onShowFanMeta: () -> Unit = {},
@@ -105,7 +103,6 @@ internal fun SecondaryResultsListMount(
 ) {
     val rid = reportId
     val fanInList = internalPrompts.filter { it.category == "fan_in" }
-    val fanInModelList = internalPrompts.filter { it.category == "fan-in-model" }
     val fanOutPrompt = if (openListKind == SecondaryKind.META && listFilterByName != null) {
         internalPrompts.firstOrNull {
             it.category == "fan_out" && it.name == listFilterByName
@@ -114,8 +111,8 @@ internal fun SecondaryResultsListMount(
     // Parent fan-out's source language (null = Original). Read from
     // the engine's hydrated state so the language survives report
     // re-open. Forwarded to the parent at every fan-in trigger so
-    // runFanInPrompt / runModelFanInPrompt fire in the same language
-    // as the fan-out being combined.
+    // runFanInPrompt fires in the same language as the fan-out
+    // being combined.
     val parentSourceLanguage: String? = remember(reportId, fanOutPrompt?.id, fanOutEngine) {
         val mp = fanOutPrompt ?: return@remember null
         val eng = fanOutEngine ?: return@remember null
@@ -164,7 +161,6 @@ internal fun SecondaryResultsListMount(
             isFanMetaDrillIn = listIsFanMeta,
             fanOutEngine = fanOutEngine,
             fanInPrompts = fanInList,
-            fanInModelPrompts = fanInModelList,
             fanOutPrompt = fanOutPrompt,
             onRunFanIn = if (fanInList.isNotEmpty()) {
                 {
@@ -173,11 +169,6 @@ internal fun SecondaryResultsListMount(
                     else onShowFanInPromptPickerChange(true)
                 }
             } else null,
-            onRunModelFanIn = { activePid, activeMdl ->
-                onFanInPickerSourceLanguageChange(parentSourceLanguage)
-                onModelFanInActiveChange(activePid, activeMdl)
-                if (fanInModelList.size == 1) onModelFanInPickerPromptChange(fanInModelList.first())
-            },
             onCreateReportFromFanOut = { activePid, activeMdl ->
                 onCloseList()
                 onCreateReportFromFanOut(rid, activePid, activeMdl)

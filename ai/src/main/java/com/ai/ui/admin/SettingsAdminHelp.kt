@@ -314,7 +314,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Sub-hub one level under AI Setup → Prompt management → Internal prompts. Groups the categories the app's internal flows consume: Meta, Fan out/in, Other internal, Worker, and Alternative. Each card opens the matching CRUD list (or, for Fan out/in, a deeper sub-hub)."),
             HelpCard("Meta prompts", "category=\"meta\". Rerank, Summarize, Compare, Moderation — run on the full report from the View → Actions card."),
-            HelpCard("Fan out/in prompts", "Opens the dedicated sub-hub with the fan_out / fan_in / fan-in-model categories."),
+            HelpCard("Fan out/in prompts", "Opens the dedicated sub-hub with the fan_out / fan_in categories."),
             HelpCard("Other internal prompts", "category=\"internal\". Templates consumed by app features (Translate, Model info, Intro). Last on the page so the more commonly-edited buckets sit at the top."),
             HelpCard("Worker prompts", "category=\"workers\". Prompts that carry an ordered list of workers (each an Agent or a Provider+Model) tried as a fallback chain. Edit-only; the chain isn't executed yet — wiring comes later."),
             HelpCard("Alternative prompts", "category=\"alt\". The *_alt variants the Find-alternative-icons / titles flows compose with their base prompt (the distinct-emoji / no-country-flag nudges). Edit-only."),
@@ -327,8 +327,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Sub-hub one level under AI Setup → Prompt management → Fan out/in prompts. One card per fan-* category — every CRUD shares the same list / edit infrastructure as the other Internal Prompt buckets."),
             HelpCard("Fan Out", "category=\"fan_out\". Per-pair source-response template — runs across every (answerer × source) pair (N×(N−1) calls). Placeholders include @RESPONSE@."),
             HelpCard("Fan in, total", "category=\"fan_in\". Combined-report template — one run per source agent on a single picked model. Iterable block `***Report*** @REPORT@@RESPONSES@` expands once per source."),
-            HelpCard("Fan In, model", "category=\"fan-in-model\". Per-(provider, model) scoped fan-in. Reached from the L2 \"Fan out — model\" page's New Fan In button. Both @RESPONDERS@ (other models' fan-out responses to the active model) and @RESPONDER_PAIRS@ (pairs where active is the responder — `***Report***` + `***Response***` per pair) are populated; the prompt body opts in by reference. Empty state — no fan-out rows touching the active model — produces a placeholder error row instead of running."),
-            HelpCard("Tips", "All three fan-* categories share the FAN_CATEGORIES treatment in the editor — no agent dispatch, the agent slot is N/A. Names are unique within each category, not across — the same name can exist in fan_out and fan-in-model without collision."),
+            HelpCard("Tips", "Both fan-* categories share the FAN_CATEGORIES treatment in the editor — no agent dispatch, the agent slot is N/A. Names are unique within each category, not across — the same name can exist in fan_out and fan_in without collision."),
         )
     ),
     "internal_prompts" to HelpContent(
@@ -343,7 +342,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "internal_prompts_list" to HelpContent(
         title = "Help - Internal prompts list",
         cards = listOf(
-            HelpCard("Overview", "List of every internal prompt within one category — one of meta / fan_out / fan_in / fan-in-model / rerank / internal. The screen title carries the category name."),
+            HelpCard("Overview", "List of every internal prompt within one category — one of meta / fan_out / fan_in / rerank / internal. The screen title carries the category name."),
             HelpCard("Add", "When the category is editable, the top button opens a blank prompt editor pre-set to this category. The 'Other internal' bucket is fixed-list (no Add, no per-row 🗑) because those entries are bundled defaults."),
             HelpCard("Row tap", "Opens the prompt editor — change name, title, body. The category is locked to the screen's category."),
             HelpCard("Row subtitle", "Prompt title (or first body line when title is blank)."),
@@ -483,7 +482,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Five NavCards: System Prompts, Meta prompts, Fan out/in prompts, Other internal prompts, and Example prompts."),
             HelpCard("System Prompts", "Direct CRUD list. Count = number of system prompts."),
             HelpCard("Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report (one final call). category=\"meta\"."),
-            HelpCard("Fan out/in prompts", "Forwards to a sub-hub holding the three fan-* category CRUDs (fan_out, fan_in, fan-in-model). The badge count is the sum across all three buckets."),
+            HelpCard("Fan out/in prompts", "Forwards to a sub-hub holding the two fan-* category CRUDs (fan_out, fan_in). The badge count is the sum across both buckets."),
             HelpCard("Other internal prompts", "Fixed list — intro, model_info, translate, rerank, moderation. Editable but not addable / deletable. category=\"internal\"."),
             HelpCard("Example prompts", "Two-field CRUD (title, text). Pure data the user curates; no placeholder substitution, no agent dispatch, no app feature consumes them automatically."),
             HelpCard("Tips", "System Prompts are referenced by id from Agents/Flocks/Swarms/Providers; Internal Prompts are referenced by name + category by app features. Example prompts are referenced by nothing — they're just a personal library."),
@@ -591,7 +590,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Three per-file restore buttons — providers / prompts / examples. Each drops every entry in the matching list and reloads it from the bundled JSON asset. Scoped: a providers restore doesn't touch prompts and vice versa."),
             HelpCard("back to assets/providers.json", "Drops every provider definition currently in the registry (including any hand-edited fields) and reloads assets/providers.json verbatim. Per-provider API keys, model lists, and agents live outside the registry and survive."),
-            HelpCard("back to assets/internal-prompts/", "Drops every Internal prompt (including any you customized) and reloads the bundled assets/internal-prompts/ tree (one folder per category, a .json + .txt pair per prompt). Categories (meta / fan_out / fan_in / fan-in-model / icons / info / intra / internal) all reset together."),
+            HelpCard("back to assets/internal-prompts/", "Drops every Internal prompt (including any you customized) and reloads the bundled assets/internal-prompts/ tree (one folder per category, a .json + .txt pair per prompt). Categories (meta / fan_out / fan_in / icons / info / intra / internal) all reset together."),
             HelpCard("back to assets/examples.json", "Drops every Example prompt (including any you authored) and reloads assets/examples.json. Doesn't touch Internal or System prompts."),
             HelpCard("When to use", "Quick rollback when an edit went wrong, or when you've forked the bundle and want to see what the bundled values currently look like compared to your custom set."),
             HelpCard("Pitfalls", "User-authored entries in the targeted list are wiped. Use Backup first if you have hand-built prompts you want back. Bundled-asset failures (missing file, parse error) leave the targeted list empty — the Toast reports failure."),

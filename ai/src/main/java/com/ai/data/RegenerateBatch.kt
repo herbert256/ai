@@ -41,8 +41,8 @@ enum class RegeneratePhase {
      *  metaPromptId via resumeStaleFanOutPairs. */
     FAN_OUT,
 
-    /** Fan-in combined-report rows (kind == META, fanInOf != null
-     *  OR scopeProviderId != null). Each is a single call. */
+    /** Fan-in combined-report rows (kind == META, fanInOf != null).
+     *  Each is a single call. */
     FAN_IN,
 
     /** Translation rows (kind == TRANSLATE). Re-dispatched per

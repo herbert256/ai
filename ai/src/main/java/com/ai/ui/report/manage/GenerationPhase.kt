@@ -50,7 +50,7 @@ data class AgentIconRow(val icon: String?, val cost: Double)
 data class AgentModelTitle(val title: String?, val cost: Double)
 
 /** One item in a conditional "View" group (Meta / Rerank / Fan-out /
- *  Fan-in / Fan-in-model / Translate). Carries its on-screen label,
+ *  Fan-in / Translate). Carries its on-screen label,
  *  the lambda that opens that item's detail, and the source
  *  [com.ai.model.InternalPrompt] when one is available (meta-style
  *  rows). The InternalPrompt drives the [ViewAiReportScreen] meta
@@ -82,9 +82,9 @@ internal data class EveryItem(
     val open: (String?) -> Unit
 )
 
-/** Group [secondaryRuns] into the six conditional kinds the View
+/** Group [secondaryRuns] into the conditional kinds the View
  *  surface offers. Returns a map keyed by `"meta"` / `"rerank"` /
- *  `"fan_out"` / `"fan_in"` / `"fan-in-model"` / `"translate"`.
+ *  `"moderation"` / `"fan_out"` / `"fan_in"` / `"translate"`.
  *  Empty lists for kinds with no rows so callers can hide that
  *  tile / button entirely. */
 internal fun buildEveryItems(
@@ -179,13 +179,6 @@ internal fun buildEveryItems(
             sourceRows = listOf(row),
             open = { lang -> onOpenSecondaryRun(row.id, lang) }
         ) }
-    val fanInModel = secondaryRuns
-        .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan-in-model" }
-        .map { row -> EveryItem(
-            label = row.metaPromptName ?: "Fan-in-model",
-            sourceRows = listOf(row),
-            open = { lang -> onOpenSecondaryRun(row.id, lang) }
-        ) }
     // Fan-out: one item per distinct prompt name. Tap opens the
     // SecondaryResultsScreen with nameFilter set; the screen
     // auto-renders the L2 fan-out drill-in.
@@ -224,7 +217,6 @@ internal fun buildEveryItems(
         "moderation" to moderation,
         "fan_out" to fanOut,
         "fan_in" to fanIn,
-        "fan-in-model" to fanInModel,
         "translate" to translate
     )
 }
@@ -496,7 +488,7 @@ internal fun ColumnScope.GenerationPhase(
     // can toggle it; GenerationPhase reads it to pop up the choices.
     var activeBar by editCreateMenu
     // Row 3 active "every:" kind under View. Possible values: "meta" /
-    // "rerank" / "fan_out" / "fan_in" / "fan-in-model" / "translate" /
+    // "rerank" / "fan_out" / "fan_in" / "translate" /
     // null. Only meaningful when activeBar == "view".
     var activeEveryKind by rememberSaveable { mutableStateOf<String?>(null) }
     fun close() { activeBar = null; activeEveryKind = null }

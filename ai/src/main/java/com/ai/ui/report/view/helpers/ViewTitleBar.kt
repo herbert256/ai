@@ -73,7 +73,7 @@ fun ViewTitleBar(
     helpTopic: String,
     onBack: () -> Unit,
     /** Optional 🔧 manage hook for the View bottom bar. Null on
-     *  drill-deeper screens (FanInModel / FanOutPair / Icons) → the
+     *  drill-deeper screens (FanOutPair / Icons) → the
      *  bottom bar renders empty. */
     onOpenManage: (() -> Unit)? = null,
     /** Optional override for the centre-title tap target. Null → falls

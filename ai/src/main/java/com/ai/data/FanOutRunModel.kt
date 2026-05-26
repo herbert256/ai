@@ -162,15 +162,11 @@ fun PairState.titleStatus(runningTitlesSet: Set<String>): PairStatus = when {
 
 /** A combined-reports / fan-in row attached to a Fan Out run.
  *  Identified on disk by `fanInOf != null && fanOutSourceAgentId
- *  == null`. Whole-run fan-ins leave [scopeProviderId] /
- *  [scopeModel] null; per-model fan-ins set them to the L2 active
- *  (provider, model). */
+ *  == null`. */
 data class CombinedReportState(
     val id: String,
     val fanInPromptId: String,
     val fanInPromptName: String,
-    val scopeProviderId: String?,
-    val scopeModel: String?,
     val providerId: String,
     val model: String,
     val status: PairStatus,
@@ -183,7 +179,6 @@ data class CombinedReportState(
     val timestamp: Long = System.currentTimeMillis()
 ) {
     val totalCost: Double get() = (inputCost ?: 0.0) + (outputCost ?: 0.0)
-    val isModelScoped: Boolean get() = scopeProviderId != null && scopeModel != null
 }
 
 /** Entire Fan Out run state. Built by hydration on first access
@@ -310,8 +305,6 @@ fun SecondaryResult.toCombinedReportState(): CombinedReportState? {
         id = id,
         fanInPromptId = fanIn,
         fanInPromptName = name,
-        scopeProviderId = scopeProviderId,
-        scopeModel = scopeModel,
         providerId = providerId,
         model = model,
         status = status,

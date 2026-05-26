@@ -121,9 +121,6 @@ internal class ReportsScreenState(
     val fanInPickerPrompt: MutableState<InternalPrompt?>,
     val fanInPickerSourceLanguage: MutableState<String?>,
     val showFanInPromptPicker: MutableState<Boolean>,
-    val modelFanInActivePid: MutableState<String?>,
-    val modelFanInActiveMdl: MutableState<String?>,
-    val modelFanInPickerPrompt: MutableState<InternalPrompt?>,
     val showMetaScreen: MutableState<Boolean>,
     val listKind: MutableState<SecondaryKind?>,
     val listFilterByName: MutableState<String?>,
@@ -198,9 +195,6 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val fanInPickerPrompt = rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     val fanInPickerSourceLanguage = rememberSaveable { mutableStateOf<String?>(null) }
     val showFanInPromptPicker = rememberSaveable { mutableStateOf(false) }
-    val modelFanInActivePid = rememberSaveable { mutableStateOf<String?>(null) }
-    val modelFanInActiveMdl = rememberSaveable { mutableStateOf<String?>(null) }
-    val modelFanInPickerPrompt = rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     val showMetaScreen = rememberSaveable { mutableStateOf(false) }
     val listKind = rememberSaveable { mutableStateOf<SecondaryKind?>(null) }
     val listFilterByName = rememberSaveable { mutableStateOf<String?>(null) }
@@ -273,9 +267,6 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         fanInPickerPrompt,
         fanInPickerSourceLanguage,
         showFanInPromptPicker,
-        modelFanInActivePid,
-        modelFanInActiveMdl,
-        modelFanInPickerPrompt,
         showMetaScreen,
         listKind,
         listFilterByName,

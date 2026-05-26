@@ -159,7 +159,7 @@ internal fun ViewAiReportScreen(
     val resetTick = com.ai.ui.shared.LocalMainViewResetTick.current?.value ?: 0
     // Language picker key — hoisted above every sub-overlay early
     // return so its rememberSaveable slot stays alive while
-    // Costs / Icons / Rerank / Moderation / FanInModel / Translate
+    // Costs / Icons / Rerank / Moderation / Translate
     // are open. Without this hoist, opening any of those overlays
     // disposes the slot (the `if (cond) return` below skips its
     // declaration) and pressing back resets the picker to Original.
@@ -322,24 +322,6 @@ internal fun ViewAiReportScreen(
         }
         return
     }
-    // Fan-in-model "View" overlay — keyed by the seed fan-in-model
-    // META row id; the screen loads every sibling row sharing the
-    // same metaPromptName and renders a pager over them.
-    var fanInModelViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
-    val activeFanInModelViewRowId = fanInModelViewRowId
-    if (activeFanInModelViewRowId != null) {
-        val backToMain: () -> Unit = { fanInModelViewRowId = null }
-        androidx.compose.runtime.CompositionLocalProvider(
-            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
-        ) {
-            FanInModelViewScreen(
-                reportId = reportId,
-                resultId = activeFanInModelViewRowId,
-                onBack = backToMain
-            )
-        }
-        return
-    }
     // Translate "View" overlay — keyed by translationRunId so all
     // siblings of a single Translate batch render together as a
     // stacked source/translation list.
@@ -473,7 +455,7 @@ internal fun ViewAiReportScreen(
     // [selectedViewLangKey] is declared higher up (hoisted above the
     // sub-overlay early returns) so its rememberSaveable slot
     // survives round-trips through Costs / Icons / Rerank /
-    // Moderation / FanInModel / Translate. The LaunchedEffect below
+    // Moderation / Translate. The LaunchedEffect below
     // continues to read it via closure.
     androidx.compose.runtime.LaunchedEffect(viewLangTabs) {
         // Only reset when we know the tabs reflect loaded data —
@@ -1002,7 +984,6 @@ internal fun ViewAiReportScreen(
             // fan_in is no longer in computedTiles — it has its own
             // per-run tile set ([fanInTiles]) with dynamic icons,
             // mirroring the fan_out pattern.
-            ComputedSpec("fan-in-model", "Fan-in-model", "🧩", AppColors.Blue),
             ComputedSpec("translate", "Translate", "🌍", AppColors.Orange)
         )
         specs.mapNotNull { s ->
@@ -1027,7 +1008,6 @@ internal fun ViewAiReportScreen(
                                     fanInViewLanguage = currentLanguageState.value
                                     fanInViewRowId = id
                                 },
-                                openFanInModel = { id -> fanInModelViewRowId = id },
                                 openTranslate = { runId -> translateViewRunId = runId })
                             else -> { expandedKind = if (expandedKind == s.key) null else s.key }
                         }
@@ -1191,7 +1171,7 @@ internal fun ViewAiReportScreen(
 
             // Inline expansion — full-width card listing each
             // item for the active non-meta computed kind (rerank /
-            // fan_out / fan_in / fan-in-model / translate with
+            // fan_out / fan_in / translate with
             // N≥2 items). Anchored under the grid so the user
             // keeps the rest of the layout in view.
             val open = expandedKind
@@ -1211,7 +1191,6 @@ internal fun ViewAiReportScreen(
                                     fanInViewLanguage = currentLanguageState.value
                                     fanInViewRowId = id
                                 },
-                                openFanInModel = { id -> fanInModelViewRowId = id },
                                 openTranslate = { runId -> translateViewRunId = runId })
                         }
                     )
@@ -1294,7 +1273,7 @@ internal fun ViewAiReportScreen(
  *  `doc:<label>` for always-on Documents tiles, `meta:<promptName>`
  *  for individual Meta items, `computed:<key>` for the aggregated
  *  Computed kinds (rerank, moderation, fan_out, fan_in,
- *  fan-in-model, translate). */
+ *  translate). */
 private data class IdentifiedTile(val id: String, val tile: ViewTile)
 
 /** Visual descriptor for one launcher tile. */
@@ -1580,7 +1559,6 @@ private fun openComputedItem(
     openRerank: (String) -> Unit,
     openModeration: (String) -> Unit,
     openFanIn: (String) -> Unit,
-    openFanInModel: (String) -> Unit,
     openTranslate: (String) -> Unit
 ) {
     val seed = item.sourceRows?.firstOrNull()
@@ -1589,7 +1567,6 @@ private fun openComputedItem(
         "rerank" -> if (rowId != null) openRerank(rowId) else item.open(language)
         "moderation" -> if (rowId != null) openModeration(rowId) else item.open(language)
         "fan_in" -> if (rowId != null) openFanIn(rowId) else item.open(language)
-        "fan-in-model" -> if (rowId != null) openFanInModel(rowId) else item.open(language)
         "translate" -> {
             // Translate items key by translationRunId (or a synthesised
             // lang:<name> sentinel for legacy rows missing a runId).

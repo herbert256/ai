@@ -1521,7 +1521,7 @@ private fun costTypeColor(type: String): Color = when (type.substringBefore('/')
     "workers", "alt" -> AppColors.Brown
     "meta" -> AppColors.Indigo
     "fan_out" -> AppColors.Indigo
-    "fan_in", "fan-in-model" -> AppColors.Green
+    "fan_in" -> AppColors.Green
     "internal" -> AppColors.Orange
     "after" -> AppColors.Orange
     else -> AppColors.TextSecondary
