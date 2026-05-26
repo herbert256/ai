@@ -123,6 +123,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onOpenProvider = { pid -> navController.navigate(NavRoutes.aiUsageProvider(pid)) },
                 onNavigateToStatistics = toStatistics,
+                onNavigateToTraceProvider = { pid -> navController.navigate(NavRoutes.traceListFiltered(provider = pid)) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
         composable(NavRoutes.AI_USAGE_PROVIDER) { entry ->
@@ -471,6 +472,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 navArgument("status") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("category") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("model") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("provider") { type = NavType.StringType; nullable = true; defaultValue = null },
             )
         ) { entry ->
             fun arg(k: String) = entry.arguments?.getString(k)?.let {
@@ -483,6 +485,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onClearTraces = { appViewModel.clearTraces() },
                 initialHostname = arg("host"), initialStatusClass = arg("status"),
                 initialCategory = arg("category"), modelFilter = arg("model"),
+                initialProvider = arg("provider"),
                 onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
                 onAutoSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) {

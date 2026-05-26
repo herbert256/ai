@@ -63,6 +63,10 @@ fun TraceListScreen(
      *  to one host. Wired by the API-trace-statistics "Top hosts"
      *  drill-down so a tapped host opens its slice. */
     initialHostname: String? = null,
+    /** Initial provider-dropdown selection (an AppService id, matched
+     *  via providerLabelForHost). Wired by the Spend & usage 🐞 so a
+     *  provider row opens the API Traces scoped to that provider. */
+    initialProvider: String? = null,
     /** Initial HTTP status-class filter: "2xx" | "429" | "4xx" |
      *  "5xx" | "0" | "other". Mirrors computeTraceStats' buckets.
      *  Wired by the API-trace-statistics Status card; no dropdown —
@@ -140,7 +144,7 @@ fun TraceListScreen(
         val hasUnknown = labels.contains("(unknown)")
         listOf("(All)") + labelled + (if (hasUnknown) listOf("(unknown)") else emptyList())
     }
-    var selectedProvider by rememberSaveable { mutableStateOf("(All)") }
+    var selectedProvider by rememberSaveable { mutableStateOf(initialProvider ?: "(All)") }
 
     // Hostname distinct list — raw host strings as recorded on the
     // trace. Useful when one provider (e.g. Cohere) ships traffic on
@@ -445,7 +449,7 @@ fun TraceListScreen(
  *  provider produced them. Aux hosts cover providers like Cohere
  *  whose OpenAI-compat shim lives on one host but whose native
  *  rerank / capability endpoints live on another. */
-private fun providerLabelForHost(host: String): String =
+internal fun providerLabelForHost(host: String): String =
     AppService.entries.firstOrNull { svc ->
         val baseHost = runCatching { java.net.URI(svc.baseUrl).host }.getOrNull()
         baseHost?.equals(host, ignoreCase = true) == true ||

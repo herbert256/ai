@@ -36,7 +36,7 @@ object NavRoutes {
     /** Trace list pre-filtered by an arbitrary dimension — wired by the
      *  API-trace-statistics drill-downs. All four args optional. */
     const val TRACE_LIST_FILTERED =
-        "trace_list_filtered?host={host}&status={status}&category={category}&model={model}"
+        "trace_list_filtered?host={host}&status={status}&category={category}&model={model}&provider={provider}"
     const val TRACE_DETAIL = "trace_detail/{filename}"
     const val AI_HISTORY = "ai_history"
     const val AI_REPORTS_HUB = "ai_reports_hub"
@@ -183,12 +183,14 @@ object NavRoutes {
     fun traceListForRun(runId: String) = "trace_list_for_run/${encode(runId)}"
     /** Build a filtered trace-list route, encoding only the present args. */
     fun traceListFiltered(host: String? = null, status: String? = null,
-                          category: String? = null, model: String? = null): String {
+                          category: String? = null, model: String? = null,
+                          provider: String? = null): String {
         val q = listOfNotNull(
             host?.let { "host=${encode(it)}" },
             status?.let { "status=${encode(it)}" },
             category?.let { "category=${encode(it)}" },
             model?.let { "model=${encode(it)}" },
+            provider?.let { "provider=${encode(it)}" },
         ).joinToString("&")
         return "trace_list_filtered" + if (q.isEmpty()) "" else "?$q"
     }
