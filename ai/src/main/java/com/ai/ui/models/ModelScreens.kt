@@ -396,7 +396,7 @@ fun ModelInfoScreen(
     // longer an agent binding to inherit temperature / max_tokens
     // preset from.
     val modelInfoPromptTemplate = remember(aiSettings) {
-        aiSettings.getInternalPromptByName("model_info")?.text.orEmpty()
+        aiSettings.getInternalPromptByName("model-info")?.text.orEmpty()
     }
     val pageApiKey = aiSettings.getApiKey(provider)
     val introResolvedPrompt = remember(modelInfoPromptTemplate, provider, modelName) {

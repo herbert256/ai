@@ -1,6 +1,6 @@
 {
-  "name": "translate",
-  "title": "Translate text into another language",
+  "name": "second-moderation",
+  "title": "Flag policy-violating responses",
   "reference": false,
   "agent": "*select",
   "parameters": "*NONE",

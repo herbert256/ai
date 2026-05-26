@@ -1,5 +1,5 @@
 {
-  "name": "chat_title",
+  "name": "chat-title",
   "title": "Decide the chat title",
   "reference": false,
   "agent": "DeepSeek",

@@ -104,8 +104,8 @@ fun InternalPromptEditScreen(
     BackHandler { onBack() }
     val isEditing = internalPrompt != null
     val isFanCategory = fixedCategory in FAN_CATEGORIES
-    // Other Internal prompts (chat_title / model_info / model_intro_view
-    // / translate / translate-title / rerank / moderation / test_model),
+    // Other Internal prompts (chat-title / model-info / model-intro
+    // / translate-text / translate-title / second-rerank / second-moderation / test-model),
     // icons, info and workers are fixed lists — name is not user-editable.
     // Single source of truth so gating can't drift.
     val isFixedList = isFixedListCategory(fixedCategory)

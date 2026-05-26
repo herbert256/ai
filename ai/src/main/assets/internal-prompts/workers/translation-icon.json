@@ -1,6 +1,6 @@
 {
-  "name": "language",
-  "title": "Detect a prompt's language + a fitting emoji",
+  "name": "translation-icon",
+  "title": "Find a fitting emoji for a translation",
   "reference": false,
   "workers": [
     {

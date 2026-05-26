@@ -1128,6 +1128,41 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
+        // One-shot: rename bundled worker / internal prompts to their
+        // clearer names so an existing install is renamed IN PLACE
+        // (preserving any user edits) rather than gaining a duplicate
+        // next to the freshly delta-merged new-named row. Category-scoped
+        // so it never touches the unrelated icons/meta or internal/language
+        // rows. Must run BEFORE ensureAllPresent + the test_model upgrade.
+        // Idempotent.
+        run {
+            val renamesByCategory = mapOf(
+                "workers" to mapOf(
+                    "translation" to "translation-icon",
+                    "language" to "report-language",
+                    "meta" to "second-meta",
+                ),
+                "internal" to mapOf(
+                    "rerank" to "second-rerank",
+                    "moderation" to "second-moderation",
+                    "translate" to "translate-text",
+                    "test_model" to "test-model",
+                    "chat_title" to "chat-title",
+                    "model_info" to "model-info",
+                    "model_intro_view" to "model-intro",
+                ),
+            )
+            val migrated = ai.internalPrompts.map { p ->
+                val newName = renamesByCategory[p.category.lowercase()]?.get(p.name.lowercase())
+                if (newName != null) p.copy(name = newName) else p
+            }
+            if (migrated != ai.internalPrompts) {
+                AppLog.i(tag, "Renamed ${migrated.zip(ai.internalPrompts).count { (a, b) -> a !== b }} bundled prompt(s) to the new naming scheme")
+                ai = ai.copy(internalPrompts = migrated)
+                settingsPrefs.saveSettings(ai)
+            }
+        }
+
         // One-shot strip of the now-redundant `_icon` suffix on every
         // icons-category row. The Internal-prompts hub already labels
         // these with the "icons" category badge, so the suffix on the
@@ -1233,7 +1268,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        // One-shot upgrade for the bundled `test_model` prompt: the
+        // One-shot upgrade for the bundled `test-model` prompt: the
         // first seed ("Reply: OK") was too ambiguous — chatty models
         // would echo 10-50 tokens of pleasantries instead of the
         // single "OK" token, multiplying every Test-all-models probe's
@@ -1243,10 +1278,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val oldText = "Reply: OK"
             val newText = "Reply with exactly: OK"
             val upgraded = ai.internalPrompts.map { p ->
-                if (p.name.equals("test_model", ignoreCase = true) && p.text == oldText) p.copy(text = newText) else p
+                if (p.name.equals("test-model", ignoreCase = true) && p.text == oldText) p.copy(text = newText) else p
             }
             if (upgraded != ai.internalPrompts) {
-                AppLog.i(tag, "Upgraded test_model prompt to the directive wording")
+                AppLog.i(tag, "Upgraded test-model prompt to the directive wording")
                 ai = ai.copy(internalPrompts = upgraded)
                 settingsPrefs.saveSettings(ai)
             }
@@ -1903,7 +1938,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsPrefs.saveSettings(settings) }
     }
 
-    /** Mirror the bundled `test_model` internal prompt's body into
+    /** Mirror the bundled `test-model` internal prompt's body into
      *  [com.ai.data.AnalysisRepository.TEST_PROMPT] so every OK-probe
      *  call site (ApiDispatch.testModel, ModelTestEngine, the
      *  per-provider tests, the L3 display) uses the live text without
@@ -1911,7 +1946,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  if the prompt is missing. */
     private fun syncTestModelPrompt(settings: Settings) {
         val live = settings.internalPrompts.firstOrNull {
-            it.name.equals("test_model", ignoreCase = true) && it.category.equals("internal", ignoreCase = true)
+            it.name.equals("test-model", ignoreCase = true) && it.category.equals("internal", ignoreCase = true)
         }
         if (live != null && live.text.isNotBlank()) {
             com.ai.data.AnalysisRepository.TEST_PROMPT = live.text

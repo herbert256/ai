@@ -448,17 +448,17 @@ class IconGenerationManager(
         aiSettings: Settings
     ) {
         if (!appViewModel.uiState.value.generalSettings.reportLanguageOn()) return
-        // Worker-based: a single workers/language call returns BOTH the
+        // Worker-based: a single workers/report-language call returns BOTH the
         // language name and a fitting emoji (the prompt asks for a
         // "language:" / "icon:" two-line reply), via the random-pick /
         // 429-fallback engine — no chained second call.
         val languagePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "workers" && it.name == "language"
+            it.category == "workers" && it.name == "report-language"
         } ?: return
         if (languagePrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
         val resolved = languagePrompt.text.replace("@PROMPT@", promptText)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withTracerTags(reportId = reportId, category = "workers/language") {
+            withTracerTags(reportId = reportId, category = "workers/report-language") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 appViewModel.updateRunningInfoJobs { it + "$reportId|language" }
                 val started = System.currentTimeMillis()
@@ -537,7 +537,7 @@ class IconGenerationManager(
             ?.takeIf { it.isNotBlank() }
     }
 
-    /** Background helper that runs the bundled `workers/meta` prompt
+    /** Background helper that runs the bundled `workers/second-meta` prompt
      *  (random-pick / 429-fallback worker engine) and caches a one-emoji
      *  result for [prompt] in [InternalPromptIconCache]. Idempotent: bails
      *  when the master switch is off, when the cache already has a value, or
@@ -557,10 +557,10 @@ class IconGenerationManager(
         if (!InternalPromptIconCache.markInFlight(prompt.name, prompt.title)) return
 
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "workers" && it.name.equals("meta", ignoreCase = true)
+            it.category == "workers" && it.name.equals("second-meta", ignoreCase = true)
         }
         if (iconPrompt == null || iconPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
-            AppLog.w("InternalPromptIcon", "workers/meta not configured — skipping")
+            AppLog.w("InternalPromptIcon", "workers/second-meta not configured — skipping")
             InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
             return
         }
@@ -569,7 +569,7 @@ class IconGenerationManager(
             .replace("@TITLE@", prompt.title)
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            withTracerTags(category = "workers/meta") {
+            withTracerTags(category = "workers/second-meta") {
                 val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context) {
                     extractFirstEmoji(it.analysis) != null
                 }
@@ -592,7 +592,7 @@ class IconGenerationManager(
                         responseText = outcome.response.analysis.orEmpty(),
                         inputTokens = inT, outputTokens = outT,
                         inputCost = inC, outputCost = outC,
-                        promptName = "meta"
+                        promptName = "second-meta"
                     )
                     if ((inT > 0 || outT > 0) && winAgent != null) {
                         appViewModel.settingsPrefs.updateUsageStatsAsync(
@@ -1041,7 +1041,7 @@ class IconGenerationManager(
     private fun translationIconKey(language: String): String =
         "translation_icon" + "" + language
 
-    /** Background helper that runs the bundled `workers/translation`
+    /** Background helper that runs the bundled `workers/translation-icon`
      *  prompt (random-pick / 429-fallback worker engine) and caches a
      *  one-emoji result for [language] in [InternalPromptIconCache].
      *  Idempotent (same dedupe rules as [kickOffInternalPromptIcon]).
@@ -1057,17 +1057,17 @@ class IconGenerationManager(
         if (!InternalPromptIconCache.markInFlight("translation_icon", language)) return
 
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "workers" && it.name.equals("translation", ignoreCase = true)
+            it.category == "workers" && it.name.equals("translation-icon", ignoreCase = true)
         }
         if (iconPrompt == null || iconPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
-            AppLog.w("TranslationIcon", "workers/translation not configured — skipping")
+            AppLog.w("TranslationIcon", "workers/translation-icon not configured — skipping")
             InternalPromptIconCache.clearInFlight("translation_icon", language)
             return
         }
         val resolved = iconPrompt.text.replace("@LANGUAGE@", language)
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            withTracerTags(category = "workers/translation") {
+            withTracerTags(category = "workers/translation-icon") {
                 val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context) {
                     extractFirstEmoji(it.analysis) != null
                 }
@@ -1090,7 +1090,7 @@ class IconGenerationManager(
                         responseText = outcome.response.analysis.orEmpty(),
                         inputTokens = inT, outputTokens = outT,
                         inputCost = inC, outputCost = outC,
-                        promptName = "translation"
+                        promptName = "translation-icon"
                     )
                     if ((inT > 0 || outT > 0) && winAgent != null) {
                         appViewModel.settingsPrefs.updateUsageStatsAsync(

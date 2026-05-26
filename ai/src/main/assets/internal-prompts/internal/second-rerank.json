@@ -1,6 +1,6 @@
 {
-  "name": "moderation",
-  "title": "Flag policy-violating responses",
+  "name": "second-rerank",
+  "title": "Rank every response by quality",
   "reference": false,
   "agent": "*select",
   "parameters": "*NONE",

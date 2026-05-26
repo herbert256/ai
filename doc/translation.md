@@ -59,7 +59,7 @@ For each selected language, one TRANSLATE call is made per:
 
 Four short title fields are also translated, each as its own
 TRANSLATE call. These use the **`translate-title`** prompt rather
-than the body `translate` prompt (see below):
+than the body `translate-text` prompt (see below):
 
 - **Report short title** — `translateSourceKind = "TITLE"`,
   `translateSourceTargetId = "title"`.
@@ -81,7 +81,7 @@ delta-merged into existing installs on launch, editable via Settings
 
 | Prompt | Used for | Placeholders |
 |---|---|---|
-| `translate` | prompt / agent / meta bodies | `@LANGUAGE@`, `@TEXT@` |
+| `translate-text` | prompt / agent / meta bodies | `@LANGUAGE@`, `@TEXT@` |
 | `translate-title` | the four title kinds | `@LANGUAGE@`, `@TITLE@` |
 
 The default body prompt asks for: "Translate the following text to
@@ -194,9 +194,9 @@ logic still keys on `"AGENT"` / `"META"` / etc.
 ## Editing the translation prompt
 
 Settings → AI Setup → **Prompt management → Other internal** lists
-the fixed-name internal templates (intro / model_info / translate /
-translate-title / rerank / moderation). Edit the `text` field of the
-`translate` row (bodies) or `translate-title` row (titles). Defaults
+the fixed-name internal templates (model-info / model-intro / chat-title /
+translate-text / translate-title / second-rerank / second-moderation / test-model). Edit the `text` field of the
+`translate-text` row (bodies) or `translate-title` row (titles). Defaults
 are seeded from `assets/internal-prompts/` on
 a fresh install; existing entries are never overwritten by re-seeds
 unless the user runs Housekeeping → Reset → "Reset Internal Prompts

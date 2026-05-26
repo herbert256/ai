@@ -1023,14 +1023,14 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val ai = com.ai.model.SettingsHolder.current
     val languageDetectRow: CostRow? = if (hasLanguageDetectCost) {
         val detectPrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "workers" && it.name == "language"
+            it.category == "workers" && it.name == "report-language"
         }
         val agent = detectPrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
         val provider = agent?.provider
         val model = agent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "workers/language",
+            type = "workers/report-language",
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -1043,7 +1043,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     } else null
     val languageIconRow: CostRow? = if (hasLanguageIconCost) {
         val iconPrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "workers" && it.name == "language"
+            it.category == "workers" && it.name == "report-language"
         }
         val iconAgent = iconPrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
         val pickedParts = report.languageIconModel?.split("/", limit = 2)
@@ -1051,7 +1051,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = pickedParts?.getOrNull(1) ?: iconAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "workers/language",
+            type = "workers/report-language",
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",

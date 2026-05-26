@@ -244,7 +244,7 @@ fun ModelInfoViewScreen(
     var aiIntro by remember(provider, modelName) { mutableStateOf<String?>(null) }
     var aiLoading by remember(provider, modelName) { mutableStateOf(false) }
     val introTemplate = remember(aiSettings) {
-        aiSettings.getInternalPromptByName("model_intro_view")?.text.orEmpty()
+        aiSettings.getInternalPromptByName("model-intro")?.text.orEmpty()
     }
     val pageApiKey = aiSettings.getApiKey(provider)
     val introResolvedPrompt = remember(introTemplate, provider, modelName) {

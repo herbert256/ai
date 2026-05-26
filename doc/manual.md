@@ -30,7 +30,7 @@ The home screen has these big cards:
 - **AI Reports** — multi-model reports with rerank / chat-meta /
   fan-out / moderate / translate.
 - **AI Chat** — single-model conversation. Chat titles are
-  AI-generated (the bundled `chat_title` prompt fires after the
+  AI-generated (the bundled `chat-title` prompt fires after the
   first assistant response); a first-10-words fallback fills the
   row instantly so nothing is ever blank.
 - **AI Models** — search every model across all your providers.
@@ -511,8 +511,8 @@ doesn't lose typed changes.
 > **Note:** Anything user-driven that runs on a report's outputs
 > (Compare, Critique, Synthesize, …) is configured under **Prompt
 > management → Meta prompts**. Fan-out / Fan-in templates live
-> under their own siblings; "Other internal" (intro / model_info /
-> translate / rerank / moderation) is a fixed list with no
+> under their own siblings; "Other internal" (chat-title / model-info / model-intro /
+> translate-text / second-rerank / second-moderation / test-model) is a fixed list with no
 > Add / Delete.
 
 ### Refresh

@@ -452,7 +452,7 @@ unit tests verify code correctness, not feature correctness here.
 - `assets/internal-prompts/` — bundled rows missing by
   `(category, name)` are added; existing rows are never
   overwritten. So shipping new bundled `internal/…` prompts
-  (e.g. the icon-prompt set, `chat_title`, …) reaches existing
+  (e.g. the icon-prompt set, `chat-title`, …) reaches existing
   installs the next time they cold-start.
 - `assets/examples.json` — same delta-merge by title
   (case-insensitive).

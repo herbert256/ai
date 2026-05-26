@@ -152,7 +152,7 @@ then merges any custom provider definitions the user imports.
   forces icon-dependent recompositions when a background icon
   call settles.
 - **`ChatViewModel`** — chat session state and streaming. Also fires
-  the bundled `internal/chat_title` prompt asynchronously after
+  the bundled `internal/chat-title` prompt asynchronously after
   the first assistant response and stamps `ChatSession.title`
   with the returned label.
 - **`ReportViewModel`** — report generation, secondary-result flows
@@ -496,9 +496,9 @@ id for providers:
   user has edited (timestamp non-null) is left alone; an
   un-edited field tracks the asset.
 - `assets/internal-prompts/` — Internal Prompts (Meta / Fan-out /
-  Fan-in / fixed Internal templates: intro / model_info /
-  translate / rerank / moderation / icon / report_icon /
-  report_icon_chat / report_icon_3th / chat_title / response /
+  Fan-in / fixed Internal templates: chat-title / model-info / model-intro /
+  translate-text / second-rerank / second-moderation / test-model / icon / report_icon /
+  report_icon_chat / report_icon_3th / chat-title / response /
   …) seeded into `Settings.internalPrompts`. Same delta-merge
   rule — new bundled entries appear on the next start, user
   edits to existing entries survive.

@@ -37,8 +37,8 @@ broken into category buckets:
 - **Fan-in prompts** (`category = "fan_in"`) — combines fan-out
   responses back into a single combined-report row.
 - **Other internal** (`category = "internal"`) — fixed list of
-  five fixed-name templates: `intro`, `model_info`, `translate`,
-  `rerank`, `moderation`. No Add / Delete in this bucket.
+  eight fixed-name templates: `chat-title`, `model-info`, `model-intro`,
+  `translate-text`, `translate-title`, `second-rerank`, `second-moderation`, `test-model`. No Add / Delete in this bucket.
 
 Each entry has:
 
@@ -121,7 +121,7 @@ For a chat-type Meta run the prompt template is the
 tapped. For RERANK runs the template is the `InternalPrompt.text`
 of the rerank-typed Meta entry the user picked (defaults to the
 seeded "rerank" entry). For TRANSLATE runs the runtime looks up
-the `InternalPrompt` named `"translate"` in the `internal`
+the `InternalPrompt` named `"translate-text"` in the `internal`
 category. MODERATION runs through a provider's `/moderations`
 endpoint which takes no chat prompt — there's nothing to
 substitute.

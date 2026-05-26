@@ -44,7 +44,7 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `experimental_features` | Boolean (default false) | master gate for on-device models, AI Knowledge / RAG, and Local Semantic Search — see [experimental.md](experimental.md) |
 | `show_knowledge_card` | Boolean (default false) | shows the AI Knowledge card on the Hub (only meaningful when `experimental_features` is on) |
 
-> The intro / model_info / translate / rerank / moderation prompt
+> The chat-title / model-info / model-intro / translate-text / second-rerank / second-moderation / test-model prompt
 > templates that used to live as dedicated `*_prompt` keys now live
 > as `InternalPrompt` rows under `ai_meta_prompts` (with
 > `category="internal"`) — see below.

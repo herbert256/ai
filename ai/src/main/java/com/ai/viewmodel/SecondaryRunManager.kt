@@ -145,7 +145,7 @@ class SecondaryRunManager(
             return runLocalRerank(context, reportId, model)
         }
         val aiSettings = appViewModel.uiState.value.aiSettings
-        val rerankPrompt = aiSettings.getInternalPromptByName("rerank")
+        val rerankPrompt = aiSettings.getInternalPromptByName("second-rerank")
             ?: return null
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
@@ -209,7 +209,7 @@ class SecondaryRunManager(
         // InternalPrompt is only used to label the persisted row.
         // If the user has a custom "moderation" prompt configured
         // (legacy), use it; otherwise mint a synthetic one.
-        val moderationPrompt = aiSettings.getInternalPromptByName("moderation")
+        val moderationPrompt = aiSettings.getInternalPromptByName("second-moderation")
             ?: com.ai.model.InternalPrompt(
                 id = "moderation",
                 name = "Moderation",

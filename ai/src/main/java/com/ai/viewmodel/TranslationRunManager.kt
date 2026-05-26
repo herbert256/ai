@@ -127,7 +127,7 @@ class TranslationRunManager(
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
-            val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, paramsIds, systemPromptId, aiSettings.getInternalPromptByName("Translate"))
+            val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, paramsIds, systemPromptId, aiSettings.getInternalPromptByName("translate-text"))
             val generalSettings = state.generalSettings
             val sourceReport = ReportStorage.getReport(context, sourceReportId) ?: run {
                 _translationRuns.update { it - runId }
@@ -272,7 +272,7 @@ class TranslationRunManager(
             )) }
             AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${itemsWithIds.size} items via ${models.size} model${if (models.size == 1) "" else "s"}")
 
-            val template = aiSettings.getInternalPromptByName("Translate")?.text.orEmpty()
+            val template = aiSettings.getInternalPromptByName("translate-text")?.text.orEmpty()
             val titleTemplate = aiSettings.getInternalPromptByName("translate-title")?.text
                 ?.takeIf { it.isNotBlank() } ?: DEFAULT_TRANSLATE_TITLE_TEMPLATE
 
@@ -1507,8 +1507,8 @@ class TranslationRunManager(
         val aiSettings = state.aiSettings
         // Retries/resumes honour the App-wide default (the original
         // per-launch 🌡️/🎭 pick isn't re-threaded through this path).
-        val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, emptyList(), null, aiSettings.getInternalPromptByName("Translate"))
-        val template = aiSettings.getInternalPromptByName("Translate")?.text.orEmpty()
+        val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, emptyList(), null, aiSettings.getInternalPromptByName("translate-text"))
+        val template = aiSettings.getInternalPromptByName("translate-text")?.text.orEmpty()
         val titleTemplate = aiSettings.getInternalPromptByName("translate-title")?.text
             ?.takeIf { it.isNotBlank() } ?: DEFAULT_TRANSLATE_TITLE_TEMPLATE
 

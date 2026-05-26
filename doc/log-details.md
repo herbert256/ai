@@ -469,7 +469,7 @@ Severity is chosen at the call site by which method is invoked:
 - **L1106** `tag` — "Stripped `_icon` from ${migrated.zip(ai.internalPrompts).count { (a, b) -> a !== b }} icons-category prompt name(s)"
 - **L1142** `tag` — "Trimmed ${trimmed.zip(ai.internalPrompts).count { (a, b) -> a !== b }} bundled `_alt` icon prompt(s) to the nudge-only text"
 - **L1170** `tag` — "Upgraded ${upgraded.zip(ai.internalPrompts).count { (a, b) -> a !== b }} tier-1 icon prompt(s) to the new wording"
-- **L1189** `tag` — "Upgraded test_model prompt to the directive wording"
+- **L1189** `tag` — "Upgraded test-model prompt to the directive wording"
 - **L1212** `tag` — "Re-categorized ${recat.zip(ai.internalPrompts).count { (a, b) -> a !== b }} metadata prompt(s) to 'info'"
 - **L1379** `tag` — "→ Migrated ${togetherInExcluded.size} Together entries from test-excluded to inaccessible"
 - **L1484** `"Housekeeping"` — "→ Clear logs / chats / traces / reports / prompts / usage stats / test run"

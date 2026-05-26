@@ -523,11 +523,11 @@ internal fun MetaIconDetailOverlay(
         val metaTraceFile = rememberIconTrace(
             reportId = null,
             model = entry?.model,
-            categories = listOf("workers/meta", "alt/meta")
+            categories = listOf("workers/second-meta", "alt/meta")
         )
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_meta",
-            subject = entry?.promptName ?: "meta",
+            subject = entry?.promptName ?: "second-meta",
             provider = provider,
             model = entry?.model.orEmpty(),
             pricingTier = "",
@@ -581,11 +581,11 @@ internal fun TranslationIconDetailOverlay(
         val translationTraceFile = rememberIconTrace(
             reportId = null,
             model = entry?.model,
-            categories = listOf("workers/translation", "alt/translation")
+            categories = listOf("workers/translation-icon", "alt/translation")
         )
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_translation",
-            subject = entry?.promptName ?: "translation",
+            subject = entry?.promptName ?: "translation-icon",
             provider = provider,
             model = entry?.model.orEmpty(),
             pricingTier = "",
@@ -623,7 +623,7 @@ internal fun RenderLanguageDetailOverlay(
     onBack: () -> Unit,
 ) {
     val languagePrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "workers" && it.name == "language"
+        it.category == "workers" && it.name == "report-language"
     } ?: return
     val languageAgent = languagePrompt.workers.firstNotNullOfOrNull {
         aiSettings.resolveWorker(it)
@@ -667,7 +667,7 @@ internal fun RenderLanguageDetailOverlay(
         LocalNavigateToCurrentReport provides onBack
     ) {
         val infoTarget = resolveInfoTarget(snapshot.model, languageAgent, aiSettings)
-        // The language icon came from the single workers/language call
+        // The language icon came from the single workers/report-language call
         // (@PROMPT@ = the report prompt); a Find-alternative pick
         // (language_alt) ran alt/language (@LANGUAGE@ = detected language).
         val resolvedPrompt = if (ctxData.first == "language_alt")

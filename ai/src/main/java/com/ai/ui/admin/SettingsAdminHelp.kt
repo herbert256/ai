@@ -483,7 +483,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("System Prompts", "Direct CRUD list. Count = number of system prompts."),
             HelpCard("Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report (one final call). category=\"meta\"."),
             HelpCard("Fan out/in prompts", "Forwards to a sub-hub holding the two fan-* category CRUDs (fan_out, fan_in). The badge count is the sum across both buckets."),
-            HelpCard("Other internal prompts", "Fixed list — chat_title, model_info, model_intro_view, translate, translate-title, rerank, moderation, test_model. Editable but not addable / deletable. category=\"internal\"."),
+            HelpCard("Other internal prompts", "Fixed list — chat-title, model-info, model-intro, translate-text, translate-title, second-rerank, second-moderation, test-model. Editable but not addable / deletable. category=\"internal\"."),
             HelpCard("Example prompts", "Two-field CRUD (title, text). Pure data the user curates; no placeholder substitution, no agent dispatch, no app feature consumes them automatically."),
             HelpCard("Tips", "System Prompts are referenced by id from Agents/Flocks/Swarms/Providers; Internal Prompts are referenced by name + category by app features. Example prompts are referenced by nothing — they're just a personal library."),
             HelpCard("Pitfalls", "System and Internal prompts are NOT interchangeable — Internal use placeholder substitution that System does not.")

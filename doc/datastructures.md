@@ -120,8 +120,8 @@ flock / swarm / per-call precedence), see **[parameters.md](parameters.md)**.
 User-managed prompt template. Covers Meta-prompt launchers on the
 Report Result screen (`category="meta"`), Fan-out / Fan-in
 templates (`category="fan_out"` / `"fan_in"`), and the fixed
-internal templates (`category="internal"`: intro, model_info,
-translate, rerank, moderation).
+internal templates (`category="internal"`: chat-title, model-info, model-intro,
+translate-text, second-rerank, second-moderation, test-model).
 
 | Field | Type | Notes |
 |---|---|---|
@@ -498,7 +498,7 @@ Costs page and the layered-costs CSV export.
 | parameters | `ChatParameters` |
 | createdAt, updatedAt | `Long` |
 | pinned | `Boolean` (surfaces above Recent on the AI Chat hub) |
-| title | `String` (default empty) | Display title. Seeded with the first 10 words of the first user message on send; replaced asynchronously by the bundled `internal/chat_title` prompt against DeepSeek after the first assistant response. Blank for sessions saved before this field existed — display sites fall back to `preview` (first user message, first 50 chars) |
+| title | `String` (default empty) | Display title. Seeded with the first 10 words of the first user message on send; replaced asynchronously by the bundled `internal/chat-title` prompt against DeepSeek after the first assistant response. Blank for sessions saved before this field existed — display sites fall back to `preview` (first user message, first 50 chars) |
 
 Computed:
 - `preview: String` — first user message, truncated to 50 chars.
@@ -685,7 +685,7 @@ Computed:
 | retryBackoffMs529 | `Long` (default 1000) | wait between 529 retry attempts in milliseconds |
 | logLevel | `LogLevel` (default `INFO`) | threshold for the in-app file logger ([applog.md](applog.md)). `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Persisted in main prefs; `AppLog.init` reads it directly so DEBUG calls inside bootstrap are admitted on cold start |
 
-> The intro / model_info / translate / rerank / moderation prompt
+> The chat-title / model-info / model-intro / translate-text / second-rerank / second-moderation / test-model prompt
 > templates that used to live as `GeneralSettings` fields now live
 > as `InternalPrompt` rows under `Settings.internalPrompts`
 > (category = `"internal"` for the fixed five) and are CRUD'd via
