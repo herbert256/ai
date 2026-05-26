@@ -28,7 +28,7 @@ import com.ai.ui.shared.AppColors
 data class ViewBottomBarSpec(
     val onManage: (() -> Unit)?,
     /** When non-null, a left-aligned ☝️/✋ "one vs all" toggle is shown:
-     *  true = ✋ (showing all items), false = ☝️ (showing one). Null = no
+     *  true = ☝️ (showing all items), false = ✋ (showing one). Null = no
      *  toggle for this screen. The 🔧 manage icon stays centred regardless. */
     val showAll: Boolean? = null,
     val onToggleOneOrAll: (() -> Unit)? = null,
@@ -69,7 +69,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
         // tapping flips it. Independent of the centred 🔧.
         if (spec.showAll != null && spec.onToggleOneOrAll != null) {
             Text(
-                text = if (spec.showAll) "✋" else "☝️",
+                text = if (spec.showAll) "☝️" else "✋",
                 fontSize = 28.sp,
                 color = Color.White,
                 modifier = Modifier
