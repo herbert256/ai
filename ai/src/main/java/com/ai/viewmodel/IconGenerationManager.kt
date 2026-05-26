@@ -399,10 +399,17 @@ class IconGenerationManager(
         return withTracerTags(reportId = reportId, category = "workers/model-icons") {
             val started = System.currentTimeMillis()
             val resolved = prompt.text.replace("@TITLE@", title)
+            // Capture the trace filename of the winning icon call so the
+            // Model-response screen's 🐞 next to the big icon can deep-link
+            // to the exact call that decided this icon (the worker runs on
+            // its own model, so a category+agent-model lookup can't find it).
+            val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
             // No parseable emoji is a logical miss — advance to the next worker
             // rather than accepting a 200 that leaves the agent icon-less.
-            val outcome = rvm.workerRunner.run(prompt, resolved, aiSettings, context) {
-                extractFirstEmoji(it.analysis) != null
+            val outcome = withTraceFilenameSink(traceSink) {
+                rvm.workerRunner.run(prompt, resolved, aiSettings, context) {
+                    extractFirstEmoji(it.analysis) != null
+                }
             }
             val durationMs = System.currentTimeMillis() - started
             if (outcome is WorkerOutcome.Success) {
@@ -425,7 +432,8 @@ class IconGenerationManager(
                 if (emoji != null) {
                     ReportStorage.setReportAgentIconAndTier(
                         context, reportId, ra.agentId, emoji,
-                        winningTier = null, promptUsed = "report_title_icon"
+                        winningTier = null, promptUsed = "report_title_icon",
+                        traceFile = traceSink.get()
                     )
                     appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
                     true
