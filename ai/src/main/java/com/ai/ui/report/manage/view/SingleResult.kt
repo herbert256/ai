@@ -368,14 +368,8 @@ fun ReportModelScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(glyph, fontSize = 80.sp, color = Color.White)
-                                // 🐞 to this model's response trace (moved here
-                                // from the bottom icon bar).
-                                traceFilename?.let { fn ->
-                                    Text("🐞", fontSize = 20.sp,
-                                        modifier = Modifier.padding(start = 12.dp)
-                                            .clickable { onNavigateToTraceFile(fn) })
-                                }
-                                // 🐞 to the per-model icon-chain trace.
+                                // 🐞 → the trace of the call that produced THIS
+                                // icon (the per-model icon-chain trace).
                                 iconTraceFilename?.let { fn ->
                                     Text("🐞", fontSize = 20.sp,
                                         modifier = Modifier.padding(start = 12.dp)
