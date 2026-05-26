@@ -79,7 +79,12 @@ class IconGenerationManager(
                 val resolved = iconPrompt.text.replace("@TITLE_LONG@", titleLong)
                 val started = System.currentTimeMillis()
                 val outcome = withTraceFilenameSink(traceSink) {
-                    rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context)
+                    // A worker reply with no parseable emoji is a logical miss —
+                    // fall through to the next worker instead of accepting an
+                    // empty 200 and storing the 📝 fallback.
+                    rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context) {
+                        extractFirstEmoji(it.analysis) != null
+                    }
                 }
                 val durationMs = System.currentTimeMillis() - started
                 when (outcome) {
@@ -179,7 +184,11 @@ class IconGenerationManager(
                 appViewModel.updateRunningInfoJobs { it + "$reportId|title" }
                 val started = System.currentTimeMillis()
                 val outcome = withTraceFilenameSink(traceSink) {
-                    rvm.workerRunner.run(titlePrompt, resolved, aiSettings, context)
+                    // A reply with no non-blank title line is a logical miss —
+                    // try the next worker instead of settling for "AI Report".
+                    rvm.workerRunner.run(titlePrompt, resolved, aiSettings, context) { resp ->
+                        (resp.analysis ?: "").lineSequence().map { cleanTitleLine(it) }.any { it.isNotBlank() }
+                    }
                 }
                 val durationMs = System.currentTimeMillis() - started
                 when (outcome) {
@@ -305,7 +314,10 @@ class IconGenerationManager(
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 val started = System.currentTimeMillis()
                 val outcome = withTraceFilenameSink(traceSink) {
-                    rvm.workerRunner.run(titlePrompt, resolved, aiSettings, context)
+                    // No non-blank title line → logical miss → next worker.
+                    rvm.workerRunner.run(titlePrompt, resolved, aiSettings, context) { resp ->
+                        (resp.analysis ?: "").lineSequence().map { cleanTitleLine(it) }.any { it.isNotBlank() }
+                    }
                 }
                 val durationMs = System.currentTimeMillis() - started
                 when (outcome) {
@@ -387,7 +399,11 @@ class IconGenerationManager(
         return withTracerTags(reportId = reportId, category = "workers/model-icons") {
             val started = System.currentTimeMillis()
             val resolved = prompt.text.replace("@TITLE@", title)
-            val outcome = rvm.workerRunner.run(prompt, resolved, aiSettings, context)
+            // No parseable emoji is a logical miss — advance to the next worker
+            // rather than accepting a 200 that leaves the agent icon-less.
+            val outcome = rvm.workerRunner.run(prompt, resolved, aiSettings, context) {
+                extractFirstEmoji(it.analysis) != null
+            }
             val durationMs = System.currentTimeMillis() - started
             if (outcome is WorkerOutcome.Success) {
                 val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
@@ -447,7 +463,10 @@ class IconGenerationManager(
                 appViewModel.updateRunningInfoJobs { it + "$reportId|language" }
                 val started = System.currentTimeMillis()
                 val outcome = withTraceFilenameSink(traceSink) {
-                    rvm.workerRunner.run(languagePrompt, resolved, aiSettings, context)
+                    // No parseable "language:" line is a logical miss → next worker.
+                    rvm.workerRunner.run(languagePrompt, resolved, aiSettings, context) {
+                        parseLanguageDetectionResponse(it.analysis) != null
+                    }
                 }
                 val durationMs = System.currentTimeMillis() - started
                 when (outcome) {
@@ -551,7 +570,9 @@ class IconGenerationManager(
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             withTracerTags(category = "workers/meta") {
-                val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context)
+                val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context) {
+                    extractFirstEmoji(it.analysis) != null
+                }
                 if (outcome is WorkerOutcome.Success) {
                     val emoji = extractFirstEmoji(outcome.response.analysis) ?: "📝"
                     val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
@@ -1047,7 +1068,9 @@ class IconGenerationManager(
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             withTracerTags(category = "workers/translation") {
-                val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context)
+                val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context) {
+                    extractFirstEmoji(it.analysis) != null
+                }
                 if (outcome is WorkerOutcome.Success) {
                     val emoji = extractFirstEmoji(outcome.response.analysis) ?: "📝"
                     val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
@@ -2055,7 +2078,15 @@ class IconGenerationManager(
     ) {
         val started = System.currentTimeMillis()
         val resolved = fanMetaPrompt.text.replace("@PROMPT@", pair.content.orEmpty())
-        val outcome = rvm.workerRunner.run(fanMetaPrompt, resolved, aiSettings, context)
+        // A fan-meta reply is usable when it yields at least a title or an
+        // emoji; an empty/garbage 200 is a logical miss → next worker.
+        val outcome = rvm.workerRunner.run(fanMetaPrompt, resolved, aiSettings, context) { resp ->
+            val a = resp.analysis
+            val titleRaw = a?.lineSequence()
+                ?.firstOrNull { it.trim().startsWith("title", ignoreCase = true) }
+                ?.substringAfter(":") ?: a
+            extractFirstEmoji(a) != null || cleanTitle(titleRaw).isNotBlank()
+        }
         when (outcome) {
             is WorkerOutcome.Success -> {
                 val analysis = outcome.response.analysis

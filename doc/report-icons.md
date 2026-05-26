@@ -67,10 +67,18 @@ manually registered `Deepseek` still resolves the bundled
    returns the first grapheme cluster whose lead codepoint sits
    in a known emoji block (Misc Symbols, Pictographs, Transport,
    Dingbats, Misc Technical, Regional Indicators, Mahjong /
-   Domino / Playing cards, Supplemental Symbols). 200 OK with
-   no emoji in the body → fallback `📝`. Non-200 / network
-   failure → `Report.iconErrorMessage` is set instead; the row
-   renders ❌.
+   Domino / Playing cards, Supplemental Symbols). A 200 OK whose
+   body contains **no parseable emoji is a logical miss**: the
+   `WorkerRunner` chain treats it like a transport miss and
+   advances to the next worker (via the `accept` validator —
+   `extractFirstEmoji(...) != null`), instead of silently
+   accepting an empty reply. Only when *every* worker fails to
+   produce an emoji does the row settle — `📝` is now just a
+   defensive last resort, and the worker-engine paths set
+   `iconErrorMessage` ("no worker produced an icon") so the row
+   renders ❌. The same logical-miss rule applies to the title /
+   language / fan-meta worker prompts (non-blank title / parseable
+   `language:` line / title-or-emoji respectively).
 7. Cost is computed from `PricingCache.getPricing(provider,
    model)` × `(inputTokens, outputTokens)` and persisted onto
    `Report.iconInputCost` / `iconOutputCost` (plus tokens).

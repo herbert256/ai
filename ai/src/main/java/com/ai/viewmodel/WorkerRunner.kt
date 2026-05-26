@@ -54,12 +54,21 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
         else "pm:${w.provider}:${w.model}"
 
     /** Run one workers prompt's chain with [resolvedText] as the call body
-     *  (placeholders already substituted by the caller). */
+     *  (placeholders already substituted by the caller).
+     *
+     *  [accept] validates a worker's *successful* (HTTP-200) response for the
+     *  artifact the caller actually needs — a parseable emoji, a non-blank
+     *  title, a detected language, etc. A 200 that fails [accept] is a
+     *  **logical miss**: the worker produced no usable result, so the chain
+     *  advances to the next worker exactly as it does for a transport miss,
+     *  instead of returning a hollow Success the caller then has to paper over
+     *  with a fallback. Defaults to accepting any success (legacy behaviour). */
     suspend fun run(
         prompt: InternalPrompt,
         resolvedText: String,
         aiSettings: Settings,
         context: Context,
+        accept: (AnalysisResponse) -> Boolean = { true },
     ): WorkerOutcome {
         val workers = prompt.workers
         if (workers.isEmpty()) {
@@ -87,7 +96,7 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
                 agent, "", resolvedText, context = context, baseUrl = baseUrl, retry = false
             )
             when {
-                resp.isSuccess -> {
+                resp.isSuccess && accept(resp) -> {
                     AppLog.i("Workers", "✓ '${prompt.name}' via ${agent.name} (worker ${(start + off).mod(n) + 1}/$n)")
                     return WorkerOutcome.Success(resp, w)
                 }
@@ -97,6 +106,10 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
                     sawRateLimit = true
                     AppLog.w("Workers", "429 '${prompt.name}' via ${agent.name} — cooling ${waitMs}ms, next worker")
                 }
+                // HTTP-200 but no usable artifact (e.g. a reply with no emoji /
+                // no title) — a logical miss; fall through to the next worker
+                // just like a transport error rather than accepting it.
+                resp.isSuccess -> AppLog.w("Workers", "no usable result '${prompt.name}' via ${agent.name} — next worker")
                 else -> AppLog.w("Workers", "miss '${prompt.name}' via ${agent.name}: ${resp.error?.take(80)}")
             }
         }
@@ -116,6 +129,7 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
         onThrottled: (T) -> Unit = {},
         onCleared: (T) -> Unit = {},
         onResult: (T, WorkerOutcome) -> Unit = { _, _ -> },
+        accept: (AnalysisResponse) -> Boolean = { true },
     ) {
         runThrottledBatch(
             items = items,
@@ -126,7 +140,7 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
             dynamicHost = true,
         ) { item ->
             val pair = resolve(item) ?: return@runThrottledBatch
-            onResult(item, run(pair.first, pair.second, aiSettings, context))
+            onResult(item, run(pair.first, pair.second, aiSettings, context, accept))
         }
     }
 }
