@@ -48,13 +48,13 @@ class ReportsHubScreenTest {
             }
         }
         // Title bar
-        rule.onNodeWithText("AI Reports").assertIsDisplayed()
+        rule.onNodeWithText("Reports").assertIsDisplayed()
         // Three top buttons
         rule.onNodeWithText("New").assertIsDisplayed()
         rule.onNodeWithText("Search").assertIsDisplayed()
         rule.onNodeWithText("All").assertIsDisplayed()
         // Four list-card labels
-        rule.onNodeWithText("AI Reports with problems").assertIsDisplayed()
+        rule.onNodeWithText("Reports with problems").assertIsDisplayed()
         rule.onNodeWithText("Running AI reports").assertIsDisplayed()
         rule.onNodeWithText("Pinned AI Reports").assertIsDisplayed()
         rule.onNodeWithText("Latest AI Reports").assertIsDisplayed()

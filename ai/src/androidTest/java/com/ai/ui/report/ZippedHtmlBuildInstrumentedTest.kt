@@ -175,7 +175,7 @@ class ZippedHtmlBuildInstrumentedTest {
         )
         ApiTracer.saveTrace(
             ApiTrace(timestamp = 1L, hostname = TestProvider.HOST,
-                reportId = report.id, category = "Report", model = TestProvider.MODEL,
+                reportId = report.id, category = "report/prompt", model = TestProvider.MODEL,
                 request = TraceRequest("${TestProvider.BASE_URL}v1/chat", "POST",
                     emptyMap(), "{}"),
                 response = TraceResponse(200, emptyMap(), """{"choices":[{"message":{"content":"x"}}]}"""))
@@ -186,8 +186,9 @@ class ZippedHtmlBuildInstrumentedTest {
         assertThat(entries).hasSize(1)
         val agentPage = zipEntryText(bytes, entries.single()) ?: error("agent page missing")
         // 🐞 emoji and a link into the trace's directory inside the
-        // language-scoped JSON/ tree (../../original/JSON/...).
+        // language-scoped JSON/ tree (../../original/JSON/...). The
+        // category "report/prompt" is safeName'd to "report_prompt".
         assertThat(agentPage).contains("🐞")
-        assertThat(agentPage).contains("original/JSON/Report/")
+        assertThat(agentPage).contains("original/JSON/report_prompt/")
     }
 }

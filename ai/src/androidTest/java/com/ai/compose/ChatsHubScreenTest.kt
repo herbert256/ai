@@ -39,13 +39,13 @@ class ChatsHubScreenTest {
                 )
             }
         }
-        rule.onNodeWithText("AI Chat").assertIsDisplayed()
+        rule.onNodeWithText("Chat").assertIsDisplayed()
         rule.onNodeWithText("New Chat with Agent").assertIsDisplayed()
         // The "Configure on the fly" card uses an en-dash separator in
         // the production string — assert the human-recognisable head.
         rule.onNodeWithText("Continue Existing Chat").assertIsDisplayed()
         rule.onNodeWithText("Search Chats").assertIsDisplayed()
-        rule.onNodeWithText("Dual AI Chat").assertIsDisplayed()
+        rule.onNodeWithText("Dual Chat").assertIsDisplayed()
     }
 
     @Test fun new_chat_configure_on_the_fly_invokes_callback() {
@@ -85,7 +85,7 @@ class ChatsHubScreenTest {
                 )
             }
         }
-        rule.onNodeWithText("Dual AI Chat").performClick()
+        rule.onNodeWithText("Dual Chat").performClick()
         assertThat(dual.intValue).isEqualTo(1)
     }
 }

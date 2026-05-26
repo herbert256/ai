@@ -21,15 +21,20 @@ import org.junit.runner.RunWith
 class HousekeepingScreenTest {
     @get:Rule val rule = createComposeRule()
 
-    @Test fun renders_title_and_all_six_navcards() {
+    @Test fun renders_title_and_all_navcards() {
+        // Default params → hasActiveProvider = hasTrimmable = true, so
+        // every card shows. "Application log" is no longer here (it moved
+        // to the Monitor hub).
         rule.setContent { MaterialTheme { HousekeepingScreen(onBackToHome = {}) } }
 
         rule.onNodeWithText("Housekeeping").assertIsDisplayed()
         rule.onNodeWithText("Backup & Restore").assertIsDisplayed()
         rule.onNodeWithText("Export & Import").assertIsDisplayed()
-        rule.onNodeWithText("Refresh").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Trim by age").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Application log").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Update from cloud").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Costs").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Test").performScrollTo().assertIsDisplayed()
+        rule.onNodeWithText("Refresh").performScrollTo().assertIsDisplayed()
         rule.onNodeWithText("Reset").performScrollTo().assertIsDisplayed()
     }
 }
