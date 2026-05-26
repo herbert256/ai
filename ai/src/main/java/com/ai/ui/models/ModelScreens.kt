@@ -390,13 +390,13 @@ fun ModelInfoScreen(
     // still propagates so the user's temperature / max_tokens carry over.
     val scope = rememberCoroutineScope()
     // Model-info template lives in Settings.internalPrompts under
-    // the "Model info" name. Falls back to empty when the user has
+    // the "model_info" name. Falls back to empty when the user has
     // deleted that entry (the next app start will re-seed it from
     // assets/internal-prompts/). Default AgentParameters — there's no
     // longer an agent binding to inherit temperature / max_tokens
     // preset from.
     val modelInfoPromptTemplate = remember(aiSettings) {
-        aiSettings.getInternalPromptByName("Model info")?.text.orEmpty()
+        aiSettings.getInternalPromptByName("model_info")?.text.orEmpty()
     }
     val pageApiKey = aiSettings.getApiKey(provider)
     val introResolvedPrompt = remember(modelInfoPromptTemplate, provider, modelName) {

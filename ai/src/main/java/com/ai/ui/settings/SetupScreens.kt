@@ -269,7 +269,7 @@ fun InternalPromptsHubScreen(
                 onClick = { onOpenInternalPrompts("meta") })
             ModelsSetupNavCard("🔀", "Fan out/in prompts", "Templates for the Fan out / Fan in flow — across pairs and combined reports", "$fanTotal",
                 onClick = onOpenFanInOutHub)
-            ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Intro)", "${countByCategory("internal")}",
+            ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Chat title, Rerank, Moderation)", "${countByCategory("internal")}",
                 onClick = { onOpenInternalPrompts("internal") })
             ModelsSetupNavCard("👷", "Worker prompts", "Prompts that run on an ordered list of workers (agent or provider+model) tried as a fallback chain. Edit-only — wiring comes later.", "${countByCategory("workers")}",
                 onClick = { onOpenInternalPrompts("workers") })
