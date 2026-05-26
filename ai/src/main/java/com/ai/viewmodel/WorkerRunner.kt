@@ -11,7 +11,6 @@ import com.ai.model.InternalPrompt
 import com.ai.model.Settings
 import com.ai.model.Worker
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicInteger
 
 /** Outcome of running one "workers"-category prompt's chain. */
 sealed class WorkerOutcome {
@@ -25,11 +24,12 @@ sealed class WorkerOutcome {
 
 /**
  * Executes a "workers"-category [InternalPrompt]: its [InternalPrompt.workers]
- * list is an ordered fallback chain. Selection is **round-robin per prompt** —
- * each call starts at the next worker than the previous call — then walks the
- * remaining workers in order (wrapping). On a **429** the worker is parked on a
- * short cooldown (the response's `Retry-After`, else [WORKER_429_DEFAULT_MS] =
- * 5 s) and the next worker is tried; a non-429 miss just advances.
+ * list is a fallback chain. Selection is **random per call** — the worker
+ * order is shuffled each run, so the primary pick (and the fallback order
+ * after a miss) is random rather than a deterministic rotation. On a **429**
+ * the worker is parked on a short cooldown (the response's `Retry-After`, else
+ * [WORKER_429_DEFAULT_MS] = 5 s) and the next worker is tried; a non-429 /
+ * logical miss just advances.
  *
  * Calls go through [com.ai.data.AnalysisRepository.analyzeWithAgent] with
  * `retry = false`, so the engine owns the fallback while the shared OkHttp
@@ -43,8 +43,6 @@ sealed class WorkerOutcome {
  */
 class WorkerRunner(private val appViewModel: AppViewModel) {
 
-    /** promptId -> rotating start index (in-memory, per session). */
-    private val rotation = ConcurrentHashMap<String, AtomicInteger>()
     /** workerKey -> epoch-ms the worker becomes selectable again (local 429). */
     private val cooldownUntil = ConcurrentHashMap<String, Long>()
 
@@ -76,11 +74,14 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
             return WorkerOutcome.Failed
         }
         val n = workers.size
-        val start = rotation.getOrPut(prompt.id) { AtomicInteger(0) }.getAndIncrement().mod(n)
+        // Random pick (not round-robin): shuffle the worker order each call
+        // so the primary choice — and the fallback order after a cooldown /
+        // 429 / logical miss — is random rather than a deterministic rotation.
+        val order = workers.indices.shuffled()
         var sawRateLimit = false
 
-        for (off in 0 until n) {
-            val w = workers[(start + off).mod(n)]
+        for (idx in order) {
+            val w = workers[idx]
             val key = workerKey(w)
             if ((cooldownUntil[key] ?: 0L) > System.currentTimeMillis()) { sawRateLimit = true; continue }
             val raw = aiSettings.resolveWorker(w) ?: continue
@@ -97,7 +98,7 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
             )
             when {
                 resp.isSuccess && accept(resp) -> {
-                    AppLog.i("Workers", "✓ '${prompt.name}' via ${agent.name} (worker ${(start + off).mod(n) + 1}/$n)")
+                    AppLog.i("Workers", "✓ '${prompt.name}' via ${agent.name} (worker ${idx + 1}/$n)")
                     return WorkerOutcome.Success(resp, w)
                 }
                 resp.httpStatusCode == 429 || resp.error?.contains("API error: 429") == true -> {

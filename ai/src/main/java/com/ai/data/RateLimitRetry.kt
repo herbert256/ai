@@ -195,7 +195,7 @@ internal fun resolveRetryAfter(response: Response, defaultMs: Long, hostForLog: 
 }
 
 /** Default worker-fallback cooldown applied to a 429'd worker when the
- *  response carries no wait hint. The WorkerRunner round-robin uses this. */
+ *  response carries no wait hint. The WorkerRunner chain uses this. */
 internal const val WORKER_429_DEFAULT_MS = 5_000L
 
 /** Parse a `Retry-After` hint (milliseconds) out of the formatted header

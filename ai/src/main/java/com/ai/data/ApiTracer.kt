@@ -378,7 +378,7 @@ object ApiCallCaps {
     // Fan-meta (per-pair title+icon in one worker call) has its OWN permit
     // pool, on the same limit as fan-out's metadata cap.
     @Volatile private var fanMetaSem: kotlinx.coroutines.sync.Semaphore = sem(50)
-    // Worker batches (round-robin worker chains) get their own pool too, on
+    // Worker batches (random-pick worker chains) get their own pool too, on
     // the same limit — so a worker batch doesn't starve (or get starved by)
     // the fan-meta pool on a shared semaphore.
     @Volatile private var workersSem: kotlinx.coroutines.sync.Semaphore = sem(50)

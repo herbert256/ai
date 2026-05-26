@@ -358,7 +358,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "fan_meta" to HelpContent(
         title = "Help - Fan Meta",
         cards = listOf(
-            HelpCard("What you see", "The Fan Meta view of a fan-out run. The L1 'Fan Meta' button runs ONE worker call per pair (workers/fan-meta, round-robin + 429-fallback) that returns BOTH a short title and a fitting icon. 'Show Fan Meta' then lists, per source model, every responder's generated title as a tappable row (each row carries its icon too)."),
+            HelpCard("What you see", "The Fan Meta view of a fan-out run. The L1 'Fan Meta' button runs ONE worker call per pair (workers/fan-meta, random pick + 429-fallback) that returns BOTH a short title and a fitting icon. 'Show Fan Meta' then lists, per source model, every responder's generated title as a tappable row (each row carries its icon too)."),
             HelpCard("Status & errors", "While the batch runs, L1/L2/L3 classify pairs by their status (queued → running → done / error). 'Remove errors' clears failed pairs so they read as pending; 'Restart errors' clears and re-fires the batch on them. The 🗑 in Fan Meta mode drops every title + icon for the run, keeping the fan-out responses."),
             HelpCard("Drill in", "Tap a row to open the pair (L3), where the title + icon show above the response. The per-model L2 'Fan Meta' button focuses one model's pairs.")
         )

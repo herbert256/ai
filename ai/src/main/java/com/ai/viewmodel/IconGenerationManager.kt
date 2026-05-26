@@ -59,7 +59,7 @@ class IconGenerationManager(
         // icon values stay intact.
         if (!appViewModel.uiState.value.generalSettings.reportIconOn()) return
         // Worker-based: the icon is derived from the report's long title
-        // (@TITLE_LONG@) and runs through the round-robin / 429-fallback
+        // (@TITLE_LONG@) and runs through the random-pick / 429-fallback
         // worker chain. Bail if the prompt or every worker is unresolvable.
         val iconPrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "report-icon"
@@ -172,7 +172,7 @@ class IconGenerationManager(
         // Master switch — MANUAL mode = user typed a title themselves;
         // never run the LLM call.
         if (!appViewModel.uiState.value.generalSettings.reportTitleAiOn()) return
-        // Worker-based: round-robin / 429-fallback over workers/report-title.
+        // Worker-based: random-pick / 429-fallback over workers/report-title.
         val titlePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "report-title"
         } ?: return
@@ -300,7 +300,7 @@ class IconGenerationManager(
          *  icon-only config, where the per-model title row is hidden. */
         storeTitle: Boolean = true
     ) {
-        // Worker-based: round-robin / 429-fallback over workers/model-titles.
+        // Worker-based: random-pick / 429-fallback over workers/model-titles.
         val titlePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "model-titles"
         } ?: return
@@ -387,7 +387,7 @@ class IconGenerationManager(
         context: Context, reportId: String, ra: ReportAgent,
         title: String, aiSettings: Settings
     ): Boolean {
-        // Worker-based: round-robin / 429-fallback over workers/model-icons.
+        // Worker-based: random-pick / 429-fallback over workers/model-icons.
         val prompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "model-icons"
         } ?: return false
@@ -450,7 +450,7 @@ class IconGenerationManager(
         if (!appViewModel.uiState.value.generalSettings.reportLanguageOn()) return
         // Worker-based: a single workers/language call returns BOTH the
         // language name and a fitting emoji (the prompt asks for a
-        // "language:" / "icon:" two-line reply), via the round-robin /
+        // "language:" / "icon:" two-line reply), via the random-pick /
         // 429-fallback engine — no chained second call.
         val languagePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "language"
@@ -538,7 +538,7 @@ class IconGenerationManager(
     }
 
     /** Background helper that runs the bundled `workers/meta` prompt
-     *  (round-robin / 429-fallback worker engine) and caches a one-emoji
+     *  (random-pick / 429-fallback worker engine) and caches a one-emoji
      *  result for [prompt] in [InternalPromptIconCache]. Idempotent: bails
      *  when the master switch is off, when the cache already has a value, or
      *  when another call for the same `(name, title)` is already in flight.
@@ -1042,7 +1042,7 @@ class IconGenerationManager(
         "translation_icon" + "" + language
 
     /** Background helper that runs the bundled `workers/translation`
-     *  prompt (round-robin / 429-fallback worker engine) and caches a
+     *  prompt (random-pick / 429-fallback worker engine) and caches a
      *  one-emoji result for [language] in [InternalPromptIconCache].
      *  Idempotent (same dedupe rules as [kickOffInternalPromptIcon]).
      *  Bails when the metadata-icons master switch is off. */
@@ -1986,7 +1986,7 @@ class IconGenerationManager(
     // ============================================================
     // Fan-meta batch — ONE workers/fan-meta call per fan-out pair
     // returns BOTH a title and an icon (a "title:" / "icon:" two-line
-    // reply), via the round-robin / 429-fallback worker engine.
+    // reply), via the random-pick / 429-fallback worker engine.
     // One Fan Meta call per pair yields both the title and the icon.
     // ============================================================
 
@@ -2071,7 +2071,7 @@ class IconGenerationManager(
     }
 
     /** One workers/fan-meta call for [pair]: parses the title: / icon:
-     *  reply and stores BOTH. Worker engine handles round-robin + 429. */
+     *  reply and stores BOTH. Worker engine handles random pick + 429. */
     private suspend fun runFanMetaForPair(
         context: Context, reportId: String, pair: SecondaryResult,
         fanMetaPrompt: InternalPrompt, aiSettings: Settings
