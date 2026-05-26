@@ -253,12 +253,27 @@ fun TraceListScreen(
 
         var confirmClearAll by remember { mutableStateOf(false) }
         Column(modifier = Modifier.fillMaxSize()) {
-            val subHeader = when {
-                runIdFilter != null -> "Run scope"
-                reportId != null -> "Report scope"
-                modelFilter != null -> modelFilter
-                else -> ""
-            }
+            // Orange subject line: when any filter is active, describe it as
+            // "<type>: <value>" (multiple joined by " · ") so the bar reflects
+            // the slice the user is looking at; blank → default subject below.
+            val statusLabel: (String) -> String = { sc -> when (sc) {
+                "2xx" -> "2xx success"
+                "429" -> "429 rate-limited"
+                "0" -> "transport failed"
+                "other" -> "other status"
+                else -> sc
+            } }
+            val subHeader = buildList {
+                if (runIdFilter != null) add("Run scope")
+                if (reportId != null) add("Report scope")
+                modelFilter?.let { add("Model: ${com.ai.ui.shared.shortModelName(it)}") }
+                if (selectedCategory != "(All)") add("Category: $selectedCategory")
+                if (selectedProvider != "(All)") add("Provider: $selectedProvider")
+                if (selectedHostname != "(All)") add("Host: $selectedHostname")
+                selectedModel?.let { add("Model: ${com.ai.ui.shared.shortModelName(it)}") }
+                statusClass?.let { add("Status: ${statusLabel(it)}") }
+                if (errorsOnly) add("Errors only")
+            }.joinToString(" · ")
             val canClear = reportId == null && modelFilter == null && runIdFilter == null && allTraceFiles.isNotEmpty()
             // Left glyph: the report's emoji when this list is scoped to a
             // report ("trace entry from an AI Report"), else the 🐞 ladybug.
