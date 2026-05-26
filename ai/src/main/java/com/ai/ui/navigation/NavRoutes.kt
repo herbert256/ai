@@ -74,6 +74,14 @@ object NavRoutes {
     fun aiReportManage(overlay: String? = null) =
         if (overlay.isNullOrBlank()) "ai_reports"
         else "ai_reports?initialManageOverlay=$overlay"
+    /** Bare entry to the reports screen (Manage, no seeds). Use this
+     *  for plain `navigate` calls — navigating with the [AI_REPORTS]
+     *  template constant instead passes the literal `{…}` placeholders
+     *  as arg VALUES (e.g. initialReportsAgentId = "{initialReportsAgentId}",
+     *  non-blank), which wrongly seeds the View grid's per-agent Reports
+     *  sub-overlay. The template constant is only for the `composable`
+     *  registration + popUpTo/popBackStack matching. */
+    fun aiReports() = "ai_reports"
     /** Helper for the row-level 👁 View icon — seeds the View
      *  tile grid (`showViewReportScreen`) on first composition only. */
     fun aiReportView() = "ai_reports?initialView=true"

@@ -119,7 +119,7 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
                     onOpenReport = { rid ->
                         scope.launch {
                             reportViewModel.restoreCompletedReport(context, rid)
-                            navController.navigate(NavRoutes.AI_REPORTS)
+                            navController.navigate(NavRoutes.aiReports())
                         }
                     },
                     onNavigateToHelpTopic = { id -> navController.navigate(NavRoutes.helpForTopic(id)) },
@@ -153,7 +153,7 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
                         onOpenReport = { rid ->
                             scope.launch {
                                 reportViewModel.restoreCompletedReport(context, rid)
-                                navController.navigate(NavRoutes.AI_REPORTS)
+                                navController.navigate(NavRoutes.aiReports())
                             }
                         },
                         onOpenReportAtAgent = { rid, aid ->

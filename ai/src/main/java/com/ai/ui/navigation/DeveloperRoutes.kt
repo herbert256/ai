@@ -391,7 +391,7 @@ internal fun NavGraphBuilder.developerRoutes(
             // AI_REPORTS isn't on the back stack (e.g. a deep link).
             val backToReport: () -> Unit = {
                 if (!navController.popBackStack(NavRoutes.AI_REPORTS, false))
-                    navController.navigate(NavRoutes.AI_REPORTS)
+                    navController.navigate(NavRoutes.aiReports())
             }
             androidx.compose.runtime.CompositionLocalProvider(
                 com.ai.ui.shared.LocalNavigateToCurrentReport provides backToReport
@@ -413,7 +413,7 @@ internal fun NavGraphBuilder.developerRoutes(
             } catch (_: Exception) { "" }
             val backToReport: () -> Unit = {
                 if (!navController.popBackStack(NavRoutes.AI_REPORTS, false))
-                    navController.navigate(NavRoutes.AI_REPORTS)
+                    navController.navigate(NavRoutes.aiReports())
             }
             androidx.compose.runtime.CompositionLocalProvider(
                 com.ai.ui.shared.LocalNavigateToCurrentReport provides backToReport

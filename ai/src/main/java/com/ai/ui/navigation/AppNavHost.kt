@@ -155,7 +155,7 @@ fun AppNavHost(
                     val fullPrompt = if (staged.openHtml != null)
                         "${staged.aiPrompt}\n<user>${staged.openHtml}</user>" else staged.aiPrompt
                     reportViewModel.showGenericAgentSelection(staged.title ?: "", fullPrompt)
-                    navController.navigate(NavRoutes.AI_REPORTS) { popUpTo(NavRoutes.AI) { inclusive = false } }
+                    navController.navigate(NavRoutes.aiReports()) { popUpTo(NavRoutes.AI) { inclusive = false } }
                 }
                 pendingExternalReport.value = null
             }

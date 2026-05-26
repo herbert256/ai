@@ -235,7 +235,7 @@ internal fun NavGraphBuilder.reportRoutes(
         composable(NavRoutes.AI_NEW_REPORT) {
             NewReportScreen(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToReports = { navController.navigate(NavRoutes.AI_REPORTS) },
+                onNavigateToReports = { navController.navigate(NavRoutes.aiReports()) },
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) })
         }
         composable(NavRoutes.AI_NEW_REPORT_WITH_PARAMS) { entry ->
@@ -243,7 +243,7 @@ internal fun NavGraphBuilder.reportRoutes(
             val prompt = try { java.net.URLDecoder.decode(entry.arguments?.getString("prompt") ?: "", "UTF-8") } catch (_: Exception) { "" }
             NewReportScreen(viewModel = appViewModel, reportViewModel = reportViewModel,
                 onNavigateBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToReports = { navController.navigate(NavRoutes.AI_REPORTS) },
+                onNavigateToReports = { navController.navigate(NavRoutes.aiReports()) },
                 onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) },
                 initialTitle = title, initialPrompt = prompt)
         }
