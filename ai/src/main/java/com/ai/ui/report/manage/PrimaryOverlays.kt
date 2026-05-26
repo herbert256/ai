@@ -262,9 +262,17 @@ internal fun ReportPrimaryOverlays(
                 is com.ai.ui.shared.ManageJump.MetaResult -> onOpenMetaResultIdChange(jump.id)
                 is com.ai.ui.shared.ManageJump.TranslationRun -> onOpenTranslationRunIdChange(jump.id)
                 is com.ai.ui.shared.ManageJump.ReportsViewer -> {
-                    onSelectedAgentForViewerChange(jump.initialAgentId)
-                    onViewerSectionChange(jump.section)
-                    onShowViewerChange(true)
+                    // A per-model jump (no section, a specific agent) now
+                    // opens the single ReportModelScreen — the all-models
+                    // Buttons/Pulldown viewer is gone. costs / onepage
+                    // (section set) still use the multi-section viewer.
+                    if (jump.section == null && jump.initialAgentId != null) {
+                        onSingleResultAgentIdChange(jump.initialAgentId)
+                    } else {
+                        onSelectedAgentForViewerChange(jump.initialAgentId)
+                        onViewerSectionChange(jump.section)
+                        onShowViewerChange(true)
+                    }
                 }
             }
         }
@@ -382,9 +390,17 @@ internal fun ReportPrimaryOverlays(
                 is com.ai.ui.shared.ManageJump.MetaResult -> onOpenMetaResultIdChange(jump.id)
                 is com.ai.ui.shared.ManageJump.TranslationRun -> onOpenTranslationRunIdChange(jump.id)
                 is com.ai.ui.shared.ManageJump.ReportsViewer -> {
-                    onSelectedAgentForViewerChange(jump.initialAgentId)
-                    onViewerSectionChange(jump.section)
-                    onShowViewerChange(true)
+                    // A per-model jump (no section, a specific agent) now
+                    // opens the single ReportModelScreen — the all-models
+                    // Buttons/Pulldown viewer is gone. costs / onepage
+                    // (section set) still use the multi-section viewer.
+                    if (jump.section == null && jump.initialAgentId != null) {
+                        onSingleResultAgentIdChange(jump.initialAgentId)
+                    } else {
+                        onSelectedAgentForViewerChange(jump.initialAgentId)
+                        onViewerSectionChange(jump.section)
+                        onShowViewerChange(true)
+                    }
                 }
             }
         }

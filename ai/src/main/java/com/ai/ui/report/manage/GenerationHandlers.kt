@@ -49,12 +49,6 @@ internal fun buildGenerationPhaseHandlers(
             st.htmlPreviewLanguage.value = ExportLanguage.All
             st.htmlPreviewDetail.value = ReportExportDetail.COMPLETE
         },
-        onViewReports = {
-            st.selectedAgentForViewer.value = null
-            st.viewerSection.value = null
-            st.viewerLockedLanguage.value = null
-            st.showViewer.value = true
-        },
         onViewPrompt = {
             st.selectedAgentForViewer.value = null
             st.viewerSection.value = "prompt"

@@ -251,7 +251,6 @@ internal data class GenerationPhaseHandlers(
     val onOpenRerankPicker: () -> Unit = {},
     val onOpenModerationPicker: () -> Unit = {},
     val onOpenHtmlPreview: () -> Unit = {},
-    val onViewReports: () -> Unit = {},
     val onViewPrompt: () -> Unit = {},
     val onViewCosts: () -> Unit = {},
     val onViewIcons: () -> Unit = {},
@@ -423,7 +422,6 @@ internal fun ColumnScope.GenerationPhase(
     val onOpenRerankPicker = handlers.onOpenRerankPicker
     val onOpenModerationPicker = handlers.onOpenModerationPicker
     val onOpenHtmlPreview = handlers.onOpenHtmlPreview
-    val onViewReports = handlers.onViewReports
     val onViewPrompt = handlers.onViewPrompt
     val onViewCosts = handlers.onViewCosts
     val onViewIcons = handlers.onViewIcons
