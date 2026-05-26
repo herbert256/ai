@@ -288,7 +288,8 @@ fun ReportModelScreen(
             subjectModel = agent.model,
             onBackClick = onBack,
             onOpenView = onOpenViewJump,
-            onTrace = traceFilename?.let { fn -> { onNavigateToTraceFile(fn) } },
+            // Response-trace 🐞 lives next to the big icon at the top now,
+            // not in the bottom icon bar.
             onDelete = {
                 // Multi-language agents get the 3-button popup so the
                 // user can drop just one language's AGENT TRANSLATE
@@ -367,6 +368,14 @@ fun ReportModelScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(glyph, fontSize = 80.sp, color = Color.White)
+                                // 🐞 to this model's response trace (moved here
+                                // from the bottom icon bar).
+                                traceFilename?.let { fn ->
+                                    Text("🐞", fontSize = 20.sp,
+                                        modifier = Modifier.padding(start = 12.dp)
+                                            .clickable { onNavigateToTraceFile(fn) })
+                                }
+                                // 🐞 to the per-model icon-chain trace.
                                 iconTraceFilename?.let { fn ->
                                     Text("🐞", fontSize = 20.sp,
                                         modifier = Modifier.padding(start = 12.dp)
