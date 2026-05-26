@@ -1148,6 +1148,9 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     }
     // Rerank / summarize call costs end up alongside the report rows so the
     // user sees one consolidated breakdown \u2014 distinguished by the Type column.
+    // Index by id so a TRANSLATE row can resolve the source it translated
+    // (to split META into fan-out / fan-in / plain meta types).
+    val secById = secondary.associateBy { it.id }
     val secondaryRows = secondary.mapNotNull { s ->
         val tu = s.tokenUsage ?: return@mapNotNull null
         val providerEnum = AppService.findById(s.providerId)
@@ -1187,7 +1190,14 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             // the user's mental model.
             SecondaryKind.RERANK -> "after/rerank"
             SecondaryKind.MODERATION -> "after/moderation"
-            SecondaryKind.TRANSLATE -> ai?.getInternalPromptByName("Translate")?.let { "${it.category}/${it.name}" } ?: "internal/Translate"
+            SecondaryKind.TRANSLATE -> {
+                val src = s.translateSourceTargetId?.let { secById[it] }
+                com.ai.data.translateTraceType(
+                    s.translateSourceKind,
+                    sourceIsFanOut = src?.fanOutSourceAgentId != null,
+                    sourceIsFanIn = src?.fanInOf != null
+                )
+            }
             SecondaryKind.META -> when {
                 mp != null -> "${mp.category}/${mp.name}"
                 !s.metaPromptName.isNullOrBlank() -> "meta/${s.metaPromptName}"
@@ -1524,6 +1534,7 @@ private fun costTypeColor(type: String): Color = when (type.substringBefore('/')
     "fan_in" -> AppColors.Green
     "internal" -> AppColors.Orange
     "after" -> AppColors.Orange
+    "translate" -> AppColors.Orange
     else -> AppColors.TextSecondary
 }
 

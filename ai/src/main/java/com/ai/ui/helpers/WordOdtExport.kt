@@ -244,7 +244,14 @@ private fun appendCosts(out: MutableList<DocBlock>, data: com.ai.ui.helpers.Html
         )
     }
     for (s in secondaryRows) {
-        val type = s.metaPromptName?.takeIf { it.isNotBlank() }?.lowercase()
+        val type = if (s.kind == SecondaryKind.TRANSLATE) {
+            val src = s.translateSourceTargetId?.let { id -> data.secondary.firstOrNull { x -> x.id == id } }
+            com.ai.data.translateTraceType(
+                s.translateSourceKind,
+                sourceIsFanOut = src?.fanOutSourceAgentId != null,
+                sourceIsFanIn = src?.fanInOf != null
+            )
+        } else s.metaPromptName?.takeIf { it.isNotBlank() }?.lowercase()
             ?: when (s.kind) {
                 SecondaryKind.RERANK -> "rerank"
                 SecondaryKind.META -> "meta"

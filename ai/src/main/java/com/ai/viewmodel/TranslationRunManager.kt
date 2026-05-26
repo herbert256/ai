@@ -49,6 +49,18 @@ private fun translateSrcTargetIdOf(item: TranslationItem): String = when (item.k
     else -> item.target ?: ""
 }
 
+/** Per-kind trace/cost/usage Type for [item]. For META items the source
+ *  secondary (by [TranslationItem.target]) decides fan-out / fan-in / plain
+ *  meta; other kinds map purely from the kind. */
+private fun traceTypeFor(item: TranslationItem, secondaries: List<SecondaryResult>): String {
+    val src = if (item.kind == TranslationKind.META) secondaries.firstOrNull { it.id == item.target } else null
+    return com.ai.data.translateTraceType(
+        translateSrcKindOf(item.kind),
+        sourceIsFanOut = src?.fanOutSourceAgentId != null,
+        sourceIsFanIn = src?.fanInOf != null
+    )
+}
+
 /** Inverse of [translateSrcKindOf] — maps a persisted
  *  `translateSourceKind` string back to a [TranslationKind].
  *  Null for unrecognised / non-translate rows. */
@@ -218,7 +230,12 @@ class TranslationRunManager(
             // against THIS set rather than recomputing from current
             // report state, so items added to the report AFTER this
             // run completes don't get spuriously translated.
-            val itemsWithIds = items.map { it.copy(persistedRowId = java.util.UUID.randomUUID().toString()) }
+            val itemsWithIds = items.map {
+                it.copy(
+                    persistedRowId = java.util.UUID.randomUUID().toString(),
+                    traceType = traceTypeFor(it, secondaries)
+                )
+            }
             itemsWithIds.forEach { item ->
                 val srcKind = translateSrcKindOf(item.kind)
                 val srcTargetId = translateSrcTargetIdOf(item)
@@ -365,7 +382,10 @@ class TranslationRunManager(
             // Tag every translation call's trace with the SOURCE report
             // id — translations live on that report now, no separate
             // translated copy to keep traces with.
-            withTracerTags(reportId = sourceReportId, category = aiSettings.getInternalPromptByName("Translate")?.let { "${it.category}/${it.name}" } ?: "internal/Translate", runId = runId) {
+            // Category is set per-item in runOneTranslation (each translation
+            // kind gets its own translate/* type); only reportId + runId are
+            // batch-wide here.
+            withTracerTags(reportId = sourceReportId, runId = runId) {
                 coroutineScope {
                     distinctModels.map { (p, m) ->
                         val ctx = ctxByKey[p.id to m]
@@ -699,10 +719,14 @@ class TranslationRunManager(
             // can wire a 🐞 directly to this exact translation call.
             val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
             val response = try {
-                withTraceFilenameSink(traceSink) {
-                    appViewModel.repository.analyzeWithAgent(
-                        agent, "", resolved, secondaryParams, null, context, baseUrl
-                    )
+                // Per-item trace category — each translation kind gets its own
+                // translate/* type. Preserves the batch's reportId + runId.
+                withTraceCategory(item.traceType) {
+                    withTraceFilenameSink(traceSink) {
+                        appViewModel.repository.analyzeWithAgent(
+                            agent, "", resolved, secondaryParams, null, context, baseUrl
+                        )
+                    }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -762,7 +786,7 @@ class TranslationRunManager(
             if (tu != null) {
                 appViewModel.settingsPrefs.updateUsageStatsAsync(
                     provider, model, tu.inputTokens, tu.outputTokens, tu.totalTokens,
-                    kind = "translate"
+                    kind = item.traceType
                 )
             }
             AppLog.d(
@@ -1472,7 +1496,7 @@ class TranslationRunManager(
                 }
                 else -> null
             }
-        }
+        }.map { it.copy(traceType = traceTypeFor(it, secondaries)) }
         if (items.isEmpty()) return
 
         // Delete the rows we're replacing so the rerun doesn't double
@@ -1601,7 +1625,10 @@ class TranslationRunManager(
         // existing finalize path turns into a terminal ERROR row.
         val callBudgetMs = 90_000L
         try {
-            withTracerTags(reportId = sourceReportId, category = aiSettings.getInternalPromptByName("Translate")?.let { "${it.category}/${it.name}" } ?: "internal/Translate", runId = runId) {
+            // Category is set per-item in runOneTranslation (each translation
+            // kind gets its own translate/* type); only reportId + runId are
+            // batch-wide here.
+            withTracerTags(reportId = sourceReportId, runId = runId) {
                 coroutineScope {
                     assignments.map { (item, ctx) ->
                         async {

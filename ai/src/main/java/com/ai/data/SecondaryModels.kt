@@ -8,6 +8,34 @@ import kotlin.concurrent.withLock
 
 enum class SecondaryKind { RERANK, META, MODERATION, TRANSLATE }
 
+/** Per-kind "Type" for a TRANSLATE call — drives the trace category, the
+ *  report cost-table Type column, and the AI Usage `kind`, so each kind of
+ *  translation breaks out separately instead of one flat `internal/Translate`.
+ *
+ *  [srcKind] is the TRANSLATE row's `translateSourceKind`. The `META` source
+ *  splits three ways by the *source* row's nature ([sourceIsFanOut] /
+ *  [sourceIsFanIn]) — those flags live on the row being translated (looked up
+ *  by `translateSourceTargetId`), not on the TRANSLATE row itself. RERANK /
+ *  MODERATION are never translated, so they have no type here. */
+fun translateTraceType(
+    srcKind: String?,
+    sourceIsFanOut: Boolean = false,
+    sourceIsFanIn: Boolean = false
+): String = when (srcKind) {
+    "PROMPT" -> "translate/report_prompt"
+    "TITLE" -> "translate/report_title"
+    "TITLE_LONG" -> "translate/report_title_long"
+    "AGENT" -> "translate/model_response"
+    "AGENT_TITLE" -> "translate/model_title"
+    "FANOUT_TITLE" -> "translate/fan/out/title"
+    "META" -> when {
+        sourceIsFanOut -> "translate/fan/out/response"
+        sourceIsFanIn -> "translate/fan/in"
+        else -> "translate/meta"
+    }
+    else -> "translate/translate"
+}
+
 /**
  * A meta-result that operates on a parent Report's per-agent outputs:
  * a Rerank ranks them, a chat-type Meta prompt narrates / compares /

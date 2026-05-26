@@ -887,6 +887,14 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
         // fall back to the user-given Meta prompt name; rerank /
         // moderation / translate keep their fixed labels.
         val type = when {
+            it.kind == SecondaryKind.TRANSLATE -> {
+                val src = it.translateSourceTargetId?.let { id -> data.secondary.firstOrNull { x -> x.id == id } }
+                com.ai.data.translateTraceType(
+                    it.translateSourceKind,
+                    sourceIsFanOut = src?.fanOutSourceAgentId != null,
+                    sourceIsFanIn = src?.fanInOf != null
+                )
+            }
             it.fanOutSourceAgentId != null -> "fan-out"
             it.fanInOf != null -> "fan-in"
             !it.metaPromptName.isNullOrBlank() -> it.metaPromptName.lowercase()

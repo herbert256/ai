@@ -1142,7 +1142,11 @@ private fun kindLabel(kind: String): String = when (kind) {
     "moderation" -> "Moderation"
     "translate" -> "Translate"
     "title" -> "Title"
-    else -> kind.replaceFirstChar { it.uppercase() }
+    // Per-kind translation types (translate/<what>): render as
+    // "Translate · <what>" with separators spaced out.
+    else -> if (kind.startsWith("translate/"))
+        "Translate · " + kind.removePrefix("translate/").replace('/', ' ').replace('_', ' ')
+    else kind.replaceFirstChar { it.uppercase() }
 }
 
 /** Costs tier — own screen (per-model getPricing for the whole catalog).

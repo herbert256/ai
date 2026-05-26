@@ -160,11 +160,36 @@ as a copy. The Result screen surfaces:
   source/ folder with the originals; cross-anchored links navigate
   between languages.
 
-## Cost tracking
+## Cost tracking & per-kind Type
 
-Every TRANSLATE call is tagged `kind = "translate"` in
-`usage-stats.json` and surfaces with its own pill on the AI Usage
-screen + its own row colour in the Report cost table.
+Each TRANSLATE call carries a **per-kind Type** rather than one flat
+`internal/translate`, so traces, the cost table, and AI Usage all break
+out by what was translated. The single classifier
+`translateTraceType(srcKind, sourceIsFanOut, sourceIsFanIn)`
+(`data/SecondaryModels.kt`) maps the row's `translateSourceKind` (and, for
+`META`, the source row's `fanOutSourceAgentId` / `fanInOf`) to one of:
+
+| Source | Type |
+|---|---|
+| report prompt | `translate/report_prompt` |
+| report title | `translate/report_title` |
+| report long title | `translate/report_title_long` |
+| model response | `translate/model_response` |
+| model title | `translate/model_title` |
+| fan-out pair response | `translate/fan/out/response` |
+| fan-out pair title | `translate/fan/out/title` |
+| fan-in | `translate/fan/in` |
+| chat-type meta | `translate/meta` |
+
+(RERANK / MODERATION are never translated, so they have no translate type.)
+This string is the **trace category** (set per-item via
+`withTraceCategory` in `TranslationRunManager.runOneTranslation`, computed at
+enumeration on `TranslationItem.traceType`), the **AI Usage `kind`**
+(`updateUsageStatsAsync`), and the **Report cost-table Type** column
+(`ContentDisplay` + the HTML / Zipped / Word-ODT exports, which resolve the
+META split by looking the source row up by `translateSourceTargetId`). The
+persisted `translateSourceKind` field itself is unchanged — display-swap
+logic still keys on `"AGENT"` / `"META"` / etc.
 
 ## Editing the translation prompt
 

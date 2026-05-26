@@ -610,7 +610,14 @@ private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData, basePath: Stri
         Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0, (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
     val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
-        val type = it.metaPromptName?.takeIf { n -> n.isNotBlank() }?.lowercase()
+        val type = if (it.kind == SecondaryKind.TRANSLATE) {
+            val src = it.translateSourceTargetId?.let { id -> data.secondary.firstOrNull { x -> x.id == id } }
+            com.ai.data.translateTraceType(
+                it.translateSourceKind,
+                sourceIsFanOut = src?.fanOutSourceAgentId != null,
+                sourceIsFanIn = src?.fanInOf != null
+            )
+        } else it.metaPromptName?.takeIf { n -> n.isNotBlank() }?.lowercase()
             ?: when (it.kind) {
                 SecondaryKind.RERANK -> "rerank"
                 SecondaryKind.META -> "meta"

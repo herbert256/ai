@@ -49,6 +49,13 @@ data class TranslationItem(
     val kind: TranslationKind,
     val sourceText: String,
     val target: String? = null,
+    /** Per-kind trace/cost/usage "Type" for this item's call — e.g.
+     *  `translate/report_prompt`, `translate/fan/out/response`. Computed at
+     *  enumeration (where the source secondary is in hand) via
+     *  [com.ai.data.translateTraceType]; [com.ai.viewmodel.TranslationRunManager.runOneTranslation]
+     *  wraps the call in `withTraceCategory(traceType)` and the usage ledger
+     *  posts under this kind. Default is the generic fallback. */
+    val traceType: String = "translate/translate",
     val status: TranslationStatus = TranslationStatus.PENDING,
     val translatedText: String? = null,
     val errorMessage: String? = null,
