@@ -137,7 +137,8 @@ internal fun NavGraphBuilder.developerRoutes(
             AiCostsTierScreen(
                 appViewModel = appViewModel,
                 onBack = safePopBack, onNavigateHome = navigateHome,
-                onNavigateToStatistics = toStatistics)
+                onNavigateToStatistics = toStatistics,
+                onNavigateToTraceCategory = { navController.navigate(NavRoutes.traceListFiltered(category = it)) })
         }
         composable(NavRoutes.AI_HOUSEKEEPING) {
             val uiState by appViewModel.uiState.collectAsState()

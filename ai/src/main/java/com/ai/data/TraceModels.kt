@@ -28,8 +28,8 @@ data class ApiTrace(
     /** Functional description of the call site that produced this trace.
      *  Internal-prompt calls use the literal "<category>/<prompt>" form
      *  (e.g. "report/prompt", "workers/report-title", "meta/Compare",
-     *  "after/rerank", "model/list", "info/huggingface"); other sites use
-     *  free-text tags ("Chat", "Provider test", "Pricing fetch").
+     *  "after/rerank", "model/list", "info/huggingface", "pricing/OpenRouter");
+     *  other sites use free-text tags ("Chat", "Provider test").
      *  Set via [ApiTracer.currentCategory] / [withTraceCategory] before
      *  the API call runs. Null on traces written before the field
      *  existed or from sites that don't bracket their calls. */

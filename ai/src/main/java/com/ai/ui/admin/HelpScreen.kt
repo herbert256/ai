@@ -832,8 +832,11 @@ internal val INFO_PROVIDERS: List<InfoProviderRef> = listOf(
 /** Categories used by [com.ai.data.PricingCache] when calling the
  *  catalog sources. Anything else (Chat, Translation, etc.) is an AI
  *  call, not an info-provider call, even if the hostname matches a
- *  dual-purpose service like OpenRouter. */
-private val INFO_FETCH_CATEGORIES = setOf("Pricing fetch", "OpenRouter model specs")
+ *  dual-purpose service like OpenRouter. The per-source pricing fetches
+ *  carry a "pricing/<source>" category (e.g. "pricing/OpenRouter"). */
+private val INFO_FETCH_CATEGORIES = setOf("OpenRouter model specs")
+private fun isInfoFetchCategory(category: String?): Boolean =
+    category != null && (category in INFO_FETCH_CATEGORIES || category.startsWith("pricing/"))
 
 /** Resolve a URL to one of the 7 info providers. Matches by host
  *  first, then disambiguates via [InfoProviderRef.urlPathPrefix] for
@@ -858,7 +861,7 @@ fun infoProviderForUrl(url: String?): InfoProviderRef? {
  *  completion would hijack the ℹ️. */
 fun infoProviderForTrace(url: String?, category: String?): InfoProviderRef? {
     val ref = infoProviderForUrl(url) ?: return null
-    if (ref.requiresChatCategoryGate && category !in INFO_FETCH_CATEGORIES) return null
+    if (ref.requiresChatCategoryGate && !isInfoFetchCategory(category)) return null
     return ref
 }
 

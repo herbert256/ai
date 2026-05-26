@@ -1104,6 +1104,9 @@ fun AiCostsTierScreen(
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
     onNavigateToStatistics: () -> Unit = {},
+    /** 🐞 on a Pricing-cache row → the API Traces filtered to that
+     *  source's "pricing/<source>" retrieve category. */
+    onNavigateToTraceCategory: (String) -> Unit = {},
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -1118,6 +1121,12 @@ fun AiCostsTierScreen(
     }
     val pricing by produceState<List<PricingCache.CatalogStat>?>(null, refreshTick) {
         value = withContext(Dispatchers.IO) { PricingCache.catalogStats(context) }
+    }
+    // Trace categories actually present, so a Pricing-cache row only shows
+    // its 🐞 when that source's retrieve was captured. Off the main thread
+    // (getTraceFiles is cached after the first streaming parse).
+    val tracedCategories by produceState(emptySet<String>(), refreshTick) {
+        value = withContext(Dispatchers.IO) { ApiTracer.getTraceFiles().mapNotNull { it.category }.toSet() }
     }
 
     Column(
@@ -1148,7 +1157,7 @@ fun AiCostsTierScreen(
                     CostTierSection(config = td.first, runtime = td.second)
                 }
             }
-            pricing?.let { cats -> item { PricingSection(cats) } }
+            pricing?.let { cats -> item { PricingSection(cats, tracedCategories, onNavigateToTraceCategory) } }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
@@ -1385,24 +1394,40 @@ private fun tierLabel(src: String): String = when (src) {
 }
 
 @Composable
-private fun PricingSection(catalogStats: List<com.ai.data.PricingCache.CatalogStat>) {
+private fun PricingSection(
+    catalogStats: List<com.ai.data.PricingCache.CatalogStat>,
+    tracedCategories: Set<String> = emptySet(),
+    onNavigateToTraceCategory: (String) -> Unit = {},
+) {
     SectionCard("🏷️", "Pricing cache", AppColors.Purple) {
         // Header
         Row(Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
             Text("Source", fontSize = 10.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1.5f))
             Text("Entries", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
-            Text("Retrieved", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(1.2f))
+            Text("Retrieved", fontSize = 10.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.weight(1.4f))
         }
         catalogStats.forEach { c ->
             val dim = c.entries == 0
+            val traceCat = "pricing/${c.name}"
+            val hasTrace = c.fetchedAt > 0L && traceCat in tracedCategories
             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(c.name, fontSize = 12.sp, color = if (dim) AppColors.TextDim else Color.White, maxLines = 1, modifier = Modifier.weight(1.5f))
                 Text("${c.entries}", fontSize = 12.sp, color = if (dim) AppColors.TextDim else AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
-                Text(
-                    fmtFetched(c.fetchedAt), fontSize = 11.sp,
-                    color = if (c.fetchedAt == 0L) AppColors.TextDim else AppColors.TextSecondary,
-                    textAlign = TextAlign.End, maxLines = 1, modifier = Modifier.weight(1.2f)
-                )
+                Row(modifier = Modifier.weight(1.4f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End) {
+                    Text(
+                        fmtFetched(c.fetchedAt), fontSize = 11.sp,
+                        color = if (c.fetchedAt == 0L) AppColors.TextDim else AppColors.TextSecondary,
+                        maxLines = 1
+                    )
+                    // 🐞 → the API Traces filtered to this source's retrieve.
+                    // Only when the retrieve was actually captured.
+                    if (hasTrace) {
+                        Text(
+                            "🐞", fontSize = 12.sp,
+                            modifier = Modifier.padding(start = 6.dp).clickable { onNavigateToTraceCategory(traceCat) }
+                        )
+                    }
+                }
             }
         }
     }

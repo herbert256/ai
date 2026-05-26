@@ -821,10 +821,14 @@ object PricingCache {
      * Returns the number of priced entries that ended up in the cache, or null
      * if the network call failed.
      */
-    suspend fun fetchLiteLLMPricingOnline(context: Context): Int? = withContext(kotlinx.coroutines.Dispatchers.IO) {
+    suspend fun fetchLiteLLMPricingOnline(context: Context): Int? = withTraceCategory("pricing/LiteLLM") {
+      withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
-            val url = java.net.URL("https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
-            val json = url.openStream().bufferedReader().use { it.readText() }
+            // Route through the shared OkHttp client (TracingInterceptor) so
+            // the retrieve shows up in the in-app Trace screen — same as the
+            // other pricing sources, and what the Costs tiers 🐞 links to.
+            val json = ApiFactory.fetchUrlAsString("https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
+            if (json.isNullOrBlank()) return@withContext null
             val (pricing, meta) = parseLiteLLMJson(json)
             if (pricing.isEmpty()) return@withContext null
             synchronized(lock) {
@@ -842,6 +846,7 @@ object PricingCache {
             AppLog.e("PricingCache", "Online LITELLM refresh failed: ${e.message}", e)
             null
         }
+      }
     }
 
     /**
@@ -851,7 +856,7 @@ object PricingCache {
      * failure. Values are cached in pricing_cache prefs (round-trips
      * through BackupManager via the existing PREFS_TO_BACKUP entry).
      */
-    suspend fun fetchModelsDevOnline(context: Context): Int? = withTraceCategory("Pricing fetch") {
+    suspend fun fetchModelsDevOnline(context: Context): Int? = withTraceCategory("pricing/models.dev") {
       withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             // Route through the shared OkHttp client (TracingInterceptor +
@@ -992,7 +997,7 @@ object PricingCache {
      *  output_cost_per_1m. The exact-match map covers ~95% of entries; the
      *  pattern list handles the rest at lookup time. */
 
-    suspend fun fetchHeliconeOnline(context: Context): Int? = withTraceCategory("Pricing fetch") {
+    suspend fun fetchHeliconeOnline(context: Context): Int? = withTraceCategory("pricing/Helicone") {
       withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             val json = ApiFactory.fetchUrlAsString("https://www.helicone.ai/api/llm-costs")
@@ -1082,7 +1087,7 @@ object PricingCache {
     )
 
 
-    suspend fun fetchLLMPricesOnline(context: Context): Int? = withTraceCategory("Pricing fetch") {
+    suspend fun fetchLLMPricesOnline(context: Context): Int? = withTraceCategory("pricing/llm-prices") {
       withContext(kotlinx.coroutines.Dispatchers.IO) {
         try {
             val combined = mutableMapOf<String, ModelPricing>()
@@ -1149,7 +1154,7 @@ object PricingCache {
      *  rest of the chain stores LiteLLM / models.dev entries (the existing
      *  prefix-bucket lookup then handles dots-vs-dashes via normalizeModelId). */
 
-    suspend fun fetchArtificialAnalysisOnline(context: Context, apiKey: String): Int? = withTraceCategory("Pricing fetch") {
+    suspend fun fetchArtificialAnalysisOnline(context: Context, apiKey: String): Int? = withTraceCategory("pricing/Artificial Analysis") {
       withContext(kotlinx.coroutines.Dispatchers.IO) {
         if (apiKey.isBlank()) {
             AppLog.w("PricingCache", "Artificial Analysis refresh skipped: missing API key")
@@ -1211,7 +1216,7 @@ object PricingCache {
 
     suspend fun fetchOpenRouterPricing(apiKey: String): Map<String, ModelPricing> {
         if (apiKey.isBlank()) return emptyMap()
-        return withTraceCategory("Pricing fetch") {
+        return withTraceCategory("pricing/OpenRouter") {
             try {
                 val api = ApiFactory.createOpenRouterModelsApi("https://openrouter.ai/api/")
                 val response = api.listModelsDetailed("Bearer $apiKey")
