@@ -80,7 +80,16 @@ fun TraceListScreen(
     onHousekeeping: (() -> Unit)? = null,
     onSettings: (() -> Unit)? = null,
     /** 📈 jump to the API trace statistics aggregate page. Null → glyph hidden. */
-    onStats: (() -> Unit)? = null
+    onStats: (() -> Unit)? = null,
+    /** Variant of [onSelectTrace] used only by the auto-collapse path
+     *  (a pre-filtered list that resolves to exactly one trace, opened
+     *  straight into its detail). Scoped/filtered lists wire this to
+     *  navigate to the detail while popping THIS one-row list off the
+     *  back stack, so Android back from the detail returns to the screen
+     *  that launched the 🐞 — not the redundant single-row list. Null →
+     *  falls back to [onSelectTrace] (the main list keeps its list on
+     *  the stack). */
+    onAutoSelectTrace: ((String) -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -195,7 +204,7 @@ fun TraceListScreen(
     LaunchedEffect(allTraceFiles, traceFiles) {
         if (!autoSelected && allTraceFiles.isNotEmpty() && traceFiles.size == 1) {
             autoSelected = true
-            onSelectTrace(traceFiles[0].filename)
+            (onAutoSelectTrace ?: onSelectTrace)(traceFiles[0].filename)
         }
     }
     val errorCount = remember(allTraceFiles) {

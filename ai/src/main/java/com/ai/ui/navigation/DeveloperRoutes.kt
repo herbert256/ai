@@ -403,6 +403,9 @@ internal fun NavGraphBuilder.developerRoutes(
                     onClearTraces = { appViewModel.clearTraces() }, reportId = reportId,
                     onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) },
                     onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                    onAutoSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) {
+                        popUpTo(NavRoutes.TRACE_LIST_FOR_REPORT) { inclusive = true }
+                    } },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
             }
         }
@@ -426,6 +429,9 @@ internal fun NavGraphBuilder.developerRoutes(
                     reportId = reportId, initialCategory = category,
                     onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) },
                     onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                    onAutoSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) {
+                        popUpTo(NavRoutes.TRACE_LIST_FOR_REPORT_CATEGORY) { inclusive = true }
+                    } },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
             }
         }
@@ -438,6 +444,9 @@ internal fun NavGraphBuilder.developerRoutes(
                 onClearTraces = { appViewModel.clearTraces() }, modelFilter = model,
                 onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                onAutoSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) {
+                    popUpTo(NavRoutes.TRACE_LIST_FOR_MODEL) { inclusive = true }
+                } },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
         }
         composable(NavRoutes.TRACE_LIST_FOR_RUN) { entry ->
@@ -449,6 +458,9 @@ internal fun NavGraphBuilder.developerRoutes(
                 onClearTraces = { appViewModel.clearTraces() }, runIdFilter = runId,
                 onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                onAutoSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) {
+                    popUpTo(NavRoutes.TRACE_LIST_FOR_RUN) { inclusive = true }
+                } },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
         }
         composable(
@@ -472,6 +484,9 @@ internal fun NavGraphBuilder.developerRoutes(
                 initialCategory = arg("category"), modelFilter = arg("model"),
                 onNavigateToTraceList = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                onAutoSelectTrace = { navController.navigate(NavRoutes.traceDetail(it)) {
+                    popUpTo(NavRoutes.TRACE_LIST_FILTERED) { inclusive = true }
+                } },
                 onSettings = { navController.navigate(NavRoutes.SETTINGS_LOGGING) })
         }
         composable(NavRoutes.TRACE_DETAIL) { entry ->

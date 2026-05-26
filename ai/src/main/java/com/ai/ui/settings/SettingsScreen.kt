@@ -155,7 +155,11 @@ fun SettingsScreen(
     // caller deep-links into AI_INTERNAL_PROMPT_EDIT (e.g. Fan out L1's
     // "Edit the used Fan out prompt") we derive the bucket from the
     // prompt being edited so the edit screen pins the right category.
-    var selectedInternalCategory by remember {
+    // rememberSaveable (like currentSubScreen above) so a navigation hop
+    // OUT of Settings and back — e.g. a CRUD row's 🐞 → API Traces →
+    // Android back — restores the category the user was on, instead of
+    // resetting to the "internal" default ("Other internal prompts").
+    var selectedInternalCategory by rememberSaveable {
         mutableStateOf(
             initialInternalPromptCategory
                 ?: initialEditingInternalPromptId
