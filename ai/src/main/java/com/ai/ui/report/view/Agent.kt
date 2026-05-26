@@ -38,6 +38,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -115,6 +117,13 @@ fun ReportsViewScreen(
     val activeLanguage = if (languages.isEmpty()) ""
         else languages[langPagerState.currentPage.wrapTo(languages.size)]
     val activeLangState = androidx.compose.runtime.rememberUpdatedState(activeLanguage)
+    val scope = rememberCoroutineScope()
+    // Tapping the prompt card's language flag advances to the next
+    // language, wrapping past the last back to the first (the pager is
+    // a wrap pager, so currentPage + 1 is always valid).
+    val advanceLanguage: () -> Unit = {
+        scope.launch { langPagerState.animateScrollToPage(langPagerState.currentPage + 1) }
+    }
     androidx.activity.compose.BackHandler {
         onBack(activeLangState.value.ifBlank { null })
     }
@@ -335,6 +344,7 @@ fun ReportsViewScreen(
                                 PromptCard(
                                     report = report, languageIcon = flag, promptOverride = promptOverride,
                                     onCollapse = { promptExpanded = false },
+                                    onLanguageClick = advanceLanguage,
                                     modifier = Modifier.fillMaxWidth()
                                 )
                             }
@@ -477,6 +487,9 @@ private fun PromptCard(
     languageIcon: String?,
     promptOverride: String?,
     onCollapse: (() -> Unit)? = null,
+    /** When set, tapping the top-right language flag advances to the
+     *  next language (wrapping). Null → the flag is a static indicator. */
+    onLanguageClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier.fillMaxWidth()
 ) {
     // Prefer the live LocalReportIcon (refreshed via iconRefreshTick
@@ -537,7 +550,12 @@ private fun PromptCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 if (!languageIcon.isNullOrBlank()) {
-                    Text(text = languageIcon, fontSize = 24.sp)
+                    Text(
+                        text = languageIcon, fontSize = 24.sp,
+                        modifier = if (onLanguageClick != null)
+                            Modifier.clickable(onClick = onLanguageClick).padding(4.dp)
+                        else Modifier
+                    )
                 }
                 if (onCollapse != null) {
                     if (!languageIcon.isNullOrBlank()) Spacer(modifier = Modifier.width(8.dp))
