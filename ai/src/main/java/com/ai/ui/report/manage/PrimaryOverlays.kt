@@ -308,6 +308,7 @@ internal fun ReportPrimaryOverlays(
 
     if (showViewReportScreen && currentReportId != null
         && !showViewer && !showIconsView
+        && singleResultAgentId == null
         && htmlPreviewDetail == null
         && openMetaResultId == null
         && openTranslationRunId == null

@@ -387,23 +387,6 @@ fun ReportsViewScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
-                    // The active model's response title (orange) sits between
-                    // the green model line above and the response card below.
-                    // Translated variant when a non-Original language is
-                    // active; hidden when the model has no title.
-                    val activeModelTitle = activeAgent?.let {
-                        translatedTitleByAgentId[it.agentId]?.takeIf { t -> t.isNotBlank() }
-                            ?: it.modelTitle?.takeIf { t -> t.isNotBlank() }
-                    }
-                    if (activeModelTitle != null) {
-                        Text(
-                            text = activeModelTitle,
-                            color = AppColors.Orange,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                        )
-                    }
                     // Fill the leftover height so the swipe region extends
                     // below the (wrap-content, top-aligned) card — swiping in
                     // the empty space under the last card navigates models
@@ -419,9 +402,15 @@ fun ReportsViewScreen(
                             verticalAlignment = Alignment.Top
                         ) { page ->
                             val agent = agents[page.wrapTo(agents.size)]
+                            // Per-page response title (orange), shown at the
+                            // top of the card itself; translated when a
+                            // non-Original language is active.
+                            val pageTitle = translatedTitleByAgentId[agent.agentId]?.takeIf { it.isNotBlank() }
+                                ?: agent.modelTitle?.takeIf { it.isNotBlank() }
                             AgentResponseCard(
                                 agent = agent,
                                 overrideBody = translatedByAgentId[agent.agentId],
+                                overrideTitle = pageTitle,
                                 onIconClick = advanceModel
                             )
                         }
@@ -584,6 +573,9 @@ private fun PromptCard(
 private fun AgentResponseCard(
     agent: ReportAgent,
     overrideBody: String?,
+    /** Response title shown in orange, centred at the top of the card.
+     *  Null / blank → no title row. */
+    overrideTitle: String? = null,
     /** When set, tapping the card's icon advances to the next model
      *  (wrapping). Null → the icon is a static glyph. */
     onIconClick: (() -> Unit)? = null
@@ -602,6 +594,17 @@ private fun AgentResponseCard(
             .padding(horizontal = 14.dp, vertical = 6.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        // Response title (orange) at the top of the card, centred.
+        overrideTitle?.takeIf { it.isNotBlank() }?.let { t ->
+            Text(
+                text = t,
+                color = AppColors.Orange,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+            )
+        }
         // Transparent oversized glyph — no background tint, no Box
         // wrapper, just the emoji centred above the response body.
         // Tapping it (single mode) jumps to the next model.
