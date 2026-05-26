@@ -162,7 +162,11 @@ fun TraceListScreen(
     // cleared by backing out). Buckets match computeTraceStats exactly.
     val statusClass = initialStatusClass
 
-    val traceFiles = remember(allTraceFiles, selectedCategory, selectedProvider, selectedHostname, selectedModel, errorsOnly, statusClass) {
+    // Everything that's filtered EXCEPT the errors-only toggle — the set
+    // the "Only errors" checkbox would narrow. Kept separate so its error
+    // count (below) reflects the current filtered slice without collapsing
+    // to zero once the toggle is on.
+    val scopedFiles = remember(allTraceFiles, selectedCategory, selectedProvider, selectedHostname, selectedModel, statusClass) {
         allTraceFiles
             .filter { t -> when (selectedCategory) {
                 "(All)" -> true
@@ -178,7 +182,6 @@ fun TraceListScreen(
                 else -> t.hostname == selectedHostname
             } }
             .filter { t -> selectedModel == null || t.model == selectedModel }
-            .filter { t -> !errorsOnly || t.statusCode == 0 || t.statusCode >= 400 }
             .filter { t -> when (statusClass) {
                 null -> true
                 "2xx" -> t.statusCode in 200..299
@@ -190,6 +193,9 @@ fun TraceListScreen(
                     t.statusCode !in 400..499 && t.statusCode !in 500..599 && t.statusCode != 0
                 else -> true
             } }
+    }
+    val traceFiles = remember(scopedFiles, errorsOnly) {
+        scopedFiles.filter { t -> !errorsOnly || t.statusCode == 0 || t.statusCode >= 400 }
     }
     // Auto-collapse: when a 🐞 link lands here with preset filters
     // (reportId / category / model) and the resulting list has exactly
@@ -207,9 +213,16 @@ fun TraceListScreen(
             (onAutoSelectTrace ?: onSelectTrace)(traceFiles[0].filename)
         }
     }
-    val errorCount = remember(allTraceFiles) {
-        allTraceFiles.count { it.statusCode == 0 || it.statusCode >= 400 }
+    // Error count over the currently-filtered slice (not the whole loaded
+    // set) so the "Only errors" option is hidden when the filtered list has
+    // no errors — and its (N) matches what the toggle would actually show.
+    val errorCount = remember(scopedFiles) {
+        scopedFiles.count { it.statusCode == 0 || it.statusCode >= 400 }
     }
+    // If a filter change drops the error count to zero the "Only errors"
+    // checkbox vanishes — clear the toggle too so the list doesn't stay
+    // stuck on an empty errors-only slice with no way to switch it back.
+    LaunchedEffect(errorCount) { if (errorCount == 0 && errorsOnly) errorsOnly = false }
     var currentPage by rememberSaveable { mutableIntStateOf(0) }
 
     // Models with traces in the currently scoped (Category + Provider
