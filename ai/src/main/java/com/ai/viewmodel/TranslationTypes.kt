@@ -5,7 +5,18 @@ package com.ai.viewmodel
  *  being nested in the 8k-line view model. Pure data. */
 
 enum class TranslationStatus { PENDING, RUNNING, DONE, ERROR }
-enum class TranslationKind { TITLE, PROMPT, AGENT_RESPONSE, META }
+/** TITLE = report short title, TITLE_LONG = report long title,
+ *  AGENT_TITLE = a model-response title, FANOUT_TITLE = a fan-out
+ *  pair's response title. The four title kinds are translated with
+ *  the `internal/translate-title` prompt (`@TITLE@` placeholder),
+ *  not the body `internal/translate` prompt (`@TEXT@`). PROMPT /
+ *  AGENT_RESPONSE / META translate long-form bodies. */
+enum class TranslationKind { TITLE, TITLE_LONG, AGENT_TITLE, FANOUT_TITLE, PROMPT, AGENT_RESPONSE, META }
+
+/** The four title kinds use the short `translate-title` prompt. */
+val TranslationKind.isTitle: Boolean
+    get() = this == TranslationKind.TITLE || this == TranslationKind.TITLE_LONG ||
+        this == TranslationKind.AGENT_TITLE || this == TranslationKind.FANOUT_TITLE
 
 /** Per-run optimisation knob exposed on the L1 screen — switches
  *  the cost-aware hesitation built into [startTranslation]'s

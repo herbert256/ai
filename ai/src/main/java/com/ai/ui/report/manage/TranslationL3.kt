@@ -129,6 +129,8 @@ internal fun TranslationL3Screen(
             when (item.kind) {
                 TranslationKind.TITLE ->
                     TranslationSourceInfo(report?.title, null, null, null)
+                TranslationKind.TITLE_LONG ->
+                    TranslationSourceInfo(report?.titleLong, null, null, null)
                 TranslationKind.PROMPT ->
                     TranslationSourceInfo(report?.prompt, null, null, null)
                 TranslationKind.AGENT_RESPONSE -> {
@@ -137,9 +139,19 @@ internal fun TranslationL3Screen(
                     }
                     TranslationSourceInfo(agent?.responseBody, agent?.model, agent?.provider, null)
                 }
+                TranslationKind.AGENT_TITLE -> {
+                    val agent = report?.agents?.firstOrNull {
+                        it.agentId == item.target && it.reportStatus == ReportStatus.SUCCESS
+                    }
+                    TranslationSourceInfo(agent?.modelTitle, agent?.model, agent?.provider, null)
+                }
                 TranslationKind.META -> {
                     val sec = item.target?.let { SecondaryResultStorage.get(context, reportId, it) }
                     TranslationSourceInfo(sec?.content, sec?.model, sec?.providerId, sec?.metaPromptName)
+                }
+                TranslationKind.FANOUT_TITLE -> {
+                    val sec = item.target?.let { SecondaryResultStorage.get(context, reportId, it) }
+                    TranslationSourceInfo(sec?.title, sec?.model, sec?.providerId, sec?.metaPromptName)
                 }
             }
         }
@@ -148,9 +160,12 @@ internal fun TranslationL3Screen(
     val sourceLabel = source.model?.takeIf { it.isNotBlank() }
         ?: when (item.kind) {
             TranslationKind.TITLE -> "Title"
+            TranslationKind.TITLE_LONG -> "Long title"
             TranslationKind.PROMPT -> "Prompt"
             TranslationKind.META -> source.metaName?.takeIf { it.isNotBlank() } ?: "Meta"
             TranslationKind.AGENT_RESPONSE -> "Source"
+            TranslationKind.AGENT_TITLE -> "Model title"
+            TranslationKind.FANOUT_TITLE -> "Fan title"
         }
     val sourceProviderService = source.providerId?.let { AppService.findById(it) }
 

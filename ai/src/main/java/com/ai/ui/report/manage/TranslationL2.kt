@@ -187,6 +187,9 @@ internal fun TranslationL2Screen(
  *  ~70dp column on each L2 row. */
 internal fun translationKindLabel(kind: TranslationKind): String = when (kind) {
     TranslationKind.TITLE -> "title"
+    TranslationKind.TITLE_LONG -> "long title"
+    TranslationKind.AGENT_TITLE -> "model title"
+    TranslationKind.FANOUT_TITLE -> "fan title"
     TranslationKind.PROMPT -> "prompt"
     TranslationKind.AGENT_RESPONSE -> "report"
     TranslationKind.META -> "meta"

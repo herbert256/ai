@@ -55,23 +55,43 @@ For each selected language, one TRANSLATE call is made per:
   `translateSourceTargetId = secondary.id`. Rerank and Moderation
   rows are never translated; their content is structured JSON.
 
-The TRANSLATE prompt template lives as the `InternalPrompt` row
-named `"translate"` in the `internal` category (seeded from
-`assets/internal-prompts/` on fresh install, editable thereafter via
-Settings → AI Setup → Prompt management → Other internal). It
-substitutes:
+### Titles
 
-| Variable | Meaning |
-|---|---|
-| `@LANGUAGE@` | English name of the target language |
-| `@TEXT@` | The source text being translated |
+Four short title fields are also translated, each as its own
+TRANSLATE call. These use the **`translate-title`** prompt rather
+than the body `translate` prompt (see below):
 
-The default prompt asks for: "Translate the following text to
+- **Report short title** — `translateSourceKind = "TITLE"`,
+  `translateSourceTargetId = "title"`.
+- **Report long title** (`Report.titleLong`) —
+  `translateSourceKind = "TITLE_LONG"`, `translateSourceTargetId = "titleLong"`.
+- **Each model response title** (`ReportAgent.modelTitle`, when set) —
+  `translateSourceKind = "AGENT_TITLE"`,
+  `translateSourceTargetId = agent.agentId`.
+- **Each fan-out pair response title** (`SecondaryResult.title` on
+  fan-out pair rows, when set) — `translateSourceKind = "FANOUT_TITLE"`,
+  `translateSourceTargetId = secondary.id`.
+
+### Prompts
+
+Two `InternalPrompt` rows in the `internal` category drive the
+substitution (both seeded from `assets/internal-prompts/` and
+delta-merged into existing installs on launch, editable via Settings
+→ AI Setup → Prompt management → Other internal):
+
+| Prompt | Used for | Placeholders |
+|---|---|---|
+| `translate` | prompt / agent / meta bodies | `@LANGUAGE@`, `@TEXT@` |
+| `translate-title` | the four title kinds | `@LANGUAGE@`, `@TITLE@` |
+
+The default body prompt asks for: "Translate the following text to
 @LANGUAGE@. Preserve markdown formatting (headings, bold, italic,
 lists, code blocks, tables) exactly. Preserve citation references
 like [1] or [N]. Preserve URLs and code identifiers untouched. Do
 NOT add commentary, preface, or explanation — output only the
-translation."
+translation." The default title prompt is terser: "Translate the
+following text to @LANGUAGE@, give only the translation back,
+nothing else." followed by `@TITLE@`.
 
 ## Multi-language fan-out for chat-type Meta runs
 
@@ -141,9 +161,10 @@ screen + its own row colour in the Report cost table.
 ## Editing the translation prompt
 
 Settings → AI Setup → **Prompt management → Other internal** lists
-the five fixed-name internal templates (intro / model_info /
-translate / rerank / moderation). Edit the `text` field of the
-`translate` row. Defaults are seeded from `assets/internal-prompts/` on
+the fixed-name internal templates (intro / model_info / translate /
+translate-title / rerank / moderation). Edit the `text` field of the
+`translate` row (bodies) or `translate-title` row (titles). Defaults
+are seeded from `assets/internal-prompts/` on
 a fresh install; existing entries are never overwritten by re-seeds
 unless the user runs Housekeeping → Reset → "Reset Internal Prompts
 to assets/internal-prompts/".

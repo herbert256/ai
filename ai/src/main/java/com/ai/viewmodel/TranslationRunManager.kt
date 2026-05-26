@@ -28,6 +28,47 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
+/** Persisted `translateSourceKind` string for a [TranslationKind]. */
+private fun translateSrcKindOf(kind: TranslationKind): String = when (kind) {
+    TranslationKind.TITLE -> "TITLE"
+    TranslationKind.TITLE_LONG -> "TITLE_LONG"
+    TranslationKind.AGENT_TITLE -> "AGENT_TITLE"
+    TranslationKind.FANOUT_TITLE -> "FANOUT_TITLE"
+    TranslationKind.PROMPT -> "PROMPT"
+    TranslationKind.AGENT_RESPONSE -> "AGENT"
+    TranslationKind.META -> "META"
+}
+
+/** Persisted `translateSourceTargetId` for an item. Singletons
+ *  (report title / long title / prompt) use a fixed key; per-target
+ *  kinds carry the agent id / secondary id in [TranslationItem.target]. */
+private fun translateSrcTargetIdOf(item: TranslationItem): String = when (item.kind) {
+    TranslationKind.TITLE -> "title"
+    TranslationKind.TITLE_LONG -> "titleLong"
+    TranslationKind.PROMPT -> "prompt"
+    else -> item.target ?: ""
+}
+
+/** Inverse of [translateSrcKindOf] — maps a persisted
+ *  `translateSourceKind` string back to a [TranslationKind].
+ *  Null for unrecognised / non-translate rows. */
+private fun translateKindOf(srcKind: String?): TranslationKind? = when (srcKind) {
+    "TITLE" -> TranslationKind.TITLE
+    "TITLE_LONG" -> TranslationKind.TITLE_LONG
+    "AGENT_TITLE" -> TranslationKind.AGENT_TITLE
+    "FANOUT_TITLE" -> TranslationKind.FANOUT_TITLE
+    "PROMPT" -> TranslationKind.PROMPT
+    "AGENT" -> TranslationKind.AGENT_RESPONSE
+    "META" -> TranslationKind.META
+    else -> null
+}
+
+/** Fallback `translate-title` body used when the bundled internal
+ *  prompt hasn't been delta-merged into settings yet. Mirrors
+ *  assets/internal-prompts/internal/translate-title.txt. */
+private const val DEFAULT_TRANSLATE_TITLE_TEMPLATE =
+    "Translate the following text to @LANGUAGE@, give only the translation back, nothing else.\n\n@TITLE@"
+
 /** Translation-run orchestration extracted from [ReportViewModel].
  *  Owns the live translation-run state + jobs and the full run
  *  lifecycle. Back-references [rvm] for a few shared helpers
@@ -97,6 +138,14 @@ class TranslationRunManager(
                     sourceText = sourceReport.title
                 )
             }
+            sourceReport.titleLong?.takeIf { it.isNotBlank() }?.let { longTitle ->
+                items += TranslationItem(
+                    id = "titleLong",
+                    label = "Report long title",
+                    kind = TranslationKind.TITLE_LONG,
+                    sourceText = longTitle
+                )
+            }
             items += TranslationItem(
                 id = "prompt",
                 label = "Report prompt",
@@ -113,6 +162,34 @@ class TranslationRunManager(
                         kind = TranslationKind.AGENT_RESPONSE,
                         sourceText = agent.responseBody!!,
                         target = agent.agentId
+                    )
+                }
+            // Per-model response titles (ReportAgent.modelTitle), one
+            // per success agent that has a generated title.
+            sourceReport.agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.modelTitle.isNullOrBlank() }
+                .forEach { agent ->
+                    val provDisplay = AppService.findById(agent.provider)?.id ?: agent.provider
+                    items += TranslationItem(
+                        id = "agentTitle:${agent.agentId}",
+                        label = "Title: $provDisplay / ${shortModelName(agent.model)}",
+                        kind = TranslationKind.AGENT_TITLE,
+                        sourceText = agent.modelTitle!!,
+                        target = agent.agentId
+                    )
+                }
+            // Per-fan-out-pair response titles (SecondaryResult.title on
+            // fan-out pair rows), one per pair that has a generated title.
+            secondaries
+                .filter { it.kind == SecondaryKind.META && it.fanOutSourceAgentId != null && !it.title.isNullOrBlank() }
+                .forEach { s ->
+                    val provDisplay = AppService.findById(s.providerId)?.id ?: s.providerId
+                    items += TranslationItem(
+                        id = "fanoutTitle:${s.id}",
+                        label = "Fan title: $provDisplay / ${shortModelName(s.model)}",
+                        kind = TranslationKind.FANOUT_TITLE,
+                        sourceText = s.title!!,
+                        target = s.id
                     )
                 }
             // Every chat-type Meta result is a candidate for translation.
@@ -143,12 +220,8 @@ class TranslationRunManager(
             // run completes don't get spuriously translated.
             val itemsWithIds = items.map { it.copy(persistedRowId = java.util.UUID.randomUUID().toString()) }
             itemsWithIds.forEach { item ->
-                val (srcKind, srcTargetId) = when (item.kind) {
-                    TranslationKind.TITLE -> "TITLE" to "title"
-                    TranslationKind.PROMPT -> "PROMPT" to "prompt"
-                    TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
-                    TranslationKind.META -> "META" to (item.target ?: "")
-                }
+                val srcKind = translateSrcKindOf(item.kind)
+                val srcTargetId = translateSrcTargetIdOf(item)
                 SecondaryResultStorage.save(context, SecondaryResult(
                     id = item.persistedRowId!!,
                     reportId = sourceReportId,
@@ -183,6 +256,8 @@ class TranslationRunManager(
             AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${itemsWithIds.size} items via ${models.size} model${if (models.size == 1) "" else "s"}")
 
             val template = aiSettings.getInternalPromptByName("Translate")?.text.orEmpty()
+            val titleTemplate = aiSettings.getInternalPromptByName("translate-title")?.text
+                ?.takeIf { it.isNotBlank() } ?: DEFAULT_TRANSLATE_TITLE_TEMPLATE
 
             // Pre-resolve apiKey / baseUrl / pricing once per
             // distinct (provider, model) so the inner loop doesn't
@@ -413,7 +488,7 @@ class TranslationRunManager(
                                                     kotlinx.coroutines.withTimeoutOrNull(callBudgetMs) {
                                                         runOneTranslation(
                                                             runId, context, ctx.provider, ctx.apiKey,
-                                                            ctx.model, ctx.baseUrl, template,
+                                                            ctx.model, ctx.baseUrl, template, titleTemplate,
                                                             targetLanguageName, item, ctx.pricing,
                                                             secondaryParams
                                                         )
@@ -570,6 +645,7 @@ class TranslationRunManager(
         model: String,
         baseUrl: String,
         template: String,
+        titleTemplate: String,
         targetLanguageName: String,
         item: TranslationItem,
         pricing: PricingCache.ModelPricing,
@@ -603,9 +679,16 @@ class TranslationRunManager(
         // pick it up cleanly.
         try {
             AppLog.d("Translation", "→ item ${item.id} \"${item.label}\" kind=${item.kind} srcLen=${item.sourceText.length}")
-            val resolved = template
-                .replace("@LANGUAGE@", targetLanguageName)
-                .replace("@TEXT@", item.sourceText)
+            // Title kinds use the short translate-title prompt
+            // (@TITLE@); bodies use the translate prompt (@TEXT@).
+            val resolved = if (item.kind.isTitle)
+                titleTemplate
+                    .replace("@LANGUAGE@", targetLanguageName)
+                    .replace("@TITLE@", item.sourceText)
+            else
+                template
+                    .replace("@LANGUAGE@", targetLanguageName)
+                    .replace("@TEXT@", item.sourceText)
             val agent = Agent(
                 id = "translate:${provider.id}:$model",
                 name = "Translate / ${provider.id} / $model",
@@ -727,12 +810,8 @@ class TranslationRunManager(
         val (inCost, outCost) = tu?.let { PricingCache.computeInOutCost(it, translatePricing) }
             ?.let { it.first to it.second } ?: (null to null)
         val labelPrefix = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}"
-        val (srcKind, srcTargetId) = when (item.kind) {
-            TranslationKind.TITLE -> "TITLE" to "title"
-            TranslationKind.PROMPT -> "PROMPT" to "prompt"
-            TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
-            TranslationKind.META -> "META" to (item.target ?: "")
-        }
+        val srcKind = translateSrcKindOf(item.kind)
+        val srcTargetId = translateSrcTargetIdOf(item)
         SecondaryResultStorage.save(context, SecondaryResult(
             // Reuse the placeholder's id (stashed at startTranslation /
             // restart time) so this save OVERWRITES the placeholder
@@ -967,17 +1046,8 @@ class TranslationRunManager(
                 .map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
                 .toSet()
             val filtered = cur.items.filterNot { item ->
-                val srcKind = when (item.kind) {
-                    TranslationKind.TITLE -> "TITLE"
-                    TranslationKind.PROMPT -> "PROMPT"
-                    TranslationKind.AGENT_RESPONSE -> "AGENT"
-                    TranslationKind.META -> "META"
-                }
-                val srcId = when (item.kind) {
-                    TranslationKind.TITLE -> "title"
-                    TranslationKind.PROMPT -> "prompt"
-                    else -> item.target ?: ""
-                }
+                val srcKind = translateSrcKindOf(item.kind)
+                val srcId = translateSrcTargetIdOf(item)
                 item.status == TranslationStatus.ERROR && "$srcKind:$srcId" in failedTargetKeys
             }
             runs + (runId to cur.copy(
@@ -1012,17 +1082,8 @@ class TranslationRunManager(
                 .map { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") }
                 .toSet()
             val filtered = cur.items.filterNot { item ->
-                val srcKind = when (item.kind) {
-                    TranslationKind.TITLE -> "TITLE"
-                    TranslationKind.PROMPT -> "PROMPT"
-                    TranslationKind.AGENT_RESPONSE -> "AGENT"
-                    TranslationKind.META -> "META"
-                }
-                val srcId = when (item.kind) {
-                    TranslationKind.TITLE -> "title"
-                    TranslationKind.PROMPT -> "prompt"
-                    else -> item.target ?: ""
-                }
+                val srcKind = translateSrcKindOf(item.kind)
+                val srcId = translateSrcTargetIdOf(item)
                 item.status == TranslationStatus.ERROR && "$srcKind:$srcId" in benchedTargetKeys
             }
             runs + (runId to cur.copy(
@@ -1061,13 +1122,20 @@ class TranslationRunManager(
         val secondaries = SecondaryResultStorage.listForReport(context, sourceReportId)
         val pairs = buildList<Pair<String, String>> {
             if (report.title.isNotBlank()) add("title" to "TITLE")
+            if (!report.titleLong.isNullOrBlank()) add("titleLong" to "TITLE_LONG")
             add("prompt" to "PROMPT")
             report.agents
                 .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
                 .forEach { add(it.agentId to "AGENT") }
+            report.agents
+                .filter { it.reportStatus == ReportStatus.SUCCESS && !it.modelTitle.isNullOrBlank() }
+                .forEach { add(it.agentId to "AGENT_TITLE") }
             secondaries
                 .filter { it.kind == SecondaryKind.META && !it.content.isNullOrBlank() }
                 .forEach { add(it.id to "META") }
+            secondaries
+                .filter { it.kind == SecondaryKind.META && it.fanOutSourceAgentId != null && !it.title.isNullOrBlank() }
+                .forEach { add(it.id to "FANOUT_TITLE") }
         }
         if (pairs.isEmpty()) return@launch
 
@@ -1150,21 +1218,21 @@ class TranslationRunManager(
     ): List<TranslationItem> = translateRows
         .filter { it.id !in deleteSet }
         .mapNotNull { row ->
-            val kind = when (row.translateSourceKind) {
-                "TITLE" -> TranslationKind.TITLE
-                "PROMPT" -> TranslationKind.PROMPT
-                "AGENT" -> TranslationKind.AGENT_RESPONSE
-                "META" -> TranslationKind.META
-                else -> return@mapNotNull null
-            }
+            val kind = translateKindOf(row.translateSourceKind) ?: return@mapNotNull null
             val targetId = row.translateSourceTargetId.orEmpty()
             val (itemId, label) = when (kind) {
                 TranslationKind.TITLE -> "title" to "Report title"
+                TranslationKind.TITLE_LONG -> "titleLong" to "Report long title"
                 TranslationKind.PROMPT -> "prompt" to "Report prompt"
                 TranslationKind.AGENT_RESPONSE -> {
                     val ag = report.agents.firstOrNull { it.agentId == targetId }
                     val prov = AppService.findById(ag?.provider.orEmpty())?.id ?: ag?.provider.orEmpty()
                     "agent:$targetId" to "$prov / ${ag?.model.orEmpty()}"
+                }
+                TranslationKind.AGENT_TITLE -> {
+                    val ag = report.agents.firstOrNull { it.agentId == targetId }
+                    val prov = AppService.findById(ag?.provider.orEmpty())?.id ?: ag?.provider.orEmpty()
+                    "agentTitle:$targetId" to "Title: $prov / ${ag?.model.orEmpty()}"
                 }
                 TranslationKind.META -> {
                     val s = secondaries.firstOrNull { it.id == targetId }
@@ -1172,6 +1240,11 @@ class TranslationRunManager(
                     val name = s?.metaPromptName?.takeIf { it.isNotBlank() }
                         ?: s?.let { com.ai.data.legacyKindDisplayName(it.kind) } ?: ""
                     "meta:$targetId" to "$name: $prov / ${s?.model.orEmpty()}"
+                }
+                TranslationKind.FANOUT_TITLE -> {
+                    val s = secondaries.firstOrNull { it.id == targetId }
+                    val prov = AppService.findById(s?.providerId.orEmpty())?.id ?: s?.providerId.orEmpty()
+                    "fanoutTitle:$targetId" to "Fan title: $prov / ${s?.model.orEmpty()}"
                 }
             }
             val status = when {
@@ -1183,7 +1256,10 @@ class TranslationRunManager(
             TranslationItem(
                 id = itemId, label = label, kind = kind,
                 sourceText = "",
-                target = targetId.takeIf { kind != TranslationKind.PROMPT && kind != TranslationKind.TITLE },
+                target = targetId.takeIf {
+                    kind != TranslationKind.PROMPT && kind != TranslationKind.TITLE &&
+                        kind != TranslationKind.TITLE_LONG
+                },
                 status = status,
                 translatedText = row.content,
                 errorMessage = row.errorMessage,
@@ -1333,6 +1409,12 @@ class TranslationRunManager(
                     sourceText = sourceOverride ?: report.title,
                     persistedRowId = rowId
                 )
+                "TITLE_LONG" -> TranslationItem(
+                    id = "titleLong", label = "Report long title",
+                    kind = TranslationKind.TITLE_LONG,
+                    sourceText = sourceOverride ?: report.titleLong.orEmpty(),
+                    persistedRowId = rowId
+                )
                 "PROMPT" -> TranslationItem(
                     id = "prompt", label = "Report prompt",
                     kind = TranslationKind.PROMPT,
@@ -1351,6 +1433,18 @@ class TranslationRunManager(
                         persistedRowId = rowId
                     )
                 }
+                "AGENT_TITLE" -> {
+                    val ag = report.agents.firstOrNull { it.agentId == targetId } ?: return@mapNotNull null
+                    val prov = AppService.findById(ag.provider)?.id ?: ag.provider
+                    TranslationItem(
+                        id = "agentTitle:${ag.agentId}",
+                        label = "Title: $prov / ${ag.model}",
+                        kind = TranslationKind.AGENT_TITLE,
+                        sourceText = sourceOverride ?: ag.modelTitle.orEmpty(),
+                        target = ag.agentId,
+                        persistedRowId = rowId
+                    )
+                }
                 "META" -> {
                     val s = secondaries.firstOrNull { it.id == targetId } ?: return@mapNotNull null
                     val prov = AppService.findById(s.providerId)?.id ?: s.providerId
@@ -1360,6 +1454,18 @@ class TranslationRunManager(
                         id = "meta:${s.id}", label = "$name: $prov / ${s.model}",
                         kind = TranslationKind.META,
                         sourceText = sourceOverride ?: s.content.orEmpty(),
+                        target = s.id,
+                        persistedRowId = rowId
+                    )
+                }
+                "FANOUT_TITLE" -> {
+                    val s = secondaries.firstOrNull { it.id == targetId } ?: return@mapNotNull null
+                    val prov = AppService.findById(s.providerId)?.id ?: s.providerId
+                    TranslationItem(
+                        id = "fanoutTitle:${s.id}",
+                        label = "Fan title: $prov / ${s.model}",
+                        kind = TranslationKind.FANOUT_TITLE,
+                        sourceText = sourceOverride ?: s.title.orEmpty(),
                         target = s.id,
                         persistedRowId = rowId
                     )
@@ -1379,6 +1485,8 @@ class TranslationRunManager(
         // per-launch 🌡️/🎭 pick isn't re-threaded through this path).
         val secondaryParams = resolveSecondaryParams(state.generalSettings, aiSettings, emptyList(), null, aiSettings.getInternalPromptByName("Translate"))
         val template = aiSettings.getInternalPromptByName("Translate")?.text.orEmpty()
+        val titleTemplate = aiSettings.getInternalPromptByName("translate-title")?.text
+            ?.takeIf { it.isNotBlank() } ?: DEFAULT_TRANSLATE_TITLE_TEMPLATE
 
         // Pre-resolve per-(provider, model) context — mirrors
         // startTranslation. Keys are (providerId, model).
@@ -1461,12 +1569,7 @@ class TranslationRunManager(
         // row yet) always round-robin over the run's distinct
         // model set.
         val assignments: List<Pair<TranslationItem, ModelCtx>> = items.mapIndexed { idx, item ->
-            val targetKey = when (item.kind) {
-                TranslationKind.TITLE -> "TITLE" to "title"
-                TranslationKind.PROMPT -> "PROMPT" to "prompt"
-                TranslationKind.AGENT_RESPONSE -> "AGENT" to (item.target ?: "")
-                TranslationKind.META -> "META" to (item.target ?: "")
-            }
+            val targetKey = translateSrcKindOf(item.kind) to translateSrcTargetIdOf(item)
             val originRow = rowByKindTarget[targetKey]
             val originPair: Pair<String, String>? = originRow?.let { r ->
                 AppService.findById(r.providerId)?.let { p -> p.id to r.model }
@@ -1527,7 +1630,7 @@ class TranslationRunManager(
                                                 val outcome = kotlinx.coroutines.withTimeoutOrNull(callBudgetMs) {
                                                     runOneTranslation(
                                                         runId, context, ctx.provider, ctx.apiKey,
-                                                        ctx.model, ctx.baseUrl, template,
+                                                        ctx.model, ctx.baseUrl, template, titleTemplate,
                                                         targetLanguageName, item, ctx.pricing,
                                                         secondaryParams
                                                     )
