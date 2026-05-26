@@ -54,6 +54,25 @@ data class InfoJob(
     val pending: Boolean = false
 )
 
+/** True once this agent's per-model **icon** call has concluded — a tier
+ *  succeeded, errored, or simply returned (cost / tokens / a winning-tier /
+ *  prompt-name recorded). A concluded call that produced no [icon] and no
+ *  [iconErrorMessage] is terminal: the 3-tier chain finished without yielding
+ *  a glyph and will never self-complete, so its info job must NOT stay on the
+ *  animated hourglass forever (the per-model analogue of the report-level
+ *  `iconNeverRan` guard). */
+private fun com.ai.data.ReportAgent.modelIconAttempted(): Boolean =
+    iconInputTokens > 0 || iconOutputTokens > 0 || iconInputCost != 0.0 ||
+        iconOutputCost != 0.0 || iconWinningTier != null || !iconPromptUsed.isNullOrBlank()
+
+/** True once this agent's per-model **title** call has concluded (cost /
+ *  tokens / duration / prompt-name recorded). A concluded call with no
+ *  [modelTitle] and no [modelTitleErrorMessage] is terminal — same reasoning
+ *  as [modelIconAttempted]. */
+private fun com.ai.data.ReportAgent.modelTitleAttempted(): Boolean =
+    modelTitleInputTokens > 0 || modelTitleOutputTokens > 0 || modelTitleInputCost != 0.0 ||
+        modelTitleOutputCost != 0.0 || modelTitleDurationMs != null || !modelTitlePromptUsed.isNullOrBlank()
+
 /**
  * Single source of truth for the "Report - Get info" rows — used both by the
  * Info screen (per-row) and by the Manage-report **info** row (aggregate +
@@ -157,6 +176,9 @@ fun buildInfoJobs(
         if (a.reportStatus != ReportStatus.SUCCESS) InfoJobState.CLOCK else when {
             !a.modelTitleErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
             !a.modelTitle.isNullOrBlank() -> InfoJobState.DONE
+            // Call concluded but yielded no title and no error → terminal,
+            // don't spin forever.
+            a.modelTitleAttempted() -> InfoJobState.DONE
             else -> InfoJobState.RUNNING
         }
 
@@ -192,6 +214,10 @@ fun buildInfoJobs(
                 titleState == InfoJobState.CLOCK || titleState == InfoJobState.RUNNING -> InfoJobState.CLOCK
                 !a.iconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
                 !a.icon.isNullOrBlank() -> InfoJobState.DONE
+                // Icon chain concluded but produced no glyph and no error
+                // (e.g. an empty/unparseable model reply) → terminal, so the
+                // Manage info row doesn't spin forever.
+                a.modelIconAttempted() -> InfoJobState.DONE
                 else -> InfoJobState.RUNNING
             }
             // Label shows the found title (the icon is derived from it);

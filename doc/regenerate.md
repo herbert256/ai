@@ -39,7 +39,15 @@ plus the relevant gates. Only **enabled** jobs are emitted:
 
 Per-model jobs sit at `InfoJobState.CLOCK` (⏰) until that agent's
 own response reaches `SUCCESS`. The model-icon is derived from the
-model-title, so when both are on the icon waits for the title.
+model-title, so when both are on the icon waits for the title. A
+per-model icon/title call that **concludes without a result and
+without an error** (markers recorded — cost / tokens / winning-tier /
+prompt-name — but `icon` / `modelTitle` left null, e.g. an
+empty/unparseable model reply) is treated as terminal `DONE` via
+`ReportAgent.modelIconAttempted()` / `modelTitleAttempted()`, so the
+Manage **info** row doesn't keep the animated hourglass spinning
+forever. (Per-model analogue of the report-level `iconNeverRan`
+guard.)
 
 `aggregateInfoState` (`GetInfo.kt:184`) drives the Manage row's
 status cell: ❌ if any job FAILED, else ⏳ while any job is still
