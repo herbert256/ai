@@ -372,6 +372,23 @@ fun ReportsViewScreen(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
+                    // The active model's response title (orange) sits between
+                    // the green model line above and the response card below.
+                    // Translated variant when a non-Original language is
+                    // active; hidden when the model has no title.
+                    val activeModelTitle = activeAgent?.let {
+                        translatedTitleByAgentId[it.agentId]?.takeIf { t -> t.isNotBlank() }
+                            ?: it.modelTitle?.takeIf { t -> t.isNotBlank() }
+                    }
+                    if (activeModelTitle != null) {
+                        Text(
+                            text = activeModelTitle,
+                            color = AppColors.Orange,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        )
+                    }
                     // Fill the leftover height so the swipe region extends
                     // below the (wrap-content, top-aligned) card — swiping in
                     // the empty space under the last card navigates models
