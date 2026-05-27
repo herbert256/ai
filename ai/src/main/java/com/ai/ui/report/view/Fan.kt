@@ -132,6 +132,7 @@ fun FanOutViewScreen(
                 it.kind == SecondaryKind.TRANSLATE &&
                     (it.translateSourceKind == "META" ||
                         it.translateSourceKind == "AGENT" ||
+                        it.translateSourceKind == "AGENT_TITLE" ||
                         it.translateSourceKind == "FANOUT_TITLE") &&
                     !it.content.isNullOrBlank()
             }
@@ -142,6 +143,25 @@ fun FanOutViewScreen(
     val report = loaded.report
     val pairs = loaded.pairs
     val translates = loaded.translates
+
+    // In-screen language cycling. The `language` parameter seeds the
+    // initial selection; tapping the flag on the initiator card cycles
+    // to the next available translation, wrapping past the last back to
+    // Original ("") — no edge stop. Only the languages this run actually
+    // carries translations for are offered (plus Original).
+    val availableLanguages = remember(translates) {
+        val seen = linkedSetOf("")
+        translates.forEach { it.targetLanguage?.takeIf { l -> l.isNotBlank() }?.let { l -> seen += l } }
+        seen.toList()
+    }
+    val initialLangIdx = remember(availableLanguages, language) {
+        availableLanguages.indexOf(language ?: "").coerceAtLeast(0)
+    }
+    var langIdx by rememberSaveable(currentReportId, currentPromptName) { mutableStateOf(initialLangIdx) }
+    val activeLanguage = availableLanguages.getOrNull(langIdx.coerceIn(0, (availableLanguages.size - 1).coerceAtLeast(0))) ?: ""
+    val advanceLanguage: () -> Unit = {
+        if (availableLanguages.size > 1) langIdx = (langIdx + 1) % availableLanguages.size
+    }
 
     // Group pairs by initiator (sourceAgentId), preserving the order
     // the runtime wrote them so the user reads through Initiators in
@@ -257,7 +277,7 @@ fun FanOutViewScreen(
         ViewTitleBar(
             reportTitle = report?.barTitle,
             reportId = currentReportId,
-            activeLanguage = language,
+            activeLanguage = activeLanguage,
             screenTitle = titleText,
             subject = null,
             helpTopic = "fan_out_view",
@@ -338,25 +358,45 @@ fun FanOutViewScreen(
                             val agent = report.agents.firstOrNull { it.agentId == agentId }
                             val originalBody = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
                                 ?.responseBody?.takeIf { !it.isNullOrBlank() }
-                            // When the user picked a translated
-                            // language on the parent View screen,
+                            // When a translated language is active,
                             // surface the AGENT translate for this
                             // initiator. Falls back to the original
                             // body when no translate row exists for
                             // this (agent, language).
-                            val translatedBody = if (!language.isNullOrEmpty()) {
+                            val translatedBody = if (activeLanguage.isNotEmpty()) {
                                 translates.firstOrNull {
                                     it.translateSourceKind == "AGENT" &&
                                         it.translateSourceTargetId == agentId &&
-                                        it.targetLanguage == language
+                                        it.targetLanguage == activeLanguage
                                 }?.content?.takeIf { it.isNotBlank() }
                             } else null
                             val body = translatedBody ?: originalBody
                                 ?: "(initiator response no longer available)"
+                            // Initiator's model-response title (orange,
+                            // top of the card), swapped to the active
+                            // language via its AGENT_TITLE translate.
+                            val initiatorTitle = run {
+                                val t = if (activeLanguage.isNotEmpty()) translates.firstOrNull {
+                                    it.translateSourceKind == "AGENT_TITLE" &&
+                                        it.translateSourceTargetId == agentId &&
+                                        it.targetLanguage == activeLanguage
+                                }?.content?.takeIf { it.isNotBlank() } else null
+                                t ?: agent?.modelTitle?.takeIf { it.isNotBlank() }
+                            }
+                            // Language flag (top-right). Shown only when
+                            // the run carries translations; tapping it
+                            // cycles to the next language (wrapping).
+                            val initiatorFlag = if (availableLanguages.size > 1) when {
+                                activeLanguage.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() } ?: "🌐"
+                                else -> com.ai.data.InternalPromptIconCache.get("translation_icon", activeLanguage) ?: "🌍"
+                            } else null
                             FanOutBodyCard(
                                 reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon,
                                 body = body,
-                                borderColor = AppColors.Purple.copy(alpha = 0.35f)
+                                borderColor = AppColors.Purple.copy(alpha = 0.35f),
+                                overrideTitle = initiatorTitle,
+                                languageIcon = initiatorFlag,
+                                onLanguageClick = advanceLanguage
                             )
                         }
                     }
@@ -377,11 +417,11 @@ fun FanOutViewScreen(
                         ) { page ->
                             val agentId = initiatorIds[page.wrapTo(initiatorIds.size)]
                             val agent = report.agents.firstOrNull { it.agentId == agentId }
-                            val translatedBody = if (!language.isNullOrEmpty()) {
+                            val translatedBody = if (activeLanguage.isNotEmpty()) {
                                 translates.firstOrNull {
                                     it.translateSourceKind == "AGENT" &&
                                         it.translateSourceTargetId == agentId &&
-                                        it.targetLanguage == language
+                                        it.targetLanguage == activeLanguage
                                 }?.content?.takeIf { it.isNotBlank() }
                             } else null
                             val originalBody = agent?.takeIf { it.reportStatus == ReportStatus.SUCCESS }
@@ -414,11 +454,11 @@ fun FanOutViewScreen(
                 // Resolve a responder pair's body, honouring the active
                 // translation language (META translates keyed on pair.id).
                 fun responderBody(pair: SecondaryResult): String {
-                    val translated = if (!language.isNullOrEmpty()) {
+                    val translated = if (activeLanguage.isNotEmpty()) {
                         translates.firstOrNull {
                             it.translateSourceKind == "META" &&
                                 it.translateSourceTargetId == pair.id &&
-                                it.targetLanguage == language
+                                it.targetLanguage == activeLanguage
                         }?.content?.takeIf { it.isNotBlank() }
                     } else null
                     return translated ?: pair.content.orEmpty()
@@ -427,11 +467,11 @@ fun FanOutViewScreen(
                 // to the active language via its FANOUT_TITLE row (keyed on
                 // pair.id, same as the META body but distinct kind).
                 fun responderTitle(pair: SecondaryResult): String? {
-                    val translated = if (!language.isNullOrEmpty()) {
+                    val translated = if (activeLanguage.isNotEmpty()) {
                         translates.firstOrNull {
                             it.translateSourceKind == "FANOUT_TITLE" &&
                                 it.translateSourceTargetId == pair.id &&
-                                it.targetLanguage == language
+                                it.targetLanguage == activeLanguage
                         }?.content?.takeIf { it.isNotBlank() }
                     } else null
                     return translated ?: pair.title
@@ -462,7 +502,8 @@ fun FanOutViewScreen(
                             FanOutBodyCard(
                                 reportIcon = pair.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon,
                                 body = responderBody(pair),
-                                borderColor = AppColors.Blue.copy(alpha = 0.35f)
+                                borderColor = AppColors.Blue.copy(alpha = 0.35f),
+                                overrideTitle = responderTitle(pair)
                             )
                         }
                     }
@@ -575,28 +616,64 @@ private fun CollapsedInitiatorRow(icon: String, preview: String, onToggle: () ->
 private fun FanOutBodyCard(
     reportIcon: String?,
     body: String,
-    borderColor: androidx.compose.ui.graphics.Color
+    borderColor: androidx.compose.ui.graphics.Color,
+    /** Response title shown in orange, centred at the top of the card.
+     *  Null / blank → no title row. */
+    overrideTitle: String? = null,
+    /** When set, a small language flag is pinned to the card's top-right
+     *  corner. Null / blank → no flag. */
+    languageIcon: String? = null,
+    /** When set, tapping the top-right language flag advances to the
+     *  next language (wrapping). Null → the flag is a static indicator. */
+    onLanguageClick: (() -> Unit)? = null
 ) {
-    Column(
+    Box(
         modifier = Modifier.fillMaxWidth()
             .wrapContentHeight()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, borderColor, RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp, vertical = 6.dp)
-            .verticalScroll(rememberScrollState())
     ) {
-        Text(
-            text = reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
-            fontSize = 44.sp,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .padding(top = 0.dp, bottom = 2.dp)
-        )
-        if (body.isBlank()) {
-            Text(text = "(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
-        } else {
-            ContentWithThinkSections(analysis = body)
+        Column(
+            modifier = Modifier.fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Response title (orange) at the top of the card, centred.
+            overrideTitle?.takeIf { it.isNotBlank() }?.let { t ->
+                Text(
+                    text = t,
+                    color = AppColors.Orange,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                )
+            }
+            Text(
+                text = reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
+                fontSize = 44.sp,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 0.dp, bottom = 2.dp)
+            )
+            if (body.isBlank()) {
+                Text(text = "(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
+            } else {
+                ContentWithThinkSections(analysis = body)
+            }
+        }
+        // Language flag pinned to the card's top-right corner, outside
+        // the scrolling column so it stays put as long bodies scroll.
+        if (!languageIcon.isNullOrBlank()) {
+            Text(
+                text = languageIcon,
+                fontSize = 24.sp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 4.dp, end = 8.dp)
+                    .then(if (onLanguageClick != null) Modifier.clickable(onClick = onLanguageClick) else Modifier)
+            )
         }
     }
 }
