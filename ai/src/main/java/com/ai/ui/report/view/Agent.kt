@@ -93,6 +93,14 @@ fun ReportsViewScreen(
     /** Which language to land on. null / "" = Original. */
     initialLanguage: String? = null,
     initialAgentId: String? = null,
+    /** The report's fan-out run, when one exists: its routing name and
+     *  the icon to surface on the response card. Both null → no fan-out
+     *  affordance is shown. */
+    fanOutMetaPromptName: String? = null,
+    fanOutIcon: String? = null,
+    /** Opens the fan-out View for the given (currently-displayed) model
+     *  as the initiator. Null → the fan-out icon is not interactive. */
+    onOpenFanOut: ((agentId: String) -> Unit)? = null,
     /** Bubbled the currently-active language (null = Original) so
      *  the parent's picker can adopt it. Mirrors PromptViewScreen. */
     onBack: (activeLanguage: String?) -> Unit
@@ -407,11 +415,19 @@ fun ReportsViewScreen(
                             // non-Original language is active.
                             val pageTitle = translatedTitleByAgentId[agent.agentId]?.takeIf { it.isNotBlank() }
                                 ?: agent.modelTitle?.takeIf { it.isNotBlank() }
+                            // Fan-out affordance (top-right): shown when
+                            // the report carries a fan-out run. Tapping it
+                            // opens the fan-out View landing on THIS model
+                            // as the initiator.
+                            val fanOutFlag = if (fanOutMetaPromptName != null) fanOutIcon else null
                             AgentResponseCard(
                                 agent = agent,
                                 overrideBody = translatedByAgentId[agent.agentId],
                                 overrideTitle = pageTitle,
-                                onIconClick = advanceModel
+                                onIconClick = advanceModel,
+                                fanOutIcon = fanOutFlag,
+                                onFanOutClick = if (fanOutFlag != null && onOpenFanOut != null)
+                                    ({ onOpenFanOut(agent.agentId) }) else null
                             )
                         }
                     }
@@ -578,48 +594,71 @@ private fun AgentResponseCard(
     overrideTitle: String? = null,
     /** When set, tapping the card's icon advances to the next model
      *  (wrapping). Null → the icon is a static glyph. */
-    onIconClick: (() -> Unit)? = null
+    onIconClick: (() -> Unit)? = null,
+    /** Fan-out run icon pinned to the card's top-right corner. Null /
+     *  blank → no fan-out affordance. */
+    fanOutIcon: String? = null,
+    /** When set, tapping the top-right fan-out icon opens the fan-out
+     *  View for this model. Null → the icon is a static indicator. */
+    onFanOutClick: (() -> Unit)? = null
 ) {
     val body = overrideBody ?: agent.responseBody.orEmpty()
     val emoji = agent.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon
     // wrapContentHeight so the card sits exactly as tall as its
     // content; verticalScroll kicks in only when the response
-    // overflows the pager's remaining slot.
-    Column(
+    // overflows the pager's remaining slot. Wrapped in a Box so the
+    // fan-out icon can pin to the top-right corner outside the
+    // scrolling column.
+    Box(
         modifier = Modifier.fillMaxWidth()
             .wrapContentHeight()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, AppColors.Blue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .padding(horizontal = 14.dp, vertical = 6.dp)
-            .verticalScroll(rememberScrollState())
     ) {
-        // Response title (orange) at the top of the card, centred.
-        overrideTitle?.takeIf { it.isNotBlank() }?.let { t ->
+        Column(
+            modifier = Modifier.fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 6.dp)
+                .verticalScroll(rememberScrollState())
+        ) {
+            // Response title (orange) at the top of the card, centred.
+            overrideTitle?.takeIf { it.isNotBlank() }?.let { t ->
+                Text(
+                    text = t,
+                    color = AppColors.Orange,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                )
+            }
+            // Transparent oversized glyph — no background tint, just the
+            // emoji centred above the response body. Tapping it (single
+            // mode) jumps to the next model.
             Text(
-                text = t,
-                color = AppColors.Orange,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)
+                text = emoji,
+                fontSize = 44.sp,
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .then(if (onIconClick != null) Modifier.clickable(onClick = onIconClick) else Modifier)
+                    .padding(top = 0.dp, bottom = 2.dp)
             )
+            if (body.isBlank()) {
+                Text(text = "(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
+            } else {
+                ContentWithThinkSections(analysis = body)
+            }
         }
-        // Transparent oversized glyph — no background tint, no Box
-        // wrapper, just the emoji centred above the response body.
-        // Tapping it (single mode) jumps to the next model.
-        Text(
-            text = emoji,
-            fontSize = 44.sp,
-            modifier = Modifier
-                .align(Alignment.CenterHorizontally)
-                .then(if (onIconClick != null) Modifier.clickable(onClick = onIconClick) else Modifier)
-                .padding(top = 0.dp, bottom = 2.dp)
-        )
-        if (body.isBlank()) {
-            Text(text = "(no content)", color = AppColors.TextTertiary, fontSize = 13.sp)
-        } else {
-            ContentWithThinkSections(analysis = body)
+        // Fan-out icon pinned to the card's top-right corner.
+        if (!fanOutIcon.isNullOrBlank()) {
+            Text(
+                text = fanOutIcon,
+                fontSize = 24.sp,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(top = 4.dp, end = 8.dp)
+                    .then(if (onFanOutClick != null) Modifier.clickable(onClick = onFanOutClick) else Modifier)
+            )
         }
     }
 }

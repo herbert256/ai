@@ -237,6 +237,13 @@ internal fun ViewAiReportScreen(
     var reportsViewLanguage by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     var reportsViewOpen by rememberSaveable(resetTick) { mutableStateOf(false) }
     var reportsViewInitialAgentId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    // Fan-out "View" overlay, opened from inside the Reports view when
+    // the user taps the fan-out icon on a model's response card. Keyed
+    // on resetTick like the rest. [fanOutViewInitiatorAgentId] lands the
+    // fan-out initiator pager on the model the user was reading.
+    var fanOutViewName by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    var fanOutViewLanguage by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    var fanOutViewInitiatorAgentId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     // First-composition seed for the Reports sub-overlay. Wired by
     // [NavRoutes.aiReportViewAtAgent] (used by Model Info View's
     // Last-Usage rows) → AppNavHost reads the
@@ -534,6 +541,47 @@ internal fun ViewAiReportScreen(
         }
         return
     }
+    // The report's fan-out run (first one, if any). Drives the fan-out
+    // affordance on the Reports view's response card: the icon matches
+    // the fan-out tile (cached per-prompt glyph, else 🌀); the name is
+    // the routing key for [FanOutViewScreen]. iconRefreshTick re-keys so
+    // a freshly-generated icon is picked up.
+    val firstFanOutItem = remember(everyItems) { everyItems["fan_out"].orEmpty().firstOrNull() }
+    val firstFanOutName = firstFanOutItem?.label
+    val firstFanOutIcon = remember(firstFanOutItem, internalPrompts, useInternalPromptsIcons, iconRefreshTick) {
+        firstFanOutItem?.let { item ->
+            val resolvedPrompt = item.prompt ?: internalPrompts.firstOrNull {
+                it.category == "fan_out" && it.name == item.label
+            }
+            val cached = if (useInternalPromptsIcons && resolvedPrompt != null && resolvedPrompt.name.isNotBlank())
+                com.ai.data.InternalPromptIconCache.get(resolvedPrompt.name, resolvedPrompt.title) else null
+            cached ?: "🌀"
+        }
+    }
+    // Fan-out "View" overlay mount — placed before the Reports block so
+    // it takes precedence (renders on top). Back clears the flags and
+    // falls through to the still-open Reports view, which re-seeds onto
+    // the same model via [reportsViewInitialAgentId].
+    if (fanOutViewName != null) {
+        val name = fanOutViewName!!
+        val backToReports: () -> Unit = {
+            fanOutViewName = null
+            fanOutViewLanguage = null
+            fanOutViewInitiatorAgentId = null
+        }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToReports
+        ) {
+            FanOutViewScreen(
+                reportId = reportId,
+                metaPromptName = name,
+                language = fanOutViewLanguage?.takeIf { it.isNotEmpty() },
+                initialInitiatorAgentId = fanOutViewInitiatorAgentId,
+                onBack = backToReports
+            )
+        }
+        return
+    }
     // Same shape as the PromptView language plumbing above. The block
     // lives here (not next to the var declarations) because
     // [viewLangTabs] + [selectedViewLangKey] are only in scope after
@@ -571,6 +619,19 @@ internal fun ViewAiReportScreen(
                 availableLanguages = reportsLanguages,
                 initialLanguage = reportsViewLanguage,
                 initialAgentId = reportsViewInitialAgentId,
+                fanOutMetaPromptName = firstFanOutName,
+                fanOutIcon = firstFanOutIcon,
+                onOpenFanOut = firstFanOutName?.let { fname ->
+                    { agentId ->
+                        // Remember which model so Back lands here again,
+                        // capture the active language, then open fan-out
+                        // on that model as the initiator.
+                        reportsViewInitialAgentId = agentId
+                        fanOutViewLanguage = currentLanguageState.value
+                        fanOutViewInitiatorAgentId = agentId
+                        fanOutViewName = fname
+                    }
+                },
                 onBack = { activeLang ->
                     val target = activeLang ?: ""
                     val newKey = if (target.isBlank()) LangTab.ORIGINAL_KEY
@@ -800,6 +861,9 @@ internal fun ViewAiReportScreen(
                 onMissingClick = if (!reportsEnabled) ({ openReportsMissing() }) else null
             ) {
                 reportsViewLanguage = currentLanguageState.value
+                // Fresh open from the tile starts at the first model —
+                // clear any agent seed left by a fan-out round-trip.
+                reportsViewInitialAgentId = null
                 reportsViewOpen = true
             }))
             add(IdentifiedTile("doc:Costs", ViewTile("Costs", "💰", AppColors.Yellow) { showCostsView = true }))

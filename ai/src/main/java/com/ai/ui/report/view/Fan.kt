@@ -90,6 +90,10 @@ fun FanOutViewScreen(
     reportId: String,
     metaPromptName: String,
     language: String?,
+    /** When set, the initiator pager opens on the page for this agent
+     *  (the model the user was reading on "Model reports"). Falls back
+     *  to page 0 when that agent isn't an initiator of this run. */
+    initialInitiatorAgentId: String? = null,
     onBack: () -> Unit
 ) {
     androidx.activity.compose.BackHandler { onBack() }
@@ -179,6 +183,17 @@ fun FanOutViewScreen(
     val initiatorIds: List<String> = remember(pairsByInitiator) { pairsByInitiator.keys.toList() }
 
     val initiatorPagerState = rememberWrapPager(initiatorIds.size, 0)
+    // Land on the requested initiator (the model that was on screen in
+    // "Model reports") once the run has loaded and the pager has its
+    // real count. Keyed so it fires only when the target arrives.
+    LaunchedEffect(initiatorIds, initialInitiatorAgentId) {
+        if (initialInitiatorAgentId != null && initiatorIds.isNotEmpty()) {
+            val idx = initiatorIds.indexOf(initialInitiatorAgentId)
+            if (idx >= 0 && idx != initiatorPagerState.currentPage.wrapTo(initiatorIds.size)) {
+                initiatorPagerState.scrollToPage(wrapCenterPage(initiatorIds.size, idx))
+            }
+        }
+    }
     val activeInitiatorId: String? = initiatorIds.getOrNull(
         initiatorPagerState.currentPage.wrapTo(initiatorIds.size)
     )
