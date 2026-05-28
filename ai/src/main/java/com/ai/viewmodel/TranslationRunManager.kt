@@ -1300,6 +1300,12 @@ class TranslationRunManager(
                 persistedRowId = row.id
             )
         }
+        // Stamp the per-kind trace/cost Type — the same value the live
+        // run carries (line ~236) — so the display path's Types grouping
+        // works. Without this every reconstructed item keeps the data-
+        // class default ("translate/translate") and Types collapses to a
+        // single "translate" row.
+        .map { it.copy(traceType = traceTypeFor(it, secondaries)) }
 
     /** Reconstruct a finished / persisted translation run as a
      *  [TranslationRunState] so the 3-level run screen can render it
