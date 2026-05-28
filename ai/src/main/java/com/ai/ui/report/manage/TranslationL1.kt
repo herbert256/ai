@@ -375,10 +375,13 @@ internal fun TranslationL1Screen(
         // queued or running items) the bars are dropped — a completed
         // run shouldn't keep wearing in-flight progress chrome.
         val showBars = (pending > 0 || benchCount > 0) && !run.cancelled
+        // Both lists share one layout: [calls | name | cost]. calls =
+        // the group's entry count; name = the model (workers) or the
+        // type (types); the green row-background fill conveys progress
+        // while work is in flight. Models bars are relative to the
+        // busiest model; type bars are that type's done/total.
         when (groupMode) {
             TranslationGroupMode.MODELS -> {
-                // Per-model rows. Bar fraction is items-done relative to
-                // the busiest model (so the densest model reads full).
                 if (modelRows.isEmpty()) {
                     Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Text(
@@ -390,66 +393,20 @@ internal fun TranslationL1Screen(
                 } else {
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(modelRows, key = { it.modelKey }) { row ->
-                            val barFrac = row.done.toFloat() / maxDone
-                            val barColor = AppColors.Green.copy(alpha = 0.30f)
-                            Row(
-                                modifier = Modifier.fillMaxWidth()
-                                    .drawBehind {
-                                        if (showBars && barFrac > 0f) {
-                                            drawRect(
-                                                color = barColor,
-                                                size = Size(size.width * barFrac, size.height)
-                                            )
-                                        }
-                                    }
-                                    .padding(vertical = 8.dp)
-                                    .clickable { onOpenGroup(row.modelKey) },
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                // Finished-run leading count column. While bars
-                                // are on, the green fill conveys per-model
-                                // throughput visually; once they're gone we need
-                                // a number to keep the per-model split legible.
-                                // Sorting on row.done (descending — set in
-                                // modelRows above) means the densest model
-                                // stays at the top.
-                                if (!showBars) {
-                                    Text(
-                                        row.done.toString(),
-                                        fontSize = 13.sp,
-                                        color = AppColors.TextSecondary,
-                                        fontFamily = FontFamily.Monospace,
-                                        textAlign = TextAlign.End,
-                                        modifier = Modifier.padding(start = 8.dp).widthIn(min = 32.dp)
-                                    )
-                                }
-                                // No status glyph — the proportional bar already
-                                // conveys progress, and a finished run shouldn't
-                                // read as a wall of check marks.
-                                Text(
-                                    com.ai.ui.shared.shortModelName(row.modelKey.substringAfter('|')),
-                                    fontSize = 14.sp, color = Color.White,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f).padding(start = 8.dp)
-                                )
-                                if (row.cost > 0.0) {
-                                    Text(
-                                        formatCents(row.cost), fontSize = 11.sp,
-                                        color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                                        modifier = Modifier.padding(end = 8.dp)
-                                    )
-                                }
-                            }
+                            TranslationL1Row(
+                                calls = row.total,
+                                name = com.ai.ui.shared.shortModelName(row.modelKey.substringAfter('|')),
+                                cost = row.cost,
+                                barFrac = row.done.toFloat() / maxDone,
+                                showBar = showBars,
+                                onClick = { onOpenGroup(row.modelKey) }
+                            )
                             HorizontalDivider(color = AppColors.DividerDark)
                         }
                     }
                 }
             }
             TranslationGroupMode.TYPES -> {
-                // Per-type rows. Columns: [type (no prefix) | count |
-                // cost]. The green row-background fill is a true
-                // done/total progress fraction for that type, shown only
-                // while work is in flight (no numeric overlay).
                 if (typeRows.isEmpty()) {
                     Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                         Text("No translation items", color = AppColors.TextSecondary, fontSize = 14.sp)
@@ -457,44 +414,14 @@ internal fun TranslationL1Screen(
                 } else {
                     LazyColumn(modifier = Modifier.weight(1f)) {
                         items(typeRows, key = { it.traceType }) { row ->
-                            val barFrac = if (row.total > 0) row.done.toFloat() / row.total else 0f
-                            val barColor = AppColors.Green.copy(alpha = 0.30f)
-                            Row(
-                                modifier = Modifier.fillMaxWidth()
-                                    .drawBehind {
-                                        if (showBars && barFrac > 0f) {
-                                            drawRect(
-                                                color = barColor,
-                                                size = Size(size.width * barFrac, size.height)
-                                            )
-                                        }
-                                    }
-                                    .padding(vertical = 8.dp)
-                                    .clickable { onOpenGroup(row.traceType) },
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    translationTypeLabel(row.traceType),
-                                    fontSize = 14.sp, color = Color.White,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.weight(1f).padding(start = 8.dp)
-                                )
-                                Text(
-                                    row.total.toString(),
-                                    fontSize = 13.sp,
-                                    color = AppColors.TextSecondary,
-                                    fontFamily = FontFamily.Monospace,
-                                    textAlign = TextAlign.End,
-                                    modifier = Modifier.padding(end = 12.dp).widthIn(min = 28.dp)
-                                )
-                                if (row.cost > 0.0) {
-                                    Text(
-                                        formatCents(row.cost), fontSize = 11.sp,
-                                        color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                                        modifier = Modifier.padding(end = 8.dp)
-                                    )
-                                }
-                            }
+                            TranslationL1Row(
+                                calls = row.total,
+                                name = translationTypeLabel(row.traceType),
+                                cost = row.cost,
+                                barFrac = if (row.total > 0) row.done.toFloat() / row.total else 0f,
+                                showBar = showBars,
+                                onClick = { onOpenGroup(row.traceType) }
+                            )
                             HorizontalDivider(color = AppColors.DividerDark)
                         }
                     }
@@ -627,5 +554,53 @@ internal fun TranslationL1Screen(
             },
             confirmButton = { }
         )
+    }
+}
+
+/** One L1 list row, shared by the Translation-workers and
+ *  Translation-types lists so both read identically: the call count
+ *  first, then the name (model or type), then the cost. A green
+ *  background fill (proportional to [barFrac]) conveys progress while
+ *  [showBar] is true; the cost shows only when non-zero. */
+@Composable
+private fun TranslationL1Row(
+    calls: Int,
+    name: String,
+    cost: Double,
+    barFrac: Float,
+    showBar: Boolean,
+    onClick: () -> Unit
+) {
+    val barColor = AppColors.Green.copy(alpha = 0.30f)
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .drawBehind {
+                if (showBar && barFrac > 0f) {
+                    drawRect(color = barColor, size = Size(size.width * barFrac, size.height))
+                }
+            }
+            .padding(vertical = 8.dp)
+            .clickable { onClick() },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            calls.toString(),
+            fontSize = 13.sp, color = AppColors.TextSecondary,
+            fontFamily = FontFamily.Monospace, textAlign = TextAlign.End,
+            modifier = Modifier.padding(start = 8.dp).widthIn(min = 32.dp)
+        )
+        Text(
+            name,
+            fontSize = 14.sp, color = Color.White,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(start = 8.dp)
+        )
+        if (cost > 0.0) {
+            Text(
+                formatCents(cost), fontSize = 11.sp,
+                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
     }
 }
