@@ -32,12 +32,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
-import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.ReportViewModel
-import com.ai.viewmodel.TranslationKind
 import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.TranslationStatus
 
@@ -147,84 +145,37 @@ internal fun TranslationL2Screen(
                             .padding(vertical = 8.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        if (isModels) {
-                            if (!allDone) {
-                                when (item.status) {
-                                    TranslationStatus.RUNNING ->
-                                        AnimatedHourglass(fontSize = 16.sp, modifier = Modifier.width(24.dp).padding(end = 8.dp))
-                                    else -> {
-                                        val glyph = when (item.status) {
-                                            TranslationStatus.DONE -> "✅"
-                                            TranslationStatus.ERROR -> "❌"
-                                            else -> "🕓"
-                                        }
-                                        Text(glyph, fontSize = 16.sp, modifier = Modifier.width(24.dp).padding(end = 8.dp))
-                                    }
-                                }
-                            }
-                            // Models mode: source-kind label (the model is
-                            // constant down this list) + the item label.
-                            Text(
-                                translationKindLabel(item.kind),
-                                fontSize = 11.sp, color = AppColors.TextSecondary,
-                                modifier = Modifier.width(70.dp).padding(end = 8.dp),
-                                maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    item.label.ifBlank { item.kind.name.lowercase() },
-                                    fontSize = 13.sp, color = Color.White,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            if (item.costDollars > 0.0) {
-                                Text(
-                                    formatCents(item.costDollars), fontSize = 10.sp,
-                                    color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace
-                                )
-                            }
-                        } else {
-                            // Types mode: 3 uniform columns — short model
-                            // name | translated value | cost. First + last
-                            // render in full on one line; the middle takes
-                            // the remaining width and ellipsises. Row
-                            // background fill still conveys done/error.
-                            val cellSize = 13.sp
-                            val cellColor = Color.White
-                            Text(
-                                item.model?.let { com.ai.ui.shared.shortModelName(it) }.orEmpty(),
-                                fontSize = cellSize, color = cellColor,
-                                maxLines = 1, softWrap = false,
-                                modifier = Modifier.padding(end = 10.dp)
-                            )
-                            Text(
-                                item.translatedText.orEmpty(),
-                                fontSize = cellSize, color = cellColor,
-                                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f).padding(end = 10.dp)
-                            )
-                            Text(
-                                formatCents(item.costDollars),
-                                fontSize = cellSize, color = cellColor,
-                                maxLines = 1, softWrap = false
-                            )
-                        }
+                        // Both modes: 3 uniform columns (same font size +
+                        // colour). First column is the varying dimension —
+                        // the type (without `translate/`) in Models mode,
+                        // the model in Types mode. First + last render in
+                        // full on one line; the middle translated value
+                        // takes the remaining width and ellipsises. The row
+                        // background fill still conveys done/error.
+                        val cellSize = 13.sp
+                        val cellColor = Color.White
+                        Text(
+                            if (isModels) translationTypeLabel(item.traceType)
+                            else com.ai.ui.shared.shortModelName(item.model.orEmpty()),
+                            fontSize = cellSize, color = cellColor,
+                            maxLines = 1, softWrap = false,
+                            modifier = Modifier.padding(end = 10.dp)
+                        )
+                        Text(
+                            item.translatedText.orEmpty(),
+                            fontSize = cellSize, color = cellColor,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).padding(end = 10.dp)
+                        )
+                        Text(
+                            formatCents(item.costDollars),
+                            fontSize = cellSize, color = cellColor,
+                            maxLines = 1, softWrap = false
+                        )
                     }
                     HorizontalDivider(color = AppColors.DividerDark)
                 }
             }
         }
     }
-}
-
-/** Broad category label for a translation item's source kind — the
- *  ~70dp column on each L2 row. */
-internal fun translationKindLabel(kind: TranslationKind): String = when (kind) {
-    TranslationKind.TITLE -> "title"
-    TranslationKind.TITLE_LONG -> "long title"
-    TranslationKind.AGENT_TITLE -> "model title"
-    TranslationKind.FANOUT_TITLE -> "fan title"
-    TranslationKind.PROMPT -> "prompt"
-    TranslationKind.AGENT_RESPONSE -> "report"
-    TranslationKind.META -> "meta"
 }
