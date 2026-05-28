@@ -71,7 +71,8 @@ internal fun TranslationL3Screen(
     run: TranslationRunState,
     reportId: String,
     runId: String,
-    modelKey: String,
+    mode: TranslationGroupMode,
+    groupKey: String,
     itemId: String,
     actions: TranslationActions,
     onStepItem: (String) -> Unit,
@@ -89,9 +90,11 @@ internal fun TranslationL3Screen(
         return
     }
 
-    // Same model's items, ordered as L2 — drives Prev / Next.
-    val siblings = remember(run.items, modelKey) {
-        run.items.filter { translationModelKey(it) == modelKey }
+    // Same group's items, ordered as L2 — drives Prev / Next. In Types
+    // mode this steps through the type's entries; in Models mode the
+    // model's.
+    val siblings = remember(run.items, mode, groupKey) {
+        run.items.filter { translationGroupKey(it, mode) == groupKey }
             .sortedWith(
                 compareBy(
                     { sib ->

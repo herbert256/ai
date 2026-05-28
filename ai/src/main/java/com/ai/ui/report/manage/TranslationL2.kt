@@ -50,21 +50,26 @@ import com.ai.viewmodel.TranslationStatus
 @Composable
 internal fun TranslationL2Screen(
     run: TranslationRunState,
-    modelKey: String,
+    mode: TranslationGroupMode,
+    groupKey: String,
     actions: TranslationActions,
     onOpenItem: (String) -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
 
-    val modelLabel = resolveModelLabel(modelKey)
-    val parts = modelKey.split("|", limit = 2)
+    val isModels = mode == TranslationGroupMode.MODELS
+    // Model-mode header bits — resolved only when grouping by model.
+    val parts = groupKey.split("|", limit = 2)
     val providerService = parts.getOrNull(0)?.let { AppService.findById(it) }
     val modelName = parts.getOrNull(1).orEmpty()
+    val headerTitle = if (isModels) "Translation - model" else "Translation - type"
+    val headerSubject = if (isModels) resolveModelLabel(groupKey)
+        else translationTypeLabel(groupKey)
 
-    // Items this model handled, ordered running/pending → error → done.
-    val rows = remember(run.items, modelKey) {
-        run.items.filter { translationModelKey(it) == modelKey }
+    // Items in this group, ordered running/pending → error → done.
+    val rows = remember(run.items, mode, groupKey) {
+        run.items.filter { translationGroupKey(it, mode) == groupKey }
             .sortedWith(
                 compareBy(
                     { item ->
@@ -95,12 +100,12 @@ internal fun TranslationL2Screen(
         }
         TitleBar(
             helpTopic = "translation_run_l2",
-            title = "Translation - model",
+            title = headerTitle,
             reportIcon = com.ai.ui.shared.LocalReportIcon.current,
-            subject = modelLabel,
+            subject = headerSubject,
             onBackClick = onBack,
             onOpenView = onOpenViewJump,
-            onInfo = if (providerService != null && modelName.isNotBlank()) {
+            onInfo = if (isModels && providerService != null && modelName.isNotBlank()) {
                 { actions.onNavigateToModelInfo(providerService, modelName) }
             } else null
         )
@@ -156,8 +161,13 @@ internal fun TranslationL2Screen(
                                 }
                             }
                         }
+                        // Models mode: the source-kind label (model is
+                        // constant down the list). Types mode: the model
+                        // (kind/type is constant, so the model is the
+                        // useful varying dimension); blank while PENDING.
                         Text(
-                            translationKindLabel(item.kind),
+                            if (isModels) translationKindLabel(item.kind)
+                            else item.model?.let { com.ai.ui.shared.shortModelName(it) }.orEmpty(),
                             fontSize = 11.sp, color = AppColors.TextSecondary,
                             modifier = Modifier.width(70.dp).padding(end = 8.dp),
                             maxLines = 1, overflow = TextOverflow.Ellipsis

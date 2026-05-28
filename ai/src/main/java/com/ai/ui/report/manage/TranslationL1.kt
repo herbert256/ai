@@ -66,6 +66,15 @@ private data class TranslationModelRow(
     val cost: Double
 )
 
+/** Aggregate stats for one trace/cost type's slice of a run. */
+private data class TranslationTypeRow(
+    val traceType: String,
+    val total: Int,
+    val done: Int,
+    val err: Int,
+    val cost: Double
+)
+
 /**
  * L1 of the translation run drill-in: the *models* that picked up
  * work in this run, with a stats panel, failure controls, and a
@@ -83,8 +92,10 @@ internal fun TranslationL1Screen(
     reportId: String,
     runId: String,
     actions: TranslationActions,
+    groupMode: TranslationGroupMode,
+    onSetGroupMode: (TranslationGroupMode) -> Unit,
     onBumpRefresh: () -> Unit,
-    onOpenModel: (String) -> Unit,
+    onOpenGroup: (String) -> Unit,
     onBack: () -> Unit
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
@@ -164,6 +175,27 @@ internal fun TranslationL1Screen(
     // gets a full-width bar; the rest are proportional to it.
     val maxDone = (modelRows.maxOfOrNull { it.done } ?: 0).coerceAtLeast(1)
 
+    // Per-type rows for the Types preset. Every item carries a traceType
+    // (stamped at creation), so unlike modelRows nothing drops out —
+    // PENDING items group under their eventual type too. Sorted by size
+    // desc then label so the layout is stable as statuses flip.
+    val typeRows = remember(items) {
+        items.groupBy { it.traceType }
+            .map { (type, its) ->
+                TranslationTypeRow(
+                    traceType = type,
+                    total = its.size,
+                    done = its.count { it.status == TranslationStatus.DONE },
+                    err = its.count { it.status == TranslationStatus.ERROR },
+                    cost = its.sumOf { it.costDollars }
+                )
+            }
+            .sortedWith(
+                compareByDescending<TranslationTypeRow> { it.total }
+                    .thenBy { it.traceType }
+            )
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         // 👁 → matching View Translate screen for this run.
         val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
@@ -189,27 +221,21 @@ internal fun TranslationL1Screen(
             onDelete = { confirmDelete = true }
         )
 
-        // Mode toggle — switches the cost-aware hesitation in the
-        // worker loop. Mid-run interactive: workers re-read the
-        // selection on every queue pull, so the bias change takes
-        // effect within ~1s. Persisted per-runId so a restart lands
-        // in the same mode the user picked. See ReportViewModel
-        // TranslationMode + setTranslationMode + costPenaltyMs.
+        // Grouping preset — Models (per-model rows) vs Types (per
+        // trace/cost-type rows). Always available, even on a finished
+        // run, so the user can review either breakdown.
         Spacer(modifier = Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            // Order: Speed | Mixed | Cost — left-to-right matches the
-            // user-facing speed-vs-cost spectrum.
             listOf(
-                TranslationMode.SPEED to "Speed",
-                TranslationMode.MIXED to "Mixed",
-                TranslationMode.COST to "Cost"
-            ).forEach { (m, label) ->
+                TranslationGroupMode.MODELS to "Models",
+                TranslationGroupMode.TYPES to "Types"
+            ).forEach { (gm, label) ->
                 FilterChip(
-                    selected = run.mode == m,
-                    onClick = { actions.onSetMode(runId, m) },
+                    selected = groupMode == gm,
+                    onClick = { onSetGroupMode(gm) },
                     label = {
                         Text(
                             label,
@@ -222,6 +248,47 @@ internal fun TranslationL1Screen(
                     },
                     modifier = Modifier.weight(1f)
                 )
+            }
+        }
+
+        // Mode toggle — switches the cost-aware hesitation in the
+        // worker loop. Mid-run interactive: workers re-read the
+        // selection on every queue pull, so the bias change takes
+        // effect within ~1s. Persisted per-runId so a restart lands
+        // in the same mode the user picked. See ReportViewModel
+        // TranslationMode + setTranslationMode + costPenaltyMs. Hidden
+        // once the run is done/idle — the bias only affects in-flight
+        // scheduling, so it has nothing to act on then.
+        val showModeChips = (queuedCount + runningCount > 0 || benchCount > 0) && !run.cancelled
+        if (showModeChips) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Order: Speed | Mixed | Cost — left-to-right matches the
+                // user-facing speed-vs-cost spectrum.
+                listOf(
+                    TranslationMode.SPEED to "Speed",
+                    TranslationMode.MIXED to "Mixed",
+                    TranslationMode.COST to "Cost"
+                ).forEach { (m, label) ->
+                    FilterChip(
+                        selected = run.mode == m,
+                        onClick = { actions.onSetMode(runId, m) },
+                        label = {
+                            Text(
+                                label,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
         }
 
@@ -302,74 +369,134 @@ internal fun TranslationL1Screen(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Per-model rows. While the run is still pending, each model
-        // gets a green background bar proportional to its items-done
-        // relative to the busiest model. Once the run finishes (no
+        // While the run is still pending, each row gets a green
+        // background fill conveying progress. Once the run finishes (no
         // queued or running items) the bars are dropped — a completed
         // run shouldn't keep wearing in-flight progress chrome.
-        val showModelBars = (pending > 0 || benchCount > 0) && !run.cancelled
-        if (modelRows.isEmpty()) {
-            Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text(
-                    if (queuedCount > 0) "Queued — no model has picked up an item yet"
-                    else "No translation items",
-                    color = AppColors.TextSecondary, fontSize = 14.sp
-                )
-            }
-        } else {
-            LazyColumn(modifier = Modifier.weight(1f)) {
-                items(modelRows, key = { it.modelKey }) { row ->
-                    val barFrac = row.done.toFloat() / maxDone
-                    val barColor = AppColors.Green.copy(alpha = 0.30f)
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .drawBehind {
-                                if (showModelBars && barFrac > 0f) {
-                                    drawRect(
-                                        color = barColor,
-                                        size = Size(size.width * barFrac, size.height)
+        val showBars = (pending > 0 || benchCount > 0) && !run.cancelled
+        when (groupMode) {
+            TranslationGroupMode.MODELS -> {
+                // Per-model rows. Bar fraction is items-done relative to
+                // the busiest model (so the densest model reads full).
+                if (modelRows.isEmpty()) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text(
+                            if (queuedCount > 0) "Queued — no model has picked up an item yet"
+                            else "No translation items",
+                            color = AppColors.TextSecondary, fontSize = 14.sp
+                        )
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(modelRows, key = { it.modelKey }) { row ->
+                            val barFrac = row.done.toFloat() / maxDone
+                            val barColor = AppColors.Green.copy(alpha = 0.30f)
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .drawBehind {
+                                        if (showBars && barFrac > 0f) {
+                                            drawRect(
+                                                color = barColor,
+                                                size = Size(size.width * barFrac, size.height)
+                                            )
+                                        }
+                                    }
+                                    .padding(vertical = 8.dp)
+                                    .clickable { onOpenGroup(row.modelKey) },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                // Finished-run leading count column. While bars
+                                // are on, the green fill conveys per-model
+                                // throughput visually; once they're gone we need
+                                // a number to keep the per-model split legible.
+                                // Sorting on row.done (descending — set in
+                                // modelRows above) means the densest model
+                                // stays at the top.
+                                if (!showBars) {
+                                    Text(
+                                        row.done.toString(),
+                                        fontSize = 13.sp,
+                                        color = AppColors.TextSecondary,
+                                        fontFamily = FontFamily.Monospace,
+                                        textAlign = TextAlign.End,
+                                        modifier = Modifier.padding(start = 8.dp).widthIn(min = 32.dp)
+                                    )
+                                }
+                                // No status glyph — the proportional bar already
+                                // conveys progress, and a finished run shouldn't
+                                // read as a wall of check marks.
+                                Text(
+                                    com.ai.ui.shared.shortModelName(row.modelKey.substringAfter('|')),
+                                    fontSize = 14.sp, color = Color.White,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f).padding(start = 8.dp)
+                                )
+                                if (row.cost > 0.0) {
+                                    Text(
+                                        formatCents(row.cost), fontSize = 11.sp,
+                                        color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.padding(end = 8.dp)
                                     )
                                 }
                             }
-                            .padding(vertical = 8.dp)
-                            .clickable { onOpenModel(row.modelKey) },
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Finished-run leading count column. While bars
-                        // are on, the green fill conveys per-model
-                        // throughput visually; once they're gone we need
-                        // a number to keep the per-model split legible.
-                        // Sorting on row.done (descending — set in
-                        // modelRows above) means the densest model
-                        // stays at the top.
-                        if (!showModelBars) {
-                            Text(
-                                row.done.toString(),
-                                fontSize = 13.sp,
-                                color = AppColors.TextSecondary,
-                                fontFamily = FontFamily.Monospace,
-                                textAlign = TextAlign.End,
-                                modifier = Modifier.padding(start = 8.dp).widthIn(min = 32.dp)
-                            )
-                        }
-                        // No status glyph — the proportional bar already
-                        // conveys progress, and a finished run shouldn't
-                        // read as a wall of check marks.
-                        Text(
-                            com.ai.ui.shared.shortModelName(row.modelKey.substringAfter('|')),
-                            fontSize = 14.sp, color = Color.White,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f).padding(start = 8.dp)
-                        )
-                        if (row.cost > 0.0) {
-                            Text(
-                                formatCents(row.cost), fontSize = 11.sp,
-                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
-                                modifier = Modifier.padding(end = 8.dp)
-                            )
+                            HorizontalDivider(color = AppColors.DividerDark)
                         }
                     }
-                    HorizontalDivider(color = AppColors.DividerDark)
+                }
+            }
+            TranslationGroupMode.TYPES -> {
+                // Per-type rows. Columns: [type (no prefix) | count |
+                // cost]. The green row-background fill is a true
+                // done/total progress fraction for that type, shown only
+                // while work is in flight (no numeric overlay).
+                if (typeRows.isEmpty()) {
+                    Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Text("No translation items", color = AppColors.TextSecondary, fontSize = 14.sp)
+                    }
+                } else {
+                    LazyColumn(modifier = Modifier.weight(1f)) {
+                        items(typeRows, key = { it.traceType }) { row ->
+                            val barFrac = if (row.total > 0) row.done.toFloat() / row.total else 0f
+                            val barColor = AppColors.Green.copy(alpha = 0.30f)
+                            Row(
+                                modifier = Modifier.fillMaxWidth()
+                                    .drawBehind {
+                                        if (showBars && barFrac > 0f) {
+                                            drawRect(
+                                                color = barColor,
+                                                size = Size(size.width * barFrac, size.height)
+                                            )
+                                        }
+                                    }
+                                    .padding(vertical = 8.dp)
+                                    .clickable { onOpenGroup(row.traceType) },
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    translationTypeLabel(row.traceType),
+                                    fontSize = 14.sp, color = Color.White,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f).padding(start = 8.dp)
+                                )
+                                Text(
+                                    row.total.toString(),
+                                    fontSize = 13.sp,
+                                    color = AppColors.TextSecondary,
+                                    fontFamily = FontFamily.Monospace,
+                                    textAlign = TextAlign.End,
+                                    modifier = Modifier.padding(end = 12.dp).widthIn(min = 28.dp)
+                                )
+                                if (row.cost > 0.0) {
+                                    Text(
+                                        formatCents(row.cost), fontSize = 11.sp,
+                                        color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    )
+                                }
+                            }
+                            HorizontalDivider(color = AppColors.DividerDark)
+                        }
+                    }
                 }
             }
         }

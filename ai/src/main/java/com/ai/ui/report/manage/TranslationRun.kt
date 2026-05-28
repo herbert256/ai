@@ -38,31 +38,54 @@ internal fun translationModelKey(item: TranslationItem): String? {
     return if (p != null && m != null) "$p|$m" else null
 }
 
+/** The dimension the L1 list groups by. Models = per-model rows (the
+ *  historical default); Types = per-trace/cost-type rows. */
+enum class TranslationGroupMode { MODELS, TYPES }
+
+/** Group key for an item under the active [TranslationGroupMode].
+ *  MODELS → the model key (null for an unassigned PENDING item, which
+ *  then shows only in the Queue stat). TYPES → the item's traceType,
+ *  always present (stamped at item creation), so every status groups. */
+internal fun translationGroupKey(item: TranslationItem, mode: TranslationGroupMode): String? =
+    when (mode) {
+        TranslationGroupMode.MODELS -> translationModelKey(item)
+        TranslationGroupMode.TYPES -> item.traceType
+    }
+
+/** Display label for a trace/cost type — the raw `translate/…` value
+ *  with its `translate/` prefix stripped (e.g. "fan/out/response"). */
+internal fun translationTypeLabel(traceType: String): String =
+    traceType.removePrefix("translate/")
+
 /** Navigation state inside the 3-level translation run drill-in.
- *  L1 = models, L2 = items for one model, L3 = a single translation.
- *  Mirrors [FanOutNav]. */
+ *  L1 = groups (models or types), L2 = items for one group, L3 = a
+ *  single translation. The active [TranslationGroupMode] travels with
+ *  L2/L3 so they filter + step within the right dimension. Mirrors
+ *  [FanOutNav]. */
 sealed class TranslationNav {
     object L1 : TranslationNav()
-    data class L2(val modelKey: String) : TranslationNav()
-    data class L3(val modelKey: String, val itemId: String) : TranslationNav()
+    data class L2(val mode: TranslationGroupMode, val groupKey: String) : TranslationNav()
+    data class L3(val mode: TranslationGroupMode, val groupKey: String, val itemId: String) : TranslationNav()
 }
 
-/** Serialises to a 3-string list so rememberSaveable survives
- *  rotation + process death. */
+/** Serialises to a 4-string list so rememberSaveable survives
+ *  rotation + process death. Slot 1 carries the group mode for L2/L3. */
 private val translationNavSaver: Saver<TranslationNav, Any> = Saver(
     save = { nav ->
         when (nav) {
-            is TranslationNav.L1 -> listOf("L1", "", "")
-            is TranslationNav.L2 -> listOf("L2", nav.modelKey, "")
-            is TranslationNav.L3 -> listOf("L3", nav.modelKey, nav.itemId)
+            is TranslationNav.L1 -> listOf("L1", "", "", "")
+            is TranslationNav.L2 -> listOf("L2", nav.mode.name, nav.groupKey, "")
+            is TranslationNav.L3 -> listOf("L3", nav.mode.name, nav.groupKey, nav.itemId)
         }
     },
     restore = { list ->
         @Suppress("UNCHECKED_CAST")
         val l = list as List<String>
+        val mode = runCatching { TranslationGroupMode.valueOf(l[1]) }
+            .getOrDefault(TranslationGroupMode.MODELS)
         when (l[0]) {
-            "L2" -> TranslationNav.L2(l[1])
-            "L3" -> TranslationNav.L3(l[1], l[2])
+            "L2" -> TranslationNav.L2(mode, l[2])
+            "L3" -> TranslationNav.L3(mode, l[2], l[3])
             else -> TranslationNav.L1
         }
     }
@@ -124,6 +147,9 @@ internal fun TranslationRunScreen(
     var nav by rememberSaveable(runId, stateSaver = translationNavSaver) {
         mutableStateOf<TranslationNav>(TranslationNav.L1)
     }
+    // L1 grouping preset (Models / Types). Survives drill-in round trips
+    // and rotation; resets per run.
+    var groupMode by rememberSaveable(runId) { mutableStateOf(TranslationGroupMode.MODELS) }
     // Bumped by restart / remove-failed so a *finished* run reloads its
     // persisted state. A run that restart turns live again is picked up
     // automatically via the liveRun param.
@@ -132,7 +158,7 @@ internal fun TranslationRunScreen(
         nav = when (val n = nav) {
             TranslationNav.L1 -> { onBack(); return@BackHandler }
             is TranslationNav.L2 -> TranslationNav.L1
-            is TranslationNav.L3 -> TranslationNav.L2(n.modelKey)
+            is TranslationNav.L3 -> TranslationNav.L2(n.mode, n.groupKey)
         }
     }
 
@@ -171,26 +197,30 @@ internal fun TranslationRunScreen(
             reportId = reportId,
             runId = runId,
             actions = actions,
+            groupMode = groupMode,
+            onSetGroupMode = { groupMode = it },
             onBumpRefresh = { refreshTick++ },
-            onOpenModel = { modelKey -> nav = TranslationNav.L2(modelKey) },
+            onOpenGroup = { groupKey -> nav = TranslationNav.L2(groupMode, groupKey) },
             onBack = onBack
         )
         is TranslationNav.L2 -> TranslationL2Screen(
             run = run,
-            modelKey = n.modelKey,
+            mode = n.mode,
+            groupKey = n.groupKey,
             actions = actions,
-            onOpenItem = { itemId -> nav = TranslationNav.L3(n.modelKey, itemId) },
+            onOpenItem = { itemId -> nav = TranslationNav.L3(n.mode, n.groupKey, itemId) },
             onBack = { nav = TranslationNav.L1 }
         )
         is TranslationNav.L3 -> TranslationL3Screen(
             run = run,
             reportId = reportId,
             runId = runId,
-            modelKey = n.modelKey,
+            mode = n.mode,
+            groupKey = n.groupKey,
             itemId = n.itemId,
             actions = actions,
-            onStepItem = { itemId -> nav = TranslationNav.L3(n.modelKey, itemId) },
-            onBack = { nav = TranslationNav.L2(n.modelKey) }
+            onStepItem = { itemId -> nav = TranslationNav.L3(n.mode, n.groupKey, itemId) },
+            onBack = { nav = TranslationNav.L2(n.mode, n.groupKey) }
         )
     }
     } // close CompositionLocalProvider
