@@ -116,10 +116,10 @@ internal fun ViewAiReportScreen(
      *  list's per-row emoji uses. */
     onMissingPromptIcon: (com.ai.model.InternalPrompt) -> Unit = { _ -> },
     /** True when ANY persisted moderation row on this report has
-     *  AT LEAST one fired category. Flips the moderation tile's
-     *  accent to red (flag set somewhere) vs the default green
-     *  (every run came back clean). The 🚩 emoji is rendered on
-     *  both — the tile colour carries the verdict. */
+     *  AT LEAST one fired category. Drives the moderation tile's
+     *  verdict: red 🚩 + red accent (flag set somewhere) vs green
+     *  ✅ + green accent (every run came back clean). Both the glyph
+     *  and the colour carry the verdict. */
     moderationFlagged: Boolean = false,
     /** Receives the View screen's currently-selected language so the
      *  opened sub-screen can lock itself to that language. null = no
@@ -973,14 +973,16 @@ internal fun ViewAiReportScreen(
     // they get one tile per run via [metaTiles] / [fanOutTiles].
     data class ComputedTile(val key: String, val tile: ViewTile, val items: List<EveryItem>)
     val computedTiles = remember(everyItems, moderationFlagged, currentLang) {
-        // Moderation accent flips red ↔ green based on whether any
-        // moderation row on this report flagged anything; the 🚩
-        // emoji is the same either way so the flag motif stays
-        // consistent across both states.
+        // Moderation tile reflects the run's verdict in BOTH glyph and
+        // accent: a red 🚩 when any moderation row on this report flagged
+        // at least one category, a green ✅ when every run came back clean.
+        // (Unicode has no green-flag emoji, so ✅ mirrors the Moderation
+        // detail screen's clean verdict — 🚩 / ✅.)
         val moderationColor = if (moderationFlagged) AppColors.Red else AppColors.Green
+        val moderationEmoji = if (moderationFlagged) "🚩" else "✅"
         val specs = listOf(
             ComputedSpec("rerank", "Rerank", "🏆", AppColors.Yellow),
-            ComputedSpec("moderation", "Moderation", "🚩", moderationColor),
+            ComputedSpec("moderation", "Moderation", moderationEmoji, moderationColor),
             // fan_in is no longer in computedTiles — it has its own
             // per-run tile set ([fanInTiles]) with dynamic icons,
             // mirroring the fan_out pattern.
