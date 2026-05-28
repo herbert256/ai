@@ -221,36 +221,6 @@ internal fun TranslationL1Screen(
             onDelete = { confirmDelete = true }
         )
 
-        // Grouping preset — Models (per-model rows) vs Types (per
-        // trace/cost-type rows). Always available, even on a finished
-        // run, so the user can review either breakdown.
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            listOf(
-                TranslationGroupMode.MODELS to "Models",
-                TranslationGroupMode.TYPES to "Types"
-            ).forEach { (gm, label) ->
-                FilterChip(
-                    selected = groupMode == gm,
-                    onClick = { onSetGroupMode(gm) },
-                    label = {
-                        Text(
-                            label,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
-                    },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-        }
-
         // Mode toggle — switches the cost-aware hesitation in the
         // worker loop. Mid-run interactive: workers re-read the
         // selection on every queue pull, so the bias change takes
@@ -315,6 +285,37 @@ internal fun TranslationL1Screen(
                 stats.forEach { (_, value, color) ->
                     Text(value, fontSize = 15.sp, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
                 }
+            }
+        }
+
+        // Grouping preset — Translation workers (per-model rows) vs
+        // Translation types (per trace/cost-type rows). Sits below the
+        // stats; always available, even on a finished run, so the user
+        // can review either breakdown.
+        Spacer(modifier = Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            listOf(
+                TranslationGroupMode.MODELS to "Translation workers",
+                TranslationGroupMode.TYPES to "Translation types"
+            ).forEach { (gm, label) ->
+                FilterChip(
+                    selected = groupMode == gm,
+                    onClick = { onSetGroupMode(gm) },
+                    label = {
+                        Text(
+                            label,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                    },
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
 
