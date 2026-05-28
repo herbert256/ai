@@ -118,7 +118,34 @@ data class TranslationActions(
     /** Flip the cost-vs-speed mode on a (possibly in-flight) run.
      *  Workers re-read the mode on every queue pull, so the new bias
      *  kicks in within one chunk (~1s). Persisted per-runId. */
-    val onSetMode: (runId: String, mode: TranslationMode) -> Unit = { _, _ -> }
+    val onSetMode: (runId: String, mode: TranslationMode) -> Unit = { _, _ -> },
+    /** Open the "Find alternative translation" flow for one L3 item.
+     *  Carries the full target identity so the parent can host the
+     *  model picker + candidate screen and apply the pick back to the
+     *  right TRANSLATE row. */
+    val onFindAlternativeTranslation: (
+        itemId: String,
+        isTitleKind: Boolean,
+        sourceText: String,
+        traceType: String,
+        targetLanguageName: String,
+        persistedRowId: String?
+    ) -> Unit = { _, _, _, _, _, _ -> }
+)
+
+/** Identity of the translation item a "Find alternative translation" flow
+ *  is operating on. Hoisted to the report-manage screen so the shared
+ *  [com.ai.ui.report.manage.ModelSelectionScreen] picker + the candidate
+ *  screen can render over the (yielded) translation run screen. */
+data class AltTranslateTarget(
+    val reportId: String,
+    val runId: String,
+    val itemId: String,
+    val isTitleKind: Boolean,
+    val sourceText: String,
+    val traceType: String,
+    val targetLanguageName: String,
+    val persistedRowId: String?
 )
 
 /**
@@ -142,7 +169,11 @@ internal fun TranslationRunScreen(
     onBack: () -> Unit,
     /** Re-targets the parent's `openTranslationRunId` after a title-bar
      *  swipe lands on a different report. Wired in `ReportScreen`. */
-    onChangeRunId: (String) -> Unit = {}
+    onChangeRunId: (String) -> Unit = {},
+    /** Bumped by the parent after a "Find alternative translation" pick
+     *  overwrites a row on disk — forces the persisted-run reload so a
+     *  finished run reflects the new translation. */
+    externalRefresh: Int = 0
 ) {
     var nav by rememberSaveable(runId, stateSaver = translationNavSaver) {
         mutableStateOf<TranslationNav>(TranslationNav.L1)
@@ -163,7 +194,7 @@ internal fun TranslationRunScreen(
     }
 
     val persisted by produceState<TranslationRunState?>(
-        initialValue = null, reportId, runId, refreshTick, liveRun == null
+        initialValue = null, reportId, runId, refreshTick, externalRefresh, liveRun == null
     ) {
         value = if (liveRun != null) null else loadPersisted()
     }

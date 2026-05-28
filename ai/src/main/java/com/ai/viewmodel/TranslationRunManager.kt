@@ -872,6 +872,147 @@ class TranslationRunManager(
     // the rows it did complete instead of losing everything on a
     // redeploy / OS kill.
 
+    // ===== Find alternative translation =====
+    // Mirrors the Find-alt icon / title fan-out: re-translate ONE L3
+    // item's source text on each picked model, collect the candidates
+    // in [AppViewModel.altTranslationByItem] (keyed by itemId), and let
+    // the user tap one to overwrite the persisted row in place. The
+    // probe calls are NON-persisting — only the picked candidate lands
+    // on disk (via [applyAltTranslation]).
+
+    /** Launch one re-translation per picked model for [itemId]. */
+    fun startAltTranslationFanOut(
+        context: Context, reportId: String, itemId: String,
+        targetLanguageName: String, isTitleKind: Boolean, sourceText: String,
+        traceType: String, models: List<ReportModel>, aiSettings: Settings,
+        paramsIds: List<String> = emptyList(), systemPromptId: String? = null
+    ) {
+        val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
+        if (unique.isEmpty() || sourceText.isBlank()) return
+        val promptName = if (isTitleKind) "translate-title" else "translate-text"
+        val prompt = aiSettings.getInternalPromptByName(promptName)
+        val rawTemplate = prompt?.text?.takeIf { it.isNotBlank() }
+            ?: if (isTitleKind) DEFAULT_TRANSLATE_TITLE_TEMPLATE else ""
+        if (rawTemplate.isBlank()) return
+        val resolved = if (isTitleKind)
+            rawTemplate.replace("@LANGUAGE@", targetLanguageName).replace("@TITLE@", sourceText)
+        else
+            rawTemplate.replace("@LANGUAGE@", targetLanguageName).replace("@TEXT@", sourceText)
+        appViewModel.updateAltTranslationFanOut(itemId) { unique.map { TranslationCandidate.Running(it.provider, it.model) } }
+        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            unique.forEach { item ->
+                launch { runAltTranslationCandidate(context, reportId, itemId, item, resolved, traceType, aiSettings, paramsIds, systemPromptId, prompt) }
+            }
+        }
+        rvm.registerIconFanOutJob("alttr:$itemId", outer)
+    }
+
+    /** One alternative-translation candidate call (non-persisting). */
+    private suspend fun runAltTranslationCandidate(
+        context: Context, reportId: String, itemId: String,
+        item: ReportModel, resolved: String, traceType: String, aiSettings: Settings,
+        paramsIds: List<String>, systemPromptId: String?, prompt: InternalPrompt?
+    ) {
+        fun place(c: TranslationCandidate) = appViewModel.updateAltTranslationFanOut(itemId) { list ->
+            list.map { if (it.provider.id == item.provider.id && it.model == item.model) c else it }
+        }
+        val releaser = ProviderThrottle.acquire(providerHost(item.provider))
+        try {
+            withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                withTracerTags(reportId = reportId, category = traceType) {
+                    runCatching {
+                        val syntheticAgent = Agent(
+                            id = "translate-alt-${item.provider.id}-${item.model}",
+                            name = item.model, provider = item.provider, model = item.model,
+                            apiKey = aiSettings.getApiKey(item.provider)
+                        )
+                        val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                        val params = resolveSecondaryParams(
+                            appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, prompt
+                        )
+                        val response = appViewModel.repository.analyzeWithAgent(
+                            syntheticAgent, "", resolved, params, null, context, baseUrl
+                        )
+                        val tu = response.tokenUsage
+                        val pricing = PricingCache.getPricing(context, item.provider, item.model)
+                        val cost = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
+                        if (tu != null && (tu.inputTokens > 0 || tu.outputTokens > 0)) {
+                            // Probe-call spend shows on AI Usage; the report
+                            // cost table only gains the picked candidate's
+                            // cost (written in applyAltTranslation).
+                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                item.provider, item.model, tu.inputTokens, tu.outputTokens, tu.totalTokens, kind = traceType
+                            )
+                        }
+                        val text = response.analysis.orEmpty()
+                        if (response.error == null && text.isNotBlank())
+                            place(TranslationCandidate.Done(item.provider, item.model, text, cost, tu))
+                        else
+                            place(TranslationCandidate.Error(item.provider, item.model, response.error ?: "empty response", cost))
+                    }.onFailure { e ->
+                        place(TranslationCandidate.Error(item.provider, item.model, e.message ?: "translate failed", 0.0))
+                    }
+                }
+            }
+        } finally {
+            releaser.release()
+        }
+    }
+
+    fun restartAltTranslationFanOut(itemId: String) {
+        rvm.iconFanOutJobs.remove("alttr:$itemId")?.cancel()
+        appViewModel.clearAltTranslationFanOut(itemId)
+    }
+
+    /** Apply a picked alternative: overwrite the item's persisted
+     *  TRANSLATE row (content + model + cost) and update the live run,
+     *  then clear the candidate list. */
+    fun applyAltTranslation(
+        context: Context, reportId: String, runId: String, itemId: String,
+        persistedRowId: String?, candidate: TranslationCandidate.Done
+    ) {
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val tu = candidate.tokenUsage
+            if (persistedRowId != null) {
+                val existing = SecondaryResultStorage.get(context, reportId, persistedRowId)
+                if (existing != null) {
+                    val pricing = PricingCache.getPricing(context, candidate.provider, candidate.model)
+                    val (inCost, outCost) = tu?.let { PricingCache.computeInOutCost(it, pricing) }
+                        ?: (0.0 to candidate.cost)
+                    SecondaryResultStorage.save(context, existing.copy(
+                        providerId = candidate.provider.id,
+                        model = candidate.model,
+                        content = candidate.text,
+                        errorMessage = null,
+                        tokenUsage = tu,
+                        inputCost = inCost,
+                        outputCost = outCost,
+                        timestamp = System.currentTimeMillis()
+                    ))
+                }
+            }
+            // Update the live run (if any) so an in-flight L3 reflects it.
+            _translationRuns.update { runs ->
+                val cur = runs[runId] ?: return@update runs
+                val updated = cur.items.map {
+                    if (it.id != itemId) it
+                    else it.copy(
+                        status = TranslationStatus.DONE,
+                        translatedText = candidate.text,
+                        providerId = candidate.provider.id,
+                        model = candidate.model,
+                        costDollars = candidate.cost,
+                        tokenUsage = tu,
+                        errorMessage = null
+                    )
+                }
+                runs + (runId to cur.copy(items = updated, totalCostDollars = updated.sumOf { it.costDollars }))
+            }
+            appViewModel.clearAltTranslationFanOut(itemId)
+            ReportStorage.bumpReportTimestamp(context, reportId)
+        }
+    }
+
     fun cancelTranslation(runId: String) {
         translationJobs[runId]?.cancel()
         _translationRuns.update { runs ->

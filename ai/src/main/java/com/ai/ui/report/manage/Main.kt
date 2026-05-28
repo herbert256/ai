@@ -105,6 +105,14 @@ fun ReportsScreen(
     onStartModelTitleFanOut: (reportId: String, agentId: String, models: List<ReportModel>, paramsIds: List<String>, systemPromptId: String?) -> Unit = { _, _, _, _, _ -> },
     onRestartReportTitleFanOut: (reportId: String) -> Unit = { _ -> },
     onRestartModelTitleFanOut: (agentId: String) -> Unit = { _ -> },
+    /** Live per-item "Find alternative translation" candidate state
+     *  mirrored from [AppViewModel.altTranslationByItem], keyed by the
+     *  translation item id. The AlternativeTranslationsScreen reads from
+     *  here while [altTranslateTarget] is non-null. */
+    altTranslationByItem: Map<String, List<com.ai.viewmodel.TranslationCandidate>> = emptyMap(),
+    onStartAltTranslationFanOut: (reportId: String, itemId: String, targetLanguageName: String, isTitleKind: Boolean, sourceText: String, traceType: String, models: List<ReportModel>, paramsIds: List<String>, systemPromptId: String?) -> Unit = { _, _, _, _, _, _, _, _, _ -> },
+    onApplyAltTranslation: (reportId: String, runId: String, itemId: String, persistedRowId: String?, candidate: com.ai.viewmodel.TranslationCandidate.Done) -> Unit = { _, _, _, _, _ -> },
+    onRestartAltTranslationFanOut: (itemId: String) -> Unit = { _ -> },
     /** Bundle of the four per-Internal-Prompt icon callbacks —
      *  bundled into one parameter so the `ReportsScreen` parameter
      *  list stays under the JVM 64 KB per-method bytecode limit. */
@@ -472,6 +480,15 @@ fun ReportsScreen(
     // Translate flow state.
     var showTranslateLanguagePicker by st.showTranslateLanguagePicker
     var showTranslateModelPicker by st.showTranslateModelPicker
+    // "Find alternative translation" flow — the target L3 item + a
+    // picker/candidate toggle. While [altTranslateTarget] is non-null
+    // the translation run mount yields so the shared model picker +
+    // candidate screen render over it.
+    var altTranslateTarget by st.altTranslateTarget
+    var showAltTranslatePicker by st.showAltTranslatePicker
+    // Bumped after an alt-translation pick overwrites a row so the
+    // (yielded → remounted) translation run reloads from disk.
+    var translationRunRefreshTick by rememberSaveable { mutableStateOf(0) }
     // rememberSaveable so a nav-hop out of AI_REPORTS (Model Info from
     // a selected-models row, Help, etc.) and back doesn't clear the
     // selection — the user was just inspecting one row, not abandoning
@@ -1124,12 +1141,17 @@ fun ReportsScreen(
     }
 
     val openRunId = openTranslationRunId
-    if (openRunId != null && currentReportId != null) {
+    // Yield while a "Find alternative translation" flow is active so the
+    // shared model picker + candidate screen (hosted below) render over
+    // the run screen. Clearing altTranslateTarget remounts this block,
+    // whose loadPersisted re-reads the (possibly overwritten) rows.
+    if (openRunId != null && currentReportId != null && altTranslateTarget == null) {
         val rid = currentReportId
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { openTranslationRunId = null }) {
             TranslationRunScreen(
                 reportId = rid,
                 runId = openRunId,
+                externalRefresh = translationRunRefreshTick,
                 onChangeRunId = { openTranslationRunId = it },
                 // Live state for the in-flight run. Null after the run
                 // finishes — the screen then reconstructs it from disk
@@ -1176,9 +1198,88 @@ fun ReportsScreen(
                     onNavigateToTraceRunList = onNavigateToTraceRunList,
                     onNavigateToModelInfo = onNavigateToModelInfo,
                     onNavigateHome = onNavigateHome,
-                    onSetMode = translationLifecycle.onSetMode
+                    onSetMode = translationLifecycle.onSetMode,
+                    onFindAlternativeTranslation = { itemId, isTitle, src, traceType, lang, rowId ->
+                        translationModels = emptyList()
+                        pickerTarget = PickerTarget.TRANSLATION
+                        altTranslateTarget = AltTranslateTarget(
+                            reportId = rid, runId = openRunId, itemId = itemId,
+                            isTitleKind = isTitle, sourceText = src, traceType = traceType,
+                            targetLanguageName = lang, persistedRowId = rowId
+                        )
+                        showAltTranslatePicker = true
+                    }
                 ),
                 onBack = { openTranslationRunId = null }
+            )
+        }
+        return
+    }
+
+    // ── "Find alternative translation" — model picker (Block A) then
+    // candidate screen (Block B). Reached only while a translation run
+    // is open (altTranslateTarget set from the L3 action above). The
+    // model sub-pickers (SelectionOverlayDialogs) already render above
+    // this point and fall back here on dismiss.
+    val altTgt = altTranslateTarget
+    if (altTgt != null && showAltTranslatePicker && currentReportId != null) {
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides { altTranslateTarget = null; showAltTranslatePicker = false; translationModels = emptyList() },
+            com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null
+        ) {
+            ModelSelectionScreen(
+                models = translationModels,
+                aiSettings = aiSettings,
+                title = "Find alternative translation",
+                subject = "${altTgt.targetLanguageName} - ${translationTypeLabel(altTgt.traceType)}",
+                actionLabel = if (translationModels.size <= 1) "Find translation"
+                              else "Find translation — ${translationModels.size} models",
+                actionColor = AppColors.Green,
+                helpTopic = "alternative_translations",
+                onAddAgent = { pickerTarget = PickerTarget.TRANSLATION; showSelectAgent = true },
+                onAddFlock = { pickerTarget = PickerTarget.TRANSLATION; showSelectFlock = true },
+                onAddSwarm = { pickerTarget = PickerTarget.TRANSLATION; showSelectSwarm = true },
+                onAddFromReport = { pickerTarget = PickerTarget.TRANSLATION; showSelectFromReport = true },
+                onAddAllModels = { pickerTarget = PickerTarget.TRANSLATION; showSelectAllModels = true },
+                onRemoveModel = { idx -> translationModels = translationModels.toMutableList().apply { removeAt(idx) } },
+                onClearAll = { translationModels = emptyList() },
+                onAction = {
+                    onStartAltTranslationFanOut(altTgt.reportId, altTgt.itemId, altTgt.targetLanguageName, altTgt.isTitleKind, altTgt.sourceText, altTgt.traceType, translationModels, emptyList(), null)
+                    translationModels = emptyList()
+                    pickerTarget = PickerTarget.NEW_REPORT
+                    showAltTranslatePicker = false
+                },
+                onActionWithParams = { pIds, spId ->
+                    onStartAltTranslationFanOut(altTgt.reportId, altTgt.itemId, altTgt.targetLanguageName, altTgt.isTitleKind, altTgt.sourceText, altTgt.traceType, translationModels, pIds, spId)
+                    translationModels = emptyList()
+                    pickerTarget = PickerTarget.NEW_REPORT
+                    showAltTranslatePicker = false
+                },
+                onBack = { altTranslateTarget = null; showAltTranslatePicker = false; translationModels = emptyList() }
+            )
+        }
+        return
+    }
+    if (altTgt != null && !showAltTranslatePicker && currentReportId != null) {
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides { altTranslateTarget = null }
+        ) {
+            AlternativeTranslationsScreen(
+                candidates = altTranslationByItem[altTgt.itemId].orEmpty(),
+                onPick = { done ->
+                    onApplyAltTranslation(altTgt.reportId, altTgt.runId, altTgt.itemId, altTgt.persistedRowId, done)
+                    altTranslateTarget = null
+                    translationRunRefreshTick++
+                },
+                onRestart = {
+                    onRestartAltTranslationFanOut(altTgt.itemId)
+                    showAltTranslatePicker = true
+                },
+                onBack = { altTranslateTarget = null }
             )
         }
         return

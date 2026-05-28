@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -47,6 +48,7 @@ import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.TranslationKind
 import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.TranslationStatus
+import com.ai.viewmodel.isTitle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -119,8 +121,12 @@ internal fun TranslationL3Screen(
 
     var confirmDelete by remember { mutableStateOf(false) }
 
-    val titleLang = run.targetLanguageName.takeIf { it.isNotBlank() }
-        ?.let { "Translate · $it" } ?: "Translate"
+    // Orange title: "<language> - <type>" (type without the
+    // `translate/` prefix). Falls back to just the type when the run
+    // carries no language name.
+    val titleSubject = run.targetLanguageName.takeIf { it.isNotBlank() }
+        ?.let { "$it - ${translationTypeLabel(item.traceType)}" }
+        ?: translationTypeLabel(item.traceType)
 
     // Resolve the original (source) content from the report. Live
     // items also carry it on item.sourceText — fall back to that so
@@ -202,7 +208,7 @@ internal fun TranslationL3Screen(
             helpTopic = "translation_run_l3",
             title = "Translation call",
             reportIcon = com.ai.ui.shared.LocalReportIcon.current,
-            subject = titleLang,
+            subject = titleSubject,
             onBackClick = onBack,
             onOpenView = onOpenViewJump,
             onTrace = if (traceEnabled) { { actions.onNavigateToTraceFile(traceFilename!!) } } else null,
@@ -213,7 +219,7 @@ internal fun TranslationL3Screen(
                 { com.ai.ui.shared.copyToClipboard(context, body, "translation") }
             },
             onShare = item.translatedText?.takeIf { it.isNotBlank() }?.let { body ->
-                { com.ai.ui.shared.shareText(context, body, "Translation $titleLang") }
+                { com.ai.ui.shared.shareText(context, body, "Translation $titleSubject") }
             },
             onDelete = { confirmDelete = true }
         )
@@ -302,6 +308,24 @@ internal fun TranslationL3Screen(
                     }
                 }
             }
+        }
+        // Find alternative translation — re-translate this entry's
+        // source on other models and pick a replacement (mirrors Find
+        // alternative icons / long title). Hidden when the source text
+        // isn't resolvable.
+        if (!sourceContent.isNullOrBlank()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedButton(
+                onClick = {
+                    actions.onFindAlternativeTranslation(
+                        item.id, item.kind.isTitle, sourceContent,
+                        item.traceType, run.targetLanguageName, item.persistedRowId
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Find alternative translation", maxLines = 1, softWrap = false) }
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 

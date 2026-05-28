@@ -237,6 +237,16 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Cost", "Each candidate call's spend posts to Usage statistics (kind=\"title\"); since the flow is transient it is not added to the report's stored title cost.")
         )
     ),
+    "alternative_translations" to HelpContent(
+        title = "Help - Alternative translations",
+        cards = listOf(
+            HelpCard("Overview", "Live candidate list for a translation fan-out, opened from the 'Find alternative translation' button on a translation entry (L3). One row per (provider, model) you picked on the previous screen — each model re-translates the same source text into the same target language."),
+            HelpCard("Row meanings", "⏳ = the call is still running. A translation shown = the call returned one; the row is tappable. ❌ = the call failed; the reason shows in red."),
+            HelpCard("Tap to pick", "Tapping a candidate replaces this entry's translation in place — its text, model and cost overwrite the stored row — and returns you to the translation detail."),
+            HelpCard("Restart", "Drops the current candidates and re-opens the model picker so you can fan out across a different set of models."),
+            HelpCard("Cost", "Each candidate call's spend posts to Usage statistics; only the candidate you pick has its cost written onto the stored translation row.")
+        )
+    ),
     "alternative_icons" to HelpContent(
         title = "Help - Alternative icons",
         cards = listOf(

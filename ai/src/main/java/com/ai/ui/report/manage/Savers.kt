@@ -115,6 +115,31 @@ internal val AppServiceSaver: Saver<AppService?, String> = Saver(
     restore = { s -> if (s.isBlank()) null else AppService.findById(s) }
 )
 
+/** Saver for the "Find alternative translation" target so the picker /
+ *  candidate overlay survives rotation + process death. */
+internal val AltTranslateTargetSaver: Saver<AltTranslateTarget?, Any> = listSaver(
+    save = { t ->
+        if (t == null) emptyList()
+        else listOf(
+            t.reportId, t.runId, t.itemId, t.isTitleKind.toString(),
+            t.sourceText, t.traceType, t.targetLanguageName, t.persistedRowId ?: ""
+        )
+    },
+    restore = { l ->
+        if (l.isEmpty()) null
+        else AltTranslateTarget(
+            reportId = l[0] as String,
+            runId = l[1] as String,
+            itemId = l[2] as String,
+            isTitleKind = (l[3] as String).toBoolean(),
+            sourceText = l[4] as String,
+            traceType = l[5] as String,
+            targetLanguageName = l[6] as String,
+            persistedRowId = (l[7] as String).takeIf { it.isNotEmpty() }
+        )
+    }
+)
+
 /** Saver for the per-screen selected-models list (and the parallel
  *  Find-icons list). The list backs the SelectionPhase's selected-
  *  rows column, which is `modelInfoClickable` — tapping a row pops

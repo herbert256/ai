@@ -121,6 +121,7 @@ fun ReportsScreenNav(
     val agentIconFanOutByAgent by viewModel.agentIconFanOutByAgent.collectAsState()
     val runningInfoJobs by viewModel.runningInfoJobs.collectAsState()
     val titleFanOutByReport by viewModel.titleFanOutByReport.collectAsState()
+    val altTranslationByItem by viewModel.altTranslationByItem.collectAsState()
     val titleFanOutByAgent by viewModel.titleFanOutByAgent.collectAsState()
     val pairIconFanOutByPair by viewModel.pairIconFanOutByPair.collectAsState()
     val internalPromptIconFanOutByPrompt by viewModel.internalPromptIconFanOutByPrompt.collectAsState()
@@ -351,6 +352,14 @@ fun ReportsScreenNav(
         },
         onRestartReportTitleFanOut = { rid -> reportViewModel.iconGen.restartReportTitleFanOut(rid) },
         onRestartModelTitleFanOut = { agentId -> reportViewModel.iconGen.restartModelTitleFanOut(agentId) },
+        altTranslationByItem = altTranslationByItem,
+        onStartAltTranslationFanOut = { rid, itemId, lang, isTitle, src, traceType, models, pIds, spId ->
+            reportViewModel.translation.startAltTranslationFanOut(context, rid, itemId, lang, isTitle, src, traceType, models, aiSettings, pIds, spId)
+        },
+        onApplyAltTranslation = { rid, runId, itemId, rowId, candidate ->
+            reportViewModel.translation.applyAltTranslation(context, rid, runId, itemId, rowId, candidate)
+        },
+        onRestartAltTranslationFanOut = { itemId -> reportViewModel.translation.restartAltTranslationFanOut(itemId) },
         onStartPairIconFanOut = { rid, pairId, models ->
             reportViewModel.iconGen.startPairIconFanOut(context, rid, pairId, models, aiSettings)
         },

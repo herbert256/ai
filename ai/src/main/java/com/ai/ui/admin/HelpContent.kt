@@ -263,6 +263,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "find_icons_selection" to listOf("help_home_icons"),
     "alternative_icons" to listOf("help_home_icons"),
     "alternative_titles" to listOf("help_glossary_operations"),
+    "alternative_translations" to listOf("help_glossary_operations"),
     "content_model_response" to listOf("help_glossary_operations"),
     "content_one_page" to listOf("help_glossary_operations"),
 

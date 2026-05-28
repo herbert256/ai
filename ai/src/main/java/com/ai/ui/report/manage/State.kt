@@ -125,6 +125,8 @@ internal class ReportsScreenState(
     val listKind: MutableState<SecondaryKind?>,
     val listFilterByName: MutableState<String?>,
     val listIsFanMeta: MutableState<Boolean>,
+    val altTranslateTarget: MutableState<AltTranslateTarget?>,
+    val showAltTranslatePicker: MutableState<Boolean>,
 )
 
 @Composable
@@ -199,6 +201,8 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val listKind = rememberSaveable { mutableStateOf<SecondaryKind?>(null) }
     val listFilterByName = rememberSaveable { mutableStateOf<String?>(null) }
     val listIsFanMeta = rememberSaveable { mutableStateOf(false) }
+    val altTranslateTarget = rememberSaveable(stateSaver = AltTranslateTargetSaver) { mutableStateOf<AltTranslateTarget?>(null) }
+    val showAltTranslatePicker = rememberSaveable { mutableStateOf(false) }
     return remember {
         ReportsScreenState(
         openMetaResultId,
@@ -270,7 +274,9 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         showMetaScreen,
         listKind,
         listFilterByName,
-        listIsFanMeta
+        listIsFanMeta,
+        altTranslateTarget,
+        showAltTranslatePicker
         )
     }
 }

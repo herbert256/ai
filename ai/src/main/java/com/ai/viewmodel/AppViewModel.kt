@@ -525,6 +525,24 @@ sealed interface TitleCandidate {
     data class Error(override val provider: com.ai.data.AppService, override val model: String, val reason: String, val cost: Double = 0.0) : TitleCandidate
 }
 
+/** Live candidate for the "Find alternative translation" fan-out — parallel to
+ *  [TitleCandidate] but carries the translated body text. [Done] keeps the
+ *  call's [com.ai.data.TokenUsage] so the apply step can write an accurate
+ *  input/output cost split onto the persisted TRANSLATE row. */
+sealed interface TranslationCandidate {
+    val provider: com.ai.data.AppService
+    val model: String
+    data class Running(override val provider: com.ai.data.AppService, override val model: String) : TranslationCandidate
+    data class Done(
+        override val provider: com.ai.data.AppService,
+        override val model: String,
+        val text: String,
+        val cost: Double = 0.0,
+        val tokenUsage: com.ai.data.TokenUsage? = null
+    ) : TranslationCandidate
+    data class Error(override val provider: com.ai.data.AppService, override val model: String, val reason: String, val cost: Double = 0.0) : TranslationCandidate
+}
+
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     internal val repository = AnalysisRepository()
     internal val prefs = application.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -676,6 +694,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _titleFanOutByReport.update { current -> current + (reportId to mutator(current[reportId].orEmpty())) }
     }
     internal fun clearReportTitleFanOut(reportId: String) { _titleFanOutByReport.update { it - reportId } }
+
+    /** Live state of any "Find alternative translation" fan-out, keyed by
+     *  the translation item's id. Transient — the picked candidate only
+     *  overwrites the one TRANSLATE row on apply; nothing else persists. */
+    private val _altTranslationByItem = MutableStateFlow<Map<String, List<TranslationCandidate>>>(emptyMap())
+    val altTranslationByItem: StateFlow<Map<String, List<TranslationCandidate>>> = _altTranslationByItem.asStateFlow()
+    internal fun updateAltTranslationFanOut(itemId: String, mutator: (List<TranslationCandidate>) -> List<TranslationCandidate>) {
+        _altTranslationByItem.update { current -> current + (itemId to mutator(current[itemId].orEmpty())) }
+    }
+    internal fun clearAltTranslationFanOut(itemId: String) { _altTranslationByItem.update { it - itemId } }
 
     private val _titleFanOutByAgent = MutableStateFlow<Map<String, List<TitleCandidate>>>(emptyMap())
     val titleFanOutByAgent: StateFlow<Map<String, List<TitleCandidate>>> = _titleFanOutByAgent.asStateFlow()
