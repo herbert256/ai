@@ -233,10 +233,6 @@ internal fun ReportRunScreen(
         // Main Manage screen: the report icon, the "Manage report" screen
         // title and the green report-name in GenerationPhase all open the
         // View hub (same target as the bottom-bar 👁).
-        // Edit / Create live on the bottom bar (✏️ / 🆕); tapping either
-        // toggles this shared menu state, which GenerationPhase reads to
-        // pop up the same set of choices.
-        val editCreateMenu = remember { mutableStateOf<String?>(null) }
         // Running total cost, reported up from GenerationPhase, shown in
         // the bottom icon bar (top row, right, above ❓).
         var totalCostForBar by remember { mutableStateOf(0.0) }
@@ -367,7 +363,6 @@ internal fun ReportRunScreen(
             infoMetaTotal = infoMetaTotal,
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
-            editCreateMenu = editCreateMenu,
             // Pause the hub's background effects while any full-screen layer
             // (Get-info / Edit report / Edit icons / Edit titles) is on top —
             // the hub stays composed underneath.

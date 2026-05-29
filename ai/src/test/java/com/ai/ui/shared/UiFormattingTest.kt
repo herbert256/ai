@@ -17,9 +17,8 @@ class UiFormattingTest {
         assertThat(formatTokenPricePerMillion(0.000000001234)).isEqualTo("$0.001234 / 1M tokens")
     }
 
-    @Test fun money_and_decimal_helpers_use_requested_precision() {
+    @Test fun money_helpers_use_requested_precision() {
         assertThat(formatUsd(0.123456, decimals = 3)).isEqualTo("$0.123")
         assertThat(formatCents(0.012345, decimals = 2)).isEqualTo("1.23")
-        assertThat(formatDecimal(3.14159, decimals = 4)).isEqualTo("3.1416")
     }
 }

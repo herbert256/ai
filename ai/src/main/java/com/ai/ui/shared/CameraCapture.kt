@@ -112,11 +112,3 @@ private fun downsampleToBase64Jpeg(file: File): String {
         bitmap.recycle()
     }
 }
-
-/** Convenience for the rare caller that has a [Context] in hand
- *  (not a Composable scope) and just wants to encode an arbitrary
- *  file with the same downsample/recompress rules. Currently
- *  unused outside this file but kept exported for future hubs. */
-@Suppress("unused")
-fun downsamplePhotoToBase64Jpeg(context: Context, file: File): String =
-    downsampleToBase64Jpeg(file)

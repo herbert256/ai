@@ -27,7 +27,3 @@ internal fun formatUsd(value: Double, decimals: Int = 8): String {
 internal fun formatCents(value: Double, decimals: Int = 4): String {
     return String.format(Locale.US, "%.${decimals}f", value * 100)
 }
-
-internal fun formatDecimal(value: Double, decimals: Int = 2): String {
-    return String.format(Locale.US, "%.${decimals}f", value)
-}

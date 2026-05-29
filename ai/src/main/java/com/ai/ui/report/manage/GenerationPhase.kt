@@ -394,10 +394,6 @@ internal fun ColumnScope.GenerationPhase(
     infoMetaTotal: Double = 0.0,
     hasPrevReport: Boolean = false,
     hasNextReport: Boolean = false,
-    /** Shared Edit/Create menu trigger, hoisted to [ReportRunScreen] so
-     *  the bottom-bar ✏️ / 🆕 icons (published by the Manage TitleBar)
-     *  can toggle it. "edit" / "create" / null. */
-    editCreateMenu: androidx.compose.runtime.MutableState<String?> = androidx.compose.runtime.mutableStateOf(null),
     /** True while a full-screen overlay (e.g. Get-info) is layered on top
      *  of the still-composed hub. Pauses the hub's background effects (the
      *  10 s stalled-translation reconcile + the scroll-to-top anchor) so
@@ -481,35 +477,6 @@ internal fun ColumnScope.GenerationPhase(
             content = content
         )
     }
-    // Row 1 active group: "edit" / "create" / null. Hoisted to
-    // [ReportRunScreen] (editCreateMenu) so the bottom-bar ✏️ / 🆕 icons
-    // can toggle it; GenerationPhase reads it to pop up the choices.
-    var activeBar by editCreateMenu
-    // Row 3 active "every:" kind under View. Possible values: "meta" /
-    // "rerank" / "fan_out" / "fan_in" / "translate" /
-    // null. Only meaningful when activeBar == "view".
-    var activeEveryKind by rememberSaveable { mutableStateOf<String?>(null) }
-    fun close() { activeBar = null; activeEveryKind = null }
-
-    // Per-group colour for the choice buttons inside the Edit / Create
-    // pop-ups.
-    val editColor = AppColors.Indigo
-    val createColor = AppColors.Orange
-
-    // Edit / Create choices, shown as a centred pop-up when the
-    // matching bottom-bar icon is tapped (activeBar set by the TitleBar).
-    @Composable
-    fun ChoicePopup(label: String, content: @Composable () -> Unit) {
-        androidx.compose.ui.window.Dialog(onDismissRequest = { close() }) {
-            Card(colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(label, color = AppColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(bottom = 8.dp))
-                    content()
-                }
-            }
-        }
-    }
-
     // Per-kind / per-category item lists driving the View row's
     // "every:" buttons + Row 3 picker. Each item knows how to open
     // its detail directly. Builder hoisted to top-level so the new
@@ -1498,34 +1465,6 @@ internal fun TitleRow(
         }
     }
     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-}
-
-/** Compact action button shared across the Reports result page's
- *  View / Edit / Actions rows. Sized to its label (no width filling),
- *  with thin vertical padding so a row of these takes a fraction of
- *  the height a default Material Button would. [leading] runs before
- *  the label and is used by the Meta button to host its spinning ⏳
- *  while a batch is in flight. */
-@Composable
-internal fun CompactButton(
-    onClick: () -> Unit,
-    color: Color,
-    text: String,
-    enabled: Boolean = true,
-    leading: (@Composable () -> Unit)? = null
-) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        colors = ButtonDefaults.buttonColors(containerColor = color),
-        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-        modifier = Modifier
-            .heightIn(min = 28.dp)
-            .defaultMinSize(minWidth = 1.dp, minHeight = 1.dp)
-    ) {
-        if (leading != null) leading()
-        Text(text, fontSize = 12.sp, maxLines = 1, softWrap = false)
-    }
 }
 
 /** Aggregated tokens + cost across every persisted secondary result on
