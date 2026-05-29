@@ -78,6 +78,7 @@ internal class ReportsScreenState(
     val translationIconLanguageFor: MutableState<String?>,
     val fanOutTargetAgentId: MutableState<String?>,
     val pairIconDetailFor: MutableState<String?>,
+    val pairTitleDetailFor: MutableState<String?>,
     val findIconsModels: MutableState<List<ReportModel>>,
     val translationModels: MutableState<List<ReportModel>>,
     val pickerTarget: MutableState<PickerTarget>,
@@ -154,6 +155,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val translationIconLanguageFor = rememberSaveable { mutableStateOf<String?>(null) }
     val fanOutTargetAgentId = rememberSaveable { mutableStateOf<String?>(null) }
     val pairIconDetailFor = rememberSaveable { mutableStateOf<String?>(null) }
+    val pairTitleDetailFor = rememberSaveable { mutableStateOf<String?>(null) }
     val findIconsModels = rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
     val translationModels = rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
     val pickerTarget = remember { mutableStateOf(PickerTarget.NEW_REPORT) }
@@ -228,6 +230,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         translationIconLanguageFor,
         fanOutTargetAgentId,
         pairIconDetailFor,
+        pairTitleDetailFor,
         findIconsModels,
         translationModels,
         pickerTarget,

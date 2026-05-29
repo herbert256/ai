@@ -1038,6 +1038,137 @@ class IconGenerationManager(
         appViewModel.clearPairIconFanOut(pairId)
     }
 
+    // ── Per-fan-out-pair title Find-alt ─────────────────────────
+    // Sibling of [startPairIconFanOut] but for titles. Composes the
+    // bundled `alt/model_title` prompt (substitutes @RESPONSE@ with
+    // the pair's response), fires one call per picked (provider,
+    // model), attributes cost to the pair's SR (via bumpFanOutTitleCost,
+    // which also stamps titleModel) + the report's iconCalls audit log,
+    // and commits the picked title via setFanOutTitle with
+    // promptUsed = "model_title_alt". Candidates land in
+    // [AppViewModel.pairTitleFanOutByPair].
+    fun startPairTitleFanOut(
+        context: Context,
+        reportId: String,
+        pairId: String,
+        models: List<ReportModel>,
+        aiSettings: Settings,
+        paramsIds: List<String> = emptyList(),
+        systemPromptId: String? = null
+    ) {
+        val altPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "alt" && it.name == "model_title"
+        } ?: run {
+            AppLog.w("PairTitleAlt", "alt/model_title prompt not found — skipping (pair=$pairId)")
+            return
+        }
+        val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
+        if (unique.isEmpty()) return
+        appViewModel.updatePairTitleFanOut(pairId) {
+            unique.map { TitleCandidate.Running(it.provider, it.model) }
+        }
+        val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            val pair = SecondaryResultStorage.listForReport(context, reportId)
+                .firstOrNull { it.id == pairId } ?: return@launch
+            val resolved = altPrompt.text.replace("@RESPONSE@", pair.content.orEmpty())
+            unique.forEach { item ->
+                launch {
+                    fun place(c: TitleCandidate) = appViewModel.updatePairTitleFanOut(pairId) { list ->
+                        list.map { if (it.provider.id == item.provider.id && it.model == item.model) c else it }
+                    }
+                    val releaser = ProviderThrottle.acquire(providerHost(item.provider))
+                    try {
+                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                            withTracerTags(reportId = reportId, category = "alt/model_title") {
+                                runCatching {
+                                    val syntheticAgent = Agent(
+                                        id = "pair-title-alt-${pairId}-${item.provider.id}-${item.model}",
+                                        name = item.model,
+                                        provider = item.provider,
+                                        model = item.model,
+                                        apiKey = aiSettings.getApiKey(item.provider)
+                                    )
+                                    val baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(syntheticAgent)
+                                    val params = resolveSecondaryParams(
+                                        appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, altPrompt
+                                    )
+                                    val response = appViewModel.repository.analyzeWithAgent(
+                                        syntheticAgent, "", resolved, params, null, context, baseUrl
+                                    )
+                                    val tu = response.tokenUsage
+                                    val pricing = PricingCache.getPricing(context, item.provider, item.model)
+                                    val inT = tu?.inputTokens ?: 0
+                                    val outT = tu?.outputTokens ?: 0
+                                    val inC = inT * pricing.promptPrice
+                                    val outC = outT * pricing.completionPrice
+                                    if (inT > 0 || outT > 0) {
+                                        SecondaryResultStorage.bumpFanOutTitleCost(
+                                            context, reportId, pairId,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC,
+                                            model = "${item.provider.id}/${item.model}"
+                                        )
+                                        appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                            item.provider, item.model, inT, outT, kind = "title"
+                                        )
+                                        ReportStorage.appendIconCall(context, reportId, IconCallRecord(
+                                            agentId = pairId, tier = 0,
+                                            provider = item.provider.id, model = item.model,
+                                            pricingTier = pricing.source,
+                                            inputTokens = inT, outputTokens = outT,
+                                            inputCost = inC, outputCost = outC,
+                                            success = response.error == null,
+                                            type = "alt/model_title",
+                                            attributedToSecondaryId = pairId
+                                        ))
+                                    }
+                                    val totalCost = inC + outC
+                                    val title = cleanTitle(response.analysis)
+                                    if (response.error == null && title.isNotEmpty())
+                                        place(TitleCandidate.Done(item.provider, item.model, title, totalCost))
+                                    else
+                                        place(TitleCandidate.Error(item.provider, item.model, response.error ?: "empty response", totalCost))
+                                    appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+                                }.onFailure { e ->
+                                    place(TitleCandidate.Error(item.provider, item.model, e.message ?: "title-gen failed", 0.0))
+                                }
+                            }
+                        }
+                    } finally {
+                        releaser.release()
+                    }
+                }
+            }
+        }
+        rvm.registerIconFanOutJob("pt:$pairId", outer)
+    }
+
+    /** Commit a user-picked alt title to the fan-out pair. titleModel
+     *  was already stamped by [bumpFanOutTitleCost] during the fan-out,
+     *  so the L3 META "Meta model" line reflects the picked worker once
+     *  the iconRefreshTick bump triggers the screen's disk re-read. */
+    fun pickPairTitleAlternative(
+        context: Context,
+        reportId: String,
+        pairId: String,
+        title: String
+    ) {
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            SecondaryResultStorage.setFanOutTitle(
+                context, reportId, pairId, title,
+                promptUsed = "model_title_alt"
+            )
+            appViewModel.updateUiState {
+                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+            }
+        }
+    }
+
+    fun restartPairTitleFanOut(reportId: String, pairId: String) {
+        rvm.iconFanOutJobs.remove("pt:$pairId")?.cancel()
+        appViewModel.clearPairTitleFanOut(pairId)
+    }
+
     // ── Translation icons ───────────────────────────────────────
     // Sibling flow to the per-`InternalPrompt` icon flow above.
     // Stores per-language entries in [InternalPromptIconCache]

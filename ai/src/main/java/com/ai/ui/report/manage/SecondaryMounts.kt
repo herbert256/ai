@@ -100,6 +100,12 @@ internal fun SecondaryResultsListMount(
      *  — set by the parent ReportsScreen to flip
      *  `pairIconDetailFor = pairId`. */
     onOpenPairIconLookup: (String) -> Unit = {},
+    /** L3 META Find-alt — set by the parent to flip
+     *  `pairIconDetailFor` / `pairTitleDetailFor` + open the picker. */
+    onFindAlternativePairIcon: (String) -> Unit = {},
+    onFindAlternativePairTitle: (String) -> Unit = {},
+    /** Report-wide icon/title refresh tick — forwarded to the META L3. */
+    iconRefreshTick: Int = 0,
 ) {
     val rid = reportId
     val fanInList = internalPrompts.filter { it.category == "fan_in" }
@@ -212,7 +218,10 @@ internal fun SecondaryResultsListMount(
                 onSecondaryRefresh()
             },
             forcedLanguage = forcedLanguage,
-            onOpenPairIconLookup = onOpenPairIconLookup
+            onOpenPairIconLookup = onOpenPairIconLookup,
+            onFindAlternativePairIcon = onFindAlternativePairIcon,
+            onFindAlternativePairTitle = onFindAlternativePairTitle,
+            iconRefreshTick = iconRefreshTick
         )
     }
 }

@@ -32,6 +32,10 @@ internal fun ReportIconFlowOverlays(
     onStartPairIconFanOut: (reportId: String, pairId: String, models: List<ReportModel>) -> Unit,
     onPickPairIcon: (reportId: String, pairId: String, emoji: String) -> Unit,
     onRestartPairIconFanOut: (reportId: String, pairId: String) -> Unit,
+    pairTitleFanOutByPair: Map<String, List<TitleCandidate>>,
+    onStartPairTitleFanOut: (reportId: String, pairId: String, models: List<ReportModel>) -> Unit,
+    onPickPairTitle: (reportId: String, pairId: String, title: String) -> Unit,
+    onRestartPairTitleFanOut: (reportId: String, pairId: String) -> Unit,
     onStartReportTitleFanOut: (reportId: String, promptText: String, models: List<ReportModel>, long: Boolean, paramsIds: List<String>, systemPromptId: String?) -> Unit,
     onStartModelTitleFanOut: (reportId: String, agentId: String, models: List<ReportModel>, paramsIds: List<String>, systemPromptId: String?) -> Unit,
     onRestartReportTitleFanOut: (reportId: String) -> Unit,
@@ -79,6 +83,7 @@ internal fun ReportIconFlowOverlays(
                 st.metaRowIdForPromptIcon.value = null
                 st.translationIconLanguageFor.value = null
                 st.pairIconDetailFor.value = null
+                st.pairTitleDetailFor.value = null
                 st.targetLanguageIcon.value = false
             },
             onRestartReopenPicker = {
@@ -105,6 +110,7 @@ internal fun ReportIconFlowOverlays(
                 st.metaRowIdForPromptIcon.value = null
                 st.translationIconLanguageFor.value = null
                 st.pairIconDetailFor.value = null
+                st.pairTitleDetailFor.value = null
                 st.targetLanguageIcon.value = false
             }
         ) {
@@ -114,6 +120,7 @@ internal fun ReportIconFlowOverlays(
                 targetPromptId = st.promptIconDetailForId.value,
                 targetAgentId = st.fanOutTargetAgentId.value,
                 targetPairId = st.pairIconDetailFor.value,
+                targetPairTitleId = st.pairTitleDetailFor.value,
                 targetLanguageIcon = st.targetLanguageIcon.value,
                 internalPrompts = aiSettings.internalPrompts,
                 aiSettings = aiSettings,
@@ -132,6 +139,7 @@ internal fun ReportIconFlowOverlays(
                 onStartInternalPromptIconFanOut = promptIconCallbacks.onStartFanOut,
                 onStartAgentIconFanOut = onStartAgentIconFanOut,
                 onStartPairIconFanOut = onStartPairIconFanOut,
+                onStartPairTitleFanOut = onStartPairTitleFanOut,
                 onStartIconFanOut = onStartIconFanOut,
                 onAddAgent = {
                     st.pickerTarget.value = PickerTarget.FIND_ICONS
@@ -161,7 +169,7 @@ internal fun ReportIconFlowOverlays(
                     st.findIconsModels.value = emptyList()
                     st.pickerTarget.value = PickerTarget.NEW_REPORT
                     st.showFindIconsPicker.value = false
-                    if (st.findTitlesFor.value != null) {
+                    if (st.findTitlesFor.value != null || st.pairTitleDetailFor.value != null) {
                         st.showAlternativeTitles.value = true
                     } else {
                         st.showAlternativeIcons.value = true
@@ -172,6 +180,7 @@ internal fun ReportIconFlowOverlays(
                     st.showFindIconsPicker.value = false
                     st.findTitlesFor.value = null
                     st.findTitlesLong.value = false
+                    st.pairTitleDetailFor.value = null
                 }
             )
         }
@@ -179,6 +188,33 @@ internal fun ReportIconFlowOverlays(
     }
 
     if (st.showAlternativeTitles.value && currentReportId != null) {
+        // Per-fan-out-pair title flow — distinct from the report/agent
+        // title flow below. Picks land on the pair's SecondaryResult
+        // row, never on the report/agent editor field
+        // (findTitlesFor / altPickedTitle*).
+        val pairTitleId = st.pairTitleDetailFor.value
+        if (pairTitleId != null) {
+            AlternativeTitlesScreen(
+                candidates = pairTitleFanOutByPair[pairTitleId].orEmpty(),
+                onPickTitle = { picked ->
+                    onPickPairTitle(currentReportId, pairTitleId, picked)
+                    st.showAlternativeTitles.value = false
+                    st.showFindIconsPicker.value = false
+                    st.pairTitleDetailFor.value = null
+                },
+                onRestart = {
+                    onRestartPairTitleFanOut(currentReportId, pairTitleId)
+                    st.findIconsModels.value = emptyList()
+                    st.showAlternativeTitles.value = false
+                    st.showFindIconsPicker.value = true
+                },
+                onBack = {
+                    st.showAlternativeTitles.value = false
+                    st.pairTitleDetailFor.value = null
+                }
+            )
+            return true
+        }
         val titleTarget = st.findTitlesFor.value
         val candidates = if (titleTarget == "report") {
             titleFanOutByReport[currentReportId].orEmpty()

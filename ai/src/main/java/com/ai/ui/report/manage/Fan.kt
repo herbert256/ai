@@ -126,6 +126,13 @@ data class FanOutActions(
      *  L3 big centred icon. Argument is the pair's
      *  [com.ai.data.SecondaryResult.id]. */
     val onOpenPairIconLookup: (String) -> Unit = {},
+    /** L3 META "Find alternative icon" — opens the big model picker
+     *  straight onto the per-pair icon Find-alt flow. Argument is the
+     *  pair's [com.ai.data.SecondaryResult.id]. */
+    val onFindAlternativePairIcon: (String) -> Unit = {},
+    /** L3 META "Find alternative title" — opens the big model picker
+     *  straight onto the per-pair title Find-alt flow. */
+    val onFindAlternativePairTitle: (String) -> Unit = {},
     /** Clear the title+icon error state on every errored pair in this
      *  fan-out, so they read as fresh-pending without dropping the row. */
     val onClearFanMetaErrors: (FanOutRunKey) -> Unit = {},
@@ -180,6 +187,11 @@ fun FanOutScreen(
     onLaunchFanMeta: (FanOutRunKey) -> Unit = {},
     /** Switch the drill-in to META mode without launching a batch. */
     onShowFanMeta: () -> Unit = {},
+    /** Report-wide icon/title refresh counter — bumped by Find-alt
+     *  picks. The META L3 re-reads the pair from disk on changes so a
+     *  picked icon/title shows immediately (the engine snapshot stays
+     *  stale after a pick). */
+    iconRefreshTick: Int = 0,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -308,6 +320,7 @@ fun FanOutScreen(
             role = n.role,
             actions = actions,
             mode = mode,
+            iconRefreshTick = iconRefreshTick,
             onStepSource = { newSourceAgentId ->
                 nav = FanOutNav.L3(n.answererKey, newSourceAgentId, n.role)
             },

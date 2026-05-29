@@ -765,6 +765,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _pairIconFanOutByPair.update { it - pairId }
     }
 
+    /** Per-fan-out-pair title Find-alt candidates, keyed by the
+     *  SecondaryResult id of the pair the user launched the alt run
+     *  on. Sibling of [pairIconFanOutByPair] for the L3 META screen's
+     *  "Find alternative title" button. */
+    private val _pairTitleFanOutByPair =
+        MutableStateFlow<Map<String, List<TitleCandidate>>>(emptyMap())
+    val pairTitleFanOutByPair: StateFlow<Map<String, List<TitleCandidate>>> =
+        _pairTitleFanOutByPair.asStateFlow()
+    internal fun updatePairTitleFanOut(
+        pairId: String,
+        mutator: (List<TitleCandidate>) -> List<TitleCandidate>
+    ) {
+        _pairTitleFanOutByPair.update { current ->
+            current + (pairId to mutator(current[pairId].orEmpty()))
+        }
+    }
+    internal fun clearPairTitleFanOut(pairId: String) {
+        _pairTitleFanOutByPair.update { it - pairId }
+    }
+
     /** Per-candidate `(promptText, responseText)` capture used by
      *  [com.ai.viewmodel.ReportViewModel.pickInternalPromptIcon] —
      *  the picked candidate's request + reply land in

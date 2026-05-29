@@ -110,7 +110,14 @@ internal fun SecondaryResultsScreen(
     /** Open the unified Icon-lookup screen for a fan-out pair.
      *  Plumbed through to [FanOutActions.onOpenPairIconLookup]
      *  for the L2 long-press / L3 big-icon entry points. */
-    onOpenPairIconLookup: (String) -> Unit = {}
+    onOpenPairIconLookup: (String) -> Unit = {},
+    /** L3 META Find-alt entry points — open the big model picker
+     *  straight onto the per-pair icon / title Find-alt flow. */
+    onFindAlternativePairIcon: (String) -> Unit = {},
+    onFindAlternativePairTitle: (String) -> Unit = {},
+    /** Report-wide icon/title refresh tick — threaded to the META L3
+     *  so a Find-alt pick refreshes the displayed icon/title. */
+    iconRefreshTick: Int = 0
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -602,6 +609,8 @@ internal fun SecondaryResultsScreen(
                 onNavigateToInternalPromptEdit = onNavigateToInternalPromptEdit,
                 onOpenSecondary = { id -> openId = id },
                 onOpenPairIconLookup = onOpenPairIconLookup,
+                onFindAlternativePairIcon = onFindAlternativePairIcon,
+                onFindAlternativePairTitle = onFindAlternativePairTitle,
                 onClearFanMetaErrors = { rk ->
                     val parts = rk.split("|", limit = 2)
                     if (parts.size == 2) fanRuntime.onClearFanMetaErrors(parts[0], parts[1])
@@ -639,6 +648,7 @@ internal fun SecondaryResultsScreen(
                     onShowFanMeta()
                 },
                 onShowFanMeta = onShowFanMeta,
+                iconRefreshTick = iconRefreshTick,
                 onBack = onBack
             )
             }

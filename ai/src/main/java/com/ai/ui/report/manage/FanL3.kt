@@ -38,14 +38,20 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
 import com.ai.data.AppService
 import com.ai.data.FanOutRunState
+import com.ai.data.PairState
 import com.ai.data.PairStatus
 import com.ai.data.effectiveStatus
 import com.ai.data.ReportStorage
+import com.ai.data.SecondaryResultStorage
+import com.ai.data.toPairState
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.modelLabel
+import com.ai.ui.shared.shortModelName
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.text.style.TextAlign
 import com.ai.viewmodel.FanOutEngine
 import kotlinx.coroutines.Dispatchers
 import androidx.compose.foundation.clickable
@@ -67,6 +73,7 @@ internal fun FanOutL3Screen(
     role: String,
     actions: FanOutActions,
     mode: FanOutMode = FanOutMode.MAIN,
+    iconRefreshTick: Int = 0,
     onStepSource: (String) -> Unit,
     onBack: () -> Unit
 ) {
@@ -168,6 +175,27 @@ internal fun FanOutL3Screen(
     val answererLabel = modelLabel(pair.providerId, pair.model)
     val answererProviderService = remember(pair.providerId) {
         AppService.findById(pair.providerId)
+    }
+
+    // Fan Meta L3 is a purpose-built metadata screen (big icon + green
+    // title + the two model lines + the two Find-alt buttons), not the
+    // source/answerer split the MAIN mode renders. Branch out before
+    // the trace lookups + split-pane body below.
+    if (mode == FanOutMode.META) {
+        FanOutL3MetaBody(
+            run = run,
+            pair = pair,
+            answererLabel = answererLabel,
+            answererProviderService = answererProviderService,
+            prev = prev,
+            next = next,
+            role = role,
+            actions = actions,
+            iconRefreshTick = iconRefreshTick,
+            onStepSource = onStepSource,
+            onBack = onBack
+        )
+        return
     }
 
     // Trace lookups — answerer trace = closest-timestamp trace for
@@ -347,22 +375,6 @@ internal fun FanOutL3Screen(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
-                // TITLES mode: surface the pair's generated title (or
-                // its error) prominently above the response body.
-                if (mode == FanOutMode.META) {
-                    val titleText = pair.title?.takeIf { it.isNotBlank() }
-                    Text(
-                        titleText?.let { "🏷️ $it" }
-                            ?: pair.titleErrorMessage?.let { "❌ $it" }
-                            ?: "🕓 No title yet",
-                        fontSize = 15.sp,
-                        color = if (titleText != null) AppColors.Green
-                            else if (pair.titleErrorMessage != null) AppColors.Red
-                            else AppColors.TextTertiary,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                     when (pair.effectiveStatus(runningSet)) {
                         PairStatus.ERROR -> Text(
@@ -423,6 +435,162 @@ internal fun FanOutL3Screen(
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
                 ) { Text("Next →", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
+        }
+    }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete this pair?") },
+            text = { Text("Drops the pair row from the run. The API cost stays counted in the report total.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDelete = false
+                    actions.onCancelPair(run.key, pair.key)
+                    onBack()
+                }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
+            }
+        )
+    }
+}
+
+/**
+ * Fan Meta L3 — the single-pair metadata screen. Foregrounds the
+ * generated icon + title and exposes the two per-pair Find-alt
+ * buttons. Re-reads the pair from disk on [iconRefreshTick] so a
+ * picked icon/title shows immediately (the engine snapshot stays
+ * stale after a Find-alt pick; it only bumps the tick + writes disk).
+ */
+@Composable
+internal fun FanOutL3MetaBody(
+    run: FanOutRunState,
+    pair: PairState,
+    answererLabel: String,
+    answererProviderService: AppService?,
+    prev: PairState?,
+    next: PairState?,
+    role: String,
+    actions: FanOutActions,
+    iconRefreshTick: Int,
+    onStepSource: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    // Re-read the row from disk on each refresh tick so picked
+    // icon/title/titleModel land here without leaving the screen.
+    val fresh by produceState(initialValue = pair, pair.id, run.reportId, iconRefreshTick) {
+        value = withContext(Dispatchers.IO) {
+            SecondaryResultStorage.get(context, run.reportId, pair.id)
+                ?.toPairState(pair.answererAgentId) ?: pair
+        }
+    }
+    val icon = fresh.icon?.takeIf { it.isNotBlank() }
+    val title = fresh.title?.takeIf { it.isNotBlank() }
+    val metaModel = fresh.titleModel?.substringAfterLast('/')
+        ?.takeIf { it.isNotBlank() }?.let { shortModelName(it) } ?: "—"
+
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
+            {
+                holder.value = run.metaPrompt.name.takeIf { it.isNotBlank() }
+                    ?.let { com.ai.ui.shared.ViewJump.FanOut(it) }
+                    ?: com.ai.ui.shared.ViewJump.Main
+            }
+        }
+        TitleBar(
+            helpTopic = "fan_meta",
+            title = "Fan Meta - pair",
+            reportIcon = com.ai.ui.shared.LocalReportIcon.current,
+            subject = answererLabel,
+            onBackClick = onBack,
+            onOpenView = onOpenViewJump,
+            onInfo = answererProviderService?.let { svc ->
+                { actions.onNavigateToModelInfo(svc, pair.model) }
+            },
+            onReload = { actions.onRerunPair(run.key, pair.key) },
+            onDelete = { confirmDelete = true }
+        )
+
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth()
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Big, centered, the found icon.
+            Text(icon ?: "🏷️", fontSize = 72.sp, color = Color.White)
+            Spacer(Modifier.height(20.dp))
+            // Green, big, the found title.
+            Text(
+                title ?: "(no title yet)",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (title != null) AppColors.Green else AppColors.TextTertiary,
+                textAlign = TextAlign.Center
+            )
+            Spacer(Modifier.height(28.dp))
+            // Two model lines.
+            Column(Modifier.fillMaxWidth()) {
+                Text(
+                    "Fan-out model:  ${shortModelName(pair.model)}",
+                    fontSize = 14.sp, color = Color.White,
+                    fontFamily = FontFamily.Monospace, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "Meta model:     $metaModel",
+                    fontSize = 14.sp, color = Color.White,
+                    fontFamily = FontFamily.Monospace, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+        }
+
+        // Two Find-alt buttons.
+        Button(
+            onClick = { actions.onFindAlternativePairIcon(pair.id) },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+        ) { Text("Find alternative icon", maxLines = 1, softWrap = false) }
+        Spacer(Modifier.height(8.dp))
+        Button(
+            onClick = { actions.onFindAlternativePairTitle(pair.id) },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+        ) { Text("Find alternative title", maxLines = 1, softWrap = false) }
+
+        // Prev / Next arrow row.
+        Row(Modifier.fillMaxWidth().padding(top = 12.dp)) {
+            Button(
+                onClick = {
+                    prev?.let {
+                        if (role == "Responder") onStepSource(it.sourceAgentId)
+                        else onStepSource(it.answererAgentId)
+                    }
+                },
+                enabled = prev != null,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) { Text("← Prev", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+            Spacer(Modifier.padding(horizontal = 4.dp))
+            Button(
+                onClick = {
+                    next?.let {
+                        if (role == "Responder") onStepSource(it.sourceAgentId)
+                        else onStepSource(it.answererAgentId)
+                    }
+                },
+                enabled = next != null,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            ) { Text("Next →", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
     }
 

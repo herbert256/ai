@@ -124,6 +124,7 @@ fun ReportsScreenNav(
     val altTranslationByItem by viewModel.altTranslationByItem.collectAsState()
     val titleFanOutByAgent by viewModel.titleFanOutByAgent.collectAsState()
     val pairIconFanOutByPair by viewModel.pairIconFanOutByPair.collectAsState()
+    val pairTitleFanOutByPair by viewModel.pairTitleFanOutByPair.collectAsState()
     val internalPromptIconFanOutByPrompt by viewModel.internalPromptIconFanOutByPrompt.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -370,6 +371,16 @@ fun ReportsScreenNav(
             reportViewModel.iconGen.restartPairIconFanOut(rid, pairId)
         },
         pairIconFanOutByPair = pairIconFanOutByPair,
+        onStartPairTitleFanOut = { rid, pairId, models ->
+            reportViewModel.iconGen.startPairTitleFanOut(context, rid, pairId, models, aiSettings)
+        },
+        onPickPairTitle = { rid, pairId, title ->
+            reportViewModel.iconGen.pickPairTitleAlternative(context, rid, pairId, title)
+        },
+        onRestartPairTitleFanOut = { rid, pairId ->
+            reportViewModel.iconGen.restartPairTitleFanOut(rid, pairId)
+        },
+        pairTitleFanOutByPair = pairTitleFanOutByPair,
         promptIconCallbacks = InternalPromptIconCallbacks(
             onKickoff = { prompt ->
                 reportViewModel.iconGen.kickOffInternalPromptIcon(context, prompt, aiSettings)

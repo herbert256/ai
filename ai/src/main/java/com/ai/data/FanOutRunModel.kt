@@ -103,7 +103,12 @@ data class PairState(
     /** UUID of the most recent Fan Meta sweep on this pair. */
     val titleRunId: String? = null,
     /** Bundled prompt name that produced [title] — "fan_out_title". */
-    val titlePromptUsed: String? = null
+    val titlePromptUsed: String? = null,
+    /** "provider/model" of the worker that produced the Fan Meta
+     *  title+icon for this pair. Surfaces as the L3 META screen's
+     *  "Meta model" line. Null on legacy rows / before the batch
+     *  recorded cost. */
+    val titleModel: String? = null
 ) {
     val key: PairKey get() = pairKey(answererAgentId, sourceAgentId)
     val totalCost: Double get() =
@@ -286,7 +291,8 @@ fun SecondaryResult.toPairState(answererAgentId: String): PairState? {
         titleOutputCost = titleOutputCost,
         titleErrorMessage = titleErrorMessage,
         titleRunId = titleRunId,
-        titlePromptUsed = titlePromptUsed
+        titlePromptUsed = titlePromptUsed,
+        titleModel = titleModel
     )
 }
 

@@ -115,6 +115,10 @@ internal fun FindIconsPickerRouter(
     targetPromptId: String?,
     targetAgentId: String?,
     targetPairId: String?,
+    /** Non-null when finding an alternative TITLE for a fan-out pair
+     *  (the L3 META "Find alternative title" button). Routes onAction
+     *  to [onStartPairTitleFanOut] and makes this a TITLE flow. */
+    targetPairTitleId: String?,
     targetLanguageIcon: Boolean,
     internalPrompts: List<com.ai.model.InternalPrompt>,
     aiSettings: Settings,
@@ -129,6 +133,7 @@ internal fun FindIconsPickerRouter(
     onStartInternalPromptIconFanOut: (com.ai.model.InternalPrompt, List<ReportModel>, List<String>, String?) -> Unit,
     onStartAgentIconFanOut: (String, String, List<ReportModel>) -> Unit,
     onStartPairIconFanOut: (String, String, List<ReportModel>) -> Unit,
+    onStartPairTitleFanOut: (String, String, List<ReportModel>) -> Unit,
     onStartIconFanOut: (String, String, List<ReportModel>) -> Unit,
     onAddAgent: () -> Unit,
     onAddFlock: () -> Unit,
@@ -143,11 +148,12 @@ internal fun FindIconsPickerRouter(
     val targetPrompt = targetPromptId?.let { id ->
         internalPrompts.firstOrNull { it.id == id }
     }
+    val isTitleFlow = targetTitleFor != null || targetPairTitleId != null
     ModelSelectionScreen(
         models = models,
         aiSettings = aiSettings,
-        title = if (targetTitleFor != null) "Find titles" else "Find icons",
-        actionLabel = if (targetTitleFor != null) "Find Titles" else "Find Icons",
+        title = if (isTitleFlow) "Find titles" else "Find icons",
+        actionLabel = if (isTitleFlow) "Find Titles" else "Find Icons",
         onAddAgent = onAddAgent,
         onAddFlock = onAddFlock,
         onAddSwarm = onAddSwarm,
@@ -157,6 +163,7 @@ internal fun FindIconsPickerRouter(
         onClearAll = onClearAll,
         onAction = {
             when {
+                targetPairTitleId != null -> onStartPairTitleFanOut(reportId, targetPairTitleId, models)
                 targetLanguageIcon -> languageIconCallbacks.onStartFanOut(reportId, genericPromptText, models)
                 targetLanguage != null -> translationIconCallbacks.onStartFanOut(targetLanguage, models)
                 targetPairId != null -> onStartPairIconFanOut(reportId, targetPairId, models)
@@ -166,9 +173,10 @@ internal fun FindIconsPickerRouter(
             onConfirm()
         },
         // Alt icons / Alt titles get the per-launch 🌡️ / 🎭 pick.
-        onActionWithParams = if (targetTitleFor != null || targetPrompt != null) {
+        onActionWithParams = if (targetTitleFor != null || targetPairTitleId != null || targetPrompt != null) {
             { pIds, spId ->
                 when {
+                    targetPairTitleId != null -> onStartPairTitleFanOut(reportId, targetPairTitleId, models)
                     targetTitleFor != null -> onStartTitleFanOut(targetTitleFor, models, pIds, spId)
                     targetPrompt != null -> onStartInternalPromptIconFanOut(targetPrompt, models, pIds, spId)
                 }

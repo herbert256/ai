@@ -149,6 +149,14 @@ fun ReportsScreen(
      *  Read by AlternativeIconsRouter when [pairIconDetailFor] is
      *  non-null. */
     pairIconFanOutByPair: Map<String, List<IconCandidate>> = emptyMap(),
+    /** Per-fan-out-pair TITLE Find-alt counterparts — the L3 META
+     *  "Find alternative title" button. Routed to
+     *  [ReportViewModel.startPairTitleFanOut /
+     *  pickPairTitleAlternative / restartPairTitleFanOut]. */
+    onStartPairTitleFanOut: (reportId: String, pairId: String, models: List<ReportModel>) -> Unit = { _, _, _ -> },
+    onPickPairTitle: (reportId: String, pairId: String, title: String) -> Unit = { _, _, _ -> },
+    onRestartPairTitleFanOut: (reportId: String, pairId: String) -> Unit = { _, _ -> },
+    pairTitleFanOutByPair: Map<String, List<com.ai.viewmodel.TitleCandidate>> = emptyMap(),
     /** Navigate to the surrounding AI report on disk — sorted
      *  newest-first like the hub. hasPrevReport / hasNextReport
      *  gate the chevron icons' enabled state. */
@@ -433,6 +441,7 @@ fun ReportsScreen(
     // pairIconFanOutByPair + the per-pair start/pick/restart
     // callbacks.
     var pairIconDetailFor by st.pairIconDetailFor
+    var pairTitleDetailFor by st.pairTitleDetailFor
     var findIconsModels by st.findIconsModels
     // Accumulator for the Translate model picker — same +Agent /
     // +Flock / +Swarm / +Report / +Model affordances as Find icons,
@@ -734,6 +743,10 @@ fun ReportsScreen(
             onStartPairIconFanOut = onStartPairIconFanOut,
             onPickPairIcon = onPickPairIcon,
             onRestartPairIconFanOut = onRestartPairIconFanOut,
+            pairTitleFanOutByPair = pairTitleFanOutByPair,
+            onStartPairTitleFanOut = onStartPairTitleFanOut,
+            onPickPairTitle = onPickPairTitle,
+            onRestartPairTitleFanOut = onRestartPairTitleFanOut,
             onStartReportTitleFanOut = onStartReportTitleFanOut,
             onStartModelTitleFanOut = onStartModelTitleFanOut,
             onRestartReportTitleFanOut = onRestartReportTitleFanOut,
@@ -1330,7 +1343,16 @@ fun ReportsScreen(
             onRerunFanOutPair = onRerunFanOutPair,
             onDeleteFanOutModel = onDeleteFanOutModel,
             forcedLanguage = listLockedLanguage,
-            onOpenPairIconLookup = { pairId -> pairIconDetailFor = pairId }
+            onOpenPairIconLookup = { pairId -> pairIconDetailFor = pairId },
+            onFindAlternativePairIcon = { pairId ->
+                pairIconDetailFor = pairId
+                st.showFindIconsPicker.value = true
+            },
+            onFindAlternativePairTitle = { pairId ->
+                pairTitleDetailFor = pairId
+                st.showFindIconsPicker.value = true
+            },
+            iconRefreshTick = uiState.iconRefreshTick
         )
         return
     }
