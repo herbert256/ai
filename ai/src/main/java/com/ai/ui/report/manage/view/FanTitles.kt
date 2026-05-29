@@ -68,11 +68,10 @@ internal fun FanOutL1MetaScreen(
     val report by produceState<Report?>(initialValue = null, run.reportId) {
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, run.reportId) }
     }
-    // agentId → "provider / model" label for the source header.
-    val sourceLabelBySource: Map<String, String> = remember(report) {
-        report?.agents?.associate {
-            it.agentId to resolveModelLabel("${it.provider}|${it.model}")
-        } ?: emptyMap()
+    // agentId → the source report-agent, so each card header can show
+    // that model-report's own icon + (per-model) title.
+    val sourceAgentById = remember(report) {
+        report?.agents?.associateBy { it.agentId } ?: emptyMap()
     }
 
     // Pairs with a title, grouped by source model. Groups ordered by
@@ -89,7 +88,7 @@ internal fun FanOutL1MetaScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "fan_meta",
-            title = "Fan out - titles",
+            title = "Fan Meta - All",
             subject = subject,
             onBackClick = onBack
         )
@@ -107,7 +106,13 @@ internal fun FanOutL1MetaScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             groups.forEach { (sourceAgentId, pairs) ->
-                val srcLabel = sourceLabelBySource[sourceAgentId] ?: sourceAgentId
+                val srcAgent = sourceAgentById[sourceAgentId]
+                val srcIcon = srcAgent?.icon
+                // The model-report's own title (per-model title), falling
+                // back to its model label when no title was generated.
+                val srcTitle = srcAgent?.modelTitle?.takeIf { it.isNotBlank() }
+                    ?: srcAgent?.let { resolveModelLabel("${it.provider}|${it.model}") }
+                    ?: sourceAgentId
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -115,11 +120,17 @@ internal fun FanOutL1MetaScreen(
                         .background(AppColors.CardBackground)
                         .padding(horizontal = 10.dp, vertical = 8.dp)
                 ) {
-                    Text(
-                        srcLabel, fontSize = 12.sp, color = AppColors.Blue,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
+                    // Card header — that model-report's icon + title.
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (!srcIcon.isNullOrBlank()) {
+                            Text(srcIcon, fontSize = 18.sp, modifier = Modifier.padding(end = 6.dp))
+                        }
+                        Text(
+                            srcTitle, fontSize = 13.sp, color = AppColors.Blue,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 2, overflow = TextOverflow.Ellipsis
+                        )
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     pairs.forEachIndexed { idx, p ->
                         if (idx > 0) HorizontalDivider(color = AppColors.DividerDark)
@@ -131,7 +142,8 @@ internal fun FanOutL1MetaScreen(
                                 .padding(vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("🏷️", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                            // The pair's found icon (Fan Meta result).
+                            Text(p.icon ?: "⬜", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
                             Text(
                                 p.title.orEmpty(), fontSize = 14.sp, color = Color.White,
                                 modifier = Modifier.weight(1f),
