@@ -82,12 +82,6 @@ data class SecondaryResult(
      *  before this field existed (those fall back to grouping-by-
      *  language for the same effect). */
     val translationRunId: String? = null,
-    /** Legacy field — set by the old "translation creates a copy" flow
-     *  on Summary / Compare secondaries that were duplicated onto a
-     *  translated report. New translations don't fork the report so
-     *  this stays null on every TRANSLATE row written by the current
-     *  code path; preserved on disk so old reports still load. */
-    val translatedFromSecondaryId: String? = null,
     /** Id of the [com.ai.model.MetaPrompt] entry that produced this
      *  row. Null on TRANSLATE rows and on legacy rows written before
      *  the Meta-prompt CRUD existed; UI falls back to the legacy

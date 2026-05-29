@@ -128,9 +128,6 @@ internal data class HtmlSecondaryData(
     /** TRANSLATE rows only — language this row produced text in. */
     val targetLanguage: String? = null,
     val targetLanguageNative: String? = null,
-    /** Legacy field kept for old reports that forked into translated
-     *  copies. Always null on new TRANSLATE rows. */
-    val translatedFromSecondaryId: String? = null,
     /** User-given Meta prompt name, copied from the source
      *  [SecondaryResult]. Drives every section heading / bucket in
      *  the exports. Null on TRANSLATE rows and on rows persisted
@@ -364,7 +361,6 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
             translateSourceTargetId = s.translateSourceTargetId,
             targetLanguage = s.targetLanguage,
             targetLanguageNative = s.targetLanguageNative,
-            translatedFromSecondaryId = s.translatedFromSecondaryId,
             metaPromptName = s.metaPromptName,
             fanOutSourceAgentId = s.fanOutSourceAgentId,
             fanInOf = s.fanInOf,

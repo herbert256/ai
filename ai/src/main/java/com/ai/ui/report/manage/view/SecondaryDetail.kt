@@ -245,50 +245,6 @@ internal fun SecondaryResultDetailScreen(
         return
     }
 
-    // Translation comparison: only meaningful for chat-type META
-    // rows, and only when this secondary is a translated copy (its
-    // translatedFromSecondaryId points at the source's untranslated
-    // counterpart). Load the source's content lazily.
-    val sourceContentState = produceState<String?>(
-        initialValue = null,
-        result.id, result.translatedFromSecondaryId
-    ) {
-        val srcId = result.translatedFromSecondaryId ?: return@produceState
-        value = withContext(Dispatchers.IO) {
-            val parent = ReportStorage.getReport(context, result.reportId) ?: return@withContext null
-            val srcReportId = parent.sourceReportId ?: return@withContext null
-            SecondaryResultStorage.get(context, srcReportId, srcId)?.content
-        }
-    }
-    val sourceContent = sourceContentState.value
-    val canShowTranslation =
-        result.kind == SecondaryKind.META &&
-            !sourceContent.isNullOrBlank() && !result.content.isNullOrBlank()
-    var showTranslationCompare by remember { mutableStateOf(false) }
-
-    if (showTranslationCompare && sourceContent != null && result.content != null) {
-        val tf = result.traceFile
-        val translatedIcon = result.targetLanguage?.takeIf { it.isNotBlank() }
-            ?.let { com.ai.data.InternalPromptIconCache.get("translation_icon", it) }
-        TranslationCompareScreen(
-            title = "Translation info — $title — ${com.ai.ui.shared.modelLabel(provider, result.model, separator = " / ")}",
-            originalLabel = "Original",
-            originalContent = sourceContent,
-            translatedLabel = "Translation",
-            translatedContent = result.content,
-            onBack = { showTranslationCompare = false },
-            onNavigateHome = onNavigateHome,
-            onTrace = tf?.let { fn -> { onNavigateToTraceFile(fn) } },
-            onDelete = {
-                onDelete()
-                showTranslationCompare = false
-            },
-            originalIcon = parentReport?.languageIcon,
-            translatedIcon = translatedIcon
-        )
-        return
-    }
-
     // New-style translation compare: fires when the active picker
     // language renders a TRANSLATE overlay on top of this META
     // (activeTranslateRow != null). Source = the seed META's own
@@ -429,14 +385,6 @@ internal fun SecondaryResultDetailScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-        if (canShowTranslation) {
-            Button(
-                onClick = { showTranslationCompare = true },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("Translation info", fontSize = 13.sp, maxLines = 1, softWrap = false) }
-        }
     }
 
     if (confirmDelete) {
