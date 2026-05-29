@@ -542,6 +542,113 @@ internal fun FanOutL2Screen(
 }
 
 /**
+ * Fan Meta L2 in "Meta models" mode — the sibling of [FanOutL2Screen]'s
+ * report-models META view, but scoped to one meta-worker model
+ * ([com.ai.data.PairState.titleModel]) instead of an answerer model.
+ * Lists every pair that meta model titled: found icon + generated
+ * title + the answerer/report model that produced the response, plus a
+ * cost total. Tapping a row opens that pair's L3 detail. No role axis
+ * (the grouping isn't answerer/source) and no destructive actions.
+ */
+@Composable
+internal fun FanOutL2MetaModelScreen(
+    run: FanOutRunState,
+    metaModelKey: String,
+    actions: FanOutActions,
+    onOpenPair: (answererKey: String, sourceAgentId: String) -> Unit,
+    onBack: () -> Unit
+) {
+    val subject = com.ai.ui.shared.shortModelName(metaModelKey.substringAfterLast('/'))
+
+    val rows: List<PairState> = remember(run, metaModelKey) {
+        run.pairs.values
+            .filter { it.titleModel == metaModelKey }
+            .sortedBy { it.timestamp }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+        val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
+            {
+                holder.value = run.metaPrompt.name.takeIf { it.isNotBlank() }
+                    ?.let { com.ai.ui.shared.ViewJump.FanOut(it) }
+                    ?: com.ai.ui.shared.ViewJump.Main
+            }
+        }
+        TitleBar(
+            helpTopic = "fan_meta",
+            title = "Fan Meta - meta model",
+            subject = subject,
+            onBackClick = onBack,
+            onOpenView = onOpenViewJump
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (rows.isEmpty()) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text("No titles from this meta model yet", color = AppColors.TextTertiary, fontSize = 13.sp)
+            }
+        } else {
+            val rowsTotalCost = rows.sumOf { it.totalCost }
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(rows, key = { it.key }) { p ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .padding(vertical = 10.dp)
+                            .clickable { onOpenPair("${p.providerId}|${p.model}", p.sourceAgentId) },
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(p.icon ?: "⬜", fontSize = 28.sp, modifier = Modifier.padding(start = 8.dp))
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                p.title ?: "—",
+                                fontSize = 15.sp, color = Color.White,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis
+                            )
+                            // Answerer/report model that produced the response.
+                            Text(
+                                resolveModelLabel("${p.providerId}|${p.model}"),
+                                fontSize = 11.sp, color = AppColors.TextTertiary,
+                                maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        if (p.totalCost > 0.0) {
+                            Text(
+                                formatCents(p.totalCost), fontSize = 12.sp,
+                                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = AppColors.DividerDark)
+                }
+                if (rowsTotalCost > 0.0) {
+                    item(key = "l2-meta-model-total-footer") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                "Total", fontSize = 14.sp, color = AppColors.Blue,
+                                fontWeight = FontWeight.SemiBold,
+                                modifier = Modifier.weight(1f).padding(start = 8.dp)
+                            )
+                            Text(
+                                formatCents(rowsTotalCost), fontSize = 12.sp,
+                                color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                                modifier = Modifier.padding(end = 12.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
  * The L2 OnePageView — renders every pair's source + response in a
  * single scrollable column for read-only review.
  */

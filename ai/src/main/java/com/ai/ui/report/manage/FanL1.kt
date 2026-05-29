@@ -23,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
@@ -35,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
@@ -86,10 +88,18 @@ internal fun FanOutL1Screen(
     onLaunchFanMeta: (FanOutRunKey) -> Unit = {},
     onShowFanMeta: () -> Unit = {},
     onOpenModel: (String) -> Unit,
+    /** Open the Meta-models L2 for one meta-worker model (the
+     *  "Meta models" grouping). Argument is `PairState.titleModel`
+     *  ("provider/model"). */
+    onOpenMetaModel: (String) -> Unit = {},
     onOpenTitles: () -> Unit = {},
     onBack: () -> Unit
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
+    // L1 grouping preset for Fan Meta (META mode only). Survives the
+    // L1↔L2 drill round trip + rotation. Meta models = group by the
+    // meta-worker model; Report models = group by the answerer model.
+    var metaGroupMode by rememberSaveable { mutableStateOf(FanMetaGroupMode.META_MODELS) }
     var confirmRerunComplete by remember { mutableStateOf(false) }
     var confirmRemoveFailed by remember { mutableStateOf(false) }
     var confirmRemoveBenched by remember { mutableStateOf(false) }
@@ -238,6 +248,38 @@ internal fun FanOutL1Screen(
             Row(modifier = Modifier.fillMaxWidth()) {
                 stats.forEach { (_, value, color) ->
                     Text(value, fontSize = 15.sp, color = color, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
+                }
+            }
+        }
+
+        // Grouping preset (META mode only) — Meta models (per meta-
+        // worker model) vs Report models (per answerer model). Sits
+        // below the stats, mirroring the Translation run screen.
+        if (isMetaMode) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                listOf(
+                    FanMetaGroupMode.META_MODELS to "Meta models",
+                    FanMetaGroupMode.REPORT_MODELS to "Report models"
+                ).forEach { (gm, label) ->
+                    FilterChip(
+                        selected = metaGroupMode == gm,
+                        onClick = { metaGroupMode = gm },
+                        label = {
+                            Text(
+                                label,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
         }
@@ -447,18 +489,43 @@ internal fun FanOutL1Screen(
         // Done at the bottom — each group sorted by model name.
         // Re-derives on every runningSet change so a row sinks the
         // moment its last pair lands.
-        val answererKeys = run.answererKeys
-        // Stable order by model name only — deliberately NOT by status, so
-        // a row keeps its place as it finishes instead of jumping to the
-        // bottom of the list mid-run.
-        val sortedKeys = remember(run) {
-            answererKeys.sortedWith(compareBy { ak -> ak.substringAfter('|').lowercase() })
+        // Row list for the active grouping. MAIN + "Report models"
+        // group by answerer model; "Meta models" groups by the meta-
+        // worker model (titleModel) — pairs whose meta hasn't run yet
+        // (null titleModel) drop out until their title lands. Stable
+        // order by model name (NOT status) so a row keeps its place as
+        // it finishes instead of jumping to the bottom mid-run.
+        val l1Rows: List<FanMetaL1RowModel> = remember(run, mode, metaGroupMode) {
+            if (isMetaMode && metaGroupMode == FanMetaGroupMode.META_MODELS) {
+                run.pairs.values
+                    .filter { !it.titleModel.isNullOrBlank() }
+                    .groupBy { it.titleModel!! }
+                    .entries
+                    .sortedBy { it.key.substringAfterLast('/').lowercase() }
+                    .map { (metaKey, pairs) ->
+                        FanMetaL1RowModel(
+                            key = "meta:$metaKey",
+                            label = com.ai.ui.shared.shortModelName(metaKey.substringAfterLast('/')),
+                            pairs = pairs,
+                            onClick = { onOpenMetaModel(metaKey) }
+                        )
+                    }
+            } else {
+                run.answererKeys
+                    .sortedWith(compareBy { ak -> ak.substringAfter('|').lowercase() })
+                    .map { ak ->
+                        FanMetaL1RowModel(
+                            key = "rep:$ak",
+                            label = com.ai.ui.shared.shortModelName(ak.substringAfter('|')),
+                            pairs = run.pairs.values.filter { "${it.providerId}|${it.model}" == ak },
+                            onClick = { onOpenModel(ak) }
+                        )
+                    }
+            }
         }
         LazyColumn(modifier = Modifier.weight(1f)) {
-            items(sortedKeys, key = { it }) { ak ->
-                val pairs = run.pairs.values.filter {
-                    "${it.providerId}|${it.model}" == ak
-                }
+            items(l1Rows, key = { it.key }) { row ->
+                val pairs = row.pairs
                 // ICONS mode: classify by iconStatus (DONE iff
                 // emoji landed, ERROR iff iconErrorMessage). MAIN
                 // mode: classify by the main response status.
@@ -489,7 +556,7 @@ internal fun FanOutL1Screen(
                             }
                         }
                         .padding(vertical = 6.dp)
-                        .clickable { onOpenModel(ak) },
+                        .clickable { row.onClick() },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     // Status glyph — skipped entirely once the whole
@@ -524,7 +591,7 @@ internal fun FanOutL1Screen(
                     Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                         Text(
                             // Model name only — no provider prefix.
-                            com.ai.ui.shared.shortModelName(ak.substringAfter('|')),
+                            row.label,
                             fontSize = 14.sp, color = Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
@@ -558,13 +625,13 @@ internal fun FanOutL1Screen(
                     onClick = onShowResponses,
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                ) { Text("Responses", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                ) { Text("Fan-Out", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 if (hasTitles) {
                     Button(
                         onClick = onOpenTitles,
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
-                    ) { Text("Show Fan Meta", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+                    ) { Text("Show all", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             } else {
                 // MAIN: the Fan Meta entry button. Shows the existing
@@ -746,3 +813,13 @@ internal fun FanOutL1Screen(
         )
     }
 }
+
+/** One L1 model-row descriptor — unifies the "Report models" (per
+ *  answerer) and "Meta models" (per meta-worker) groupings so both
+ *  render through the same row composable. */
+private class FanMetaL1RowModel(
+    val key: String,
+    val label: String,
+    val pairs: List<PairState>,
+    val onClick: () -> Unit
+)

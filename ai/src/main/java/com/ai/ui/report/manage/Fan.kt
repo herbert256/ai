@@ -51,6 +51,12 @@ import kotlinx.coroutines.withContext
  *    instead of the fan-out runner. */
 enum class FanOutMode { MAIN, META }
 
+/** L1 grouping preset for the Fan Meta screen (META mode only).
+ *  Meta models = group by the meta-worker model that produced the
+ *  title+icon ([com.ai.data.PairState.titleModel]); Report models =
+ *  the historical grouping by the answerer/report model. */
+enum class FanMetaGroupMode { META_MODELS, REPORT_MODELS }
+
 sealed class FanOutNav {
     object L1 : FanOutNav()
     data class L2(val answererKey: String, val role: String) : FanOutNav()
@@ -58,6 +64,9 @@ sealed class FanOutNav {
     data class L2OnePage(val answererKey: String, val role: String) : FanOutNav()
     object L1Meta : FanOutNav()
     data class L2Meta(val answererKey: String, val role: String) : FanOutNav()
+    /** Fan Meta L2 in "Meta models" mode — scoped to one meta-worker
+     *  model (`provider/model`), listing the pairs it titled. */
+    data class L2MetaModel(val metaModelKey: String) : FanOutNav()
 }
 
 /** Custom Saver — serialises to a 4-string list so rememberSaveable
@@ -71,6 +80,7 @@ private val fanOutNavSaver: Saver<FanOutNav, Any> = Saver(
             is FanOutNav.L2OnePage -> listOf("L2OP", nav.answererKey, "", nav.role)
             is FanOutNav.L1Meta -> listOf("L1TI", "", "", "")
             is FanOutNav.L2Meta -> listOf("L2TI", nav.answererKey, "", nav.role)
+            is FanOutNav.L2MetaModel -> listOf("L2MM", nav.metaModelKey, "", "")
         }
     },
     restore = { list ->
@@ -83,6 +93,7 @@ private val fanOutNavSaver: Saver<FanOutNav, Any> = Saver(
             "L2OP" -> FanOutNav.L2OnePage(l[1], l[3].ifEmpty { "Responder" })
             "L1TI" -> FanOutNav.L1Meta
             "L2TI" -> FanOutNav.L2Meta(l[1], l[3].ifEmpty { "Responder" })
+            "L2MM" -> FanOutNav.L2MetaModel(l[1])
             else -> FanOutNav.L1
         }
     }
@@ -232,6 +243,7 @@ fun FanOutScreen(
             is FanOutNav.L2OnePage -> FanOutNav.L2(n.answererKey, n.role)
             FanOutNav.L1Meta -> FanOutNav.L1
             is FanOutNav.L2Meta -> FanOutNav.L2(n.answererKey, n.role)
+            is FanOutNav.L2MetaModel -> FanOutNav.L1
         }
     }
 
@@ -288,6 +300,7 @@ fun FanOutScreen(
             // list of what every other model produced in reply. Fan out
             // starts at Responder (the active model answers every row).
             onOpenModel = { ak -> nav = FanOutNav.L2(ak, if (mode != FanOutMode.MAIN) "Initiator" else "Responder") },
+            onOpenMetaModel = { metaKey -> nav = FanOutNav.L2MetaModel(metaKey) },
             onOpenTitles = { nav = FanOutNav.L1Meta },
             onBack = onBack
         )
@@ -350,6 +363,15 @@ fun FanOutScreen(
                 nav = FanOutNav.L3(n.answererKey, srcAgentId, n.role)
             },
             onBack = { nav = FanOutNav.L2(n.answererKey, n.role) }
+        )
+        is FanOutNav.L2MetaModel -> FanOutL2MetaModelScreen(
+            run = runState,
+            metaModelKey = n.metaModelKey,
+            actions = actions,
+            onOpenPair = { ak, srcAgentId ->
+                nav = FanOutNav.L3(ak, srcAgentId, "Responder")
+            },
+            onBack = { nav = FanOutNav.L1 }
         )
     }
 }
