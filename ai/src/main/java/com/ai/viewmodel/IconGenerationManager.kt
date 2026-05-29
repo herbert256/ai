@@ -2187,6 +2187,9 @@ class IconGenerationManager(
                             runFanMetaForPair(context, reportId, pair, fanMetaPrompt, aiSettings)
                         } finally {
                             appViewModel.updateRunningFanMetaPairs { it - pair.id }
+                            // acquireOrWait clears its own wait notification, but
+                            // guard against any stuck id on a hard teardown.
+                            appViewModel.updateThrottledFanMetaPairs { it - pair.id }
                         }
                     }
                 }
@@ -2224,12 +2227,28 @@ class IconGenerationManager(
         val resolved = fanMetaPrompt.text.replace("@PROMPT@", pair.content.orEmpty())
         // A fan-meta reply is usable when it yields at least a title or an
         // emoji; an empty/garbage 200 is a logical miss → next worker.
-        val outcome = rvm.workerRunner.run(fanMetaPrompt, resolved, aiSettings, context) { resp ->
-            val a = resp.analysis
-            val titleRaw = a?.lineSequence()
-                ?.firstOrNull { it.trim().startsWith("title", ignoreCase = true) }
-                ?.substringAfter(":") ?: a
-            extractFirstEmoji(a) != null || cleanTitle(titleRaw).isNotBlank()
+        // Surface real provider throttling to the L1 "Throttled" counter:
+        // a fan-meta call is dynamic-host, so its rate-limit / concurrency
+        // wait happens inside ProviderThrottle.acquireOrWait (via the
+        // dispatch host-gate), not at the batch layer's onThrottled hook.
+        // Install a wait-observer keyed to this pair; acquireOrWait toggles
+        // it as the call parks / is admitted. The element re-installs the
+        // value on whatever thread the coroutine resumes on.
+        val pairId = pair.id
+        val throttleObserver: (Boolean) -> Unit = { waiting ->
+            if (waiting) appViewModel.updateThrottledFanMetaPairs { it + pairId }
+            else appViewModel.updateThrottledFanMetaPairs { it - pairId }
+        }
+        val outcome = withContext(
+            ProviderThrottle.throttleWaitObserver.asContextElement(throttleObserver)
+        ) {
+            rvm.workerRunner.run(fanMetaPrompt, resolved, aiSettings, context) { resp ->
+                val a = resp.analysis
+                val titleRaw = a?.lineSequence()
+                    ?.firstOrNull { it.trim().startsWith("title", ignoreCase = true) }
+                    ?.substringAfter(":") ?: a
+                extractFirstEmoji(a) != null || cleanTitle(titleRaw).isNotBlank()
+            }
         }
         when (outcome) {
             is WorkerOutcome.Success -> {

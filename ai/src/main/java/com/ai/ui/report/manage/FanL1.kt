@@ -190,8 +190,11 @@ internal fun FanOutL1Screen(
         val benchCount = if (isMetaMode)
             run.pairs.values.count { lens(it, runningSet) == PairStatus.ERROR && benched(it.providerId, it.model) }
             else run.pairs.values.count { it.status == PairStatus.ERROR && benched(it.providerId, it.model) }
+        // A META pair parked on a provider's rate-limit cap is still in the
+        // running set (its body started), but it's reported under Throttled —
+        // exclude it here so the two columns don't double-count it.
         val runningCount = if (isMetaMode)
-            run.pairs.values.count { lens(it, runningSet) == PairStatus.RUNNING }
+            run.pairs.values.count { lens(it, runningSet) == PairStatus.RUNNING && it.id !in throttledSet }
             else run.runningCount
         val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
         // Queue excludes pairs that are actively blocked on a host

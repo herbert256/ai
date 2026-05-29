@@ -71,6 +71,25 @@ object ProviderThrottle {
     val backoffPermitYielder: ThreadLocal<((backoffMs: Long) -> Unit)?> =
         ThreadLocal.withInitial { null }
 
+    /** Optional per-flow observer of throttle WAITS — invoked with `true`
+     *  the moment a call first parks on this host's gate (per-minute window
+     *  or concurrency cap) and `false` once it's admitted or the wait is
+     *  abandoned (cancellation). Lets a flow whose real per-provider
+     *  throttling happens deep inside a dynamic-host call surface "this row
+     *  is waiting on a rate-limit" to its UI.
+     *
+     *  Notably Fan Meta: its worker chain is dynamic-host, so each call's
+     *  throttle wait lands at [acquireOrWait] (via `ApiDispatch.withHostGate`)
+     *  rather than at the batch dispatch layer's `acquireThrottledPermits` —
+     *  which is why the batch's own `onThrottled` hook never fires for it and
+     *  its "Throttled" counter read zero. The flow installs this observer as a
+     *  [asContextElement] around its worker call; because [acquireOrWait] runs
+     *  on the coroutine thread the element re-installs the value on, no
+     *  OkHttp-worker propagation (`TagPropagatingExecutor`) is needed. Null =
+     *  no observer (the default for every other flow → zero overhead). */
+    val throttleWaitObserver: ThreadLocal<((waiting: Boolean) -> Unit)?> =
+        ThreadLocal.withInitial { null }
+
     /** Sleep [ms] for a retry backoff. If the current flow registered a
      *  [backoffPermitYielder] (the throttled-batch flows do), delegate to
      *  it so the held permits are released for the duration; otherwise a
@@ -267,14 +286,34 @@ object ProviderThrottle {
      *  against this throttle, and made a legit queue wait trip the DNS-hang
      *  timeout). Cancellation-aware via `delay`. */
     suspend fun acquireOrWait(host: String): Releaser {
-        while (true) {
-            when (val o = tryAcquire(host)) {
-                is Outcome.Acquired -> return o.releaser
-                is Outcome.Blocked -> kotlinx.coroutines.delay(
-                    (o.availableAtMs - System.currentTimeMillis()).coerceIn(50L, 5_000L)
-                )
+        // Capture the observer once: the coroutine may resume on a different
+        // thread after each `delay`, but the lambda is the same object, and a
+        // single capture guarantees the `false` notification pairs with the
+        // `true` even if the ThreadLocal isn't set on the resume thread.
+        val observer = throttleWaitObserver.get()
+        var notifiedWaiting = false
+        try {
+            while (true) {
+                when (val o = tryAcquire(host)) {
+                    is Outcome.Acquired -> return o.releaser
+                    is Outcome.Blocked -> {
+                        if (observer != null && !notifiedWaiting) {
+                            observer(true)
+                            notifiedWaiting = true
+                        }
+                        kotlinx.coroutines.delay(
+                            (o.availableAtMs - System.currentTimeMillis()).coerceIn(50L, 5_000L)
+                        )
+                    }
+                }
             }
+        } finally {
+            // Clear on every exit once parked — admitted OR cancelled mid-wait —
+            // so a row can't stay stuck in the caller's throttled set.
+            if (notifiedWaiting && observer != null) observer(false)
         }
+        @Suppress("UNREACHABLE_CODE")
+        throw IllegalStateException("unreachable")
     }
 
     /** Drop the per-host semaphore + window maps so the next call to
