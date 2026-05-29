@@ -46,6 +46,25 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
     /** workerKey -> epoch-ms the worker becomes selectable again (local 429). */
     private val cooldownUntil = ConcurrentHashMap<String, Long>()
 
+    /** workerKey of workers taken out of rotation for the rest of this session
+     *  because the model itself is gone — HTTP 404 ("model does not exist") /
+     *  410 ("gone"). Unlike the 429 [cooldownUntil] this never expires on its
+     *  own: a retired or mistyped model won't come back mid-session, so
+     *  re-picking it on every pair just burns a call (and a slot in that
+     *  provider's rate window) on a guaranteed miss. Cleared only when the
+     *  WorkerRunner is recreated — i.e. after the user fixes the worker config
+     *  or restarts. Shared across every worker flow on this instance (fan-meta,
+     *  model-titles, model-icons), so one dead model is disabled everywhere. */
+    private val disabledWorkers = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    /** A response whose status says the *model* is unusable (not a transient
+     *  rate-limit): 404 (does not exist) or 410 (gone). Checks the status code
+     *  and the error-string form, mirroring the 429 detection. */
+    private fun isModelGone(resp: AnalysisResponse): Boolean =
+        resp.httpStatusCode == 404 || resp.httpStatusCode == 410 ||
+            resp.error?.contains("API error: 404") == true ||
+            resp.error?.contains("API error: 410") == true
+
     private fun workerKey(w: Worker): String =
         if (w.agent != "*N/A" && w.agent.isNotBlank() && w.agent != "*select")
             "agent:${w.agent.lowercase()}"
@@ -83,6 +102,9 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
         for (idx in order) {
             val w = workers[idx]
             val key = workerKey(w)
+            // Permanently out of order this session (model gone) — skip with no
+            // call. NOT counted as a rate-limit: a dead worker isn't "try later".
+            if (key in disabledWorkers) continue
             if ((cooldownUntil[key] ?: 0L) > System.currentTimeMillis()) { sawRateLimit = true; continue }
             val raw = aiSettings.resolveWorker(w) ?: continue
             val effModel = aiSettings.getEffectiveModelForAgent(raw)
@@ -106,6 +128,14 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
                     cooldownUntil[key] = System.currentTimeMillis() + waitMs
                     sawRateLimit = true
                     AppLog.w("Workers", "429 '${prompt.name}' via ${agent.name} — cooling ${waitMs}ms, next worker")
+                }
+                // Model gone (404 does-not-exist / 410 retired) — not transient.
+                // Take the worker out of rotation for the rest of the session so
+                // it stops wasting a call (and a provider rate slot) on every
+                // pair. The chain still falls through to the next worker now.
+                isModelGone(resp) -> {
+                    disabledWorkers.add(key)
+                    AppLog.w("Workers", "${resp.httpStatusCode ?: "model-gone"} '${prompt.name}' via ${agent.name} — model unavailable, disabling this worker for the session")
                 }
                 // HTTP-200 but no usable artifact (e.g. a reply with no emoji /
                 // no title) — a logical miss; fall through to the next worker
