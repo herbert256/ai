@@ -1806,7 +1806,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
 
 /** Full-screen "<title> - icons" overlay opened by the white ❓ on
  *  allowlisted screens ([LEGEND_OVERLAY_TOPICS]). Lists the bar icons
- *  currently visible — big glyph + purpose (the name from
+ *  currently visible — big glyph + name + a short description (from
  *  [com.ai.ui.admin.SCREEN_ICON_HELP]) — and re-fires each icon's action on
  *  tap. Its own single icon is a red ❓ that opens the screen's full
  *  icon-table help page (all possible icons + descriptions). */
@@ -1817,9 +1817,10 @@ private fun IconLegendOverlay(
     navigateHelp: (String?) -> Unit,
     onClose: () -> Unit
 ) {
-    val purposes = icons.helpTopic
+    // emoji → (name, short description) from the screen's icon legend.
+    val legend = icons.helpTopic
         ?.let { com.ai.ui.admin.SCREEN_ICON_HELP[it] }
-        ?.associate { it.first to it.second }
+        ?.associate { it.first to (it.second to it.third) }
         ?: emptyMap()
     val header = icons.title?.takeIf { it.isNotBlank() }?.let { "$it - icons" } ?: "Icons"
     androidx.compose.ui.window.Dialog(
@@ -1848,12 +1849,20 @@ private fun IconLegendOverlay(
                                     color = if (spec.tint == Color.Unspecified) Color.White else spec.tint
                                 )
                             }
-                            Text(
-                                purposes[spec.emoji] ?: spec.emoji,
-                                color = Color.White, fontSize = 16.sp,
-                                modifier = Modifier.padding(start = 12.dp).weight(1f),
-                                maxLines = 2, overflow = TextOverflow.Ellipsis
-                            )
+                            val entry = legend[spec.emoji]
+                            Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+                                Text(
+                                    entry?.first ?: spec.emoji,
+                                    color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                                entry?.second?.takeIf { it.isNotBlank() }?.let { desc ->
+                                    Text(
+                                        desc, color = AppColors.TextTertiary, fontSize = 13.sp,
+                                        lineHeight = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
                         }
                         HorizontalDivider(color = AppColors.DividerDark)
                     }
