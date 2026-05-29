@@ -1245,10 +1245,7 @@ object PricingCache {
 
     /** Read a tier blob. Look-up order:
      *   1. `filesDir/pricing/<key>.json` — the post-Refresh on-disk copy.
-     *   2. Legacy SharedPreferences key — one-shot migration for installs
-     *      that pre-date the file move; on a hit the prefs entry is
-     *      rewritten to disk and removed from prefs.
-     *   3. Bundled `assets/info-providers/<key>.json` — shipped snapshot
+     *   2. Bundled `assets/info-providers/<key>.json` — shipped snapshot
      *      so a fresh install has working pricing/capabilities tiers
      *      without forcing the user through Housekeeping → Refresh on
      *      first run. Not written through to filesDir: timestamps stay
@@ -1258,25 +1255,13 @@ object PricingCache {
     private fun loadBlob(context: Context, prefsKey: String): String? {
         val f = blobFile(context, prefsKey)
         if (f.exists()) return runCatching { f.readText() }.getOrNull()
-        val prefs = getPrefs(context)
-        val fromPrefs = prefs.getString(prefsKey, null)
-        if (fromPrefs != null) {
-            // Only drop the prefs key after the on-disk copy actually
-            // landed. The previous flow removed the prefs entry
-            // unconditionally, so a writeTextAtomic failure (disk full,
-            // permission, OOM mid-write) silently wiped the only copy.
-            if (f.writeTextAtomic(fromPrefs)) {
-                prefs.edit { remove(prefsKey) }
-            }
-            return fromPrefs
-        }
         return loadBundledInfoProviderBlob(context, prefsKey)
     }
 
     /** Read a bundled tier blob from `assets/info-providers/<key>.json`.
-     *  Used by [loadBlob] when neither the post-Refresh file nor the
-     *  legacy prefs key exists — gives a fresh install pre-populated
-     *  pricing / capability tiers until the user runs Refresh. */
+     *  Used by [loadBlob] when the post-Refresh file doesn't exist —
+     *  gives a fresh install pre-populated pricing / capability tiers
+     *  until the user runs Refresh. */
     private fun loadBundledInfoProviderBlob(context: Context, prefsKey: String): String? = try {
         context.assets.open("info-providers/$prefsKey.json")
             .bufferedReader().use { it.readText() }
@@ -1284,12 +1269,9 @@ object PricingCache {
         null  // Asset absent — tier wasn't shipped, fall through to DEFAULT_PRICING.
     }
 
-    /** Atomically write a tier blob and drop the legacy prefs key if it lingers. */
+    /** Atomically write a tier blob. */
     private fun saveBlob(context: Context, prefsKey: String, json: String) {
-        if (blobFile(context, prefsKey).writeTextAtomic(json)) {
-            val prefs = getPrefs(context)
-            if (prefs.contains(prefsKey)) prefs.edit { remove(prefsKey) }
-        }
+        blobFile(context, prefsKey).writeTextAtomic(json)
     }
 
     /** Lazy first-call population for every cache tier. Cold-call cost is dominated

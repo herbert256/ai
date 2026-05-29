@@ -495,12 +495,7 @@ fun List<MaxTokensRule>?.resolveMaxTokens(modelId: String): Int? =
  * JSON-serializable representation of an AppService provider definition.
  */
 data class ProviderDefinition(
-    /** Stable identifier + UI label. Pre-unification builds carried
-     *  three fields (id / displayName / prefsKey); the id-unification
-     *  refactor collapsed them. Legacy persisted entries with a
-     *  `displayName` field present are remapped at restore / startup
-     *  time by [com.ai.ui.settings.SettingsPreferences.migrateLegacyProviderIds]
-     *  before this deserialiser is reached. */
+    /** Stable identifier + UI label. */
     val id: String,
     val baseUrl: String,
     val adminUrl: String? = "",
@@ -509,10 +504,6 @@ data class ProviderDefinition(
     val apiFormat: String? = "OPENAI_COMPATIBLE",
     /** Canonical per-type path map. */
     val typePaths: Map<String, String>? = null,
-    /** Legacy field — folded into typePaths during deserialization for existing prefs / setup.json. */
-    val chatPath: String? = null,
-    /** Legacy field — folded into typePaths during deserialization. */
-    val responsesPath: String? = null,
     val modelsPath: String? = "v1/models",
     val seedFieldName: String? = "seed",
     val supportsCitations: Boolean? = false,
@@ -609,21 +600,10 @@ data class ProviderDefinition(
     /** When true the bundle seeds `providerStates[id]="inactive"` on
      *  first install so the provider shows 💤 by default. Existing
      *  installs with an API key already set are left alone. */
-    val defaultInactive: Boolean? = null,
-    /** Deprecated — kept on the deserialization shape so old prefs / setup.json
-     *  files with the field still parse, but ignored at dispatch time
-     *  (ModelType.infer drives Responses-vs-Chat routing now). Will be
-     *  removed in a future export-version bump. */
-    @Suppress("unused")
-    val endpointRules: List<Map<String, String>>? = null
+    val defaultInactive: Boolean? = null
 ) {
     fun toAppService(): AppService {
-        // Migrate legacy chatPath/responsesPath into the typePaths map. Explicit
-        // map entries always win; legacy fields only fill in if the corresponding
-        // type isn't already declared.
-        val paths = (typePaths ?: emptyMap()).toMutableMap()
-        chatPath?.takeIf { it.isNotBlank() }?.let { paths.putIfAbsent(ModelType.CHAT, it) }
-        responsesPath?.takeIf { it.isNotBlank() }?.let { paths.putIfAbsent(ModelType.RESPONSES, it) }
+        val paths = typePaths ?: emptyMap()
         return AppService(
             id = id, baseUrl = baseUrl, adminUrl = adminUrl ?: "",
             defaultModel = defaultModel, openRouterName = openRouterName,
@@ -667,8 +647,6 @@ data class ProviderDefinition(
             defaultModel = s.defaultModel, openRouterName = s.openRouterName,
             apiFormat = s.apiFormat.name,
             typePaths = s.typePaths.takeIf { it.isNotEmpty() },
-            // Legacy fields no longer written — typePaths is canonical now.
-            chatPath = null, responsesPath = null,
             modelsPath = s.modelsPath,
             seedFieldName = s.seedFieldName,
             supportsCitations = s.supportsCitations, supportsSearchRecency = s.supportsSearchRecency,

@@ -132,11 +132,6 @@ object LocalEmbedder {
         }
     }
 
-    /** Backwards-compat shim — same as calling [download] with the
-     *  default spec. */
-    fun downloadDefaultModel(context: Context, onProgress: (Long, Long) -> Unit): Boolean =
-        download(context, downloadable.first { it.name == DEFAULT_MODEL_NAME }, onProgress)
-
     private fun recordDownloadTrace(spec: DownloadableModel, bytes: Long, durationMs: Long, error: String?) {
         if (!ApiTracer.isTracingEnabled) return
         val gson = createAppGson()

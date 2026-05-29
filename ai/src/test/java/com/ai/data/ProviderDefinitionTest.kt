@@ -20,7 +20,8 @@ class ProviderDefinitionTest {
     @Test fun explicit_fields_override_defaults() {
         val def = ProviderDefinition(
             id = "Custom", baseUrl = "https://x.com/",
-            defaultModel = "c", apiFormat = "ANTHROPIC", chatPath = "v1/messages"
+            defaultModel = "c", apiFormat = "ANTHROPIC",
+            typePaths = mapOf(ModelType.CHAT to "v1/messages")
         )
         val service = def.toAppService()
         assertThat(service.apiFormat).isEqualTo(ApiFormat.ANTHROPIC)
