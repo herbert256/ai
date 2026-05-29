@@ -303,6 +303,7 @@ internal fun AgentIconDetailOverlay(
     agentIconFanOutByAgent: Map<String, List<IconCandidate>>,
     onNavigateToTraceFile: (String) -> Unit,
     onFindAlternativeIcons: (Boolean) -> Unit,
+    onApplyIcon: (String) -> Unit,
     onClose: () -> Unit,
 ): Boolean {
     val iconPrompt = aiSettings.internalPrompts.firstOrNull {
@@ -355,6 +356,7 @@ internal fun AgentIconDetailOverlay(
             traceFile = agentIconTraceFilename,
             hasActiveFanOut = hasActiveAgentFanOut,
             onFindAlternativeIcons = { onFindAlternativeIcons(hasActiveAgentFanOut) },
+            onApplyIcon = onApplyIcon,
             onContinueChat = null,
             onNavigateToModelInfo = { /* model info nav not currently wired in this overlay */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
@@ -385,6 +387,7 @@ internal fun PairIconDetailOverlay(
     pairIconFanOutByPair: Map<String, List<IconCandidate>>,
     onNavigateToTraceFile: (String) -> Unit,
     onFindAlternativeIcons: (Boolean) -> Unit,
+    onApplyIcon: (String) -> Unit,
     onClose: () -> Unit
 ): Boolean {
     val context = LocalContext.current
@@ -487,6 +490,7 @@ internal fun PairIconDetailOverlay(
             traceFile = pairIconTraceFile,
             hasActiveFanOut = hasActivePairFanOut,
             onFindAlternativeIcons = { onFindAlternativeIcons(hasActivePairFanOut) },
+            onApplyIcon = onApplyIcon,
             onContinueChat = null,
             onNavigateToModelInfo = { /* model info nav not currently wired in this overlay */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
@@ -511,6 +515,7 @@ internal fun MetaIconDetailOverlay(
     loadedReportTitle: String?,
     onOpenAlternativeIcons: (Boolean) -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
+    onApplyIcon: (String) -> Unit,
     onClose: () -> Unit
 ): Boolean {
     val prompt = internalPrompts.firstOrNull { it.id == promptId } ?: return false
@@ -549,6 +554,7 @@ internal fun MetaIconDetailOverlay(
             traceFile = metaTraceFile,
             hasActiveFanOut = hasActiveFanOut,
             onFindAlternativeIcons = { onOpenAlternativeIcons(hasActiveFanOut) },
+            onApplyIcon = onApplyIcon,
             onContinueChat = null,
             onNavigateToModelInfo = { /* meta-icon flow doesn't wire Model Info nav */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
@@ -573,6 +579,7 @@ internal fun TranslationIconDetailOverlay(
     loadedReportTitle: String?,
     onOpenAlternativeIcons: (Boolean) -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
+    onApplyIcon: (String) -> Unit,
     onClose: () -> Unit
 ) {
     val entry = remember(language, iconRefreshTick) {
@@ -607,6 +614,7 @@ internal fun TranslationIconDetailOverlay(
             traceFile = translationTraceFile,
             hasActiveFanOut = hasActiveFanOut,
             onFindAlternativeIcons = { onOpenAlternativeIcons(hasActiveFanOut) },
+            onApplyIcon = onApplyIcon,
             onContinueChat = null,
             onNavigateToModelInfo = { /* translation-icon flow doesn't wire Model Info nav */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
@@ -628,6 +636,7 @@ internal fun RenderLanguageDetailOverlay(
     onNavigateToModelInfo: (AppService, String) -> Unit,
     continueChat: ContinueChatCallbacks?,
     onFindAlternativeIcons: () -> Unit,
+    onApplyIcon: (String) -> Unit,
     onBack: () -> Unit,
 ) {
     val languagePrompt = aiSettings.internalPrompts.firstOrNull {
@@ -702,6 +711,7 @@ internal fun RenderLanguageDetailOverlay(
             traceFile = snapshot.traceFile,
             hasActiveFanOut = hasActiveFanOut,
             onFindAlternativeIcons = onFindAlternativeIcons,
+            onApplyIcon = onApplyIcon,
             onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
             onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
             onNavigateToTraceFile = onNavigateToTraceFile,
@@ -737,6 +747,8 @@ internal fun ReportIconOrLanguageDetailOverlay(
     continueChat: ContinueChatCallbacks?,
     onOpenPicker: () -> Unit,
     onOpenAltIcons: () -> Unit,
+    onApplyReportIcon: (String) -> Unit,
+    onApplyLanguageIcon: (String) -> Unit,
     onClose: () -> Unit,
 ): Boolean {
     if (targetLanguageIcon) {
@@ -753,6 +765,7 @@ internal fun ReportIconOrLanguageDetailOverlay(
             onNavigateToModelInfo = onNavigateToModelInfo,
             continueChat = continueChat,
             onFindAlternativeIcons = { if (hasLangFanOut) onOpenAltIcons() else onOpenPicker() },
+            onApplyIcon = onApplyLanguageIcon,
             onBack = onClose
         )
         return true
@@ -805,6 +818,7 @@ internal fun ReportIconOrLanguageDetailOverlay(
             traceFile = reportIconTraceFile,
             hasActiveFanOut = hasActiveFanOut,
             onFindAlternativeIcons = { if (hasActiveFanOut) onOpenAltIcons() else onOpenPicker() },
+            onApplyIcon = onApplyReportIcon,
             onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
             onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
             onNavigateToTraceFile = onNavigateToTraceFile,

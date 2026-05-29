@@ -277,6 +277,8 @@ internal fun ReportIconFlowOverlays(
                 st.showFindIconsPicker.value = true
             },
             onOpenAltIcons = { st.showAlternativeIcons.value = true },
+            onApplyReportIcon = { emoji -> onPickAlternativeIcon(currentReportId, emoji, "") },
+            onApplyLanguageIcon = { emoji -> languageIconCallbacks.onPickAlternative(currentReportId, emoji, "") },
             onClose = {
                 st.showIconDetail.value = false
                 st.targetLanguageIcon.value = false
@@ -302,6 +304,9 @@ internal fun ReportIconFlowOverlays(
                 st.fanOutTargetAgentId.value = st.agentIconDetailFor.value
                 if (hasActiveAgentFanOut) st.showAlternativeIcons.value = true
                 else st.showFindIconsPicker.value = true
+            },
+            onApplyIcon = { emoji ->
+                currentReportId?.let { rid -> onPickAgentIcon(rid, agentIconDetailFor, emoji) }
             },
             onClose = {
                 st.agentIconDetailFor.value = null
@@ -329,6 +334,7 @@ internal fun ReportIconFlowOverlays(
                 if (hasActive) st.showAlternativeIcons.value = true
                 else st.showFindIconsPicker.value = true
             },
+            onApplyIcon = { emoji -> onPickPairIcon(currentReportId, pairIconDetailFor, emoji) },
             onClose = { st.pairIconDetailFor.value = null }
         )
         if (handled) return true
@@ -349,6 +355,17 @@ internal fun ReportIconFlowOverlays(
                 else st.showFindIconsPicker.value = true
             },
             onNavigateToTraceFile = onNavigateToTraceFile,
+            onApplyIcon = { emoji ->
+                val rowId = st.metaRowIdForPromptIcon.value
+                if (rowId != null && currentReportId != null) {
+                    // Per-row override — sets just this Meta result's icon.
+                    promptIconCallbacks.onPickRow(currentReportId, rowId, emoji)
+                } else {
+                    // No specific row → set the shared per-prompt cache entry.
+                    aiSettings.internalPrompts.firstOrNull { it.id == promptIconDetailForId }
+                        ?.let { promptIconCallbacks.onPick(it, IconCandidate.Done(AppService.LOCAL, "", emoji, 0.0)) }
+                }
+            },
             onClose = {
                 st.promptIconDetailForId.value = null
                 st.metaRowIdForPromptIcon.value = null
@@ -372,6 +389,9 @@ internal fun ReportIconFlowOverlays(
                 else st.showFindIconsPicker.value = true
             },
             onNavigateToTraceFile = onNavigateToTraceFile,
+            onApplyIcon = { emoji ->
+                translationIconCallbacks.onPick(translationIconLanguageFor, IconCandidate.Done(AppService.LOCAL, "", emoji, 0.0))
+            },
             onClose = { st.translationIconLanguageFor.value = null }
         )
         return true

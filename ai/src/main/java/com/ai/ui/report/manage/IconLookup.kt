@@ -14,17 +14,28 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -43,10 +54,14 @@ import com.ai.ui.shared.shareText
  *  hand-rolled per-scope detail screens. Built around [IconLookupContext]
  *  so each scope's caller passes a small adapter-built record and the
  *  layout / icon-bar / Find-alt button are all shared. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IconLookupScreen(ctx: IconLookupContext) {
     BackHandler { ctx.onBack() }
     val context = LocalContext.current
+    var showManualEdit by remember { mutableStateOf(false) }
+    var showSelectIcon by remember { mutableStateOf(false) }
+    var manualText by remember { mutableStateOf("") }
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = ctx.helpTopic,
@@ -167,7 +182,65 @@ fun IconLookupScreen(ctx: IconLookupContext) {
                     maxLines = 1, softWrap = false
                 )
             }
+            // Manual edit + Select icon — set the icon directly (no fan-out).
+            if (ctx.onApplyIcon != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { manualText = ctx.emoji ?: ""; showManualEdit = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text("Manual edit icon", maxLines = 1, softWrap = false) }
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { showSelectIcon = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text("Select icon", maxLines = 1, softWrap = false) }
+            }
             Spacer(modifier = Modifier.height(12.dp))
+        }
+    }
+
+    // "Manual edit icon" — type/paste a glyph directly.
+    val apply = ctx.onApplyIcon
+    if (apply != null && showManualEdit) {
+        AlertDialog(
+            onDismissRequest = { showManualEdit = false },
+            title = { Text("Manual edit icon") },
+            text = {
+                OutlinedTextField(
+                    value = manualText, onValueChange = { manualText = it },
+                    label = { Text("Icon glyph") }, singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = AppColors.outlinedFieldColors()
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val t = manualText.trim()
+                    showManualEdit = false
+                    if (t.isNotEmpty()) apply(t)
+                }) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showManualEdit = false }) { Text("Cancel") }
+            }
+        )
+    }
+    // "Select icon" — the same emoji picker as Settings → Default icons.
+    if (apply != null && showSelectIcon) {
+        ModalBottomSheet(onDismissRequest = { showSelectIcon = false }) {
+            AndroidView(
+                factory = { c ->
+                    androidx.emoji2.emojipicker.EmojiPickerView(c).apply {
+                        setOnEmojiPickedListener { picked ->
+                            showSelectIcon = false
+                            apply(picked.emoji)
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(360.dp)
+            )
         }
     }
 }
@@ -216,6 +289,12 @@ data class IconLookupContext(
      *  in flight or has results sitting on the live list. */
     val hasActiveFanOut: Boolean,
     val onFindAlternativeIcons: () -> Unit,
+    /** Apply a chosen emoji directly to this icon scope — drives the
+     *  "Manual edit icon" popup and the "Select icon" emoji picker. Each
+     *  adapter wires it to its scope's emoji-direct persist (which bumps
+     *  iconRefreshTick so the displayed glyph refreshes). Null hides both
+     *  buttons. */
+    val onApplyIcon: ((emoji: String) -> Unit)? = null,
     /** Continue-in-chat (💬) — non-null only when the source supports
      *  it (report-level, language, agent tier-1). Null hides the icon. */
     val onContinueChat: (() -> Unit)?,
