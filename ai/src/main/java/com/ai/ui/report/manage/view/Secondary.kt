@@ -568,25 +568,20 @@ internal fun SecondaryResultsScreen(
                     fanOutEngine.removeBenchedPairs(context, rk)
                     refreshTick++
                 },
-                onRestartFailedPairs = { _ ->
-                    // Route through the legacy path (rerunFailedFanOutPairs
-                    // → resetAndRelaunch → rerunFanOutPlaceholders) which
-                    // fires every errored pair in parallel via async /
-                    // awaitAll, populates runningFanOutPairs for the
-                    // in-flight overlay, and applies per-host throttle
-                    // caps. The disk rows are reset synchronously before
-                    // the dispatch, so the refreshTick bump re-hydrates
-                    // engine state to PENDING for those pairs.
-                    onRestartFailedFanOut(fanOutPrompt)
+                onRestartFailedPairs = { rk ->
+                    // Engine batch-reruns every errored pair (ERROR →
+                    // PENDING → RUNNING per pair, reflected reactively in
+                    // the flow). refreshTick re-reads the disk-backed lists.
+                    fanOutEngine.restartFailedPairs(context, rk)
                     refreshTick++
                 },
                 onRemoveFailedPairsForModel = { rk, prov, mdl ->
                     fanOutEngine.removeFailedPairsForModel(context, rk, prov, mdl)
                     refreshTick++
                 },
-                onRestartFailedPairsForModel = { _, prov, mdl ->
+                onRestartFailedPairsForModel = { rk, prov, mdl ->
                     // L2-scoped — same rationale as onRestartFailedPairs.
-                    onRestartFailedFanOutForModel(fanOutPrompt, prov, mdl)
+                    fanOutEngine.restartFailedPairsForModel(context, rk, prov, mdl)
                     refreshTick++
                 },
                 onRerunPair = { rk, pk ->
@@ -637,7 +632,6 @@ internal fun SecondaryResultsScreen(
                 reportId = reportId,
                 runKey = runKey,
                 actions = actions,
-                runningSet = effectiveRunningFanOutPairs,
                 throttledSet = fanRuntime.throttledFanOutPairs,
                 mode = fanMode,
                 onShowResponses = onShowResponses,

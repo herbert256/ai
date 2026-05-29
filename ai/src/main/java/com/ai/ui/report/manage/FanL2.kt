@@ -48,7 +48,6 @@ import com.ai.data.PairState
 import com.ai.data.PairStatus
 import com.ai.data.Report
 import com.ai.data.ReportStorage
-import com.ai.data.titleStatus
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ReloadConfirmationDialog
@@ -72,7 +71,6 @@ import kotlinx.coroutines.withContext
 internal fun FanOutL2Screen(
     engine: FanOutEngine,
     run: FanOutRunState,
-    runningSet: Set<String>,
     answererKey: String,
     role: String,
     actions: FanOutActions,
@@ -101,10 +99,6 @@ internal fun FanOutL2Screen(
     // for every pair.)
     val isTitlesMode = mode == FanOutMode.META
     val isMetaMode = isTitlesMode
-    fun lens(p: PairState, set: Set<String>): PairStatus = when (mode) {
-        FanOutMode.META -> p.titleStatus(set)
-        else -> p.status
-    }
     val rawRows: List<PairState> = remember(run, role, answererKey) {
         when (role) {
             "Initiator" -> run.pairs.values.filter {

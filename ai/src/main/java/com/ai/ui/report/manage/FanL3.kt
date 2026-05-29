@@ -70,7 +70,6 @@ import kotlinx.coroutines.withContext
 internal fun FanOutL3Screen(
     engine: FanOutEngine,
     run: FanOutRunState,
-    runningSet: Set<String>,
     answererKey: String,
     sourceAgentId: String,
     role: String,

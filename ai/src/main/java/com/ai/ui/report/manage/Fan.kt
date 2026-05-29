@@ -167,14 +167,6 @@ fun FanOutScreen(
     reportId: String,
     runKey: FanOutRunKey,
     actions: FanOutActions,
-    /** Live in-flight pair ids — passed from the parent to bridge
-     *  the legacy `runningFanOutPairs` StateFlow into the new
-     *  screens. Each level's classifier consults this set to
-     *  promote a disk-derived PENDING into RUNNING for pairs whose
-     *  per-pair coroutine has acquired its throttle permit. Empty
-     *  set is a valid degenerate case (no in-flight info — every
-     *  pair reads as the disk says). */
-    runningSet: Set<String> = emptySet(),
     /** Pair ids currently blocked inside
      *  [com.ai.data.ProviderThrottle.acquire] (per-minute rate
      *  limit). Surfaces as the L1 Throttled counter. */
@@ -275,9 +267,11 @@ fun FanOutScreen(
     // In ICONS / TITLES mode, the L1 / L2 / L3 classifiers read the
     // icon- / title-batch status off pair.iconStatus(...) /
     // pair.titleStatus(...) — fed by these sets.
+    // MAIN mode reads PairStatus directly from the engine flow, so it
+    // needs no running-set; only META's title-status lens uses one.
     val effectiveRunningSet = when (mode) {
         FanOutMode.META -> runningMetaSet
-        else -> runningSet
+        else -> emptySet()
     }
     val effectiveThrottledSet = when (mode) {
         FanOutMode.META -> throttledMetaSet
@@ -307,7 +301,6 @@ fun FanOutScreen(
         is FanOutNav.L2 -> FanOutL2Screen(
             engine = engine,
             run = runState,
-            runningSet = effectiveRunningSet,
             answererKey = n.answererKey,
             role = n.role,
             actions = actions,
@@ -327,7 +320,6 @@ fun FanOutScreen(
         is FanOutNav.L3 -> FanOutL3Screen(
             engine = engine,
             run = runState,
-            runningSet = effectiveRunningSet,
             answererKey = n.answererKey,
             sourceAgentId = n.sourceAgentId,
             role = n.role,
