@@ -1864,13 +1864,15 @@ private fun IconLegendOverlay(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Match the bottom bar's help glyph size (it scales up to
+                    // the 2.1× ceiling) so this red ❓ isn't tiny here.
                     TitleBarIcon("❓", AppColors.Red, {
                         onClose()
                         icons.helpTopic?.let { base ->
                             val iconsTopic = "${base}_icons"
                             navigateHelp(if (com.ai.ui.admin.HELP_TOPICS.containsKey(iconsTopic)) iconsTopic else base)
                         }
-                    }, width = 22.dp, heightDp = 32)
+                    }, width = 18.dp, heightDp = 32, scale = 2.1f)
                 }
             }
         }
