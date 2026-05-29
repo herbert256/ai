@@ -12,7 +12,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -31,6 +33,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -735,7 +738,10 @@ data class TitleBarIcons(
     /** Optional 🚩 validate-prompt (moderation) hook. Grayed when
      *  [validatePromptActive] is false. Null → glyph hidden. */
     val onValidatePrompt: (() -> Unit)? = null,
-    val validatePromptActive: Boolean = false
+    val validatePromptActive: Boolean = false,
+    /** The screen's title, captured so the live "<title> - icons" overlay
+     *  (white ❓ on allowlisted screens) can header itself. Null → "Icons". */
+    val title: String? = null
 )
 
 /** Make a model-name Text clickable so tapping it opens the Model
@@ -1087,6 +1093,7 @@ fun TitleBar(
     val state = LocalBottomIconState.current
     val captured = TitleBarIcons(
         helpTopic = helpTopic,
+        title = title,
         onChat = onChat,
         onInfo = onInfo,
         onOpenView = onOpenView,
@@ -1640,6 +1647,11 @@ private fun TitleBarIcon(
  *  system back gesture, routed through each screen's [BackHandler].
  *  Icons render at a 1.25× scale by default, narrowing adaptively when
  *  the strip would otherwise overflow on a narrow screen. */
+/** Screens whose white ❓ opens the live "<title> - icons" overlay instead
+ *  of navigating to the help page. Piloted on Manage report; add a
+ *  helpTopic here to roll the behaviour out to that screen. */
+private val LEGEND_OVERLAY_TOPICS = setOf("report_run")
+
 @Composable
 fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
     // Non-null on the non-View screens (regular TitleBar) — flips the
@@ -1658,6 +1670,12 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         }
     } ?: 0f
     val specs = if (icons != null) buildBottomBarIcons(icons) else emptyList()
+    val navigateHelp = LocalNavigateToHelp.current
+    // On allowlisted screens the white ❓ opens a live icon-legend overlay
+    // (this screen's visible bar icons) instead of the help page. The
+    // overlay's own red ❓ then opens the full icon-table help page.
+    val useLegend = (icons?.helpTopic in LEGEND_OVERLAY_TOPICS) && specs.isNotEmpty()
+    var showLegend by remember { mutableStateOf(false) }
     val extraGap = 2
     fun intrinsicOf(list: List<BottomBarIcon>): Float {
         if (list.isEmpty()) return 1f
@@ -1699,10 +1717,10 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         // Second help glyph ❔ — a per-screen "what do these icons do?" page.
         // Shown just left of ❓ when this screen has its own "<topic>_icons"
         // help page AND more than 3 action icons (❓/❔ not counted).
-        val navigateHelp = LocalNavigateToHelp.current
+        // (Suppressed on useLegend screens — the overlay's red ❓ replaces it.)
         val iconTopic = icons?.helpTopic?.let { "${it}_icons" }
             ?.takeIf { com.ai.ui.admin.HELP_TOPICS.containsKey(it) }
-        val showIconHelp = iconTopic != null && specs.size > 3
+        val showIconHelp = iconTopic != null && specs.size > 3 && !useLegend
         val cell = 24                       // uniform column width (dp) — tight spacing
         // Fill rows of up to 7, but put the SMALLEST (remainder) row on
         // TOP so the full rows sit at the bottom. ❓ pins to the right of
@@ -1755,8 +1773,92 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                         if (showIconHelp && iconTopic != null) {
                             TitleBarIcon("❔", AppColors.Blue, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale)
                         }
-                        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
+                        TitleBarIcon("❓", AppColors.Blue, if (useLegend) ({ showLegend = true }) else onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
                     }
+                }
+            }
+        }
+    }
+
+    // Live icon-legend overlay — white ❓ on allowlisted screens opens this
+    // instead of navigating to the help page.
+    if (showLegend && icons != null) {
+        IconLegendOverlay(
+            icons = icons,
+            specs = specs,
+            navigateHelp = navigateHelp,
+            onClose = { showLegend = false }
+        )
+    }
+}
+
+/** Full-screen "<title> - icons" overlay opened by the white ❓ on
+ *  allowlisted screens ([LEGEND_OVERLAY_TOPICS]). Lists the bar icons
+ *  currently visible — big glyph + purpose (the name from
+ *  [com.ai.ui.admin.SCREEN_ICON_HELP]) — and re-fires each icon's action on
+ *  tap. Its own single icon is a red ❓ that opens the screen's full
+ *  icon-table help page (all possible icons + descriptions). */
+@Composable
+private fun IconLegendOverlay(
+    icons: TitleBarIcons,
+    specs: List<BottomBarIcon>,
+    navigateHelp: (String?) -> Unit,
+    onClose: () -> Unit
+) {
+    val purposes = icons.helpTopic
+        ?.let { com.ai.ui.admin.SCREEN_ICON_HELP[it] }
+        ?.associate { it.first to it.second }
+        ?: emptyMap()
+    val header = icons.title?.takeIf { it.isNotBlank() }?.let { "$it - icons" } ?: "Icons"
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 8.dp)) {
+                Text(
+                    header, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                Column(
+                    modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                ) {
+                    specs.forEach { spec ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { onClose(); spec.onClick() }
+                                .padding(vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
+                                Text(
+                                    spec.emoji, fontSize = 30.sp,
+                                    color = if (spec.tint == Color.Unspecified) Color.White else spec.tint
+                                )
+                            }
+                            Text(
+                                purposes[spec.emoji] ?: spec.emoji,
+                                color = Color.White, fontSize = 16.sp,
+                                modifier = Modifier.padding(start = 12.dp).weight(1f),
+                                maxLines = 2, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        HorizontalDivider(color = AppColors.DividerDark)
+                    }
+                }
+                // The overlay's own icons bar: just a red ❓ → the full icon table.
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 18.dp, end = 2.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TitleBarIcon("❓", AppColors.Red, {
+                        onClose()
+                        icons.helpTopic?.let { base ->
+                            val iconsTopic = "${base}_icons"
+                            navigateHelp(if (com.ai.ui.admin.HELP_TOPICS.containsKey(iconsTopic)) iconsTopic else base)
+                        }
+                    }, width = 22.dp, heightDp = 32)
                 }
             }
         }
