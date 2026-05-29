@@ -121,7 +121,10 @@ fun HelpScreen(
                 // Top cross-link to this screen's per-icon help page, when
                 // one exists (topic id "<screen>_icons"). Generic — every
                 // screen that gains an icon page gets this link for free.
+                // Suppressed on screens that have the live "<screen> - icons"
+                // overlay (white ❔) — there it's redundant.
                 if (topicId != null && !topicId.endsWith("_icons") &&
+                    topicId !in com.ai.ui.shared.LEGEND_OVERLAY_TOPICS &&
                     HELP_TOPICS.containsKey("${topicId}_icons")) {
                     HomeSubpageLink(
                         "❔", "Icons on this screen",
@@ -147,7 +150,10 @@ fun HelpScreen(
                 if (topicId != null) {
                     if (topicId.endsWith("_icons")) {
                         SCREEN_ICON_HELP[topicId.removeSuffix("_icons")]?.let { IconHelpTable(it) }
-                    } else if (topicId in SCREEN_ICON_HELP && topicId !in ICON_HELP_AS_PAGE) {
+                    } else if (topicId in SCREEN_ICON_HELP && topicId !in ICON_HELP_AS_PAGE &&
+                        topicId !in com.ai.ui.shared.LEGEND_OVERLAY_TOPICS) {
+                        // Screens with the live icon overlay don't repeat the
+                        // icon table inline on their help page.
                         IconHelpTable(SCREEN_ICON_HELP.getValue(topicId), title = "Icons on this screen")
                     }
                 }

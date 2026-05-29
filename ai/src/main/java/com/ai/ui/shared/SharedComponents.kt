@@ -1651,8 +1651,9 @@ private fun TitleBarIcon(
  *  of navigating to the icon-table help page. Covers the whole report-Manage
  *  family (the View family uses its own ViewBottomBar, so it's excluded
  *  automatically). Add a helpTopic here to roll the behaviour out to more
- *  screens. */
-private val LEGEND_OVERLAY_TOPICS = setOf(
+ *  screens. Also read by [com.ai.ui.admin.HelpScreen] to suppress the now-
+ *  redundant icon-table help content on these screens. */
+internal val LEGEND_OVERLAY_TOPICS = setOf(
     // Manage hub + its edit/create overlays and sub-editors.
     "report_run",
     "report_edit_overview", "report_edit_icons", "report_edit_titles",
@@ -1899,14 +1900,13 @@ private fun IconLegendOverlay(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Match the bottom bar's help glyph size (it scales up to
-                    // the 2.1× ceiling) so this red ❓ isn't tiny here.
+                    // Red ❓ → this screen's main help page (the live overlay
+                    // already covers the icons, so it no longer points to the
+                    // standalone icon-table page). Match the bottom bar's help
+                    // glyph size (scales to the 2.1× ceiling) so it isn't tiny.
                     TitleBarIcon("❓", AppColors.Red, {
                         onClose()
-                        icons.helpTopic?.let { base ->
-                            val iconsTopic = "${base}_icons"
-                            navigateHelp(if (com.ai.ui.admin.HELP_TOPICS.containsKey(iconsTopic)) iconsTopic else base)
-                        }
+                        navigateHelp(icons.helpTopic)
                     }, width = 18.dp, heightDp = 32, scale = 2.1f)
                 }
             }
