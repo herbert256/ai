@@ -29,12 +29,13 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
 /** Secondary-result orchestration extracted from [ReportViewModel]:
- *  rerank / moderation, the cartesian fan-out + its resume/rerun/remove
- *  lifecycle, fan-in (+ model fan-in), meta runs, the shared
- *  executeSecondaryTask dispatch, and secondary-result deletion. Shared
- *  job maps (fanOutJobs / fanOutPairJobs / staleResumeScans /
- *  resumingMetaIds) + helpers stay on [rvm] (shared with report gen,
- *  cancellation, and FanOutEngine) and are reached via rvm.* . */
+ *  rerank / moderation, fan-in (+ model fan-in), meta runs, the shared
+ *  executeSecondaryTask dispatch, secondary-result deletion, and the
+ *  cross-kind report-open / background resume orchestrator. The whole
+ *  fan-out lifecycle (launch / rerun / remove / resume) now lives on
+ *  [com.ai.viewmodel.FanOutEngine] ([rvm.fanOutEngine]); this class only
+ *  delegates to it from the resume orchestrator + fan-in's join. The
+ *  `resumingMetaIds` guard stays on [rvm] and is reached via rvm.* . */
 class SecondaryRunManager(
     private val appViewModel: AppViewModel,
     private val rvm: ReportViewModel
@@ -245,374 +246,6 @@ class SecondaryRunManager(
         }
     }
 
-    /** Fan-out Meta runner: for each successful report-model
-     *  (the "answerer") and each source model in [scopeChoice], runs
-     *  the prompt with `@RESPONSE@` substituted by the source's
-     *  response body. Self-pairs are skipped. Always runs on the
-     *  Original language; fan out does not fan out to translations.
-     *
-     *  Persists one [SecondaryResult] per (answerer, source) with
-     *  kind=META and fanOutSourceAgentId=source.agentId so the result
-     *  drill-in can group by answerer then by source.
-     */
-    fun runFanOutPrompt(
-        context: Context,
-        reportId: String,
-        metaPrompt: com.ai.model.InternalPrompt,
-        scopeChoice: SecondaryScope = SecondaryScope.AllReports,
-        /** Subset of report-agent ids that should act as "answerers"
-         *  (the model receiving the prompt with @RESPONSE@ filled in).
-         *  Null = use every successful agent — preserves the pre-feature
-         *  default for callers that haven't been updated. The fan-out
-         *  confirmation screen passes the user's checked Responder set
-         *  so picking 2 responders × 3 initiators yields exactly the
-         *  6-minus-self pairs the user expects, instead of always
-         *  fanning out every successful agent on the answerer side. */
-        responderAgentIds: Set<String>? = null,
-        /** English-language name (e.g. "Dutch") to draw the per-pair
-         *  source body + prompt from. Null = run on the original
-         *  untranslated text — the historical default. When non-null,
-         *  each source agent's TRANSLATE row for that language supplies
-         *  the body fed into @RESPONSE@; missing translations fall back
-         *  to the original body for that one pair. The placeholder is
-         *  tagged with targetLanguage so the L1 list groups the run
-         *  under the chosen language. Fan-out is single-language by
-         *  construction; the scope screen enforces this. */
-        sourceLanguage: String? = null,
-        paramsIds: List<String> = emptyList(),
-        systemPromptId: String? = null
-    ): Job? {
-        // Dedupe against an already-running fan out for this
-        // (report, metaPrompt) — a UI double-tap on the launch
-        // button or a second caller via a separate path would
-        // otherwise create a parallel batch with its own
-        // placeholders, doubling pairs and cost.
-        rvm.fanOutJobs[rvm.fanOutJobKey(reportId, metaPrompt.id)]?.let { existing ->
-            if (existing.isActive) return existing
-        }
-        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val fanOutStartMs = System.currentTimeMillis()
-        val runId = java.util.UUID.randomUUID().toString()
-        val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val cat = "${metaPrompt.category}/${metaPrompt.name}"
-            try {
-                withTracerTags(reportId = reportId, category = cat, runId = runId) {
-                    val state = appViewModel.uiState.value
-                    val aiSettings = state.aiSettings
-                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
-                    ReportStorage.bumpReportTimestamp(context, reportId)
-                    val successful = report.agents.filter {
-                        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-                    }
-                    if (successful.size < 2) return@withTracerTags
-                    AppLog.i("FanOut", "→ start \"${metaPrompt.name}\" (report=$reportId, ${successful.size} successful agents)")
-                    val sources = when (scopeChoice) {
-                        SecondaryScope.AllReports -> successful
-                        is SecondaryScope.TopRanked -> {
-                            val rerank = SecondaryResultStorage.get(context, reportId, scopeChoice.rerankResultId)
-                            val topIds = extractTopRankedIds(rerank?.content, scopeChoice.count)
-                            if (topIds.isNullOrEmpty()) successful
-                            else topIds.mapNotNull { idx -> successful.getOrNull(idx - 1) }
-                        }
-                        is SecondaryScope.Manual -> successful.filter { it.agentId in scopeChoice.agentIds }
-                    }
-                    if (sources.isEmpty()) return@withTracerTags
-                    // Apply the per-side Responder selection (when the
-                    // caller passed one). Null falls back to "every
-                    // successful agent" — the pre-feature default that
-                    // other call sites (e.g. rerunFanOutPlaceholders)
-                    // still rely on.
-                    val answerers = if (responderAgentIds == null) successful
-                        else successful.filter { it.agentId in responderAgentIds }
-                    if (answerers.isEmpty()) return@withTracerTags
-                    // Translation lookup. Build (translatedBodyByAgent,
-                    // translatedPrompt, native) once per run. Missing
-                    // per-agent translations fall back to the original
-                    // body for that one pair — keeps the run useful
-                    // even when the translation set is partial.
-                    data class LangCtx(val native: String?, val prompt: String, val bodies: Map<String, String>)
-                    val langCtx: LangCtx? = sourceLanguage?.let { lang ->
-                        val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
-                        val translates = allSecondaries.filter {
-                            it.kind == SecondaryKind.TRANSLATE &&
-                                it.targetLanguage == lang &&
-                                !it.content.isNullOrBlank()
-                        }
-                        val native = translates.firstNotNullOfOrNull { it.targetLanguageNative }
-                        val translatedPrompt = translates.firstOrNull {
-                            it.translateSourceKind == "PROMPT" && it.translateSourceTargetId == "prompt"
-                        }?.content ?: report.prompt
-                        val bodies = translates
-                            .filter { it.translateSourceKind == "AGENT" && !it.translateSourceTargetId.isNullOrBlank() }
-                            .associate { it.translateSourceTargetId!! to (it.content ?: "") }
-                        LangCtx(native, translatedPrompt, bodies)
-                    }
-                    val langSuffix = sourceLanguage?.let { " [$it]" } ?: ""
-                    // Pre-create every (answerer, source) placeholder
-                    // up-front so the Report Result screen's fan out
-                    // summary row and the fan out detail screen's L1/L2
-                    // counts read the *full* expected work immediately
-                    // (e.g. "30 pairs · 30 pending" for 6×5) and tick
-                    // down as calls complete — instead of waking up
-                    // with "6 pairs · 6 pending" because only the first
-                    // source per answerer had been seeded.
-                    data class PendingPair(val answerer: ReportAgent, val source: ReportAgent, val placeholder: SecondaryResult)
-                    val pending = mutableListOf<PendingPair>()
-                    for (answerer in answerers) {
-                        val provider = AppService.findById(answerer.provider) ?: continue
-                        for (source in sources) {
-                            if (source.agentId == answerer.agentId) continue
-                            val agentName = "${provider.id} / ${shortModelName(answerer.model)}$langSuffix"
-                            val placeholder = SecondaryResultStorage.create(
-                                context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName
-                            ) {
-                                it.copy(
-                                    metaPromptId = metaPrompt.id,
-                                    metaPromptName = metaPrompt.name,
-                                    fanOutSourceAgentId = source.agentId,
-                                    runId = runId,
-                                    targetLanguage = sourceLanguage,
-                                    targetLanguageNative = langCtx?.native
-                                )
-                            }
-                            pending.add(PendingPair(answerer, source, placeholder))
-                        }
-                    }
-                    // Launch one coroutine per pair. Per-provider
-                    // concurrency + per-minute rate are enforced through
-                    // ProviderThrottle, but we acquire the permit here
-                    // (not inside the OkHttp interceptor) so the UI's
-                    // queued / running distinction lines up with the
-                    // throttle state:
-                    //   - pair enters async, hasn't called acquire yet
-                    //     → not in runningFanOutPairs → reads as "queued"
-                    //   - acquire returns (permit + per-minute slot held)
-                    //     → flip to runningFanOutPairs → reads as "running"
-                    // The OkHttp interceptor sees permitPreAcquired=true
-                    // on the worker (propagated via TagPropagatingExecutor)
-                    // and skips its own acquire — no double-counting.
-                    //
-                    // Per-host suspending caps below — sized to each
-                    // host's ProviderThrottle concurrent limit — replace
-                    // the single global Semaphore(8) that earlier hot-
-                    // fixed Dispatchers.IO starvation. A global cap
-                    // ignored the per-provider setting; with per-host
-                    // caps Provider A at concurrent=5 can run 5 pairs
-                    // in parallel even while Provider B is at its own
-                    // separate cap. The suspending withPermit releases
-                    // the IO thread while a pair waits its turn, so
-                    // the blocking ProviderThrottle.acquire below
-                    // (java.util.concurrent.Semaphore.acquire) returns
-                    // immediately for every pair the suspending gate
-                    // admitted — no IO threads pinned in waiting.
-                    // Shared runner owns the interleave + the canonical
-                    // global → fanOut → per-host order + permitPreAcquired +
-                    // register-before-start (the cancel-before-delete race fix).
-                    runThrottledBatch(
-                        items = pending,
-                        hostOf = { AppService.findById(it.answerer.provider)?.let { s -> providerHost(s) } },
-                        subCap = ApiCallCaps.fanOut,
-                        onThrottled = { item -> appViewModel.updateThrottledFanOutPairs { it + item.placeholder.id } },
-                        onCleared = { item -> appViewModel.updateThrottledFanOutPairs { it - item.placeholder.id } },
-                        register = { item, d ->
-                            rvm.fanOutPairJobs[item.placeholder.id] = d
-                            d.invokeOnCompletion { rvm.fanOutPairJobs.remove(item.placeholder.id, d) }
-                        }
-                    ) { item ->
-                        val provider = AppService.findById(item.answerer.provider) ?: return@runThrottledBatch
-                        AppLog.d("FanOut", "queued pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
-                        // Bail if the user deleted this pair while it was queued
-                        // on the throttle — skips the call + the token spend.
-                        if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) {
-                            AppLog.d("FanOut", "skip pair ${item.placeholder.id} — deleted before launch")
-                            return@runThrottledBatch
-                        }
-                        appViewModel.updateRunningFanOutPairs { it + item.placeholder.id }
-                        val pairStart = System.currentTimeMillis()
-                        AppLog.d("FanOut", "→ pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}")
-                        try {
-                            val questionForPair = langCtx?.prompt ?: report.prompt
-                            val bodyForPair = langCtx?.bodies?.get(item.source.agentId)
-                                ?: (item.source.responseBody ?: "")
-                            val resolvedBase = resolveSecondaryPrompt(
-                                metaPrompt.text,
-                                question = questionForPair,
-                                results = "",
-                                count = sources.size,
-                                title = report.title
-                            )
-                            val resolved = resolvedBase.replace("@RESPONSE@", bodyForPair)
-                            executeSecondaryTask(
-                                context, reportId, SecondaryKind.META, metaPrompt,
-                                provider, item.answerer.model, resolved, aiSettings, report,
-                                targetLanguage = sourceLanguage,
-                                targetLanguageNative = langCtx?.native,
-                                fanOutSourceAgentId = item.source.agentId,
-                                existingPlaceholder = item.placeholder,
-                                paramsIds = paramsIds, systemPromptId = systemPromptId
-                            )
-                        } finally {
-                            appViewModel.updateRunningFanOutPairs { it - item.placeholder.id }
-                            AppLog.d("FanOut", "← pair ans=${item.answerer.agentId} src=${item.source.agentId} ${System.currentTimeMillis() - pairStart}ms")
-                        }
-                    }
-                    AppLog.i("FanOut", "← end \"${metaPrompt.name}\" (${pending.size} pairs in ${System.currentTimeMillis() - fanOutStartMs}ms)")
-                }
-            } finally {
-                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-                finalizeLeftoverPairs(context, reportId, metaPrompt.id)
-            }
-        }
-        rvm.registerFanOutJob(reportId, metaPrompt.id, job)
-        return job
-    }
-
-    /** Re-launch a list of fan-out pair placeholders. Re-uses the per-
-     *  provider semaphore + running-pair bookkeeping pattern from
-     *  [runFanOutPrompt], so the L1 progress bar / stats keep
-     *  reflecting "running" once a permit is held and "queued" while a
-     *  pair is waiting. The caller has already cleared each
-     *  placeholder's content/errorMessage on disk (so the row reads as
-     *  pending again). */
-    private fun rerunFanOutPlaceholders(
-        context: Context,
-        reportId: String,
-        metaPrompt: com.ai.model.InternalPrompt,
-        placeholders: List<SecondaryResult>
-    ): Job? {
-        if (placeholders.isEmpty()) return null
-        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val cat = "${metaPrompt.category}/${metaPrompt.name}"
-            try {
-                withTracerTags(reportId = reportId, category = cat) {
-                    val state = appViewModel.uiState.value
-                    val aiSettings = state.aiSettings
-                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
-                    ReportStorage.bumpReportTimestamp(context, reportId)
-                    val successful = report.agents.filter {
-                        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-                    }
-                    val sourceCount = successful.size
-                    // All placeholders in one rerun batch share a
-                    // single language by construction (fan-out is
-                    // single-language). Lift the translation lookup
-                    // once so we don't re-list secondaries per pair.
-                    val rerunLang = placeholders.firstNotNullOfOrNull { it.targetLanguage }
-                    data class LangCtx(val native: String?, val prompt: String, val bodies: Map<String, String>)
-                    val rerunLangCtx: LangCtx? = rerunLang?.let { lang ->
-                        val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
-                        val translates = allSecondaries.filter {
-                            it.kind == SecondaryKind.TRANSLATE &&
-                                it.targetLanguage == lang &&
-                                !it.content.isNullOrBlank()
-                        }
-                        val native = translates.firstNotNullOfOrNull { it.targetLanguageNative }
-                        val translatedPrompt = translates.firstOrNull {
-                            it.translateSourceKind == "PROMPT" && it.translateSourceTargetId == "prompt"
-                        }?.content ?: report.prompt
-                        val bodies = translates
-                            .filter { it.translateSourceKind == "AGENT" && !it.translateSourceTargetId.isNullOrBlank() }
-                            .associate { it.translateSourceTargetId!! to (it.content ?: "") }
-                        LangCtx(native, translatedPrompt, bodies)
-                    }
-                    // Per-pair pre-acquire mirrors runFanOutPrompt so the
-                    // queued / running flip on the UI lines up with the
-                    // permit being held. See that function for the full
-                    // explanation. Per-host suspending caps mirror the
-                    // ProviderThrottle concurrent limit so each host gets
-                    // its own gate (vs a single global cap, which under-
-                    // utilised fast providers).
-                    // Shared runner — same contract as runFanOutPrompt.
-                    runThrottledBatch(
-                        items = placeholders,
-                        hostOf = { AppService.findById(it.providerId)?.let { s -> providerHost(s) } },
-                        subCap = ApiCallCaps.fanOut,
-                        onThrottled = { ph -> appViewModel.updateThrottledFanOutPairs { it + ph.id } },
-                        onCleared = { ph -> appViewModel.updateThrottledFanOutPairs { it - ph.id } },
-                        register = { ph, d ->
-                            rvm.fanOutPairJobs[ph.id] = d
-                            d.invokeOnCompletion { rvm.fanOutPairJobs.remove(ph.id, d) }
-                        }
-                    ) { ph ->
-                        val provider = AppService.findById(ph.providerId) ?: return@runThrottledBatch
-                        val source = successful.firstOrNull { it.agentId == ph.fanOutSourceAgentId }
-                            ?: return@runThrottledBatch
-                        AppLog.d("FanOut", "queued rerun ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
-                        if (!SecondaryResultStorage.exists(context, reportId, ph.id)) {
-                            AppLog.d("FanOut", "skip rerun ${ph.id} — deleted before launch")
-                            return@runThrottledBatch
-                        }
-                        appViewModel.updateRunningFanOutPairs { it + ph.id }
-                        val rerunStart = System.currentTimeMillis()
-                        AppLog.d("FanOut", "→ rerun pair ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}")
-                        try {
-                            val questionForPair = rerunLangCtx?.prompt ?: report.prompt
-                            val bodyForPair = rerunLangCtx?.bodies?.get(source.agentId)
-                                ?: (source.responseBody ?: "")
-                            val resolvedBase = resolveSecondaryPrompt(
-                                metaPrompt.text,
-                                question = questionForPair,
-                                results = "",
-                                count = sourceCount,
-                                title = report.title
-                            )
-                            val resolved = resolvedBase.replace("@RESPONSE@", bodyForPair)
-                            executeSecondaryTask(
-                                context, reportId, SecondaryKind.META, metaPrompt,
-                                provider, ph.model, resolved, aiSettings, report,
-                                targetLanguage = ph.targetLanguage,
-                                targetLanguageNative = ph.targetLanguageNative,
-                                fanOutSourceAgentId = source.agentId,
-                                existingPlaceholder = ph
-                            )
-                        } finally {
-                            appViewModel.updateRunningFanOutPairs { it - ph.id }
-                            AppLog.d("FanOut", "← rerun pair ph=${ph.id} ${System.currentTimeMillis() - rerunStart}ms")
-                        }
-                    }
-                }
-            } finally {
-                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-                finalizeLeftoverPairs(context, reportId, metaPrompt.id)
-            }
-        }
-        rvm.registerFanOutJob(reportId, metaPrompt.id, job)
-        return job
-    }
-
-    /** Reset the given rows on disk so they look queued again (clears
-     *  content / errorMessage / token usage / costs / duration), then
-     *  feed them into [rerunFanOutPlaceholders]. The cleared rows reuse
-     *  their original placeholder ids so the UI doesn't see them
-     *  vanish-and-reappear. */
-    private fun resetAndRelaunch(
-        context: Context,
-        reportId: String,
-        metaPrompt: com.ai.model.InternalPrompt,
-        rows: List<SecondaryResult>
-    ): Job? {
-        if (rows.isEmpty()) return null
-        val reset = rows.map { r ->
-            r.copy(
-                content = null,
-                errorMessage = null,
-                tokenUsage = null,
-                inputCost = null,
-                outputCost = null,
-                durationMs = null,
-                icon = null,
-                iconWinningTier = null,
-                iconErrorMessage = null,
-                iconInputTokens = 0,
-                iconOutputTokens = 0,
-                iconInputCost = 0.0,
-                iconOutputCost = 0.0
-            ).also { SecondaryResultStorage.save(context, it) }
-        }
-        return rerunFanOutPlaceholders(context, reportId, metaPrompt, reset)
-    }
-
     /** Auto-resume every interrupted Translation, Fan-out, and
      *  single-call Meta/Rerank/Moderation run on the report. Fires
      *  on report open (replaces the previous mark-as-errored sweep).
@@ -622,9 +255,10 @@ class SecondaryRunManager(
      *    [startMissingTranslations] which dispatches every expected
      *    item (prompt + successful agents + meta secondaries) that
      *    doesn't yet have a row.
-     *  - **Fan-out**: groups stale fan-out placeholder rows by
-     *    `metaPromptId`; for each one whose [com.ai.model.InternalPrompt]
-     *    still exists in settings, calls [resumeStaleFanOutPairs].
+     *  - **Fan-out**: delegates to
+     *    [com.ai.viewmodel.FanOutEngine.resumeStaleRunsForReport], which
+     *    re-dispatches every stale pair (bounded by BatchResume) and
+     *    terminalizes deleted-prompt / unrecoverable rows.
      *  - **Single Meta/Rerank/Moderation**: walks stale rows where
      *    `fanOutSourceAgentId == null && fanInOf == null &&
      *    translationRunId == null` and re-issues each via
@@ -645,11 +279,11 @@ class SecondaryRunManager(
         context: Context,
         reportId: String
     ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-        // Union with single-secondary in-flight ids so a slow-but-running
-        // auto Meta/Rerank/Moderation isn't re-dispatched + terminalized as
-        // stale (the fan-out filter ignores these ids anyway).
-        val running = appViewModel.runningFanOutPairs.value +
-            appViewModel.runningSingleSecondaries.value
+        // Single-secondary in-flight ids so a slow-but-running auto
+        // Meta/Rerank/Moderation isn't re-dispatched + terminalized as
+        // stale. Fan-out pairs are owned by the engine (step 2 delegates
+        // to it), so they don't need to be in this set.
+        val running = appViewModel.runningSingleSecondaries.value
         // Only runs that are actually in flight block step 1 — a
         // run that previously finished (or one a reconcile rebuilt
         // with finished=true) can still have disk placeholders that
@@ -705,39 +339,11 @@ class SecondaryRunManager(
             rvm.translation.startMissingTranslations(context, reportId, runId)
         }
 
-        // 2. Fan-out pairs: group stale per-pair rows by metaPromptId
-        //    and dispatch resumeStaleFanOutPairs once per prompt.
-        //    resumeStaleFanOutPairs is itself a no-op when the in-flight
-        //    set already covers the run (defence-in-depth dedupe).
-        val stalePairs = rows.filter { it.kind == SecondaryKind.META &&
-            it.fanOutSourceAgentId != null &&
-            it.content.isNullOrBlank() &&
-            it.errorMessage == null &&
-            it.durationMs == null &&
-            it.id !in running }
-        // Bound re-dispatches via the shared resume guard: a pair retried
-        // MAX_ATTEMPTS times without landing a terminal state is terminalized
-        // here (FIRST, so resumeStaleFanOutPairs's own disk re-scan skips the
-        // now-errored rows) instead of re-run forever.
-        val retryPairs = BatchResume.capForRetry(stalePairs) {
-            markRowAsInterrupted(context, reportId, it.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
-        }
-        val stalePairsByPromptId = retryPairs.groupBy { it.metaPromptId }
-        stalePairsByPromptId.forEach { (promptId, pairs) ->
-            val prompt = promptId?.let { pid ->
-                aiSettings.internalPrompts.firstOrNull { it.id == pid }
-            }
-            if (prompt != null) {
-                resumeStaleFanOutPairs(context, reportId, prompt)
-            } else {
-                // Prompt deleted: mark each as ❌ so the row stops
-                // spinning. The user can drop the row and re-pick a
-                // prompt from scratch.
-                pairs.forEach {
-                    markRowAsInterrupted(context, reportId, it.id, "Interrupted — fan-out prompt deleted")
-                }
-            }
-        }
+        // 2. Fan-out pairs: the FanOutEngine owns the whole lifecycle now
+        //    (hydrate → re-dispatch stale pairs with a BatchResume cap →
+        //    terminalize unrecoverable / deleted-prompt rows). One call
+        //    handles every run on the report; idempotent vs in-flight work.
+        rvm.fanOutEngine.resumeStaleRunsForReport(context, reportId)
 
         // 2b. Fan Meta batches: relaunch any fan-meta sweep the user
         //     started (some pair already carries a title/icon / error /
@@ -789,14 +395,17 @@ class SecondaryRunManager(
         //    (fan-in single, model-fan-in, deleted prompt for a non-
         //    fan-out single meta, deleted provider) gets the honest ❌
         //    so it stops spinning.
-        val handledIds = staleSingleMeta.map { it.id }.toSet() +
-            stalePairsByPromptId.values.flatten().map { it.id }.toSet()
+        val handledIds = staleSingleMeta.map { it.id }.toSet()
         rows.forEach { row ->
             if (row.errorMessage != null) return@forEach
             if (!row.content.isNullOrBlank()) return@forEach
             if (row.durationMs != null) return@forEach
             if (row.id in running) return@forEach
             if (row.id in handledIds) return@forEach
+            // Fan-out pair rows are owned by the engine's resume (step 2);
+            // never terminalize them here or we'd clobber a row the engine
+            // is about to re-dispatch.
+            if (row.kind == SecondaryKind.META && row.fanOutSourceAgentId != null && row.fanInOf == null) return@forEach
             // Translation rows in an active or newly-resumed run are
             // covered by startMissingTranslations; skip them here.
             if (row.kind == SecondaryKind.TRANSLATE &&
@@ -862,32 +471,6 @@ class SecondaryRunManager(
             // spawns are fire-and-forget inside their own
             // viewModelScope launches.
             resumeStaleRunsForReport(context, report.id).join()
-        }
-    }
-
-    /** Run-end finalizer for one fan-out run: terminalize (❌) every pair
-     *  for [metaPromptId] still in PENDING (no content / error / durationMs)
-     *  and not currently in flight. Called from runFanOutPrompt /
-     *  rerunFanOutPlaceholders' finally, so it fires on **normal completion**
-     *  (catching pairs skipped because their provider didn't resolve) and on
-     *  **in-app cancellation** (the user stopped the run) — giving a stopped
-     *  run an honest done+errors total immediately instead of leaving silent
-     *  PENDING rows for the 30s resume sweep. A **process kill** skips the
-     *  finally entirely, so a genuinely-killed run's leftovers still get the
-     *  background-resume safety net. NonCancellable so the disk writes land
-     *  even when the run coroutine was cancelled. */
-    private suspend fun finalizeLeftoverPairs(context: Context, reportId: String, metaPromptId: String) {
-        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-            val running = appViewModel.runningFanOutPairs.value
-            val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-                .filter {
-                    it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null &&
-                        it.fanInOf == null && it.content.isNullOrBlank() &&
-                        it.errorMessage == null && it.durationMs == null && it.id !in running
-                }
-            BatchResume.finalizeLeftover(leftover) {
-                markRowAsInterrupted(context, reportId, it.id, "Interrupted — run stopped before this pair finished")
-            }
         }
     }
 
@@ -993,276 +576,6 @@ class SecondaryRunManager(
         }
     }
 
-    /** Re-enqueue fan-out pair placeholders that look stuck — the row is
-     *  on disk as a pending placeholder (no content, no errorMessage)
-     *  but its id is *not* in [AppViewModel.runningFanOutPairs]. This is the
-     *  case after the app process is killed mid-run: the placeholders
-     *  survive on disk but the launching coroutines are gone. The Fan out
-     *  L1 screen calls this on entry. */
-    fun resumeStaleFanOutPairs(
-        context: Context,
-        reportId: String,
-        metaPrompt: com.ai.model.InternalPrompt
-    ): Job? {
-        val key = rvm.fanOutJobKey(reportId, metaPrompt.id)
-        // Drop the call if a previous resume scan for the same
-        // (report, prompt) is in flight OR has dispatched a rerun
-        // that hasn't finished yet. The lifetime of the key extends
-        // past the scan body all the way through the dispatched
-        // rerun Job — without that, a second resume scan firing
-        // milliseconds after the first scan body exits could re-read
-        // the same stale placeholders (still blank on disk, the
-        // rerun hasn't filled them yet) and dispatch a duplicate
-        // rerun, double-billing the user. Both
-        // [resumeStaleRunsForReport] (report-open orchestrator) and
-        // any direct caller share the same guard.
-        if (!rvm.staleResumeScans.add(key)) return null
-        val scanJob = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            val running = appViewModel.runningFanOutPairs.value
-            val stale = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-                .filter {
-                    it.metaPromptId == metaPrompt.id &&
-                        it.fanOutSourceAgentId != null &&
-                        it.fanInOf == null &&
-                        it.content.isNullOrBlank() &&
-                        it.errorMessage == null &&
-                        // durationMs is stamped on every successful + errored
-                        // save and cleared by resetAndRelaunch. A row with
-                        // durationMs set but blank content is a successful
-                        // empty-body completion — re-firing it would
-                        // duplicate-bill the user (same fix as the L1 stats
-                        // classifier in SecondaryResultsScreen).
-                        it.durationMs == null &&
-                        it.id !in running
-                }
-            val rerunJob = if (stale.isNotEmpty()) {
-                rerunFanOutPlaceholders(context, reportId, metaPrompt, stale)
-            } else null
-            // Wait for the rerun to fully complete before releasing
-            // the dedup key — only at that point can we safely admit
-            // a new scan; until then a fresh scan would re-read the
-            // same placeholders (still blank) and re-dispatch.
-            rerunJob?.join()
-        }
-        scanJob.invokeOnCompletion { rvm.staleResumeScans.remove(key) }
-        return scanJob
-    }
-
-    /** Re-run a single fan-out pair row. Resets it on disk (clears
-     *  content / errorMessage / token usage / cost / duration so it
-     *  reads as queued again) and dispatches via [resetAndRelaunch].
-     *  Used by the L3 "Fan out - pair" TitleBar's 🔄 reload icon. */
-    fun rerunSingleFanOutPair(
-        context: Context,
-        reportId: String,
-        metaPrompt: com.ai.model.InternalPrompt,
-        pair: SecondaryResult
-    ): Job? = resetAndRelaunch(context, reportId, metaPrompt, listOf(pair))
-
-    /** Re-run fan-out pair rows that errored. Resets the rows on disk
-     *  (clears errorMessage so they read as queued again) and dispatches
-     *  via [rerunFanOutPlaceholders]. */
-    fun rerunFailedFanOutPairs(
-        context: Context,
-        reportId: String,
-        metaPrompt: com.ai.model.InternalPrompt
-    ): Job? {
-        val failed = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-            .filter {
-                it.metaPromptId == metaPrompt.id &&
-                    it.fanOutSourceAgentId != null &&
-                    it.fanInOf == null &&
-                    it.errorMessage != null
-            }
-        if (failed.isEmpty()) return null
-        // Show the errored rows back in the Queue immediately; the relaunch
-        // below moves them Queue → Running as the throttle admits each one.
-        rvm.fanOutEngine.requeueErroredPairs(reportId, metaPrompt.id)
-        return resetAndRelaunch(context, reportId, metaPrompt, failed)
-    }
-
-    /** Drop every errored fan-out pair row for this metaPromptId
-     *  without re-firing. Wired to the L1 Fan out detail screen's
-     *  "Remove failed items" button. */
-    fun removeFailedFanOutPairs(
-        context: Context,
-        reportId: String,
-        metaPrompt: com.ai.model.InternalPrompt
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-        val failed = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-            .filter {
-                it.metaPromptId == metaPrompt.id &&
-                    it.fanOutSourceAgentId != null &&
-                    it.fanInOf == null &&
-                    it.errorMessage != null
-            }
-        if (failed.isEmpty()) return@launch
-        val costDelta = failed.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
-        failed.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-        // Removed rows weren't in runningFanOutPairs (errored is a
-        // terminal state), so no need to update that set.
-        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-        ReportStorage.bumpReportTimestamp(context, reportId)
-    }
-
-    /** L2-scoped "Restart failed items". Re-fires only the errored
-     *  pair rows for this metaPromptId where the active (provider,
-     *  model) is the answerer — pairs where another model is the
-     *  answerer are left alone so a partial failure in one row of L1
-     *  doesn't drag in other models' calls. Throttled through the
-     *  same [rerunFanOutPlaceholders] semaphore as the original run. */
-    fun rerunFailedFanOutPairsForModel(
-        context: Context,
-        reportId: String,
-        metaPrompt: com.ai.model.InternalPrompt,
-        providerId: String,
-        model: String
-    ): Job? {
-        val failed = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-            .filter {
-                it.metaPromptId == metaPrompt.id &&
-                    it.fanOutSourceAgentId != null &&
-                    it.fanInOf == null &&
-                    it.errorMessage != null &&
-                    it.providerId.equals(providerId, ignoreCase = true) &&
-                    it.model == model
-            }
-        if (failed.isEmpty()) return null
-        // Same as the run-level restart, scoped to this model: errored rows
-        // return to the Queue first, then get picked up for Running.
-        rvm.fanOutEngine.requeueErroredPairs(reportId, metaPrompt.id, providerId, model)
-        return resetAndRelaunch(context, reportId, metaPrompt, failed)
-    }
-
-    /** L2-scoped "Remove failed items". Mirrors
-     *  [removeFailedFanOutPairs] but only drops rows where the
-     *  active (provider, model) is the answerer. */
-    fun removeFailedFanOutPairsForModel(
-        context: Context,
-        reportId: String,
-        metaPrompt: com.ai.model.InternalPrompt,
-        providerId: String,
-        model: String
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-        val failed = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-            .filter {
-                it.metaPromptId == metaPrompt.id &&
-                    it.fanOutSourceAgentId != null &&
-                    it.fanInOf == null &&
-                    it.errorMessage != null &&
-                    it.providerId.equals(providerId, ignoreCase = true) &&
-                    it.model == model
-            }
-        if (failed.isEmpty()) return@launch
-        val costDelta = failed.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
-        failed.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-        ReportStorage.bumpReportTimestamp(context, reportId)
-    }
-
-    /** Drop every fan_out pair-row + every fan_in combine-row for this
-     *  metaPromptId on this report, then kick a fresh
-     *  [runFanOutPrompt]. Used by the Fan out L1 "Rerun the complete
-     *  Fan out" button. */
-    fun rerunCompleteFanOut(
-        context: Context,
-        reportId: String,
-        metaPrompt: com.ai.model.InternalPrompt
-    ): Job? {
-        // Cancel + join any in-flight fan out run for this (report,
-        // metaPrompt) before deleting placeholders. Without this,
-        // surviving coroutines would call SecondaryResultStorage.save
-        // on the just-deleted ids, resurrecting zombie rows beside
-        // the freshly-created placeholders and double-billing.
-        return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            rvm.fanOutJobs[rvm.fanOutJobKey(reportId, metaPrompt.id)]?.let { existing ->
-                existing.cancelAndJoin()
-            }
-            // Wipe every per-pair fan-out row tied to this metaPromptId
-            // so the rerun starts from a clean grid. The previous filter
-            // additionally tried to clean up fan_in rows via
-            // `fanInOf == metaPrompt.id`, but fanInOf is set
-            // to the FAN_IN prompt's id (line ~1326), never the
-            // fan out prompt's id, so that clause was always false — dead
-            // code disguised as cleanup. Fan-in rows on the same
-            // report are left alone here; rerunning the fan out doesn't
-            // know which fan-in derivatives came from this fan out
-            // (no explicit link is stored), so deleting them all would
-            // be over-aggressive. Users wanting a fully clean slate
-            // can delete the fan-in rows individually.
-            SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-                .filter {
-                    it.metaPromptId == metaPrompt.id && it.fanOutSourceAgentId != null
-                }
-                .forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
-            runFanOutPrompt(context, reportId, metaPrompt)?.join()
-        }
-    }
-
-    /** Drop every fan-out pair row for this report's metaPromptId where
-     *  the model appears as the answerer (providerId, model match) OR
-     *  as the source (the row's fanOutSourceAgentId points at an agent
-     *  whose (provider, model) matches). Other Fan out runs on the same
-     *  report (different metaPromptId) are untouched.
-     *
-     *  Returns a Job so the caller (or tests) can await completion of
-     *  the cancellation sweep + disk delete. The cancellation phase
-     *  cancelAndJoins every per-pair coroutine for the rows we're about
-     *  to delete (registered in [rvm.fanOutPairJobs]), so a coroutine that's
-     *  mid-HTTP or mid-save can't land a completion via
-     *  saveIfStillPresent AFTER the delete (silently dropping a result
-     *  the user paid for) or interleave a write with the delete. */
-    fun deleteFanOutModel(
-        context: Context,
-        reportId: String,
-        metaPromptId: String,
-        providerId: String,
-        model: String
-    ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-        val report = ReportStorage.getReport(context, reportId) ?: return@launch
-        // Provider ids are looked up via AppService.findById (case-
-        // insensitive); the on-disk values can be either case
-        // depending on when the row was written. Compare equalsIgnoreCase
-        // so a UI delete with a re-cased id still matches.
-        val matchingAgentIds = report.agents
-            .filter { it.provider.equals(providerId, ignoreCase = true) && it.model == model }
-            .map { it.agentId }
-            .toSet()
-        val toDelete = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-            .filter {
-                it.metaPromptId == metaPromptId &&
-                    it.fanOutSourceAgentId != null &&
-                    it.fanInOf == null &&
-                    (
-                        (it.providerId.equals(providerId, ignoreCase = true) && it.model == model) ||
-                            (it.fanOutSourceAgentId in matchingAgentIds)
-                    )
-            }
-        if (toDelete.isEmpty()) return@launch
-        // Cancel + join the per-pair coroutines BEFORE deleting their
-        // rows. Each cancelled coroutine either bails inside its
-        // ProviderThrottle.acquire suspend point (no HTTP fired) or
-        // throws CancellationException out of the HTTP suspend (no
-        // saveIfStillPresent call). Either way, no zombie write lands
-        // after we delete the row. join() waits for the finally
-        // blocks (running-set removal + permit release) to run.
-        val toDeleteIds = toDelete.map { it.id }
-        toDeleteIds.forEach { id ->
-            rvm.fanOutPairJobs[id]?.cancelAndJoin()
-        }
-        val costDelta = toDelete.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
-        toDeleteIds.forEach { SecondaryResultStorage.delete(context, reportId, it) }
-        // The per-pair finally blocks already removed these ids from
-        // runningFanOutPairs during join, but a stale-cache window
-        // could leave the UI showing them as "running" until the next
-        // refresh tick. Force-prune the set so the trash icon's
-        // visual effect is immediate.
-        val deletedIds = toDeleteIds.toSet()
-        appViewModel.updateRunningFanOutPairs { it - deletedIds }
-        if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-        ReportStorage.bumpReportTimestamp(context, reportId)
-    }
-
     /** Combines a fan-out run's per-pair responses plus every
      *  successful agent's response body into a single combined report
      *  via a single chat call on [pick]. The template's iterable block
@@ -1309,13 +622,9 @@ class SecondaryRunManager(
                     // otherwise the combine call would build its
                     // payload from an arbitrary partial subset of
                     // responses while the user thinks the report is
-                    // "all of them". Each fan out run is keyed by its
-                    // own metaPromptId; a snapshot of the active jobs
-                    // for THIS report is enough.
-                    val fanOutJobsForReport = rvm.fanOutJobs.entries
-                        .filter { it.key.startsWith("$reportId|") }
-                        .map { it.value }
-                    fanOutJobsForReport.forEach { it.join() }
+                    // "all of them". The engine owns every run's batch
+                    // Job; join them all for this report.
+                    rvm.fanOutEngine.joinActiveRunsForReport(reportId)
                     val fanOutRows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                         .filter { it.fanOutSourceAgentId != null }
                         // Drop errored rows before bucketing — without

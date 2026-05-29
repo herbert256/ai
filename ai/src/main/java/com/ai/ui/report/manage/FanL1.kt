@@ -55,7 +55,6 @@ import com.ai.data.FanOutRunKey
 import com.ai.data.FanOutRunState
 import com.ai.data.PairState
 import com.ai.data.PairStatus
-import com.ai.data.effectiveStatus
 import com.ai.data.iconStatus
 import com.ai.data.titleStatus
 import com.ai.ui.shared.AnimatedHourglass
@@ -122,7 +121,7 @@ internal fun FanOutL1Screen(
     // "finished but no content" ERROR case the raw field misses.
     fun lens(p: PairState, set: Set<String>): PairStatus = when (mode) {
         FanOutMode.META -> p.titleStatus(set)
-        else -> p.effectiveStatus(set)
+        else -> p.status
     }
     fun metaDone(p: PairState): Boolean = !p.title.isNullOrBlank()
 
@@ -193,7 +192,7 @@ internal fun FanOutL1Screen(
             else run.pairs.values.count { it.status == PairStatus.ERROR && benched(it.providerId, it.model) }
         val runningCount = if (isMetaMode)
             run.pairs.values.count { lens(it, runningSet) == PairStatus.RUNNING }
-            else run.effectiveRunningCount(runningSet)
+            else run.runningCount
         val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
         // Queue excludes pairs that are actively blocked on a host
         // rate-limit cap — those are reported in the Throttled column
@@ -201,7 +200,7 @@ internal fun FanOutL1Screen(
         // pair (a throttled pair is still PENDING by status).
         val queuedCount = if (isMetaMode)
             run.pairs.values.count { lens(it, runningSet) == PairStatus.PENDING && it.id !in throttledSet }
-            else run.pairs.values.count { it.effectiveStatus(runningSet) == PairStatus.PENDING && it.id !in throttledSet }
+            else run.pairs.values.count { it.status == PairStatus.PENDING && it.id !in throttledSet }
         // Whole run finished cleanly — every row would otherwise show
         // ✅ on a full green fill. Drop both per row so a completed
         // run reads calmly instead of as a wall of check marks.
@@ -537,7 +536,7 @@ internal fun FanOutL1Screen(
                     else pairs.count { it.status == PairStatus.ERROR }
                 val running = if (isMetaMode)
                     pairs.count { lens(it, runningSet) == PairStatus.RUNNING }
-                    else pairs.count { it.effectiveStatus(runningSet) == PairStatus.RUNNING }
+                    else pairs.count { it.status == PairStatus.RUNNING }
                 val total = pairs.size
                 val cost = pairs.sumOf { pairCost(it) }
                 // Failed pairs count toward the bar too — without

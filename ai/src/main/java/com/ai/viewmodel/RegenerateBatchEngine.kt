@@ -523,15 +523,10 @@ class RegenerateBatchEngine internal constructor(
                 rows.forEach { reportViewModel.secondary.resumeStaleMetaPlaceholder(context, reportId, it) }
             }
             RegeneratePhase.FAN_OUT -> {
-                val rows = SecondaryResultStorage.listForReport(context, reportId)
-                    .filter { it.id in phaseTasks.map { t -> t.rowId }.toSet() }
-                val aiSettings = appViewModel.uiState.value.aiSettings
-                val byPrompt = rows.mapNotNull { it.metaPromptId }.distinct()
-                byPrompt.forEach { promptId ->
-                    val prompt = aiSettings.internalPrompts.firstOrNull { it.id == promptId }
-                        ?: return@forEach
-                    reportViewModel.secondary.resumeStaleFanOutPairs(context, reportId, prompt)
-                }
+                // The engine re-dispatches every stale fan-out pair on the
+                // report (the placeholders this phase just reset to PENDING)
+                // in one idempotent pass.
+                reportViewModel.fanOutEngine.resumeStaleRunsForReport(context, reportId)
             }
             RegeneratePhase.TRANSLATIONS -> {
                 val rows = SecondaryResultStorage.listForReport(context, reportId)

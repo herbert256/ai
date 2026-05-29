@@ -37,22 +37,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private var reportGenerationJob: Job? = null
     @Volatile private var reportRunningInBackground = false
 
-    // Active fan-out jobs keyed by "$reportId|$metaPromptId". Used
-    // by rerunCompleteFanOut / rerunFailedFanOutPairs / resumeStaleFanOutPairs
-    // so the destructive "wipe + rerun" paths can cancel and join the
-    // existing run before deleting placeholders. Without this, surviving
-    // coroutines from the previous run kept calling
-    // SecondaryResultStorage.save on the just-deleted ids, resurrecting
-    // zombie rows alongside the freshly-created placeholders and
-    // double-billing the user.
-    internal val fanOutJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
-    internal fun fanOutJobKey(reportId: String, metaPromptId: String) = "$reportId|$metaPromptId"
-    internal fun registerFanOutJob(reportId: String, metaPromptId: String, job: Job) {
-        val key = fanOutJobKey(reportId, metaPromptId)
-        fanOutJobs[key] = job
-        job.invokeOnCompletion { fanOutJobs.remove(key, job) }
-    }
-
     /** Tracks in-flight fan-meta batches keyed by
      *  (reportId, metaPromptId). Separate map from [fanOutJobs] so
      *  a launched fan-meta batch on the same fan-out doesn't get
@@ -102,29 +86,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         agentIconFanOutJobs.put(key, job)?.cancel()
         job.invokeOnCompletion { agentIconFanOutJobs.remove(key, job) }
     }
-
-    // Tracks in-flight resumeStaleFanOutPairs scans per (reportId,
-    // metaPromptId). The L1 screen fires resumeStaleFanOutPairs from a
-    // LaunchedEffect that re-keys whenever fanOutPrompt changes
-    // identity — and fanOutPrompt is recomputed on every aiSettings
-    // change (i.e., any settings save, even unrelated ones). Without a
-    // guard, touching Settings while a Fan out is running would re-issue
-    // the listForReport scan + recovery enqueue, stacking duplicate
-    // work on the executor's semaphore.
-    internal val staleResumeScans = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-
-    // Per-pair fan-out coroutines, keyed by SecondaryResult.id (the
-    // placeholder id). Populated inside runFanOutPrompt /
-    // rerunFanOutPlaceholders right before the async block enters its
-    // HTTP path, removed via invokeOnCompletion. deleteFanOutModel
-    // and rerunCompleteFanOut cancelAndJoin the relevant entries
-    // BEFORE deleting their rows, so a coroutine mid-flight can't
-    // land a completion via saveIfStillPresent after the delete —
-    // which would either silently drop the just-purchased result
-    // (exists() returns false) or, worse, resurrect the row in a
-    // half-written state. Concurrent map for cross-thread access
-    // from the UI-thread Delete handler.
-    internal val fanOutPairJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
 
     // Tracks single-call Meta/Rerank/Moderation placeholders the
     // report-open auto-resume sweep is currently re-issuing, so a
@@ -1354,7 +1315,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         //     active run.
         if (cleared) reportGenerationJob?.cancel()
         val fanOutPrefix = "$reportId|"
-        fanOutJobs.entries.filter { it.key.startsWith(fanOutPrefix) }.forEach { it.value.cancel() }
+        // Fan-out runs + per-pair coroutines are owned by the engine now.
+        fanOutEngine.cancelAllForReport(reportId)
         iconFanOutJobs.remove(reportId)?.cancel()
         languageIconFanOutJobs.remove(reportId)?.cancel()
         appViewModel.clearLanguageIconFanOut(reportId)

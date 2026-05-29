@@ -42,16 +42,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  re-fires the effect. */
     @Volatile var backgroundResumeSweepJob: Job? = null
 
-    // Hot-mutating fan-out pair set lives outside UiState so per-task
-    // start/finish updates (5–15 Hz during a Fan out batch) don't
-    // recompose every consumer that reads any other UiState field.
-    // Subscribers that actually care (the Fan out L1 / L2 / L3 screens,
-    // the Run-button hourglass) collect this flow directly.
-    private val _runningFanOutPairs = MutableStateFlow<Set<String>>(emptySet())
-    val runningFanOutPairs: StateFlow<Set<String>> = _runningFanOutPairs.asStateFlow()
-    internal fun updateRunningFanOutPairs(block: (Set<String>) -> Set<String>) {
-        _runningFanOutPairs.update(block)
-    }
+    // NOTE: the legacy `runningFanOutPairs` StateFlow was removed — the
+    // FanOutEngine's per-pair PairStatus in its StateFlow is now the single
+    // source of truth for "is this pair running". Consumers derive a
+    // running-id set from the engine flow where they still need one.
 
     /** Pair ids currently blocked inside
      *  [com.ai.data.ProviderThrottle.acquire] — i.e. waiting on

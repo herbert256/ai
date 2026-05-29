@@ -46,6 +46,8 @@ import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -113,7 +115,22 @@ fun ReportsScreenNav(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
-    val runningFanOutPairs by viewModel.runningFanOutPairs.collectAsState()
+    // Running fan-out pair ids derived from the engine's StateFlow (the
+    // single source of truth) instead of a separate set — a pair is
+    // "running" exactly when its PairStatus is RUNNING. distinctUntilChanged
+    // so this screen only recomposes when the running set actually changes,
+    // not on every per-pair content / cost transition.
+    val runningFanOutPairs by remember(reportViewModel) {
+        reportViewModel.fanOutEngine.runs
+            .map { runs ->
+                runs.values
+                    .flatMap { it.pairs.values }
+                    .filter { it.status == com.ai.data.PairStatus.RUNNING }
+                    .map { it.id }
+                    .toSet()
+            }
+            .distinctUntilChanged()
+    }.collectAsState(initial = emptySet())
     val throttledFanOutPairs by viewModel.throttledFanOutPairs.collectAsState()
     val runningFanMetaPairs by viewModel.runningFanMetaPairs.collectAsState()
     val throttledFanMetaPairs by viewModel.throttledFanMetaPairs.collectAsState()
@@ -445,7 +462,7 @@ fun ReportsScreenNav(
             reportViewModel.translation.translateMissingItems(context, reportId, items, target, targetNative)
         },
         onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds, systemPromptId ->
-            reportViewModel.secondary.runFanOutPrompt(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds = paramsIds, systemPromptId = systemPromptId)
+            reportViewModel.fanOutEngine.startRun(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds = paramsIds, systemPromptId = systemPromptId)
         },
         onRunFanIn = { reportId, metaPrompt, pick, sourceLanguage, paramsIds, systemPromptId ->
             reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, pick, sourceLanguage, paramsIds, systemPromptId)
@@ -581,8 +598,9 @@ fun ReportsScreenNav(
         onRecordRecentReportModel = { providerId, model ->
             viewModel.recordRecentReportModel(providerId, model)
         },
-        onResumeStaleFanOut = { rid, mp ->
-            reportViewModel.secondary.resumeStaleFanOutPairs(context, rid, mp)
+        onResumeStaleFanOut = { rid, _ ->
+            // The engine resumes every stale run on the report in one pass.
+            reportViewModel.fanOutEngine.resumeStaleRunsForReport(context, rid)
         },
         onResumeStaleRuns = { rid ->
             reportViewModel.secondary.resumeStaleRunsForReport(context, rid)
@@ -606,25 +624,27 @@ fun ReportsScreenNav(
             reportViewModel.translation.buildPersistedTranslationRunState(context, rid, runId)
         },
         onRestartFailedFanOut = { rid, mp ->
-            reportViewModel.secondary.rerunFailedFanOutPairs(context, rid, mp)
+            // The engine batch-reruns every errored pair (ERROR → PENDING →
+            // RUNNING per pair, reactively reflected in the flow).
+            reportViewModel.fanOutEngine.restartFailedPairs(context, com.ai.data.runKey(rid, mp.id))
         },
         onRemoveFailedFanOut = { rid, mp ->
-            reportViewModel.secondary.removeFailedFanOutPairs(context, rid, mp)
+            reportViewModel.fanOutEngine.removeFailedPairs(context, com.ai.data.runKey(rid, mp.id))
         },
         onRestartFailedFanOutForModel = { rid, mp, prov, mdl ->
-            reportViewModel.secondary.rerunFailedFanOutPairsForModel(context, rid, mp, prov, mdl)
+            reportViewModel.fanOutEngine.restartFailedPairsForModel(context, com.ai.data.runKey(rid, mp.id), prov, mdl)
         },
         onRemoveFailedFanOutForModel = { rid, mp, prov, mdl ->
-            reportViewModel.secondary.removeFailedFanOutPairsForModel(context, rid, mp, prov, mdl)
+            reportViewModel.fanOutEngine.removeFailedPairsForModel(context, com.ai.data.runKey(rid, mp.id), prov, mdl)
         },
         onRerunCompleteFanOut = { rid, mp ->
-            reportViewModel.secondary.rerunCompleteFanOut(context, rid, mp)
+            reportViewModel.fanOutEngine.rerunComplete(context, com.ai.data.runKey(rid, mp.id))
         },
         onRerunFanOutPair = { rid, mp, pair ->
-            reportViewModel.secondary.rerunSingleFanOutPair(context, rid, mp, pair)
+            reportViewModel.fanOutEngine.rerunPairById(context, com.ai.data.runKey(rid, mp.id), pair.id)
         },
         onDeleteFanOutModel = { rid, pid, prov, model ->
-            reportViewModel.secondary.deleteFanOutModel(context, rid, pid, prov, model)
+            reportViewModel.fanOutEngine.deleteModelFromRun(context, com.ai.data.runKey(rid, pid), prov, model)
         }
     )
     } // close CompositionLocalProvider added for LocalReportListIconBundle

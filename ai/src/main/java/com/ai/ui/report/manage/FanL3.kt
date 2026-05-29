@@ -44,7 +44,6 @@ import com.ai.data.AppService
 import com.ai.data.FanOutRunState
 import com.ai.data.PairState
 import com.ai.data.PairStatus
-import com.ai.data.effectiveStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.toPairState
@@ -380,7 +379,7 @@ internal fun FanOutL3Screen(
                 }
                 Spacer(Modifier.height(6.dp))
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
-                    when (pair.effectiveStatus(runningSet)) {
+                    when (pair.status) {
                         PairStatus.ERROR -> Text(
                             "❌ ${pair.errorMessage}",
                             color = AppColors.Red, fontSize = 13.sp

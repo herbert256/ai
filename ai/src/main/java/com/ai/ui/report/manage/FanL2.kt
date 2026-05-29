@@ -48,7 +48,6 @@ import com.ai.data.PairState
 import com.ai.data.PairStatus
 import com.ai.data.Report
 import com.ai.data.ReportStorage
-import com.ai.data.effectiveStatus
 import com.ai.data.titleStatus
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
@@ -104,7 +103,7 @@ internal fun FanOutL2Screen(
     val isMetaMode = isTitlesMode
     fun lens(p: PairState, set: Set<String>): PairStatus = when (mode) {
         FanOutMode.META -> p.titleStatus(set)
-        else -> p.effectiveStatus(set)
+        else -> p.status
     }
     val rawRows: List<PairState> = remember(run, role, answererKey) {
         when (role) {
@@ -359,12 +358,12 @@ internal fun FanOutL2Screen(
             // Whole L2 list finished — every row would show ✅ on a
             // full green fill. Drop both per row (mirrors L1's allDone).
             val allDone = rows.isNotEmpty() && rows.all {
-                it.effectiveStatus(runningSet) == PairStatus.DONE
+                it.status == PairStatus.DONE
             }
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rows, key = { it.key }) { p ->
                     val otherAgentId = if (role == "Responder") p.sourceAgentId else p.answererAgentId
-                    val effStatus = p.effectiveStatus(runningSet)
+                    val effStatus = p.status
                     // Per-pair rows are binary — full green when the
                     // pair is DONE, empty otherwise. Mirrors the L1
                     // row-background progress bar.
