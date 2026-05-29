@@ -3,6 +3,7 @@ import com.ai.ui.report.view.*
 import com.ai.ui.helpers.*
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -24,13 +25,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -494,7 +498,37 @@ internal fun FanOutL3MetaBody(
     val metaModel = fresh.titleModel?.substringAfterLast('/')
         ?.takeIf { it.isNotBlank() }?.let { shortModelName(it) } ?: "—"
 
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    // Horizontal swipe steps to the prev / next pair (replaces the old
+    // Prev/Next buttons): swipe right → previous, swipe left → next —
+    // same direction convention as the Manage-hub report swipe.
+    val density = LocalDensity.current
+    val swipeThresholdPx = with(density) { 64.dp.toPx() }
+    val swipeDragX = remember { mutableFloatStateOf(0f) }
+    val goPrev: () -> Unit = {
+        prev?.let { if (role == "Responder") onStepSource(it.sourceAgentId) else onStepSource(it.answererAgentId) }
+    }
+    val goNext: () -> Unit = {
+        next?.let { if (role == "Responder") onStepSource(it.sourceAgentId) else onStepSource(it.answererAgentId) }
+    }
+
+    Column(
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+            .pointerInput(prev, next, role) {
+                detectHorizontalDragGestures(
+                    onDragStart = { swipeDragX.floatValue = 0f },
+                    onDragEnd = {
+                        val dx = swipeDragX.floatValue
+                        when {
+                            dx > swipeThresholdPx -> goPrev()
+                            dx < -swipeThresholdPx -> goNext()
+                        }
+                        swipeDragX.floatValue = 0f
+                    },
+                    onDragCancel = { swipeDragX.floatValue = 0f },
+                    onHorizontalDrag = { _, d -> swipeDragX.floatValue += d }
+                )
+            }
+    ) {
         val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
         val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
             {
@@ -566,31 +600,18 @@ internal fun FanOutL3MetaBody(
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
         ) { Text("Find alternative title", maxLines = 1, softWrap = false) }
 
-        // Prev / Next arrow row.
-        Row(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-            Button(
-                onClick = {
-                    prev?.let {
-                        if (role == "Responder") onStepSource(it.sourceAgentId)
-                        else onStepSource(it.answererAgentId)
-                    }
-                },
-                enabled = prev != null,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("← Prev", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            Spacer(Modifier.padding(horizontal = 4.dp))
-            Button(
-                onClick = {
-                    next?.let {
-                        if (role == "Responder") onStepSource(it.sourceAgentId)
-                        else onStepSource(it.answererAgentId)
-                    }
-                },
-                enabled = next != null,
-                modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
-            ) { Text("Next →", fontSize = 12.sp, maxLines = 1, softWrap = false) }
+        // Swipe ← / → steps through the L2-scoped pair list (the small
+        // hint replaces the old Prev/Next buttons). Greyed ends show
+        // there's nothing further that way.
+        Row(
+            Modifier.fillMaxWidth().padding(top = 12.dp),
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                "← swipe   ·   swipe →",
+                fontSize = 12.sp, color = AppColors.TextTertiary,
+                maxLines = 1, softWrap = false
+            )
         }
     }
 
