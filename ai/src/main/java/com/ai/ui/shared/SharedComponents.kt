@@ -1720,7 +1720,14 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         // (Suppressed on useLegend screens — the overlay's red ❓ replaces it.)
         val iconTopic = icons?.helpTopic?.let { "${it}_icons" }
             ?.takeIf { com.ai.ui.admin.HELP_TOPICS.containsKey(it) }
-        val showIconHelp = iconTopic != null && specs.size > 3 && !useLegend
+        // White ❔ sits just left of the red ❓. On useLegend screens it opens
+        // the live icon-legend overlay (shown whenever there's ≥1 icon); on
+        // other screens it links to the static icon-table help page when the
+        // bar is crowded (>3 icons), as before. The red ❓ always navigates to
+        // the screen's help page.
+        val showLegendHelp = useLegend
+        val showIconPageHelp = !useLegend && iconTopic != null && specs.size > 3
+        val showSecondHelp = showLegendHelp || showIconPageHelp
         val cell = 24                       // uniform column width (dp) — tight spacing
         // Fill rows of up to 7, but put the SMALLEST (remainder) row on
         // TOP so the full rows sit at the bottom. ❓ pins to the right of
@@ -1737,7 +1744,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         val costReserve = if (costText != null) costText.length * costBaseSp * 0.62f + 16f else 0f
         fun rowWidth(count: Int, withHelp: Boolean, withCost: Boolean) =
             (count * cell + (count - 1).coerceAtLeast(0) * extraGap).toFloat() +
-                (if (withHelp) helpGap + helpW * (if (showIconHelp) 2 else 1) else 0f) +
+                (if (withHelp) helpGap + helpW * (if (showSecondHelp) 2 else 1) else 0f) +
                 (if (withCost) costReserve else 0f)
         val widest = rows.mapIndexed { i, r ->
             rowWidth(r.size, i == rows.lastIndex, i == 0)
@@ -1770,10 +1777,15 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                         )
                     }
                     if (isLast) {
-                        if (showIconHelp && iconTopic != null) {
+                        if (showLegendHelp) {
+                            // White ❔ → live "<screen> - icons" overlay.
+                            TitleBarIcon("❔", AppColors.Blue, { showLegend = true }, width = 18.dp, heightDp = rowCellH, scale = scale)
+                        } else if (showIconPageHelp && iconTopic != null) {
+                            // White ❔ → static icon-table help page.
                             TitleBarIcon("❔", AppColors.Blue, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale)
                         }
-                        TitleBarIcon("❓", AppColors.Blue, if (useLegend) ({ showLegend = true }) else onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
+                        // Red ❓ → the screen's help page (unchanged).
+                        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
                     }
                 }
             }
