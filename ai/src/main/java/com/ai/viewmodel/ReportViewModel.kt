@@ -891,6 +891,18 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
     }
 
+    /** Manually overwrite a fan-out pair's title (the new pair-title editor
+     *  on "Edit titles"). Persists straight to the SecondaryResult row;
+     *  `manual` promptUsed distinguishes it from a Find-alt pick
+     *  (`model_title_alt`). Bumps iconRefreshTick so the list / overview
+     *  re-read from disk. */
+    suspend fun updateFanOutPairTitle(context: Context, reportId: String, pairId: String, newTitle: String) {
+        withContext(Dispatchers.IO) {
+            SecondaryResultStorage.setFanOutTitle(context, reportId, pairId, newTitle, promptUsed = "manual")
+        }
+        appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+    }
+
     /**
      * Regenerate only the report's **metadata** — the jobs shown on the
      * "Report - Get info" screen: report icon, language, title, and the

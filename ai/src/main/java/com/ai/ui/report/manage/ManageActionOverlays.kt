@@ -29,6 +29,7 @@ internal fun ReportManageActionOverlays(
     onUpdatePrompt: (String, String) -> Unit,
     onUpdateTitle: (String, String, String) -> Unit,
     onUpdateModelTitle: (String, String, String) -> Unit,
+    onUpdatePairTitle: (String, String, String) -> Unit,
     onDeleteSecondaryWithRefresh: (String, String) -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
     onNavigateToModelInfo: (com.ai.data.AppService, String) -> Unit,
@@ -239,6 +240,33 @@ internal fun ReportManageActionOverlays(
             }
             return true
         }
+    }
+
+    val pairTitleEditFor = st.pairTitleEditFor.value
+    if (pairTitleEditFor != null && currentReportId != null) {
+        val rid = currentReportId
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides runtime.effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
+            LocalNavigateToCurrentReport provides { st.pairTitleEditFor.value = null }
+        ) {
+            ReportEditPairTitleScreen(
+                reportId = rid,
+                pairId = pairTitleEditFor,
+                iconRefreshTick = uiState.iconRefreshTick,
+                onBack = { st.pairTitleEditFor.value = null },
+                onFindAlternativeTitles = {
+                    st.pairTitleDetailFor.value = pairTitleEditFor
+                    st.findIconsModels.value = emptyList()
+                    st.showFindIconsPicker.value = true
+                },
+                onUpdate = { newTitle ->
+                    st.pairTitleEditFor.value = null
+                    onUpdatePairTitle(rid, pairTitleEditFor, newTitle)
+                }
+            )
+        }
+        return true
     }
 
     // NOTE: "Report - Get info" is no longer an early-return overlay —

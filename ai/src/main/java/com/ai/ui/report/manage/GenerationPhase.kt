@@ -632,21 +632,9 @@ internal fun ColumnScope.GenerationPhase(
     // onTotalCostChange → ReportRunScreen → TitleBar costText), not in
     // the body list.
 
-    // ----- Edit / Create pop-ups (triggered by the bottom-bar icons) -----
-    if (activeBar == "edit") {
-        ChoicePopup("Edit") {
-            ActionRow {
-                CompactButton(onClick = { close(); onEditTitle() }, color = editColor, text = "Title")
-                CompactButton(onClick = { close(); onEditPromptInline() }, color = editColor, text = "Prompt")
-                // System prompt + Parameters moved to the bottom-bar 🎭 / 🌡️ icons.
-                CompactButton(
-                    onClick = { close(); onEditModelsInline() },
-                    color = editColor, text = "Models",
-                    enabled = currentReportId != null
-                )
-            }
-        }
-    }
+    // ----- Create pop-up (triggered by the bottom-bar 🆕 icon) -----
+    // (The Edit ✏️ icon now opens the full-screen "Edit report" overview —
+    // see ReportRunScreen — instead of a pop-up.)
     if (activeBar == "create") {
         ChoicePopup("Create") {
             ActionRow {

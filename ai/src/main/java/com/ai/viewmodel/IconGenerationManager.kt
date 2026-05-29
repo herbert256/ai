@@ -901,9 +901,14 @@ class IconGenerationManager(
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             val pair = SecondaryResultStorage.listForReport(context, reportId)
                 .firstOrNull { it.id == pairId } ?: return@launch
-            val sourceAgentId = pair.fanOutSourceAgentId ?: return@launch
+            // Fan-out pairs carry a source agent; Rerank / Moderation /
+            // non-fan-out Meta rows don't. Keep going either way — the
+            // @SOURCE_RESPONSE@ / @META_PROMPT@ tokens just resolve empty
+            // for a sourceless row, so this same flow re-finds the icon
+            // for ANY SecondaryResult (keyed on its row id).
+            val sourceAgentId = pair.fanOutSourceAgentId
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
-            val sourceAgent = report.agents.firstOrNull { it.agentId == sourceAgentId }
+            val sourceAgent = sourceAgentId?.let { sid -> report.agents.firstOrNull { it.agentId == sid } }
             val metaPrompt = pair.metaPromptId?.let { mid ->
                 aiSettings.internalPrompts.firstOrNull { it.id == mid }
             }

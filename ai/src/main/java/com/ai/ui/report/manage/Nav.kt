@@ -524,6 +524,9 @@ fun ReportsScreenNav(
         onUpdateModelTitle = { rid, agentId, title ->
             scope.launch { reportViewModel.updateModelTitle(context, rid, agentId, title) }
         },
+        onUpdatePairTitle = { rid, pairId, title ->
+            scope.launch { reportViewModel.updateFanOutPairTitle(context, rid, pairId, title) }
+        },
         onAttachKnowledgeBases = { ids -> viewModel.updateUiState { it.copy(attachedKnowledgeBaseIds = ids) } },
         onDeleteReport = { rid ->
             reportViewModel.deleteReport(context, rid)

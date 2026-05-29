@@ -283,7 +283,9 @@ internal fun ReportRunScreen(
                 { generationHandlers.onTogglePin(); pinTick++ }
             } else null,
             isPinned = isPinned,
-            onEdit = { editCreateMenu.value = if (editCreateMenu.value == "edit") null else "edit" },
+            // ✏️ opens the full-screen "Edit report" overview (layer on top
+            // of this hub) instead of the old 3-button pop-up.
+            onEdit = { st.showEditReportOverview.value = true },
             // 🌡️ parameters / 🎭 system prompt — pulled out of the Edit
             // pop-up onto their own bottom-bar icons.
             onParameters = if (currentReportId != null) { { st.showEditParameters.value = true } } else null,
@@ -364,9 +366,11 @@ internal fun ReportRunScreen(
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
             editCreateMenu = editCreateMenu,
-            // Pause the hub's background effects while the Get-info overlay
-            // is layered on top (the hub stays composed underneath).
-            paused = st.showGetInfo.value
+            // Pause the hub's background effects while any full-screen layer
+            // (Get-info / Edit report / Edit icons / Edit titles) is on top —
+            // the hub stays composed underneath.
+            paused = st.showGetInfo.value || st.showEditReportOverview.value ||
+                st.showEditIconsList.value || st.showEditTitlesList.value
         )
     } // close inner Column
         // Body-level pill. TopCenter + 24.dp top padding lines this
@@ -426,6 +430,61 @@ internal fun ReportRunScreen(
                     onOpenAgentIconDetail = { agentId -> st.agentIconDetailFor.value = agentId },
                     onEditModelTitle = { agentId -> st.editModelTitleFor.value = agentId },
                     onRestartErrors = { onRestartInfoErrors(currentReportId) }
+                )
+            }
+        }
+
+        // "Edit report" overview + its two child list screens — same
+        // layer-on-top pattern as Get-info. Painted in order so a child list
+        // (icons / titles) draws over the overview; each Back clears only its
+        // own flag, so the stack unwinds one level per press (child → overview
+        // → hub). The pencils inside each set the existing st.* edit/detail
+        // flags, whose early-return overlays (in ReportsScreen, before this
+        // hub) render over these layers.
+        if (st.showEditReportOverview.value && currentReportId != null) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides { st.showEditReportOverview.value = false }
+            ) {
+                ReportEditOverviewScreen(
+                    reportId = currentReportId,
+                    uiState = uiState,
+                    st = st,
+                    editSystemPromptTrigger = editSystemPromptTrigger,
+                    onEditModels = {
+                        st.showEditReportOverview.value = false
+                        generationHandlers.onEditModelsInline()
+                    },
+                    onBack = { st.showEditReportOverview.value = false }
+                )
+            }
+        }
+        if (st.showEditIconsList.value && currentReportId != null) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides { st.showEditIconsList.value = false }
+            ) {
+                ReportEditIconsScreen(
+                    reportId = currentReportId,
+                    iconRefreshTick = uiState.iconRefreshTick,
+                    st = st,
+                    onBack = { st.showEditIconsList.value = false }
+                )
+            }
+        }
+        if (st.showEditTitlesList.value && currentReportId != null) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides { st.showEditTitlesList.value = false }
+            ) {
+                ReportEditTitlesScreen(
+                    reportId = currentReportId,
+                    uiState = uiState,
+                    st = st,
+                    onBack = { st.showEditTitlesList.value = false }
                 )
             }
         }

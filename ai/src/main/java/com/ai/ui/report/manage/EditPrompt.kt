@@ -205,3 +205,65 @@ fun ReportEditModelTitleScreen(
         ) { Text("Find alternative titles", maxLines = 1, softWrap = false) }
     }
 }
+
+/**
+ * Edit one fan-out response's title — the per-pair sibling of
+ * [ReportEditModelTitleScreen]. The pair's title lives on its
+ * [com.ai.data.SecondaryResult] row (there's no in-memory editor field), so
+ * this screen reads the row off disk, keyed on [iconRefreshTick] so a
+ * Find-alternative pick (which persists straight to the row) is reflected when
+ * the editor repaints underneath. Saving writes back via
+ * [com.ai.viewmodel.ReportViewModel.updateFanOutPairTitle].
+ */
+@Composable
+fun ReportEditPairTitleScreen(
+    reportId: String,
+    pairId: String,
+    iconRefreshTick: Int,
+    onBack: () -> Unit,
+    onFindAlternativeTitles: () -> Unit = {},
+    onUpdate: (newTitle: String) -> Unit
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val pair by produceState<com.ai.data.SecondaryResult?>(initialValue = null, reportId, pairId, iconRefreshTick) {
+        value = withContext(Dispatchers.IO) {
+            com.ai.data.SecondaryResultStorage.listForReport(context, reportId).firstOrNull { it.id == pairId }
+        }
+    }
+    val loadedTitle = pair?.title.orEmpty()
+    // Key on the loaded title so a fresh disk value (e.g. after a Find-alt
+    // pick) re-seeds the field; same caveat as the editors above.
+    var title by rememberSaveable(loadedTitle) { mutableStateOf(loadedTitle) }
+    val modelName = pair?.let { "${it.providerId} · ${com.ai.ui.shared.shortModelName(it.model)}" } ?: ""
+    val canUpdate = title.trim().isNotBlank()
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(
+            helpTopic = "report_edit_pair_title", title = "Edit title", subject = "Rename one fan-out response title", onBackClick = onBack
+        )
+
+        Button(
+            onClick = { onUpdate(title.trim()) },
+            enabled = canUpdate,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        ) { Text("Update title", maxLines = 1, softWrap = false) }
+        Spacer(modifier = Modifier.height(8.dp))
+
+        if (modelName.isNotBlank()) {
+            Text(modelName, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(bottom = 8.dp))
+        }
+        OutlinedTextField(
+            value = title, onValueChange = { title = it },
+            label = { Text("Title") }, singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedFieldColors()
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        OutlinedButton(
+            onClick = onFindAlternativeTitles,
+            modifier = Modifier.fillMaxWidth(),
+            colors = AppColors.outlinedButtonColors()
+        ) { Text("Find alternative titles", maxLines = 1, softWrap = false) }
+    }
+}

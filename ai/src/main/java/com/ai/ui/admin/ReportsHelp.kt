@@ -51,6 +51,39 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("How it works", "This is an in-place text edit — it does not re-run the model or the title call. The new title shows on the model-title row and as the label of that model's model-icon row.")
         )
     ),
+    "report_edit_overview" to HelpContent(
+        title = "Help - Edit report",
+        cards = listOf(
+            HelpCard("What you see", "A single screen gathering everything editable about the report: the report icon (big, centred), the short title, the long title, the parameters preset, the system prompt, and the prompt body. Each has a ✏️ pencil that opens its dedicated editor; Back returns here."),
+            HelpCard("Icon + titles", "The pencil beside the icon opens the Icon lookup screen (where Find alternative icons fans out across models). The pencils beside the short / long title open the Edit title screen with its own Find-alternative buttons."),
+            HelpCard("Parameters + system prompt", "Each line shows the current preset name, or *NONE when unset. The pencil opens the same picker reached from the bottom-bar 🌡️ / 🎭 icons. A change here needs a Regenerate to affect future calls."),
+            HelpCard("Prompt", "The card shows the report's prompt body; its pencil opens the prompt editor. Editing the prompt flags the report as needing a Regenerate to apply."),
+            HelpCard("Edit models / icons / titles", "Edit models opens the model-selection screen in edit mode. Edit icons lists every icon in the report; Edit titles lists every dynamic title — each with manual edit + Find alternative. Reached from the ✏️ icon on Manage report.")
+        )
+    ),
+    "report_edit_icons" to HelpContent(
+        title = "Help - Edit icons",
+        cards = listOf(
+            HelpCard("What you see", "One row for every icon in this report: the report icon, the report-language icon, each model's report icon, the Meta icons, the Ranking and Moderation icons, a per-language Translation icon, and each fan-out response's icon. The leading glyph is the current icon (⬜ when none yet)."),
+            HelpCard("How it works", "Tap any row to open that icon's Icon lookup screen, where Find alternative icons fans the icon prompt out across the models you pick and lets you choose a replacement. Picks save straight to that icon and the row refreshes."),
+            HelpCard("Reached from", "Edit report (✏️ on Manage report) → Edit icons.")
+        )
+    ),
+    "report_edit_titles" to HelpContent(
+        title = "Help - Edit titles",
+        cards = listOf(
+            HelpCard("What you see", "One row for every dynamic title in this report: the report title, the report long title, each model's title, and each fan-out response's title. Every row has a ✏️ pencil (manual edit) and a Find button (the multi-model alternative picker)."),
+            HelpCard("Manual edit vs Find", "The pencil opens a text editor to type a title directly. Find opens the model picker, fans the title prompt out across the chosen models, and lets you pick an alternative — for report / per-model titles the pick lands in the editor for you to confirm; for fan-out titles it applies immediately."),
+            HelpCard("Reached from", "Edit report (✏️ on Manage report) → Edit titles.")
+        )
+    ),
+    "report_edit_pair_title" to HelpContent(
+        title = "Help - Edit title",
+        cards = listOf(
+            HelpCard("What you see", "The title generated for one fan-out response. Edit it and tap Update title to save, or use Find alternative titles to fan the title prompt out across models."),
+            HelpCard("How it works", "An in-place text edit on that response's row — it doesn't re-run anything. The new title shows wherever that fan-out response is listed.")
+        )
+    ),
     "report_new" to HelpContent(
         title = "Help - New Report",
         cards = listOf(

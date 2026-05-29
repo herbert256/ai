@@ -79,6 +79,10 @@ internal class ReportsScreenState(
     val fanOutTargetAgentId: MutableState<String?>,
     val pairIconDetailFor: MutableState<String?>,
     val pairTitleDetailFor: MutableState<String?>,
+    /** Pair id whose fan-out title is being edited MANUALLY (the new
+     *  pair-title editor). Distinct from [pairTitleDetailFor], which
+     *  drives the Find-alternative picker. */
+    val pairTitleEditFor: MutableState<String?>,
     val findIconsModels: MutableState<List<ReportModel>>,
     val translationModels: MutableState<List<ReportModel>>,
     val pickerTarget: MutableState<PickerTarget>,
@@ -93,6 +97,11 @@ internal class ReportsScreenState(
     val showEditPrompt: MutableState<Boolean>,
     val showEditTitle: MutableState<Boolean>,
     val showGetInfo: MutableState<Boolean>,
+    /** The "Edit report" overview + its two child list screens, all drawn
+     *  as layer-on-top overlays in [ReportRunScreen] (like showGetInfo). */
+    val showEditReportOverview: MutableState<Boolean>,
+    val showEditIconsList: MutableState<Boolean>,
+    val showEditTitlesList: MutableState<Boolean>,
     val showEditParameters: MutableState<Boolean>,
     val showAdvancedParameters: MutableState<Boolean>,
     val showTranslateLanguagePicker: MutableState<Boolean>,
@@ -156,6 +165,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val fanOutTargetAgentId = rememberSaveable { mutableStateOf<String?>(null) }
     val pairIconDetailFor = rememberSaveable { mutableStateOf<String?>(null) }
     val pairTitleDetailFor = rememberSaveable { mutableStateOf<String?>(null) }
+    val pairTitleEditFor = rememberSaveable { mutableStateOf<String?>(null) }
     val findIconsModels = rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
     val translationModels = rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
     val pickerTarget = remember { mutableStateOf(PickerTarget.NEW_REPORT) }
@@ -170,6 +180,9 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val showEditPrompt = rememberSaveable { mutableStateOf(false) }
     val showEditTitle = rememberSaveable { mutableStateOf(false) }
     val showGetInfo = rememberSaveable { mutableStateOf(false) }
+    val showEditReportOverview = rememberSaveable { mutableStateOf(false) }
+    val showEditIconsList = rememberSaveable { mutableStateOf(false) }
+    val showEditTitlesList = rememberSaveable { mutableStateOf(false) }
     val showEditParameters = rememberSaveable { mutableStateOf(false) }
     val showAdvancedParameters = rememberSaveable { mutableStateOf(false) }
     val showTranslateLanguagePicker = rememberSaveable { mutableStateOf(false) }
@@ -231,6 +244,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         fanOutTargetAgentId,
         pairIconDetailFor,
         pairTitleDetailFor,
+        pairTitleEditFor,
         findIconsModels,
         translationModels,
         pickerTarget,
@@ -245,6 +259,9 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         showEditPrompt,
         showEditTitle,
         showGetInfo,
+        showEditReportOverview,
+        showEditIconsList,
+        showEditTitlesList,
         showEditParameters,
         showAdvancedParameters,
         showTranslateLanguagePicker,
