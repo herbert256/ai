@@ -1647,10 +1647,34 @@ private fun TitleBarIcon(
  *  system back gesture, routed through each screen's [BackHandler].
  *  Icons render at a 1.25× scale by default, narrowing adaptively when
  *  the strip would otherwise overflow on a narrow screen. */
-/** Screens whose white ❓ opens the live "<title> - icons" overlay instead
- *  of navigating to the help page. Piloted on Manage report; add a
- *  helpTopic here to roll the behaviour out to that screen. */
-private val LEGEND_OVERLAY_TOPICS = setOf("report_run")
+/** Screens whose white ❔ opens the live "<title> - icons" overlay instead
+ *  of navigating to the icon-table help page. Covers the whole report-Manage
+ *  family (the View family uses its own ViewBottomBar, so it's excluded
+ *  automatically). Add a helpTopic here to roll the behaviour out to more
+ *  screens. */
+private val LEGEND_OVERLAY_TOPICS = setOf(
+    // Manage hub + its edit/create overlays and sub-editors.
+    "report_run",
+    "report_edit_overview", "report_edit_icons", "report_edit_titles",
+    "report_create_overview", "report_get_info",
+    "report_edit_title", "report_edit_prompt",
+    "report_edit_model_title", "report_edit_pair_title",
+    // Meta / secondary creation + drill-ins.
+    "report_meta", "report_meta_run", "report_fan_out_confirm", "secondary_scope",
+    "secondary_list", "secondary_detail",
+    "secondary_fan_out_l1", "secondary_fan_out_l2", "secondary_fan_out_l3",
+    "secondary_fan_out_onepage", "fan_meta",
+    // Translation drill-ins.
+    "translation_run_l1", "translation_run_l2", "translation_run_l3",
+    "translation_models", "alternative_translations",
+    // Find-alternative + icon-lookup detail screens.
+    "alternative_icons", "alternative_titles",
+    "icon_lookup_main", "icon_lookup_agent", "icon_lookup_meta",
+    "icon_lookup_translation", "icon_lookup_language", "icon_lookup_pair",
+    // Per-agent result / content / cost / misc manage screens.
+    "report_single_result", "content_model_response", "content_one_page",
+    "cost_view", "report_continue_in_chat", "regenerate_batch",
+)
 
 @Composable
 fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
@@ -1817,7 +1841,9 @@ private fun IconLegendOverlay(
     navigateHelp: (String?) -> Unit,
     onClose: () -> Unit
 ) {
-    // emoji → (name, short description) from the screen's icon legend.
+    // emoji → (name, short description). Prefer the screen's own legend;
+    // fall back to the generic per-glyph legend so legend-less screens still
+    // show a name + description for the standard bar icons.
     val legend = icons.helpTopic
         ?.let { com.ai.ui.admin.SCREEN_ICON_HELP[it] }
         ?.associate { it.first to (it.second to it.third) }
@@ -1849,7 +1875,7 @@ private fun IconLegendOverlay(
                                     color = if (spec.tint == Color.Unspecified) Color.White else spec.tint
                                 )
                             }
-                            val entry = legend[spec.emoji]
+                            val entry = legend[spec.emoji] ?: com.ai.ui.admin.DEFAULT_BAR_ICON_HELP[spec.emoji]
                             Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                                 Text(
                                     entry?.first ?: spec.emoji,

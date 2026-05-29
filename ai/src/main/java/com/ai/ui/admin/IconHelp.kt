@@ -377,6 +377,38 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     "icon_lookup_pair" to ICON_LOOKUP_ROWS,
 )
 
+/** Generic name + one-line purpose for each standard bottom-bar glyph,
+ *  keyed by the exact emoji used in `buildBottomBarIcons`. Used as the
+ *  FALLBACK by the live "<screen> - icons" overlay when a screen has no (or
+ *  an incomplete) per-screen [SCREEN_ICON_HELP] legend, so every row still
+ *  shows an icon + name + description. Per-screen entries take precedence. */
+internal val DEFAULT_BAR_ICON_HELP: Map<String, Pair<String, String>> = mapOf(
+    "🆕" to ("Create" to "Add a new item or operation."),
+    "💬" to ("Chat" to "Start a chat from here."),
+    "🗂️" to ("Switch" to "Pick another report to work on."),
+    "🔧" to ("Manage" to "Open the manage screen."),
+    "🧹" to ("Housekeeping" to "Jump to the related Housekeeping screen."),
+    "⚙️" to ("AI Setup" to "Jump to the related AI Setup screen."),
+    "📈" to ("Statistics" to "Open the related statistics screen."),
+    "ℹ️" to ("Info" to "Show model / item details."),
+    "🌡️" to ("Parameters" to "Pick the generation-parameters preset."),
+    "🎭" to ("System prompt" to "Pick the system prompt."),
+    "🧽" to ("Clear" to "Clear the form."),
+    "📎" to ("Attach" to "Attach an image."),
+    "🚩" to ("Validate" to "Validate the prompt with a moderation model."),
+    "📋" to ("Copy" to "Copy to the clipboard."),
+    "📌" to ("Pin" to "Pin to the top of the lists."),
+    "📤" to ("Export" to "Export or share."),
+    "👯" to ("Duplicate" to "Make a copy."),
+    "👁" to ("View" to "Open the View screen."),
+    "🌐" to ("Compare" to "Open the translation compare view."),
+    "📝" to ("Memo" to "Open the memo."),
+    "✏️" to ("Edit" to "Edit the prompt, title or models."),
+    "🔄" to ("Regenerate" to "Re-run / reload."),
+    "🗑" to ("Delete" to "Delete this item (asks to confirm)."),
+    "🐞" to ("Trace" to "Open the API trace(s)."),
+)
+
 /** Topics whose screen shows MORE than 3 icons → a standalone ❔ icon page
  *  (and the ❔ bottom-bar glyph). Everything else in [SCREEN_ICON_HELP]
  *  embeds its table inline under the main help page. */
