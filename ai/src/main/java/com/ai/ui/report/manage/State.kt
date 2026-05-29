@@ -102,6 +102,9 @@ internal class ReportsScreenState(
     val showEditReportOverview: MutableState<Boolean>,
     val showEditIconsList: MutableState<Boolean>,
     val showEditTitlesList: MutableState<Boolean>,
+    /** The "Create" launcher (🆕), a layer-on-top overlay like the Edit
+     *  overview. Lists the secondary-result create options. */
+    val showCreateOverview: MutableState<Boolean>,
     val showEditParameters: MutableState<Boolean>,
     val showAdvancedParameters: MutableState<Boolean>,
     val showTranslateLanguagePicker: MutableState<Boolean>,
@@ -183,6 +186,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val showEditReportOverview = rememberSaveable { mutableStateOf(false) }
     val showEditIconsList = rememberSaveable { mutableStateOf(false) }
     val showEditTitlesList = rememberSaveable { mutableStateOf(false) }
+    val showCreateOverview = rememberSaveable { mutableStateOf(false) }
     val showEditParameters = rememberSaveable { mutableStateOf(false) }
     val showAdvancedParameters = rememberSaveable { mutableStateOf(false) }
     val showTranslateLanguagePicker = rememberSaveable { mutableStateOf(false) }
@@ -262,6 +266,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         showEditReportOverview,
         showEditIconsList,
         showEditTitlesList,
+        showCreateOverview,
         showEditParameters,
         showAdvancedParameters,
         showTranslateLanguagePicker,

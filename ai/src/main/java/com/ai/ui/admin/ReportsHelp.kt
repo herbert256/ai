@@ -61,6 +61,14 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Edit models / icons / titles", "Edit models opens the model-selection screen in edit mode. Edit icons lists every icon in the report; Edit titles lists every dynamic title — each with manual edit + Find alternative. Reached from the ✏️ icon on Manage report.")
         )
     ),
+    "report_create_overview" to HelpContent(
+        title = "Help - Create",
+        cards = listOf(
+            HelpCard("What you see", "A full-screen launcher (the 🆕 icon on Manage report) for adding a secondary result to the report: Meta, Rerank, Moderation, Fan out, Translate — each a big icon with a one-line explanation."),
+            HelpCard("The options", "Meta runs a Compare / Critique / Synthesize prompt over the answers. Rerank ranks the answers best-first. Moderation safety-checks them. Fan out fans one answer out to every model. Translate renders the report into other languages."),
+            HelpCard("How it works", "Tapping a row opens that kind's model/prompt picker — exactly what the old pop-up did. Meta and Fan out are disabled when no Meta / Fan-out prompts are configured; Rerank and Moderation are single-shot and grey out once one exists on the report.")
+        )
+    ),
     "report_edit_icons" to HelpContent(
         title = "Help - Edit icons",
         cards = listOf(

@@ -632,46 +632,9 @@ internal fun ColumnScope.GenerationPhase(
     // onTotalCostChange → ReportRunScreen → TitleBar costText), not in
     // the body list.
 
-    // ----- Create pop-up (triggered by the bottom-bar 🆕 icon) -----
-    // (The Edit ✏️ icon now opens the full-screen "Edit report" overview —
-    // see ReportRunScreen — instead of a pop-up.)
-    if (activeBar == "create") {
-        ChoicePopup("Create") {
-            ActionRow {
-                CompactButton(
-                    onClick = { close(); onOpenMetaPicker() },
-                    color = createColor, text = "Meta",
-                    enabled = metaPrompts.isNotEmpty()
-                )
-                // Rerank / Moderation are single-shot per report — gray
-                // them out once a result of that kind already exists.
-                val hasRerank = secondaryCounts.rerank > 0
-                val hasModeration = secondaryCounts.moderation > 0
-                CompactButton(
-                    onClick = {
-                        android.widget.Toast.makeText(context, "Loading rerank models…", android.widget.Toast.LENGTH_SHORT).show()
-                        close(); onOpenRerankPicker()
-                    },
-                    color = createColor, text = "Rerank",
-                    enabled = !hasRerank
-                )
-                CompactButton(
-                    onClick = {
-                        android.widget.Toast.makeText(context, "Loading moderation models…", android.widget.Toast.LENGTH_SHORT).show()
-                        close(); onOpenModerationPicker()
-                    },
-                    color = createColor, text = "Moderation",
-                    enabled = !hasModeration
-                )
-                CompactButton(
-                    onClick = { close(); onOpenFanOutPicker() },
-                    color = createColor, text = "Fan out",
-                    enabled = fanOutPrompts.isNotEmpty()
-                )
-                CompactButton(onClick = { close(); onTranslate() }, color = createColor, text = "Translate")
-            }
-        }
-    }
+    // The Edit ✏️ and Create 🆕 icons now open full-screen overlays
+    // (ReportEditOverviewScreen / ReportCreateOverviewScreen, mounted in
+    // ReportRunScreen) instead of bottom-bar pop-ups.
     Spacer(modifier = Modifier.height(8.dp))
 
     // Pending-changes banner: surfaces edits the user made (prompt / models / parameters)

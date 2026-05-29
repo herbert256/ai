@@ -290,7 +290,9 @@ internal fun ReportRunScreen(
             // pop-up onto their own bottom-bar icons.
             onParameters = if (currentReportId != null) { { st.showEditParameters.value = true } } else null,
             onSystemPrompt = if (currentReportId != null) editSystemPromptTrigger else null,
-            onAdd = { editCreateMenu.value = if (editCreateMenu.value == "create") null else "create" },
+            // 🆕 opens the full-screen "Create" launcher (layer on top of this
+            // hub) instead of the old pop-up.
+            onAdd = { st.showCreateOverview.value = true },
             addFirst = true
         )
         }
@@ -370,7 +372,8 @@ internal fun ReportRunScreen(
             // (Get-info / Edit report / Edit icons / Edit titles) is on top —
             // the hub stays composed underneath.
             paused = st.showGetInfo.value || st.showEditReportOverview.value ||
-                st.showEditIconsList.value || st.showEditTitlesList.value
+                st.showEditIconsList.value || st.showEditTitlesList.value ||
+                st.showCreateOverview.value
         )
     } // close inner Column
         // Body-level pill. TopCenter + 24.dp top padding lines this
@@ -485,6 +488,46 @@ internal fun ReportRunScreen(
                     uiState = uiState,
                     st = st,
                     onBack = { st.showEditTitlesList.value = false }
+                )
+            }
+        }
+        // "Create" launcher — the 🆕 sibling of the Edit overview. Each row's
+        // callback closes this layer then fires the same flow the old pop-up
+        // did (so Back from the opened picker returns to the hub).
+        if (st.showCreateOverview.value && currentReportId != null) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides { st.showCreateOverview.value = false }
+            ) {
+                ReportCreateOverviewScreen(
+                    metaEnabled = aiSettings.internalPrompts.any { it.category.equals("meta", ignoreCase = true) },
+                    rerankEnabled = secondaryCounts.rerank == 0,
+                    moderationEnabled = secondaryCounts.moderation == 0,
+                    fanOutEnabled = aiSettings.internalPrompts.any { it.category == "fan_out" },
+                    onMeta = {
+                        st.showCreateOverview.value = false
+                        generationHandlers.onOpenMetaPicker()
+                    },
+                    onRerank = {
+                        st.showCreateOverview.value = false
+                        android.widget.Toast.makeText(context, "Loading rerank models…", android.widget.Toast.LENGTH_SHORT).show()
+                        generationHandlers.onOpenRerankPicker()
+                    },
+                    onModeration = {
+                        st.showCreateOverview.value = false
+                        android.widget.Toast.makeText(context, "Loading moderation models…", android.widget.Toast.LENGTH_SHORT).show()
+                        generationHandlers.onOpenModerationPicker()
+                    },
+                    onFanOut = {
+                        st.showCreateOverview.value = false
+                        generationHandlers.onOpenFanOutPicker()
+                    },
+                    onTranslate = {
+                        st.showCreateOverview.value = false
+                        generationHandlers.onTranslate()
+                    },
+                    onBack = { st.showCreateOverview.value = false }
                 )
             }
         }
