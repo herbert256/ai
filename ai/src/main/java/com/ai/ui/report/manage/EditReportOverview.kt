@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -28,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -97,15 +99,14 @@ internal fun ReportEditOverviewScreen(
         ) {
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Row 1 — report icon, big + centred, with its edit pencil.
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(icon?.takeIf { it.isNotBlank() } ?: "📝", fontSize = 56.sp, color = Color.White)
-                Spacer(modifier = Modifier.width(12.dp))
-                EditPencil { st.showIconDetail.value = true }
+            // Row 1 — report icon, big + centred, with its edit pencil at
+            // the right edge (all pencils share a right-aligned column).
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    icon?.takeIf { it.isNotBlank() } ?: "📝", fontSize = 56.sp, color = Color.White,
+                    modifier = Modifier.align(Alignment.Center)
+                )
+                EditPencil(Modifier.align(Alignment.CenterEnd)) { st.showIconDetail.value = true }
             }
 
             // Rows 2 & 3 — short title then long title, centred.
@@ -168,26 +169,24 @@ internal fun ReportEditOverviewScreen(
     }
 }
 
-/** A 22sp ✏️ glyph that runs [onEdit] when tapped. */
+/** A 20sp ✏️ glyph that runs [onEdit] when tapped. */
 @Composable
-private fun EditPencil(onEdit: () -> Unit) {
-    Text("✏️", fontSize = 20.sp, modifier = Modifier.clickable { onEdit() }.padding(4.dp))
+private fun EditPencil(modifier: Modifier = Modifier, onEdit: () -> Unit) {
+    Text("✏️", fontSize = 20.sp, modifier = modifier.clickable { onEdit() }.padding(4.dp))
 }
 
-/** Centred text (a title) with an edit pencil immediately to its right. */
+/** Centred text (a title) with its edit pencil pinned to the right edge. */
 @Composable
 private fun CenteredEditRow(text: String, onEdit: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
+    Box(modifier = Modifier.fillMaxWidth()) {
         Text(
             text, fontSize = 17.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
-            maxLines = 2, overflow = TextOverflow.Ellipsis
+            textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            // Leave room on both sides so the centred title never runs under
+            // the right-aligned pencil.
+            modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 44.dp)
         )
-        Spacer(modifier = Modifier.width(8.dp))
-        EditPencil(onEdit)
+        EditPencil(Modifier.align(Alignment.CenterEnd), onEdit)
     }
 }
 
@@ -202,6 +201,6 @@ private fun LabeledEditRow(label: String, value: String, onEdit: () -> Unit) {
             modifier = Modifier.weight(1f)
         )
         Spacer(modifier = Modifier.width(8.dp))
-        EditPencil(onEdit)
+        EditPencil(onEdit = onEdit)
     }
 }
