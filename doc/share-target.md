@@ -2,7 +2,8 @@
 
 The app receives `ACTION_SEND` and `ACTION_SEND_MULTIPLE` intents
 from any other app's share sheet, lets the user pick a destination
-(Report or Chat), and routes the payload accordingly.
+(Report, Chat, or — when Experimental features is on — Knowledge),
+and routes the payload accordingly.
 Code lives in `MainActivity`, `data/SharedContent.kt`,
 `ui/share/ShareChooserScreen.kt`, and `ui/navigation/AppNavHost.kt`.
 
@@ -67,23 +68,28 @@ NavHost** when `sharedContent != null && !sharedContent.isEmpty`:
 if (sharedContent != null && !sharedContent.isEmpty) {
     ShareChooserScreen(
         shared = sharedContent,
+        experimentalFeatures = …,
         onCancel = onSharedContentHandled,
         onSendToReport = { … },
-        onSendToChat = { … }
+        onSendToChat = { … },
+        onSendToKnowledge = { … }
     )
     return
 }
 ```
 
 The chooser shows a payload preview (subject, text excerpt,
-attachment count, mime) plus two destination cards. Cards disable
-themselves when the payload doesn't fit (e.g. "New Chat" needs text).
+attachment count, mime) plus up to three destination cards. Cards
+disable themselves when the payload doesn't fit (e.g. "New Chat"
+needs text; "Add to Knowledge" needs attachment URIs or a URL). The
+"Add to Knowledge" card is shown only when `experimentalFeatures` is
+on — Knowledge / RAG is experimental.
 
 The overlay's open / closed state is preserved across nav so a
 back-press from a deep destination (e.g. a captured trace's detail)
 returns to the chooser, not to the bare home screen.
 
-## Two landing routes
+## Three landing routes
 
 ### Report
 
@@ -96,7 +102,11 @@ sharedContent)`:
    main thread), downscale + JPEG-encode, and base64 the result
    into `reportImageBase64` / `reportImageMime` so the Generate
    path treats it as a vision attachment.
-3. Navigate to `AI_NEW_REPORT`.
+3. Non-image attachment URIs (PDF / DOCX / etc.) are staged into
+   `pendingReportKnowledgeUris` — a report has no per-report file
+   home, so the user is nudged to send the same payload to Knowledge
+   instead of the docs being silently dropped.
+4. Navigate to `AI_NEW_REPORT`.
 
 ### Chat
 
@@ -108,6 +118,18 @@ consumes the staged text on first composition and clears it via
 `onConsumeStarter()` so back-and-forward navigation doesn't
 re-stuff the input box. Staged image / text persist across process
 recreation.
+
+### Knowledge
+
+`onSendToKnowledge` builds a single queue from the attachment URIs
+plus the URL text (when `sharedContent.isUrl`), stages it into
+`pendingKnowledgeUris` in `UiState`, and navigates to `AI_KNOWLEDGE`.
+The Knowledge screen consumes the queue and branches per entry on
+`content://` (file import) vs `http(s)://` (URL ingest). Merging
+both into one queue means a share carrying *both* a URL and a file
+no longer drops the URL. This card only appears when Experimental
+features is enabled (see [knowledge.md](knowledge.md) /
+[experimental.md](experimental.md)).
 
 ## Custom external intent — separate codepath
 

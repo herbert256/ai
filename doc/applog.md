@@ -45,7 +45,7 @@ re-mirrors to `AppLog.threshold`.
 One line per call:
 
 ```
-2026-05-11 09:51:09.732 INFO  AppLifecycle: App start — com.ai 1.42 build 2026-05-11T07:53:00Z
+2026-05-11 09:51:09.732 INFO  App: App started — AI v1.42 (built 2026-05-11T07:53:00Z, installed …) logLevel=INFO, tracing=true
 ```
 
 Format: `yyyy-MM-dd HH:mm:ss.SSS LEVEL TAG: message`. A stack
@@ -61,11 +61,12 @@ whole point).
 
 ## Bootstrap log line
 
-On every app start, `AppViewModel.bootstrap` writes one
-structured INFO line capturing the app name, versionName,
-versionCode, and the BUILD_TIMESTAMP (set by the AGP build
-script). Makes it trivial to tell, in a multi-day log file,
-exactly when the app last (re)started.
+On every app start, `AppViewModel`'s startup path writes one
+structured INFO line (tag `App`) capturing the app label,
+`VERSION_NAME`, the build timestamp, the install time, and the
+resolved log level + tracing flag. Makes it trivial to tell, in a
+multi-day log file, exactly when the app last (re)started. The
+detailed per-step bootstrap trace lines use the `App.start` tag.
 
 ## Sensitive-value redaction
 
@@ -105,31 +106,35 @@ these used to be indistinguishable.
 
 The data + viewmodel layers carry broad TRACE / DEBUG coverage.
 Tagged sources (`grep` against `AppLog.d/v/i/w/e` shows the
-canonical set):
+canonical set — the literal tag strings, not class names):
 
-- `AppLifecycle`, `AppViewModel`, `AiAnalysis`, `ApiDispatch`,
-  `ApiStreaming`, `ApiTracer`, `AtomicFileWrite`
-- `BackupManager`, `ChatHistoryManager`, `ChatViewModel`
-- `ImportExport`
-- `ModelListCache`, `PricingCache`, `ProviderRegistry`,
+- `App` (startup line) + `App.start` (per-step bootstrap),
+  `AiAnalysis`, `ApiClient`, `ApiDispatch`, `ApiTracer`, `SSE`,
+  `AtomicFileWrite`
+- `Backup`, `ChatHistory`, `Chat`, `Knowledge`, `EmbeddingsStore`
+- `ImportExport`, `BulkExport`, `ReportExport`
+- `ModelListCache`, `PricingCache`, `RefreshAll`, `ProviderRegistry`,
   `ProviderFieldTimestamps`
-- `ReportExport`, `ReportStorage`, `ReportViewModel`
-- `SecondaryResultStorage`, `SettingsExport`
-- `Throttle` — `ProviderThrottle`'s rate-limit / concurrent-cap
-  wait logs (each timeout reports the queue depth or
-  available-permit drain)
+- `ReportStorage`, `Report`, `RegenBatch`, `Resume`
+- `Secondary`, `SecondaryResultStorage`, `Meta`, `FanOut`, `FanIn`,
+  `FanMeta`, `Rerank`, `Moderation`, `Translation`
+- `LocalLlm`, `LocalEmbedder`, `LlmRuntime`, `LocalRuntime`
+- `Settings`, `ModelTest`
+- `RateLimit`, `Overloaded`, `TagPropagation`, and `Throttle` —
+  `ProviderThrottle`'s rate-limit / concurrent-cap wait logs (each
+  timeout reports the queue depth or available-permit drain)
 
 ## Viewer screens
 
 Reachable from Hub → AI App log.
 
-### `AppLogScreen` — file list
+### `AppLogListScreen` — file list
 
 One row per log file. Date (extracted from the filename
 `applog_yyyyMMdd.log` shape), size, line count. Sorted newest
 first.
 
-### `AppLogScreen` — per-file viewer
+### `AppLogDetailScreen` — per-file viewer
 
 Title bar action strip: `< Back`, 🐞 Trace (when the entry's
 TraceFile points at an existing API trace), 📋 Copy, 📤 Share,
@@ -190,5 +195,5 @@ Reset → "Clear app log files".
 - `data/AppLog.kt` — singleton + level enum + file-info type.
 - `ui/admin/AppLogScreen.kt` — list + viewer + entry screens.
 - `ui/settings/SettingsScreen.kt` — `Logging` card (threshold).
-- `model/SettingsModels.kt` /
-  `viewmodel/AppViewModel.kt` — `GeneralSettings.logLevel`.
+- `viewmodel/AppViewModelTypes.kt` — `GeneralSettings.logLevel`
+  (mirrored to `AppLog.threshold` on every settings save).

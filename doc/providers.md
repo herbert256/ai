@@ -15,9 +15,20 @@ key prefixes use `id` directly (e.g. `"OpenAI_api_key"`,
 `"OpenAI_model"`).
 
 Defaults: `apiFormat = OPENAI_COMPATIBLE`, `modelsPath = "v1/models"`,
-`chatPath` derived from `ModelType.DEFAULT_PATHS["chat"] =
-"v1/chat/completions"`, `seedFieldName = "seed"`,
-`modelListFormat = "object"`.
+`typePaths = {}` (so the chat path resolves through
+`ModelType.DEFAULT_PATHS[ModelType.CHAT] = "v1/chat/completions"`),
+`seedFieldName = "seed"`, `modelListFormat = "object"`.
+
+`ProviderDefinition` (the serialised JSON form in `provider_registry`)
+carries a single per-type path map, `typePaths` (a
+`Map<ModelType, String>`); there are no longer separate `chatPath` /
+`responsesPath` / `endpointRules` fields. `AppService` still exposes
+`chatPath` / `responsesPath` as **computed getters** derived from
+`typePaths` (per-provider override → user-supplied global default →
+`ModelType.DEFAULT_PATHS`). Chat-vs-Responses routing for OpenAI is
+decided at dispatch time by `usesResponsesApi()` — the provider's
+`responsesApiPatterns`, falling back to `ModelType.infer(model)` — not
+by a stored `endpointRules`.
 
 Where a provider declares a `litellmPrefix`, the LiteLLM lookup key is
 `<litellmPrefix>/<modelId>`. Where it declares an `openRouterName`, the
@@ -25,24 +36,24 @@ OpenRouter lookup key is `<openRouterName>/<modelId>`.
 
 | Provider id | Base URL | Admin URL | Default model | Notable non-default fields |
 |---|---|---|---|---|
-| **OpenAI** | `https://api.openai.com/` | `https://platform.openai.com/settings/organization/api-keys` | `gpt-4o-mini` | `openRouterName=openai`, `modelFilter=gpt|o1|o3|o4`, `defaultModelSource=API`, hardcoded moderation models (`omni-moderation-*`, `text-moderation-*`) since `/v1/models` doesn't surface them |
+| **OpenAI** | `https://api.openai.com/` | `https://platform.openai.com/settings/organization/api-keys` | `gpt-4o-mini` | `openRouterName=openai`, `modelFilter=gpt|o1|o3|o4`, `defaultModelSource=API`, `mergeHardcodedModels=true`, `builtInEndpoints` (Chat Completions + Responses API), `responsesApiPatterns`/`reasoningModelPatterns`/`webSearchModelPatterns` for `gpt-5`/`o1`/`o3`/`o4`(/`gpt-4.1`) |
 | **Anthropic** | `https://api.anthropic.com/` | `https://console.anthropic.com/settings/keys` | `claude-haiku-4-5-20251001` | `apiFormat=ANTHROPIC`, `typePaths.chat=v1/messages`, `openRouterName=anthropic`, `modelFilter=claude`, 8 hardcoded models, `defaultModelSource=API` |
 | **Google** | `https://generativelanguage.googleapis.com/` | `https://aistudio.google.com/app/apikey` | `gemini-2.0-flash` | `apiFormat=GOOGLE`, `typePaths.chat=v1beta/models/{model}:generateContent`, `modelsPath=v1beta/models`, `modelListFormat=array`, `openRouterName=google`, `litellmPrefix=gemini`, `defaultModelSource=API` |
 | **xAI** | `https://api.x.ai/` | `https://console.x.ai/` | `grok-3-mini` | `openRouterName=x-ai`, `costTicksDivisor=1e10`, `litellmPrefix=xai`, `modelFilter=grok`, `defaultModelSource=API` |
 | **Groq** | `https://api.groq.com/openai/` | `https://console.groq.com/keys` | `llama-3.3-70b-versatile` | `litellmPrefix=groq`, `defaultModelSource=API` |
-| **DeepSeek** | `https://api.deepseek.com/` | `https://platform.deepseek.com/api_keys` | `deepseek-chat` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=deepseek`, `litellmPrefix=deepseek`, `modelFilter=deepseek`, `defaultModelSource=API`, **2 hardcoded models** (`deepseek-chat`, `deepseek-reasoner`) merged with `/models` because the API list is sometimes missing. DeepSeek is the bundled `agent` pin for the icon prompts (`internal/icon` + `internal/report_icon_3th`) and the chat-title prompt — cheap, fast, reliably one-glyph emojis |
+| **DeepSeek** | `https://api.deepseek.com/` | `https://platform.deepseek.com/api_keys` | `deepseek-chat` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=deepseek`, `litellmPrefix=deepseek`, `modelFilter=deepseek`, `defaultModelSource=API`, **2 hardcoded models** (`deepseek-chat`, `deepseek-reasoner`) merged with `/models` because the API list is sometimes missing. DeepSeek is one of the bundled workers in the metadata worker chains (`workers/report-icon`, `model-icons`, `report-title`, `report-language`, `fan-meta`, …) and the pinned agent for the `internal/chat-title` prompt — cheap, fast, reliable |
 | **Mistral** | `https://api.mistral.ai/` | `https://console.mistral.ai/api-keys/` | `mistral-small-latest` | `seedFieldName=random_seed`, `openRouterName=mistralai`, `modelFilter=mistral|open-mistral|codestral|pixtral`, `defaultModelSource=API` |
 | **Perplexity** | `https://api.perplexity.ai/` | `https://www.perplexity.ai/settings/api` | `sonar` | `typePaths.chat=chat/completions`, `openRouterName=perplexity`, `supportsCitations=true`, `supportsSearchRecency=true`, `modelFilter=sonar|llama`, 4 hardcoded models |
 | **Together** | `https://api.together.xyz/` | `https://api.together.xyz/settings/api-keys` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` | `modelListFormat=array`, `litellmPrefix=together_ai`, `modelFilter=chat|instruct|llama`, `defaultModelSource=API` |
 | **OpenRouter** | `https://openrouter.ai/api/` | `https://openrouter.ai/keys` | `ibm-granite/granite-4.0-h-micro` | `extractApiCost=true`, `defaultModelSource=API` |
 | **SiliconFlow** | `https://api.siliconflow.com/` | `https://cloud.siliconflow.com/account/ak` | `Qwen/Qwen2.5-7B-Instruct` | `defaultModelSource=API`, 9 hardcoded models |
-| **Z.AI** | `https://api.z.ai/api/paas/v4/` | `https://open.bigmodel.cn/usercenter/apikeys` | `glm-4.7-flash` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=z-ai`, `modelFilter=glm|codegeex|charglm`, 7 hardcoded models, `defaultModelSource=API` |
+| **Z.AI** | `https://api.z.ai/api/paas/v4/` | `https://open.bigmodel.cn/usercenter/apikeys` | `glm-4.5-air` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=z-ai`, `modelFilter=glm|codegeex|charglm`, 7 hardcoded models, `defaultModelSource=API`, `builtInEndpoints` (mainland + international) |
 | **Moonshot** | `https://api.moonshot.ai/` | `https://platform.moonshot.ai/console/api-keys` | `kimi-latest` | `openRouterName=moonshot`, 4 hardcoded models, `defaultModelSource=API` |
-| **Cohere** | `https://api.cohere.ai/compatibility/` | `https://dashboard.cohere.com/` | `command-a-03-2025` | `openRouterName=cohere`, 4 hardcoded models. Native `/v2/rerank` endpoint wired for the Rerank flow |
+| **Cohere** | `https://api.cohere.ai/compatibility/` | `https://dashboard.cohere.com/` | `command-r7b-12-2024` | `openRouterName=cohere`, `auxHosts=[api.cohere.com]`, `maxCallsPerProviderPerMinute=19`. Native `/v2/rerank` (`nativeRerankUrl`) + `/v1/models` (`nativeCapabilityUrl`) endpoints wired for the Rerank / capability flows |
 | **AI21** | `https://api.ai21.com/` | `https://studio.ai21.com/` | `jamba-mini` | `openRouterName=ai21`, 4 hardcoded models |
 | **DashScope** | `https://dashscope-intl.aliyuncs.com/compatible-mode/` | `https://dashscope.console.aliyun.com/` | `qwen-plus` | 6 hardcoded models |
-| **Fireworks** | `https://api.fireworks.ai/inference/` | `https://app.fireworks.ai/` | `accounts/fireworks/models/llama-v3p3-70b-instruct` | 4 hardcoded models |
-| **Cerebras** | `https://api.cerebras.ai/` | `https://cloud.cerebras.ai/` | `llama-3.3-70b` | 5 hardcoded models |
+| **Fireworks** | `https://api.fireworks.ai/inference/` | `https://app.fireworks.ai/` | `accounts/fireworks/models/gpt-oss-120b` | `defaultModelSource=API`, `maxCallsPerProviderPerMinute=12`, `maxConcurrentCallsPerProvider=2` |
+| **Cerebras** | `https://api.cerebras.ai/` | `https://cloud.cerebras.ai/` | `gpt-oss-120b` | `defaultModelSource=API` |
 | **SambaNova** | `https://api.sambanova.ai/` | `https://cloud.sambanova.ai/` | `Meta-Llama-3.3-70B-Instruct` | 5 hardcoded models |
 | **Baichuan** | `https://api.baichuan-ai.com/` | `https://platform.baichuan-ai.com/` | `Baichuan4-Turbo` | 5 hardcoded models |
 | **StepFun** | `https://api.stepfun.com/` | `https://platform.stepfun.com/` | `step-2-16k` | 6 hardcoded models |
@@ -57,7 +68,7 @@ OpenRouter lookup key is `<openRouterName>/<modelId>`.
 | **Reka** | `https://api.reka.ai/` | `https://platform.reka.ai/` | `reka-flash` | 3 hardcoded models |
 | **Writer** | `https://api.writer.com/` | `https://app.writer.com/` | `palmyra-x-004` | 2 hardcoded models |
 | **CloudflareWorkersAI** | `https://api.cloudflare.com/client/v4/accounts/YOUR_ACCOUNT_ID/ai/` | `https://dash.cloudflare.com/` | `@cf/meta/llama-3.3-70b-instruct-fp8-fast` | `defaultModelSource=API` — replace `YOUR_ACCOUNT_ID` in the base URL |
-| **DeepInfra** | `https://api.deepinfra.com/v1/openai/` | `https://deepinfra.com/dash/api_keys` | `meta-llama/Meta-Llama-3.1-70B-Instruct` | `typePaths.chat=chat/completions`, `modelsPath=models`, `defaultModelSource=API` |
+| **DeepInfra** | `https://api.deepinfra.com/v1/openai/` | `https://deepinfra.com/dash/api_keys` | `meta-llama/Meta-Llama-3.1-70B-Instruct` | `typePaths.chat=chat/completions` + `typePaths.embedding=embeddings`, `modelsPath=models`, `defaultModelSource=API` |
 | **Hyperbolic** | `https://api.hyperbolic.xyz/` | `https://app.hyperbolic.xyz/settings` | `deepseek-ai/DeepSeek-V3` | `defaultModelSource=API` |
 | **Novita.ai** | `https://api.novita.ai/v3/openai/` | `https://novita.ai/settings/key-management` | `meta-llama/llama-3.1-70b-instruct` | `typePaths.chat=chat/completions`, `modelsPath=models`, `defaultModelSource=API` |
 | **Featherless.ai** | `https://api.featherless.ai/` | `https://featherless.ai/account/api-keys` | `meta-llama/Meta-Llama-3.1-8B-Instruct` | `defaultModelSource=API` |
@@ -65,7 +76,7 @@ OpenRouter lookup key is `<openRouterName>/<modelId>`.
 | **LlamaAPI** | `https://api.llama.com/compat/` | `https://llama.developer.meta.com/` | `Llama-4-Maverick-17B-128E-Instruct-FP8` | `defaultModelSource=API` |
 | **Krutrim** | `https://cloud.olakrutrim.com/` | `https://cloud.olakrutrim.com/console` | `Meta-Llama-3.1-70B-Instruct` | `defaultModelSource=API` |
 | **NebiusAIStudio** | `https://api.studio.nebius.com/` | `https://studio.nebius.com/settings/api-keys` | `meta-llama/Meta-Llama-3.1-70B-Instruct` | `defaultModelSource=API` |
-| **Chutes** | `https://llm.chutes.ai/` | `https://chutes.ai/app/api` | `deepseek-ai/DeepSeek-V3` | `defaultModelSource=API` |
+| **Chutes** | `https://llm.chutes.ai/` | `https://chutes.ai/app/api` | `moonshotai/Kimi-K2.6-TEE` | `defaultModelSource=API` |
 | **Inference.net** | `https://api.inference.net/` | `https://inference.net/dashboard/api-keys` | `meta-llama/llama-3.3-70b-instruct/fp-8` | `defaultModelSource=API` |
 
 **42 providers total.**
@@ -77,9 +88,11 @@ A few non-default fields warrant explanation:
 - **`apiFormat`**: dispatch format. `OPENAI_COMPATIBLE` (default),
   `ANTHROPIC` (Claude `/v1/messages` format with required `max_tokens`),
   `GOOGLE` (Gemini `:generateContent` path-style with `?key=` auth).
-- **`typePaths`**: per-model-type API paths overriding the global
-  defaults. Most providers only override `chat`; some (Anthropic) also
-  override `embedding`/`rerank`/etc.
+- **`typePaths`** (`Map<ModelType, String>`): per-model-type API paths
+  overriding the global defaults. Most providers only override `chat`;
+  a few (DeepInfra) also override `embedding`/etc. This is the only
+  per-type path map — there is no separate `chatPath` / `responsesPath`
+  / `endpointRules` in the serialised form.
 - **`modelsPath`**: GET path for the model-list endpoint, relative to
   `baseUrl`. Default `v1/models`.
 - **`seedFieldName`**: name of the seed field in the request body —

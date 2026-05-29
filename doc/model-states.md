@@ -77,7 +77,7 @@ consults.
 
 - **Populated** automatically when a probe's computed cost exceeds the
   5¢ ceiling (`COSTLY_PROBE_USD_THRESHOLD = 0.05` in
-  [viewmodel/AppViewModel.kt:2443](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
+  [viewmodel/AppViewModel.kt:1808](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
   — the model is added on run completion so the next sweep won't pay
   for it again. Also **seeded** from `assets/excluded.json` on app
   start (`TestExcludedSeed.ensureAllPresent`,
@@ -115,13 +115,13 @@ or OpenRouter non-serverless catalog entries). Carries a `reason`
 Per-model API-type assignments that win over autodetection — a fan
 out-provider CRUD list living at the `Settings` root (one entry per
 override, identified by UUID `id`)
-([model/SettingsModels.kt:250](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
+([model/SettingsModels.kt:284](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
 Each entry sets a `type` (one of `ModelType.ALL`) plus three optional
 capability flags: `supportsVision` 👁, `supportsWebSearch` 🌐,
 `supportsReasoning` 🧠.
 
 - **Type precedence** (`getModelType`,
-  [model/SettingsModels.kt:393](../ai/src/main/java/com/ai/model/SettingsModels.kt)):
+  [model/SettingsModels.kt:428](../ai/src/main/java/com/ai/model/SettingsModels.kt)):
   a matching override returns first and short-circuits everything —
   ahead of the LiteLLM type, the per-provider `modelTypes` map (native
   list-API metadata), and the naming heuristic.
@@ -137,7 +137,7 @@ capability flags: `supportsVision` 👁, `supportsWebSearch` 🌐,
 - The edit form pulls the provider's known models from
   `aiSettings.getProvider(...).models`; if the provider hasn't been
   fetched the model dropdown is empty and prompts a fetch first
-  ([cruds/models/manualoverrides/edit.kt:67](../ai/src/main/java/com/ai/ui/cruds/models/manualoverrides/edit.kt)).
+  ([cruds/models/manualoverrides/edit.kt:68](../ai/src/main/java/com/ai/ui/cruds/models/manualoverrides/edit.kt)).
 - **Stored** in `Settings.modelTypeOverrides`, prefs key
   `ai_model_type_overrides`.
 
@@ -156,7 +156,7 @@ For [persistent.md](persistent.md) cross-reference:
 | `assets/inaccessible.json` | seed for inaccessible (delta-merged on start) |
 
 The four `ai_*` keys live in the main settings prefs
-([ui/settings/SettingsPreferences.kt:571](../ai/src/main/java/com/ai/ui/settings/SettingsPreferences.kt));
+([ui/settings/SettingsPreferences.kt:591](../ai/src/main/java/com/ai/ui/settings/SettingsPreferences.kt));
 each is written `null` when its list is empty. All four lists
 round-trip through Import/Export.
 

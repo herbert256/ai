@@ -50,12 +50,18 @@ OpenAI uses two separate endpoints depending on the model family:
   `o4*`, `gpt-4.1*`. Different request shape (`OpenAiResponsesRequest`),
   different response shape (`OpenAiResponsesApiResponse`).
 
-Routing is done by `usesResponsesApi()` against the provider's
-`responsesApiPatterns` from `providers.json`. Other providers don't
-share this split — only OpenAI. Multi-text Responses-API output
-blocks are **concatenated** by the dispatch layer rather than only
-the first block being surfaced. The Chat path forwards image content
-blocks unchanged.
+Routing is done by `usesResponsesApi()` (in `AnalysisRepository`): it
+checks the provider's `responsesApiPatterns` from `providers.json`
+first, then falls back to `ModelType.infer(model) == RESPONSES` (the
+`gpt-5` / `o3` / `o4` prefixes that used to live in OpenAI's removed
+`endpointRules` now live in `ModelType.infer`). There is no stored
+`endpointRules` / `responsesPath` field on the serialised provider
+definition — `AppService.responsesPath` is a computed getter that
+resolves to `v1/responses` from `typePaths` / the type-path defaults.
+Other providers don't share this split — only OpenAI. Multi-text
+Responses-API output blocks are **concatenated** by the dispatch layer
+rather than only the first block being surfaced. The Chat path
+forwards image content blocks unchanged.
 
 The Responses API also surfaces `OpenAiResponsesAnnotation`
 (`url_citation` annotations the dispatch layer maps onto
@@ -184,16 +190,22 @@ Providers without these URLs fall through to chat-prompt rerank /
 moderation with an explanatory error if the picked model isn't
 chat-capable.
 
-## A note on OpenAI moderation models
+## A note on OpenAI's hardcoded-model union
 
-The OpenAI `omni-moderation-*` and `text-moderation-*` model ids do
-**not** show up in `/v1/models`. They ship in the OpenAI provider's
-`hardcodedModels` list in `providers.json` so the moderation flow can
-still pick them. The OpenAI-only fallback union in
-`Settings.withModels` preserves them across `/models` refreshes —
-every other provider's API list is canonical (merging hardcoded ids
-in would resurrect retired model ids the API correctly omitted, e.g.
-Anthropic's claude-3.x).
+The OpenAI `omni-moderation-*` / `text-moderation-*` (moderation),
+`tts-1` (TTS), `whisper-1` (STT), and `dall-e-3` / `gpt-image-1`
+(image) model ids do **not** show up in `/v1/models` — they're
+documented but unlisted. OpenAI's `providers.json` entry sets
+`mergeHardcodedModels=true`, which gates the OpenAI-only fallback
+union in `Settings.withModels`: the fetcher path unions
+`service.hardcodedModels` into the live `/models` list (and
+`distinct()`s the overlap) so the Moderation / TTS / Image / STT
+pickers can still find them. Every other provider's API list is
+canonical (merging hardcoded ids in would resurrect retired model ids
+the API correctly omitted, e.g. Anthropic's claude-3.x), so the union
+is gated to providers carrying that flag. Note the OpenAI entry no
+longer ships a `hardcodedModels` array in the bundle, so the union is
+currently a no-op unless the user supplies those ids.
 
 ## Streaming hardening
 

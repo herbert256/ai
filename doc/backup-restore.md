@@ -18,16 +18,17 @@ ai-backup-YYYYMMDD-HHMMSS.zip
 ├── prefs/
 │   ├── eval_prefs.json
 │   ├── provider_registry.json
-│   ├── provider_field_timestamps.json
 │   ├── pricing_cache.json
 │   ├── dual_chat_prefs.json
-│   └── huggingface_cache.json
-├── files/
+│   ├── huggingface_cache.json
+│   ├── model_cooldowns.json
+│   └── view_screen_prefs.json
+├── files/                            # all of filesDir except
+│   │                                 # FILES_DIR_BACKUP_EXCLUDES
 │   ├── reports/<reportId>.json
 │   ├── secondary/<reportId>/<resultId>.json
 │   ├── chat-history.json
 │   ├── trace/<hostname>_<ts>_<seq>.json
-│   ├── applog/applog_<yyyyMMdd>.log
 │   ├── embeddings/<sha256>.json
 │   ├── model_lists/<providerId>.json
 │   ├── pricing/<key>.json
@@ -65,23 +66,28 @@ a 200 GB entry.
 |---|---|
 | `eval_prefs` | All user-curated settings: API keys, per-provider model + endpoint config, agents / flocks / swarms / parameters / system prompts / internal prompts (the legacy `ai_meta_prompts` key, kept for compat) / example prompts, and the various per-screen recents (last selections for Reports, the report title/prompt, the secondary-pickers per-(report, prompt) state) |
 | `provider_registry` | Custom provider definitions added or imported by the user — keyed by provider id, merged with `assets/providers.json` at runtime |
-| `provider_field_timestamps` | Per-provider per-field "user-touched-at" timestamps so the every-start `providers.json` sync knows which fields the user has edited. Loss here turns user edits into "asset values overwritten on next boot", so this prefs file is in the backup set |
 | `pricing_cache` | Timestamps for each pricing tier + the user's manual price overrides. The bulk pricing JSON itself lives in `files/pricing/` (see below) |
 | `dual_chat_prefs` | Last-used Dual Chat configuration plus the recent-subjects / recent-prompts ring buffers |
 | `huggingface_cache` | 7-day-TTL HuggingFace model-info lookups (positive **and** negative — a cached miss avoids a re-fetch storm on a model HF doesn't have). Concurrent load-modify-save is serialised to prevent torn writes |
+| `model_cooldowns` | Models auto-benched after a 429 with a long retry-after, plus the per-model trace filename of the benching 429 (see [model-states.md](model-states.md)) |
+| `view_screen_prefs` | Per-screen view-state (collapse / expand, last-used toggles) for the report / manage screens |
+
+`provider_field_timestamps` is **not** in `PREFS_TO_BACKUP` — it
+is a recomputable cache (a null lookup just means "refresh this
+field from the asset on next boot"), so it is left out of the
+zip.
 
 ### Files (under `<filesDir>`)
 
-Everything in `<filesDir>` is included. Notable contents:
+Everything in `<filesDir>` is included **except** the top-level
+`FILES_DIR_BACKUP_EXCLUDES` subdirs (`local_llms`, `local_models`,
+`native`, `applog` — see "What's excluded" below). Notable
+contents:
 
 - `reports/`, `secondary/`, `chat-history.json`,
   `prompt-history.json` — the user's content
 - `trace/` — captured API traces (subject to whatever cutoff the
   user set). Auth headers redacted at write time
-- `applog/applog_<yyyyMMdd>.log` — daily-rotating app log
-  produced by `com.ai.data.AppLog`. Sensitive headers + raw API
-  keys are redacted inline before write so the backed-up logs
-  never carry plain secrets
 - `embeddings/` — the per-document embedding cache that backs
   remote semantic search
 - `pricing/` — the LiteLLM, models.dev, OpenRouter, Together,
@@ -110,6 +116,22 @@ files whose names match `CACHE_TOPLEVEL_SKIP_PREFIXES`:
   temp file, exclude it.
 
 ## What's excluded
+
+### `filesDir` subdirs (`FILES_DIR_BACKUP_EXCLUDES`)
+
+Four top-level `filesDir` subdirs are never copied into the zip
+**and** never deleted during the restore wipe (so a user who has
+them installed on the target device doesn't lose them when
+restoring an unrelated settings/data backup):
+
+- `local_llms/` — user-supplied on-device LLM `.task` bundles
+  (hundreds of MB to several GB each)
+- `local_models/` — MediaPipe TextEmbedder `.tflite` files
+  (~50–500 MB each)
+- `native/` — the MediaPipe LLM inference native runtime
+  (`.so`, ~26 MB, tied to the device ABI)
+- `applog/` — the daily-rotating app logs (regenerated on the
+  fly; device-local diagnostics)
 
 ### Other things deliberately not in the zip
 

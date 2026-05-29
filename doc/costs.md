@@ -31,7 +31,7 @@ fields plus a `source` string (the tier that answered).
 ## Resolved pricing — layered lookup
 
 `PricingCache.getPricing(context, provider, model)`
-(`data/PricingCache.kt:358`) walks tiers top→bottom, first hit wins:
+(`data/PricingCache.kt:369`) walks tiers top→bottom, first hit wins:
 
 | # | Tier | `source` | Note |
 |---|---|---|---|
@@ -48,7 +48,7 @@ fields plus a `source` string (the tier that answered).
 
 The manual override sits **before** every curated tier: a user
 adding an override specifically to correct a stale catalog entry
-must win. `getPricingWithoutOverride` (`data/PricingCache.kt:397`)
+must win. `getPricingWithoutOverride` (`data/PricingCache.kt:408`)
 mirrors the exact same precedence minus step 2 — it answers "what
 would the layered price be without your override?" for the override
 form's *Current:* line and for cleanup. The seven external sources
@@ -61,14 +61,14 @@ preload finishes — don't try to remove that guard.
 ## Usage statistics store
 
 `SettingsPreferences.updateUsageStats(...)`
-(`ui/settings/SettingsPreferences.kt:422`) accumulates one
+(`ui/settings/SettingsPreferences.kt:441`) accumulates one
 `UsageStats` row per **`(provider, model, kind)`** — keyed
 `"${provider.id}::$model::$kind"`. Rows are held in an in-memory
 `ConcurrentHashMap` and flushed to `<filesDir>/usage-stats.json`
 debounced (`USAGE_STATS_FLUSH_MS`); see
 [persistent.md](persistent.md).
 
-`UsageStats` (`model/SettingsModels.kt:939`) holds `callCount`,
+`UsageStats` (`model/SettingsModels.kt:992`) holds `callCount`,
 `inputTokens`, `outputTokens`, `searchUnits`, and `kind`. The
 `kind` field is one of:
 
@@ -78,33 +78,48 @@ debounced (`USAGE_STATS_FLUSH_MS`); see
 | `rerank` | Cohere rerank (uses `searchUnits`) |
 | `summarize` / `compare` / `moderation` / `translate` | secondary tasks |
 | `meta` | fan-in / meta secondary |
-| `title` | Find-alternative-title (`viewmodel/IconGenerationManager.kt:1649`) |
+| `title` | Find-alternative-title (`viewmodel/IconGenerationManager.kt:1676`) |
 
 Legacy rows written before `kind` existed deserialize via Gson's
 Unsafe path with a runtime-null `kind`; `loadUsageStats`
-(`ui/settings/SettingsPreferences.kt:368`) backfills them to
+(`ui/settings/SettingsPreferences.kt:387`) backfills them to
 `"report"`, and renderers defend again with
 `(stat.kind as String?) ?: "report"`.
 
 `clearUsageStats` resets every counter and deletes the file
-(`ui/settings/SettingsPreferences.kt:460`).
+(`ui/settings/SettingsPreferences.kt:479`).
 
-## AI Usage screen
+## Spend & usage screen
 
-`ui/admin/StatisticsScreen.kt` (`UsageScreen`, title **AI Usage**,
-help `statistics`). On open it loads `loadUsageStats()` and refreshes
-the OpenRouter pricing cache if stale. For each row it resolves
-`getPricing` and computes cost — rerank rows stuff
-`searchUnits × perQueryPrice` into the input column so the two-column
-row layout still surfaces them.
+Surfaced through the **AI Statistics** dashboard (`AiDashboardScreen`
+in `ui/admin/AiDashboardScreen.kt`) as the 💰 **Spend & usage**
+link-card. The screen itself is `AiSpendUsageScreen`
+(`ui/admin/AiDashboardScreen.kt:872`, help `ai_spend_usage`). On open
+it does a one-time OpenRouter pricing refresh (when stale) and then
+computes its breakdown via `computeUsageGroups`
+(`data/DashboardStats.kt:136`) — heavy enough (per-model `getPricing`)
+that it runs off the main thread on open only. Rerank rows fold
+`searchUnits × perQueryPrice` into their cost.
 
-- **Summary card** — total calls, total tokens, total cost (green),
-  and `getPricingStats` (which tiers are loaded, with counts).
-- **Per-provider cards** — collapsible, sorted by spend; each
-  expands to per-model rows. Non-`report` kinds get a coloured pill;
-  each row shows its `source` tier (OVERRIDE / OPENROUTER / LITELLM
-  / …) and links to that model's **Model Info** page.
+- **Total card** — total calls, total tokens, total cost (green).
+  `computeUsageGroups` also carries `getPricingStats` (which tiers
+  are loaded, with counts) on its result for the dashboard hub.
+- **Provider table** — one row per provider (Provider / Calls /
+  Tokens / Cost / 🐞), sortable by any column header (default cost,
+  descending). The 🐞 opens API Traces scoped to that provider, and
+  shows only when that provider has a captured trace.
+- Tapping a provider row opens **`AiSpendUsageProviderScreen`**
+  (help `ai_usage_provider`) — the per-provider breakdown grouped
+  **by call kind**, **by pricing source** (OVERRIDE / OPENROUTER /
+  LITELLM / …), and **by model**; each model row links to that
+  model's **Model Info** page.
 - Delete (🗑) clears all statistics after a confirm dialog.
+
+The 🧮 **Costs tiers** dashboard card opens `AiCostsTierScreen`
+(help `ai_costs_tier`) — which pricing tier `getPricing` would pick
+for every configured model, counted per `source` via
+`computeTierCounts` (`data/DashboardStats.kt`), plus catalog
+freshness.
 
 CSV: the layered-cost CSV export/import lives on the **Costs
 maintenance** screen below, not here.
@@ -114,7 +129,7 @@ maintenance** screen below, not here.
 `ui/report/view/Costs.kt` (`CostsViewScreen`, help `costs_view`)
 renders a report's spend. The data comes from
 `rememberReportCostData(report)`
-(`ui/report/manage/view/ContentDisplay.kt:913`), which gathers every
+(`ui/report/manage/view/ContentDisplay.kt:569`), which gathers every
 call recorded against the report:
 
 - **Agent rows** (`type = "report"`) — uses each agent's pinned
@@ -128,14 +143,14 @@ call recorded against the report:
   alternative-title / alternative-icon fan-outs. Per-call `_alt`
   rows are recorded into `report.iconCalls`; their cost is
   subtracted from the owning aggregate row so totals don't
-  double-count (`ContentDisplay.kt:952`).
+  double-count (`ContentDisplay.kt:608`).
 
-`CostRow` (`ui/report/manage/view/ContentDisplay.kt:1470`) carries
+`CostRow` (`ui/report/manage/view/ContentDisplay.kt:1144`) carries
 `type, provider, model, tier, durationMs, in/outTokens,
 in/outCents`. Row-level cost is stored in **cents** (Double).
 
 The View screen collapses rows into buckets via `bucketFor(type)`
-(`Costs.kt:385`): Reports 📊 / Meta 🧠 / Fan-out 🌀 / Fan-in 🪢 /
+(`Costs.kt:389`): Reports 📊 / Meta 🧠 / Fan-out 🌀 / Fan-in 🪢 /
 Translate 🌍 / Moderation 🚩 / Rerank 🏆 / Icons 🖼 / Model titles 🏷 /
 Language 🌐. A hero "💰 Total" card sits above a horizontal-bar list
 (bar length = share of total); zero-cost buckets are dropped. A
@@ -160,7 +175,7 @@ UI lives in two places:
   List → View → Edit / Copy / Add. Copy carries the prices and lets
   the user repoint at another model.
 - **Add/Edit Override form** (`AddManualOverrideScreen`,
-  `ui/admin/StatisticsScreen.kt:274`, help `cost_override`) —
+  `ui/admin/StatisticsScreen.kt:181`, help `cost_override`) —
   provider + model picker, input/output `$/1M tokens` fields. Prices
   are divided by 1 000 000 on save. Shows the *Current:* layered
   price (`getPricingWithoutOverride`) for reference, and supports
@@ -183,7 +198,7 @@ zip.
   default, or equal to what `getPricingWithoutOverride` would return
   anyway. Reports the count removed.
 - **Layered costs CSV** — `getTierBreakdown`
-  (`data/PricingCache.kt:662`) emits one row per active
+  (`data/PricingCache.kt:697`) emits one row per active
   `(provider, model)` with every tier's `$/M` price (litellm,
   models.dev, helicone, llm-prices, AA, override, openrouter,
   default). *Export all* / *Export filtered* (filtered drops rows

@@ -11,12 +11,13 @@ call per (source × language) pair.
 From the result-phase Actions row on a finished report, tap
 **Translate**. The flow:
 
-1. **Language picker** (`ui/report/LanguageSelectionScreen.kt`) —
-   pick one or more target languages from a comprehensive English-name
-   list (with native renderings as subtitles, e.g. "Dutch /
-   Nederlands"). Multi-select.
-2. **Scope picker** (`ui/report/SecondaryScopeScreen.kt`) — same
-   scope screen the chat-type Meta runs use:
+1. **Language picker** (`ui/report/other/LanguageSelection.kt`,
+   `LanguageSelectionScreen`) — pick one or more target languages
+   from a comprehensive English-name list (with native renderings as
+   subtitles, e.g. "Dutch / Nederlands"). Multi-select.
+2. **Scope picker** (`ui/report/manage/SecondaryScope.kt`,
+   `SecondaryScopeScreen`) — same scope screen the chat-type Meta
+   runs use:
    - All model reports
    - Top-N from a chosen rerank
    - Manual selection
@@ -113,25 +114,37 @@ language.
 
 ## UI screens
 
-- **`LanguageSelectionScreen`** — multi-select language picker,
-  feeds into the Translate flow.
-- **`SecondaryResultsScreen`** — list of every meta row on the
+- **`LanguageSelectionScreen`** (`ui/report/other/LanguageSelection.kt`)
+  — multi-select language picker, feeds into the Translate flow.
+- **`SecondaryResultsScreen`** (`ui/report/manage/view/Secondary.kt`)
+  — list of every meta row on the
   report, scoped to whichever Meta-prompt name (or structured kind:
   Rerank / Moderation / Translate) the user tapped on the View row.
   The Translations branch groups rows by `translationRunId`; each
   group surfaces as a single "run" row with the model name, the
   language list, and the count.
-- **`TranslationRunDetailScreen`** — drill into a run: shows the
-  per-(source, language) calls, with an **Actions** card carrying
-  *Restart failed* / *Start missing* buttons that re-run only the
-  rows that need it.
-- **`TranslationCallDetailScreen`** — one specific TRANSLATE row,
-  with the source text, target language, model, full translated
-  body, raw HTTP trace link. Model names render as pane labels;
-  the original text wraps to size. Every row carries a source-type
-  column.
-- **`TranslationCompareScreen`** — side-by-side comparison view of
-  the same source across multiple translations / languages.
+- **`TranslationL1Screen` / `TranslationRunScreen`**
+  (`ui/report/manage/TranslationL1.kt` / `TranslationRun.kt`, help
+  `translation_run_l1`) — drill into a run: per-model progress of
+  the per-(source, language) calls, with an **Actions** card
+  carrying *Restart failed* / *Start missing* buttons that re-run
+  only the rows that need it. `TranslationL2Screen`
+  (`TranslationL2.kt`, help `translation_run_l2`) is the per-model
+  sub-drill.
+- **`TranslationL3Screen`** (`ui/report/manage/TranslationL3.kt`,
+  help `translation_run_l3`, title "Translation call") — one
+  specific TRANSLATE row, with the source text, target language,
+  model, full translated body, raw HTTP trace link. Model names
+  render as pane labels; the original text wraps to size. Every row
+  carries a source-type column.
+- **`TranslationCompareScreen`** (`ui/helpers/TranslationCompare.kt`,
+  help `translation_compare`) — side-by-side comparison view of the
+  same source across multiple translations / languages. On the
+  Secondary-detail screen this is driven live by the title-bar 🌐
+  compare icon (`onTranslationCompare`) when a translation of the
+  result is in scope — there is no longer a stored
+  `translatedFromSecondaryId` back-pointer; the picker-driven live
+  compare is the only path.
 
 The Translate detail Actions card uses the layout setting (Model
 only / Provider and model) to derive row labels, and pending /

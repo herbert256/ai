@@ -7,9 +7,12 @@ Provider edit) and falls through to a global default
 
 ## Singletons
 
-`data/ApiTracer.kt` carries the three load-bearing singletons:
+The load-bearing singletons live across `data/ApiTracer.kt`
+(`NetworkSettings`) and `data/ProviderThrottling.kt`
+(`ProviderThrottle` + `permitPreAcquired` + the
+`ProviderThrottleInterceptor`):
 
-- **`NetworkSettings`** — live mirror of the user-tunable
+- **`NetworkSettings`** (`data/ApiTracer.kt`) — live mirror of the user-tunable
   network knobs. The OkHttp interceptors read from here so
   they don't have to thread a `Settings` reference through
   their constructors. `AppViewModel.applyGeneralSettings`
@@ -19,14 +22,14 @@ Provider edit) and falls through to a global default
   |---|---|---|
   | `streamingReadTimeoutSec` | `BuildConfig.NETWORK_READ_TIMEOUT_SEC` (10 min) | SSE chat / report streams |
   | `nonStreamingReadTimeoutSec` | `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC` | analyze, meta, rerank, translate, model-list, individual analyze calls |
-  | `maxCallsPerProviderPerMinute` | 30 | sliding-window rate cap |
-  | `maxConcurrentCallsPerProvider` | 3 | concurrency cap |
+  | `maxCallsPerProviderPerMinute` | 60 | sliding-window rate cap |
+  | `maxConcurrentCallsPerProvider` | 5 | concurrency cap |
   | `maxRetriesOn429` | 3 | in-line 429 retries |
   | `retryBackoffMs429` | 1000 | wait between retries |
   | `maxRetriesOn529` | 3 | in-line 529 (server overloaded) retries |
   | `retryBackoffMs529` | 1000 | wait between 529 retries |
 
-- **`ProviderThrottle`** — per-hostname rate + concurrency
+- **`ProviderThrottle`** (`data/ProviderThrottling.kt`) — per-hostname rate + concurrency
   gate. One `Semaphore` per host caps in-flight calls; a
   sibling `ConcurrentLinkedDeque` of call timestamps enforces
   the 60-second sliding window.
@@ -63,25 +66,33 @@ Provider edit) and falls through to a global default
 
 ## Interceptor chain
 
-OkHttp application interceptors, outer → inner:
+OkHttp application interceptors, outer → inner (assembled in
+`data/ApiClient.kt`):
 
 ```
 RateLimitRetryInterceptor   (handles 429 retries)
-  → ProviderThrottleInterceptor   (acquires/releases per-host permits)
-    → ReadTimeoutInterceptor   (per-call read timeout swap)
-      → TestCallTimeoutInterceptor   (Provider-test 30 s window)
-        → TracingInterceptor   (writes the ApiTracer JSON)
-          → upstream
+  → OverloadedRetryInterceptor   (handles 529 server-overloaded retries)
+    → ProviderThrottleInterceptor   (acquires/releases per-host permits)
+      → ReadTimeoutInterceptor   (per-call read timeout swap)
+        → TestCallTimeoutInterceptor   (Provider-test 30 s window)
+          → TracingInterceptor   (writes the ApiTracer JSON)
+            → upstream
 ```
+
+Both retry interceptors sit *outside* the throttle / timeout /
+tracing layers, so each retry re-acquires its own per-host permit
+and a throttle wait doesn't count against the read-timeout window.
+The 429 and 529 budgets are independent — a 529 burst doesn't eat
+the 429 retry count.
 
 ### `RateLimitRetryInterceptor`
 
-Loops on 429, sleeping `backoffMs` between attempts up to
-`maxRetries`. Caps are resolved per 429 via
-`ProviderThrottle.retryLimitsFor(host)` so a settings change
-while a call is in flight takes effect on the next iteration.
-`maxRetries == 0` is a valid "no in-line retries" — the outer
-`withRetry` layer still gets a chance.
+Defined in `data/RateLimitRetry.kt`. Loops on 429, sleeping
+`backoffMs` between attempts up to `maxRetries`. Caps are resolved
+per 429 via `ProviderThrottle.retryLimitsFor429(host)` so a
+settings change while a call is in flight takes effect on the next
+iteration. `maxRetries == 0` is a valid "no in-line retries" — the
+outer `withRetry` layer still gets a chance.
 
 Hard guards:
 - Main-thread check — if anything ever sneaks through, the
@@ -94,6 +105,18 @@ Hard guards:
 - `408 / 425 / 429` are treated as transient by the outer
   `withRetry` layer too, so the suspend-level retry can layer
   on top.
+
+### `OverloadedRetryInterceptor`
+
+Defined in `data/OverloadedRetry.kt` — the 529 (server-overloaded,
+Anthropic `overloaded_error`) sibling of the 429 path. Same
+main-thread guard, cancellation check, and close-before-reissue
+pattern. Caps resolve per 529 via
+`ProviderThrottle.retryLimitsFor529(host)` (independent budget).
+Backoff is exponential-with-equal-jitter and honours a server
+`Retry-After` when present; the sleep goes through
+`ProviderThrottle.backoffSleep` so it releases batch permits while
+waiting rather than pinning shared capacity.
 
 ### `ProviderThrottleInterceptor`
 
@@ -164,9 +187,10 @@ held across an idle window:
    The `runningFanOutPairs` set surfaces "queued" vs "running"
    in the UI so the user can see exactly where their permits
    are.
-2. **Per-agent report-icon chain** (`runReportIconsForAgent`)
-   — each of the three tiers acquires its own permit on entry,
-   releases on exit. See [report-icons.md](report-icons.md).
+2. **Per-model icon / title generation** (the worker engine —
+   `workers/model-icons`, `workers/model-titles`, …) — each worker
+   call acquires its own permit on entry, releases on exit. See
+   [report-icons.md](report-icons.md).
 3. **Find alternative icons** (`startIconFanOut`) — same
    pattern.
 
@@ -177,10 +201,18 @@ interceptor to skip.
 
 ## Files
 
-- `data/ApiTracer.kt` — `NetworkSettings`, `ProviderThrottle`,
-  `ProviderThrottleInterceptor`, `RateLimitRetryInterceptor`,
-  `ReadTimeoutInterceptor`, `TestCallTimeoutInterceptor`.
-- `data/AppService.kt` — the four nullable override fields.
+- `data/ApiTracer.kt` — `NetworkSettings`.
+- `data/ProviderThrottling.kt` — `ProviderThrottle` (+
+  `permitPreAcquired`) and `ProviderThrottleInterceptor`.
+- `data/RateLimitRetry.kt` — `RateLimitRetryInterceptor` (429).
+- `data/OverloadedRetry.kt` — `OverloadedRetryInterceptor` (529).
+- `data/ReadTimeout.kt` — `ReadTimeoutInterceptor`.
+- `data/TestCallTimeout.kt` — `TestCallTimeoutInterceptor`.
+- `data/TracingInterceptor.kt` — `TracingInterceptor`.
+- `data/ApiClient.kt` — assembles the interceptor chain on the
+  shared `OkHttpClient`.
+- `data/AppService.kt` — the six nullable override fields (429 +
+  529 caps / backoffs, rate, concurrency).
 - `data/ProviderRegistry.kt` — calls
   `ProviderThrottle.resetForNewLimits()` from `save`.
 - `data/ProviderFieldTimestamps.kt` — per-provider per-field

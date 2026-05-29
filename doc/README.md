@@ -6,8 +6,8 @@ models in parallel, fanning one model's response into another's
 prompt, and chatting with them.
 
 The project is a single Activity, Kotlin 2.2.10 + Jetpack Compose,
-~106,440 LOC across 306 Kotlin files, MVVM with three primary view
-models plus extracted engines/managers (11 files under `viewmodel/`),
+~112,000 LOC across 323 Kotlin files, MVVM with three primary view
+models plus extracted engines/managers (15 files under `viewmodel/`),
 42 cloud providers across three API formats, and seven external
 metadata repositories layered into one resolved view per
 `(provider, model)` pair.
@@ -43,8 +43,10 @@ metadata repositories layered into one resolved view per
   type Meta prompt — Compare, Critique, Synthesize, …), MODERATION,
   TRANSLATE, and the Fan-out / Fan-in flow with its three-level
   drill-in.
-- **[help.md](help.md)** — The in-app Help system: per-screen
-  topics, per-provider pages, per-repository pages, icon legend.
+- **[help.md](help.md)** — The in-app Help system: the white ❔ live
+  "&lt;screen&gt; - icons" overlay (report-Manage screens) vs the red ❓
+  help page, per-screen topics, per-provider / per-repository pages,
+  and the static icon-table legend.
 - **[applog.md](applog.md)** — In-app log4j-style file logger
   ([`AppLog`](../ai/src/main/java/com/ai/data/AppLog.kt)),
   daily-rotated files under `<filesDir>/applog/`, the AppLog
@@ -54,12 +56,12 @@ metadata repositories layered into one resolved view per
   every `AppLog` call site that writes to the application log,
   grouped by severity (ERROR / WARN / INFO / DEBUG / TRACE) then
   by source file, with each line, tag, and message.
-- **[report-icons.md](report-icons.md)** — The per-report emoji
-  + per-agent 3-tier icon chain: bundled prompts
-  (`internal/icon`, `internal/report_icon`, `report_icon_chat`,
-  `report_icon_3th`), generation flow, the alternative-icons
-  picker, the icons grid view, cost surfacing, and the two
-  `iconGenEnabled` / `perModelIconGenEnabled` master switches.
+- **[report-icons.md](report-icons.md)** — The per-report + per-model
+  emoji, produced by the worker engine (`workers/report-icon`,
+  `workers/model-icons`, …): generation flow, the Find-alternative
+  picker (`alt/*` prompts), the Manual edit / Select icon options, the
+  icons grid view, cost surfacing, and the `iconGenEnabled` /
+  `perModelIconGenEnabled` master switches.
 - **[throttle.md](throttle.md)** — Per-provider rate-limit +
   concurrency caps (`ProviderThrottle`,
   `ProviderThrottleInterceptor`), the 429-retry interceptor,
@@ -158,8 +160,11 @@ truth. When in doubt, the relevant files are:
 - `data/SharedContent.kt` — share-target snapshot
 - `data/InternalPromptSeed.kt` + `data/ExamplePromptSeed.kt` — bundled-asset loaders
 - `model/SettingsModels.kt` — every settings data class
-- `viewmodel/AppViewModel.kt` — `UiState`, `GeneralSettings`,
-  bootstrap, model fetching, hot per-pair fan-out flow
+- `viewmodel/AppViewModelTypes.kt` — `UiState`, `GeneralSettings`, and
+  the `IconCandidate` / `TitleCandidate` / `TranslationCandidate` +
+  `Refresh*` top-level types
+- `viewmodel/AppViewModel.kt` — bootstrap, model fetching, hot per-pair
+  fan-out flow
 - `viewmodel/ReportViewModel.kt` — report and secondary-result generation, Fan-out / Fan-in
 - `ui/settings/SettingsPreferences.kt` — every prefs key
 - `ui/admin/HelpScreen.kt` — per-screen / per-provider / per-repository help topics

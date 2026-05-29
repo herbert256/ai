@@ -29,7 +29,7 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `model_name_layout` | String | enum name (`MODEL_ONLY` / `PROVIDER_AND_MODEL`) |
 | `subject_to_title_bar_mode` | String (default `BOTH`) | tri-state enum (`HARDCODED` / `SUBJECT` / `BOTH`). `HARDCODED` keeps the legacy fixed label + green sub-header; `SUBJECT` replaces with the dynamic subject; `BOTH` joins them with `/`. Replaces the legacy boolean `subject_to_title_bar` |
 | `icon_gen_enabled` | Boolean (default true) | master switch for the per-report icon-gen feature (background `internal/icon` call on every new report — see [report-icons.md](report-icons.md)) |
-| `per_model_icon_gen_enabled` | Boolean (default true) | master switch for the per-agent 3-tier icon chain (auto-fires `runReportIconsForAgent` on every successful agent call) |
+| `per_model_icon_gen_enabled` | Boolean (default true) | master switch for per-model icons (derives each model's icon from its title via the worker engine `workers/model-icons` on every successful agent call) |
 | `recent_report_models` | String (newline-separated) | last 3 (provider, model) picks from the Report section's model pickers, most-recent first. Encoded as `"providerId|model"` strings |
 | `streaming_read_timeout_sec` | Int | read timeout for streaming API calls (SSE chat/report). Default = `BuildConfig.NETWORK_READ_TIMEOUT_SEC` |
 | `nonstreaming_read_timeout_sec` | Int | read timeout for non-streaming calls. Default = `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC` |
@@ -183,7 +183,9 @@ report/manage screens. Backed up so layout preferences survive restore.
 ## Files (under `<filesDir>`)
 
 The app's `filesDir` is `/data/data/com.ai/files/`. The tree is
-captured by the backup zip in full. See
+captured by the backup zip except the top-level
+`FILES_DIR_BACKUP_EXCLUDES` subdirs (`local_llms/`,
+`local_models/`, `native/`, `applog/`). See
 [backup-restore.md](backup-restore.md) for the contract.
 
 Almost every JSON write goes through `AtomicFileWrite.writeTextAtomic`
@@ -208,12 +210,15 @@ Tier blobs for `PricingCache`. One file per (tier, payload):
 | `aa_pricing_v2.json` | Artificial Analysis |
 | `aa_meta_v2.json` | Artificial Analysis intelligence/speed scores |
 
-Reads go through `PricingCache.loadBlob`, which falls back to the
-legacy `pricing_cache` SharedPreferences key once on the first
-read after the upgrade, copies the JSON to the file, and removes
-the prefs entry. Subsequent reads hit the file directly. Saves
-go straight to disk via `writeTextAtomic` and clear the legacy
-prefs key as a belt-and-braces guard.
+Reads go through `PricingCache.loadBlob`, which looks up the
+on-disk `filesDir/pricing/<key>.json` first and falls back to the
+bundled `assets/info-providers/<key>.json` snapshot when the
+file doesn't exist (so a fresh install ships with working
+pricing / capability tiers before the first Refresh). The
+bundled fallback is not written through to disk — timestamps
+stay unset, and the next Refresh overwrites the in-memory state
+and persists to `filesDir`. Saves go straight to disk via
+`writeTextAtomic`.
 
 ### `reports/<reportId>.json`
 One file per generated report. Holds the prompt, every agent's
@@ -271,7 +276,9 @@ params) are redacted inline before write. An in-memory
 viewer's list screen is O(1) once warm.
 
 Reachable from Hub → AI App log. Threshold persisted in
-`eval_prefs` as `log_level`. See [applog.md](applog.md).
+`eval_prefs` as `log_level`. The `applog/` dir is in
+`FILES_DIR_BACKUP_EXCLUDES`, so logs are device-local and don't
+round-trip through backup/restore. See [applog.md](applog.md).
 
 ### `trace/<hostname>_<timestamp>_<seq>.json`
 One file per outbound API call (when `ApiTracer.isTracingEnabled` is

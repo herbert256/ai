@@ -82,21 +82,22 @@ tier blobs).
 
 ## Codebase shape
 
-~106,440 LOC across 306 Kotlin files:
-- `data/` — 61 files (HTTP, dispatch, streaming, tracer, rate
+~112,000 LOC across 323 Kotlin files:
+- `data/` — 64 files (HTTP, dispatch, streaming, tracer, rate
   limit / throttle, registry, pricing, storage, in-app file
   logger, atomic-write helpers, bundled-asset seeds, RAG /
   Knowledge, on-device `local/` runtime, regenerate-batch).
 - `model/` — 2 files (`SettingsModels.kt`, `SettingsHolder.kt`)
-- `viewmodel/` — 11 files (`AppViewModel`, `ChatViewModel`,
+- `viewmodel/` — 15 files (`AppViewModel` + its extracted
+  top-level types in `AppViewModelTypes.kt`, `ChatViewModel`,
   `ReportViewModel` + extracted engines/managers such as
   `RegenerateBatchEngine`, `SecondaryRunManager`,
   `IconGenerationManager`)
-- `ui/` — 231 files across sub-domains (`report` × 66,
-  `cruds` × 52, `admin` × 27, `settings` × 22, `helpers` × 16,
-  `shared` × 13, `navigation` × 7, `other` × 6, `chat` × 5,
-  `search` × 4, `hub` × 4, `history` × 3, `share` × 2,
-  `models` × 2, `knowledge` × 1, `theme` × 1)
+- `ui/` — 241 files across sub-domains (`report` × 69,
+  `cruds` × 53, `admin` × 30, `settings` × 22, `shared` × 16,
+  `helpers` × 16, `navigation` × 7, `other` × 6, `chat` × 5,
+  `search` × 4, `hub` × 4, `history` × 3, `models` × 2,
+  `share` × 2, `knowledge` × 1, `theme` × 1)
 - `MainActivity.kt`
 
 ## Key concepts
@@ -158,7 +159,8 @@ then merges any custom provider definitions the user imports.
 - **`ReportViewModel`** — report generation, secondary-result flows
   (RERANK / META / MODERATION / TRANSLATE), the multi-language
   fan-out for chat-type META and TRANSLATE, the Fan-out /
-  Fan-in flow, **and** the per-agent 3-tier report-icon chain.
+  Fan-in flow, **and** per-model report icons (derived from each
+  model's title via the worker engine, `workers/model-icons`).
   Holds an in-memory `_agentResults` flow separate from
   `UiState` so per-task completions don't ripple equality checks
   across the rest of the UiState. Holds a `Map<String,
@@ -222,11 +224,11 @@ Two master switches drive icon generation:
   the title bar's leftmost icon all key off this. Toggling it
   off hides the icon row and the 📝 memo it mirrors; existing
   icons stay on disk for re-enable.
-- `perModelIconGenEnabled` (default true) — auto-fires the
-  per-agent 3-tier chain (`runReportIconsForAgent`) whenever an
-  agent's primary call settles to SUCCESS — both on initial
-  generation and on regenerate. Toggling it off skips the chain
-  but leaves any persisted per-agent icons in place.
+- `perModelIconGenEnabled` (default true) — auto-derives each
+  model's icon from its title via the worker engine
+  (`workers/model-icons`) whenever an agent's primary call settles to
+  SUCCESS — both on initial generation and on regenerate. Toggling it
+  off skips that step but leaves any persisted per-model icons in place.
 
 See [report-icons.md](report-icons.md) for the full flow.
 
@@ -483,31 +485,39 @@ AppLog viewer can render the entire start-up sequence for a
 support session. The bootstrap log line itself captures the
 app name, versionName, versionCode, and the BUILD_TIMESTAMP.
 
-Two seed sources are **delta-merged on every app start**, not
-just on fresh install — both via
-`InternalPromptSeed.delta(...) {}` / equivalent that only adds
-missing entries by `(category, name)` for prompts and by stable
-id for providers:
+Several seed sources are **delta-merged on every app start**, not
+just on fresh install — each via an `ensureAllPresent(...)` pass
+that only adds missing entries (by `(category, name)` for
+prompts, by stable id for providers) and never overwrites an
+existing row. There is no longer a one-shot bundled-prompt
+migration block in bootstrap; only the every-start delta-merges
+remain.
 
 - `assets/providers.json` — entries import on first run, and
-  new entries are appended on subsequent starts.
-  Per-field timestamps in `ProviderFieldTimestamps` decide
-  which fields the every-start sync may overwrite — a field the
-  user has edited (timestamp non-null) is left alone; an
-  un-edited field tracks the asset.
-- `assets/internal-prompts/` — Internal Prompts (Meta / Fan-out /
-  Fan-in / fixed Internal templates: chat-title / model-info / model-intro /
-  translate-text / second-rerank / second-moderation / test-model / icon / report_icon /
-  report_icon_chat / report_icon_3th / chat-title / response /
-  …) seeded into `Settings.internalPrompts`. Same delta-merge
+  new entries are appended on subsequent starts (`syncFromAsset`
+  + provider append). Per-field timestamps in
+  `ProviderFieldTimestamps` decide which fields the every-start
+  sync may overwrite — a field the user has edited (timestamp
+  non-null) is left alone; an un-edited field tracks the asset.
+- `assets/internal-prompts/` — Internal Prompts, organised into
+  category sub-dirs: `meta/`, `fan_out/`, `fan_in/`, `workers/`
+  (the generation prompts — `report-icon` / `model-icons` /
+  `report-title` / `report-language` / `fan-meta` / `second-meta` /
+  `second-rerank` / `second-moderation` / …), `alt/` (the
+  Find-alternative variants), and `internal/` (fixed templates:
+  chat-title / model-info / model-intro / translate-text / test-model /
+  …) — seeded into `Settings.internalPrompts`. Same delta-merge
   rule — new bundled entries appear on the next start, user
   edits to existing entries survive.
+- `assets/examples.json` — Example Prompts, merged by title
+  (case-insensitive).
+- `assets/system-prompts.json` — bundled System Prompts.
+- `assets/excluded.json` / `assets/inaccessible.json` — appended
+  test-excluded / inaccessible `(provider, model)` entries.
+- `assets/meta.json` — default Meta items.
 
-`assets/examples.json` is also delta-merged on every start
-(Example Prompts merged by title case-insensitively). The
-Housekeeping → Reset → "Restore bundled assets" path force-
-merges any missing rows back without resetting user-edited
-ones.
+The Housekeeping → Reset → "Restore bundled assets" path force-
+merges any missing rows back without resetting user-edited ones.
 
-None of the three asset files overwrite existing rows on the
-delta path, so a re-seed never destroys user edits.
+None of the asset files overwrite existing rows on the delta
+path, so a re-seed never destroys user edits.

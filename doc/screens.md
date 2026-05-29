@@ -56,6 +56,7 @@ then subtitle.
 | Costs | Where the money went, per call |
 | Costs | \<report title\> |
 | Costs tiers | Pricing tier per model + catalog freshness |
+| Create | Add a secondary result |
 | Default icons | Fallback emoji for reports without their own icon |
 | Default meta item | \<meta name\> |
 | Default meta items | Meta prompts auto-run when a report finishes |
@@ -69,6 +70,7 @@ then subtitle.
 | Edit default meta item | Auto-run a meta prompt on report completion |
 | Edit example prompt | \<prompt title\> |
 | Edit Flock | \<flock name\> |
+| Edit icons | Every icon in this report |
 | Edit inaccessible model | Mark one model as unreachable |
 | Edit model title | Rename one model's answer title |
 | Edit override | Assign one model's API type |
@@ -76,11 +78,15 @@ then subtitle.
 | Edit override | Set one model's API type by hand |
 | Edit Parameters | \<preset name\> |
 | Edit prompt | Saving needs a regenerate to apply |
+| Edit report | \<report short title\> |
+| Edit report | Icon, titles, parameters, prompt |
 | Edit Request | Edit the raw JSON request body |
 | Edit Swarm | \<swarm name\> |
 | Edit System Prompt | \<prompt name\> |
 | Edit test-excluded model | Exclude one model from Test all |
 | Edit title | Metadata only — no regenerate needed |
+| Edit title | Rename one fan-out response title |
+| Edit titles | Every dynamic title in this report |
 | Edit \<prompt type\> | \<name\> |
 | Example prompt | \<prompt title\> |
 | Example prompts | Starter prompts for new reports |
@@ -90,27 +96,23 @@ then subtitle.
 | Extended local search | Tokenised search over saved reports |
 | External request | Another app wants to make a report |
 | External Services | Keys for search and other extras |
-| Fan icons | \<fan-out run\> |
-| Fan icons - model | \<provider\> / \<model\> |
-| Fan icons - pair | This pair no longer exists |
-| Fan icons - pair | \<answerer label\> |
+| Fan Meta | Loading the fan-out… |
+| Fan Meta | \<fan-out run\> |
+| Fan Meta - All | \<fan-out run\> |
+| Fan Meta - meta model | \<meta model\> |
+| Fan Meta - model | \<provider\> / \<model\> |
+| Fan Meta - pair | This pair no longer exists |
+| Fan Meta - pair | \<answerer label\> |
 | Fan out | Loading the fan-out… |
 | Fan out | \<fan-out run\> |
-| Fan out - icons | \<fan-out run\> |
 | Fan out - model | \<provider\> / \<model\> |
-| Fan out - model icons | \<fan-out run\> |
-| Fan out - model titles | \<fan-out run\> |
-| Fan out - one page | \<fan-out run\> |
+| Fan out - model titles | \<provider\> / \<model\> |
+| Fan out - one page | \<model label\> |
 | Fan out - pair | This pair no longer exists |
 | Fan out - pair | \<answerer label\> |
 | Fan Out - run | Confirm the calls before fanning out |
 | Fan Out - scope | \<secondary kind\> |
-| Fan out - titles | \<fan-out run\> |
 | Fan out/in prompts | Prompts for multi-model fan out/in |
-| Fan titles | \<fan-out run\> |
-| Fan titles - model | \<provider\> / \<model\> |
-| Fan titles - pair | This pair no longer exists |
-| Fan titles - pair | \<answerer label\> |
 | Fan-out | \<report title\> |
 | Fan-out pair | \<report title\> |
 | Flock | \<flock name\> |

@@ -9,9 +9,9 @@ of every API call you made.
 
 1. Install the APK and open it. The app imports a default catalog of
    42 cloud providers from a bundled `providers.json` and seeds
-   Internal Prompts (Meta / Fan-out / Fan-in / fixed templates) from
-   `internal-prompts/` so you don't have to type any URLs or prompt
-   templates yourself.
+   Internal Prompts (Meta / Fan-out / Fan-in / Workers / Alt /
+   fixed templates) from `internal-prompts/` so you don't have to
+   type any URLs or prompt templates yourself.
 2. Open **Settings → AI Setup → Providers**. Pick the providers you
    want to use, paste in their API keys (each card has a 🔗 link to
    that provider's console), and tap **Test API Key**. A successful
@@ -118,12 +118,12 @@ yet. Toggle this off under **Settings → Generate report icons**.
 #### Per-agent icons
 
 If **Generate per model icons** is on (default), each successful
-agent call kicks off a 3-tier icon-generation chain — chat
-continuation against the agent's own model, one-shot template,
-fixed-agent fallback. The result becomes the row's emoji on the
-**Icons** view (Create → View → Icons). Costs accumulate on the
-row's cost cell and show up under the Costs view's per-call
-**All** tab. See [report-icons.md](report-icons.md).
+agent's response is first titled, then an emoji is picked for that
+title — both via the **worker engine** (a randomly-picked,
+429-falling-back chain of cheap models). The result becomes the
+row's emoji on the **Icons** view (Create → View → Icons). Costs
+accumulate on the row's cost cell and show up under the Costs
+view's per-call **All** tab. See [report-icons.md](report-icons.md).
 
 ### Result phase
 
@@ -134,13 +134,27 @@ two-tier toggle action bar:
   one button per Meta-prompt name with at least one row on this
   report. The **every:** kinds (rerank / moderation / translate)
   fold into the View row with a smart drill-in.
-- **Edit** — Prompt / Title / Models / Parameters. Edits queue
-  up; tap **Regenerate** in the Actions row to re-run with the
-  changes. When only the model list changed, Regenerate is
-  **additive** — it runs only the new models and merges them in.
-- **Create** — Regenerate / Export / Copy / Translate / Delete /
-  Rerank and other generators including **Report icons** when
-  per-model icons are enabled.
+- **✏️ Edit** — opens a full-screen **Edit report** overview
+  (layer on top of the screen, not a small pop-up): a big centred
+  report icon, the short + long title, a `Parameters: …` line, a
+  `System prompt: …` line and the prompt body — each with its own
+  ✏️ that opens the existing editor — plus three buttons:
+  **Edit models**, **Edit icons**, **Edit titles**. **Edit icons**
+  lists every icon in the report (report, language, per-model,
+  meta, ranking, moderation, per-language translation, fan-out
+  response) and opens that icon's Icon-lookup / Find-alternative
+  flow; **Edit titles** lists every dynamic title (report short /
+  long, per-model, fan-out response), each with a manual-edit ✏️
+  and a **Find** (multi-model) button. Prompt / parameter edits
+  queue up; tap **Regenerate** to re-run. A model-list-only change
+  makes Regenerate **additive** — it runs just the new models and
+  merges them in.
+- **🆕 Create** — opens a full-screen **Create** launcher (layer
+  on top): one big-icon + description row per secondary kind —
+  **Meta** / **Rerank** / **Moderation** / **Fan out** /
+  **Translate** — tapping a row opens that kind's existing picker /
+  flow. Disabled rows (no prompt configured, or a single-shot kind
+  already present) render dimmed.
 
 The TitleBar above the result screen carries a 💬 Chat icon that
 starts a new chat session pre-populated with the report's
@@ -460,7 +474,8 @@ only the title; tapping expands it.
 - **Generate report icons** — master switch for the per-report
   emoji. Default on. See [report-icons.md](report-icons.md).
 - **Generate per model icons** — master switch for the per-agent
-  3-tier icon chain. Default on.
+  emoji (derived from the model title via the worker engine).
+  Default on.
 
 ### Privacy & backup
 
@@ -502,7 +517,7 @@ doesn't lose typed changes.
 | Providers | API keys, state, and default model per provider. The list sorts by state, and the **+ Add provider** entry is at the bottom. Each provider edit screen carries a Network card with per-provider rate-limit / concurrency / 429-retry overrides |
 | Models (sub-hub) | Models / Model Types / Manual model types overrides |
 | Workers (sub-hub) | Agents / Flocks / Swarms |
-| Prompt management | Top-level page (the legacy Internal Prompts sub-hub was collapsed): System Prompts / Internal Prompts grouped by category (Meta + Fan-out + Fan-in + Other internal — including the icon prompts) / Example prompts. Each row carries a per-card help icon |
+| Prompt management | Top-level page (the legacy Internal Prompts sub-hub was collapsed): System Prompts / Internal Prompts grouped by category (Meta + Fan-out + Fan-in + Workers + Alt + Other internal — the Workers / Alt buckets hold the icon / title / language worker prompts and their Find-alternative variants) / Example prompts. Each row carries a per-card help icon |
 | Parameters | Reusable parameter presets (incl. reasoning effort) |
 | Costs | Manual price overrides + Cleanup + Layered costs (collapsed at the bottom) |
 | External Services | HuggingFace / OpenRouter / Artificial Analysis keys (debounced keystroke saves; flush on dispose) |
@@ -512,8 +527,10 @@ doesn't lose typed changes.
 > (Compare, Critique, Synthesize, …) is configured under **Prompt
 > management → Meta prompts**. Fan-out / Fan-in templates live
 > under their own siblings; "Other internal" (chat-title / model-info / model-intro /
-> translate-text / second-rerank / second-moderation / test-model) is a fixed list with no
-> Add / Delete.
+> translate-text / translate-title / second-rerank / second-moderation / test-model) is a
+> fixed list with no Add / Delete. The icon / title / language generators live in the
+> **Workers** category (one prompt with a fallback chain of cheap models) and their
+> Find-alternative variants in the **Alt** category.
 
 ### Refresh
 
@@ -575,10 +592,19 @@ on import.
 
 ## Help
 
-Every screen's TitleBar carries a ❓ that opens a per-screen help
-topic. Provider cards on Model Info / Trace detail / Costs carry
-ℹ buttons that deep-link to a per-provider help page covering
-that provider's setup, capabilities, quirks, and known issues.
+Every screen's TitleBar carries a red ❓ that opens a per-screen
+help topic. Provider cards on Model Info / Trace detail / Costs
+carry ℹ buttons that deep-link to a per-provider help page
+covering that provider's setup, capabilities, quirks, and known
+issues.
+
+On the report **Manage** screens (and other crowded bars) a white
+❔ sits just left of the red ❓. Tapping the white ❔ opens a
+full-screen "<screen> - icons" overlay that lists the icons
+**currently visible** in that screen's bar — big glyph + name +
+a one-line description — and tapping a row performs that icon's
+action. The red ❓ always opens the screen's normal help page.
+(Full details live in [help.md](help.md).)
 
 The Help home page surfaces an icon legend rendered as a 3-column
 table — every TitleBar icon you'll see in the app, with a one-line

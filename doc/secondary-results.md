@@ -238,6 +238,20 @@ Fan-out per-pair rows surface as `cross-out` or the
 prompt's lowercased name; Fan-in combined-report rows as
 `cross-in`.
 
+## Per-row icons (every kind)
+
+Every `SecondaryResult` row carries its own `icon` field, so a
+Rerank, Moderation, Meta or fan-out-pair row can each show a
+generated emoji. The Find-alternative-icon flow
+(`IconGenerationManager.startPairIconFanOut`) was **generalised
+to ANY row** — keyed on the row id — so a Rerank or Moderation
+icon is refindable through exactly the same flow as a fan-out
+pair (the `@SOURCE_RESPONSE@` / `@META_PROMPT@` tokens just
+resolve empty for a sourceless row). All of these surface on the
+**Edit icons** list and open the unified **Icon lookup** detail
+(Find alternative / Manual edit / Select icon). See
+[report-icons.md](report-icons.md).
+
 ## Fan-out / Fan-in
 
 A separate code path under `ReportViewModel.runFanOutPrompt` /
@@ -285,20 +299,24 @@ As of the from-scratch redesign (commits `865fb443`..`af0521aa`):
   Dispatchers.IO got starved on large fan-outs and new
   `generateGenericReports` calls queued forever.
 
-- The redesigned **UI** lives in
-  `ai/src/main/java/com/ai/ui/report/FanOutScreen.kt` (parent + nav)
-  + `FanOutL1Screen.kt` / `FanOutL2Screen.kt` / `FanOutL3Screen.kt`
-  (each level). The parent holds a `FanOutNav` sealed-class state
-  in `rememberSaveable`; back-stack survives rotation. Each level
+- The redesigned **UI** lives under
+  `ai/src/main/java/com/ai/ui/report/manage/`: `Fan.kt`
+  (`FanOutScreen` parent + nav + the `FanOutMode { MAIN, META }`
+  enum) + `FanL1.kt` / `FanL2.kt` / `FanL3.kt` (each level). The
+  parent holds a `FanOutNav` sealed-class state in
+  `rememberSaveable`; back-stack survives rotation. Each level
   subscribes to `engine.runs.collectAsState()` and renders the
   current snapshot — no polling, no `recentlySettled` grace
   window, no merging of disk + StateFlow.
 
+- The same `Fan*` screens render two **modes** off one nav tree:
+  `FanOutMode.MAIN` (the per-pair fan-out responses described
+  here) and `FanOutMode.META` (the **Fan Meta** drill-in over the
+  per-pair title+icon metadata — see "Fan Meta drill-in" below).
+
 The launch path (`runFanOutPrompt`) still lives on `ReportViewModel`
 for now; the engine hydrates after each refresh tick to pick up its
-disk writes. A follow-up commit migrates the launch path to
-`engine.startRun` and removes the legacy `FanOutDrillInView` +
-`runningFanOutPairs` StateFlow.
+disk writes.
 
 - **Fan-in** runs the chosen `category="fan_in"` Internal Prompt
   once per source agent (NOT once per answerer × source pair).
@@ -327,6 +345,30 @@ genuinely-stuck placeholders without losing in-flight work.
 `rerunFailedFanOutPairs` and `rerunCompleteFanOut` rebuild the
 per-pair set, dedupe in-flight job keys (so one tap doesn't fork
 two batches), and cancel before resetting.
+
+### Fan Meta drill-in
+
+The same `Fan*` screens in `FanOutMode.META` give each fan-out
+pair a generated **title + icon** (one `workers/fan-meta` worker
+call per pair returns both — see
+[report-icons.md](report-icons.md)):
+
+- **L1** (titled **Fan Meta**) has two grouping modes — **Meta
+  models** (group by the meta-worker model that produced the
+  title+icon, `PairState.titleModel`) and **Report models**
+  (group by the answerer model). There's also a flat **Fan Meta -
+  All** list (`view/FanTitles.kt`) of every pair's title.
+- **L2** is titled **Fan Meta - model** (or **Fan Meta - meta
+  model** in the Meta-models grouping).
+- **L3** (titled **Fan Meta - pair**) is a purpose-built metadata
+  screen: big centred icon, big green title, the two model lines
+  (fan-out model / meta model), and per-pair **Find alternative
+  icon** / **Find alternative title** buttons. A horizontal
+  **swipe** (not Prev/Next buttons) steps between pairs — swipe
+  right = previous, left = next.
+
+The Fan Meta batch auto-starts when a fan-out run finishes with no
+errored pairs (`autostartFanMeta`, default on).
 
 ## HTML export
 

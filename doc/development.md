@@ -95,32 +95,35 @@ ai/src/main/java/com/ai/
 │   ├── ReportStorage.kt        SecondaryResult.kt   SharedContent.kt
 ├── model/                             # 2 files
 │   ├── SettingsModels.kt + SettingsHolder.kt
-├── viewmodel/                         # 11 files
-│   ├── AppViewModel.kt + ChatViewModel.kt + ReportViewModel.kt
+├── viewmodel/                         # 15 files
+│   ├── AppViewModel.kt (+ AppViewModelTypes.kt, the extracted
+│   │   top-level types) + ChatViewModel.kt + ReportViewModel.kt
 │   └── extracted engines/managers (RegenerateBatchEngine,
 │       SecondaryRunManager, IconGenerationManager, …)
-└── ui/                                # 231 files
-    ├── report/      (66)              # report flows, secondary results,
+└── ui/                                # 241 files
+    ├── report/      (69)              # report flows, secondary results,
     │                                  # Fan-out / Fan-in screens, exports
     │                                  # (PDF, DOCX/ODT, RTF, zipped HTML),
     │                                  # translation screens, icon screens,
-    │                                  # Manage hub, Get-info / regenerate
-    ├── cruds/       (52)              # generic CRUD framework + per-entity
+    │                                  # manage/ overview + edit screens,
+    │                                  # Get-info / regenerate
+    ├── cruds/       (53)              # generic CRUD framework + per-entity
     │                                  # CRUDs: workers (agents/flocks/
     │                                  # swarms), model-states (blocked/
     │                                  # cooldowns/testexcluded/inaccessible/
     │                                  # manual overrides), prompts, params,
     │                                  # cost overrides
-    ├── admin/       (27)              # Housekeeping / Backup-Restore /
+    ├── admin/       (30)              # Housekeeping / Backup-Restore /
     │                                  # Reset / Trim by age / Usage /
     │                                  # statistics / traces / help /
     │                                  # provider admin / developer +
     │                                  # AppLogScreen
     ├── settings/    (22)              # AI Setup sub-screens + Workers/
     │                                  # Local-runtime setup
+    ├── shared/      (16)              # CrudListScreen, TitleBar +
+    │                                  # BottomIconBar, AppColors, Badges,
+    │                                  # Dialogs, Cards, …
     ├── helpers/     (16)              # report export + shared helpers
-    ├── shared/      (13)              # CrudListScreen, TitleBar +
-    │                                  # BottomIconBar, AppColors, …
     ├── navigation/  (7)               # AppNavHost, NavRoutes + route files
     ├── other/       (6)               # Selection picker + misc
     ├── chat/        (5)               # chat + chat history + dual chat
@@ -128,13 +131,13 @@ ai/src/main/java/com/ai/
     │                                  # + Local semantic search screens
     ├── hub/         (4)               # main hub + Reports / Chats hubs
     ├── history/     (3)               # report + prompt history + picker
-    ├── share/       (2)               # ShareChooserScreen + helpers
     ├── models/      (2)               # model search + Model Info
+    ├── share/       (2)               # ShareChooserScreen + helpers
     ├── knowledge/   (1)               # RAG Knowledge screens
     └── theme/       (1)               # Material3 dark theme
 ```
 
-Roughly **306 Kotlin files, ~106,440 LOC** total.
+Roughly **323 Kotlin files, ~112,000 LOC** total.
 
 ## Adding things
 
@@ -149,8 +152,9 @@ Roughly **306 Kotlin files, ~106,440 LOC** total.
    Note: `id` is now the **only** name field — no separate
    `displayName` or `prefsKey`. UI shows `id` directly; SharedPreferences
    key prefixes use `id` directly (e.g. `OpenAI_api_key`).
-2. If the provider exposes a different `chatPath` or `modelsPath`,
-   set `typePaths.chat` and `modelsPath`.
+2. For a non-default chat path or models path, set `typePaths` (e.g.
+   `typePaths.chat`) and `modelsPath` — `chatPath` / `responsesPath`
+   are computed getters over `typePaths`, not stored fields.
 3. The bundled JSON has no top-level `version` field. The
    provider catalog ships as a flat `{"providers": [...]}` shape.
 
@@ -222,7 +226,7 @@ enum value only when the new flow has fundamentally different
 routing (different API endpoint shape, different result schema,
 different rendering).
 
-Add an enum value to `SecondaryKind` in `data/SecondaryResult.kt`.
+Add an enum value to `SecondaryKind` in `data/SecondaryModels.kt`.
 The Kotlin compiler will then enforce exhaustive `when` on every
 site that maps `kind` to a string / colour / button label / view
 title / prompt template. Walk the resulting compile errors:
@@ -329,8 +333,8 @@ unit tests verify code correctness, not feature correctness here.
   token.
 - **OpenAI dual API**: gpt-4o etc. use Chat Completions; gpt-5.x /
   o3 / o4 / gpt-4.1 use Responses API. Auto-routed via
-  `usesResponsesApi()` / `endpointRules`. Multi-text Responses-API
-  blocks are concatenated by the dispatch layer.
+  `usesResponsesApi()` / `responsesApiPatterns`. Multi-text
+  Responses-API blocks are concatenated by the dispatch layer.
 - **OpenAI moderation models** aren't returned by `/v1/models`. They
   ship as `hardcodedModels` in `providers.json` so the picker still
   finds them. The OpenAI-only fallback union in `Settings.withModels`
@@ -375,12 +379,15 @@ unit tests verify code correctness, not feature correctness here.
   (`provider_field_timestamps`). `ProviderRegistry.update`
   bumps timestamps when the new value differs; the every-start
   asset-sync paths skip fields with a non-null timestamp so a
-  bundled-asset refresh never overwrites a user edit. Backup
-  / restore mirrors this prefs file.
+  bundled-asset refresh never overwrites a user edit. This prefs
+  file is **not** in the backup set — it's a recomputable cache
+  (a null lookup just refreshes the field from the asset).
 - **Backup zip** mirrors `filesDir` (incl. `embeddings/`,
   `secondary/`, `trace/`, `pricing/`, `model_lists/`,
-  `prompt_cache/`) and 5 SharedPreferences files. New prefs files
-  won't survive a restore unless added to
+  `prompt_cache/`) — minus the `FILES_DIR_BACKUP_EXCLUDES` subdirs
+  (`local_llms/`, `local_models/`, `native/`, `applog/`) — plus
+  the 7 SharedPreferences files in `PREFS_TO_BACKUP`. New prefs
+  files won't survive a restore unless added to
   `BackupManager.PREFS_TO_BACKUP`. The backup zip also mirrors
   `cacheDir` (exports, shared traces) but skips in-flight temp
   files (`ai-restore-`, `reset_keys_`, `ai-backup-`). See
@@ -420,15 +427,13 @@ unit tests verify code correctness, not feature correctness here.
   is used by `ExportShare` (Copy / Share writes) so a
   process kill mid-write can't surface a half-written artifact
   to the user.
-- **Icons come in two flavours.** Per-report icon
-  (`Report.icon`, fired by `ReportViewModel.kickOffIconGeneration`
-  against the `internal/icon` pinned-agent prompt) and per-agent
-  3-tier chain (`ReportAgent.icon`, fired by
-  `runReportIconsForAgent` on every successful agent call).
-  Both bypass `extractFirstEmoji` to enforce one-glyph
-  normalisation; failures persist `iconErrorMessage` instead.
-  Bundled prompts: `icon`, `report_icon`, `report_icon_chat`,
-  `report_icon_3th`. See [report-icons.md](report-icons.md).
+- **Icons come from the worker engine.** Per-report icon
+  (`Report.icon`, from `workers/report-icon`, derived from the long
+  title) and per-model icon (`ReportAgent.icon`, from
+  `workers/model-icons`, derived from that model's title — fired on
+  every successful agent call). Failures persist `iconErrorMessage`.
+  The Find-alternative variants live under `alt/`. See
+  [report-icons.md](report-icons.md).
 - **Background continuation.** Initial report generation,
   regenerate, secondary launches (rerank / meta / moderation /
   translate), and the report-icon chain are all launched on
@@ -456,6 +461,13 @@ unit tests verify code correctness, not feature correctness here.
   installs the next time they cold-start.
 - `assets/examples.json` — same delta-merge by title
   (case-insensitive).
+- `assets/system-prompts.json`, `assets/excluded.json`,
+  `assets/inaccessible.json`, `assets/meta.json` — each
+  delta-merged the same way (`ensureAllPresent`), appending only
+  missing rows.
+
+There is no longer a one-shot bundled-prompt migration block in
+bootstrap — only the every-start delta-merges above remain.
 
 The entire bootstrap sequence emits structured DEBUG / TRACE
 log lines under the `AppLifecycle` tag, including a startup

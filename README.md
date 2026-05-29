@@ -53,9 +53,11 @@ prompt, and chat with real-time streaming.
   swarms), Costs CSV, and the All bundle (with or without API keys)
 - **Refresh All** — chains the seven repositories in dependency
   order on a full-screen progress page, then auto-restarts the app
-- **Comprehensive in-app help** — per-screen ❓ topic + per-provider
-  ℹ help, with deep links from every Source button on Model Info /
-  Trace detail / Costs
+- **Comprehensive in-app help** — on report-Manage screens the white ❔
+  opens a live icon overlay (every visible bottom-bar icon, named and
+  tappable) and the red ❓ opens the screen's help page; other screens
+  keep the ❔ icon-legend page. Plus per-provider ℹ help, deep-linked
+  from every Source button on Model Info / Trace detail / Costs
 
 ## Requirements
 
@@ -92,8 +94,8 @@ order:
 | [doc/experimental.md](doc/experimental.md) | The master Experimental-features toggle and what it hides |
 | [doc/model-states.md](doc/model-states.md) | Blocked / Cooldowns / Test-excluded / Inaccessible + type overrides |
 | [doc/regenerate.md](doc/regenerate.md) | Get-info + the regenerate-batch orchestration engine |
-| [doc/report-icons.md](doc/report-icons.md) | Per-report emoji + per-agent 3-tier icon chain |
-| [doc/costs.md](doc/costs.md) | Cost tracking, AI Usage, manual price overrides, maintenance |
+| [doc/report-icons.md](doc/report-icons.md) | Per-report + per-model emoji from the worker engine; Find-alternative / Manual edit / Select icon |
+| [doc/costs.md](doc/costs.md) | Cost tracking, the Spend & usage dashboard, manual price overrides, maintenance |
 | [doc/throttle.md](doc/throttle.md) | Per-provider rate-limit + concurrency caps, 429 retry, timeouts |
 | [doc/translation.md](doc/translation.md) | TRANSLATE secondary-kind, multi-language fan-out, translation runs |
 | [doc/share-target.md](doc/share-target.md) | `ACTION_SEND` / `ACTION_SEND_MULTIPLE` flow |
@@ -101,7 +103,7 @@ order:
 | [doc/providers.md](doc/providers.md) | All 42 cloud providers from `providers.json` |
 | [doc/repositories.md](doc/repositories.md) | The seven external metadata sources |
 | [doc/persistent.md](doc/persistent.md) | Every prefs key and every persistent file |
-| [doc/help.md](doc/help.md) | The in-app Help system: per-screen topics, per-provider pages, icon legend |
+| [doc/help.md](doc/help.md) | The in-app Help system: live icon overlay vs help page, per-screen topics, per-provider pages |
 | [doc/applog.md](doc/applog.md) | In-app file logger: levels, rotation, redaction, viewer |
 | [doc/log-details.md](doc/log-details.md) | Reference: every `AppLog` call site, grouped by severity |
 | [doc/TODO.md](doc/TODO.md) | Future-work backlog discussed but not scheduled |

@@ -46,13 +46,16 @@ directly.
 `<filesDir>/pricing/<key>.json` (one per tier — see
 [persistent.md](persistent.md) for the full file list). Only the
 small `*_timestamp` longs and the user's `manual_pricing` map stay
-in `pricing_cache.xml`. `PricingCache.loadBlob` falls back to the
-legacy prefs key once on first read after the upgrade, copies the
-JSON to the file, and removes the prefs entry — old installs
-migrate transparently. `ensureLoadedBlocking` refuses to flip the
-preload-completed flag on the main thread; UI callers get
-`DEFAULT_PRICING` during the cold window and pick up real values
-on the next state-driven recompose.
+in `pricing_cache.xml`. `PricingCache.loadBlob`'s look-up order is
+(1) the post-Refresh `<filesDir>/pricing/<key>.json` file, then
+(2) a **bundled snapshot** shipped in `assets/info-providers/<key>.json`
+so a fresh install has working pricing / capability tiers *before*
+the user ever runs Refresh. The bundled blob is not written through
+to filesDir, so timestamps stay unset (the UI still shows "never
+refreshed") and the next Refresh overwrites both. `ensureLoaded`
+refuses to flip the preload-completed flag on the main thread; UI
+callers get `DEFAULT_PRICING` during the cold window and pick up real
+values on the next state-driven recompose.
 
 ---
 
@@ -70,12 +73,15 @@ on the next state-driven recompose.
   - `litellm_provider` — used to compose the lookup key together with
     `AppService.litellmPrefix`
 - **When fetched:** on Refresh screen → "LiteLLM"; also on Refresh All.
-  No bundled fallback — a fresh install has zero LiteLLM coverage
-  until the user runs Refresh once. The layered lookup just falls
-  through to the next tier (models.dev / Helicone / …) for any model
-  whose pricing the user hasn't fetched yet.
+  A fresh install gets a **bundled snapshot** from
+  `assets/info-providers/litellm_pricing.json` + `litellm_meta.json`
+  (via `loadBlob`'s asset fallback) so pricing works before the first
+  Refresh; running Refresh replaces it with the live catalog. The
+  layered lookup still falls through to the next tier
+  (models.dev / Helicone / …) for any model the snapshot doesn't cover.
 - **Cache:** `<filesDir>/pricing/litellm_pricing.json` and
-  `litellm_meta.json` (the catalog + capability sidecar);
+  `litellm_meta.json` (the catalog + capability sidecar), seeded from
+  the bundled asset of the same name on first run;
   `litellm_timestamp` long in `pricing_cache.xml`.
 
 ## 2. OpenRouter

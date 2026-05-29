@@ -234,7 +234,7 @@ Result of a single provider model-list fetch.
 | iconInputTokens, iconOutputTokens | `Int` |
 | iconInputCost, iconOutputCost | `Double` |
 | iconModel | `String?` (set when the current icon was picked manually via Find alternative icons, stored as `"<providerId>/<modelId>"`) |
-| iconCalls | `MutableList<IconCallRecord>` (per-call audit log for the 3-tier per-agent chain — every attempt, including failed earlier tiers) |
+| iconCalls | `MutableList<IconCallRecord>` (per-call audit log for icon / title generation — one record per worker-engine call + every Find-alternative attempt) |
 
 ### `ReportAgent`
 | Field | Type |
@@ -250,15 +250,15 @@ Result of a single provider model-list fetch.
 | searchResults | `List<SearchResult>?` |
 | relatedQuestions | `List<String>?` |
 | rawUsageJson | `String?` |
-| icon | `String?` (per-agent emoji produced by `runReportIconsForAgent`. Null until the chain runs; null too on failure — see `iconErrorMessage`) |
+| icon | `String?` (per-model emoji produced by the worker engine `workers/model-icons` from the model's title. Null until it runs; null too on failure — see `iconErrorMessage`) |
 | iconErrorMessage | `String?` |
 | iconInputTokens, iconOutputTokens | `Int` |
 | iconInputCost, iconOutputCost | `Double` (cumulative cost across every tier attempt) |
-| iconWinningTier | `Int?` (1 = chat continuation, 2 = one-shot `internal/report_icon`, 3 = fixed-agent fallback against `internal/report_icon_3th`. Null when no tier succeeded and the icon is the 📝 fallback, or when the icon was manually picked via Find alternative icons) |
+| iconWinningTier | `Int?` (legacy from the removed response-based 3-tier chain; always null now — worker-engine, manual, and Find-alternative icons all leave it null) |
 
 ### `IconCallRecord`
-One captured API call from the 3-tier per-agent icon chain
-([report-icons.md](report-icons.md)). Stored on
+One captured icon / title generation API call (worker engine + any
+Find-alternative attempt — [report-icons.md](report-icons.md)). Stored on
 `Report.iconCalls` so the per-call All-tab in the cost export
 renders every attempt — including failed earlier tiers the
 chain skipped past.
@@ -301,7 +301,6 @@ translation, fan-out per-pair row, or fan-in combined-report row.
 | targetLanguage | `String?` | TRANSLATE only — English language name (e.g. `"Dutch"`) |
 | targetLanguageNative | `String?` | TRANSLATE only — native rendering (e.g. `"Nederlands"`) |
 | translationRunId | `String?` | TRANSLATE only — UUID shared by every row of one Translate batch so the result page can group them |
-| translatedFromSecondaryId | `String?` | Legacy field from the old "translation creates a copy" flow — preserved on disk so old reports still load |
 
 ### `SecondaryScope` (sealed)
 - `AllReports` — every successful agent feeds the meta-result.
@@ -673,7 +672,7 @@ Computed:
 | modelNameLayout | `ModelNameLayout` | `MODEL_ONLY` (default) or `PROVIDER_AND_MODEL` |
 | subjectToTitleBarMode | `SubjectToTitleBarMode` (default `BOTH`) | tri-state: `HARDCODED` keeps the legacy fixed label + green sub-header; `SUBJECT` folds the dynamic subject into the title bar and drops the green line; `BOTH` joins them with `/` and drops the green line (gracefully falls back to the title when the subject is blank) |
 | iconGenEnabled | `Boolean` (default true) | master switch for the per-report icon-gen feature. When true, every new report kicks off a background LLM call (the bundled `internal/icon` prompt against its pinned agent) that generates a fitting emoji and writes it onto `Report.icon`. Surfaces in the result page, AI Reports hub, history rows, search hits, and the title bar's leftmost icon. When false the call is skipped, the icon row is hidden, the leftmost title-bar icon and its mirrored 📝 memo are hidden, and per-row icons fall back to the static 🕘 / 📌. Persisted icon / iconCost values on existing reports stay on disk — re-enabling brings them back |
-| perModelIconGenEnabled | `Boolean` (default true) | master switch for the per-agent 3-tier icon chain. When true, every successful agent call (initial generation AND regenerate) auto-fires `runReportIconsForAgent` on `appViewModel.viewModelScope`. Each agent's leftmost ✅ flips to a returned emoji once the chain finishes. When false the chain never runs automatically; per-agent rows keep their plain ✅. See [report-icons.md](report-icons.md) |
+| perModelIconGenEnabled | `Boolean` (default true) | master switch for per-model icons. When true, every successful agent call (initial generation AND regenerate) derives the model's icon from its title via the worker engine (`workers/model-icons`). Each agent's leftmost ✅ flips to the returned emoji once it lands. When false the step never runs automatically; per-agent rows keep their plain ✅. See [report-icons.md](report-icons.md) |
 | recentReportModels | `List<String>` (default empty) | last 3 (provider, model) pairs picked from the Report section's model pickers, most-recent first. Encoded as `"providerId|model"` strings; surfaces in the Report Select Models picker as a "Recent" section (honors the active provider / type / search filters) |
 | streamingReadTimeoutSec | `Int` (default `BuildConfig.NETWORK_READ_TIMEOUT_SEC`) | read timeout applied to streaming API calls (SSE chat / report streams). Mirrored to `NetworkSettings.streamingReadTimeoutSec` so the per-call OkHttp interceptor reads the live value |
 | nonStreamingReadTimeoutSec | `Int` (default `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC`) | read timeout applied to non-streaming calls (meta / rerank / translate / model-list / individual analyze). Much shorter than streaming by default so a hung provider can't gate a whole batch for 10 minutes |
@@ -707,8 +706,14 @@ Surfaced inline on the model-picker UI with a 🐞 deep-link to the
 captured trace.
 
 ### `UiState`
-The single immutable bag the entire UI subscribes to. See
-`AppViewModel.kt` for all 30+ fields. Notable subset:
+The single immutable bag the entire UI subscribes to. Defined in
+`AppViewModelTypes.kt` (the top-level types — `GeneralSettings`,
+`UiState`, `ModelNameLayout`, `ReportTitleMode`,
+`PromptHistoryEntry`, `FetchModelsError`, `ExternalIntent`, the
+`Refresh*` state types, and the `IconCandidate` /
+`TitleCandidate` / `TranslationCandidate` sealed types — were
+split out of `AppViewModel.kt`). See it for all 30+ fields.
+Notable subset:
 
 - `aiSettings: Settings`
 - `generalSettings: GeneralSettings`

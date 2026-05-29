@@ -11,8 +11,8 @@ Two related surfaces on the Manage hub:
    result) in a fixed phase order, surviving app restarts and
    pausing on the first error.
 
-This doc owns the **orchestration**. The icon-generation chain
-content (the per-agent 3-tier prompts) is owned by
+This doc owns the **orchestration**. The icon-generation content
+(the worker-engine report / per-model icon prompts) is owned by
 [report-icons.md](report-icons.md) — linked, not duplicated.
 
 ## Get info
@@ -31,9 +31,9 @@ plus the relevant gates. Only **enabled** jobs are emitted:
 
 | Job type | Gate | Reads | Done icon |
 |---|---|---|---|
-| `icon` | `iconGenEnabled` + `icons/main` prompt's agent resolvable | `Report.icon` / `iconErrorMessage` | the icon |
+| `icon` | `iconGenEnabled` + `workers/report-icon` has a resolvable worker | `Report.icon` / `iconErrorMessage` | the icon |
 | `language` | `reportLanguageOn` (own gate, split from icon) | `Report.languageName` / `languageIcon` / `languageIconErrorMessage` | `languageIcon` |
-| `title` | `titleModeAi` + `info/report_title` prompt's agent resolvable | `Report.titlePromptUsed` / `titleErrorMessage` | 🏷️ |
+| `title` | `titleModeAi` + `workers/report-title` has a resolvable worker | `Report.titlePromptUsed` / `titleErrorMessage` | 🏷️ |
 | `model-title` | `perModelTitle` | per-`ReportAgent` `modelTitle` / `modelTitleErrorMessage` | agent icon, else 🏷️ |
 | `model-icon` | `perModelIcon` | per-`ReportAgent` `icon` / `iconErrorMessage` | the icon |
 
@@ -91,14 +91,17 @@ prepending a phase can't silently skip it.
 | 5 | `FAN_OUT` | fan-out per-pair rows (`fanOutSourceAgentId != null`) | `secondary.resumeStaleFanOutPairs` (per `metaPromptId`) | `SecondaryResult.content` / `errorMessage` |
 | 6 | `FAN_IN` | fan-in combined rows (`fanInOf != null`) | `secondary.resumeStaleMetaPlaceholder` (per row) | `SecondaryResult.content` / `errorMessage` |
 | 7 | `TRANSLATIONS` | every TRANSLATE row | `translation.startMissingTranslations` (per `translationRunId`) | `SecondaryResult.content` / `errorMessage` |
-| 8 | `FAN_ICONS` | per-fan-out-pair icon chain (pairs that previously had an icon/icon-error) | `iconGen.runFanIconsBatch` (per `metaPromptId`) | `SecondaryResult.icon` / `iconErrorMessage` |
-| 9 | `FAN_TITLES` | per-fan-out-pair title (pairs that previously had a title/title-error) | `iconGen.runFanTitlesBatch` (per `metaPromptId`) | `SecondaryResult.title` / `titleErrorMessage` |
+| 8 | `FAN_META` | per-fan-out-pair title **+** icon — one worker call produces both (pairs that previously had a title/icon or an error) | `iconGen.runFanMetaBatch` (per `metaPromptId`) | both `SecondaryResult.icon` AND `title` non-blank → Success; either error → Error |
 
-`buildTaskList` (`RegenerateBatchEngine.kt:691`) builds the task
+The old separate `FAN_ICONS` / `FAN_TITLES` phases were collapsed
+into one `FAN_META` phase — the `workers/fan-meta` prompt returns
+a `title:` / `icon:` two-line reply, so a single call covers both.
+
+`buildTaskList` (`RegenerateBatchEngine.kt:654`) builds the task
 set from the report's *current* contents — ICON/LANGUAGE only when
-`iconGenEnabled` and the report has a prompt; FAN_ICONS /
-FAN_TITLES only for pairs that previously carried an icon / title,
-so the engine doesn't spin on rows that can never land.
+`iconGenEnabled` and the report has a prompt; FAN_META only for
+pairs that previously carried an icon / title (or an error), so the
+engine doesn't spin on rows that can never land.
 
 ### Phase step machine
 
@@ -185,16 +188,18 @@ background sweep. See [persistent.md](persistent.md).
 Both are transient fan-outs launched from a metadata detail screen
 (model picker → N picks). "Find alternative icons" is documented in
 [report-icons.md](report-icons.md). "Find alternative titles" lives
-in `IconGenerationManager.kt:1564` (`startReportTitleFanOut` /
-`startModelTitleFanOut` / `runTitleCandidate`):
+in `IconGenerationManager.kt` (`startReportTitleFanOut` /
+`startModelTitleFanOut` / `startPairTitleFanOut` /
+`runTitleCandidate`):
 
-- Resolves the `info/report_title_alt[_long]` (report) or
-  `info/model_title_alt` (per-model) internal prompt; dedupes
-  picks by `provider:model`; pre-populates `TitleCandidate.Running`
-  rows in `titleFanOutByReport` / `titleFanOutByAgent` (in-memory).
+- Resolves the `alt/report_title[_long]` (report) or
+  `alt/model_title` (per-model **and** per-fan-out-pair) internal
+  prompt; dedupes picks by `provider:model`; pre-populates
+  `TitleCandidate.Running` rows in `titleFanOutByReport` /
+  `titleFanOutByAgent` / `pairTitleFanOutByPair` (in-memory).
 - Each pick pre-acquires the per-provider `ProviderThrottle` permit
   and runs `analyzeWithAgent`, traced under
-  `title_report_alt` / `title_model_alt`.
+  `alt/report_title[_long]` / `alt/model_title`.
 - **Cost-recorded** even though the picked title only fills the
   editor field: posts to the global Usage ledger via
   `updateUsageStatsAsync(kind = "title")` *and* appends an
@@ -204,9 +209,9 @@ in `IconGenerationManager.kt:1564` (`startReportTitleFanOut` /
 
 ## Related docs
 
-- [report-icons.md](report-icons.md) — icon-generation chain
-  content (the per-report + 3-tier per-agent icon prompts) the
-  ICON / FAN_ICONS phases drive.
+- [report-icons.md](report-icons.md) — icon-generation content
+  (the worker-engine per-report + per-model icon prompts) the
+  ICON / FAN_META phases drive.
 - [secondary-results.md](secondary-results.md) — the meta /
   fan-out / fan-in / translate results the META → TRANSLATIONS
   phases regenerate.
