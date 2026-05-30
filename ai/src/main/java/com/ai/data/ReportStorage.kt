@@ -5,8 +5,18 @@ import java.io.File
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlin.concurrent.withLock
+
+object ReportDataVersion {
+    private val _version = MutableStateFlow(0L)
+    val version: StateFlow<Long> = _version.asStateFlow()
+    fun bump() { _version.update { it + 1 } }
+}
 
 /**
  * Thread-safe report persistence. Stores each report as JSON file in /files/reports/.
@@ -107,11 +117,11 @@ object ReportStorage {
         citations: List<String>? = null,
         searchResults: List<SearchResult>? = null, relatedQuestions: List<String>? = null,
         rawUsageJson: String? = null, durationMs: Long? = null, traceFile: String? = null
-    ) {
+    ): Boolean {
         init(context)
-        lock.withLock {
-            val report = loadReport(reportId) ?: return
-            val agent = report.agents.find { it.agentId == agentId } ?: return
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val agent = report.agents.find { it.agentId == agentId } ?: return@withLock false
             agent.reportStatus = status
             agent.httpStatus = httpStatus
             if (requestHeaders != null) agent.requestHeaders = requestHeaders
@@ -169,6 +179,7 @@ object ReportStorage {
                 report.completedAt = System.currentTimeMillis()
             }
             saveReport(report)
+            true
         }
     }
 
@@ -291,18 +302,28 @@ object ReportStorage {
         // Cascade: drop any rerank/summary meta-results associated with the
         // report so /files/secondary/<reportId>/ doesn't accumulate orphans.
         SecondaryResultStorage.deleteAllForReport(context, reportId)
+        RegenerateBatchStorage.delete(context, reportId)
+        ReportDataVersion.bump()
     }
     fun deleteAllReports(context: Context): Int {
         init(context)
-        var deleted = 0
+        val deletedIds = mutableListOf<String>()
         lock.withLock {
             reportsDir?.listFiles { f -> f.extension == "json" }?.forEach { f ->
-                val reportId = f.nameWithoutExtension
-                if (f.delete()) deleted++
-                SecondaryResultStorage.deleteAllForReport(context, reportId)
+                if (f.delete()) deletedIds += f.nameWithoutExtension
             }
         }
-        return deleted
+        deletedIds.forEach { reportId ->
+            SecondaryResultStorage.deleteAllForReport(context, reportId)
+            RegenerateBatchStorage.delete(context, reportId)
+        }
+        if (deletedIds.isNotEmpty()) ReportDataVersion.bump()
+        return deletedIds.size
+    }
+
+    fun reportExists(context: Context, reportId: String): Boolean {
+        init(context)
+        return lock.withLock { loadReport(reportId) != null }
     }
 
     private fun loadReport(reportId: String): Report? {
@@ -380,6 +401,8 @@ object ReportStorage {
             // from disk until the next reload, where the fresh load
             // would silently hand back the pre-update report.
             AppLog.e("ReportStorage", "Failed to save report ${report.id} (writeTextAtomic returned false)")
+        } else {
+            ReportDataVersion.bump()
         }
     }
 
@@ -564,6 +587,21 @@ object ReportStorage {
             val report = loadReport(reportId) ?: return@withLock false
             if (report.titleErrorMessage == null) return@withLock false
             saveReport(report.copy(titleErrorMessage = null, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Reset the title-gen row for a full regenerate while keeping all
+     *  previously accrued title cost/token/trace fields additive. */
+    fun clearReportTitleKeepingCost(context: Context, reportId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(
+                titleErrorMessage = null,
+                titlePromptUsed = null,
+                timestamp = System.currentTimeMillis()
+            ))
             true
         }
     }

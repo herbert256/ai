@@ -684,7 +684,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
-            durationMs = null,
+            durationMs = report.iconDurationMs,
             inputTokens = (report.iconInputTokens - mainAltInTokens).coerceAtLeast(0),
             outputTokens = (report.iconOutputTokens - mainAltOutTokens).coerceAtLeast(0),
             // Clamp at 0: if the aggregate icon cost wasn't yet bumped by
@@ -719,7 +719,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
-            durationMs = null,
+            durationMs = report.languageDurationMs,
             inputTokens = report.languageInputTokens,
             outputTokens = report.languageOutputTokens,
             inputCents = report.languageInputCost * 100,
@@ -737,11 +737,11 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = pickedParts?.getOrNull(1) ?: iconAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "report/language",
+            type = "report/language-icon",
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
-            durationMs = null,
+            durationMs = report.languageIconDurationMs,
             inputTokens = (report.languageIconInputTokens - languageAltInTokens).coerceAtLeast(0),
             outputTokens = (report.languageIconOutputTokens - languageAltOutTokens).coerceAtLeast(0),
             inputCents = ((report.languageIconInputCost * 100) - languageAltInCents).coerceAtLeast(0.0),

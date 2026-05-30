@@ -822,8 +822,8 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Search card", "Toggle expands to three independent fields: Title, Prompt, Response. Each narrows the list further (logical AND). 'Search (active)' label appears on the toggle when any field is non-blank."),
             HelpCard("Pagination", "Auto-sized to the screen — pageSize derived from maxHeight and a 56dp row height. < Prev / Next > controls when totalPages > 1."),
             HelpCard("Per-row content", "Title (truncated) on the left, MM/dd HH:mm date on the right. Per-row 🐞 (when tracing is on AND ApiTracer has any entries for this reportId) opens the trace list filtered to that report."),
-            HelpCard("Per-row delete", "Each row has a ✕ that opens a confirm dialog. Confirming deletes the report on Dispatchers.IO and re-loads the list."),
-            HelpCard("Title bar — 🗑", "Wired when allReports is non-empty. Confirm dialog shows the count; confirming calls ReportStorage.deleteAllReports and clears the local list."),
+            HelpCard("Per-row delete", "Each row has a ✕ that opens a confirm dialog. Confirming removes the row locally and routes the disk delete through the report cleanup path."),
+            HelpCard("Title bar — 🗑", "Wired when allReports is non-empty. Confirm dialog shows the count; confirming routes each report through the report cleanup path and clears the local list."),
             HelpCard("Title bar — others", "ℹ️ / 🔄 / 🐞 not wired at the list level (those are per-row)."),
             HelpCard("Pitfalls", "Deleting a report cascades — its secondaries (Translate / Meta / Rerank / Moderate) and any trace files for that reportId also go.")
         )

@@ -10,6 +10,7 @@ import com.ai.data.RegenerateTaskState
 import com.ai.data.RegenerateBatchStorage
 import com.ai.data.REPORT_ICON_ROW_ID
 import com.ai.data.REPORT_LANGUAGE_ROW_ID
+import com.ai.data.REPORT_TITLE_ROW_ID
 import com.ai.data.ReportStorage
 import com.ai.data.ReportStatus
 import com.ai.data.SecondaryKind
@@ -320,6 +321,10 @@ class RegenerateBatchEngine internal constructor(
                                 t.copy(state = RegenerateTaskState.SUCCESS,
                                     endedAt = System.currentTimeMillis())
                             } else t
+                            is RowStatus.Cancelled -> if (t.state == RegenerateTaskState.RUNNING) {
+                                t.copy(state = RegenerateTaskState.CANCELLED,
+                                    endedAt = System.currentTimeMillis())
+                            } else t
                             is RowStatus.Error -> if (t.state == RegenerateTaskState.RUNNING) {
                                 t.copy(state = RegenerateTaskState.ERROR,
                                     endedAt = System.currentTimeMillis(),
@@ -338,7 +343,7 @@ class RegenerateBatchEngine internal constructor(
             }
             val allTerminal = rowIds.all { id ->
                 val s = statuses[id]
-                s is RowStatus.Success || s is RowStatus.Error
+                s is RowStatus.Success || s is RowStatus.Error || s is RowStatus.Cancelled
             }
             if (allTerminal) return PhaseOutcome.SUCCESS
             delay(1500)
@@ -348,6 +353,7 @@ class RegenerateBatchEngine internal constructor(
     private sealed class RowStatus {
         object Pending : RowStatus()
         object Success : RowStatus()
+        object Cancelled : RowStatus()
         data class Error(val message: String?) : RowStatus()
     }
 
@@ -357,6 +363,7 @@ class RegenerateBatchEngine internal constructor(
     ): Map<String, RowStatus> {
         if (rowIds.isEmpty()) return emptyMap()
         return when (phase) {
+            RegeneratePhase.TITLE -> readReportTitleStatus(context, reportId, rowIds)
             RegeneratePhase.ICON -> readReportIconStatus(context, reportId, rowIds)
             RegeneratePhase.LANGUAGE -> readReportLanguageStatus(context, reportId, rowIds)
             RegeneratePhase.AGENTS -> readAgentStatuses(context, reportId, rowIds)
@@ -368,7 +375,8 @@ class RegenerateBatchEngine internal constructor(
     private fun readReportIconStatus(
         context: Context, reportId: String, rowIds: Set<String>
     ): Map<String, RowStatus> {
-        val report = ReportStorage.getReport(context, reportId) ?: return emptyMap()
+        val report = ReportStorage.getReport(context, reportId)
+            ?: return rowIds.associateWith { RowStatus.Cancelled }
         return rowIds.associateWith { _ ->
             when {
                 !report.iconErrorMessage.isNullOrBlank() -> RowStatus.Error(report.iconErrorMessage)
@@ -378,10 +386,25 @@ class RegenerateBatchEngine internal constructor(
         }
     }
 
+    private fun readReportTitleStatus(
+        context: Context, reportId: String, rowIds: Set<String>
+    ): Map<String, RowStatus> {
+        val report = ReportStorage.getReport(context, reportId)
+            ?: return rowIds.associateWith { RowStatus.Cancelled }
+        return rowIds.associateWith { _ ->
+            when {
+                !report.titleErrorMessage.isNullOrBlank() -> RowStatus.Error(report.titleErrorMessage)
+                !report.titlePromptUsed.isNullOrBlank() -> RowStatus.Success
+                else -> RowStatus.Pending
+            }
+        }
+    }
+
     private fun readReportLanguageStatus(
         context: Context, reportId: String, rowIds: Set<String>
     ): Map<String, RowStatus> {
-        val report = ReportStorage.getReport(context, reportId) ?: return emptyMap()
+        val report = ReportStorage.getReport(context, reportId)
+            ?: return rowIds.associateWith { RowStatus.Cancelled }
         // Language flow is a 2-call chain — the second call sets
         // languageIcon. Treat the row as SUCCESS only after the
         // language-icon call lands (so the user's "everything in
@@ -399,10 +422,11 @@ class RegenerateBatchEngine internal constructor(
     private fun readAgentStatuses(
         context: Context, reportId: String, rowIds: Set<String>
     ): Map<String, RowStatus> {
-        val report = ReportStorage.getReport(context, reportId) ?: return emptyMap()
+        val report = ReportStorage.getReport(context, reportId)
+            ?: return rowIds.associateWith { RowStatus.Cancelled }
         return rowIds.associateWith { id ->
             val agent = report.agents.firstOrNull { it.agentId == id }
-                ?: return@associateWith RowStatus.Pending
+                ?: return@associateWith RowStatus.Cancelled
             when (agent.reportStatus) {
                 ReportStatus.SUCCESS ->
                     if (!agent.responseBody.isNullOrBlank()) RowStatus.Success
@@ -420,7 +444,7 @@ class RegenerateBatchEngine internal constructor(
             .filter { it.id in rowIds }
             .associateBy { it.id }
         return rowIds.associateWith { id ->
-            val row = rows[id] ?: return@associateWith RowStatus.Pending
+            val row = rows[id] ?: return@associateWith RowStatus.Cancelled
             when {
                 row.errorMessage != null -> RowStatus.Error(row.errorMessage)
                 !row.content.isNullOrBlank() -> RowStatus.Success
@@ -439,7 +463,7 @@ class RegenerateBatchEngine internal constructor(
             .filter { it.id in rowIds }
             .associateBy { it.id }
         return rowIds.associateWith { id ->
-            val row = rows[id] ?: return@associateWith RowStatus.Pending
+            val row = rows[id] ?: return@associateWith RowStatus.Cancelled
             when {
                 // An emoji landed → usable (partial) success, even if the
                 // title call came back empty. Flagging title-missing as a
@@ -469,6 +493,12 @@ class RegenerateBatchEngine internal constructor(
         // expenditure shows up alongside the new run's in the
         // per-row + total cost displays.
         when (phase) {
+            RegeneratePhase.TITLE -> {
+                ReportStorage.clearReportTitleKeepingCost(context, reportId)
+                appViewModel.updateUiState {
+                    it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+                }
+            }
             RegeneratePhase.ICON -> {
                 ReportStorage.clearReportIconKeepingCost(context, reportId)
                 appViewModel.updateUiState {
@@ -518,6 +548,13 @@ class RegenerateBatchEngine internal constructor(
         phase: RegeneratePhase, phaseTasks: List<RegenerateTask>
     ) {
         when (phase) {
+            RegeneratePhase.TITLE -> {
+                val report = ReportStorage.getReport(context, reportId) ?: return
+                val ai = appViewModel.uiState.value.aiSettings
+                reportViewModel.iconGen.kickOffReportTitleGeneration(
+                    context, reportId, report.prompt, ai, thenIcon = false
+                )
+            }
             RegeneratePhase.ICON -> {
                 val report = ReportStorage.getReport(context, reportId) ?: return
                 val ai = appViewModel.uiState.value.aiSettings
@@ -633,6 +670,10 @@ class RegenerateBatchEngine internal constructor(
     ): Boolean {
         val task = job.tasks.firstOrNull { it.rowId == rowId } ?: return false
         return when (task.phase) {
+            RegeneratePhase.TITLE -> {
+                val report = ReportStorage.getReport(context, reportId) ?: return false
+                !report.titleErrorMessage.isNullOrBlank()
+            }
             RegeneratePhase.ICON -> {
                 val report = ReportStorage.getReport(context, reportId) ?: return false
                 !report.iconErrorMessage.isNullOrBlank()
@@ -675,6 +716,24 @@ class RegenerateBatchEngine internal constructor(
         val uiState = appViewModel.uiState.value
         val generalSettings = uiState.generalSettings
         val aiSettings = uiState.aiSettings
+
+        // TITLE — short + long report title workers. Run before the
+        // icon phase so report/icon can derive from the fresh long title.
+        val titlePrompts = aiSettings.internalPrompts.filter {
+            it.category == "workers" &&
+                (it.name == "report-title-short" || it.name == "report-title-long")
+        }
+        val titleRunnable = titlePrompts.any { prompt ->
+            prompt.workers.any { aiSettings.resolveWorker(it) != null }
+        }
+        if (generalSettings.reportTitleAiOn() && !report.prompt.isNullOrBlank() && titleRunnable) {
+            tasks += RegenerateTask(
+                rowId = REPORT_TITLE_ROW_ID,
+                phase = RegeneratePhase.TITLE,
+                label = "Report title",
+                state = RegenerateTaskState.WAITING
+            )
+        }
 
         // ICON — main report icon. Match the worker dispatch gates so
         // regenerate doesn't wait on a row that cannot be started.

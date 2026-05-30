@@ -656,7 +656,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // A benched-on-this-call >1h 429 flows through the normal
         // error path — it stays as a visible red row, same as any
         // other failure, instead of being removed from the run.
-        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+        val persisted = kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
             if (response.isSuccess) {
                 ReportStorage.markAgentSuccessAsync(context, reportId, task.resultId,
                     response.httpStatusCode ?: 200, response.httpHeaders, response.analysis,
@@ -670,6 +670,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 ReportStorage.markAgentErrorAsync(context, reportId, task.resultId,
                     response.httpStatusCode, response.error, response.httpHeaders, response.analysis, durationMs,
                     traceFile = traceSink.get())
+            }
+        }
+        if (!persisted) {
+            cost?.takeIf { it > 0.0 }?.let {
+                ReportStorage.bumpCostsFromDeletedItems(context, reportId, it)
             }
         }
 

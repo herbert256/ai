@@ -350,12 +350,9 @@ fun ReportsHubScreen(
         val shown = (homeReportLists.running + homeReportLists.problems).mapTo(HashSet()) { it.id }
         allReports.filter { !it.pinned && it.id !in shown }.take(5)
     }
-    val scope = rememberCoroutineScope()
     val bumpDelete: (String) -> Unit = { rid ->
-        scope.launch(Dispatchers.IO) {
-            ReportStorage.deleteReport(context, rid)
-            deleteTick++
-        }
+        reportViewModel.deleteReport(context, rid)
+        deleteTick++
     }
     // Bundled sample reports from assets/examples/index.xml.
     val examples by produceState(initialValue = emptyList<com.ai.data.ExampleEntry>(), Unit) {
@@ -485,4 +482,3 @@ private fun ReportsHubListCard(
         }
     }
 }
-

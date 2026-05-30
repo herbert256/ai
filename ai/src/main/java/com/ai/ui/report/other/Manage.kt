@@ -43,7 +43,8 @@ import java.util.zip.ZipOutputStream
 @Composable
 fun ReportManageScreen(
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onDeleteReport: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -149,9 +150,8 @@ fun ReportManageScreen(
                     confirmDelete = false
                     working = true
                     scope.launch {
-                        val n = withContext(Dispatchers.IO) {
-                            candidates.also { it.forEach { r -> ReportStorage.deleteReport(context, r.id) } }.size
-                        }
+                        val n = candidates.size
+                        candidates.forEach { onDeleteReport(it.id) }
                         status = "Deleted $n reports."
                         working = false
                     }

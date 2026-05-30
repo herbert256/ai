@@ -23,7 +23,8 @@ import com.ai.ui.shared.TitleBar
 @Composable
 fun TrimByAgeScreen(
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onDeleteReport: (String) -> Unit = {}
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -63,7 +64,7 @@ fun TrimByAgeScreen(
                         onClick = {
                             showTrimConfirm = false
                             val reports = ReportStorage.getAllReports(context).filter { it.timestamp < cutoff }
-                            reports.forEach { ReportStorage.deleteReport(context, it.id) }
+                            reports.forEach { onDeleteReport(it.id) }
                             val chats = ChatHistoryManager.getAllSessions().filter { it.updatedAt < cutoff }
                             chats.forEach { ChatHistoryManager.deleteSession(it.id) }
                             val traces = ApiTracer.deleteTracesOlderThan(cutoff)

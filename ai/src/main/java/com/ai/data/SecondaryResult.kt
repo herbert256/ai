@@ -88,6 +88,10 @@ object SecondaryResultStorage {
 
     fun save(context: Context, result: SecondaryResult): SecondaryResult {
         init(context)
+        if (!ReportStorage.reportExists(context, result.reportId)) {
+            AppLog.w("SecondaryResultStorage", "Skipping save for deleted report ${result.reportId}")
+            return result
+        }
         // Defence in depth: every caller today uses UUIDs, but a future
         // regression that constructs an id with a slash or `..` would
         // otherwise write outside the per-report directory. Reject ids
@@ -99,6 +103,10 @@ object SecondaryResultStorage {
             return result
         }
         lock.withLock {
+            if (!ReportStorage.reportExists(context, result.reportId)) {
+                AppLog.w("SecondaryResultStorage", "Skipping save for deleted report ${result.reportId}")
+                return result
+            }
             val dir = reportDir(result.reportId) ?: return result
             val target = File(dir, "${result.id}.json")
             if (!target.canonicalPath.startsWith(dir.canonicalPath + File.separator)) {
@@ -214,12 +222,14 @@ object SecondaryResultStorage {
      *  [delete] / [deleteAllForReport] can't race in between. */
     fun saveIfStillPresent(context: Context, result: SecondaryResult): Boolean {
         init(context)
+        if (!ReportStorage.reportExists(context, result.reportId)) return false
         if (result.id.isBlank() || result.id.contains('/') || result.id.contains('\\')
                 || result.id == "." || result.id == "..") {
             AppLog.e("SecondaryResultStorage", "Refusing to save result with suspect id ${result.id}")
             return false
         }
         lock.withLock {
+            if (!ReportStorage.reportExists(context, result.reportId)) return false
             val dir = resolveReportDirForRead(result.reportId) ?: return false
             val target = File(dir, "${result.id}.json")
             if (!target.exists()) {
@@ -842,4 +852,3 @@ fun buildReferenceLegend(report: Report, includeIds: Set<Int>? = null): String {
     }
     return sb.toString()
 }
-

@@ -169,8 +169,13 @@ fun buildInfoJobs(
         )
     }
 
-    val titlePrompt = settings.internalPrompts.firstOrNull { it.category == "workers" && it.name == "report-title" }
-    val titleConfigured = titlePrompt != null && titlePrompt.workers.any { settings.resolveWorker(it) != null }
+    val titlePrompts = settings.internalPrompts.filter {
+        it.category == "workers" &&
+            (it.name == "report-title-short" || it.name == "report-title-long")
+    }
+    val titleConfigured = titlePrompts.any { prompt ->
+        prompt.workers.any { settings.resolveWorker(it) != null }
+    }
     // "Never ran" terminal guard, mirroring the icon / language rows: a
     // finished report that recorded no AI-title attempt (no promptUsed,
     // no error, no cost / duration) never ran the report-title job — e.g.

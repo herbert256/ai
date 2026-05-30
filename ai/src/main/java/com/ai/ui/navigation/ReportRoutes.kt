@@ -221,14 +221,17 @@ internal fun NavGraphBuilder.reportRoutes(
             ) {
                 com.ai.ui.hub.AllAiReportsScreen(
                     onNavigateBack = safePopBack,
-                    onNavigateHome = navigateHome
+                    onNavigateHome = navigateHome,
+                    reportViewModel = reportViewModel
                 )
             }
         }
         composable(NavRoutes.AI_REPORT_MANAGE) {
+            val context = LocalContext.current
             com.ai.ui.report.other.ReportManageScreen(
                 onBack = safePopBack,
-                onNavigateHome = navigateHome
+                onNavigateHome = navigateHome,
+                onDeleteReport = { rid -> reportViewModel.deleteReport(context, rid) }
             )
         }
         composable(NavRoutes.AI_NEW_REPORT) {

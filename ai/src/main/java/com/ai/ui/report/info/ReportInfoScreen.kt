@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.Report
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryDataVersion
@@ -68,7 +69,8 @@ fun ReportInfoScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
 
-    val report by produceState<Report?>(initialValue = null, reportId) {
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val report by produceState<Report?>(initialValue = null, reportId, reportDataVersion) {
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
     }
     // Refresh the secondary summary + total-API-time when a secondary
