@@ -101,6 +101,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _throttledFanMetaPairs.update(block)
     }
 
+    /** Translation item ids currently parked on a provider's rate /
+     *  concurrency gate (the dispatcher's [acquireOrRequeue] wait). Surfaces
+     *  as the Translation L1 "Throttled" column — same role as
+     *  [throttledFanMetaPairs] for translation. An item is throttled while
+     *  still PENDING (RUNNING is set only after the gate), so the column
+     *  carves out of Queue, not Run. */
+    private val _throttledTranslationItems = MutableStateFlow<Set<String>>(emptySet())
+    val throttledTranslationItems: StateFlow<Set<String>> = _throttledTranslationItems.asStateFlow()
+    internal fun updateThrottledTranslationItems(block: (Set<String>) -> Set<String>) {
+        _throttledTranslationItems.update(block)
+    }
+
     /** Live state of any "Find alternative icons" fan-out, keyed by
      *  reportId. Lives outside [UiState] for the same reason as
      *  [runningFanOutPairs] — per-call status flips fire faster than

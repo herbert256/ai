@@ -91,6 +91,9 @@ internal fun TranslationL1Screen(
     run: TranslationRunState,
     reportId: String,
     runId: String,
+    /** Item ids currently parked on a provider rate / concurrency gate —
+     *  surfaced as the "Throttled" stat. Carved out of Queue. */
+    throttledSet: Set<String> = emptySet(),
     actions: TranslationActions,
     groupMode: TranslationGroupMode,
     onSetGroupMode: (TranslationGroupMode) -> Unit,
@@ -126,7 +129,12 @@ internal fun TranslationL1Screen(
         it.status == TranslationStatus.ERROR && benched(it.providerId, it.model)
     }
     val runningCount = items.count { it.status == TranslationStatus.RUNNING }
-    val queuedCount = items.count { it.status == TranslationStatus.PENDING }
+    // Throttled = PENDING items currently parked on a provider's rate /
+    // concurrency gate. Carved out of Queue so the two columns don't
+    // double-count the same item; never overlaps Run (RUNNING is set only
+    // after the gate, by which point the item has left the throttled set).
+    val throttledCount = items.count { it.id in throttledSet }
+    val queuedCount = items.count { it.status == TranslationStatus.PENDING && it.id !in throttledSet }
 
     // Group items by the model that handled them. Unassigned PENDING
     // items (providerId/model still null) drop out — they show only
@@ -229,7 +237,7 @@ internal fun TranslationL1Screen(
         // TranslationMode + setTranslationMode + costPenaltyMs. Hidden
         // once the run is done/idle — the bias only affects in-flight
         // scheduling, so it has nothing to act on then.
-        val showModeChips = (queuedCount + runningCount > 0 || benchCount > 0) && !run.cancelled
+        val showModeChips = (queuedCount + runningCount + throttledCount > 0 || benchCount > 0) && !run.cancelled
         if (showModeChips) {
             Spacer(modifier = Modifier.height(8.dp))
             Row(
@@ -263,8 +271,8 @@ internal fun TranslationL1Screen(
         }
 
         // Stats panel — pinned at the top, kept visible even once the
-        // whole run is done. Translations expose no throttled set, so
-        // there's no "Throttled" column.
+        // whole run is done. Throttled = items parked on a provider gate
+        // (carved out of Queue); always shown so columns don't shift.
         Spacer(modifier = Modifier.height(8.dp))
         Column(modifier = Modifier.fillMaxWidth()) {
             val stats = buildList {
@@ -273,6 +281,7 @@ internal fun TranslationL1Screen(
                 add(Triple("Errors", errorCount.toString(), AppColors.Red))
                 add(Triple("Bench", benchCount.toString(), AppColors.Purple))
                 add(Triple("Run", runningCount.toString(), AppColors.Orange))
+                add(Triple("Throttled", throttledCount.toString(), AppColors.Yellow))
                 add(Triple("Queue", queuedCount.toString(), AppColors.Brown))
                 add(Triple("Costs", formatCents(run.totalCostDollars, decimals = 2), AppColors.Blue))
             }
@@ -354,7 +363,7 @@ internal fun TranslationL1Screen(
         // Top progress bar — run-level (done + error) / total, while
         // there's still pending or running work. Hidden on a cancelled
         // run so it doesn't sit stuck.
-        val pending = queuedCount + runningCount
+        val pending = queuedCount + runningCount + throttledCount
         // Keep the bar up while benched (cooldown) items are still
         // outstanding — they're excluded from errorCount, so without this
         // the bar would hide with doneCount + errorCount < total, reading

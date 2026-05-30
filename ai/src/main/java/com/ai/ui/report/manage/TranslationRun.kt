@@ -173,7 +173,10 @@ internal fun TranslationRunScreen(
     /** Bumped by the parent after a "Find alternative translation" pick
      *  overwrites a row on disk — forces the persisted-run reload so a
      *  finished run reflects the new translation. */
-    externalRefresh: Int = 0
+    externalRefresh: Int = 0,
+    /** Item ids currently parked on a provider rate / concurrency gate;
+     *  feeds the L1 "Throttled" stat. */
+    throttledItems: Set<String> = emptySet()
 ) {
     var nav by rememberSaveable(runId, stateSaver = translationNavSaver) {
         mutableStateOf<TranslationNav>(TranslationNav.L1)
@@ -227,6 +230,7 @@ internal fun TranslationRunScreen(
             run = run,
             reportId = reportId,
             runId = runId,
+            throttledSet = throttledItems,
             actions = actions,
             groupMode = groupMode,
             onSetGroupMode = { groupMode = it },

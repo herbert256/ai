@@ -496,8 +496,13 @@ class TranslationRunManager(
                                             // permitPreAcquired. callContext also pins the
                                             // 429/529 suppress flag when the swarm is
                                             // big enough that cross-model requeue beats
-                                            // in-place retry.
-                                            val releaser = acquireOrRequeue(host)
+                                            // in-place retry. onThrottled/onCleared mirror
+                                            // the wait into the L1 "Throttled" column.
+                                            val releaser = acquireOrRequeue(
+                                                host,
+                                                onThrottled = { appViewModel.updateThrottledTranslationItems { it + item.id } },
+                                                onCleared = { appViewModel.updateThrottledTranslationItems { it - item.id } }
+                                            )
                                             try {
                                                 withContext(callContext) {
                                                     // withTimeoutOrNull cancels just this
@@ -1793,7 +1798,11 @@ class TranslationRunManager(
                                 // Thread.sleep) so other items proceed; the
                                 // OkHttp interceptor skips its own acquire via
                                 // permitPreAcquired.
-                                val releaser = acquireOrRequeue(host)
+                                val releaser = acquireOrRequeue(
+                                    host,
+                                    onThrottled = { appViewModel.updateThrottledTranslationItems { it + item.id } },
+                                    onCleared = { appViewModel.updateThrottledTranslationItems { it - item.id } }
+                                )
                                 try {
                                             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                                 // restart-failed / start-missing path:

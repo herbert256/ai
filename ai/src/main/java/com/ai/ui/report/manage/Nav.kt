@@ -134,6 +134,7 @@ fun ReportsScreenNav(
     val throttledFanOutPairs by viewModel.throttledFanOutPairs.collectAsState()
     val runningFanMetaPairs by viewModel.runningFanMetaPairs.collectAsState()
     val throttledFanMetaPairs by viewModel.throttledFanMetaPairs.collectAsState()
+    val throttledTranslationItems by viewModel.throttledTranslationItems.collectAsState()
     val iconFanOutByReport by viewModel.iconFanOutByReport.collectAsState()
     val agentIconFanOutByAgent by viewModel.agentIconFanOutByAgent.collectAsState()
     val runningInfoJobs by viewModel.runningInfoJobs.collectAsState()
@@ -575,6 +576,7 @@ fun ReportsScreenNav(
         translationRuns = reportViewModel.translation.translationRuns.collectAsState().value.values
             .filter { it.sourceReportId == uiState.currentReportId }
             .toList(),
+        throttledTranslationItems = throttledTranslationItems,
         onStartTranslation = { sourceId, langName, langNative, models, paramsIds, systemPromptId ->
             reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, models, paramsIds, systemPromptId)
         },
