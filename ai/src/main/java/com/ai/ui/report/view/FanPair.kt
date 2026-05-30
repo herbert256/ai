@@ -158,7 +158,8 @@ fun FanOutPairViewScreen(
         // Pair counter — directly below the green subject so the
         // user reads "metaPromptName · 3 / 12" as one band.
         Text(
-            text = "${pagerState.currentPage + 1} / ${pairs.size}",
+            text = if (pairs.isEmpty()) "0 / 0"
+                else "${pagerState.currentPage.wrapTo(pairs.size) + 1} / ${pairs.size}",
             color = AppColors.TextTertiary,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,

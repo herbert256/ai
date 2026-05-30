@@ -308,7 +308,7 @@ fun ReportsViewScreen(
         var promptExpanded by rememberSaveable { mutableStateOf(true) }
         val resolvedActivePrompt: String = run {
             val lang = if (languages.isEmpty()) "" else
-                languages[langPagerState.currentPage.coerceIn(0, languages.size - 1)]
+                languages[langPagerState.currentPage.wrapTo(languages.size)]
             if (lang.isBlank()) report.prompt
             else loaded.translatedPromptByLang[lang]?.takeIf { it.isNotBlank() } ?: report.prompt
         }

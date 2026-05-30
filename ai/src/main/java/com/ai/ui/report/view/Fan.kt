@@ -351,7 +351,8 @@ fun FanOutViewScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 if (initiatorExpanded) {
                     CounterRow(
-                        counter = "${initiatorPagerState.currentPage + 1} / ${initiatorIds.size}",
+                        counter = if (initiatorIds.isEmpty()) "0 / 0"
+                            else "${initiatorPagerState.currentPage.wrapTo(initiatorIds.size) + 1} / ${initiatorIds.size}",
                         modelLabel = activeInitiator?.let { shortModelName(it.model) }.orEmpty(),
                         providerService = activeInitiator?.let { com.ai.data.AppService.findById(it.provider) },
                         modelId = activeInitiator?.model.orEmpty(),
