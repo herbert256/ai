@@ -878,7 +878,15 @@ class SecondaryRunManager(
                     is SecondaryScope.TopRanked -> {
                         val rerank = SecondaryResultStorage.get(context, reportId, scopeChoice.rerankResultId)
                         val ids = extractTopRankedIds(rerank?.content, scopeChoice.count)
-                        if (ids.isNullOrEmpty()) null else ids.toSet()
+                        // The rerank stored 1-based positions, which go stale
+                        // if the agent set changed since (e.g. an agent was
+                        // removed): an out-of-range id would feed a
+                        // non-existent agent and inflate @COUNT@. Clamp to the
+                        // current successful count; positions still in range
+                        // are honoured.
+                        val nSuccess = report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                        val valid = ids?.filter { it in 1..nSuccess }
+                        if (valid.isNullOrEmpty()) null else valid.toSet()
                     }
                     is SecondaryScope.Manual -> {
                         // Manual is expressed as agentIds; convert to the
