@@ -41,7 +41,12 @@ object ReportStorage {
         explicitId: String? = null,
         sourceReportId: String? = null,
         knowledgeBaseIds: List<String> = emptyList(),
-        runId: String? = null
+        runId: String? = null,
+        // Generation config captured for Regenerate replay (see Report).
+        parameterPresetIds: List<String> = emptyList(),
+        advancedParameters: AgentParameters? = null,
+        selectionParamsById: Map<String, List<String>> = emptyMap(),
+        reportSystemPromptId: String? = null
     ): Report {
         init(context)
         val now = System.currentTimeMillis()
@@ -49,7 +54,9 @@ object ReportStorage {
             agents = agents.toMutableList(), rapportText = rapportText, reportType = reportType, closeText = closeText,
             imageBase64 = imageBase64, imageMime = imageMime, webSearchTool = webSearchTool,
             reasoningEffort = reasoningEffort, sourceReportId = sourceReportId,
-            knowledgeBaseIds = knowledgeBaseIds, runId = runId)
+            knowledgeBaseIds = knowledgeBaseIds, runId = runId,
+            parameterPresetIds = parameterPresetIds, advancedParameters = advancedParameters,
+            selectionParamsById = selectionParamsById, reportSystemPromptId = reportSystemPromptId)
         lock.withLock { saveReport(report) }
         return report
     }
@@ -182,8 +189,12 @@ object ReportStorage {
         explicitId: String? = null,
         sourceReportId: String? = null,
         knowledgeBaseIds: List<String> = emptyList(),
-        runId: String? = null
-    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort, explicitId, sourceReportId, knowledgeBaseIds, runId) }
+        runId: String? = null,
+        parameterPresetIds: List<String> = emptyList(),
+        advancedParameters: AgentParameters? = null,
+        selectionParamsById: Map<String, List<String>> = emptyMap(),
+        reportSystemPromptId: String? = null
+    ): Report = withContext(Dispatchers.IO) { createReport(context, title, prompt, agents, rapportText, reportType, closeText, imageBase64, imageMime, webSearchTool, reasoningEffort, explicitId, sourceReportId, knowledgeBaseIds, runId, parameterPresetIds, advancedParameters, selectionParamsById, reportSystemPromptId) }
 
     suspend fun markAgentRunningAsync(context: Context, reportId: String, agentId: String, requestHeaders: String? = null, requestBody: String? = null) =
         withContext(Dispatchers.IO) { markAgentRunning(context, reportId, agentId, requestHeaders, requestBody) }

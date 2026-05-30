@@ -199,46 +199,10 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // the right result; together the user's explicit per-report
             // tweaks win over preset defaults instead of being shadowed by
             // them. Bool fields OR upward.
-            val mergedParams = aiSettings.mergeParameters(parametersIds)
-            val advanced = state.reportAdvancedParameters
-            val baseOverride = when {
-                mergedParams == null && advanced == null -> null
-                mergedParams == null -> advanced
-                advanced == null -> mergedParams
-                else -> AgentParameters(
-                    temperature = advanced.temperature ?: mergedParams.temperature,
-                    maxTokens = advanced.maxTokens ?: mergedParams.maxTokens,
-                    topP = advanced.topP ?: mergedParams.topP,
-                    topK = advanced.topK ?: mergedParams.topK,
-                    frequencyPenalty = advanced.frequencyPenalty ?: mergedParams.frequencyPenalty,
-                    presencePenalty = advanced.presencePenalty ?: mergedParams.presencePenalty,
-                    systemPrompt = advanced.systemPrompt ?: mergedParams.systemPrompt,
-                    stopSequences = advanced.stopSequences ?: mergedParams.stopSequences,
-                    seed = advanced.seed ?: mergedParams.seed,
-                    responseFormatJson = advanced.responseFormatJson || mergedParams.responseFormatJson,
-                    searchEnabled = advanced.searchEnabled || mergedParams.searchEnabled,
-                    // returnCitations defaults to true and combines with
-                    // AND so an explicit opt-out anywhere in the chain is
-                    // honoured — same semantic as Settings.mergeParameters.
-                    // Previously the overlay clobbered to advanced's value
-                    // (true on a fresh dialog open), silently re-enabling
-                    // citations on every preset-disabled run.
-                    returnCitations = advanced.returnCitations && mergedParams.returnCitations,
-                    searchRecency = advanced.searchRecency ?: mergedParams.searchRecency,
-                    webSearchTool = advanced.webSearchTool || mergedParams.webSearchTool,
-                    reasoningEffort = advanced.reasoningEffort ?: mergedParams.reasoningEffort
-                )
-            }
-            // The per-report 🌐 toggle adds webSearchTool=true on top of any
-            // existing override so it ORs onto each agent's pinned default.
-            // Same overlay for the per-report 🧠 reasoning level — non-
-            // reasoning models drop the field at dispatch.
-            val withWeb = if (state.reportWebSearchTool) {
-                (baseOverride ?: AgentParameters()).copy(webSearchTool = true)
-            } else baseOverride
-            val overrideParams = if (state.reportReasoningEffort != null) {
-                (withWeb ?: AgentParameters()).copy(reasoningEffort = state.reportReasoningEffort)
-            } else withWeb
+            val overrideParams = resolveReportOverrideParams(
+                aiSettings, parametersIds, state.reportAdvancedParameters,
+                state.reportWebSearchTool, state.reportReasoningEffort
+            )
 
             val agents = selectedAgentIds.mapNotNull { aiSettings.getAgentById(it) }
             val swarmMembers = aiSettings.getMembersForSwarms(selectedSwarmIds)
@@ -290,7 +254,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 webSearchTool = state.reportWebSearchTool,
                 reasoningEffort = state.reportReasoningEffort,
                 knowledgeBaseIds = state.attachedKnowledgeBaseIds,
-                runId = runId
+                runId = runId,
+                // Capture the generation config so Regenerate replays these
+                // exact selections instead of the live UiState/Settings.
+                parameterPresetIds = parametersIds,
+                advancedParameters = state.reportAdvancedParameters,
+                selectionParamsById = selectionParamsById,
+                reportSystemPromptId = state.reportSystemPromptId
             )
             val reportId = report.id
             val reportStartMs = System.currentTimeMillis()
@@ -348,6 +318,46 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     }
 
 
+
+    /** Resolve the per-report override [AgentParameters] from the captured
+     *  generation config: the preset chain merged ([Settings.mergeParameters]),
+     *  the advanced overlay on top (later non-null wins; bool fields OR;
+     *  returnCitations ANDs so an opt-out anywhere is honoured), then the
+     *  per-report 🌐 web / 🧠 reasoning toggles. Shared by the fresh run and
+     *  Regenerate so both apply the same selections. */
+    private fun resolveReportOverrideParams(
+        aiSettings: Settings,
+        parameterPresetIds: List<String>,
+        advanced: AgentParameters?,
+        webSearchTool: Boolean,
+        reasoningEffort: String?
+    ): AgentParameters? {
+        val mergedParams = aiSettings.mergeParameters(parameterPresetIds)
+        val baseOverride = when {
+            mergedParams == null && advanced == null -> null
+            mergedParams == null -> advanced
+            advanced == null -> mergedParams
+            else -> AgentParameters(
+                temperature = advanced.temperature ?: mergedParams.temperature,
+                maxTokens = advanced.maxTokens ?: mergedParams.maxTokens,
+                topP = advanced.topP ?: mergedParams.topP,
+                topK = advanced.topK ?: mergedParams.topK,
+                frequencyPenalty = advanced.frequencyPenalty ?: mergedParams.frequencyPenalty,
+                presencePenalty = advanced.presencePenalty ?: mergedParams.presencePenalty,
+                systemPrompt = advanced.systemPrompt ?: mergedParams.systemPrompt,
+                stopSequences = advanced.stopSequences ?: mergedParams.stopSequences,
+                seed = advanced.seed ?: mergedParams.seed,
+                responseFormatJson = advanced.responseFormatJson || mergedParams.responseFormatJson,
+                searchEnabled = advanced.searchEnabled || mergedParams.searchEnabled,
+                returnCitations = advanced.returnCitations && mergedParams.returnCitations,
+                searchRecency = advanced.searchRecency ?: mergedParams.searchRecency,
+                webSearchTool = advanced.webSearchTool || mergedParams.webSearchTool,
+                reasoningEffort = advanced.reasoningEffort ?: mergedParams.reasoningEffort
+            )
+        }
+        val withWeb = if (webSearchTool) (baseOverride ?: AgentParameters()).copy(webSearchTool = true) else baseOverride
+        return if (reasoningEffort != null) (withWeb ?: AgentParameters()).copy(reasoningEffort = reasoningEffort) else withWeb
+    }
 
     private fun buildReportTasks(
         aiSettings: Settings, agents: List<Agent>, modelMembers: List<SwarmMember>,
@@ -982,13 +992,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val provider = AppService.findById(parts.getOrNull(0) ?: return@mapNotNull null) ?: return@mapNotNull null
                 SwarmMember(provider, parts.getOrNull(1) ?: return@mapNotNull null)
             }
-            val reportLevelSystemPrompt = state.reportSystemPromptId
+            // Replay the report's CAPTURED generation config (system prompt,
+            // per-model param selections, preset/advanced params) rather than
+            // whatever the live UiState/Settings hold now.
+            val reportLevelSystemPrompt = report.reportSystemPromptId
                 ?.let { ai.getSystemPromptById(it)?.prompt }
             val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-            val preGenParamsActive = state.reportAdvancedParameters != null ||
-                state.reportWebSearchTool || state.reportReasoningEffort != null
+            val preGenParamsActive = report.advancedParameters != null || report.parameterPresetIds.isNotEmpty() ||
+                report.webSearchTool || report.reasoningEffort != null
             val tasks = buildReportTasks(
-                ai, agents, swarmMembers + directModels, emptyMap(), state.externalSystemPrompt,
+                ai, agents, swarmMembers + directModels, report.selectionParamsById, state.externalSystemPrompt,
                 reportLevelSystemPrompt, state.generalSettings, directModelSids, preGenParamsActive
             )
             val existingIds = report.agents.map { it.agentId }.toSet()
@@ -1071,9 +1084,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
                 if (tasksToRun.isNotEmpty()) {
                     val finalReport = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
-                    val baseOverride = state.reportAdvancedParameters
-                    val withWeb = if (finalReport.webSearchTool) (baseOverride ?: AgentParameters()).copy(webSearchTool = true) else baseOverride
-                    val overrideParams = if (finalReport.reasoningEffort != null) (withWeb ?: AgentParameters()).copy(reasoningEffort = finalReport.reasoningEffort) else withWeb
+                    // Same captured config as the task build above (presets +
+                    // advanced + the report's own web/reasoning flags).
+                    val overrideParams = resolveReportOverrideParams(
+                        ai, finalReport.parameterPresetIds, finalReport.advancedParameters,
+                        finalReport.webSearchTool, finalReport.reasoningEffort
+                    )
                     coroutineScope {
                         // Interleave by host — same rationale as the
                         // fresh-run path: a per-provider-clustered task

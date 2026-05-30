@@ -180,6 +180,16 @@ data class Report(
      *  chunks across these KBs (see KnowledgeService.retrieve /
      *  formatContextBlock). Empty when no RAG is wired. */
     val knowledgeBaseIds: List<String> = emptyList(),
+    /** Generation config captured at create time so Regenerate replays the
+     *  SAME selections instead of falling back to whatever the live UiState /
+     *  Settings hold now (after a restart or a settings edit). Persisted on
+     *  the Report file (and so in backup/restore). Empty/null on legacy
+     *  reports created before this existed — those regenerate with current
+     *  settings, as they did before. */
+    val parameterPresetIds: List<String> = emptyList(),
+    val advancedParameters: AgentParameters? = null,
+    val selectionParamsById: Map<String, List<String>> = emptyMap(),
+    val reportSystemPromptId: String? = null,
     /** User-pinned flag. Pinned reports surface as their own group
      *  above the recent rows on the AI Reports hub. Persisted on the
      *  Report file so it survives across launches. */
