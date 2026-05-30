@@ -583,6 +583,7 @@ class IconGenerationManager(
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             withTracerTags(category = "workers/second-meta") {
+              try {
                 val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context) {
                     extractFirstEmoji(it.analysis) != null
                 }
@@ -621,7 +622,12 @@ class IconGenerationManager(
                         "no worker produced an icon for name='${prompt.name}'"
                     )
                 }
+              } finally {
+                // finally, not trailing: a throw / cancellation must still
+                // release the in-flight key or this (name,title) icon never
+                // regenerates again until app restart.
                 InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
+              }
             }
         }
     }
@@ -1217,6 +1223,7 @@ class IconGenerationManager(
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             withTracerTags(category = "workers/translation-icon") {
+              try {
                 val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context) {
                     extractFirstEmoji(it.analysis) != null
                 }
@@ -1250,7 +1257,11 @@ class IconGenerationManager(
                 } else {
                     AppLog.w("TranslationIcon", "no worker produced an icon for language='$language'")
                 }
+              } finally {
+                // finally, not trailing: a throw / cancellation must still
+                // release the in-flight key or this icon never regenerates.
                 InternalPromptIconCache.clearInFlight("translation_icon", language)
+              }
             }
         }
     }
@@ -1500,7 +1511,12 @@ class IconGenerationManager(
                                         syntheticAgent, "", resolved, AgentParameters(),
                                         null, context, baseUrl
                                     )
-                                    val emoji = response.analysis?.trim().orEmpty().take(8)
+                                    // Extract just the emoji glyph (every other
+                                    // icon path does); take(8) wrote raw UTF-16
+                                    // prose / a sliced multi-codepoint emoji to
+                                    // report.icon. Null (no emoji) → "" so the
+                                    // candidate falls to the Error branch below.
+                                    val emoji = extractFirstEmoji(response.analysis).orEmpty()
                                     val tu = response.tokenUsage
                                     val pricing = PricingCache.getPricing(context, item.provider, item.model)
                                     val inT = tu?.inputTokens ?: 0
