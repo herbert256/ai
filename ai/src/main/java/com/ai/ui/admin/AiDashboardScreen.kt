@@ -1379,7 +1379,7 @@ private fun DashCardBody(
         "cooldowns" -> CooldownBody()
         "test" -> TestRunBody(reportViewModel, context)
         "stress" -> StressTestBody(reportViewModel)
-        "local" -> LocalRuntimeBody()
+        "local" -> LocalRuntimeBody(context)
         "health" -> HealthBody(context)
     }
 }
@@ -1847,20 +1847,32 @@ private fun HealthBody(context: android.content.Context) {
 /** On-device runtime activity — which local LLM / embedder models are loaded
  *  and which (if any) is running right now. */
 @Composable
-private fun LocalRuntimeBody() {
+private fun LocalRuntimeBody(context: android.content.Context) {
     val tick = rememberLiveTick()
+    // Imported-on-disk models rarely change — read once when the card opens.
+    // (Loaded-in-memory was the only thing shown before, which is empty unless
+    // a local model is actively held, so the card looked permanently empty.)
+    val installedLlms = remember { com.ai.data.local.LocalLlm.installedTaskFiles(context) }
+    val installedEmbedders = remember { com.ai.data.local.LocalEmbedder.availableModels(context) }
+    val runtimeInstalled = remember { com.ai.data.local.LlmRuntime.isInstalled(context) }
+    // Live in-memory / activity state — ticks.
     val rt = remember(tick) { com.ai.data.local.LocalRuntime.snapshot() }
-    if (!rt.active) {
-        Text("No on-device model loaded.", fontSize = 12.sp, color = AppColors.TextTertiary)
+    if (installedLlms.isEmpty() && installedEmbedders.isEmpty() && !rt.active) {
+        Text("No on-device models installed.", fontSize = 12.sp, color = AppColors.TextTertiary)
         return
     }
-    if (rt.llmLoaded.isNotEmpty() || rt.llmGenerating != null) {
-        KeyVal("LLM loaded", rt.llmLoaded.joinToString(", ").ifBlank { "—" })
+    if (installedLlms.isNotEmpty() || rt.llmGenerating != null) {
+        KeyVal("LLM runtime", if (runtimeInstalled) "installed" else "not installed",
+            if (runtimeInstalled) AppColors.Green else AppColors.Orange)
+        KeyVal("LLMs imported", installedLlms.joinToString(", ").ifBlank { "—" })
+        KeyVal("Loaded in memory", rt.llmLoaded.joinToString(", ").ifBlank { "none" })
         KeyVal("Generating", rt.llmGenerating ?: "idle",
             if (rt.llmGenerating != null) AppColors.Green else AppColors.TextDim)
     }
-    if (rt.embedderLoaded.isNotEmpty() || rt.embedding != null) {
-        KeyVal("Embedder loaded", rt.embedderLoaded.joinToString(", ").ifBlank { "—" })
+    if (installedEmbedders.isNotEmpty() || rt.embedding != null) {
+        if (installedLlms.isNotEmpty() || rt.llmGenerating != null) Spacer(Modifier.height(6.dp))
+        KeyVal("Embedders installed", installedEmbedders.joinToString(", ").ifBlank { "—" })
+        KeyVal("Loaded in memory", rt.embedderLoaded.joinToString(", ").ifBlank { "none" })
         KeyVal("Embedding", rt.embedding ?: "idle",
             if (rt.embedding != null) AppColors.Green else AppColors.TextDim)
     }
