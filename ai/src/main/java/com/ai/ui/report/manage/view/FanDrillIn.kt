@@ -657,8 +657,14 @@ internal fun ColumnScope.FanOutDrillInView(
         // Disabled when the L2 active model has no fan-out rows where
         // it is the source — those rows become the new report's
         // agents, so without them there's nothing to feed in.
+        // Require at least one *settled* initiator row (errored or with
+        // content) — not merely present. Enabling on still-running blank
+        // pairs let the user mint a report whose agents were empty.
         val hasInitiatorRows = remember(latestByPair, activeAgentIds) {
-            latestByPair.values.any { it.fanOutSourceAgentId in activeAgentIds }
+            latestByPair.values.any {
+                it.fanOutSourceAgentId in activeAgentIds &&
+                    (it.errorMessage != null || !it.content.isNullOrBlank())
+            }
         }
         Row(
             modifier = Modifier.fillMaxWidth(),

@@ -775,7 +775,16 @@ class SecondaryRunManager(
                 agentName = "${row.providerId} / ${shortModelName(row.model)}",
                 provider = row.providerId,
                 model = row.model,
-                reportStatus = if (row.errorMessage != null) ReportStatus.ERROR else ReportStatus.SUCCESS,
+                // A pair that errored → ERROR; one with real content →
+                // SUCCESS; anything else (still in-flight / blank reply)
+                // would otherwise become a green SUCCESS agent with an
+                // empty body. Map that to STOPPED so a half-finished
+                // fan-out doesn't mint blank "successful" rows.
+                reportStatus = when {
+                    row.errorMessage != null -> ReportStatus.ERROR
+                    !row.content.isNullOrBlank() -> ReportStatus.SUCCESS
+                    else -> ReportStatus.STOPPED
+                },
                 responseBody = row.content,
                 errorMessage = row.errorMessage,
                 tokenUsage = row.tokenUsage,

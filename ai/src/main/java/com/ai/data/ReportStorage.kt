@@ -1315,19 +1315,35 @@ object ReportStorage {
         return lock.withLock {
             val src = loadReport(reportId) ?: return@withLock null
             val newId = UUID.randomUUID().toString()
+            val now = System.currentTimeMillis()
+            // Deep-copy each agent so further mutations on the original
+            // don't leak into the copy through the shared ReportAgent
+            // reference, AND terminalize any in-flight row: a copy
+            // carries no generation job, so a PENDING / RUNNING status
+            // duplicated verbatim (the user duplicated mid-run) would
+            // spin forever on the copy with nothing driving it. Mark
+            // those STOPPED — mirrors the stop-non-terminal sweep used
+            // when a real run is cancelled.
+            val copiedAgents = src.agents.map { a ->
+                val c = a.copy()
+                if (c.reportStatus == ReportStatus.PENDING || c.reportStatus == ReportStatus.RUNNING) {
+                    c.reportStatus = ReportStatus.STOPPED
+                }
+                c
+            }.toMutableList()
             val copy = Report(
                 id = newId,
-                timestamp = System.currentTimeMillis(),
-                createdAt = System.currentTimeMillis(),
+                timestamp = now,
+                createdAt = now,
                 title = if (src.title.endsWith("(Copy)")) src.title else "${src.title} (Copy)",
                 titleLong = src.titleLong,
                 prompt = src.prompt,
-                // Deep-copy each agent so further mutations on the
-                // original don't leak into the copy through the shared
-                // ReportAgent reference.
-                agents = src.agents.map { it.copy() }.toMutableList(),
+                agents = copiedAgents,
                 totalCost = src.totalCost,
-                completedAt = src.completedAt,
+                // Every row on the copy is terminal now, so the copy is
+                // complete even if the source was still generating. Keep
+                // the source's stamp when it had one, else stamp now.
+                completedAt = src.completedAt ?: now,
                 rapportText = src.rapportText,
                 reportType = src.reportType,
                 closeText = src.closeText,
