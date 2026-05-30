@@ -57,6 +57,26 @@ import kotlinx.coroutines.withContext
  *  or the Translate `translationModels` list. */
 internal enum class PickerTarget { NEW_REPORT, FIND_ICONS, TRANSLATION }
 
+/** Saver for the [ExportLanguage] sealed type so the HTML-preview
+ *  language survives rotation alongside its saveable sibling
+ *  (htmlPreviewDetail) instead of resetting to All. */
+internal val ExportLanguageSaver: Saver<ExportLanguage, String> = Saver(
+    save = {
+        when (it) {
+            ExportLanguage.All -> "All"
+            ExportLanguage.Original -> "Original"
+            is ExportLanguage.Single -> "S:${it.englishName}"
+        }
+    },
+    restore = {
+        when {
+            it == "Original" -> ExportLanguage.Original
+            it.startsWith("S:") -> ExportLanguage.Single(it.removePrefix("S:"))
+            else -> ExportLanguage.All
+        }
+    }
+)
+
 // ===== rememberSaveable savers =====
 //
 // These are needed so the multi-step picker / scope / overlay state

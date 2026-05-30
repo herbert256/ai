@@ -171,13 +171,13 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val pairTitleEditFor = rememberSaveable { mutableStateOf<String?>(null) }
     val findIconsModels = rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
     val translationModels = rememberSaveable(stateSaver = ReportModelListSaver) { mutableStateOf(emptyList<ReportModel>()) }
-    val pickerTarget = remember { mutableStateOf(PickerTarget.NEW_REPORT) }
+    val pickerTarget = rememberSaveable { mutableStateOf(PickerTarget.NEW_REPORT) }
     val selectedAgentForViewer = rememberSaveable { mutableStateOf<String?>(null) }
     val viewerSection = rememberSaveable { mutableStateOf<String?>(null) }
     val singleResultAgentId = rememberSaveable { mutableStateOf<String?>(null) }
     val showExport = rememberSaveable { mutableStateOf(false) }
     val htmlPreviewDetail = rememberSaveable { mutableStateOf<ReportExportDetail?>(null) }
-    val htmlPreviewLanguage = remember { mutableStateOf<ExportLanguage>(ExportLanguage.All) }
+    val htmlPreviewLanguage = rememberSaveable(stateSaver = ExportLanguageSaver) { mutableStateOf<ExportLanguage>(ExportLanguage.All) }
     val fanOutViewName = rememberSaveable { mutableStateOf<String?>(null) }
     val fanOutViewLanguage = rememberSaveable { mutableStateOf<String?>(null) }
     val showEditPrompt = rememberSaveable { mutableStateOf(false) }
