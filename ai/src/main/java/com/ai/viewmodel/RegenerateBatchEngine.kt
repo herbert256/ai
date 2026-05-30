@@ -148,6 +148,15 @@ class RegenerateBatchEngine internal constructor(
         }
     }
 
+    /** Synchronously cancel the orchestrator coroutine for [reportId]
+     *  (no status persist). Used by deleteReport, which must stop the
+     *  batch BEFORE deleting the report — the async [cancel] returns
+     *  before its launch body runs, so the orchestrator could still be
+     *  dispatching when the dir is removed. */
+    fun cancelJobNow(reportId: String) {
+        orchestratorJobs.remove(reportId)?.cancel()
+    }
+
     /** User clicked Cancel on the detail screen. Stops the
      *  orchestrator — already-in-flight HTTP calls finish
      *  themselves and persist as normal. */

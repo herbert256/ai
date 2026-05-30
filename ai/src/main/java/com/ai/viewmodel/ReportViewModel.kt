@@ -37,6 +37,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private var reportGenerationJob: Job? = null
     @Volatile private var reportRunningInBackground = false
 
+    /** In-flight regenerate jobs (single-agent regenerateAgent +
+     *  forceRegenerateAllAgents), keyed by reportId, so deleteReport can
+     *  cancel them — otherwise they run to completion against a deleted
+     *  report and their terminal writes can recreate its storage dir. */
+    private val regenerateJobs = java.util.concurrent.ConcurrentHashMap<String, MutableSet<Job>>()
+    private fun trackRegenerateJob(reportId: String, job: Job) {
+        val set = regenerateJobs.computeIfAbsent(reportId) { java.util.concurrent.ConcurrentHashMap.newKeySet() }
+        set.add(job)
+        job.invokeOnCompletion { set.remove(job); if (set.isEmpty()) regenerateJobs.remove(reportId, set) }
+    }
+
     /** Tracks in-flight fan-meta batches keyed by
      *  (reportId, metaPromptId). Separate map from [fanOutJobs] so
      *  a launched fan-meta batch on the same fan-out doesn't get
@@ -1164,6 +1175,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  cascading itself one phase at a time. */
     fun forceRegenerateAllAgents(context: Context, reportId: String) {
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            trackRegenerateJob(reportId, coroutineContext[Job]!!)
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val state = appViewModel.uiState.value
             val ai = state.aiSettings
@@ -1371,7 +1383,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // zombie report), and a regenerate batch would keep dispatching
         // agent calls against a gone report.
         translation.cancelAllForReport(reportId)
-        regenerateBatchEngine.cancel(context, reportId)
+        // Synchronous: the async cancel() returns before its launch body
+        // cancels the orchestrator, so the batch could still be dispatching
+        // when we delete below.
+        regenerateBatchEngine.cancelJobNow(reportId)
+        // Single-agent + force-all regenerate jobs — untracked before, so a
+        // completion landing after the delete could recreate the storage dir.
+        regenerateJobs.remove(reportId)?.forEach { it.cancel() }
         iconFanOutJobs.remove(reportId)?.cancel()
         languageIconFanOutJobs.remove(reportId)?.cancel()
         appViewModel.clearLanguageIconFanOut(reportId)
@@ -1573,6 +1591,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // turn the in-flight call into ERROR on disk if the user
         // navigates away before the new response lands.
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            trackRegenerateJob(reportId, coroutineContext[Job]!!)
             withTracerTags(reportId = reportId, category = "Report regenerate agent") {
             val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
             val ra = report.agents.find { it.agentId == agentId } ?: return@withTracerTags
