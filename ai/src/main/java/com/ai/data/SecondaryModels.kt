@@ -186,3 +186,13 @@ data class SecondaryResult(
     val traceFile: String? = null
 )
 
+/** Total USD spend captured on this row: the primary in/out cost PLUS
+ *  the Fan-Meta icon + title spend that fan-out pair rows accrue. The
+ *  delete / re-run paths roll this into [com.ai.data.Report.costsFromDeletedItems]
+ *  so lifetime cost stays whole — summing only inputCost + outputCost
+ *  (as they used to) silently dropped every pair's icon / title spend. */
+fun SecondaryResult.fullCost(): Double =
+    (inputCost ?: 0.0) + (outputCost ?: 0.0) +
+        iconInputCost + iconOutputCost +
+        titleInputCost + titleOutputCost
+

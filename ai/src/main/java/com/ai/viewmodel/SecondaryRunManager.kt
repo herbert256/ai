@@ -1257,7 +1257,7 @@ class SecondaryRunManager(
         // the report; the API spend is real and should still surface
         // on the result page.
         val deleted = SecondaryResultStorage.get(context, reportId, resultId)
-        var costDelta = deleted?.let { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) } ?: 0.0
+        var costDelta = deleted?.fullCost() ?: 0.0
         SecondaryResultStorage.delete(context, reportId, resultId)
         // Cascade: when a META row is deleted, its cross-translate
         // TRANSLATE rows (translateSourceKind = "META",
@@ -1297,7 +1297,7 @@ class SecondaryRunManager(
             resultIds.forEach { id ->
                 runCatching {
                     SecondaryResultStorage.get(context, reportId, id)?.let { r ->
-                        costDelta += (r.inputCost ?: 0.0) + (r.outputCost ?: 0.0)
+                        costDelta += r.fullCost()
                         if (r.kind == SecondaryKind.META) deletedMetaIds.add(id)
                     }
                     SecondaryResultStorage.delete(context, reportId, id)

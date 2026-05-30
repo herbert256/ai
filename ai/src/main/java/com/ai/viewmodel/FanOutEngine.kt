@@ -832,7 +832,10 @@ class FanOutEngine internal constructor(
             val run = _runs.value[runKey] ?: return@launch
             runJobs[runKey]?.cancelAndJoin()
             run.pairs.values.forEach { pair -> pairJobs[pair.id]?.cancelAndJoin() }
-            val costDelta = run.pairs.values.sumOf { (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0) }
+            // totalCost (not just in/out) so the deleted pairs' Fan-Meta
+            // icon + title spend rolls into the tally too — summing only
+            // inputCost + outputCost dropped it.
+            val costDelta = run.pairs.values.sumOf { it.totalCost }
             run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.delete(context, run.reportId, pair.id)
             }
@@ -853,6 +856,14 @@ class FanOutEngine internal constructor(
             val run = _runs.value[runKey] ?: return@launch
             runJobs[runKey]?.cancelAndJoin()
             run.pairs.values.forEach { pair -> pairJobs[pair.id]?.cancelAndJoin() }
+            // Roll the whole run's spend into the report's Deleted-items
+            // tally before the disk deletes — pair totalCost (in/out +
+            // Fan-Meta icon + title) plus each combined fan-in row. Without
+            // this, trashing an entire fan-out run erased all of its API
+            // spend from the lifetime cost view (rerunComplete already
+            // accounted for its deletes; the title-bar 🗑 did not).
+            val costDelta = run.pairs.values.sumOf { it.totalCost } +
+                run.combinedReports.sumOf { it.totalCost }
             // Now disk deletes — safe because no coroutine can still
             // be heading toward a saveIfStillPresent against these ids.
             run.pairs.values.forEach { pair ->
@@ -861,6 +872,7 @@ class FanOutEngine internal constructor(
             run.combinedReports.forEach { cr ->
                 SecondaryResultStorage.delete(context, run.reportId, cr.id)
             }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
             dropRun(runKey)
             ReportStorage.bumpReportTimestamp(context, run.reportId)
         }
