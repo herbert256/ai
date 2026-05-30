@@ -56,7 +56,9 @@ class OverloadedRetryInterceptor : Interceptor {
             // flow registered a yielder (runThrottledBatch); plain sleep
             // otherwise — mirrors the 429 path so a 529 backoff doesn't
             // pin shared capacity either.
-            ProviderThrottle.backoffSleep(sleepMs)
+            RetryStats.record()
+            RetryStats.enterBackoff()
+            try { ProviderThrottle.backoffSleep(sleepMs) } finally { RetryStats.exitBackoff() }
             attempt++
             AppLog.d("Overloaded", "529 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}")
             current = chain.proceed(request)

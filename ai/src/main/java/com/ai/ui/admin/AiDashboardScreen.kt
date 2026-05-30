@@ -54,7 +54,9 @@ import com.ai.data.ApiTracer
 import com.ai.data.ApiUsageRates
 import com.ai.data.AppLog
 import com.ai.data.AppService
+import com.ai.data.DiskUsageStats
 import com.ai.data.HttpStatusStats
+import com.ai.data.RetryStats
 import com.ai.data.KnowledgeData
 import com.ai.data.LogStatsData
 import com.ai.data.ModelCooldownStore
@@ -134,6 +136,9 @@ fun AiLiveDashboardScreen(
     val cost5m = remember(liveTick) { ApiUsageRates.costWithin(context, 5 * 60_000) }
     val recentErrors = remember(liveTick) { HttpStatusStats.recentErrors(5) }
     val slowest = remember(liveTick) { HttpStatusStats.slowestWithin(5 * 60_000, 3) }
+    val retries1m = remember(liveTick) { RetryStats.retriesWithin(60_000) }
+    val retryInFlight = remember(liveTick) { RetryStats.inFlightCount() }
+    val localRt = remember(liveTick) { com.ai.data.local.LocalRuntime.snapshot() }
     val now = remember(liveTick) { System.currentTimeMillis() }
     val logErr = remember(liveTick) { AppLog.lastWriterError }
     val droppedLines = remember(liveTick) { AppLog.droppedLineCount }
@@ -182,6 +187,11 @@ fun AiLiveDashboardScreen(
     val traceCount by produceState(0, refreshTick, slowTick) {
         value = withContext(Dispatchers.IO) { ApiTracer.getTraceCount() }
     }
+    // On-disk cache footprint — a recursive size walk, so also off the fast
+    // ticker (resume + the slow 10 s tick).
+    val disk by produceState(DiskUsageStats.Snapshot(), refreshTick, slowTick) {
+        value = withContext(Dispatchers.IO) { DiskUsageStats.snapshot(context) }
+    }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -209,7 +219,7 @@ fun AiLiveDashboardScreen(
             if (recentErrors.isNotEmpty()) item { RecentErrorsSection(recentErrors, now) }
             item { ResponseTimesSection(rt1m, rt5m) }
             if (slowest.isNotEmpty()) item { SlowestCallsSection(slowest) }
-            item { ThrottleSection(hosts, onOpenTraceFilter) }
+            item { ThrottleSection(hosts, parked, retries1m, retryInFlight, onOpenTraceFilter) }
 
             val activeCooldowns = cooldowns.filterValues { it > now }
             if (activeCooldowns.isNotEmpty()) {
@@ -218,10 +228,12 @@ fun AiLiveDashboardScreen(
 
             testRun?.let { run -> item { TestRunSection(run, now) } }
 
+            if (localRt.active) item { LocalRuntimeSection(localRt) }
+
             item {
                 HealthSection(
                     logErr = logErr, droppedLines = droppedLines, traceCount = traceCount,
-                    busy = caps.globalInFlight > 0
+                    disk = disk, busy = caps.globalInFlight > 0
                 )
             }
             item { Spacer(Modifier.height(24.dp)) }
@@ -1406,9 +1418,20 @@ private fun twoLevelHost(host: String): String {
 @Composable
 private fun ThrottleSection(
     hosts: List<ProviderThrottle.HostThrottleStat>,
+    parked: Int, retries1m: Int, retryInFlight: Int,
     onOpenTraceFilter: (String, String) -> Unit,
 ) {
     SectionCard("🌐", "Provider throttle", AppColors.Blue) {
+        // Pressure summary: items parked on a gate, retry rate, and how many
+        // calls are right now sleeping in a retry backoff.
+        if (parked > 0 || retries1m > 0 || retryInFlight > 0) {
+            Text(
+                "Parked $parked · retries 1m $retries1m · backing off $retryInFlight",
+                fontSize = 11.sp,
+                color = if (retryInFlight > 0 || parked > 0) AppColors.Orange else AppColors.TextSecondary
+            )
+            Spacer(Modifier.height(6.dp))
+        }
         if (hosts.isEmpty()) {
             Text("Idle — no active hosts.", fontSize = 12.sp, color = AppColors.TextTertiary)
         } else {
@@ -1648,16 +1671,37 @@ private fun TestRunSection(run: ModelTestRunState, now: Long) {
 }
 
 @Composable
-private fun HealthSection(logErr: String?, droppedLines: Long, traceCount: Int, busy: Boolean) {
+private fun HealthSection(logErr: String?, droppedLines: Long, traceCount: Int, disk: DiskUsageStats.Snapshot, busy: Boolean) {
     SectionCard("🩺", "System health", AppColors.Green) {
         KeyVal("Log writer", if (logErr == null) "OK" else "ERROR", if (logErr == null) AppColors.Green else AppColors.Red)
         if (logErr != null) Text(logErr, fontSize = 11.sp, color = AppColors.Red)
         KeyVal("Dropped log lines", "$droppedLines", if (droppedLines > 0) AppColors.Orange else Color.White)
-        KeyVal("Trace files", "$traceCount")
+        KeyVal("Trace files", "$traceCount (${fmtBytes(disk.traceBytes)})")
+        KeyVal("Embeddings on disk", fmtBytes(disk.embeddingsBytes))
+        KeyVal("Knowledge on disk", fmtBytes(disk.knowledgeBytes))
         KeyVal("API activity", if (busy) "active" else "idle", if (busy) AppColors.Green else AppColors.TextDim)
         KeyVal("Streaming timeout", "${NetworkSettings.streamingReadTimeoutSec}s")
         KeyVal("Non-streaming timeout", "${NetworkSettings.nonStreamingReadTimeoutSec}s")
         KeyVal("Per-minute cap / host", "${NetworkSettings.maxCallsPerProviderPerMinute}")
+    }
+}
+
+/** On-device runtime activity — which local LLM / embedder models are loaded
+ *  and which (if any) is running right now. Shown only when something is
+ *  loaded or active. */
+@Composable
+private fun LocalRuntimeSection(rt: com.ai.data.local.LocalRuntime.Snapshot) {
+    SectionCard("🧠", "Local runtime", AppColors.Purple) {
+        if (rt.llmLoaded.isNotEmpty() || rt.llmGenerating != null) {
+            KeyVal("LLM loaded", rt.llmLoaded.joinToString(", ").ifBlank { "—" })
+            KeyVal("Generating", rt.llmGenerating ?: "idle",
+                if (rt.llmGenerating != null) AppColors.Green else AppColors.TextDim)
+        }
+        if (rt.embedderLoaded.isNotEmpty() || rt.embedding != null) {
+            KeyVal("Embedder loaded", rt.embedderLoaded.joinToString(", ").ifBlank { "—" })
+            KeyVal("Embedding", rt.embedding ?: "idle",
+                if (rt.embedding != null) AppColors.Green else AppColors.TextDim)
+        }
     }
 }
 

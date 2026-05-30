@@ -149,8 +149,11 @@ class RateLimitRetryInterceptor : Interceptor {
             // Releases this item's batch permits for the sleep when the
             // flow registered a yielder (runThrottledBatch); plain sleep
             // otherwise. Either way a backing-off call doesn't pin shared
-            // capacity for the whole backoff.
-            ProviderThrottle.backoffSleep(sleepMs)
+            // capacity for the whole backoff. Counted for the dashboard's
+            // live retry-pressure readout.
+            RetryStats.record()
+            RetryStats.enterBackoff()
+            try { ProviderThrottle.backoffSleep(sleepMs) } finally { RetryStats.exitBackoff() }
             attempt++
             AppLog.d("RateLimit", "429 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}")
             current = chain.proceed(request)

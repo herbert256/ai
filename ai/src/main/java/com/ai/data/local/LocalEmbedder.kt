@@ -29,6 +29,13 @@ object LocalEmbedder {
     private const val LOCAL_MODELS_DIR = "local_models"
     private val instances = ConcurrentHashMap<String, TextEmbedder>()
 
+    /** Live state for the dashboard's Local-runtime card. */
+    @Volatile private var embedding: String? = null
+    /** The model currently running [embed], or null when idle. */
+    val currentlyEmbedding: String? get() = embedding
+    /** Names of embedder models loaded into memory right now. */
+    fun loadedModelNames(): List<String> = instances.keys.toList()
+
     /** A model that can be downloaded directly into [localModelsDir].
      *  Only models with proper MediaPipe Tasks metadata baked into the
      *  .tflite belong here — the runtime refuses to load otherwise. */
@@ -223,6 +230,7 @@ object LocalEmbedder {
         if (inputs.isEmpty()) return emptyList()
         val started = System.currentTimeMillis()
         AppLog.d("LocalEmbedder", "→ embed $modelName n=${inputs.size} avgLen=${if (inputs.isNotEmpty()) inputs.sumOf { it.length } / inputs.size else 0}")
+        embedding = modelName
         return try {
             val embedder = getEmbedder(context, modelName)
             // Native TextEmbedder handle is not thread-safe — two
@@ -245,6 +253,8 @@ object LocalEmbedder {
             recordLocalTrace(modelName, inputs, outputDims = 0,
                 durationMs = System.currentTimeMillis() - started, error = e.message ?: e.javaClass.simpleName)
             null
+        } finally {
+            embedding = null
         }
     }
 

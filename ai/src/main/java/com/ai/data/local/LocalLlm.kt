@@ -29,6 +29,13 @@ object LocalLlm {
     private const val LOCAL_LLMS_DIR = "local_llms"
     private val instances = ConcurrentHashMap<String, LlmInference>()
 
+    /** Live state for the dashboard's Local-runtime card. */
+    @Volatile private var generating: String? = null
+    /** The model currently running [generate], or null when idle. */
+    val currentlyGenerating: String? get() = generating
+    /** Names of models loaded into memory right now. */
+    fun loadedModelNames(): List<String> = instances.keys.toList()
+
     fun localLlmsDir(context: Context): File =
         File(context.filesDir, LOCAL_LLMS_DIR).also { if (!it.exists()) it.mkdirs() }
 
@@ -160,6 +167,7 @@ object LocalLlm {
     fun generate(context: Context, modelName: String, prompt: String): String? {
         val started = System.currentTimeMillis()
         AppLog.d("LocalLlm", "→ generate $modelName promptChars=${prompt.length}")
+        generating = modelName
         return try {
             val engine = getEngine(context, modelName)
             val out = synchronized(engine) { engine.generateResponse(prompt) }
@@ -173,6 +181,8 @@ object LocalLlm {
             AppLog.e("LocalLlm", "generate failed: ${e.message}", e)
             recordTrace(modelName, prompt, null, durationMs = System.currentTimeMillis() - started, error = e.message ?: e.javaClass.simpleName)
             null
+        } finally {
+            generating = null
         }
     }
 
