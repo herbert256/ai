@@ -957,7 +957,7 @@ class FanOutEngine internal constructor(
      *  re-billed every cycle), and terminalizes rows the flow can't
      *  locate (prompt deleted / answerer agent gone) so they stop
      *  spinning. */
-    fun resumeStaleRunsForReport(context: Context, reportId: String): Job =
+    fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             hydrate(context, reportId)
             val diskStale = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
@@ -985,6 +985,10 @@ class FanOutEngine internal constructor(
                 val run = runsForReport[rk]
                 if (run == null) { resumeScans.remove(rk); continue }
                 val rows = pairKeys.mapNotNull { pk -> run.pairs[pk]?.id?.let { diskById[it] } }
+                // Explicit user Regenerate → wipe any retry counts the 30s
+                // sweep ran up, so these pairs get a fresh budget instead of
+                // being terminalized on the spot.
+                if (resetAttempts) BatchResume.resetAttempts(rows.map { it.id })
                 val retryRows = BatchResume.capForRetry(rows) { row ->
                     markRowInterrupted(context, reportId, row.id,
                         "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")

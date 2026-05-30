@@ -259,6 +259,13 @@ internal object BatchResume {
         return retry
     }
 
+    /** Forget the retry counts for [ids], so an EXPLICIT user re-fire
+     *  (Regenerate) gets a fresh [MAX_ATTEMPTS] budget instead of being
+     *  instantly terminalized by counts the background 30s sweep ran up. */
+    fun resetAttempts(ids: Collection<String>) {
+        ids.forEach { attempts.remove(it) }
+    }
+
     /** Run-end finalizer: [terminalize] (and forget) every leftover row.
      *  Caller filters to its own "incomplete & not in flight" set first. */
     fun finalizeLeftover(

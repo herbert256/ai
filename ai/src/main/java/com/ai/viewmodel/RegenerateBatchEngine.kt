@@ -441,9 +441,14 @@ class RegenerateBatchEngine internal constructor(
         return rowIds.associateWith { id ->
             val row = rows[id] ?: return@associateWith RowStatus.Pending
             when {
+                // An emoji landed → usable (partial) success, even if the
+                // title call came back empty. Flagging title-missing as a
+                // blocking Error here while isRowStillErrored re-checks the
+                // same titleErrorMessage made Restart a permanent no-op.
+                !row.icon.isNullOrBlank() -> RowStatus.Success
                 !row.iconErrorMessage.isNullOrBlank() -> RowStatus.Error(row.iconErrorMessage)
                 !row.titleErrorMessage.isNullOrBlank() -> RowStatus.Error(row.titleErrorMessage)
-                !row.icon.isNullOrBlank() && !row.title.isNullOrBlank() -> RowStatus.Success
+                !row.title.isNullOrBlank() -> RowStatus.Success
                 else -> RowStatus.Pending
             }
         }
@@ -534,8 +539,11 @@ class RegenerateBatchEngine internal constructor(
             RegeneratePhase.FAN_OUT -> {
                 // The engine re-dispatches every stale fan-out pair on the
                 // report (the placeholders this phase just reset to PENDING)
-                // in one idempotent pass.
-                reportViewModel.fanOutEngine.resumeStaleRunsForReport(context, reportId)
+                // in one idempotent pass. resetAttempts: this is an explicit
+                // user Regenerate, so clear the session retry counts the 30s
+                // sweep may have already maxed out — otherwise the pair is
+                // terminalized instantly and never re-fires.
+                reportViewModel.fanOutEngine.resumeStaleRunsForReport(context, reportId, resetAttempts = true)
             }
             RegeneratePhase.TRANSLATIONS -> {
                 val rows = SecondaryResultStorage.listForReport(context, reportId)
@@ -641,7 +649,11 @@ class RegenerateBatchEngine internal constructor(
             RegeneratePhase.FAN_META -> {
                 val row = SecondaryResultStorage.listForReport(context, reportId)
                     .firstOrNull { it.id == rowId }
-                row?.iconErrorMessage != null || row?.titleErrorMessage != null
+                // Matches readFanMetaStatuses: an icon present = usable
+                // (partial) success, so the row is "still errored" only when
+                // there's no icon and a genuine error.
+                row != null && row.icon.isNullOrBlank() &&
+                    (row.iconErrorMessage != null || row.titleErrorMessage != null)
             }
             else -> {
                 val row = SecondaryResultStorage.listForReport(context, reportId)
