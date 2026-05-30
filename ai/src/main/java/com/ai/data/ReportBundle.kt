@@ -184,11 +184,6 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
     // wasn't in the bundle) becomes null — a blank 🐞 beats a dead link
     // to a filename that never existed on this install.
     fun remapTrace(old: String?): String? = old?.let { traceFileMap[it] }
-    // Remap a secondary-id reference, leaving non-secondary ids (real
-    // agent ids on AGENT-sourced translations / per-agent icon records)
-    // untouched.
-    fun remapSecId(old: String?): String? = old?.let { secIdMap[it] ?: it }
-
     // Pass 3a — persist the report with every trace pointer + secondary
     // cross-reference remapped onto the new ids.
     val remappedAgents = parsedReport.agents.map { a ->
@@ -200,8 +195,14 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
     }.toMutableList()
     val remappedIconCalls = parsedReport.iconCalls.map { c ->
         c.copy(
+            // agentId is a fan-out PAIR id (a secondary, in secIdMap) or a
+            // real agent id (kept — agents keep their ids on import).
             agentId = secIdMap[c.agentId] ?: c.agentId,
-            attributedToSecondaryId = remapSecId(c.attributedToSecondaryId)
+            // attributedToSecondaryId is ALWAYS a secondary ref → null when
+            // its target wasn't in the bundle (e.g. a row that failed to
+            // parse) rather than a dead id, so alt-cost attribution doesn't
+            // silently point at a secondary that doesn't exist here.
+            attributedToSecondaryId = c.attributedToSecondaryId?.let { secIdMap[it] }
         )
     }.toMutableList()
     val report = parsedReport.copy(
@@ -223,7 +224,15 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
         val rekeyed = parsed.copy(
             id = secIdMap.getValue(parsed.id),
             reportId = newReportId,
-            translateSourceTargetId = remapSecId(parsed.translateSourceTargetId),
+            // AGENT-sourced target is an agent id (kept — agents keep their
+            // ids); PROMPT is the "prompt" literal. Otherwise it's a
+            // secondary ref (META / fan-out source): remap, and null it when
+            // the source wasn't in the bundle so the drill-in doesn't chase
+            // a dead id.
+            translateSourceTargetId = when (parsed.translateSourceKind) {
+                "AGENT", "PROMPT" -> parsed.translateSourceTargetId
+                else -> parsed.translateSourceTargetId?.let { secIdMap[it] }
+            },
             traceFile = remapTrace(parsed.traceFile)
         )
         SecondaryResultStorage.save(context, rekeyed)
