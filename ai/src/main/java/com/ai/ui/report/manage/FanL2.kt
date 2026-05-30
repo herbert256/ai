@@ -119,7 +119,14 @@ internal fun FanOutL2Screen(
         }.sortedBy { it.timestamp }
     }
 
-    val erroredHere = rawRows.count { it.status == PairStatus.ERROR }
+    // The Remove / Restart-failed actions below are ANSWERER-scoped (the
+    // engine filters pairs by the active (provider, model) as answerer), so
+    // count the errored pairs the same way — in Responder role this equals
+    // the rawRows count, but in Initiator role rawRows is SOURCE-side, which
+    // made the buttons appear yet no-op with a wrong count.
+    val erroredHere = run.pairs.values.count {
+        it.status == PairStatus.ERROR && "${it.providerId}|${it.model}" == answererKey
+    }
 
     // Load report lazily so source agent ids can resolve to model
     // labels in the row list (mirrors the L1 "provider / model"
