@@ -1183,13 +1183,19 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     ?: return@mapNotNull null
                 SwarmMember(provider, parts.getOrNull(1) ?: return@mapNotNull null)
             }
-            val reportLevelSystemPrompt = state.reportSystemPromptId
+            // Replay the report's CAPTURED generation config (system prompt,
+            // per-model param selections, preset/advanced params), exactly
+            // like regenerateReport — NOT the live UiState. Reading state.*
+            // here meant a batch regenerate after a restart or a settings
+            // edit silently re-ran every agent with a different system
+            // prompt / parameter set than the report was generated with.
+            val reportLevelSystemPrompt = report.reportSystemPromptId
                 ?.let { ai.getSystemPromptById(it)?.prompt }
             val directModelSids = directModels.map { "swarm:${it.provider.id}:${it.model}" }.toSet()
-            val preGenParamsActive = state.reportAdvancedParameters != null ||
-                state.reportWebSearchTool || state.reportReasoningEffort != null
+            val preGenParamsActive = report.advancedParameters != null || report.parameterPresetIds.isNotEmpty() ||
+                report.webSearchTool || report.reasoningEffort != null
             val tasks = buildReportTasks(
-                ai, agents, swarmMembers + directModels, emptyMap(),
+                ai, agents, swarmMembers + directModels, report.selectionParamsById,
                 state.externalSystemPrompt, reportLevelSystemPrompt,
                 state.generalSettings, directModelSids, preGenParamsActive
             )
@@ -1210,13 +1216,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
             ReportStorage.bumpReportTimestamp(context, reportId)
             withTracerTags(reportId = reportId, category = "Batch regenerate agents") {
-                val baseOverride = state.reportAdvancedParameters
-                val withWeb = if (report.webSearchTool)
-                    (baseOverride ?: AgentParameters()).copy(webSearchTool = true)
-                else baseOverride
-                val overrideParams = if (report.reasoningEffort != null)
-                    (withWeb ?: AgentParameters()).copy(reasoningEffort = report.reasoningEffort)
-                else withWeb
+                // Same captured config as the task build above (presets +
+                // advanced + the report's own web/reasoning flags) — shared
+                // with regenerateReport so both paths replay identically.
+                val overrideParams = resolveReportOverrideParams(
+                    ai, report.parameterPresetIds, report.advancedParameters,
+                    report.webSearchTool, report.reasoningEffort
+                )
                 coroutineScope {
                     interleaveByHost(tasks) { providerHost(it.runtimeAgent.provider) }.map { task ->
                         async {
