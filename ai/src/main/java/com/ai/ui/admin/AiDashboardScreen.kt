@@ -111,6 +111,10 @@ fun AiLiveDashboardScreen(
     reportViewModel: ReportViewModel,
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    /** Open the API Traces list filtered to one dimension value — wired
+     *  to the 🐞 on each HTTP-responses (status) / provider-throttle (host)
+     *  row. Field is "status" or "host". */
+    onOpenTraceFilter: (field: String, value: String) -> Unit = { _, _ -> },
 ) {
     BackHandler { onBack() }
 
@@ -158,8 +162,8 @@ fun AiLiveDashboardScreen(
             item { Spacer(Modifier.height(4.dp)) }
 
             item { LiveActivitySection(caps, thrFanOut, thrMeta) }
-            item { ThrottleSection(hosts) }
-            item { HttpCodesSection(http1m, http5m) }
+            item { HttpCodesSection(http1m, http5m, onOpenTraceFilter) }
+            item { ThrottleSection(hosts, onOpenTraceFilter) }
 
             val activeCooldowns = cooldowns.filterValues { it > now }
             if (activeCooldowns.isNotEmpty()) {
@@ -1317,7 +1321,10 @@ private fun twoLevelHost(host: String): String {
 }
 
 @Composable
-private fun ThrottleSection(hosts: List<ProviderThrottle.HostThrottleStat>) {
+private fun ThrottleSection(
+    hosts: List<ProviderThrottle.HostThrottleStat>,
+    onOpenTraceFilter: (String, String) -> Unit,
+) {
     SectionCard("🌐", "Provider throttle", AppColors.Blue) {
         if (hosts.isEmpty()) {
             Text("Idle — no active hosts.", fontSize = 12.sp, color = AppColors.TextTertiary)
@@ -1330,8 +1337,12 @@ private fun ThrottleSection(hosts: List<ProviderThrottle.HostThrottleStat>) {
                     else -> AppColors.Green
                 }
                 Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        // 🐞 → API Traces filtered to this host (full host, not
+                        // the trimmed display label).
+                        Text("🐞", fontSize = 13.sp, modifier = Modifier.clickable { onOpenTraceFilter("host", h.host) }.padding(end = 6.dp))
                         Text(twoLevelHost(h.host), fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                        Spacer(Modifier.weight(1f))
                         Text(
                             "con ${h.inUse}/${h.limit}  ·  min ${h.windowCount}/$windowCap",
                             fontSize = 11.sp, color = concColor
@@ -1349,24 +1360,29 @@ private fun ThrottleSection(hosts: List<ProviderThrottle.HostThrottleStat>) {
  *  because it's the rate-limit signal the live view cares about most;
  *  network failures land in "other". */
 @Composable
-private fun HttpCodesSection(min1: HttpStatusStats.Counts, min5: HttpStatusStats.Counts) {
+private fun HttpCodesSection(
+    min1: HttpStatusStats.Counts, min5: HttpStatusStats.Counts,
+    onOpenTraceFilter: (String, String) -> Unit,
+) {
     SectionCard("📊", "HTTP responses", AppColors.Indigo) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
             Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
             Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
         }
-        HttpCodeRow("✅ 2xx", min1.ok2xx, min5.ok2xx, AppColors.Green)
-        HttpCodeRow("🚧 429", min1.r429, min5.r429, AppColors.Orange)
-        HttpCodeRow("⚠️ 4xx", min1.c4xx, min5.c4xx, AppColors.Orange)
-        HttpCodeRow("🔥 5xx", min1.s5xx, min5.s5xx, AppColors.Red)
-        HttpCodeRow("▫️ other", min1.other, min5.other, AppColors.TextDim)
+        HttpCodeRow("✅ 2xx", min1.ok2xx, min5.ok2xx, AppColors.Green) { onOpenTraceFilter("status", "2xx") }
+        HttpCodeRow("🚧 429", min1.r429, min5.r429, AppColors.Orange) { onOpenTraceFilter("status", "429") }
+        HttpCodeRow("⚠️ 4xx", min1.c4xx, min5.c4xx, AppColors.Orange) { onOpenTraceFilter("status", "4xx") }
+        HttpCodeRow("🔥 5xx", min1.s5xx, min5.s5xx, AppColors.Red) { onOpenTraceFilter("status", "5xx") }
+        HttpCodeRow("▫️ other", min1.other, min5.other, AppColors.TextDim) { onOpenTraceFilter("status", "other") }
     }
 }
 
 @Composable
-private fun HttpCodeRow(label: String, c1: Int, c5: Int, accent: Color) {
+private fun HttpCodeRow(label: String, c1: Int, c5: Int, accent: Color, onTrace: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        // 🐞 → API Traces filtered to this status class.
+        Text("🐞", fontSize = 13.sp, modifier = Modifier.clickable { onTrace() }.padding(end = 6.dp))
         Text(label, fontSize = 12.sp, color = Color.White)
         Spacer(Modifier.weight(1f))
         Text("$c1", fontSize = 12.sp, color = if (c1 > 0) accent else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))

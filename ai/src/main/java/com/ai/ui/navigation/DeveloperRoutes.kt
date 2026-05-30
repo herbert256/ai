@@ -122,7 +122,8 @@ internal fun NavGraphBuilder.developerRoutes(
             AiLiveDashboardScreen(
                 appViewModel = appViewModel,
                 reportViewModel = reportViewModel,
-                onBack = safePopBack, onNavigateHome = navigateHome)
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onOpenTraceFilter = openTraceFilter)
         }
         monitorComposable(NavRoutes.AI_TRACE_STATS, monitorNav) {
             AiTraceStatsScreen(onBack = safePopBack, onNavigateHome = navigateHome, onNavigateToStatistics = toStatistics,
