@@ -841,7 +841,7 @@ class TranslationRunManager(
         val labelPrefix = "Translate: ${item.label.ifBlank { item.kind.name.lowercase() }}"
         val srcKind = translateSrcKindOf(item.kind)
         val srcTargetId = translateSrcTargetIdOf(item)
-        SecondaryResultStorage.save(context, SecondaryResult(
+        val row = SecondaryResult(
             // Reuse the placeholder's id (stashed at startTranslation /
             // restart time) so this save OVERWRITES the placeholder
             // row instead of creating a parallel record. That keeps
@@ -868,7 +868,17 @@ class TranslationRunManager(
             translationRunId = runId,
             runId = runId,
             traceFile = item.traceFile
-        ))
+        )
+        if (item.persistedRowId != null) {
+            // Placeholder was written up front, so use the present-guarded
+            // write: if the report was deleted mid-translation the row is
+            // gone and saveIfStillPresent skips it instead of recreating
+            // the report's storage dir (a zombie report). The placeholder
+            // is zero-cost, so the merge-on-save is a plain overwrite.
+            SecondaryResultStorage.saveIfStillPresent(context, row)
+        } else {
+            SecondaryResultStorage.save(context, row)
+        }
     }
 
     // saveTranslationSecondaries (the bulk all-at-end flush) was
@@ -1037,6 +1047,18 @@ class TranslationRunManager(
             val cur = runs[runId] ?: return@update runs
             runs + (runId to cur.copy(cancelled = true))
         }
+    }
+
+    /** Cancel every in-flight translation run targeting [reportId].
+     *  Called by [ReportViewModel.deleteReport] so a completing
+     *  translation can't write a secondary row — and resurrect the
+     *  just-deleted report's storage dir — after the report is gone. */
+    fun cancelAllForReport(reportId: String) {
+        _translationRuns.value
+            .filterValues { it.sourceReportId == reportId && !it.isFinished && !it.cancelled }
+            .keys
+            .toList()
+            .forEach { cancelTranslation(it) }
     }
 
     /** Reconcile a stalled translation run by dropping the stale

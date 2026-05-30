@@ -1360,6 +1360,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val fanOutPrefix = "$reportId|"
         // Fan-out runs + per-pair coroutines are owned by the engine now.
         fanOutEngine.cancelAllForReport(reportId)
+        // Translation runs + the regenerate-batch orchestrator are also
+        // report-owned and were NOT cancelled here — a translation
+        // completing after the delete writes via SecondaryResultStorage
+        // and would recreate the just-deleted report's storage dir (a
+        // zombie report), and a regenerate batch would keep dispatching
+        // agent calls against a gone report.
+        translation.cancelAllForReport(reportId)
+        regenerateBatchEngine.cancel(context, reportId)
         iconFanOutJobs.remove(reportId)?.cancel()
         languageIconFanOutJobs.remove(reportId)?.cancel()
         appViewModel.clearLanguageIconFanOut(reportId)
