@@ -54,6 +54,22 @@ object ReportStorage {
         return report
     }
 
+    /** Full cost of the report's OWN generation: primary agent calls + per-agent
+     *  icon + per-agent model-title + the report-level icon / title / language-
+     *  detect / language-icon metadata calls. (Secondary results — Rerank / Meta
+     *  / Translate — live in separate rows; the Manage screen sums those on top
+     *  of this.) Previously the recompute used only `agents.cost + agent icons`,
+     *  so the stored total under-counted every report-level metadata call.
+     *  `costsFromDeletedItems` is tracked separately and intentionally excluded. */
+    private fun computeReportTotalCost(report: Report): Double =
+        report.agents.mapNotNull { it.cost }.sum() +
+            report.agents.sumOf { it.iconInputCost + it.iconOutputCost } +
+            report.agents.sumOf { it.modelTitleInputCost + it.modelTitleOutputCost } +
+            report.iconInputCost + report.iconOutputCost +
+            report.titleInputCost + report.titleOutputCost +
+            report.languageInputCost + report.languageOutputCost +
+            report.languageIconInputCost + report.languageIconOutputCost
+
     fun updateAgentStatus(
         context: Context, reportId: String, agentId: String, status: ReportStatus,
         httpStatus: Int? = null, requestHeaders: String? = null, requestBody: String? = null,
@@ -117,8 +133,7 @@ object ReportStorage {
             // not only on the primary-cost path (Bug 28): an icon-cost bump
             // arriving with cost=null would otherwise leave totalCost stale.
             if (cost != null || inputCost != null || outputCost != null) {
-                report.totalCost = report.agents.mapNotNull { it.cost }.sum() +
-                    report.agents.sumOf { it.iconInputCost + it.iconOutputCost }
+                report.totalCost = computeReportTotalCost(report)
             }
             if (durationMs != null) agent.durationMs = durationMs
             if (traceFile != null) agent.traceFile = traceFile
@@ -396,7 +411,7 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             // Additive cost / token writes (see updateAgentStatus).
-            saveReport(report.copy(
+            val updated = report.copy(
                 icon = icon, iconErrorMessage = null,
                 iconInputTokens = report.iconInputTokens + inputTokens,
                 iconOutputTokens = report.iconOutputTokens + outputTokens,
@@ -406,7 +421,9 @@ object ReportStorage {
                 iconPromptUsed = promptUsed ?: report.iconPromptUsed,
                 iconDurationMs = durationMs ?: report.iconDurationMs,
                 timestamp = System.currentTimeMillis()
-            ))
+            )
+            updated.totalCost = computeReportTotalCost(updated)
+            saveReport(updated)
             true
         }
     }
@@ -442,7 +459,7 @@ object ReportStorage {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
-            saveReport(report.copy(
+            val updated = report.copy(
                 title = newTitle, titleLong = titleLong, titleErrorMessage = null,
                 titleInputTokens = report.titleInputTokens + inputTokens,
                 titleOutputTokens = report.titleOutputTokens + outputTokens,
@@ -453,7 +470,9 @@ object ReportStorage {
                 titlePromptUsed = promptUsed ?: report.titlePromptUsed,
                 titleDurationMs = durationMs ?: report.titleDurationMs,
                 timestamp = System.currentTimeMillis()
-            ))
+            )
+            updated.totalCost = computeReportTotalCost(updated)
+            saveReport(updated)
             true
         }
     }
@@ -552,7 +571,7 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             // Additive cost / token writes (see updateAgentStatus).
-            saveReport(report.copy(
+            val updated = report.copy(
                 languageName = name,
                 languageIconErrorMessage = null,
                 languageInputTokens = report.languageInputTokens + inputTokens,
@@ -563,7 +582,9 @@ object ReportStorage {
                 languageRawResponse = rawResponse,
                 languageDurationMs = durationMs ?: report.languageDurationMs,
                 timestamp = System.currentTimeMillis()
-            ))
+            )
+            updated.totalCost = computeReportTotalCost(updated)
+            saveReport(updated)
             true
         }
     }
@@ -591,7 +612,7 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             // Additive cost / token writes (see updateAgentStatus).
-            saveReport(report.copy(
+            val updated = report.copy(
                 languageIcon = icon,
                 languageIconModel = model,
                 languageIconErrorMessage = null,
@@ -604,7 +625,9 @@ object ReportStorage {
                 languageIconPromptUsed = promptUsed ?: report.languageIconPromptUsed,
                 languageIconDurationMs = durationMs ?: report.languageIconDurationMs,
                 timestamp = System.currentTimeMillis()
-            ))
+            )
+            updated.totalCost = computeReportTotalCost(updated)
+            saveReport(updated)
             true
         }
     }
@@ -757,12 +780,9 @@ object ReportStorage {
                 iconInputCost = inputCost, iconOutputCost = outputCost
             )
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }
-            val newTotal = newAgents.mapNotNull { it.cost }.sum() +
-                newAgents.sumOf { it.iconInputCost + it.iconOutputCost }
-            saveReport(report.copy(
-                agents = newAgents, totalCost = newTotal,
-                timestamp = System.currentTimeMillis()
-            ))
+            val newReport = report.copy(agents = newAgents, timestamp = System.currentTimeMillis())
+            newReport.totalCost = computeReportTotalCost(newReport)
+            saveReport(newReport)
             true
         }
     }
@@ -811,12 +831,9 @@ object ReportStorage {
                 iconOutputCost = report.agents[idx].iconOutputCost + outputCost
             )
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }
-            val newTotal = newAgents.mapNotNull { it.cost }.sum() +
-                newAgents.sumOf { it.iconInputCost + it.iconOutputCost }
-            saveReport(report.copy(
-                agents = newAgents, totalCost = newTotal,
-                timestamp = System.currentTimeMillis()
-            ))
+            val newReport = report.copy(agents = newAgents, timestamp = System.currentTimeMillis())
+            newReport.totalCost = computeReportTotalCost(newReport)
+            saveReport(newReport)
             true
         }
     }
@@ -921,7 +938,9 @@ object ReportStorage {
                 modelTitlePromptUsed = promptUsed ?: prev.modelTitlePromptUsed
             )
             val newAgents = report.agents.toMutableList().also { it[idx] = updated }
-            saveReport(report.copy(agents = newAgents, timestamp = System.currentTimeMillis()))
+            val newReport = report.copy(agents = newAgents, timestamp = System.currentTimeMillis())
+            newReport.totalCost = computeReportTotalCost(newReport)
+            saveReport(newReport)
             true
         }
     }
@@ -1032,12 +1051,9 @@ object ReportStorage {
             )
             val newAgents = report.agents.toMutableList().also { it[idx] = cleared }
             val newCalls = report.iconCalls.filter { it.agentId != agentId }.toMutableList()
-            val newTotal = newAgents.mapNotNull { it.cost }.sum() +
-                newAgents.sumOf { it.iconInputCost + it.iconOutputCost }
-            saveReport(report.copy(
-                agents = newAgents, iconCalls = newCalls, totalCost = newTotal,
-                timestamp = System.currentTimeMillis()
-            ))
+            val newReport = report.copy(agents = newAgents, iconCalls = newCalls, timestamp = System.currentTimeMillis())
+            newReport.totalCost = computeReportTotalCost(newReport)
+            saveReport(newReport)
             true
         }
     }
@@ -1060,12 +1076,13 @@ object ReportStorage {
                     iconWinningTier = null
                 )
             }.toMutableList()
-            val newTotal = newAgents.mapNotNull { it.cost }.sum()
-            saveReport(report.copy(
-                agents = newAgents, totalCost = newTotal,
+            val newReport = report.copy(
+                agents = newAgents,
                 iconCalls = mutableListOf(),
                 timestamp = System.currentTimeMillis()
-            ))
+            )
+            newReport.totalCost = computeReportTotalCost(newReport)
+            saveReport(newReport)
             true
         }
     }
@@ -1101,8 +1118,7 @@ object ReportStorage {
             (removed.iconInputCost + removed.iconOutputCost).takeIf { it > 0.0 }?.let {
                 report.costsFromDeletedItems += it
             }
-            report.totalCost = report.agents.mapNotNull { it.cost }.sum() +
-                report.agents.sumOf { it.iconInputCost + it.iconOutputCost }
+            report.totalCost = computeReportTotalCost(report)
             saveReport(report)
             true
         }
@@ -1206,8 +1222,7 @@ object ReportStorage {
             agent.iconOutputTokens = 0
             agent.iconInputCost = 0.0
             agent.iconOutputCost = 0.0
-            report.totalCost = report.agents.mapNotNull { it.cost }.sum() +
-                report.agents.sumOf { it.iconInputCost + it.iconOutputCost }
+            report.totalCost = computeReportTotalCost(report)
             report.completedAt = null
             saveReport(report)
         }
