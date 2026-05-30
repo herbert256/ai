@@ -28,6 +28,41 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
+/** Identifies one "Find alternative …" fan-out so its alt-prompt can be
+ *  resolved (markers replaced) for the pre-pick "Edit prompt" screen, and
+ *  later run with the user's edited text. Mirrors the routing in
+ *  `FindIconsPickerRouter` + the translate alt flow. */
+sealed class AltPromptFlow {
+    data class ReportTitle(val reportId: String, val promptText: String, val long: Boolean) : AltPromptFlow()
+    data class ModelTitle(val reportId: String, val agentId: String) : AltPromptFlow()
+    data class PairTitle(val reportId: String, val pairId: String) : AltPromptFlow()
+    data class ReportIcon(val reportId: String, val promptText: String) : AltPromptFlow()
+    data class AgentIcon(val reportId: String, val agentId: String) : AltPromptFlow()
+    data class PairIcon(val reportId: String, val pairId: String) : AltPromptFlow()
+    data class MetaIcon(val promptId: String) : AltPromptFlow()
+    data class LanguageIcon(val reportId: String) : AltPromptFlow()
+    data class TranslationIcon(val language: String) : AltPromptFlow()
+    data class TranslationText(val isTitleKind: Boolean, val targetLanguageName: String, val sourceText: String) : AltPromptFlow()
+}
+
+/** The resolved alt prompt for a flow: the underlying prompt id (for
+ *  persistence), the fully marker-replaced text shown in the editor, and
+ *  the ordered marker→value substitutions that produced it (so a saved
+ *  edit can be reverse-substituted back into the template). */
+data class ResolvedAltPrompt(
+    val promptId: String,
+    val resolved: String,
+    val subs: List<Pair<String, String>>,
+)
+
+/** What the pre-pick editor hands back: the (possibly edited) resolved
+ *  prompt plus the metadata needed to persist it onto the alt template. */
+data class AltEditPayload(
+    val promptId: String,
+    val edited: String,
+    val subs: List<Pair<String, String>>,
+)
+
 /** Icon-generation orchestration extracted from [ReportViewModel]:
  *  the report/title/language icon kick-offs, every per-scope icon
  *  fan-out (internal-prompt / pair / translation / agent / language),
@@ -39,6 +74,147 @@ class IconGenerationManager(
     private val appViewModel: AppViewModel,
     private val rvm: ReportViewModel
 ) {
+    // ===== Find-alternative: pre-pick "Edit prompt" support =====
+    // The user edits the resolved alt prompt BEFORE picking models. The
+    // edited text is stashed here the instant they tap Next and consumed
+    // by the next start*FanOut call (the only thing the model picker's
+    // confirm can trigger). One-shot — cleared on consume.
+    @Volatile
+    var pendingAltEdit: AltEditPayload? = null
+
+    /** Take the stashed edit (if any), clear it, and kick off a
+     *  best-effort persist back to the template. Called once at the top
+     *  of every start*FanOut. */
+    internal fun consumeAltEdit(): AltEditPayload? {
+        val e = pendingAltEdit
+        pendingAltEdit = null
+        e?.let { persistAltEdit(it) }
+        return e
+    }
+
+    /** Resolve the alt (or translate-) prompt for [flow] with its
+     *  @VAR@ markers replaced, for the pre-pick editor. Reads the same
+     *  templates + values the matching start*FanOut would, so the editor
+     *  shows exactly what hits the wire. */
+    suspend fun resolveAltPrompt(
+        context: Context,
+        aiSettings: Settings,
+        flow: AltPromptFlow
+    ): ResolvedAltPrompt? = withContext(Dispatchers.IO) {
+        fun alt(name: String) = aiSettings.internalPrompts.firstOrNull {
+            it.category == "alt" && it.name.equals(name, ignoreCase = true)
+        }
+        fun build(p: InternalPrompt?, subs: List<Pair<String, String>>): ResolvedAltPrompt? {
+            p ?: return null
+            val resolved = subs.fold(p.text) { acc, (m, v) -> acc.replace(m, v) }
+            return ResolvedAltPrompt(p.id, resolved, subs)
+        }
+        when (flow) {
+            is AltPromptFlow.ReportTitle ->
+                build(alt(if (flow.long) "report_title_long" else "report_title"),
+                    listOf("@PROMPT@" to flow.promptText))
+            is AltPromptFlow.ModelTitle -> {
+                val ra = ReportStorage.getReport(context, flow.reportId)
+                    ?.agents?.firstOrNull { it.agentId == flow.agentId }
+                build(alt("model_title"), listOf("@RESPONSE@" to ra?.responseBody.orEmpty()))
+            }
+            is AltPromptFlow.PairTitle -> {
+                val pair = SecondaryResultStorage.listForReport(context, flow.reportId)
+                    .firstOrNull { it.id == flow.pairId }
+                build(alt("model_title"), listOf("@RESPONSE@" to pair?.content.orEmpty()))
+            }
+            is AltPromptFlow.ReportIcon ->
+                build(alt("main"), listOf("@PROMPT@" to flow.promptText))
+            is AltPromptFlow.AgentIcon -> {
+                val report = ReportStorage.getReport(context, flow.reportId)
+                val ra = report?.agents?.firstOrNull { it.agentId == flow.agentId }
+                build(alt("report"), listOf(
+                    "@PROMPT@" to report?.prompt.orEmpty(),
+                    "@RESPONSE@" to ra?.responseBody.orEmpty(),
+                ))
+            }
+            is AltPromptFlow.PairIcon -> {
+                val report = ReportStorage.getReport(context, flow.reportId)
+                val pair = SecondaryResultStorage.listForReport(context, flow.reportId)
+                    .firstOrNull { it.id == flow.pairId }
+                val sourceAgent = pair?.fanOutSourceAgentId?.let { sid ->
+                    report?.agents?.firstOrNull { it.agentId == sid }
+                }
+                val metaPrompt = pair?.metaPromptId?.let { mid ->
+                    aiSettings.internalPrompts.firstOrNull { it.id == mid }
+                }
+                build(alt("fan_out"), listOf(
+                    "@QUESTION@" to report?.prompt.orEmpty(),
+                    "@SOURCE_RESPONSE@" to sourceAgent?.responseBody.orEmpty(),
+                    "@META_PROMPT@" to metaPrompt?.text.orEmpty(),
+                    "@RESPONSE@" to pair?.content.orEmpty(),
+                ))
+            }
+            is AltPromptFlow.MetaIcon -> {
+                val p = aiSettings.internalPrompts.firstOrNull { it.id == flow.promptId }
+                    ?: return@withContext null
+                build(alt("meta"), listOf("@NAME@" to p.name, "@TITLE@" to p.title))
+            }
+            is AltPromptFlow.LanguageIcon -> {
+                val report = ReportStorage.getReport(context, flow.reportId)
+                build(alt("language"), listOf("@LANGUAGE@" to report?.languageName.orEmpty()))
+            }
+            is AltPromptFlow.TranslationIcon ->
+                build(alt("translation"), listOf("@LANGUAGE@" to flow.language))
+            is AltPromptFlow.TranslationText -> {
+                // Translate alt reuses the translate-title / translate-text
+                // prompt itself (not an alt template).
+                val p = aiSettings.getInternalPromptByName(
+                    if (flow.isTitleKind) "translate-title" else "translate-text"
+                )
+                val subs = if (flow.isTitleKind)
+                    listOf("@LANGUAGE@" to flow.targetLanguageName, "@TITLE@" to flow.sourceText)
+                else
+                    listOf("@LANGUAGE@" to flow.targetLanguageName, "@TEXT@" to flow.sourceText)
+                build(p, subs)
+            }
+        }
+    }
+
+    /** Best-effort: reverse-substitute the user's edited (resolved) prompt
+     *  back into a template and save it onto the prompt, so a future Find-
+     *  alternative starts from the edit. Skips silently when the edit can't
+     *  be faithfully re-abstracted (a data region was edited, or a
+     *  substituted value was blank) — never corrupts the shared template. */
+    private fun persistAltEdit(payload: AltEditPayload) {
+        val template = recoverTemplate(payload.edited, payload.subs) ?: return
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val cur = appViewModel.uiState.value.aiSettings
+            val existing = cur.internalPrompts.firstOrNull { it.id == payload.promptId } ?: return@launch
+            if (existing.text == template) return@launch
+            val updated = cur.internalPrompts.map {
+                if (it.id == payload.promptId) it.copy(text = template) else it
+            }
+            appViewModel.updateSettings(cur.copy(internalPrompts = updated))
+        }
+    }
+
+    /** Re-abstract [edited] back into a template by replacing each
+     *  substituted value with its marker. Returns null when it can't be
+     *  done faithfully — a blank value, a value the user edited away, or a
+     *  reconstruction that doesn't re-resolve to [edited] exactly. */
+    private fun recoverTemplate(edited: String, subs: List<Pair<String, String>>): String? {
+        if (subs.isEmpty()) return edited
+        var t = edited
+        // Longest values first so a short value that's a substring of a
+        // longer one doesn't grab the wrong span.
+        for ((marker, value) in subs.sortedByDescending { it.second.length }) {
+            if (value.isBlank()) return null
+            val idx = t.indexOf(value)
+            if (idx < 0) return null
+            t = t.substring(0, idx) + marker + t.substring(idx + value.length)
+        }
+        // Faithfulness check: re-resolving (in the original apply order)
+        // must reproduce the edited text exactly.
+        val reResolved = subs.fold(t) { acc, (m, v) -> acc.replace(m, v) }
+        return if (reResolved == edited) t else null
+    }
+
     /** Background helper that runs the bundled `internal/icon` prompt
      *  against its pinned agent and writes the resolved emoji onto the
      *  Report. Best-effort: silently no-ops when the prompt is missing,
@@ -733,7 +909,8 @@ class IconGenerationManager(
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = altPrompt.text
+        val altEdit = consumeAltEdit()
+        val resolved = altEdit?.edited ?: altPrompt.text
             .replace("@NAME@", prompt.name)
             .replace("@TITLE@", prompt.title)
         val key = internalPromptIconKey(prompt)
@@ -954,6 +1131,7 @@ class IconGenerationManager(
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
+        val altEdit = consumeAltEdit()
         appViewModel.updatePairIconFanOut(pairId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
@@ -971,7 +1149,7 @@ class IconGenerationManager(
             val metaPrompt = pair.metaPromptId?.let { mid ->
                 aiSettings.internalPrompts.firstOrNull { it.id == mid }
             }
-            val resolved = altPrompt.text
+            val resolved = altEdit?.edited ?: altPrompt.text
                 .replace("@QUESTION@", report.prompt)
                 .replace("@SOURCE_RESPONSE@", sourceAgent?.responseBody.orEmpty())
                 .replace("@META_PROMPT@", metaPrompt?.text.orEmpty())
@@ -1128,13 +1306,14 @@ class IconGenerationManager(
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
+        val altEdit = consumeAltEdit()
         appViewModel.updatePairTitleFanOut(pairId) {
             unique.map { TitleCandidate.Running(it.provider, it.model) }
         }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             val pair = SecondaryResultStorage.listForReport(context, reportId)
                 .firstOrNull { it.id == pairId } ?: return@launch
-            val resolved = altPrompt.text.replace("@RESPONSE@", pair.content.orEmpty())
+            val resolved = altEdit?.edited ?: altPrompt.text.replace("@RESPONSE@", pair.content.orEmpty())
             unique.forEach { item ->
                 launch {
                     fun place(c: TitleCandidate) = appViewModel.updatePairTitleFanOut(pairId) { list ->
@@ -1342,7 +1521,7 @@ class IconGenerationManager(
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = altPrompt.text.replace("@LANGUAGE@", language)
+        val resolved = consumeAltEdit()?.edited ?: altPrompt.text.replace("@LANGUAGE@", language)
         val key = translationIconKey(language)
         // Resolve the SecondaryResult that owns the per-row alt-cost
         // attribution for this (report, language) pair — the first
@@ -1527,7 +1706,7 @@ class IconGenerationManager(
         // fires one API call.
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = altPrompt.text.replace("@PROMPT@", promptText)
+        val resolved = consumeAltEdit()?.edited ?: altPrompt.text.replace("@PROMPT@", promptText)
         // Pre-populate Running rows so the Alternative icons screen
         // shows ⏳ for every pair the moment the screen opens, before
         // any throttle permit is acquired.
@@ -1668,7 +1847,7 @@ class IconGenerationManager(
         } ?: return
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = altPrompt.text.replace("@PROMPT@", promptText)
+        val resolved = consumeAltEdit()?.edited ?: altPrompt.text.replace("@PROMPT@", promptText)
         appViewModel.updateReportTitleFanOut(reportId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             unique.forEach { item ->
@@ -1688,11 +1867,12 @@ class IconGenerationManager(
         } ?: return
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
+        val altEdit = consumeAltEdit()
         appViewModel.updateAgentTitleFanOut(agentId) { unique.map { TitleCandidate.Running(it.provider, it.model) } }
         val outer = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
             val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@launch
-            val resolved = altPrompt.text.replace("@RESPONSE@", ra.responseBody.orEmpty())
+            val resolved = altEdit?.edited ?: altPrompt.text.replace("@RESPONSE@", ra.responseBody.orEmpty())
             unique.forEach { item ->
                 launch { runTitleCandidate(context, reportId, agentId, item, resolved, "alt/model_title", aiSettings, paramsIds, systemPromptId, altPrompt) }
             }
@@ -1818,7 +1998,7 @@ class IconGenerationManager(
         @Suppress("UNUSED_VARIABLE") val _unusedPrompt = promptText
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
-        val resolved = altLanguagePrompt.text.replace("@LANGUAGE@", languageName)
+        val resolved = consumeAltEdit()?.edited ?: altLanguagePrompt.text.replace("@LANGUAGE@", languageName)
         appViewModel.updateLanguageIconFanOut(reportId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
@@ -1948,6 +2128,7 @@ class IconGenerationManager(
         }
         val unique = models.distinctBy { "${it.provider.id}:${it.model}" }
         if (unique.isEmpty()) return
+        val altEdit = consumeAltEdit()
         appViewModel.updateAgentIconFanOut(agentId) {
             unique.map { IconCandidate.Running(it.provider, it.model) }
         }
@@ -1956,7 +2137,7 @@ class IconGenerationManager(
             val ra = report.agents.firstOrNull { it.agentId == agentId } ?: return@launch
             val reportPrompt = report.prompt
             val agentResponse = ra.responseBody.orEmpty()
-            val resolved = altPrompt.text
+            val resolved = altEdit?.edited ?: altPrompt.text
                 .replace("@PROMPT@", reportPrompt)
                 .replace("@RESPONSE@", agentResponse)
             unique.forEach { item ->

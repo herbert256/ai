@@ -550,6 +550,15 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Saver scoping", "rememberSaveable is keyed on the initial value so re-opening the overlay with a fresh seed doesn't restore a stale draft."),
         )
     ),
+    "report_find_alt_prompt" to HelpContent(
+        title = "Help - Edit prompt (Find alternative)",
+        cards = listOf(
+            HelpCard("Overview", "Every \"Find alternative …\" flow (titles, icons, translations) opens this step first, before you pick models. It shows the exact prompt that will be sent — with all @…@ markers already filled in from this report's data — so you can tweak the wording for just this run."),
+            HelpCard("Markers replaced", "The underlying alt template uses placeholders like @PROMPT@, @RESPONSE@, @LANGUAGE@, @QUESTION@. They're substituted with the real values here, so what you read is what the models receive. Editing the filled-in data region is allowed but usually you only tune the instruction."),
+            HelpCard("Next — pick models", "Tap Next to carry your edited prompt into the model picker; the fan-out then runs with your text. Back cancels the whole Find-alternative flow."),
+            HelpCard("Saved back to the template", "When your edits can be cleanly re-applied (the markers' values are still found verbatim), the edited wording is saved onto the alt template, so the next Find-alternative starts from your version. If you edited inside a data region — or a value was empty — it can't be re-abstracted safely, so it's used for this run only and the template is left untouched."),
+        )
+    ),
     "report_parameters" to HelpContent(
         title = "Help - Advanced Parameters",
         cards = listOf(

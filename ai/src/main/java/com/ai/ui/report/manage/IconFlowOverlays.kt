@@ -5,7 +5,10 @@ import androidx.compose.runtime.CompositionLocalProvider
 import com.ai.data.AppService
 import com.ai.model.ReportModel
 import com.ai.ui.shared.LocalNavigateToCurrentReport
+import com.ai.viewmodel.AltEditPayload
+import com.ai.viewmodel.AltPromptFlow
 import com.ai.viewmodel.IconCandidate
+import com.ai.viewmodel.ResolvedAltPrompt
 import com.ai.viewmodel.TitleCandidate
 import com.ai.viewmodel.UiState
 
@@ -43,6 +46,12 @@ internal fun ReportIconFlowOverlays(
     onNavigateToTraceFile: (String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
     continueChat: ContinueChatCallbacks,
+    /** Resolve a Find-alternative flow's alt prompt (markers replaced) for
+     *  the pre-pick "Edit prompt" screen. */
+    onResolveAltPrompt: suspend (AltPromptFlow) -> ResolvedAltPrompt?,
+    /** Stash the user's edited prompt (null = clear) so the next
+     *  start*FanOut consumes it. */
+    onStashAltEdit: (AltEditPayload?) -> Unit,
 ): Boolean {
     val currentReportId = uiState.currentReportId
     val aiSettings = uiState.aiSettings
@@ -76,6 +85,7 @@ internal fun ReportIconFlowOverlays(
             onCloseAll = {
                 st.showAlternativeIcons.value = false
                 st.showFindIconsPicker.value = false
+                st.altPromptEditorPassed.value = false
                 st.showIconDetail.value = false
                 st.agentIconDetailFor.value = null
                 st.fanOutTargetAgentId.value = null
@@ -89,11 +99,40 @@ internal fun ReportIconFlowOverlays(
             onRestartReopenPicker = {
                 st.findIconsModels.value = emptyList()
                 st.showAlternativeIcons.value = false
+                st.altPromptEditorPassed.value = false
                 st.showFindIconsPicker.value = true
             },
             onClose = { st.showAlternativeIcons.value = false }
         )
         return true
+    }
+
+    // Pre-pick "Edit prompt" — shown before the model picker for every
+    // Find-alternative flow. The user edits the resolved prompt (markers
+    // already replaced); Next advances to the picker.
+    if (st.showFindIconsPicker.value && !st.altPromptEditorPassed.value && currentReportId != null) {
+        val flow = altFlowFor(st, uiState, currentReportId)
+        if (flow == null) {
+            st.altPromptEditorPassed.value = true
+        } else {
+            CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides runtime.effectiveReportIcon,
+                com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
+                LocalNavigateToCurrentReport provides { cancelFindAltFlow(st, onStashAltEdit) }
+            ) {
+                FindAltPromptEditorScreen(
+                    flow = flow,
+                    aiSettings = aiSettings,
+                    onResolve = onResolveAltPrompt,
+                    onNext = { payload ->
+                        onStashAltEdit(payload)
+                        st.altPromptEditorPassed.value = true
+                    },
+                    onBack = { cancelFindAltFlow(st, onStashAltEdit) }
+                )
+            }
+            return true
+        }
     }
 
     if (st.showFindIconsPicker.value && currentReportId != null) {
@@ -102,6 +141,7 @@ internal fun ReportIconFlowOverlays(
             com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
             LocalNavigateToCurrentReport provides {
                 st.pickerTarget.value = PickerTarget.NEW_REPORT
+                st.altPromptEditorPassed.value = false
                 st.showFindIconsPicker.value = false
                 st.showIconDetail.value = false
                 st.agentIconDetailFor.value = null
@@ -169,6 +209,7 @@ internal fun ReportIconFlowOverlays(
                     st.findIconsModels.value = emptyList()
                     st.pickerTarget.value = PickerTarget.NEW_REPORT
                     st.showFindIconsPicker.value = false
+                    st.altPromptEditorPassed.value = false
                     if (st.findTitlesFor.value != null || st.pairTitleDetailFor.value != null) {
                         st.showAlternativeTitles.value = true
                     } else {
@@ -178,6 +219,7 @@ internal fun ReportIconFlowOverlays(
                 onBack = {
                     st.pickerTarget.value = PickerTarget.NEW_REPORT
                     st.showFindIconsPicker.value = false
+                    st.altPromptEditorPassed.value = false
                     st.findTitlesFor.value = null
                     st.findTitlesLong.value = false
                     st.pairTitleDetailFor.value = null
@@ -206,6 +248,7 @@ internal fun ReportIconFlowOverlays(
                     onRestartPairTitleFanOut(currentReportId, pairTitleId)
                     st.findIconsModels.value = emptyList()
                     st.showAlternativeTitles.value = false
+                    st.altPromptEditorPassed.value = false
                     st.showFindIconsPicker.value = true
                 },
                 onBack = {
@@ -242,6 +285,7 @@ internal fun ReportIconFlowOverlays(
                 }
                 st.findIconsModels.value = emptyList()
                 st.showAlternativeTitles.value = false
+                st.altPromptEditorPassed.value = false
                 st.showFindIconsPicker.value = true
             },
             onBack = {
@@ -398,4 +442,50 @@ internal fun ReportIconFlowOverlays(
     }
 
     return false
+}
+
+/** Map the active Find-alternative picker flags to the flow whose alt
+ *  prompt the pre-pick editor resolves. Mirrors `FindIconsPickerRouter`'s
+ *  routing precedence exactly so the editor edits the same call the picker
+ *  will fire. */
+private fun altFlowFor(st: ReportsScreenState, uiState: UiState, reportId: String): AltPromptFlow? {
+    val promptText = uiState.genericPromptText
+    return when {
+        st.pairTitleDetailFor.value != null ->
+            AltPromptFlow.PairTitle(reportId, st.pairTitleDetailFor.value!!)
+        st.findTitlesFor.value != null -> {
+            val target = st.findTitlesFor.value!!
+            if (target == "report") AltPromptFlow.ReportTitle(reportId, promptText, st.findTitlesLong.value)
+            else AltPromptFlow.ModelTitle(reportId, target)
+        }
+        st.promptIconDetailForId.value != null ->
+            AltPromptFlow.MetaIcon(st.promptIconDetailForId.value!!)
+        st.targetLanguageIcon.value ->
+            AltPromptFlow.LanguageIcon(reportId)
+        st.translationIconLanguageFor.value != null ->
+            AltPromptFlow.TranslationIcon(st.translationIconLanguageFor.value!!)
+        st.pairIconDetailFor.value != null ->
+            AltPromptFlow.PairIcon(reportId, st.pairIconDetailFor.value!!)
+        st.fanOutTargetAgentId.value != null ->
+            AltPromptFlow.AgentIcon(reportId, st.fanOutTargetAgentId.value!!)
+        else -> AltPromptFlow.ReportIcon(reportId, promptText)
+    }
+}
+
+/** Cancel the whole Find-alternative flow from the pre-pick editor —
+ *  drop the picker + every target flag and clear any stashed edit. */
+private fun cancelFindAltFlow(st: ReportsScreenState, onStashAltEdit: (AltEditPayload?) -> Unit) {
+    st.showFindIconsPicker.value = false
+    st.altPromptEditorPassed.value = false
+    st.pickerTarget.value = PickerTarget.NEW_REPORT
+    st.findTitlesFor.value = null
+    st.findTitlesLong.value = false
+    st.pairTitleDetailFor.value = null
+    st.fanOutTargetAgentId.value = null
+    st.promptIconDetailForId.value = null
+    st.metaRowIdForPromptIcon.value = null
+    st.translationIconLanguageFor.value = null
+    st.pairIconDetailFor.value = null
+    st.targetLanguageIcon.value = false
+    onStashAltEdit(null)
 }

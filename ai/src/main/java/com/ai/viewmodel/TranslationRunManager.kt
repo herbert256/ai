@@ -909,7 +909,7 @@ class TranslationRunManager(
         val rawTemplate = prompt?.text?.takeIf { it.isNotBlank() }
             ?: if (isTitleKind) DEFAULT_TRANSLATE_TITLE_TEMPLATE else ""
         if (rawTemplate.isBlank()) return
-        val resolved = if (isTitleKind)
+        val resolved = rvm.iconGen.consumeAltEdit()?.edited ?: if (isTitleKind)
             rawTemplate.replace("@LANGUAGE@", targetLanguageName).replace("@TITLE@", sourceText)
         else
             rawTemplate.replace("@LANGUAGE@", targetLanguageName).replace("@TEXT@", sourceText)

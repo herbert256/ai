@@ -45,9 +45,12 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.LocalNavigateToCurrentReport
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
+import com.ai.viewmodel.AltEditPayload
+import com.ai.viewmodel.AltPromptFlow
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.IconCandidate
 import com.ai.viewmodel.ReportViewModel
+import com.ai.viewmodel.ResolvedAltPrompt
 import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
@@ -158,6 +161,11 @@ fun ReportsScreen(
     onPickPairTitle: (reportId: String, pairId: String, title: String) -> Unit = { _, _, _ -> },
     onRestartPairTitleFanOut: (reportId: String, pairId: String) -> Unit = { _, _ -> },
     pairTitleFanOutByPair: Map<String, List<com.ai.viewmodel.TitleCandidate>> = emptyMap(),
+    /** Find-alternative pre-pick "Edit prompt" support: resolve a flow's
+     *  alt prompt (markers replaced) for the editor, and stash the user's
+     *  edited text (null = clear) for the next start*FanOut to consume. */
+    onResolveAltPrompt: suspend (AltPromptFlow) -> ResolvedAltPrompt? = { null },
+    onStashAltEdit: (AltEditPayload?) -> Unit = { },
     /** Navigate to the surrounding AI report on disk — sorted
      *  newest-first like the hub. hasPrevReport / hasNextReport
      *  gate the chevron icons' enabled state. */
@@ -487,6 +495,7 @@ fun ReportsScreen(
     var fanOutViewName by st.fanOutViewName
     var fanOutViewLanguage by st.fanOutViewLanguage
     var showEditPrompt by st.showEditPrompt
+    var altPromptEditorPassed by st.altPromptEditorPassed
     var showGetInfo by st.showGetInfo
     var showEditParameters by st.showEditParameters
     var showAdvancedParameters by st.showAdvancedParameters
@@ -761,7 +770,9 @@ fun ReportsScreen(
                 onCurrent = onContinueWithCurrent,
                 onAgentPicker = onContinueWithAgentPicker,
                 onOnTheFly = onContinueWithOnTheFly,
-            )
+            ),
+            onResolveAltPrompt = onResolveAltPrompt,
+            onStashAltEdit = onStashAltEdit,
         )
     ) return
 
@@ -1225,6 +1236,7 @@ fun ReportsScreen(
                             isTitleKind = isTitle, sourceText = src, traceType = traceType,
                             targetLanguageName = lang, persistedRowId = rowId
                         )
+                        altPromptEditorPassed = false
                         showAltTranslatePicker = true
                     }
                 ),
@@ -1240,11 +1252,30 @@ fun ReportsScreen(
     // model sub-pickers (SelectionOverlayDialogs) already render above
     // this point and fall back here on dismiss.
     val altTgt = altTranslateTarget
+    // Pre-pick "Edit prompt" for Find-alternative-translation — shown
+    // before the model picker, like every other find-alt flow.
+    if (altTgt != null && showAltTranslatePicker && !altPromptEditorPassed && currentReportId != null) {
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
+            LocalNavigateToCurrentReport provides { altTranslateTarget = null; showAltTranslatePicker = false; altPromptEditorPassed = false; translationModels = emptyList(); onStashAltEdit(null) },
+            com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null
+        ) {
+            FindAltPromptEditorScreen(
+                flow = AltPromptFlow.TranslationText(altTgt.isTitleKind, altTgt.targetLanguageName, altTgt.sourceText),
+                aiSettings = aiSettings,
+                onResolve = onResolveAltPrompt,
+                onNext = { payload -> onStashAltEdit(payload); altPromptEditorPassed = true },
+                onBack = { altTranslateTarget = null; showAltTranslatePicker = false; altPromptEditorPassed = false; translationModels = emptyList(); onStashAltEdit(null) }
+            )
+        }
+        return
+    }
     if (altTgt != null && showAltTranslatePicker && currentReportId != null) {
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
-            LocalNavigateToCurrentReport provides { altTranslateTarget = null; showAltTranslatePicker = false; translationModels = emptyList() },
+            LocalNavigateToCurrentReport provides { altTranslateTarget = null; showAltTranslatePicker = false; altPromptEditorPassed = false; translationModels = emptyList() },
             com.ai.ui.shared.LocalCurrentReportIdForSwipe provides null
         ) {
             ModelSelectionScreen(
@@ -1267,15 +1298,17 @@ fun ReportsScreen(
                     onStartAltTranslationFanOut(altTgt.reportId, altTgt.itemId, altTgt.targetLanguageName, altTgt.isTitleKind, altTgt.sourceText, altTgt.traceType, translationModels, emptyList(), null)
                     translationModels = emptyList()
                     pickerTarget = PickerTarget.NEW_REPORT
+                    altPromptEditorPassed = false
                     showAltTranslatePicker = false
                 },
                 onActionWithParams = { pIds, spId ->
                     onStartAltTranslationFanOut(altTgt.reportId, altTgt.itemId, altTgt.targetLanguageName, altTgt.isTitleKind, altTgt.sourceText, altTgt.traceType, translationModels, pIds, spId)
                     translationModels = emptyList()
                     pickerTarget = PickerTarget.NEW_REPORT
+                    altPromptEditorPassed = false
                     showAltTranslatePicker = false
                 },
-                onBack = { altTranslateTarget = null; showAltTranslatePicker = false; translationModels = emptyList() }
+                onBack = { altTranslateTarget = null; showAltTranslatePicker = false; altPromptEditorPassed = false; translationModels = emptyList() }
             )
         }
         return

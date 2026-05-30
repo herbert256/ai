@@ -68,6 +68,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "report_edit_prompt" to listOf("help_glossary_operations"),
     "report_edit_short_title" to listOf("help_glossary_operations"),
     "report_edit_long_title" to listOf("help_glossary_operations"),
+    "report_find_alt_prompt" to listOf("help_glossary_operations"),
     "report_parameters" to listOf("help_glossary_blocks", "concepts"),
     "report_export" to listOf("help_glossary_operations", "help_privacy", "help_translations"),
     "report_manage" to listOf("help_glossary_operations", "help_costs", "concepts"),

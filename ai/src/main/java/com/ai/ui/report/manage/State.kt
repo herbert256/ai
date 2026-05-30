@@ -97,6 +97,10 @@ internal class ReportsScreenState(
     val showEditPrompt: MutableState<Boolean>,
     val showEditShortTitle: MutableState<Boolean>,
     val showEditLongTitle: MutableState<Boolean>,
+    /** Find-alternative flow: false = show the pre-pick "Edit prompt"
+     *  screen, true = the user passed it (Next) so the model picker shows.
+     *  Reset to false whenever a find-alt flow opens / closes. */
+    val altPromptEditorPassed: MutableState<Boolean>,
     val showGetInfo: MutableState<Boolean>,
     /** The "Edit report" overview + its two child list screens, all drawn
      *  as layer-on-top overlays in [ReportRunScreen] (like showGetInfo). */
@@ -184,6 +188,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val showEditPrompt = rememberSaveable { mutableStateOf(false) }
     val showEditShortTitle = rememberSaveable { mutableStateOf(false) }
     val showEditLongTitle = rememberSaveable { mutableStateOf(false) }
+    val altPromptEditorPassed = rememberSaveable { mutableStateOf(false) }
     val showGetInfo = rememberSaveable { mutableStateOf(false) }
     val showEditReportOverview = rememberSaveable { mutableStateOf(false) }
     val showEditIconsList = rememberSaveable { mutableStateOf(false) }
@@ -265,6 +270,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         showEditPrompt,
         showEditShortTitle,
         showEditLongTitle,
+        altPromptEditorPassed,
         showGetInfo,
         showEditReportOverview,
         showEditIconsList,
