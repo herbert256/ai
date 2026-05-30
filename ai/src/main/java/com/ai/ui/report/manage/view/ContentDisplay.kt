@@ -976,35 +976,13 @@ fun ReportCostTable(report: Report, onShowAllApi: () -> Unit = {}) {
         // (and the deleted-items orange line) so we don't double-
         // count across the two sections. Per-call detail lives on a
         // dedicated screen reached via the button below.
-        CostRowSection(
-            label = "By type",
-            rows = data.byType,
-            columnLabels = listOf("Type", "Calls", "Tokens", "Total"),
-            columnWeights = listOf(1.7f, 0.8f, 1.3f, 1.2f),
-            keyExtractors = listOf(
-                { (it as GroupTotal).key },
-                { (it as GroupTotal).calls },
-                { (it as GroupTotal).let { g -> g.inputTokens + g.outputTokens } },
-                { (it as GroupTotal).let { g -> g.inputCents + g.outputCents } },
-            ),
-            renderCells = { g ->
-                listOf(
-                    CostCell(g.key, costTypeColor(g.key), mono = false, end = false, weight = 1.7f),
-                    CostCell(g.calls.toString(), Color.White, mono = true, end = true, weight = 0.8f),
-                    CostCell("%,d".format(g.inputTokens + g.outputTokens), Color.White, mono = true, end = true, weight = 1.3f),
-                    CostCell("%.2f ¢".format(g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = 1.2f),
-                )
-            },
-            onRowTap = { g -> popup = CostPopup.TypeGroup(g) },
-            defaultSortColumn = 3,
-            defaultSortDescending = true,
-            totalsCells = listOf(
-                CostCell("Total", tColor, mono = false, end = false, weight = 1.7f, bold = true),
-                CostCell(data.rows.size.toString(), tColor, mono = true, end = true, weight = 0.8f, bold = true),
-                CostCell("%,d".format(data.rows.sumOf { it.inputTokens + it.outputTokens }), tColor, mono = true, end = true, weight = 1.3f, bold = true),
-                CostCell("%.2f ¢".format(data.totalInC + data.totalOutC + data.deletedCents), tColor, mono = true, end = true, weight = 1.2f, bold = true),
-            ),
+        CostTypeGroupedSection(
+            byType = data.byType,
+            totalRows = data.rows.size,
+            totalTokens = data.rows.sumOf { it.inputTokens + it.outputTokens },
+            totalCents = data.totalInC + data.totalOutC + data.deletedCents,
             deletedCents = data.deletedCents,
+            onMemberTap = { g -> popup = CostPopup.TypeGroup(g) },
         )
         CostRowSection(
             label = "By model",
@@ -1348,6 +1326,115 @@ private fun <T> CostRowSection(
             ) {
                 totalsCells.forEach { c -> CostCellText(c) }
             }
+        }
+    }
+}
+
+/** Per-prefix rollup for the collapsible "By type" section: every cost
+ *  type ("<prefix>/<rest>") folded under its prefix. */
+private data class PrefixGroup(
+    val prefix: String,
+    val members: List<GroupTotal>,
+    val calls: Int,
+    val inputTokens: Int, val outputTokens: Int,
+    val inputCents: Double, val outputCents: Double,
+)
+
+/** "By type" cost list grouped by the prefix before '/'. Each prefix is a
+ *  collapsed header carrying its rolled-up calls/tokens/cost; tapping it
+ *  reveals the member type rows indented underneath, each of which still
+ *  taps through to its per-call breakdown popup. */
+@Composable
+private fun CostTypeGroupedSection(
+    byType: List<GroupTotal>,
+    totalRows: Int,
+    totalTokens: Int,
+    totalCents: Double,
+    deletedCents: Double,
+    onMemberTap: (GroupTotal) -> Unit,
+) {
+    if (byType.isEmpty()) return
+    val tColor = AppColors.Blue
+    val weights = listOf(1.7f, 0.8f, 1.3f, 1.2f)
+    val groups = remember(byType) {
+        byType.groupBy { it.key.substringBefore('/') }
+            .map { (prefix, members) ->
+                PrefixGroup(
+                    prefix = prefix,
+                    members = members.sortedByDescending { it.inputCents + it.outputCents },
+                    calls = members.sumOf { it.calls },
+                    inputTokens = members.sumOf { it.inputTokens },
+                    outputTokens = members.sumOf { it.outputTokens },
+                    inputCents = members.sumOf { it.inputCents },
+                    outputCents = members.sumOf { it.outputCents },
+                )
+            }.sortedByDescending { it.inputCents + it.outputCents }
+    }
+    val expanded = remember { mutableStateMapOf<String, Boolean>() }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "By type · ${groups.size}",
+            fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 2.dp)
+        )
+        // Static column headers — grouping replaces the per-column sort here.
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            listOf("Type", "Calls", "Tokens", "Total").forEachIndexed { i, lbl ->
+                Text(
+                    lbl, fontSize = 11.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.SemiBold,
+                    textAlign = if (i == 0) androidx.compose.ui.text.style.TextAlign.Start
+                                else androidx.compose.ui.text.style.TextAlign.End,
+                    modifier = Modifier.weight(weights[i]).padding(vertical = 3.dp)
+                )
+            }
+        }
+        HorizontalDivider(color = AppColors.TextDim.copy(alpha = 0.25f))
+        groups.forEach { g ->
+            val isOpen = expanded[g.prefix] == true
+            // Group header — tap toggles expand/collapse.
+            Row(
+                modifier = Modifier.fillMaxWidth()
+                    .clickable { expanded[g.prefix] = !isOpen }
+                    .padding(vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                CostCellText(CostCell("${if (isOpen) "▾" else "▸"} ${g.prefix}", costTypeColor(g.prefix), mono = false, end = false, weight = weights[0], bold = true))
+                CostCellText(CostCell(g.calls.toString(), Color.White, mono = true, end = true, weight = weights[1]))
+                CostCellText(CostCell("%,d".format(g.inputTokens + g.outputTokens), Color.White, mono = true, end = true, weight = weights[2]))
+                CostCellText(CostCell("%.2f ¢".format(g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = weights[3]))
+            }
+            // Members — indented; tap opens that type's per-call breakdown.
+            if (isOpen) {
+                g.members.forEach { m ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable { onMemberTap(m) }
+                            .padding(vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CostCellText(CostCell("      ${m.key}", costTypeColor(m.key), mono = false, end = false, weight = weights[0]))
+                        CostCellText(CostCell(m.calls.toString(), Color.White, mono = true, end = true, weight = weights[1]))
+                        CostCellText(CostCell("%,d".format(m.inputTokens + m.outputTokens), Color.White, mono = true, end = true, weight = weights[2]))
+                        CostCellText(CostCell("%.2f ¢".format(m.inputCents + m.outputCents), tColor, mono = true, end = true, weight = weights[3]))
+                    }
+                }
+            }
+            HorizontalDivider(color = AppColors.TextDim.copy(alpha = 0.15f))
+        }
+        // Deleted-items line (dropped cost) + grand total.
+        if (deletedCents > 0.0) {
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("deleted", fontSize = 11.sp, color = AppColors.Orange, fontStyle = FontStyle.Italic, modifier = Modifier.weight(weights[0]))
+                Spacer(modifier = Modifier.weight(weights[1] + weights[2]))
+                Text("+%.2f ¢".format(deletedCents), fontSize = 11.sp, color = AppColors.Orange, fontFamily = FontFamily.Monospace,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.weight(weights[3]))
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            CostCellText(CostCell("Total", tColor, mono = false, end = false, weight = weights[0], bold = true))
+            CostCellText(CostCell(totalRows.toString(), tColor, mono = true, end = true, weight = weights[1], bold = true))
+            CostCellText(CostCell("%,d".format(totalTokens), tColor, mono = true, end = true, weight = weights[2], bold = true))
+            CostCellText(CostCell("%.2f ¢".format(totalCents), tColor, mono = true, end = true, weight = weights[3], bold = true))
         }
     }
 }
