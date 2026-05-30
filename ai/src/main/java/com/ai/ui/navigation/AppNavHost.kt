@@ -625,6 +625,96 @@ internal suspend fun readReportAgentResponse(
     agent.responseBody?.takeIf { it.isNotBlank() }
 }
 
+/** Build a fresh ChatSession seeded from a META secondary result so
+ *  the user can continue the analysis conversationally instead of
+ *  copy-pasting it into a separate chat. The originating report's
+ *  prompt and every agent response ride along as hidden system-prompt
+ *  context; the meta prose itself becomes the assistant's visible
+ *  first turn, so the thread reads "here's the comparison — now ask
+ *  me about it". Persisted via [com.ai.data.ChatHistoryManager];
+ *  returns the new session id for AI_CHAT_CONTINUE, or null if the
+ *  report/row is gone or no provider/model resolves.
+ *
+ *  Provider/model default to the model that produced the meta row (it
+ *  already holds the analysis context); if that provider has since
+ *  been removed we fall back to the first report agent whose provider
+ *  still resolves. [activeLanguage] picks a translated META body when
+ *  the user is viewing a non-Original language. The new session is
+ *  independent of the source report. */
+internal suspend fun continueMetaInChat(
+    context: android.content.Context,
+    reportId: String,
+    resultId: String,
+    activeLanguage: String?
+): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return@withContext null
+    val row = com.ai.data.SecondaryResultStorage.get(context, reportId, resultId)
+        ?: return@withContext null
+
+    // Body: the active-language translation if the user is viewing one,
+    // else the meta row's own (Original) content.
+    val metaBody = (activeLanguage
+        ?.takeIf { it.isNotBlank() }
+        ?.let { lang ->
+            com.ai.data.SecondaryResultStorage
+                .listForReport(context, reportId, com.ai.data.SecondaryKind.TRANSLATE)
+                .firstOrNull {
+                    it.translateSourceKind == "META" &&
+                        it.translateSourceTargetId == resultId &&
+                        it.targetLanguage == lang &&
+                        !it.content.isNullOrBlank()
+                }?.content
+        }
+        ?: row.content)?.takeIf { it.isNotBlank() } ?: return@withContext null
+
+    // Prefer the model that produced the meta; fall back to the first
+    // report agent whose provider still resolves.
+    val rowProvider = AppService.findById(row.providerId)
+    val (provider, model) = if (rowProvider != null && !row.model.isNullOrBlank()) {
+        rowProvider to row.model!!
+    } else {
+        val fallback = report.agents.firstOrNull {
+            AppService.findById(it.provider) != null && !it.responseBody.isNullOrBlank()
+        }
+        val fp = fallback?.let { AppService.findById(it.provider) }
+        if (fp != null) fp to fallback.model else return@withContext null
+    }
+
+    val responsesBlock = report.agents
+        .filter { !it.responseBody.isNullOrBlank() }
+        .joinToString("\n\n---\n\n") { a ->
+            "## ${com.ai.ui.shared.shortModelName(a.model)}\n${a.responseBody}"
+        }
+    val metaName = row.metaPromptName?.takeIf { it.isNotBlank() } ?: "meta-analysis"
+    val systemPrompt = buildString {
+        appendLine("You are continuing a multi-model analysis from one of the user's reports.")
+        appendLine()
+        appendLine("ORIGINAL PROMPT")
+        appendLine(report.prompt)
+        appendLine()
+        appendLine("MODEL RESPONSES")
+        appendLine(responsesBlock)
+        appendLine()
+        append("You produced the \"$metaName\" analysis shown to the user as your first message. ")
+        append("Answer the user's follow-up questions about it — drill into specifics, ")
+        append("justify or revise points, and compare the responses as asked.")
+    }
+
+    val now = System.currentTimeMillis()
+    val session = com.ai.data.ChatSession(
+        provider = provider,
+        model = model,
+        messages = listOf(
+            com.ai.data.ChatMessage(role = "assistant", content = metaBody, timestamp = now)
+        ),
+        parameters = com.ai.data.ChatParameters(systemPrompt = systemPrompt),
+        createdAt = now,
+        updatedAt = now,
+        title = "💬 $metaName"
+    )
+    if (com.ai.data.ChatHistoryManager.saveSession(session)) session.id else null
+}
+
 /** Wraps the four standalone Jetpack-Nav View screens
  *  (ModelInfoView / AgentView / FlockView / SwarmView) in a
  *  CompositionLocalProvider that exposes a "navigate to main View
