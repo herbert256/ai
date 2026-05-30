@@ -162,7 +162,8 @@ fun AiLiveDashboardScreen(
             item { CollapsibleCard("slow", "🐌", "Slowest calls", AppColors.Orange, open, toggle) { SlowestCallsBody() } }
             item { CollapsibleCard("throttle", "🌐", "Provider throttle", AppColors.Blue, open, toggle) { ThrottleBody(appViewModel, reportViewModel, onOpenTraceFilter) } }
             item { CollapsibleCard("cooldowns", "❄️", "Model cooldowns", AppColors.Orange, open, toggle) { CooldownBody() } }
-            item { CollapsibleCard("test", "🧪", "Test all models", AppColors.Purple, open, toggle) { TestRunBody(reportViewModel) } }
+            item { CollapsibleCard("test", "🧪", "Test all models", AppColors.Purple, open, toggle) { TestRunBody(reportViewModel, context) } }
+            item { CollapsibleCard("stress", "🔥", "Stress test", AppColors.Red, open, toggle) { StressTestBody(reportViewModel) } }
             item { CollapsibleCard("local", "🧠", "Local runtime", AppColors.Purple, open, toggle) { LocalRuntimeBody() } }
             item { CollapsibleCard("health", "🩺", "System health", AppColors.Green, open, toggle) { HealthBody(context) } }
             item { Spacer(Modifier.height(24.dp)) }
@@ -1681,8 +1682,13 @@ private fun CooldownBody() {
 }
 
 @Composable
-private fun TestRunBody(reportViewModel: ReportViewModel) {
+private fun TestRunBody(reportViewModel: ReportViewModel, context: android.content.Context) {
     val tick = rememberLiveTick()
+    // The run lives in memory only after startRun (this session) or hydrate
+    // (restored from disk). The Test screen hydrates on open; mirror it here
+    // so the card reflects a persisted / resumed run even if the user hasn't
+    // reopened the Test screen. No-op once a run is in memory.
+    LaunchedEffect(Unit) { reportViewModel.modelTestEngine.hydrate(context) }
     val run by reportViewModel.modelTestEngine.run.collectAsState()
     val now = remember(tick) { System.currentTimeMillis() }
     val r = run
@@ -1700,6 +1706,37 @@ private fun TestRunBody(reportViewModel: ReportViewModel) {
     KeyVal("Queued", "${r.queuedCount}")
     KeyVal("Cost", money(r.totalCost), AppColors.Green)
     KeyVal("Elapsed", fmtDuration(now - r.startedAt))
+}
+
+/** Cumulative stress-test activity this session. The stress run is fire-and-
+ *  forget — it submits one report per Example Prompt, then those generate in
+ *  the background like any report — so this shows the submit status plus how
+ *  many runs / reports were launched and how long ago. Lightweight (in-memory
+ *  engine state only). */
+@Composable
+private fun StressTestBody(reportViewModel: ReportViewModel) {
+    val tick = rememberLiveTick()
+    val engine = reportViewModel.stressTestEngine
+    val state by engine.state.collectAsState()
+    val tracked by engine.tracked.collectAsState()
+    val now = remember(tick) { System.currentTimeMillis() }
+    val running = remember(tick) { engine.isRunning }
+    if (state == null && tracked.runCount == 0) {
+        Text("No stress test this session.", fontSize = 12.sp, color = AppColors.TextTertiary)
+        return
+    }
+    val isError = state?.phase == com.ai.viewmodel.StressTestEngine.Phase.ERROR
+    val (statusWord, statusColor) = when {
+        running -> "submitting" to AppColors.Orange
+        isError -> "error" to AppColors.Red
+        else -> "submitted — generating in background" to AppColors.Green
+    }
+    KeyVal("Status", statusWord, statusColor)
+    if (isError) state?.errorMessage?.let { Text(it, fontSize = 11.sp, color = AppColors.Red) }
+    KeyVal("Runs this session", "${tracked.runCount}")
+    KeyVal("Reports launched", "${tracked.reportIds.size}")
+    if (tracked.firstStartedAt > 0L) KeyVal("Since first run", fmtDuration(now - tracked.firstStartedAt))
+    if (tracked.lastStartedAt > 0L && tracked.runCount > 1) KeyVal("Since last run", fmtDuration(now - tracked.lastStartedAt))
 }
 
 @Composable
