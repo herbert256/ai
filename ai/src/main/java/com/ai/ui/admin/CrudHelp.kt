@@ -151,6 +151,16 @@ internal val crudHelp: Map<String, HelpContent> = mapOf(
             "The behind-the-scenes prompts the app uses for its own helper steps — " +
                 "meta prompts, fan-out, rerank, moderation, translation and titling. " +
                 "Edit these to change how those automatic operations behave."
+        ),
+        HelpCard(
+            "Workers (fallback chain)",
+            "A \"workers\"-category prompt (report icon, title, language, model " +
+                "title / icon, fan-meta) runs an ordered fallback chain: each worker " +
+                "is tried in random order until one succeeds. A worker is one of four " +
+                "kinds — a Model (provider + model), an Agent, a Flock (every member " +
+                "agent joins the chain), or a Swarm (every member provider/model joins " +
+                "the chain). So one Flock or Swarm entry adds all of its members as " +
+                "independent fallbacks."
         )
     ),
     "crud_system_prompts" to crud(

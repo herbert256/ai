@@ -137,7 +137,12 @@ fun InternalPromptCrud(
             CrudField("Category", categoryDisplayName(m.item.category))
             if (m.item.workers.isNotEmpty())
                 CrudField("Workers", m.item.workers.mapIndexed { i, w ->
-                    val pick = if (w.agent != "*N/A" && w.agent.isNotBlank()) w.agent else "${w.provider} / ${w.model}"
+                    val pick = when {
+                        w.flock != "*N/A" && w.flock.isNotBlank() -> "Flock: ${w.flock}"
+                        w.swarm != "*N/A" && w.swarm.isNotBlank() -> "Swarm: ${w.swarm}"
+                        w.agent != "*N/A" && w.agent.isNotBlank() -> w.agent
+                        else -> "${w.provider} / ${w.model}"
+                    }
                     "${i + 1}. $pick"
                 }.joinToString("\n"))
             else if (!m.item.provider.isNullOrBlank() && !m.item.model.isNullOrBlank())

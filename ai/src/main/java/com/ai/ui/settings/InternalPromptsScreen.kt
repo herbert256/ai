@@ -506,8 +506,18 @@ private fun WorkerRowEditor(
     onChange: (Worker) -> Unit,
     onRemove: () -> Unit
 ) {
-    val pmMode = worker.agent == "*N/A"
+    // Four kinds, told apart by which field is set. A fresh Agent worker
+    // uses agent="*select" (AGENT_SELECT), so agent != "*N/A" ⇒ agent kind;
+    // flock/swarm use the same "*select" placeholder until one is picked.
+    val kind = when {
+        worker.flock != "*N/A" && worker.flock.isNotBlank() -> "flock"
+        worker.swarm != "*N/A" && worker.swarm.isNotBlank() -> "swarm"
+        worker.agent != "*N/A" -> "agent"
+        else -> "model"
+    }
     var agentMenuOpen by remember { mutableStateOf(false) }
+    var flockMenuOpen by remember { mutableStateOf(false) }
+    var swarmMenuOpen by remember { mutableStateOf(false) }
     var providerDialogOpen by remember { mutableStateOf(false) }
     var modelDialogOpen by remember { mutableStateOf(false) }
     val providerId = worker.provider.takeIf { it != "*N/A" } ?: ""
@@ -524,18 +534,28 @@ private fun WorkerRowEditor(
             }
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 SegmentedButton(
-                    selected = !pmMode,
-                    onClick = { onChange(Worker(agent = AGENT_SELECT)) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-                ) { Text("Agent", fontSize = 13.sp) }
-                SegmentedButton(
-                    selected = pmMode,
+                    selected = kind == "model",
                     onClick = { onChange(Worker(agent = "*N/A")) },
-                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-                ) { Text("Provider + Model", fontSize = 13.sp) }
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 4)
+                ) { Text("Model", fontSize = 12.sp) }
+                SegmentedButton(
+                    selected = kind == "agent",
+                    onClick = { onChange(Worker(agent = AGENT_SELECT)) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 4)
+                ) { Text("Agent", fontSize = 12.sp) }
+                SegmentedButton(
+                    selected = kind == "flock",
+                    onClick = { onChange(Worker(agent = "*N/A", flock = AGENT_SELECT)) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 2, count = 4)
+                ) { Text("Flock", fontSize = 12.sp) }
+                SegmentedButton(
+                    selected = kind == "swarm",
+                    onClick = { onChange(Worker(agent = "*N/A", swarm = AGENT_SELECT)) },
+                    shape = SegmentedButtonDefaults.itemShape(index = 3, count = 4)
+                ) { Text("Swarm", fontSize = 12.sp) }
             }
-            if (!pmMode) {
-                Box {
+            when (kind) {
+                "agent" -> Box {
                     OutlinedButton(
                         onClick = { agentMenuOpen = true },
                         modifier = Modifier.fillMaxWidth(),
@@ -565,31 +585,92 @@ private fun WorkerRowEditor(
                         }
                     }
                 }
-            } else {
-                OutlinedButton(
-                    onClick = { providerDialogOpen = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = AppColors.outlinedButtonColors()
-                ) {
-                    Text(
-                        providerId.ifBlank { "Select provider…" }, modifier = Modifier.weight(1f), fontSize = 13.sp,
-                        color = if (providerId.isBlank()) AppColors.TextTertiary else Color.White,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Text("▾", color = AppColors.TextTertiary)
+                "flock" -> Box {
+                    val chosen = worker.flock != AGENT_SELECT
+                    OutlinedButton(
+                        onClick = { flockMenuOpen = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedButtonColors()
+                    ) {
+                        Text(
+                            if (chosen) worker.flock else "Select flock…", modifier = Modifier.weight(1f), fontSize = 13.sp,
+                            color = if (chosen) Color.White else AppColors.TextTertiary,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text("▾", color = AppColors.TextTertiary)
+                    }
+                    DropdownMenu(
+                        expanded = flockMenuOpen,
+                        onDismissRequest = { flockMenuOpen = false },
+                        modifier = Modifier.background(Color(0xFF2D2D2D))
+                    ) {
+                        if (aiSettings.flocks.isEmpty()) {
+                            DropdownMenuItem(text = { Text("No flocks defined", fontSize = 13.sp, color = AppColors.TextTertiary) }, onClick = { flockMenuOpen = false })
+                        }
+                        aiSettings.flocks.sortedBy { it.name.lowercase() }.forEach { f ->
+                            DropdownMenuItem(
+                                text = { Text(f.name, fontSize = 13.sp, color = if (worker.flock == f.name) AppColors.Blue else Color.White) },
+                                onClick = { onChange(Worker(agent = "*N/A", flock = f.name)); flockMenuOpen = false }
+                            )
+                        }
+                    }
                 }
-                OutlinedButton(
-                    onClick = { modelDialogOpen = true },
-                    enabled = providerId.isNotBlank(),
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = AppColors.outlinedButtonColors()
-                ) {
-                    Text(
-                        model.ifBlank { "Select model…" }, modifier = Modifier.weight(1f), fontSize = 13.sp,
-                        color = if (model.isBlank()) AppColors.TextTertiary else Color.White,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Text("▾", color = AppColors.TextTertiary)
+                "swarm" -> Box {
+                    val chosen = worker.swarm != AGENT_SELECT
+                    OutlinedButton(
+                        onClick = { swarmMenuOpen = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedButtonColors()
+                    ) {
+                        Text(
+                            if (chosen) worker.swarm else "Select swarm…", modifier = Modifier.weight(1f), fontSize = 13.sp,
+                            color = if (chosen) Color.White else AppColors.TextTertiary,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text("▾", color = AppColors.TextTertiary)
+                    }
+                    DropdownMenu(
+                        expanded = swarmMenuOpen,
+                        onDismissRequest = { swarmMenuOpen = false },
+                        modifier = Modifier.background(Color(0xFF2D2D2D))
+                    ) {
+                        if (aiSettings.swarms.isEmpty()) {
+                            DropdownMenuItem(text = { Text("No swarms defined", fontSize = 13.sp, color = AppColors.TextTertiary) }, onClick = { swarmMenuOpen = false })
+                        }
+                        aiSettings.swarms.sortedBy { it.name.lowercase() }.forEach { s ->
+                            DropdownMenuItem(
+                                text = { Text(s.name, fontSize = 13.sp, color = if (worker.swarm == s.name) AppColors.Blue else Color.White) },
+                                onClick = { onChange(Worker(agent = "*N/A", swarm = s.name)); swarmMenuOpen = false }
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    OutlinedButton(
+                        onClick = { providerDialogOpen = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedButtonColors()
+                    ) {
+                        Text(
+                            providerId.ifBlank { "Select provider…" }, modifier = Modifier.weight(1f), fontSize = 13.sp,
+                            color = if (providerId.isBlank()) AppColors.TextTertiary else Color.White,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text("▾", color = AppColors.TextTertiary)
+                    }
+                    OutlinedButton(
+                        onClick = { modelDialogOpen = true },
+                        enabled = providerId.isNotBlank(),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedButtonColors()
+                    ) {
+                        Text(
+                            model.ifBlank { "Select model…" }, modifier = Modifier.weight(1f), fontSize = 13.sp,
+                            color = if (model.isBlank()) AppColors.TextTertiary else Color.White,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text("▾", color = AppColors.TextTertiary)
+                    }
                 }
             }
         }

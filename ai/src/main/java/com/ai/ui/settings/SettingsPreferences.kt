@@ -209,7 +209,17 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                     text = (raw.text as String?) ?: "",
                     title = (raw.title as String?) ?: "",
                     parameters = (raw.parameters as String?) ?: "*NONE",
-                    systemPrompt = (raw.systemPrompt as String?) ?: "*NONE"
+                    systemPrompt = (raw.systemPrompt as String?) ?: "*NONE",
+                    // Same Gson-no-constructor hazard for the nested workers:
+                    // the flock / swarm fields, added later, land null on JSON
+                    // saved before they existed. Reassert the "*N/A" sentinel
+                    // so isFlock/isSwarm (and .isNotBlank()) don't trip / NPE.
+                    workers = (raw.workers as List<Worker>?).orEmpty().map { w ->
+                        w.copy(
+                            flock = (w.flock as String?) ?: "*N/A",
+                            swarm = (w.swarm as String?) ?: "*N/A"
+                        )
+                    }
                 )
                 p
             },

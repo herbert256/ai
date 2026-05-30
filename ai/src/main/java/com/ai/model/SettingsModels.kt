@@ -246,22 +246,32 @@ data class InternalPrompt(
      *  🌡️/🎭 pick was made on the model-selection screen. */
     val parameters: String = "*NONE",
     val systemPrompt: String = "*NONE",
-    /** Only used by the "workers" category: an ordered list of worker
-     *  selections (intended as a fallback chain). Each [Worker] is one
-     *  (agent) OR (provider+model) pick — the same two resolution modes
-     *  as [agent] vs [provider]/[model]. Empty for every other
-     *  category. Execution is not wired yet. */
+    /** Only used by the "workers" category: an ordered fallback chain
+     *  [com.ai.viewmodel.WorkerRunner] runs in random order until one
+     *  succeeds. Each [Worker] is a Model / Agent / Flock / Swarm pick;
+     *  Flock / Swarm entries expand to their members (see
+     *  [Settings.expandWorker]). Empty for every other category. */
     val workers: List<Worker> = emptyList()
 )
 
-/** One entry in a "workers"-category prompt's chain. Either an [agent]
- *  name (with [provider]/[model] left as the "*N/A" sentinel) or a
- *  pinned [provider]+[model] (with [agent] = "*N/A"). Stored verbatim;
- *  execution semantics are intentionally not wired yet. */
+/** One entry in a "workers"-category prompt's chain. One of four kinds,
+ *  told apart by which field is set (the others stay at the "*N/A"
+ *  sentinel):
+ *    - **Model**  — pinned [provider]+[model]
+ *    - **Agent**  — [agent] name
+ *    - **Flock**  — [flock] name; expands to the flock's member agents
+ *    - **Swarm**  — [swarm] name; expands to the swarm's (provider,model) pairs
+ *  Flock / Swarm entries are expanded into their members by
+ *  [Settings.expandWorker] before [com.ai.viewmodel.WorkerRunner] runs the
+ *  chain, so each member is tried as its own fallback candidate. */
 data class Worker(
     val agent: String = "*N/A",
     val provider: String = "*N/A",
-    val model: String = "*N/A"
+    val model: String = "*N/A",
+    /** Flock NAME when this worker is a Flock, else the "*N/A" sentinel. */
+    val flock: String = "*N/A",
+    /** Swarm NAME when this worker is a Swarm, else the "*N/A" sentinel. */
+    val swarm: String = "*N/A"
 )
 
 /** Stand-alone example prompt — pure (title, text) pair the user
@@ -690,13 +700,15 @@ data class Settings(
         return agents.firstOrNull { it.name.equals(prompt.agent, ignoreCase = true) }
     }
 
-    /** Resolve a single [Worker] (one entry of a "workers"-category
-     *  prompt's chain) to a dispatchable [Agent], same two modes as
-     *  [resolvePromptAgent]: a pinned provider+model (agent="*N/A")
-     *  yields a synthetic agent; otherwise the named agent is looked up
-     *  in [agents]. Returns null when neither resolves (unknown provider
-     *  / agent, or "*N/A" / "*select" sentinels). */
-    fun resolveWorker(w: Worker): Agent? {
+    private fun isFlock(w: Worker) = w.flock != "*N/A" && w.flock.isNotBlank() && w.flock != "*select"
+    private fun isSwarm(w: Worker) = w.swarm != "*N/A" && w.swarm.isNotBlank() && w.swarm != "*select"
+
+    /** Resolve the Model / Agent form of a [Worker] to a dispatchable
+     *  [Agent]: a pinned provider+model yields a synthetic agent;
+     *  otherwise the named agent is looked up in [agents]. Returns null
+     *  when neither resolves. Flock / Swarm entries are handled by
+     *  [resolveWorker] / [expandWorker], not here. */
+    private fun resolveWorkerSingle(w: Worker): Agent? {
         if (w.provider != "*N/A" && w.provider.isNotBlank() &&
             w.model != "*N/A" && w.model.isNotBlank()) {
             val svc = AppService.findById(w.provider) ?: return null
@@ -707,13 +719,45 @@ data class Settings(
         return null
     }
 
+    /** Resolve a single [Worker] (one entry of a "workers"-category
+     *  prompt's chain) to a dispatchable [Agent]. A Flock / Swarm worker
+     *  resolves to its FIRST resolvable member — enough for the
+     *  "is anything runnable here?" pre-flight checks and the
+     *  display / cost-attribution call sites; the runner expands the full
+     *  member list via [expandWorker]. Returns null when nothing resolves. */
+    fun resolveWorker(w: Worker): Agent? = when {
+        isFlock(w) || isSwarm(w) -> expandWorker(w).firstNotNullOfOrNull { resolveWorkerSingle(it) }
+        else -> resolveWorkerSingle(w)
+    }
+
+    /** Expand a [Worker] into the per-member plain workers the runner
+     *  actually executes: a Flock → one agent-name worker per active
+     *  member agent; a Swarm → one provider+model worker per active
+     *  member; a Model / Agent worker → just itself. Returning plain
+     *  [Worker]s (not [Agent]s) keeps the runner's [Worker]-keyed
+     *  cooldowns and [com.ai.viewmodel.WorkerOutcome] attribution
+     *  pointing at the exact member that ran. */
+    fun expandWorker(w: Worker): List<Worker> = when {
+        isFlock(w) -> getFlockByName(w.flock)?.let { f ->
+            getAgentsForFlock(f).filter { isProviderActive(it.provider) }
+                .map { Worker(agent = it.name) }
+        } ?: emptyList()
+        isSwarm(w) -> getSwarmByName(w.swarm)?.let { s ->
+            s.members.filter { isProviderActive(it.provider) }
+                .map { Worker(agent = "*N/A", provider = it.provider.id, model = it.model) }
+        } ?: emptyList()
+        else -> listOf(w)
+    }
+
     fun getConfiguredAgents() = agents.filter { it.apiKey.isNotBlank() || getApiKey(it.provider).isNotBlank() }
 
     fun getFlockById(id: String) = flocks.find { it.id == id }
+    fun getFlockByName(name: String) = flocks.firstOrNull { it.name.equals(name, ignoreCase = true) }
     fun getAgentsForFlock(flock: Flock) = flock.agentIds.mapNotNull { getAgentById(it) }
     fun getAgentsForFlocks(flockIds: Set<String>) = flockIds.flatMap { id -> getFlockById(id)?.let { getAgentsForFlock(it) } ?: emptyList() }.distinctBy { it.id }
 
     fun getSwarmById(id: String) = swarms.find { it.id == id }
+    fun getSwarmByName(name: String) = swarms.firstOrNull { it.name.equals(name, ignoreCase = true) }
     fun getMembersForSwarm(swarm: Swarm) = swarm.members
     fun getMembersForSwarms(swarmIds: Set<String>) = swarmIds.flatMap { id -> getSwarmById(id)?.members ?: emptyList() }.distinctBy { "${it.provider.id}:${it.model}" }
 

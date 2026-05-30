@@ -36,6 +36,14 @@ workers** (`InternalPrompt.workers`) rather than a single pinned
 agent — a fallback chain spanning several cheap providers
 (gpt-4o-mini, DeepSeek, Groq/Cerebras/SambaNova llama-3.1-8b,
 gemini-2.5-flash-lite, gpt-4.1-nano, ministral-8b, grok-fast).
+
+Each `Worker` is one of **four kinds**: a **Model**
+(provider + model), an **Agent** (by name), a **Flock**, or a
+**Swarm**. Flock / Swarm entries are **expanded** by
+`Settings.expandWorker` before the run — a Flock contributes one
+candidate per member agent, a Swarm one per `(provider, model)`
+member — so each member joins the chain as its own independent
+fallback (own cooldown key, own cost attribution).
 `WorkerRunner.run`:
 
 - **Shuffles** the worker order each call — the primary pick (and

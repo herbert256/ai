@@ -87,20 +87,25 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
         context: Context,
         accept: (AnalysisResponse) -> Boolean = { true },
     ): WorkerOutcome {
-        val workers = prompt.workers
-        if (workers.isEmpty()) {
-            AppLog.w("Workers", "prompt '${prompt.name}' has no workers — nothing to run")
+        // Expand each worker into the per-member plain workers we actually
+        // run: a Flock contributes one worker per member agent, a Swarm one
+        // per (provider, model), a Model / Agent worker just itself. So a
+        // flock/swarm's members each become an independent fallback
+        // candidate (own cooldown key, own attribution).
+        val members = prompt.workers.flatMap { aiSettings.expandWorker(it) }
+        if (members.isEmpty()) {
+            AppLog.w("Workers", "prompt '${prompt.name}' has no runnable workers — nothing to run")
             return WorkerOutcome.Failed
         }
-        val n = workers.size
+        val n = members.size
         // Random pick (not round-robin): shuffle the worker order each call
         // so the primary choice — and the fallback order after a cooldown /
         // 429 / logical miss — is random rather than a deterministic rotation.
-        val order = workers.indices.shuffled()
+        val order = members.indices.shuffled()
         var sawRateLimit = false
 
         for (idx in order) {
-            val w = workers[idx]
+            val w = members[idx]
             val key = workerKey(w)
             // Permanently out of order this session (model gone) — skip with no
             // call. NOT counted as a rate-limit: a dead worker isn't "try later".
