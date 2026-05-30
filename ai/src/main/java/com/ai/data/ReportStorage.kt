@@ -336,9 +336,22 @@ object ReportStorage {
      *  added after a report was persisted deserialize as null. Re-assert
      *  non-null defaults for those new fields so the rest of the app can
      *  treat them as the non-null types they're declared as. */
-    private fun normalizeReport(r: Report): Report =
-        if ((r.promptHistory as List<PromptRevision>?) == null)
-            r.copy(promptHistory = emptyList()) else r
+    private fun normalizeReport(r: Report): Report {
+        var res = r
+        if ((res.promptHistory as List<PromptRevision>?) == null) {
+            res = res.copy(promptHistory = emptyList())
+        }
+        if ((res.knowledgeBaseIds as List<String>?) == null) {
+            res = res.copy(knowledgeBaseIds = emptyList())
+        }
+        if ((res.parameterPresetIds as List<String>?) == null) {
+            res = res.copy(parameterPresetIds = emptyList())
+        }
+        if ((res.selectionParamsById as Map<String, List<String>>?) == null) {
+            res = res.copy(selectionParamsById = emptyMap())
+        }
+        return res
+    }
 
     private fun saveReport(report: Report) {
         val dir = reportsDir ?: return
