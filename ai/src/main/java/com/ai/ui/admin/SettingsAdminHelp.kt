@@ -611,7 +611,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_live_dashboard" to HelpContent(
         title = "Help - Live Dashboard",
         cards = listOf(
-            HelpCard("Overview", "A live ops monitor — what's happening right now. Opened from the home 📡 AI Live Dashboard card. For performance every card starts collapsed — tap a header to expand it, and only then does it fetch and ~0.75 s-refresh its data; collapse it again and it stops. Each card header carries 📌 (pin it open on load), ↑ / ↓ (reorder), and the ▾/▸ expand toggle. Your pins and card order are saved (and ride along in backup/restore); only pinned cards open automatically when you enter the screen. Lifetime totals + costs live on the Statistics hub (under Monitor)."),
+            HelpCard("Overview", "A live ops monitor — what's happening right now, reached from Monitor → Live Dashboard. It shows only the cards you've selected, each open; every card fetches and ~0.75 s-refreshes its own data while on screen, so keep your selection lean for performance. Tap 🎛️ Configure to pick which cards appear and reorder them — your choice is saved and rides along in backup/restore. Lifetime totals + costs live on the Statistics hub (under Monitor)."),
             HelpCard("🟢 Live activity", "Hero number is global API calls in flight / the global cap, with an Idle / Active / Saturated badge. The Global bar is always shown; the per-feature bars (Report, Translation, Fan-out, Fan Meta) appear only while that feature has a call in flight — green under 60 %, orange approaching the cap, red at the cap. The caps are owned by Settings → Network settings and count live API calls (a pair parked on a provider's rate-limit holds no cap permit). An orange Throttled row appears when batches are waiting on a provider rate-limit."),
             HelpCard("🏃 Active runs", "What's actually running right now — translation, fan-out, regenerate and fan-meta batches by name, with done/total progress (fan-meta shows in-flight count, which is all it can attribute). A \"Parked on a provider gate\" line counts items waiting on a rate-limit. Hidden when nothing is in flight; a live \"Test all models\" run has its own card below."),
             HelpCard("💸 Spend & tokens", "Rolling cost and token throughput over the last 1 minute and 5 minutes — the 1-minute column is the live per-minute rate. Fed from the same usage chokepoint every paid call funnels through (report / chat / secondary / translation / fan-meta). Cost is priced through the pricing cache (so it tracks computed, not provider-reported, cost). In-memory only."),
@@ -627,6 +627,15 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("🩺 System health", "Log-writer status (OK / ERROR), dropped log lines, trace-file count + size on disk, embeddings and knowledge cache sizes, API activity, the streaming/non-streaming read timeouts and the per-minute cap currently in effect. Disk sizes refresh on a slow tick."),
             HelpCard("Tips", "Open this while a Stress test (Housekeeping → Test) runs to watch the caps fill, hosts saturate and batches move through throttling in real time."),
             HelpCard("Pitfalls", "The live ticker only runs while the screen is on top — navigate away and it stops."),
+        )
+    ),
+    "ai_live_dashboard_config" to HelpContent(
+        title = "Help - Configure dashboard",
+        cards = listOf(
+            HelpCard("Overview", "Pick which Live Dashboard cards to show and in what order. Reached from the 🎛️ icon on the Live Dashboard."),
+            HelpCard("Show / hide", "Tick a card to show it on the dashboard, untick to hide it. Every change applies immediately. With nothing ticked the dashboard falls back to showing all cards — an empty dashboard would be pointless."),
+            HelpCard("Order", "↑ / ↓ move a card up or down; the dashboard renders the selected cards in this order (dimmed arrows = already at an end)."),
+            HelpCard("Persistence", "Your selection + order are saved on this device and ride along in backup/restore (they live in the same eval_prefs the rest of your settings use)."),
         )
     ),
     "ai_monitor" to HelpContent(

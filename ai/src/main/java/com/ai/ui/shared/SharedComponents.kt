@@ -733,6 +733,10 @@ data class TitleBarIcons(
      *  Application log → App log statistics) publish it so the bottom
      *  bar carries the action. Null → glyph hidden. */
     val onStats: (() -> Unit)? = null,
+    /** Optional 🎛️ configure hook. The Live Dashboard publishes it to
+     *  open its Configure screen (pick + order the cards). Null →
+     *  glyph hidden. */
+    val onConfigure: (() -> Unit)? = null,
     /** When true, the 📈 statistics glyph trails the 🗑 delete icon
      *  instead of sitting in the nav-jump group. Set by the Application
      *  log screen. */
@@ -988,6 +992,8 @@ fun TitleBar(
     onSettings: (() -> Unit)? = null,
     /** Optional 📈 jump-to-statistics hook. Null → glyph hidden. */
     onStats: (() -> Unit)? = null,
+    /** Optional 🎛️ configure hook (Live Dashboard → Configure). Null → glyph hidden. */
+    onConfigure: (() -> Unit)? = null,
     /** When true, the 📈 statistics glyph is placed AFTER the 🗑 delete
      *  icon instead of in its usual nav-jump position. Set by the
      *  Application log screen so its "App log statistics" jump trails the
@@ -1061,6 +1067,7 @@ fun TitleBar(
         onHousekeeping = onHousekeeping,
         onSettings = onSettings,
         onStats = onStats,
+        onConfigure = onConfigure,
         statsAfterDelete = statsAfterDelete,
         // 📡 🐞 📜 📊 Monitor-section jump group — auto-captured from the
         // per-subtree CompositionLocal so Monitor screens needn't thread it
@@ -1515,6 +1522,8 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // AI Setup / Settings screen — grouped with the other nav-jumps.
     icons.onHousekeeping?.let { add(BottomBarIcon("🧹", Color.Unspecified, it, 28)) }
     icons.onSettings?.let { add(BottomBarIcon("⚙️", Color.Unspecified, it, 28)) }
+    // 🎛️ configure (Live Dashboard → pick + order cards).
+    icons.onConfigure?.let { add(BottomBarIcon("🎛️", Color.Unspecified, it, 28)) }
     // 📈 statistics — normally grouped with the other nav-jumps. A screen
     // can opt to push it past the trailing actions (statsAfterDelete) so it
     // sits just after 🗑 delete instead — see the second-row block below.

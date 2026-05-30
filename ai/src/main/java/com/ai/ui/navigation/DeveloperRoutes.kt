@@ -123,7 +123,11 @@ internal fun NavGraphBuilder.developerRoutes(
                 appViewModel = appViewModel,
                 reportViewModel = reportViewModel,
                 onBack = safePopBack, onNavigateHome = navigateHome,
-                onOpenTraceFilter = openTraceFilter)
+                onOpenTraceFilter = openTraceFilter,
+                onConfigure = { navController.navigate(NavRoutes.AI_LIVE_DASHBOARD_CONFIG) })
+        }
+        composable(NavRoutes.AI_LIVE_DASHBOARD_CONFIG) {
+            AiLiveDashboardConfigScreen(appViewModel = appViewModel, onBack = safePopBack)
         }
         monitorComposable(NavRoutes.AI_TRACE_STATS, monitorNav) {
             AiTraceStatsScreen(onBack = safePopBack, onNavigateHome = navigateHome, onNavigateToStatistics = toStatistics,

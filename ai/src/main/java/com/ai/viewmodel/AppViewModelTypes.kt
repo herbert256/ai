@@ -283,9 +283,10 @@ data class GeneralSettings(
      *  attach UI is hidden. */
     val experimentalFeaturesEnabled: Boolean = false,
     /** Live Dashboard layout, persisted (and so backed up via eval_prefs):
-     *  the card ids the user pinned (open on page load) and their custom
-     *  card order. Empty = nothing pinned / default order. */
-    val pinnedDashboardCards: Set<String> = emptySet(),
+     *  the card ids the user chose to SHOW (set on the Configure screen)
+     *  and their custom card order. An empty selection means "show all"
+     *  (the default until the user configures it). */
+    val dashboardSelectedCards: Set<String> = emptySet(),
     val dashboardCardOrder: List<String> = emptyList()
 ) {
     /** Effective gates — the grand-master [metadataEnabled] ANDed with
