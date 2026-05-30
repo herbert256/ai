@@ -789,6 +789,16 @@ class SecondaryRunManager(
                 errorMessage = row.errorMessage,
                 tokenUsage = row.tokenUsage,
                 cost = ((row.inputCost ?: 0.0) + (row.outputCost ?: 0.0)).takeIf { it > 0.0 },
+                // Carry the FROZEN cost split + trace from the pair row.
+                // Without inputCost/outputCost the cost UI falls back to
+                // live PricingCache recomputation (ContentDisplay), so the
+                // derived report's historical cost drifts as the catalog
+                // re-prices. traceFile is null on today's fan-out pairs
+                // (only TRANSLATE rows persist one) but is wired through so
+                // the 🐞 affordance works if that ever changes.
+                inputCost = row.inputCost,
+                outputCost = row.outputCost,
+                traceFile = row.traceFile,
                 durationMs = row.durationMs
             )
         }
