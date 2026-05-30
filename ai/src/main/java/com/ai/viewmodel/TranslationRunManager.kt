@@ -935,9 +935,17 @@ class TranslationRunManager(
                         val params = resolveSecondaryParams(
                             appViewModel.uiState.value.generalSettings, aiSettings, paramsIds, systemPromptId, prompt
                         )
-                        val response = appViewModel.repository.analyzeWithAgent(
-                            syntheticAgent, "", resolved, params, null, context, baseUrl
-                        )
+                        // Capture this candidate's own trace + duration so a
+                        // pick can replace the persisted row's stale trace /
+                        // time instead of keeping the prior translation's.
+                        val callStart = System.currentTimeMillis()
+                        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                        val response = withTraceFilenameSink(traceSink) {
+                            appViewModel.repository.analyzeWithAgent(
+                                syntheticAgent, "", resolved, params, null, context, baseUrl
+                            )
+                        }
+                        val callDurationMs = System.currentTimeMillis() - callStart
                         val tu = response.tokenUsage
                         val pricing = PricingCache.getPricing(context, item.provider, item.model)
                         val cost = if (tu != null) PricingCache.computeCost(tu, pricing) else 0.0
@@ -951,7 +959,7 @@ class TranslationRunManager(
                         }
                         val text = response.analysis.orEmpty()
                         if (response.error == null && text.isNotBlank())
-                            place(TranslationCandidate.Done(item.provider, item.model, text, cost, tu))
+                            place(TranslationCandidate.Done(item.provider, item.model, text, cost, tu, traceSink.get(), callDurationMs))
                         else
                             place(TranslationCandidate.Error(item.provider, item.model, response.error ?: "empty response", cost))
                     }.onFailure { e ->
@@ -992,6 +1000,11 @@ class TranslationRunManager(
                         tokenUsage = tu,
                         inputCost = inCost,
                         outputCost = outCost,
+                        // Overwrite the previous translation's trace + time
+                        // with the picked candidate's (null when the alt run
+                        // didn't capture one — better blank than misattributed).
+                        traceFile = candidate.traceFile,
+                        durationMs = candidate.durationMs,
                         timestamp = System.currentTimeMillis()
                     ))
                 }

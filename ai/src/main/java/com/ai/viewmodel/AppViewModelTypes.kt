@@ -545,7 +545,13 @@ sealed interface TranslationCandidate {
         override val model: String,
         val text: String,
         val cost: Double = 0.0,
-        val tokenUsage: com.ai.data.TokenUsage? = null
+        val tokenUsage: com.ai.data.TokenUsage? = null,
+        /** Trace filename + wall-clock of THIS candidate's call, so a
+         *  picked alternative overwrites the persisted row's stale
+         *  trace / duration instead of keeping the previous
+         *  translation's (see applyAltTranslation). */
+        val traceFile: String? = null,
+        val durationMs: Long? = null
     ) : TranslationCandidate
     data class Error(override val provider: com.ai.data.AppService, override val model: String, val reason: String, val cost: Double = 0.0) : TranslationCandidate
 }

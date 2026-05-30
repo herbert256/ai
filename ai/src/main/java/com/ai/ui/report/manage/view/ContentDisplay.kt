@@ -611,7 +611,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         }
         val inCents = inDollars * 100
         val outCents = outDollars * 100
-        CostRow("report/prompt", providerEnum?.id ?: agent.provider, agent.model, pricing?.source ?: "", agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
+        CostRow("report/prompt", providerEnum?.id ?: agent.provider, agent.model, pricing?.source ?: "", agent.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents, agent.traceFile)
     }
     // Find-alternative-icons fan-out cost subtraction. Every alt
     // call is recorded as its own IconCallRecord with `type` set to
@@ -690,7 +690,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             // the alt-call portion (timing skew / partial write) the
             // subtraction could underflow to a negative cent value.
             inputCents = ((report.iconInputCost * 100) - mainAltInCents).coerceAtLeast(0.0),
-            outputCents = ((report.iconOutputCost * 100) - mainAltOutCents).coerceAtLeast(0.0)
+            outputCents = ((report.iconOutputCost * 100) - mainAltOutCents).coerceAtLeast(0.0),
+            traceFile = report.iconTraceFile
         )
     } else null
     // Two-call language flow surfaces as two rows. The first call
@@ -721,7 +722,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             inputTokens = report.languageInputTokens,
             outputTokens = report.languageOutputTokens,
             inputCents = report.languageInputCost * 100,
-            outputCents = report.languageOutputCost * 100
+            outputCents = report.languageOutputCost * 100,
+            traceFile = report.languageTraceFile
         )
     } else null
     val languageIconRow: CostRow? = if (hasLanguageIconCost) {
@@ -742,7 +744,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             inputTokens = (report.languageIconInputTokens - languageAltInTokens).coerceAtLeast(0),
             outputTokens = (report.languageIconOutputTokens - languageAltOutTokens).coerceAtLeast(0),
             inputCents = ((report.languageIconInputCost * 100) - languageAltInCents).coerceAtLeast(0.0),
-            outputCents = ((report.languageIconOutputCost * 100) - languageAltOutCents).coerceAtLeast(0.0)
+            outputCents = ((report.languageIconOutputCost * 100) - languageAltOutCents).coerceAtLeast(0.0),
+            traceFile = report.languageIconTraceFile
         )
     } else null
     // Report-title row — the one internal/report_title call that names
@@ -769,7 +772,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             inputTokens = report.titleInputTokens,
             outputTokens = report.titleOutputTokens,
             inputCents = report.titleInputCost * 100,
-            outputCents = report.titleOutputCost * 100
+            outputCents = report.titleOutputCost * 100,
+            traceFile = report.titleTraceFile
         )
     } else null
     // Per-agent model-title rows — one per agent whose response was
@@ -790,7 +794,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             inputTokens = agent.modelTitleInputTokens,
             outputTokens = agent.modelTitleOutputTokens,
             inputCents = agent.modelTitleInputCost * 100,
-            outputCents = agent.modelTitleOutputCost * 100
+            outputCents = agent.modelTitleOutputCost * 100,
+            traceFile = agent.modelTitleTraceFile
         )
     }
     // report.iconCalls holds two distinct tier-by-tier chains — one
@@ -893,7 +898,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
                 else -> "meta/meta"
             }
         }
-        CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, inTokens, outTokens, inCents, outCents)
+        CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, inTokens, outTokens, inCents, outCents, s.traceFile)
     }
     // Fan Meta (workers/fan-meta) — one title+icon call per fan-out pair,
     // recorded on the pair's SecondaryResult title* cost. It gets its OWN
@@ -1178,7 +1183,15 @@ internal data class CostRow(
     val type: String, val providerDisplay: String, val model: String,
     val tier: String, val durationMs: Long?,
     val inputTokens: Int, val outputTokens: Int,
-    val inputCents: Double, val outputCents: Double
+    val inputCents: Double, val outputCents: Double,
+    /** Exact persisted trace filename of the call this row represents,
+     *  when the source row stored one (agent primary, secondary,
+     *  per-agent model-title, the report icon / title / language rows).
+     *  Null for rows with no persisted trace (iconCalls audit records,
+     *  fan-meta) — the popup falls back to a best-effort newest-wins
+     *  scan only for those. Lets the 🐞 open the right call even when
+     *  several calls share a (report, model). */
+    val traceFile: String? = null
 )
 
 /** Per-group rollup for the By type / By model summaries —
@@ -1375,13 +1388,15 @@ private fun CostDetailDialog(
             body = buildCallBody(popup.r)
         }
     }
-    // 🐞 for per-call popups: find the trace file matching this call's
-    // (reportId, model). When multiple match (e.g. multiple fan-out
-    // pairs on the same model) prefer the most recent — best-effort
-    // since CostRow doesn't carry a per-call trace id.
+    // 🐞 for per-call popups: prefer the EXACT persisted trace filename
+    // the row carries (agent / secondary / model-title / report icon /
+    // title / language rows). Only when the row has none (iconCalls audit
+    // records, fan-meta) fall back to the best-effort scan for the trace
+    // matching this call's (reportId, model), newest-wins — which can pick
+    // the wrong file when several calls share a (report, model).
     val traceFile: String? = if (popup is CostPopup.Call && reportId != null && ApiTracer.isTracingEnabled) {
-        remember(popup.r.model, reportId) {
-            ApiTracer.getTraceFiles()
+        remember(popup.r.model, reportId, popup.r.traceFile) {
+            popup.r.traceFile ?: ApiTracer.getTraceFiles()
                 .asSequence()
                 .filter { it.reportId == reportId && (it.model == popup.r.model || it.model == null) }
                 .maxByOrNull { it.timestamp }
