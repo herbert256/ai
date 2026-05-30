@@ -48,6 +48,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.report.view.helpers.rememberWrapPager
+import com.ai.ui.report.view.helpers.wrapCenterPage
 import com.ai.ui.report.view.helpers.wrapTo
 import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
@@ -139,6 +140,19 @@ fun MetaViewScreen(
         languages.indexOf(target).coerceAtLeast(0)
     }
     val pagerState = rememberWrapPager(languages.size, initialIndex)
+    // The pager is created while `languages` is still just [""] (the META
+    // translations load async) and rememberWrapPager doesn't re-seek when
+    // the list grows — so a requested non-Original initial language never
+    // landed (it opened on Original, first backward swipe blocked). Re-centre
+    // once per report, after the languages arrive; manual swipes after stand.
+    var centeredFor by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(languages, report?.id) {
+        if (languages.size > 1 && centeredFor != report?.id) {
+            val target = languages.indexOf(language ?: "").coerceAtLeast(0)
+            pagerState.scrollToPage(wrapCenterPage(languages.size, target))
+            centeredFor = report?.id
+        }
+    }
     val activeLanguage = if (languages.isEmpty()) ""
         else languages[pagerState.currentPage.wrapTo(languages.size)]
     val activeLangState = rememberUpdatedState(activeLanguage)
