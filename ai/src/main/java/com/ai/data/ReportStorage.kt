@@ -1364,7 +1364,15 @@ object ReportStorage {
                 // had trimmed from THAT report. Starting it at 0 lets
                 // the user trim the copy and have its tally reflect
                 // only what they deleted there.
-                costsFromDeletedItems = 0.0
+                costsFromDeletedItems = 0.0,
+                // Captured generation config — without these a Regenerate
+                // on the copy replays with default params / no system
+                // prompt and silently diverges from the original, even
+                // though KB / web / reasoning were copied above.
+                parameterPresetIds = src.parameterPresetIds,
+                advancedParameters = src.advancedParameters,
+                selectionParamsById = src.selectionParamsById,
+                reportSystemPromptId = src.reportSystemPromptId
             )
             // Mirror the icon + its error from the source. The copy
             // makes no new API call, so without this the copy sits
