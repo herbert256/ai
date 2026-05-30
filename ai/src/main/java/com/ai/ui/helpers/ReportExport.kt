@@ -310,9 +310,15 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
     // SUCCESS-only ordered subset (see buildResultsBlock). Reuse the same
     // ordering here so the anchorIndex on each card matches the rank ids
     // a rerank model produced.
-    val anchorByKey = mutableMapOf<String, Int>()
+    // Key by agentId, NOT provider::model: buildResultsBlock numbers
+    // [N] per SUCCESS agent (its index in the list), so two agents on the
+    // same provider+model get DISTINCT ids. Keying by provider::model
+    // collapsed them to one anchor, so rerank cross-links jumped to the
+    // wrong card (and two cards shared one HTML id). Same natural order
+    // as buildResultsBlock so the indices line up.
+    val anchorByAgentId = mutableMapOf<String, Int>()
     report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-        .forEachIndexed { idx, a -> anchorByKey["${a.provider}::${a.model}"] = idx + 1 }
+        .forEachIndexed { idx, a -> anchorByAgentId[a.agentId] = idx + 1 }
 
     val agents = report.agents
         .filter { it.reportStatus != ReportStatus.STOPPED && it.reportStatus != ReportStatus.PENDING }
@@ -339,7 +345,7 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
                 rawUsageJson = agent.rawUsageJson, responseHeaders = agent.responseHeaders,
                 inputTokens = tu?.inputTokens, outputTokens = tu?.outputTokens, inputCost = inCost, outputCost = outCost, durationMs = agent.durationMs,
                 pricingTier = pricing?.source,
-                anchorIndex = anchorByKey["${agent.provider}::${agent.model}"],
+                anchorIndex = anchorByAgentId[agent.agentId],
                 icon = agent.icon
             )
         }
