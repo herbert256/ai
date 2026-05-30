@@ -227,6 +227,14 @@ fun rememberHomeReportLists(
 ): State<HomeReportLists> {
     val context = LocalContext.current
     val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
+    // Report ids running a fan-out / meta batch right now (a run with at
+    // least one queued or in-flight pair, not cancelled) — so their blank
+    // placeholder rows aren't mistaken for stuck problems.
+    val fanOutRuns by reportViewModel.fanOutEngine.runs.collectAsState()
+    val activeSecondaryReportIds = fanOutRuns.values
+        .filter { !it.cancelled && (it.runningCount > 0 || it.queuedCount > 0) }
+        .map { it.reportId }
+        .toSet()
     val cardsTick by produceState(initialValue = 0) {
         while (true) {
             kotlinx.coroutines.delay(5_000L)
@@ -235,10 +243,10 @@ fun rememberHomeReportLists(
     }
     return produceState(
         initialValue = HomeReportLists(emptyList(), emptyList()),
-        refreshTick, cardsTick, translationRuns
+        refreshTick, cardsTick, translationRuns, activeSecondaryReportIds
     ) {
         value = withContext(Dispatchers.IO) {
-            computeHomeReportLists(context, translationRuns)
+            computeHomeReportLists(context, translationRuns, activeSecondaryReportIds)
         }
     }
 }
@@ -250,7 +258,12 @@ fun rememberHomeReportLists(
  *  without dragging the Compose plumbing along. */
 internal fun computeHomeReportLists(
     context: android.content.Context,
-    translationRuns: Map<String, TranslationRunState>
+    translationRuns: Map<String, TranslationRunState>,
+    // Report ids with an in-flight secondary batch (fan-out / meta) whose
+    // not-yet-filled placeholder rows (blank content, no error, no
+    // duration) would otherwise trip reportHasProblems' stuck-placeholder
+    // check and surface a false "problem" while the batch is still running.
+    activeSecondaryReportIds: Set<String> = emptySet()
 ): HomeReportLists {
     val all = ReportStorage.getAllReports(context)
     val activeTranslationReportIds = translationRuns.values
@@ -266,6 +279,9 @@ internal fun computeHomeReportLists(
         // "problems". When the running state clears, any persistent
         // red cross resurfaces here on the next 5 s tick.
         if (r.id in runningIds) return@filter false
+        // Skip reports with a live fan-out / meta batch — their blank
+        // placeholder rows are mid-flight, not stuck.
+        if (r.id in activeSecondaryReportIds) return@filter false
         reportHasProblems(r, SecondaryResultStorage.listForReport(context, r.id))
     }
     return HomeReportLists(running, problems)
