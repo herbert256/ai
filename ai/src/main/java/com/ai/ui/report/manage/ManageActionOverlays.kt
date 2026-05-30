@@ -166,41 +166,66 @@ internal fun ReportManageActionOverlays(
         return true
     }
 
-    if (st.showEditTitle.value && currentReportId != null) {
+    // The report title is two independent fields edited on two screens —
+    // short (list cards, Report.title) and long (top-bar line,
+    // Report.titleLong; barTitle = long ?: short). Each saves only its own
+    // field, passing the sibling through unchanged so the other isn't lost.
+    if (st.showEditShortTitle.value && currentReportId != null) {
         val rid = currentReportId
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides runtime.effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
-            LocalNavigateToCurrentReport provides { st.showEditTitle.value = false },
+            LocalNavigateToCurrentReport provides { st.showEditShortTitle.value = false },
             com.ai.ui.shared.LocalManagePickReport provides
                 { managePick(com.ai.ui.navigation.ManagePickKind.EDIT_TITLE.arg) }
         ) {
-            ReportEditTitleScreen(
+            ReportEditShortTitleScreen(
                 reportId = rid,
                 initialTitle = uiState.genericPromptTitle,
-                initialTitleLong = uiState.genericPromptTitleLong,
-                onBack = { st.showEditTitle.value = false },
+                onBack = { st.showEditShortTitle.value = false },
                 onNavigateHome = onNavigateHome,
                 onNavigateToTraceFile = onNavigateToTraceFile,
-                onFindAlternativeShortTitle = {
+                onFindAlternativeTitle = {
                     st.findTitlesFor.value = "report"
                     st.findTitlesLong.value = false
                     st.findIconsModels.value = emptyList()
                     st.showFindIconsPicker.value = true
                 },
-                onFindAlternativeLongTitle = {
+                injectedTitle = st.altPickedTitle.value,
+                onConsumeInjectedTitle = { st.altPickedTitle.value = null },
+                onUpdate = { newTitle ->
+                    st.showEditShortTitle.value = false
+                    onUpdateTitle(rid, newTitle, uiState.genericPromptTitleLong)
+                }
+            )
+        }
+        return true
+    }
+
+    if (st.showEditLongTitle.value && currentReportId != null) {
+        val rid = currentReportId
+        CompositionLocalProvider(
+            com.ai.ui.shared.LocalReportIcon provides runtime.effectiveReportIcon,
+            com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
+            LocalNavigateToCurrentReport provides { st.showEditLongTitle.value = false }
+        ) {
+            ReportEditLongTitleScreen(
+                reportId = rid,
+                initialTitle = uiState.genericPromptTitleLong,
+                onBack = { st.showEditLongTitle.value = false },
+                onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onFindAlternativeTitle = {
                     st.findTitlesFor.value = "report"
                     st.findTitlesLong.value = true
                     st.findIconsModels.value = emptyList()
                     st.showFindIconsPicker.value = true
                 },
-                injectedShortTitle = st.altPickedTitle.value,
-                injectedLongTitle = st.altPickedTitleLong.value,
-                onConsumeInjectedShortTitle = { st.altPickedTitle.value = null },
-                onConsumeInjectedLongTitle = { st.altPickedTitleLong.value = null },
-                onUpdate = { newTitle, newTitleLong ->
-                    st.showEditTitle.value = false
-                    onUpdateTitle(rid, newTitle, newTitleLong)
+                injectedTitle = st.altPickedTitleLong.value,
+                onConsumeInjectedTitle = { st.altPickedTitleLong.value = null },
+                onUpdate = { newTitleLong ->
+                    st.showEditLongTitle.value = false
+                    onUpdateTitle(rid, uiState.genericPromptTitle, newTitleLong)
                 }
             )
         }

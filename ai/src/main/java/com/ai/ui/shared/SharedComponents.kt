@@ -1616,7 +1616,7 @@ internal val LEGEND_OVERLAY_TOPICS = setOf(
     "report_run",
     "report_edit_overview", "report_edit_icons", "report_edit_titles",
     "report_create_overview", "report_get_info",
-    "report_edit_title", "report_edit_prompt",
+    "report_edit_short_title", "report_edit_long_title", "report_edit_prompt",
     "report_edit_model_title", "report_edit_pair_title",
     // Meta / secondary creation + drill-ins.
     "report_meta", "report_meta_run", "report_fan_out_confirm", "secondary_scope",

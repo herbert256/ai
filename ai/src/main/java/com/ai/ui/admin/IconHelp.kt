@@ -231,8 +231,11 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     "regenerate_batch" to listOf(
         Triple("🗑", "Delete", "Cancel and delete this regenerate job."),
     ),
-    "report_edit_title" to listOf(
-        Triple("🐞", "Trace", "Open the API trace from generating the title."),
+    "report_edit_short_title" to listOf(
+        Triple("🐞", "Trace", "Open the API trace from generating the short title."),
+    ),
+    "report_edit_long_title" to listOf(
+        Triple("🐞", "Trace", "Open the API trace from generating the long title."),
     ),
     "report_edit_model_title" to listOf(
         Triple("🐞", "Trace", "Open the API trace from generating this model's title."),

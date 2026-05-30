@@ -428,7 +428,7 @@ internal fun ReportRunScreen(
                         st.showIconDetail.value = true
                         st.targetLanguageIcon.value = true
                     },
-                    onEditTitle = { st.showEditTitle.value = true },
+                    onEditTitle = { st.showEditShortTitle.value = true },
                     onOpenAgentIconDetail = { agentId -> st.agentIconDetailFor.value = agentId },
                     onEditModelTitle = { agentId -> st.editModelTitleFor.value = agentId },
                     onRestartErrors = { onRestartInfoErrors(currentReportId) }

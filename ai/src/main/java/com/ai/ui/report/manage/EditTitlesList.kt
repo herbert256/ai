@@ -91,9 +91,9 @@ internal fun ReportEditTitlesScreen(
         add(TitleEditItem(
             category = "title",
             value = uiState.genericPromptTitle.ifBlank { "*NONE" },
-            onEdit = { st.showEditTitle.value = true },
+            onEdit = { st.showEditShortTitle.value = true },
             onFindAlt = {
-                st.showEditTitle.value = true
+                st.showEditShortTitle.value = true
                 st.findTitlesFor.value = "report"
                 st.findTitlesLong.value = false
                 st.findIconsModels.value = emptyList()
@@ -104,9 +104,9 @@ internal fun ReportEditTitlesScreen(
         add(TitleEditItem(
             category = "long title",
             value = uiState.genericPromptTitleLong.ifBlank { "*NONE" },
-            onEdit = { st.showEditTitle.value = true },
+            onEdit = { st.showEditLongTitle.value = true },
             onFindAlt = {
-                st.showEditTitle.value = true
+                st.showEditLongTitle.value = true
                 st.findTitlesFor.value = "report"
                 st.findTitlesLong.value = true
                 st.findIconsModels.value = emptyList()

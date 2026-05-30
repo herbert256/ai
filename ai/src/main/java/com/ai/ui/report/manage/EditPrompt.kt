@@ -129,46 +129,115 @@ private fun PreviousPromptCard(rev: PromptRevision, onRestore: () -> Unit) {
 }
 
 /**
- * Edit just the report title. Title changes don't affect any outbound
- * API call, so saving updates the persisted report + UiState in place
- * without flagging the report as needing a regenerate.
+ * Edit the report's **short** title (the ≤25-char line on AI Reports list
+ * cards, [com.ai.data.Report.title]). One field; the 🐞 opens this report's
+ * short-title generation trace ("workers/report-title-short").
  */
 @Composable
-fun ReportEditTitleScreen(
+fun ReportEditShortTitleScreen(
     reportId: String,
     initialTitle: String,
-    initialTitleLong: String,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
-    onFindAlternativeShortTitle: () -> Unit = {},
-    onFindAlternativeLongTitle: () -> Unit = {},
-    injectedShortTitle: String? = null,
-    injectedLongTitle: String? = null,
-    onConsumeInjectedShortTitle: () -> Unit = {},
-    onConsumeInjectedLongTitle: () -> Unit = {},
-    onUpdate: (newTitle: String, newTitleLong: String) -> Unit
+    onFindAlternativeTitle: () -> Unit = {},
+    injectedTitle: String? = null,
+    onConsumeInjectedTitle: () -> Unit = {},
+    onUpdate: (newTitle: String) -> Unit
+) = SingleTitleEditScreen(
+    reportId = reportId,
+    initialTitle = initialTitle,
+    titleBarTitle = "Edit short title",
+    helpTopic = "report_edit_short_title",
+    fieldLabel = "Short title (list cards)",
+    findButtonText = "Find alternative short title",
+    traceCategory = "workers/report-title-short",
+    // The short title is the primary one (drives barTitle's fallback), so
+    // it must not be blanked out.
+    allowBlank = false,
+    onBack = onBack,
+    onNavigateToTraceFile = onNavigateToTraceFile,
+    onFindAlternativeTitle = onFindAlternativeTitle,
+    injectedTitle = injectedTitle,
+    onConsumeInjectedTitle = onConsumeInjectedTitle,
+    onUpdate = onUpdate
+)
+
+/**
+ * Edit the report's **long** title (the ≤50-char top-bar orange line,
+ * [com.ai.data.Report.titleLong]; `barTitle = titleLong ?: title`). One
+ * field that may be blanked to fall back to the short title; the 🐞 opens
+ * this report's long-title generation trace ("workers/report-title-long").
+ */
+@Composable
+fun ReportEditLongTitleScreen(
+    reportId: String,
+    initialTitle: String,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToTraceFile: (String) -> Unit,
+    onFindAlternativeTitle: () -> Unit = {},
+    injectedTitle: String? = null,
+    onConsumeInjectedTitle: () -> Unit = {},
+    onUpdate: (newTitle: String) -> Unit
+) = SingleTitleEditScreen(
+    reportId = reportId,
+    initialTitle = initialTitle,
+    titleBarTitle = "Edit long title",
+    helpTopic = "report_edit_long_title",
+    fieldLabel = "Long title (top-bar line)",
+    findButtonText = "Find alternative long title",
+    traceCategory = "workers/report-title-long",
+    // Blank long title is valid — barTitle falls back to the short one.
+    allowBlank = true,
+    onBack = onBack,
+    onNavigateToTraceFile = onNavigateToTraceFile,
+    onFindAlternativeTitle = onFindAlternativeTitle,
+    injectedTitle = injectedTitle,
+    onConsumeInjectedTitle = onConsumeInjectedTitle,
+    onUpdate = onUpdate
+)
+
+/**
+ * Shared body for the two report-title editors. Title changes don't affect
+ * any outbound API call, so saving updates the persisted report + UiState
+ * in place without flagging the report as needing a regenerate.
+ *
+ * The title is filled in dynamically by a one-shot API call
+ * (IconGenerationManager.kickOffReportTitleGeneration runs two: short +
+ * long). Each call traces under its own category, so [traceCategory] picks
+ * out this field's call for the 🐞 icon. Read off the main thread —
+ * getTraceFiles parses every trace file.
+ */
+@Composable
+private fun SingleTitleEditScreen(
+    reportId: String,
+    initialTitle: String,
+    titleBarTitle: String,
+    helpTopic: String,
+    fieldLabel: String,
+    findButtonText: String,
+    traceCategory: String,
+    allowBlank: Boolean,
+    onBack: () -> Unit,
+    onNavigateToTraceFile: (String) -> Unit,
+    onFindAlternativeTitle: () -> Unit,
+    injectedTitle: String?,
+    onConsumeInjectedTitle: () -> Unit,
+    onUpdate: (newTitle: String) -> Unit
 ) {
     BackHandler { onBack() }
-    val context = LocalContext.current
     // Same caveat as ReportEditPromptScreen above — key on the initial
-    // values so a stale draft doesn't outlive an external edit.
+    // value so a stale draft doesn't outlive an external edit.
     var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
-    var titleLong by rememberSaveable(initialTitleLong) { mutableStateOf(initialTitleLong) }
-    // A picked "Find alternative …" candidate fills the matching field.
-    LaunchedEffect(injectedShortTitle) { injectedShortTitle?.let { title = it; onConsumeInjectedShortTitle() } }
-    LaunchedEffect(injectedLongTitle) { injectedLongTitle?.let { titleLong = it; onConsumeInjectedLongTitle() } }
-    val canUpdate = title.trim().isNotBlank()
+    // A picked "Find alternative …" candidate fills the field.
+    LaunchedEffect(injectedTitle) { injectedTitle?.let { title = it; onConsumeInjectedTitle() } }
+    val canUpdate = allowBlank || title.trim().isNotBlank()
 
-    // The report title is filled in dynamically by a one-shot API call
-    // (IconGenerationManager.kickOffReportTitleGeneration, traced under
-    // category "workers/report-title"). Surface that call's trace via the
-    // 🐞 icon when it exists. Read off the main thread — getTraceFiles
-    // parses every trace file.
-    val titleTraceFilenameState = produceState<String?>(initialValue = null, reportId) {
+    val titleTraceFilenameState = produceState<String?>(initialValue = null, reportId, traceCategory) {
         value = withContext(Dispatchers.IO) {
             ApiTracer.getTraceFiles()
-                .filter { it.reportId == reportId && it.category == "workers/report-title" }
+                .filter { it.reportId == reportId && it.category == traceCategory }
                 .maxByOrNull { it.timestamp }?.filename
         }
     }
@@ -176,12 +245,12 @@ fun ReportEditTitleScreen(
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
-            helpTopic = "report_edit_title", title = "Edit title", subject = "Metadata only — no regenerate needed", onBackClick = onBack,
+            helpTopic = helpTopic, title = titleBarTitle, subject = "Metadata only — no regenerate needed", onBackClick = onBack,
             onTrace = titleTraceFilename?.let { fn -> { onNavigateToTraceFile(fn) } }
         )
 
         Button(
-            onClick = { onUpdate(title.trim(), titleLong.trim()) },
+            onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
@@ -190,14 +259,7 @@ fun ReportEditTitleScreen(
 
         OutlinedTextField(
             value = title, onValueChange = { title = it },
-            label = { Text("Short title (list cards)") }, singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            colors = AppColors.outlinedFieldColors()
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(
-            value = titleLong, onValueChange = { titleLong = it },
-            label = { Text("Long title (top-bar line)") }, singleLine = true,
+            label = { Text(fieldLabel) }, singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedFieldColors()
         )
@@ -205,22 +267,16 @@ fun ReportEditTitleScreen(
         Spacer(modifier = Modifier.weight(1f))
 
         OutlinedButton(
-            onClick = onFindAlternativeShortTitle,
+            onClick = onFindAlternativeTitle,
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
-        ) { Text("Find alternative short title", maxLines = 1, softWrap = false) }
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = onFindAlternativeLongTitle,
-            modifier = Modifier.fillMaxWidth(),
-            colors = AppColors.outlinedButtonColors()
-        ) { Text("Find alternative long title", maxLines = 1, softWrap = false) }
+        ) { Text(findButtonText, maxLines = 1, softWrap = false) }
     }
 }
 
 /**
  * Edit one model's per-model title (the title generated from that model's
- * response). Like [ReportEditTitleScreen] but per-agent: saving updates the
+ * response). Like [ReportEditShortTitleScreen] but per-agent: saving updates the
  * [com.ai.data.ReportAgent.modelTitle] in place — it doesn't re-run anything.
  * The 🐞 trace icon opens this agent's model_title call trace, looked up from
  * the stored [com.ai.data.ReportAgent.modelTitleTraceFile] (reliable per-agent,

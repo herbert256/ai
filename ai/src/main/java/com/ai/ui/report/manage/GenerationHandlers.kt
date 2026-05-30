@@ -71,7 +71,7 @@ internal fun buildGenerationPhaseHandlers(
                 onNavigateToAppLog(filename, "#$rid")
             }
         },
-        onEditTitle = { st.showEditTitle.value = true },
+        onEditTitle = { st.showEditShortTitle.value = true },
         onGetInfo = { st.showGetInfo.value = true },
         onEditPromptInline = { st.showEditPrompt.value = true },
         onEditModelsInline = { currentReportId?.let { onEditModels(it) } },

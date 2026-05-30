@@ -487,7 +487,6 @@ fun ReportsScreen(
     var fanOutViewName by st.fanOutViewName
     var fanOutViewLanguage by st.fanOutViewLanguage
     var showEditPrompt by st.showEditPrompt
-    var showEditTitle by st.showEditTitle
     var showGetInfo by st.showGetInfo
     var showEditParameters by st.showEditParameters
     var showAdvancedParameters by st.showAdvancedParameters

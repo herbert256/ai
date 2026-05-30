@@ -109,14 +109,15 @@ internal fun ReportEditOverviewScreen(
                 EditPencil(Modifier.align(Alignment.CenterEnd)) { st.showIconDetail.value = true }
             }
 
-            // Rows 2 & 3 — short title then long title, centred.
+            // Rows 2 & 3 — short title then long title, centred. Each pencil
+            // opens its own dedicated editor.
             CenteredEditRow(
                 text = shortTitle.ifBlank { "*NONE" },
-                onEdit = { st.showEditTitle.value = true }
+                onEdit = { st.showEditShortTitle.value = true }
             )
             CenteredEditRow(
                 text = longTitle.ifBlank { "*NONE" },
-                onEdit = { st.showEditTitle.value = true }
+                onEdit = { st.showEditLongTitle.value = true }
             )
 
             // Parameters + System prompt — "Label: value" with a pencil.

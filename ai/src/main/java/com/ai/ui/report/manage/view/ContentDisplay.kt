@@ -756,7 +756,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     // title via infoMetaTotal).
     val titleRow: CostRow? = if (hasTitleCost) {
         val titlePrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "workers" && it.name == "report-title"
+            it.category == "workers" && it.name == "report-title-short"
         }
         val titleAgent = titlePrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
         val parts = report.titleModel?.split("/", limit = 2)

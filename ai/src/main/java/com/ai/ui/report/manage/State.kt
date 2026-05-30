@@ -95,7 +95,8 @@ internal class ReportsScreenState(
     val fanOutViewName: MutableState<String?>,
     val fanOutViewLanguage: MutableState<String?>,
     val showEditPrompt: MutableState<Boolean>,
-    val showEditTitle: MutableState<Boolean>,
+    val showEditShortTitle: MutableState<Boolean>,
+    val showEditLongTitle: MutableState<Boolean>,
     val showGetInfo: MutableState<Boolean>,
     /** The "Edit report" overview + its two child list screens, all drawn
      *  as layer-on-top overlays in [ReportRunScreen] (like showGetInfo). */
@@ -181,7 +182,8 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val fanOutViewName = rememberSaveable { mutableStateOf<String?>(null) }
     val fanOutViewLanguage = rememberSaveable { mutableStateOf<String?>(null) }
     val showEditPrompt = rememberSaveable { mutableStateOf(false) }
-    val showEditTitle = rememberSaveable { mutableStateOf(false) }
+    val showEditShortTitle = rememberSaveable { mutableStateOf(false) }
+    val showEditLongTitle = rememberSaveable { mutableStateOf(false) }
     val showGetInfo = rememberSaveable { mutableStateOf(false) }
     val showEditReportOverview = rememberSaveable { mutableStateOf(false) }
     val showEditIconsList = rememberSaveable { mutableStateOf(false) }
@@ -261,7 +263,8 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         fanOutViewName,
         fanOutViewLanguage,
         showEditPrompt,
-        showEditTitle,
+        showEditShortTitle,
+        showEditLongTitle,
         showGetInfo,
         showEditReportOverview,
         showEditIconsList,

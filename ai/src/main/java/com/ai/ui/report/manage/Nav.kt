@@ -687,7 +687,7 @@ internal fun SeedInitialManageOverlay(st: ReportsScreenState) {
         when (com.ai.ui.navigation.ManagePickKind.fromArg(bundle.initialManageOverlay)) {
             com.ai.ui.navigation.ManagePickKind.META -> st.showMetaScreen.value = true
             com.ai.ui.navigation.ManagePickKind.EDIT_PROMPT -> st.showEditPrompt.value = true
-            com.ai.ui.navigation.ManagePickKind.EDIT_TITLE -> st.showEditTitle.value = true
+            com.ai.ui.navigation.ManagePickKind.EDIT_TITLE -> st.showEditShortTitle.value = true
             else -> { /* MANAGE / FAN_OUT / null — nothing to seed */ }
         }
     }

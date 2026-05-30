@@ -55,7 +55,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Edit report",
         cards = listOf(
             HelpCard("What you see", "A single screen gathering everything editable about the report: the report icon (big, centred), the short title, the long title, the parameters preset, the system prompt, and the prompt body. Each has a ✏️ pencil that opens its dedicated editor; Back returns here."),
-            HelpCard("Icon + titles", "The pencil beside the icon opens the Icon lookup screen (where Find alternative icons fans out across models). The pencils beside the short / long title open the Edit title screen with its own Find-alternative buttons."),
+            HelpCard("Icon + titles", "The pencil beside the icon opens the Icon lookup screen (where Find alternative icons fans out across models). The pencil beside the short title opens Edit short title and the one beside the long title opens Edit long title — each with its own Find-alternative button."),
             HelpCard("Parameters + system prompt", "Each line shows the current preset name, or *NONE when unset. The pencil opens the same picker reached from the bottom-bar 🌡️ / 🎭 icons. A change here needs a Regenerate to affect future calls."),
             HelpCard("Prompt", "The card shows the report's prompt body; its pencil opens the prompt editor. Editing the prompt flags the report as needing a Regenerate to apply."),
             HelpCard("Edit models / icons / titles", "Edit models opens the model-selection screen in edit mode. Edit icons lists every icon in the report; Edit titles lists every dynamic title — each with manual edit + Find alternative. Reached from the ✏️ icon on Manage report.")
@@ -517,7 +517,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Opened from the 🗂️ on the View hub. Lists your reports in the same five buckets as the AI Reports hub (Running, Problems, Pinned, Latest, Examples). Tap any row to open that report straight in View."),
             HelpCard("Cards", "Each card shows up to five at a glance; scroll inside a card for more. Empty buckets are greyed and sink to the bottom. Rows are title-only — no per-row icons here."),
-            HelpCard("From a Manage screen", "The same 🗂️ also appears on several Manage screens (the Manage hub, Fan Out, Meta, Edit prompt, Edit title). Opened from there, the list is FILTERED to reports relevant to that screen — e.g. from Fan Out only reports that have a fan-out — and picking one returns you to that same screen for the chosen report. The Examples bucket is hidden while a filter is active."),
+            HelpCard("From a Manage screen", "The same 🗂️ also appears on several Manage screens (the Manage hub, Fan Out, Meta, Edit prompt, Edit short title). Opened from there, the list is FILTERED to reports relevant to that screen — e.g. from Fan Out only reports that have a fan-out — and picking one returns you to that same screen for the chosen report. The Examples bucket is hidden while a filter is active."),
         )
     ),
     "report_info" to HelpContent(
@@ -530,13 +530,24 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("By model", "Per provider/model breakdown: how many calls each made and what they cost."),
         )
     ),
-    "report_edit_title" to HelpContent(
-        title = "Help - Edit title",
+    "report_edit_short_title" to HelpContent(
+        title = "Help - Edit short title",
         cards = listOf(
-            HelpCard("Overview", "Rename the report. Titles are metadata only — no outbound API call references them, so this never sets hasPendingPromptChange and you don't need to regenerate to see the new titles applied."),
-            HelpCard("Short vs long title", "Two fields. The short title shows on the AI Reports list cards; the long title shows on the top-bar orange line of the View and Manage screens. Leave the long title blank to fall back to the short one. Update title is disabled when the short title trims to blank."),
-            HelpCard("Find alternative short / long title", "Each button fans out to models you pick and lists candidate titles — short ones (≤25 chars) or long ones (≤50 chars). Tapping a candidate drops it into the matching field; nothing is saved until you tap Update title."),
-            HelpCard("Saver scoping", "rememberSaveable is keyed on the initial short / long values so re-opening the overlay with a fresh seed doesn't restore a stale draft."),
+            HelpCard("Overview", "Rename the report's short title — the ≤25-char line on the AI Reports list cards. Titles are metadata only — no outbound API call references them, so this never sets hasPendingPromptChange and you don't need to regenerate to see the new title applied."),
+            HelpCard("One field", "Just the short title. Update title is disabled when it trims to blank — the short title is the primary one (the long title's top-bar line falls back to it when blank)."),
+            HelpCard("Find alternative short title", "Fans out to models you pick and lists candidate short titles (≤25 chars). Tapping a candidate drops it into the field; nothing is saved until you tap Update title."),
+            HelpCard("🐞 Trace", "Opens the API trace from generating this report's short title ('workers/report-title-short')."),
+            HelpCard("Saver scoping", "rememberSaveable is keyed on the initial value so re-opening the overlay with a fresh seed doesn't restore a stale draft."),
+        )
+    ),
+    "report_edit_long_title" to HelpContent(
+        title = "Help - Edit long title",
+        cards = listOf(
+            HelpCard("Overview", "Rename the report's long title — the ≤50-char top-bar orange line on the View and Manage screens. Titles are metadata only — no outbound API call references them, so this never sets hasPendingPromptChange and you don't need to regenerate to see the new title applied."),
+            HelpCard("One field", "Just the long title. You may leave it blank — the top-bar line then falls back to the short title (barTitle = long ?: short), so Update title stays enabled even when empty."),
+            HelpCard("Find alternative long title", "Fans out to models you pick and lists candidate long titles (≤50 chars). Tapping a candidate drops it into the field; nothing is saved until you tap Update title."),
+            HelpCard("🐞 Trace", "Opens the API trace from generating this report's long title ('workers/report-title-long')."),
+            HelpCard("Saver scoping", "rememberSaveable is keyed on the initial value so re-opening the overlay with a fresh seed doesn't restore a stale draft."),
         )
     ),
     "report_parameters" to HelpContent(

@@ -175,8 +175,9 @@ class IconGenerationManager(
     /** Run ONE report-title worker prompt and return its single cleaned
      *  title (capped to [cap] chars) + cost/trace metadata, or null when
      *  the prompt is unusable or no worker produced a title. Each call
-     *  carries its own trace sink + the shared "workers/report-title"
-     *  category so the title editor's 🐞 scan finds it. */
+     *  carries its own trace sink and its own [traceCategory]
+     *  ("workers/report-title-short" / "-long") so each title editor's 🐞
+     *  scan finds the right call. */
     private suspend fun runTitlePrompt(
         context: Context,
         reportId: String,
@@ -184,12 +185,13 @@ class IconGenerationManager(
         promptText: String,
         aiSettings: Settings,
         cap: Int,
+        traceCategory: String,
     ): TitleGenResult? {
         if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) return null
         val resolved = prompt.text.replace("@PROMPT@", promptText)
         val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
         val started = System.currentTimeMillis()
-        val outcome = withTracerTags(reportId = reportId, category = "workers/report-title") {
+        val outcome = withTracerTags(reportId = reportId, category = traceCategory) {
             withTraceFilenameSink(traceSink) {
                 // A reply with no non-blank title line is a logical miss —
                 // try the next worker instead of settling for a default.
@@ -255,8 +257,8 @@ class IconGenerationManager(
             appViewModel.updateRunningInfoJobs { it + "$reportId|title" }
             // Run both calls concurrently.
             val (short, long) = coroutineScope {
-                val s = async { runTitlePrompt(context, reportId, shortPrompt, promptText, aiSettings, cap = 25) }
-                val l = async { runTitlePrompt(context, reportId, longPrompt, promptText, aiSettings, cap = 50) }
+                val s = async { runTitlePrompt(context, reportId, shortPrompt, promptText, aiSettings, cap = 25, traceCategory = "workers/report-title-short") }
+                val l = async { runTitlePrompt(context, reportId, longPrompt, promptText, aiSettings, cap = 50, traceCategory = "workers/report-title-long") }
                 s.await() to l.await()
             }
             if (short == null && long == null) {
