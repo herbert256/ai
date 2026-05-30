@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -509,7 +510,10 @@ internal fun FanOutL1Screen(
                             key = "meta:$metaKey",
                             label = com.ai.ui.shared.shortModelName(metaKey.substringAfterLast('/')),
                             pairs = pairs,
-                            onClick = { onOpenMetaModel(metaKey) }
+                            onClick = { onOpenMetaModel(metaKey) },
+                            // Every pair here is already titled (titleModel is set
+                            // only on success), so size == this meta-worker's done.
+                            metaDone = pairs.size
                         )
                     }
             } else {
@@ -525,8 +529,27 @@ internal fun FanOutL1Screen(
                     }
             }
         }
+        // "Meta models" rows render Translation-style (a leading count +
+        // a bar normalized to the busiest meta-worker), since their pairs
+        // are all already titled — the emoji-glyph + (ok+err)/total body
+        // can't show progress there. Every other grouping (Report models,
+        // MAIN, ICONS) keeps the existing body untouched.
+        val isMetaModels = isMetaMode && metaGroupMode == FanMetaGroupMode.META_MODELS
+        val metaMaxDone = (l1Rows.maxOfOrNull { it.metaDone } ?: 0).coerceAtLeast(1)
+        val metaShowBars = isMetaModels && (queuedCount + runningCount > 0)
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(l1Rows, key = { it.key }) { row ->
+              if (isMetaModels) {
+                FanMetaModelsL1Row(
+                    calls = row.metaDone,
+                    name = row.label,
+                    cost = row.pairs.sumOf { pairCost(it) },
+                    barFrac = row.metaDone.toFloat() / metaMaxDone,
+                    showBar = metaShowBars,
+                    onClick = row.onClick
+                )
+                HorizontalDivider(color = AppColors.DividerDark)
+              } else {
                 val pairs = row.pairs
                 // ICONS mode: classify by iconStatus (DONE iff
                 // emoji landed, ERROR iff iconErrorMessage). MAIN
@@ -607,6 +630,7 @@ internal fun FanOutL1Screen(
                     }
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
+              }
             }
         }
 
@@ -823,5 +847,58 @@ private class FanMetaL1RowModel(
     val key: String,
     val label: String,
     val pairs: List<PairState>,
-    val onClick: () -> Unit
+    val onClick: () -> Unit,
+    /** Titled-pair count for this meta-worker (Meta-models grouping only) —
+     *  drives the Translation-style count column + done/maxDone bar. Always
+     *  0 for Report-models rows, which render the emoji-glyph body instead. */
+    val metaDone: Int = 0
 )
+
+/** Translation-style L1 row used only by Fan Meta "Meta models" mode: a
+ *  leading numeric [calls] count + a green bar normalized to the busiest
+ *  meta-worker ([barFrac] = this row's done / maxDone), no status glyph.
+ *  Mirrors TranslationL1Row so the two run screens read identically;
+ *  replicated rather than shared to keep the working Translation screen
+ *  untouched. */
+@Composable
+private fun FanMetaModelsL1Row(
+    calls: Int,
+    name: String,
+    cost: Double,
+    barFrac: Float,
+    showBar: Boolean,
+    onClick: () -> Unit
+) {
+    val barColor = AppColors.Green.copy(alpha = 0.30f)
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .drawBehind {
+                if (showBar && barFrac > 0f) {
+                    drawRect(color = barColor, size = Size(size.width * barFrac, size.height))
+                }
+            }
+            .padding(vertical = 6.dp)
+            .clickable { onClick() },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            calls.toString(),
+            fontSize = 13.sp, color = AppColors.TextSecondary,
+            fontFamily = FontFamily.Monospace, textAlign = TextAlign.End,
+            modifier = Modifier.padding(start = 8.dp).widthIn(min = 32.dp)
+        )
+        Text(
+            name,
+            fontSize = 14.sp, color = Color.White,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).padding(start = 8.dp)
+        )
+        if (cost > 0.0) {
+            Text(
+                formatCents(cost), fontSize = 11.sp,
+                color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
+    }
+}
