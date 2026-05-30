@@ -132,6 +132,8 @@ fun AiLiveDashboardScreen(
     val tok5m = remember(liveTick) { ApiUsageRates.tokensWithin(5 * 60_000) }
     val cost1m = remember(liveTick) { ApiUsageRates.costWithin(context, 60_000) }
     val cost5m = remember(liveTick) { ApiUsageRates.costWithin(context, 5 * 60_000) }
+    val recentErrors = remember(liveTick) { HttpStatusStats.recentErrors(5) }
+    val slowest = remember(liveTick) { HttpStatusStats.slowestWithin(5 * 60_000, 3) }
     val now = remember(liveTick) { System.currentTimeMillis() }
     val logErr = remember(liveTick) { AppLog.lastWriterError }
     val droppedLines = remember(liveTick) { AppLog.droppedLineCount }
@@ -172,7 +174,9 @@ fun AiLiveDashboardScreen(
             item { LiveActivitySection(caps, thrFanOut, thrMeta) }
             item { SpendTokensSection(cost1m, cost5m, tok1m, tok5m) }
             item { HttpCodesSection(http1m, http5m, onOpenTraceFilter) }
+            if (recentErrors.isNotEmpty()) item { RecentErrorsSection(recentErrors, now) }
             item { ResponseTimesSection(rt1m, rt5m) }
+            if (slowest.isNotEmpty()) item { SlowestCallsSection(slowest) }
             item { ThrottleSection(hosts, onOpenTraceFilter) }
 
             val activeCooldowns = cooldowns.filterValues { it > now }
@@ -1483,6 +1487,61 @@ private fun ResponseTimeRow(label: String, n1: Int, v1: Int, n5: Int, v5: Int) {
         Spacer(Modifier.weight(1f))
         Text(if (n1 > 0) fmtMs(v1) else "—", fontSize = 12.sp, color = if (n1 > 0) Color.White else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
         Text(if (n5 > 0) fmtMs(v5) else "—", fontSize = 12.sp, color = if (n5 > 0) Color.White else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
+    }
+}
+
+/** Short "12s" / "3m" / "1h" age. */
+private fun fmtAge(ms: Long): String {
+    val s = (ms / 1000).coerceAtLeast(0)
+    return when {
+        s < 60 -> "${s}s"
+        s < 3600 -> "${s / 60}m"
+        else -> "${s / 3600}h"
+    }
+}
+
+private fun errCodeLabel(code: Int): String = if (code == 0) "FAIL" else code.toString()
+
+/** Live feed of the most recent error responses / failures — host · model ·
+ *  code · message · age. Hidden when there are none. Fed by
+ *  [HttpStatusStats.recentErrors]; independent of the tracing toggle. */
+@Composable
+private fun RecentErrorsSection(errors: List<HttpStatusStats.ErrorEvent>, now: Long) {
+    SectionCard("⚠️", "Recent errors", AppColors.Red) {
+        errors.forEach { e ->
+            val codeColor = if (e.code == 0 || e.code >= 500) AppColors.Red else AppColors.Orange
+            Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(errCodeLabel(e.code), fontSize = 12.sp, color = codeColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp))
+                    Text(twoLevelHost(e.host ?: "?"), fontSize = 12.sp, color = Color.White, maxLines = 1)
+                    e.model?.takeIf { it.isNotBlank() }?.let {
+                        Spacer(Modifier.width(6.dp))
+                        Text("· ${com.ai.ui.shared.shortModelName(it)}", fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    } ?: Spacer(Modifier.weight(1f))
+                    Text(fmtAge(now - e.t), fontSize = 11.sp, color = AppColors.TextTertiary)
+                }
+                Text(e.message, fontSize = 11.sp, color = AppColors.TextSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+/** The slowest calls in the last 5 minutes (host/model · duration), slowest
+ *  first — names the call behind the Response-times p95/max. Hidden when
+ *  there are no samples. */
+@Composable
+private fun SlowestCallsSection(slow: List<HttpStatusStats.Slow>) {
+    SectionCard("🐌", "Slowest calls (5m)", AppColors.Orange) {
+        slow.forEach { s ->
+            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(twoLevelHost(s.host ?: "?"), fontSize = 12.sp, color = Color.White, maxLines = 1)
+                s.model?.takeIf { it.isNotBlank() }?.let {
+                    Spacer(Modifier.width(6.dp))
+                    Text("· ${com.ai.ui.shared.shortModelName(it)}", fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                } ?: Spacer(Modifier.weight(1f))
+                Text(fmtMs(s.durationMs.toInt()), fontSize = 12.sp, color = AppColors.Orange, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
+            }
+        }
     }
 }
 

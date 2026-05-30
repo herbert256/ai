@@ -43,15 +43,34 @@ object HttpStatusStats {
         val maxMs: Int = 0,
     )
 
+    /** One slow call surfaced by [slowestWithin]. */
+    data class Slow(val host: String?, val model: String?, val durationMs: Long)
+
+    /** One error response surfaced by [recentErrors]. */
+    data class ErrorEvent(
+        val t: Long,
+        val host: String?,
+        val model: String?,
+        val code: Int,
+        val message: String,
+    )
+
     /** Longest window the card asks for — also the retention horizon. */
     private const val WINDOW_MS = 5 * 60 * 1000L
+    /** Recent-errors ring: kept a bit longer and capped by count. */
+    private const val ERROR_WINDOW_MS = 10 * 60 * 1000L
+    private const val ERROR_CAP = 30
 
     /** [durationMs] is the time to the response (chain.proceed round-trip);
      *  null for a thrown network failure, which has no response time. */
-    private class Hit(val t: Long, val bucket: Bucket, val durationMs: Long?)
+    private class Hit(
+        val t: Long, val bucket: Bucket, val durationMs: Long?,
+        val host: String?, val model: String?,
+    )
 
     private val lock = Any()
     private val hits = ArrayDeque<Hit>()
+    private val errors = ArrayDeque<ErrorEvent>()
 
     /** 429 is split out from the 4xx family because it's the one the live
      *  view cares about most; code 0 (a thrown network failure) and any
@@ -66,14 +85,51 @@ object HttpStatusStats {
 
     /** Record one response/attempt. [durationMs] is the response time (null
      *  for a thrown failure). Prunes anything older than [WINDOW_MS]. */
-    fun record(code: Int, durationMs: Long? = null) {
+    fun record(code: Int, durationMs: Long? = null, host: String? = null, model: String? = null) {
         val now = System.currentTimeMillis()
         val cutoff = now - WINDOW_MS
         val bucket = bucketOf(code)
         synchronized(lock) {
-            hits.addLast(Hit(now, bucket, durationMs))
+            hits.addLast(Hit(now, bucket, durationMs, host, model))
             while (hits.isNotEmpty() && hits.first().t < cutoff) hits.removeFirst()
         }
+    }
+
+    /** Record one error response/failure for the live "recent errors" feed.
+     *  Bounded by both time ([ERROR_WINDOW_MS]) and count ([ERROR_CAP]). */
+    fun recordError(host: String?, model: String?, code: Int, message: String) {
+        val now = System.currentTimeMillis()
+        val cutoff = now - ERROR_WINDOW_MS
+        synchronized(lock) {
+            errors.addLast(ErrorEvent(now, host, model, code, message))
+            while (errors.isNotEmpty() && (errors.first().t < cutoff || errors.size > ERROR_CAP)) {
+                errors.removeFirst()
+            }
+        }
+    }
+
+    /** Up to [max] most-recent errors, newest first. */
+    fun recentErrors(max: Int): List<ErrorEvent> {
+        val cutoff = System.currentTimeMillis() - ERROR_WINDOW_MS
+        synchronized(lock) {
+            return errors.asReversed().asSequence()
+                .filter { it.t >= cutoff }
+                .take(max)
+                .toList()
+        }
+    }
+
+    /** The [n] slowest calls in the trailing [windowMs], slowest first. */
+    fun slowestWithin(windowMs: Long, n: Int): List<Slow> {
+        val cutoff = System.currentTimeMillis() - windowMs
+        val out = ArrayList<Slow>()
+        synchronized(lock) {
+            for (h in hits) {
+                val d = h.durationMs
+                if (h.t >= cutoff && d != null) out.add(Slow(h.host, h.model, d))
+            }
+        }
+        return out.sortedByDescending { it.durationMs }.take(n)
     }
 
     /** Bucketed counts over the trailing [windowMs]. */
@@ -136,13 +192,25 @@ object HttpStatusStats {
 class HttpStatusStatsInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val start = System.currentTimeMillis()
+        val host = chain.request().url.host
+        // Model tag is propagated onto the dispatcher thread by ApiClient's
+        // TagPropagatingExecutor; null for untagged calls (model lists, pricing).
+        val model = ApiTracer.currentModel
         val response = try {
             chain.proceed(chain.request())
         } catch (e: Exception) {
-            HttpStatusStats.record(0)   // failure: no response time
+            HttpStatusStats.record(0, host = host, model = model)   // failure: no response time
+            HttpStatusStats.recordError(host, model, 0, "${e.javaClass.simpleName}: ${e.message ?: ""}".trim())
             throw e
         }
-        HttpStatusStats.record(response.code, System.currentTimeMillis() - start)
+        HttpStatusStats.record(response.code, System.currentTimeMillis() - start, host, model)
+        if (response.code >= 400) {
+            // peekBody is non-consuming — the downstream parser still reads the
+            // real body. Cap at 64 KiB like the retry interceptor does.
+            val body = runCatching { response.peekBody(64L * 1024L).string() }.getOrNull()
+            val msg = extractApiErrorMessage(body).ifBlank { "HTTP ${response.code}" }
+            HttpStatusStats.recordError(host, model, response.code, msg)
+        }
         return response
     }
 }

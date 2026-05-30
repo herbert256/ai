@@ -225,42 +225,8 @@ class TracingInterceptor : Interceptor {
         return response.newBuilder().body(wrappedBody).build()
     }
 
-    /** Pull a human-readable error message out of an API response
-     *  body, then collapse and clip it to fit on one log line. Tries
-     *  the common provider shapes first — `error.message`,
-     *  `error.error.message` (Anthropic / OpenRouter wrap one inside
-     *  the other on some failures), top-level `message`, `detail`,
-     *  and a final plain-string `error` field — falling back to the
-     *  first ~200 chars of the raw body if none of them parse.
-     *  Returns "" when [body] is null or blank. */
-    private fun extractErrorMessage(body: String?): String {
-        if (body.isNullOrBlank()) return ""
-        val parsed: com.google.gson.JsonElement? = try {
-            com.google.gson.JsonParser().parse(body)
-        } catch (_: Exception) { null }
-        val candidate = if (parsed != null && parsed.isJsonObject) {
-            val obj = parsed.asJsonObject
-            fun str(name: String) = obj.get(name)?.takeIf { it.isJsonPrimitive }?.asString
-            fun nested(path: List<String>): String? {
-                var cur: com.google.gson.JsonElement? = obj
-                for (p in path) {
-                    val o = cur?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
-                    cur = o.get(p) ?: return null
-                }
-                return cur?.takeIf { it.isJsonPrimitive }?.asString
-            }
-            nested(listOf("error", "message"))
-                ?: nested(listOf("error", "error", "message"))
-                ?: nested(listOf("error", "code"))
-                ?: str("message")
-                ?: str("detail")
-                ?: str("error")
-        } else null
-        val raw = candidate ?: body
-        // Collapse whitespace (newlines, tabs) and cap so a verbose
-        // stack-trace-style error body doesn't blow out the log line.
-        return raw.replace(Regex("\\s+"), " ").trim().take(400)
-    }
+    /** Class-local alias for the shared [extractApiErrorMessage]. */
+    private fun extractErrorMessage(body: String?): String = extractApiErrorMessage(body)
 
     private fun headersToMap(headers: Headers): Map<String, String> {
         val map = mutableMapOf<String, String>()
@@ -333,5 +299,39 @@ class TracingInterceptor : Interceptor {
 
     private val BODY_KEY_FIELD_REGEX =
         Regex("""("(?:api[_-]?key|apikey|access_token|authorization|secret|token|key)"\s*:\s*)"(?:[^"\\]|\\.)*"""", RegexOption.IGNORE_CASE)
+}
+
+/** Pull a human-readable error message out of an API response body, then
+ *  collapse and clip it to one line. Tries the common provider shapes first
+ *  — `error.message`, `error.error.message` (Anthropic / OpenRouter wrap one
+ *  inside the other on some failures), `error.code`, top-level `message`,
+ *  `detail`, and a final plain-string `error` field — falling back to the
+ *  raw body if none parse. Returns "" when [body] is null/blank. Shared by
+ *  [TracingInterceptor] and [HttpStatusStatsInterceptor]. */
+internal fun extractApiErrorMessage(body: String?): String {
+    if (body.isNullOrBlank()) return ""
+    val parsed: com.google.gson.JsonElement? = try {
+        com.google.gson.JsonParser().parse(body)
+    } catch (_: Exception) { null }
+    val candidate = if (parsed != null && parsed.isJsonObject) {
+        val obj = parsed.asJsonObject
+        fun str(name: String) = obj.get(name)?.takeIf { it.isJsonPrimitive }?.asString
+        fun nested(path: List<String>): String? {
+            var cur: com.google.gson.JsonElement? = obj
+            for (p in path) {
+                val o = cur?.takeIf { it.isJsonObject }?.asJsonObject ?: return null
+                cur = o.get(p) ?: return null
+            }
+            return cur?.takeIf { it.isJsonPrimitive }?.asString
+        }
+        nested(listOf("error", "message"))
+            ?: nested(listOf("error", "error", "message"))
+            ?: nested(listOf("error", "code"))
+            ?: str("message")
+            ?: str("detail")
+            ?: str("error")
+    } else null
+    val raw = candidate ?: body
+    return raw.replace(Regex("\\s+"), " ").trim().take(400)
 }
 
