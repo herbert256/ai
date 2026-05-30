@@ -143,34 +143,92 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
     // "now" so a freshly imported report (Housekeeping or an example)
     // sorts to the top of the timestamp-descending report lists.
     val newReportId = UUID.randomUUID().toString()
-    val report = parsedReport.copy(id = newReportId, timestamp = System.currentTimeMillis())
-    ReportStorage.persistReport(context, report)
 
-    // Re-key every secondary row: new UUID + new reportId.
-    var secondaryCount = 0
-    entries.entries
+    // Pass 1 — assign a fresh id to every secondary up front, so the
+    // cross-references that point at secondary ids (a TRANSLATE row's
+    // translateSourceTargetId, a fan-out pair's iconCalls.agentId, and
+    // any IconCallRecord.attributedToSecondaryId) can be rewritten onto
+    // the NEW ids before anything is persisted. Without this remap the
+    // imported report's language tabs and alt-cost attribution silently
+    // reference ids that no longer exist on this install.
+    val parsedSecondaries = entries.entries
         .filter { it.key.startsWith("secondary/") && it.key.endsWith(".json") }
-        .forEach { (_, bytes) ->
-            val parsed = gson.fromJson(String(bytes, Charsets.UTF_8), SecondaryResult::class.java)
-                ?: return@forEach
-            val rekeyed = parsed.copy(id = UUID.randomUUID().toString(), reportId = newReportId)
-            SecondaryResultStorage.save(context, rekeyed)
-            secondaryCount++
+        .mapNotNull { (_, bytes) ->
+            gson.fromJson(String(bytes, Charsets.UTF_8), SecondaryResult::class.java)
         }
+    val secIdMap: Map<String, String> =
+        parsedSecondaries.associate { it.id to UUID.randomUUID().toString() }
 
-    // Re-key every trace: rewrite the embedded reportId; let
-    // ApiTracer.saveTrace(null) mint a fresh on-disk filename so
-    // two imports of the same zip never collide on the trace dir.
+    // Pass 2 — import every trace under a freshly-minted filename and
+    // record old→new so the rows' traceFile pointers can be rewritten
+    // to point at the file that actually landed. saveTrace returns null
+    // when tracing is off (nothing written) or the write failed — only
+    // those that truly landed are mapped and counted, so the toast can't
+    // claim traces were imported when none were.
     var traceCount = 0
+    val traceFileMap = mutableMapOf<String, String>()
     entries.entries
         .filter { it.key.startsWith("traces/") && it.key.endsWith(".json") }
-        .forEach { (_, bytes) ->
+        .forEach { (key, bytes) ->
             val parsed = gson.fromJson(String(bytes, Charsets.UTF_8), ApiTrace::class.java)
                 ?: return@forEach
-            val rekeyed = parsed.copy(reportId = newReportId)
-            ApiTracer.saveTrace(rekeyed, filename = null)
+            val newName = ApiTracer.saveTrace(parsed.copy(reportId = newReportId), filename = null)
+                ?: return@forEach
+            // Zip entry is "traces/<originalFilename>"; the basename is
+            // exactly the value stored in the rows' traceFile fields.
+            traceFileMap[key.removePrefix("traces/")] = newName
             traceCount++
         }
+
+    // A trace pointer with no imported file (tracing was off, or it
+    // wasn't in the bundle) becomes null — a blank 🐞 beats a dead link
+    // to a filename that never existed on this install.
+    fun remapTrace(old: String?): String? = old?.let { traceFileMap[it] }
+    // Remap a secondary-id reference, leaving non-secondary ids (real
+    // agent ids on AGENT-sourced translations / per-agent icon records)
+    // untouched.
+    fun remapSecId(old: String?): String? = old?.let { secIdMap[it] ?: it }
+
+    // Pass 3a — persist the report with every trace pointer + secondary
+    // cross-reference remapped onto the new ids.
+    val remappedAgents = parsedReport.agents.map { a ->
+        a.copy(
+            traceFile = remapTrace(a.traceFile),
+            iconTraceFile = remapTrace(a.iconTraceFile),
+            modelTitleTraceFile = remapTrace(a.modelTitleTraceFile)
+        )
+    }.toMutableList()
+    val remappedIconCalls = parsedReport.iconCalls.map { c ->
+        c.copy(
+            agentId = secIdMap[c.agentId] ?: c.agentId,
+            attributedToSecondaryId = remapSecId(c.attributedToSecondaryId)
+        )
+    }.toMutableList()
+    val report = parsedReport.copy(
+        id = newReportId,
+        timestamp = System.currentTimeMillis(),
+        agents = remappedAgents,
+        iconCalls = remappedIconCalls,
+        iconTraceFile = remapTrace(parsedReport.iconTraceFile),
+        titleTraceFile = remapTrace(parsedReport.titleTraceFile),
+        languageTraceFile = remapTrace(parsedReport.languageTraceFile),
+        languageIconTraceFile = remapTrace(parsedReport.languageIconTraceFile)
+    )
+    ReportStorage.persistReport(context, report)
+
+    // Pass 3b — persist every secondary onto its new id, with reportId,
+    // translate cross-link, and trace pointer remapped.
+    var secondaryCount = 0
+    parsedSecondaries.forEach { parsed ->
+        val rekeyed = parsed.copy(
+            id = secIdMap.getValue(parsed.id),
+            reportId = newReportId,
+            translateSourceTargetId = remapSecId(parsed.translateSourceTargetId),
+            traceFile = remapTrace(parsed.traceFile)
+        )
+        SecondaryResultStorage.save(context, rekeyed)
+        secondaryCount++
+    }
 
     return ReportImportSummary(
         title = report.title,
