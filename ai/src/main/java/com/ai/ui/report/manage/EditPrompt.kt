@@ -4,15 +4,23 @@ import com.ai.ui.helpers.*
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
+import com.ai.data.PromptRevision
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.Dispatchers
@@ -22,15 +30,23 @@ import kotlinx.coroutines.withContext
  * Edit the report's prompt body. Saving sets `hasPendingPromptChange`
  * so the result screen surfaces a "regenerate to apply" hint — the
  * model output is stale until the user re-runs.
+ *
+ * Every save pushes the superseded prompt onto [Report.promptHistory]
+ * (see [com.ai.data.ReportStorage.updateReportPromptText]); this screen
+ * surfaces that timeline as a "Previous prompts" list so an earlier
+ * wording can be reviewed or restored into the editor instead of being
+ * lost on edit.
  */
 @Composable
 fun ReportEditPromptScreen(
+    reportId: String,
     initialPrompt: String,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     onUpdate: (newPrompt: String) -> Unit
 ) {
     BackHandler { onBack() }
+    val context = LocalContext.current
     // Key the saver on initialPrompt so that re-opening the overlay
     // with a different starting value doesn't restore the old draft
     // out of the SaveableStateRegistry. Without the key, an external
@@ -38,6 +54,14 @@ fun ReportEditPromptScreen(
     // text.
     var prompt by rememberSaveable(initialPrompt) { mutableStateOf(initialPrompt) }
     val canUpdate = prompt.trim().isNotBlank()
+
+    // Revision timeline for this report, newest-first. Loaded off the
+    // main thread; re-read whenever the report changes.
+    val history by produceState<List<PromptRevision>>(emptyList(), reportId) {
+        value = withContext(Dispatchers.IO) {
+            com.ai.data.ReportStorage.getReport(context, reportId)?.promptHistory.orEmpty().reversed()
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_edit_prompt", title = "Edit prompt", subject = "Saving needs a regenerate to apply", onBackClick = onBack)
@@ -57,6 +81,50 @@ fun ReportEditPromptScreen(
             modifier = Modifier.fillMaxWidth(),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
         ) { Text("Update prompt", maxLines = 1, softWrap = false) }
+
+        if (history.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                "Previous prompts (${history.size})",
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                color = AppColors.TextSecondary,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+            // Bounded so the editor keeps the bulk of the screen; the
+            // list scrolls when revisions pile up.
+            LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
+                items(history) { rev -> PreviousPromptCard(rev, onRestore = { prompt = rev.prompt }) }
+            }
+        }
+    }
+}
+
+/** One row in the Edit-prompt "Previous prompts" timeline. Shows when
+ *  the wording was replaced and a 3-line preview; tapping it loads the
+ *  text back into the editor (the user can then Update to re-run it,
+ *  which itself records the current text as a new revision). */
+@Composable
+private fun PreviousPromptCard(rev: PromptRevision, onRestore: () -> Unit) {
+    val whenLabel = remember(rev.timestamp) {
+        java.text.SimpleDateFormat("MMM d, HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date(rev.timestamp))
+    }
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+            .clip(RoundedCornerShape(10.dp))
+            .background(AppColors.CardBackground)
+            .clickable { onRestore() }
+            .padding(12.dp)
+    ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(whenLabel, fontSize = 11.sp, color = AppColors.TextTertiary)
+            Text("↩ Tap to restore", fontSize = 11.sp, color = AppColors.Green)
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            rev.prompt, fontSize = 13.sp, color = AppColors.TextPrimary,
+            maxLines = 3, overflow = TextOverflow.Ellipsis
+        )
     }
 }
 

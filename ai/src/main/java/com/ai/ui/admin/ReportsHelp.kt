@@ -507,8 +507,9 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Modify the report's prompt. Saving stamps hasPendingPromptChange so the result screen surfaces a yellow 'Changes pending: prompt' banner — the existing rows aren't re-rendered until you tap Regenerate."),
             HelpCard("Prompt field", "Multi-line, fills the screen. Update prompt is disabled when the body trims to blank."),
+            HelpCard("Previous prompts", "Every save records the superseded wording on the report, so the prompt has a revision timeline within this one report instead of earlier versions being lost. The 'Previous prompts' list below the editor shows each prior wording newest-first with the time it was replaced; tap one to load it back into the editor (then Update to re-run it — which itself records the text it replaced). The history lives on the report file, so it survives launches and backup/restore."),
             HelpCard("Saver scoping", "rememberSaveable is keyed on initialPrompt so re-opening the overlay with a fresh seed value doesn't restore a stale draft from the SaveableStateRegistry."),
-            HelpCard("Pitfalls", "Editing the prompt alone doesn't re-run agents — the existing responses stay on screen until you Regenerate."),
+            HelpCard("Pitfalls", "Editing the prompt alone doesn't re-run agents — the existing responses stay on screen until you Regenerate. Saving the identical text is a no-op and doesn't add a history entry."),
         )
     ),
     "report_picker" to HelpContent(

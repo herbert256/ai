@@ -140,6 +140,14 @@ enum class ReportType { CLASSIC, TABLE }
 
 enum class ReportStatus { PENDING, RUNNING, SUCCESS, ERROR, STOPPED }
 
+/** One superseded prompt body, kept so a report carries a revision
+ *  timeline instead of losing the earlier wording when the prompt is
+ *  edited. [timestamp] is when this text was replaced. */
+data class PromptRevision(
+    val prompt: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 data class Report(
     val id: String,
     /** Last-changed time — bumped on (almost) every mutation. NOT a
@@ -371,7 +379,14 @@ data class Report(
     /** Raw assistant text returned by the language-detection model
      *  (typically a single `language: …` line). Null on legacy
      *  reports / before the call returned. */
-    var languageRawResponse: String? = null
+    var languageRawResponse: String? = null,
+    /** Superseded prompt bodies, oldest-first. Each prompt edit pushes
+     *  the prior text here, giving a revision timeline within a single
+     *  report (Manage → Edit prompt → Previous prompts) instead of
+     *  the earlier wording being lost or scattered across disconnected
+     *  reports. Empty on legacy reports / reports whose prompt was
+     *  never edited. */
+    val promptHistory: List<PromptRevision> = emptyList()
 )
 
 /** Title for the top-bar orange line: the long title when present, else the

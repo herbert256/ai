@@ -317,7 +317,7 @@ object ReportStorage {
         val dir = reportsDir ?: return null
         val file = File(dir, "$reportId.json")
         if (!file.exists()) return null
-        return try { gson.fromJson(file.readText(), Report::class.java) } catch (e: Exception) {
+        return try { gson.fromJson(file.readText(), Report::class.java)?.let(::normalizeReport) } catch (e: Exception) {
             AppLog.e("ReportStorage", "Failed to load report $reportId: ${e.message}"); null
         }
     }
@@ -325,11 +325,19 @@ object ReportStorage {
     private fun loadAllReports(): List<Report> {
         val files = reportsDir?.listFiles { f -> f.extension == "json" } ?: return emptyList()
         return files.mapNotNull { file ->
-            try { gson.fromJson(file.readText(), Report::class.java) } catch (e: Exception) {
+            try { gson.fromJson(file.readText(), Report::class.java)?.let(::normalizeReport) } catch (e: Exception) {
                 AppLog.e("ReportStorage", "Failed to load ${file.name}: ${e.message}"); null
             }
         }
     }
+
+    /** Gson instantiates via Unsafe (no constructor call), so fields
+     *  added after a report was persisted deserialize as null. Re-assert
+     *  non-null defaults for those new fields so the rest of the app can
+     *  treat them as the non-null types they're declared as. */
+    private fun normalizeReport(r: Report): Report =
+        if ((r.promptHistory as List<PromptRevision>?) == null)
+            r.copy(promptHistory = emptyList()) else r
 
     private fun saveReport(report: Report) {
         val dir = reportsDir ?: return
@@ -1139,7 +1147,14 @@ object ReportStorage {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
-            saveReport(report.copy(prompt = newPrompt))
+            if (report.prompt == newPrompt) return@withLock true   // no-op, no history churn
+            // Push the superseded prompt onto the revision timeline,
+            // skipping blanks and exact dupes of the latest entry.
+            val history = if (report.prompt.isNotBlank() &&
+                report.promptHistory.lastOrNull()?.prompt != report.prompt) {
+                report.promptHistory + PromptRevision(report.prompt)
+            } else report.promptHistory
+            saveReport(report.copy(prompt = newPrompt, promptHistory = history))
             true
         }
     }

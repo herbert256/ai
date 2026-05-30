@@ -153,6 +153,7 @@ internal fun ReportManageActionOverlays(
                 { managePick(com.ai.ui.navigation.ManagePickKind.EDIT_PROMPT.arg) }
         ) {
             ReportEditPromptScreen(
+                reportId = rid,
                 initialPrompt = uiState.genericPromptText,
                 onBack = { st.showEditPrompt.value = false },
                 onNavigateHome = onNavigateHome,
