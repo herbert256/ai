@@ -42,7 +42,7 @@ import kotlin.concurrent.withLock
  */
 object InternalPromptIconCache {
     private const val FILE_NAME = "internal_prompt_icons.json"
-    private const val SEP = ""  // ASCII Unit Separator
+    private const val SEP = ""  // ASCII Unit Separator
 
     /** Persisted per-(name, title) record. Fields:
      *  - [emoji] is the currently displayed glyph.
