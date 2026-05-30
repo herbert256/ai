@@ -19,7 +19,6 @@ import androidx.navigation.compose.rememberNavController
 import com.ai.data.*
 import com.ai.model.*
 import com.ai.viewmodel.*
-import com.ai.ui.chat.*
 import com.ai.ui.hub.*
 import com.ai.ui.report.view.*
 import com.ai.ui.report.manage.*
@@ -40,7 +39,6 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
     navController: NavHostController,
     appViewModel: AppViewModel,
     reportViewModel: ReportViewModel,
-    chatViewModel: ChatViewModel,
     safePopBack: () -> Unit,
     navigateHome: () -> Unit
 ) {

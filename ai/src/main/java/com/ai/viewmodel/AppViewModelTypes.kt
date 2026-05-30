@@ -357,19 +357,6 @@ data class UiState(
      *  AnalysisRepository.analyzeWithAgent reads it via the per-call
      *  Report it loads to inject the context block. */
     val attachedKnowledgeBaseIds: List<String> = emptyList(),
-    /** Initial user-input text staged by the share-target chooser
-     *  so a freshly-opened chat session pre-fills its input box.
-     *  ChatSessionScreen consumes this once on first composition
-     *  and clears it via clearChatStarterText() so navigating
-     *  away and back doesn't re-stuff the box. */
-    val chatStarterText: String? = null,
-    /** Initial vision attachment staged by the AI Chat hub's
-     *  "📸 Start with photo" entry (and any future flow that wants
-     *  to drop a chat session in with an image already attached).
-     *  Consumed by ChatSessionScreen on first composition the same
-     *  way chatStarterText is. */
-    val chatStarterImageBase64: String? = null,
-    val chatStarterImageMime: String? = null,
     /** SAF Uri strings staged for ingestion by the AI Knowledge
      *  screen. The list screen drops them into the active KB
      *  after the user picks one (or creates a new KB) and clears
@@ -429,10 +416,7 @@ data class UiState(
     // on completion; multiple batches can be in flight at once. The
     // Meta button's hourglass and the Meta screen's poll loop key off
     // this being > 0.
-    val activeSecondaryBatches: Int = 0,
-    // Chat
-    val chatParameters: ChatParameters = ChatParameters(),
-    val dualChatConfig: DualChatConfig? = null
+    val activeSecondaryBatches: Int = 0
 ) {
     // Flat accessors preserved so call sites don't need updating. Grouping the 13 external
     // fields into a nested ExternalIntent struct makes "is anything external set?" checks

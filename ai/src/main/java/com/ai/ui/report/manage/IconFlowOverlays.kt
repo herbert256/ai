@@ -42,7 +42,6 @@ internal fun ReportIconFlowOverlays(
     onRestartModelTitleFanOut: (agentId: String) -> Unit,
     onNavigateToTraceFile: (String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
-    continueChat: ContinueChatCallbacks,
 ): Boolean {
     val currentReportId = uiState.currentReportId
     val aiSettings = uiState.aiSettings
@@ -271,7 +270,6 @@ internal fun ReportIconFlowOverlays(
             languageIconCallbacks = languageIconCallbacks,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onNavigateToModelInfo = onNavigateToModelInfo,
-            continueChat = continueChat,
             onOpenPicker = {
                 st.showIconDetail.value = false
                 st.showFindIconsPicker.value = true

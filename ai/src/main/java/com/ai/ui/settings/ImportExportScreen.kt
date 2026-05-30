@@ -21,8 +21,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
-import com.ai.data.ChatHistoryManager
-import com.ai.data.ChatSession
 import com.ai.data.PricingCache
 import com.ai.data.ProviderRegistry
 import com.ai.data.Report
@@ -192,24 +190,12 @@ private fun buildReportsRuntimeBundle(context: Context): JsonObject {
     }
 }
 
-/** Runtime-data export bundle: every chat session. Same JSON shape
- *  [ChatHistoryManager.saveSession] writes per file, just bundled in
- *  a top-level array. */
-private fun buildChatsRuntimeBundle(): JsonObject {
-    val gson = createAppGson()
-    val sessions = ChatHistoryManager.getAllSessions()
-    return JsonObject().apply {
-        add("chats", gson.toJsonTree(sessions))
-    }
-}
-
-/** Combined runtime bundle — reports + secondaries + chats. The
- *  importer reads each section independently so old single-section
- *  exports stay readable. */
+/** Combined runtime bundle — reports + secondaries. The importer reads
+ *  each section independently so old single-section exports stay
+ *  readable. */
 private fun buildAllRuntimeBundle(context: Context): JsonObject {
     val gson = createAppGson()
     val reports = ReportStorage.getAllReports(context)
-    val sessions = ChatHistoryManager.getAllSessions()
     val secondaries = JsonObject().apply {
         for (r in reports) {
             val rows = SecondaryResultStorage.listForReport(context, r.id)
@@ -219,7 +205,6 @@ private fun buildAllRuntimeBundle(context: Context): JsonObject {
     return JsonObject().apply {
         add("reports", gson.toJsonTree(reports))
         add("secondaries", secondaries)
-        add("chats", gson.toJsonTree(sessions))
     }
 }
 
@@ -273,28 +258,6 @@ private fun applyRuntimeReports(context: Context, root: JsonObject): ImportRepor
         }
     }
     return ImportReportsResult(added, skipped, secondariesAdded)
-}
-
-/** Additive merge for chat sessions — same id-based logic. */
-private data class ImportChatsResult(val added: Int, val skipped: Int)
-
-private fun applyRuntimeChats(root: JsonObject): ImportChatsResult {
-    val gson = createAppGson()
-    val existingIds = ChatHistoryManager.getAllSessions().map { it.id }.toSet()
-    var added = 0
-    var skipped = 0
-    val arr = root.getAsJsonArray("chats") ?: return ImportChatsResult(0, 0)
-    arr.forEach { el ->
-        val session = try { gson.fromJson(el, ChatSession::class.java) } catch (e: Exception) {
-            AppLog.w("ImportExport", "Skipped chat session entry: ${e.message}")
-            return@forEach
-        }
-        if (session.id.isBlank()) { skipped++; return@forEach }
-        if (session.id in existingIds) { skipped++; return@forEach }
-        ChatHistoryManager.saveSession(session)
-        added++
-    }
-    return ImportChatsResult(added, skipped)
 }
 
 /** JSON tree of every Agent / Flock / Swarm. Same shape used by both
@@ -1059,24 +1022,15 @@ fun ImportExportScreen(
         Toast.makeText(context, "Reports ready to share ($reports reports, $secondaries meta-results)", Toast.LENGTH_SHORT).show()
     }
 
-    fun exportRuntimeChats() {
-        val bundle = buildChatsRuntimeBundle()
-        shareExportText(context, "ai_chats-${exportTimestamp()}.json", "application/json", "Share chats",
-            createAppGson(prettyPrint = true).toJson(bundle))
-        val chats = bundle.getAsJsonArray("chats")?.size() ?: 0
-        Toast.makeText(context, "Chats ready to share ($chats sessions)", Toast.LENGTH_SHORT).show()
-    }
-
     fun exportRuntimeAll() {
         val bundle = buildAllRuntimeBundle(context)
         shareExportText(context, "ai_runtime-${exportTimestamp()}.json", "application/json", "Share runtime data",
             createAppGson(prettyPrint = true).toJson(bundle))
         val reports = bundle.getAsJsonArray("reports")?.size() ?: 0
-        val chats = bundle.getAsJsonArray("chats")?.size() ?: 0
         val secondaries = bundle.getAsJsonObject("secondaries")?.entrySet()?.sumOf {
             (it.value as? JsonArray)?.size() ?: 0
         } ?: 0
-        Toast.makeText(context, "Runtime data ready to share ($reports reports, $secondaries meta-results, $chats chats)", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Runtime data ready to share ($reports reports, $secondaries meta-results)", Toast.LENGTH_SHORT).show()
     }
 
     fun exportCosts() {
@@ -1429,19 +1383,6 @@ fun ImportExportScreen(
                 }
                 Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
             }
-            "runtimeChats" -> {
-                val json = readFromUri(uri)
-                if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
-                val root = try { JsonParser.parseString(json) as? JsonObject } catch (_: Exception) { null }
-                if (root == null) {
-                    Toast.makeText(context, "Chats file is not a JSON object", Toast.LENGTH_LONG).show()
-                    return@rememberLauncherForActivityResult
-                }
-                val res = applyRuntimeChats(root)
-                val msg = "Added ${res.added} chat session${if (res.added == 1) "" else "s"}" +
-                    if (res.skipped > 0) " (${res.skipped} skipped, already present)" else ""
-                Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
-            }
             "runtimeAll" -> {
                 val json = readFromUri(uri)
                 if (json.isNullOrBlank()) { Toast.makeText(context, "File is empty", Toast.LENGTH_SHORT).show(); return@rememberLauncherForActivityResult }
@@ -1451,15 +1392,13 @@ fun ImportExportScreen(
                     return@rememberLauncherForActivityResult
                 }
                 val rRes = if (root.has("reports")) applyRuntimeReports(context, root) else ImportReportsResult(0, 0, 0)
-                val cRes = if (root.has("chats")) applyRuntimeChats(root) else ImportChatsResult(0, 0)
-                if (rRes.added == 0 && cRes.added == 0 && rRes.skipped == 0 && cRes.skipped == 0) {
+                if (rRes.added == 0 && rRes.skipped == 0) {
                     Toast.makeText(context, "No runtime data found in file", Toast.LENGTH_LONG).show()
                 } else {
                     val parts = mutableListOf<String>()
                     if (rRes.added > 0) parts += "${rRes.added} reports"
                     if (rRes.secondaries > 0) parts += "${rRes.secondaries} meta-results"
-                    if (cRes.added > 0) parts += "${cRes.added} chats"
-                    val skipped = rRes.skipped + cRes.skipped
+                    val skipped = rRes.skipped
                     val msg = "Added " + (if (parts.isEmpty()) "nothing new" else parts.joinToString(", ")) +
                         if (skipped > 0) " ($skipped skipped, already present)" else ""
                     Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
@@ -1855,9 +1794,6 @@ fun ImportExportScreen(
                 ImportExportRow("Reports", importOnly,
                     onExport = { exportRuntimeReports() },
                     onImport = { importType = "runtimeReports"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
-                ImportExportRow("Chat", importOnly,
-                    onExport = { exportRuntimeChats() },
-                    onImport = { importType = "runtimeChats"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })
                 ImportExportRow("All", importOnly,
                     onExport = { exportRuntimeAll() },
                     onImport = { importType = "runtimeAll"; importFileLauncher.launch(arrayOf("application/json", "text/*")) })

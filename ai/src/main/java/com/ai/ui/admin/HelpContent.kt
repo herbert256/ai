@@ -19,7 +19,6 @@ internal val HELP_TOPICS: Map<String, HelpContent> =
     searchHelp +
     settingsAdminHelp +
     developerHelp +
-    chatHelp +
     modelsHelp +
     providerCatalogHelp +
     crudHelp +

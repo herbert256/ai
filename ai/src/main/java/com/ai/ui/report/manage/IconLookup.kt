@@ -68,7 +68,6 @@ fun IconLookupScreen(ctx: IconLookupContext) {
             title = "Icon lookup",
             subject = ctx.subject,
             onBackClick = ctx.onBack,
-            onChat = ctx.onContinueChat,
             onInfo = ctx.onNavigateToModelInfo,
             onCopy = if (ctx.apiInteraction.isNotBlank())
                 ({ copyToClipboard(context, ctx.apiInteraction, "Icon API interaction") })
@@ -295,9 +294,6 @@ data class IconLookupContext(
      *  iconRefreshTick so the displayed glyph refreshes). Null hides both
      *  buttons. */
     val onApplyIcon: ((emoji: String) -> Unit)? = null,
-    /** Continue-in-chat (💬) — non-null only when the source supports
-     *  it (report-level, language, agent tier-1). Null hides the icon. */
-    val onContinueChat: (() -> Unit)?,
     val onNavigateToModelInfo: () -> Unit,
     val onNavigateToTraceFile: (String) -> Unit,
     val onBack: () -> Unit

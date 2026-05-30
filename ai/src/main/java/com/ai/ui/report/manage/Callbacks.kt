@@ -120,16 +120,6 @@ data class FanRuntimeBundle(
 
 // ===== Main Reports Screen =====
 
-/** Bundle of the three "Continue in chat" navigation callbacks
- *  ReportsScreen already exposes individually. Bundled into one
- *  slot so the icon detail screens can plumb them through their
- *  helper chain without inflating per-method bytecode. */
-data class ContinueChatCallbacks(
-    val onCurrent: (reportId: String, agentId: String) -> Unit = { _, _ -> },
-    val onAgentPicker: (reportId: String, agentId: String) -> Unit = { _, _ -> },
-    val onOnTheFly: (reportId: String, agentId: String) -> Unit = { _, _ -> },
-)
-
 /** Bundle of the four language-icon fan-out parameters — passed as
  *  one slot through to the icon routers so the per-method bytecode
  *  of ReportsScreen stays under the JVM 64 KB ceiling. */

@@ -19,7 +19,6 @@ import androidx.navigation.compose.rememberNavController
 import com.ai.data.*
 import com.ai.model.*
 import com.ai.viewmodel.*
-import com.ai.ui.chat.*
 import com.ai.ui.hub.*
 import com.ai.ui.report.view.*
 import com.ai.ui.report.manage.*
@@ -55,7 +54,6 @@ internal fun NavGraphBuilder.developerRoutes(
     navController: NavHostController,
     appViewModel: AppViewModel,
     reportViewModel: ReportViewModel,
-    chatViewModel: ChatViewModel,
     safePopBack: () -> Unit,
     navigateHome: () -> Unit
 ) {
@@ -195,7 +193,6 @@ internal fun NavGraphBuilder.developerRoutes(
             val hasTrimmable by produceState(initialValue = false, resumeTick) {
                 value = withContext(Dispatchers.IO) {
                     com.ai.data.ReportStorage.getAllReports(ctx).isNotEmpty() ||
-                        com.ai.data.ChatHistoryManager.getSessionCount() > 0 ||
                         com.ai.data.ApiTracer.hasAnyTraceFile()
                 }
             }

@@ -6,7 +6,6 @@ import com.ai.ui.helpers.*
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,7 +19,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -55,7 +53,6 @@ import com.ai.ui.report.view.helpers.wrapTo
 import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
@@ -232,34 +229,6 @@ fun MetaViewScreen(
                         row?.model.orEmpty()
                     )
             )
-            // 💬 → open a new chat seeded with the original prompt, the
-            // model responses (hidden system context) and this meta
-            // prose (assistant's first turn), so the user can ask
-            // follow-ups instead of copy-pasting into a fresh chat.
-            if (row != null) {
-                val navToRoute = com.ai.ui.shared.LocalNavigateToRoute.current
-                val chatScope = rememberCoroutineScope()
-                var opening by remember { mutableStateOf(false) }
-                Text(
-                    text = "💬",
-                    fontSize = 24.sp,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable(enabled = !opening) {
-                            opening = true
-                            chatScope.launch {
-                                val sid = com.ai.ui.navigation.continueMetaInChat(
-                                    context, currentReportId, currentResultId, activeLanguage
-                                )
-                                opening = false
-                                if (sid != null) {
-                                    navToRoute(com.ai.ui.navigation.NavRoutes.aiChatContinue(sid))
-                                }
-                            }
-                        }
-                        .padding(start = 8.dp, end = 4.dp)
-                )
-            }
         }
         if (row == null) {
             Box(

@@ -56,7 +56,6 @@ fun HubScreen(
     onNavigateToHelp: () -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToReportsHub: () -> Unit,
-    onNavigateToChatsHub: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
     onNavigateToHousekeeping: () -> Unit,
     onNavigateToKnowledge: () -> Unit = {},
@@ -140,8 +139,6 @@ fun HubScreen(
             // stays compact.
             if (hasAnyAgent) {
                 HubCard(icon = "\uD83D\uDCDD", title = "Reports", onClick = onNavigateToReportsHub)
-                Spacer(modifier = Modifier.height(12.dp))
-                HubCard(icon = "\uD83D\uDCAC", title = "Chat", onClick = onNavigateToChatsHub)
                 Spacer(modifier = Modifier.height(12.dp))
             } else {
                 // No agents yet \u2192 the AI Reports hub is hidden. Offer the

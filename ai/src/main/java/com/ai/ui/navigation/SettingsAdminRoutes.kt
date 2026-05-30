@@ -19,7 +19,6 @@ import androidx.navigation.compose.rememberNavController
 import com.ai.data.*
 import com.ai.model.*
 import com.ai.viewmodel.*
-import com.ai.ui.chat.*
 import com.ai.ui.hub.*
 import com.ai.ui.report.view.*
 import com.ai.ui.report.manage.*
@@ -40,7 +39,6 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
     navController: NavHostController,
     appViewModel: AppViewModel,
     reportViewModel: ReportViewModel,
-    chatViewModel: ChatViewModel,
     safePopBack: () -> Unit,
     navigateHome: () -> Unit
 ) {
@@ -104,7 +102,6 @@ internal fun NavGraphBuilder.settingsAdminRoutes(
                     onSaveSettings = { appViewModel.updateSettings(it) },
                     onTestAiModel = { s, k, m -> appViewModel.testAiModel(s, k, m) },
                     onFetchModels = appViewModel::fetchModels,
-                    onStartChat = { p, m -> navController.navigate(NavRoutes.aiChatParams(p.id, m)) },
                     onNavigateToTracesForModel = { p, m -> navController.navigate(NavRoutes.traceListForModel(p.id, m)) },
                     onNavigateToAddManualOverride = { p, m -> navController.navigate(NavRoutes.aiManualOverrideAdd(p.id, m)) },
                     onNavigateToAddCostOverride = { p, m -> navController.navigate(NavRoutes.aiManualCostOverrideAdd(p.id, m)) },

@@ -357,7 +357,6 @@ internal fun AgentIconDetailOverlay(
             hasActiveFanOut = hasActiveAgentFanOut,
             onFindAlternativeIcons = { onFindAlternativeIcons(hasActiveAgentFanOut) },
             onApplyIcon = onApplyIcon,
-            onContinueChat = null,
             onNavigateToModelInfo = { /* model info nav not currently wired in this overlay */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = onClose
@@ -491,7 +490,6 @@ internal fun PairIconDetailOverlay(
             hasActiveFanOut = hasActivePairFanOut,
             onFindAlternativeIcons = { onFindAlternativeIcons(hasActivePairFanOut) },
             onApplyIcon = onApplyIcon,
-            onContinueChat = null,
             onNavigateToModelInfo = { /* model info nav not currently wired in this overlay */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = onClose
@@ -555,7 +553,6 @@ internal fun MetaIconDetailOverlay(
             hasActiveFanOut = hasActiveFanOut,
             onFindAlternativeIcons = { onOpenAlternativeIcons(hasActiveFanOut) },
             onApplyIcon = onApplyIcon,
-            onContinueChat = null,
             onNavigateToModelInfo = { /* meta-icon flow doesn't wire Model Info nav */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = onClose
@@ -615,7 +612,6 @@ internal fun TranslationIconDetailOverlay(
             hasActiveFanOut = hasActiveFanOut,
             onFindAlternativeIcons = { onOpenAlternativeIcons(hasActiveFanOut) },
             onApplyIcon = onApplyIcon,
-            onContinueChat = null,
             onNavigateToModelInfo = { /* translation-icon flow doesn't wire Model Info nav */ },
             onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = onClose
@@ -634,7 +630,6 @@ internal fun RenderLanguageDetailOverlay(
     hasActiveFanOut: Boolean,
     onNavigateToTraceFile: (String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
-    continueChat: ContinueChatCallbacks?,
     onFindAlternativeIcons: () -> Unit,
     onApplyIcon: (String) -> Unit,
     onBack: () -> Unit,
@@ -712,7 +707,6 @@ internal fun RenderLanguageDetailOverlay(
             hasActiveFanOut = hasActiveFanOut,
             onFindAlternativeIcons = onFindAlternativeIcons,
             onApplyIcon = onApplyIcon,
-            onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
             onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
             onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = onBack
@@ -744,7 +738,6 @@ internal fun ReportIconOrLanguageDetailOverlay(
     languageIconCallbacks: LanguageIconCallbacks,
     onNavigateToTraceFile: (String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
-    continueChat: ContinueChatCallbacks?,
     onOpenPicker: () -> Unit,
     onOpenAltIcons: () -> Unit,
     onApplyReportIcon: (String) -> Unit,
@@ -763,7 +756,6 @@ internal fun ReportIconOrLanguageDetailOverlay(
             hasActiveFanOut = hasLangFanOut,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onNavigateToModelInfo = onNavigateToModelInfo,
-            continueChat = continueChat,
             onFindAlternativeIcons = { if (hasLangFanOut) onOpenAltIcons() else onOpenPicker() },
             onApplyIcon = onApplyLanguageIcon,
             onBack = onClose
@@ -819,7 +811,6 @@ internal fun ReportIconOrLanguageDetailOverlay(
             hasActiveFanOut = hasActiveFanOut,
             onFindAlternativeIcons = { if (hasActiveFanOut) onOpenAltIcons() else onOpenPicker() },
             onApplyIcon = onApplyReportIcon,
-            onContinueChat = continueChat?.let { c -> { c.onCurrent(reportId, "") } },
             onNavigateToModelInfo = infoTarget?.let { (p, m) -> { onNavigateToModelInfo(p, m) } } ?: { },
             onNavigateToTraceFile = onNavigateToTraceFile,
             onBack = onClose

@@ -269,9 +269,6 @@ internal fun ReportRunScreen(
             onTrace = if (currentReportId != null) generationHandlers.onTrace else null,
             onDelete = if (currentReportId != null) generationHandlers.onDelete else null,
             onOpenView = if (currentReportId != null) onOpenViewReport else null,
-            onChat = if (uiState.genericPromptText.isNotBlank()) {
-                { onChatWithReportPrompt(uiState.genericPromptText) }
-            } else null,
             onShare = if (currentReportId != null && isComplete) generationHandlers.onRequestExport else null,
             onCopyReport = if (currentReportId != null) {
                 { showCopyConfirm = true }

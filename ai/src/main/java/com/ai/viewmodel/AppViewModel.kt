@@ -473,7 +473,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.d(tag, "→ Singletons init")
         AppLog.v(tag, "  init AppLog"); AppLog.init(application)
         AppLog.v(tag, "  init ApiTracer"); ApiTracer.init(application)
-        AppLog.v(tag, "  init ChatHistoryManager"); ChatHistoryManager.init(application)
         AppLog.v(tag, "  init ReportStorage"); ReportStorage.init(application)
         AppLog.v(tag, "  init SecondaryResultStorage"); SecondaryResultStorage.init(application)
         AppLog.v(tag, "  init ProviderRegistry"); ProviderRegistry.init(application)
@@ -875,7 +874,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // the wipe sets stay in lockstep when one is later extended.
 
     data class RuntimeWipeResult(
-        val logs: Int, val chats: Int, val traces: Int,
+        val logs: Int, val traces: Int,
         val reports: Int, val prompts: Int, val testModels: Int
     )
     data class ConfigWipeResult(val localLlms: Int, val embedders: Int)
@@ -893,8 +892,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  Drops only the persisted `test_run.json`; the caller must also
      *  call `ModelTestEngine.clearRun()` to reset the in-memory flow. */
     fun clearAllRuntimeData(context: Context): RuntimeWipeResult {
-        AppLog.i("Housekeeping", "→ Clear logs / chats / traces / reports / prompts / usage stats / test run")
-        val chats = ChatHistoryManager.deleteAllSessions()
+        AppLog.i("Housekeeping", "→ Clear logs / traces / reports / prompts / usage stats / test run")
         val traces = ApiTracer.getTraceFiles().size
         ApiTracer.clearTraces()
         val reports = ReportStorage.deleteAllReports(context)
@@ -907,7 +905,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // was on disk at clear-time.
         val logs = AppLog.clearLogs()
         return RuntimeWipeResult(
-            logs = logs, chats = chats, traces = traces,
+            logs = logs, traces = traces,
             reports = reports, prompts = prompts, testModels = testModels
         )
     }
@@ -1835,10 +1833,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(externalIntent = ExternalIntent()) }
     }
 
-    // ===== Chat Parameters =====
-
-    fun setChatParameters(params: ChatParameters) { _uiState.update { it.copy(chatParameters = params) } }
-    fun setDualChatConfig(config: DualChatConfig?) { _uiState.update { it.copy(dualChatConfig = config) } }
     fun setReportAdvancedParameters(params: AgentParameters?) { _uiState.update { it.copy(reportAdvancedParameters = params) } }
     /** Set the report-level Parameters preset ids and resolve them into
      *  the pre-gen override so generation honours them through the

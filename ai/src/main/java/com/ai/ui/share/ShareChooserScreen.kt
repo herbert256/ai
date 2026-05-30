@@ -30,11 +30,10 @@ fun ShareChooserScreen(
     shared: SharedContent,
     onCancel: () -> Unit,
     onSendToReport: () -> Unit,
-    onSendToChat: () -> Unit,
     onSendToKnowledge: () -> Unit,
     /** Master experimental-features gate. When false the "Add to
      *  Knowledge" card is hidden — Knowledge / RAG is an experimental
-     *  surface; sharing to Report or Chat stays available. */
+     *  surface; sharing to Report stays available. */
     experimentalFeatures: Boolean = false
 ) {
     BackHandler { onCancel() }
@@ -45,7 +44,7 @@ fun ShareChooserScreen(
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)
         .padding(16.dp)) {
-        TitleBar(helpTopic = "share_target", title = "Share", subject = "Turn shared content into a report/chat", onBackClick = onCancel)
+        TitleBar(helpTopic = "share_target", title = "Share", subject = "Turn shared content into a report", onBackClick = onCancel)
 
         // Show a short preview of what was shared so the user can
         // double-check before picking a destination.
@@ -84,14 +83,6 @@ fun ShareChooserScreen(
             description = "Multi-model analysis. Text becomes the prompt; the first image attaches for vision; non-image files queue for one-tap auto-attach as a knowledge base on the New Report screen.",
             enabled = hasText || hasUris,
             onClick = onSendToReport
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        ShareCard(
-            icon = "💬",
-            title = "New Chat",
-            description = "Open a chat with this text staged as the first turn.",
-            enabled = hasText,
-            onClick = onSendToChat
         )
         if (experimentalFeatures) {
             Spacer(modifier = Modifier.height(12.dp))

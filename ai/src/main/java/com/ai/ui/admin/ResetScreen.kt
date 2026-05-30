@@ -67,7 +67,7 @@ fun ResetRuntimeDataScreen(
                         showConfirm = false
                         Toast.makeText(
                             context,
-                            "Cleared ${r.logs} log files, ${r.chats} chats, ${r.traces} traces, ${r.reports} reports, ${r.prompts} prompt entries, ${r.testModels} test results, usage statistics",
+                            "Cleared ${r.logs} log files, ${r.traces} traces, ${r.reports} reports, ${r.prompts} prompt entries, ${r.testModels} test results, usage statistics",
                             Toast.LENGTH_LONG
                         ).show()
                     },
