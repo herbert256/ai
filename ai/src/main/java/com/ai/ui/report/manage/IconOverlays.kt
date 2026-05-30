@@ -68,12 +68,12 @@ internal fun rememberAgentIconTrace(
 ): String? = rememberIconTrace(
     reportId = reportId,
     model = agentModel,
-    // Per-agent icons come from workers/model-icons; a Find-alternative
+    // Per-agent icons come from model/icons; a Find-alternative
     // pick (iconPromptUsed "report_alt") comes from alt/report. Match
     // those trace categories so the 🐞 link resolves.
     categories = when (promptUsed) {
         "report_alt" -> listOf("alt/report")
-        else -> listOf("workers/model-icons", "alt/report")
+        else -> listOf("model/icons", "alt/report")
     }
 )
 
@@ -327,7 +327,7 @@ internal fun AgentIconDetailOverlay(
     // Reconstruct the API interaction. A Find-alternative pick ran
     // alt/report (@PROMPT@ + @RESPONSE@ against the agent's own
     // model); every other icon is the worker title→icon result
-    // (workers/model-icons with @TITLE@ = the model title).
+    // (model/icons with @TITLE@ = the model title).
     val apiInteraction = if (agent.iconPromptUsed == "report_alt") {
         val resolved = (altPrompt?.text.orEmpty())
             .replace("@PROMPT@", loadedReportPrompt)
@@ -441,7 +441,7 @@ internal fun PairIconDetailOverlay(
     val pairIconTraceFile = rememberIconTrace(
         reportId = reportId,
         model = pair.model,
-        categories = listOf("workers/fan-meta", "alt/fan_out")
+        categories = listOf("fan/meta", "alt/fan_out")
     )
     val subject = pair.iconPromptUsed ?: "fan-meta"
     // Reconstruct what hit the wire. A Find-alternative pick
@@ -449,7 +449,7 @@ internal fun PairIconDetailOverlay(
     // @META_PROMPT@/@RESPONSE@ tokens resolve to the report prompt, the
     // source agent's response, the resolved meta-prompt and the pair's
     // own response. Every other icon came from the single
-    // workers/fan-meta call (@PROMPT@ = the pair's own response).
+    // fan/meta call (@PROMPT@ = the pair's own response).
     val sourceBody = sourceAgent?.responseBody.orEmpty()
     val resolvedMetaForDisplay = metaPrompt?.text?.let { template ->
         com.ai.data.resolveSecondaryPrompt(
@@ -536,7 +536,7 @@ internal fun MetaIconDetailOverlay(
         val metaTraceFile = rememberIconTrace(
             reportId = null,
             model = entry?.model,
-            categories = listOf("workers/second-meta", "alt/meta")
+            categories = listOf("second/meta", "alt/meta")
         )
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_meta",
@@ -596,7 +596,7 @@ internal fun TranslationIconDetailOverlay(
         val translationTraceFile = rememberIconTrace(
             reportId = null,
             model = entry?.model,
-            categories = listOf("workers/translation-icon", "alt/translation")
+            categories = listOf("translation/icon", "alt/translation")
         )
         IconLookupScreen(IconLookupContext(
             helpTopic = "icon_lookup_translation",
@@ -684,7 +684,7 @@ internal fun RenderLanguageDetailOverlay(
         LocalNavigateToCurrentReport provides onBack
     ) {
         val infoTarget = resolveInfoTarget(snapshot.model, languageAgent, aiSettings)
-        // The language icon came from the single workers/report-language call
+        // The language icon came from the single report/language call
         // (@PROMPT@ = the report prompt); a Find-alternative pick
         // (language_alt) ran alt/language (@LANGUAGE@ = detected language).
         val resolvedPrompt = if (ctxData.first == "language_alt")
@@ -794,7 +794,7 @@ internal fun ReportIconOrLanguageDetailOverlay(
         LocalNavigateToCurrentReport provides onClose
     ) {
         val infoTarget = resolveInfoTarget(reportIconModel, iconAgent, aiSettings)
-        // The report icon came from workers/report-icon (@TITLE_LONG@ =
+        // The report icon came from report/icon (@TITLE_LONG@ =
         // the report's long title); a Find-alternative pick (main_alt)
         // ran alt/main (@PROMPT@ = the report prompt).
         val resolvedPrompt = if (promptUsed == "main_alt")

@@ -131,7 +131,7 @@ private fun PreviousPromptCard(rev: PromptRevision, onRestore: () -> Unit) {
 /**
  * Edit the report's **short** title (the ≤25-char line on AI Reports list
  * cards, [com.ai.data.Report.title]). One field; the 🐞 opens this report's
- * short-title generation trace ("workers/report-title-short").
+ * short-title generation trace ("report/title-short").
  */
 @Composable
 fun ReportEditShortTitleScreen(
@@ -151,7 +151,7 @@ fun ReportEditShortTitleScreen(
     helpTopic = "report_edit_short_title",
     fieldLabel = "Short title (list cards)",
     findButtonText = "Find alternative short title",
-    traceCategory = "workers/report-title-short",
+    traceCategory = "report/title-short",
     // The short title is the primary one (drives barTitle's fallback), so
     // it must not be blanked out.
     allowBlank = false,
@@ -167,7 +167,7 @@ fun ReportEditShortTitleScreen(
  * Edit the report's **long** title (the ≤50-char top-bar orange line,
  * [com.ai.data.Report.titleLong]; `barTitle = titleLong ?: title`). One
  * field that may be blanked to fall back to the short title; the 🐞 opens
- * this report's long-title generation trace ("workers/report-title-long").
+ * this report's long-title generation trace ("report/title-long").
  */
 @Composable
 fun ReportEditLongTitleScreen(
@@ -187,7 +187,7 @@ fun ReportEditLongTitleScreen(
     helpTopic = "report_edit_long_title",
     fieldLabel = "Long title (top-bar line)",
     findButtonText = "Find alternative long title",
-    traceCategory = "workers/report-title-long",
+    traceCategory = "report/title-long",
     // Blank long title is valid — barTitle falls back to the short one.
     allowBlank = true,
     onBack = onBack,
@@ -280,7 +280,7 @@ private fun SingleTitleEditScreen(
  * [com.ai.data.ReportAgent.modelTitle] in place — it doesn't re-run anything.
  * The 🐞 trace icon opens this agent's model_title call trace, looked up from
  * the stored [com.ai.data.ReportAgent.modelTitleTraceFile] (reliable per-agent,
- * unlike scanning the shared "workers/model-titles" trace category).
+ * unlike scanning the shared "model/titles" trace category).
  */
 @Composable
 fun ReportEditModelTitleScreen(

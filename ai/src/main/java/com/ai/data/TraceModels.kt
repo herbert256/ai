@@ -27,7 +27,7 @@ data class ApiTrace(
     val reportId: String? = null, val model: String? = null,
     /** Functional description of the call site that produced this trace.
      *  Internal-prompt calls use the literal "<category>/<prompt>" form
-     *  (e.g. "report/prompt", "workers/report-title", "meta/Compare",
+     *  (e.g. "report/prompt", "report/title", "meta/Compare",
      *  "after/rerank", "model/list", "info/huggingface", "pricing/OpenRouter");
      *  other sites use free-text tags ("Chat", "Provider test").
      *  Set via [ApiTracer.currentCategory] / [withTraceCategory] before

@@ -165,7 +165,7 @@ data class SecondaryResult(
     val titleInputCost: Double = 0.0,
     val titleOutputCost: Double = 0.0,
     /** "provider/model" of the worker that produced the Fan Meta title+icon
-     *  for this pair, so the Costs table's `workers/fan-meta` row shows the
+     *  for this pair, so the Costs table's `fan/meta` row shows the
      *  model that billed. Null until the Fan Meta batch records cost. */
     val titleModel: String? = null,
     /** Wall-clock duration (ms) of the fan-out pair title call, for the

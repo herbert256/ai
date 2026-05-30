@@ -242,7 +242,7 @@ class IconGenerationManager(
         } ?: return
         if (iconPrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withTracerTags(reportId = reportId, category = "workers/report-icon") {
+            withTracerTags(reportId = reportId, category = "report/icon") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 appViewModel.updateRunningInfoJobs { it + "$reportId|icon" }
                 // Feed the long title (fall back to short title, then the
@@ -352,7 +352,7 @@ class IconGenerationManager(
      *  title (capped to [cap] chars) + cost/trace metadata, or null when
      *  the prompt is unusable or no worker produced a title. Each call
      *  carries its own trace sink and its own [traceCategory]
-     *  ("workers/report-title-short" / "-long") so each title editor's 🐞
+     *  ("report/title-short" / "-long") so each title editor's 🐞
      *  scan finds the right call. */
     private suspend fun runTitlePrompt(
         context: Context,
@@ -409,7 +409,7 @@ class IconGenerationManager(
         promptText: String,
         aiSettings: Settings,
         /** When true, the report icon is generated right after the title
-         *  attempt — so workers/report-icon sees the freshly-stored long
+         *  attempt — so report/icon sees the freshly-stored long
          *  title via @TITLE_LONG@. Fresh-report / regenerate-all sites set
          *  this; a title-only restart leaves a good icon alone. */
         thenIcon: Boolean = false
@@ -433,8 +433,8 @@ class IconGenerationManager(
             appViewModel.updateRunningInfoJobs { it + "$reportId|title" }
             // Run both calls concurrently.
             val (short, long) = coroutineScope {
-                val s = async { runTitlePrompt(context, reportId, shortPrompt, promptText, aiSettings, cap = 25, traceCategory = "workers/report-title-short") }
-                val l = async { runTitlePrompt(context, reportId, longPrompt, promptText, aiSettings, cap = 50, traceCategory = "workers/report-title-long") }
+                val s = async { runTitlePrompt(context, reportId, shortPrompt, promptText, aiSettings, cap = 25, traceCategory = "report/title-short") }
+                val l = async { runTitlePrompt(context, reportId, longPrompt, promptText, aiSettings, cap = 50, traceCategory = "report/title-long") }
                 s.await() to l.await()
             }
             if (short == null && long == null) {
@@ -502,7 +502,7 @@ class IconGenerationManager(
             // Title row on → generate + store the model title; chain the icon
             // from it when the icon is on too.
             titleOn -> runModelTitleForAgent(context, reportId, ra, aiSettings, reportPrompt, thenIconFromTitle = iconOn, storeTitle = true)
-            // Icon-only → still derive the icon from a title (workers/model-icons
+            // Icon-only → still derive the icon from a title (model/icons
             // needs @TITLE@), but generate that title transiently — never store
             // or surface it, since the per-model title row is off.
             iconOn -> runModelTitleForAgent(context, reportId, ra, aiSettings, reportPrompt, thenIconFromTitle = true, storeTitle = false)
@@ -516,7 +516,7 @@ class IconGenerationManager(
         aiSettings: Settings,
         reportPrompt: String = "",
         /** When true, after the title resolves, build the per-agent icon
-         *  FROM the title (workers/model-icons); fall back to the response-
+         *  FROM the title (model/icons); fall back to the response-
          *  based 3-tier chain when no usable title is produced. */
         thenIconFromTitle: Boolean = false,
         /** When false the resolved title is used ONLY to feed the icon
@@ -524,7 +524,7 @@ class IconGenerationManager(
          *  icon-only config, where the per-model title row is hidden. */
         storeTitle: Boolean = true
     ) {
-        // Worker-based: random-pick / 429-fallback over workers/model-titles.
+        // Worker-based: random-pick / 429-fallback over model/titles.
         val titlePrompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "model-titles"
         } ?: return
@@ -534,7 +534,7 @@ class IconGenerationManager(
         val resolved = titlePrompt.text.replace("@RESPONSE@", agentResponse)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             var generatedTitle: String? = null
-            withTracerTags(reportId = reportId, category = "workers/model-titles") {
+            withTracerTags(reportId = reportId, category = "model/titles") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 val started = System.currentTimeMillis()
                 val outcome = withTraceFilenameSink(traceSink) {
@@ -593,7 +593,7 @@ class IconGenerationManager(
                 }
             }
             // Chain the icon: derive it from the title via the worker
-            // engine (workers/model-icons). No usable title — or no worker
+            // engine (model/icons). No usable title — or no worker
             // produced an emoji — leaves the agent icon-less; there is no
             // longer a response-based fallback chain.
             if (thenIconFromTitle) {
@@ -611,7 +611,7 @@ class IconGenerationManager(
         context: Context, reportId: String, ra: ReportAgent,
         title: String, aiSettings: Settings
     ): Boolean {
-        // Worker-based: random-pick / 429-fallback over workers/model-icons.
+        // Worker-based: random-pick / 429-fallback over model/icons.
         val prompt = aiSettings.internalPrompts.firstOrNull {
             it.category == "workers" && it.name == "model-icons"
         } ?: return false
@@ -620,7 +620,7 @@ class IconGenerationManager(
         // (regenerate) replaces rather than accumulates — matches the
         // 3-tier chain's clearReportAgentIconState at its own start.
         ReportStorage.clearReportAgentIconState(context, reportId, ra.agentId)
-        return withTracerTags(reportId = reportId, category = "workers/model-icons") {
+        return withTracerTags(reportId = reportId, category = "model/icons") {
             val started = System.currentTimeMillis()
             val resolved = prompt.text.replace("@TITLE@", title)
             // Capture the trace filename of the winning icon call so the
@@ -650,7 +650,7 @@ class IconGenerationManager(
                         provider = winAgent.provider, model = winAgent.model,
                         inT = inT, outT = outT, durationMs = durationMs,
                         success = emoji != null,
-                        type = "workers/model-icons"
+                        type = "model/icons"
                     )
                 }
                 if (emoji != null) {
@@ -680,7 +680,7 @@ class IconGenerationManager(
         aiSettings: Settings
     ) {
         if (!appViewModel.uiState.value.generalSettings.reportLanguageOn()) return
-        // Worker-based: a single workers/report-language call returns BOTH the
+        // Worker-based: a single report/language call returns BOTH the
         // language name and a fitting emoji (the prompt asks for a
         // "language:" / "icon:" two-line reply), via the random-pick /
         // 429-fallback engine — no chained second call.
@@ -690,7 +690,7 @@ class IconGenerationManager(
         if (languagePrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
         val resolved = languagePrompt.text.replace("@PROMPT@", promptText)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withTracerTags(reportId = reportId, category = "workers/report-language") {
+            withTracerTags(reportId = reportId, category = "report/language") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                 appViewModel.updateRunningInfoJobs { it + "$reportId|language" }
                 val started = System.currentTimeMillis()
@@ -774,7 +774,7 @@ class IconGenerationManager(
             ?.takeIf { it.isNotBlank() }
     }
 
-    /** Background helper that runs the bundled `workers/second-meta` prompt
+    /** Background helper that runs the bundled `second/meta` prompt
      *  (random-pick / 429-fallback worker engine) and caches a one-emoji
      *  result for [prompt] in [InternalPromptIconCache]. Idempotent: bails
      *  when the master switch is off, when the cache already has a value, or
@@ -797,7 +797,7 @@ class IconGenerationManager(
             it.category == "workers" && it.name.equals("second-meta", ignoreCase = true)
         }
         if (iconPrompt == null || iconPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
-            AppLog.w("InternalPromptIcon", "workers/second-meta not configured — skipping")
+            AppLog.w("InternalPromptIcon", "second/meta not configured — skipping")
             InternalPromptIconCache.clearInFlight(prompt.name, prompt.title)
             return
         }
@@ -806,7 +806,7 @@ class IconGenerationManager(
             .replace("@TITLE@", prompt.title)
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            withTracerTags(category = "workers/second-meta") {
+            withTracerTags(category = "second/meta") {
               try {
                 val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context) {
                     extractFirstEmoji(it.analysis) != null
@@ -1423,7 +1423,7 @@ class IconGenerationManager(
     private fun translationIconKey(language: String): String =
         "translation_icon" + "" + language
 
-    /** Background helper that runs the bundled `workers/translation-icon`
+    /** Background helper that runs the bundled `translation/icon`
      *  prompt (random-pick / 429-fallback worker engine) and caches a
      *  one-emoji result for [language] in [InternalPromptIconCache].
      *  Idempotent (same dedupe rules as [kickOffInternalPromptIcon]).
@@ -1442,14 +1442,14 @@ class IconGenerationManager(
             it.category == "workers" && it.name.equals("translation-icon", ignoreCase = true)
         }
         if (iconPrompt == null || iconPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
-            AppLog.w("TranslationIcon", "workers/translation-icon not configured — skipping")
+            AppLog.w("TranslationIcon", "translation/icon not configured — skipping")
             InternalPromptIconCache.clearInFlight("translation_icon", language)
             return
         }
         val resolved = iconPrompt.text.replace("@LANGUAGE@", language)
 
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            withTracerTags(category = "workers/translation-icon") {
+            withTracerTags(category = "translation/icon") {
               try {
                 val outcome = rvm.workerRunner.run(iconPrompt, resolved, aiSettings, context) {
                     extractFirstEmoji(it.analysis) != null
@@ -2302,7 +2302,7 @@ class IconGenerationManager(
      * (runReportIconsForAgent + runTier1/2/3 + commitChainResult, on
      * icons/report_1/2/3) has been removed. Per-agent model icons are
      * now produced solely by the worker engine via
-     * [generateIconFromTitle] (workers/model-icons, derived from the
+     * [generateIconFromTitle] (model/icons, derived from the
      * model title). When no title is available or no worker yields an
      * emoji, the agent is simply left icon-less. */
 
@@ -2378,7 +2378,7 @@ class IconGenerationManager(
         t.message?.contains("API error: 429") == true
 
     // ============================================================
-    // Fan-meta batch — ONE workers/fan-meta call per fan-out pair
+    // Fan-meta batch — ONE fan/meta call per fan-out pair
     // returns BOTH a title and an icon (a "title:" / "icon:" two-line
     // reply), via the random-pick / 429-fallback worker engine.
     // One Fan Meta call per pair yields both the title and the icon.
@@ -2402,7 +2402,7 @@ class IconGenerationManager(
             try {
                 val aiSettings = appViewModel.uiState.value.aiSettings
                 if (fanMetaPrompt == null || fanMetaPrompt.workers.none { aiSettings.resolveWorker(it) != null }) {
-                    AppLog.w("FanMeta", "workers/fan-meta not configured — skipping")
+                    AppLog.w("FanMeta", "fan/meta not configured — skipping")
                     return@launch
                 }
                 val pending = SecondaryResultStorage
@@ -2419,7 +2419,7 @@ class IconGenerationManager(
                     return@launch
                 }
                 AppLog.i("FanMeta", "→ start (report=$reportId, ${pending.size} pairs)")
-                withTracerTags(reportId = reportId, category = "workers/fan-meta", runId = fanRunId) {
+                withTracerTags(reportId = reportId, category = "fan/meta", runId = fanRunId) {
                     // Dynamic-host: each worker call self-throttles its own
                     // provider (the worker chain spans providers); the batch
                     // holds only the fan-meta + global caps.
@@ -2467,7 +2467,7 @@ class IconGenerationManager(
         return job
     }
 
-    /** One workers/fan-meta call for [pair]: parses the title: / icon:
+    /** One fan/meta call for [pair]: parses the title: / icon:
      *  reply and stores BOTH. Worker engine handles random pick + 429. */
     private suspend fun runFanMetaForPair(
         context: Context, reportId: String, pair: SecondaryResult,

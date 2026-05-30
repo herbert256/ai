@@ -236,12 +236,12 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "icon_lookup_pair" to HelpContent(
         title = "Help - Icon lookup — fan-out pair icon",
         cards = listOf(
-            HelpCard("Overview", "Detail view for one fan-out pair's icon — the emoji on a single (source × responder) cell in a fan-out run. Optional — only present once you've tapped *Run Fan Meta* on the L1 of a Fan Out drill-in. Produced by the single `workers/fan-meta` call per pair, which returns both the title and the icon."),
+            HelpCard("Overview", "Detail view for one fan-out pair's icon — the emoji on a single (source × responder) cell in a fan-out run. Optional — only present once you've tapped *Run Fan Meta* on the L1 of a Fan Out drill-in. Produced by the single `fan/meta` call per pair, which returns both the title and the icon."),
             HelpCard("Subject (green row)", "The bundled prompt name that won — `fan_out_2`, `fan_out`, or `fan_out_3`. After a Find-alt pick the subject flips to `fan_out_alt`."),
             HelpCard("Title-bar icons", "ℹ️ NOT wired. 📋 / 📤 work on the tier-aware transcript. 🐞 looks up the most recent `icon_fan_out*` trace for the pair's model under this report."),
             HelpCard("API interaction card", "Tier-aware. Tier 1 shows the 6-message chat-continuation transcript (`[user] report.prompt → [assistant] source.response → [user] meta.prompt → [assistant] pair.response → [user] icon prompt → [assistant] emoji`) matching `runFanOutTier1`. Tiers 2/3 show a 2-message one-shot exchange with the relevant template substituted."),
             HelpCard("Find alternative icons", "Runs `icons/fan_out_alt` (composed as `alt.text + \"\\n\\n\" + fan_out.text`) across picked models. The picked emoji is committed to the pair via `setFanOutIconAndTier` with `promptUsed = fan_out_alt`."),
-            HelpCard("Cost attribution", "Bumped on the pair's `SecondaryResult.iconInputCost / iconOutputCost` (visible in the Cost line here and in the L2/L3 row totals). On Report → Manage → Costs the Fan Meta spend has its own `workers/fan-meta` row (separate from the pair's `meta/<prompt>` response row). Find-alt picks trace under `alt/fan_out`."),
+            HelpCard("Cost attribution", "Bumped on the pair's `SecondaryResult.iconInputCost / iconOutputCost` (visible in the Cost line here and in the L2/L3 row totals). On Report → Manage → Costs the Fan Meta spend has its own `fan/meta` row (separate from the pair's `meta/<prompt>` response row). Find-alt picks trace under `alt/fan_out`."),
             HelpCard("Trace category", "`icon_fan_out_2` (tier 1), `icon_fan_out` (tier 2), `icon_fan_out_3` (tier 3), `icon_fan_out_alt` (Find-alt)."),
             HelpCard("How to reach this screen", "Fan Out → L2 (MAIN mode) — tap the pair's icon on its row (the icon replaces the leading ✅ when present). Fan Out → L3 (MAIN mode) — tap the small icon in the answerer pane's header row (just before the model name).")
         )
@@ -409,7 +409,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "fan_meta" to HelpContent(
         title = "Help - Fan Meta",
         cards = listOf(
-            HelpCard("What you see", "The Fan Meta view of a fan-out run. The L1 'Fan Meta' button runs ONE worker call per pair (workers/fan-meta, random pick + 429-fallback) that returns BOTH a short title and a fitting icon. 'Show Fan Meta' then lists, per source model, every responder's generated title as a tappable row (each row carries its icon too)."),
+            HelpCard("What you see", "The Fan Meta view of a fan-out run. The L1 'Fan Meta' button runs ONE worker call per pair (fan/meta, random pick + 429-fallback) that returns BOTH a short title and a fitting icon. 'Show Fan Meta' then lists, per source model, every responder's generated title as a tappable row (each row carries its icon too)."),
             HelpCard("Status & errors", "While the batch runs, L1/L2/L3 classify pairs by their status (queued → running → done / error). 'Remove errors' clears failed pairs so they read as pending; 'Restart errors' clears and re-fires the batch on them. The 🗑 in Fan Meta mode drops every title + icon for the run, keeping the fan-out responses."),
             HelpCard("Drill in", "Tap a row to open the pair (L3), where the title + icon show above the response. The per-model L2 'Fan Meta' button focuses one model's pairs.")
         )
@@ -537,7 +537,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Rename the report's short title — the ≤25-char line on the AI Reports list cards. Titles are metadata only — no outbound API call references them, so this never sets hasPendingPromptChange and you don't need to regenerate to see the new title applied."),
             HelpCard("One field", "Just the short title. Update title is disabled when it trims to blank — the short title is the primary one (the long title's top-bar line falls back to it when blank)."),
             HelpCard("Find alternative short title", "Fans out to models you pick and lists candidate short titles (≤25 chars). Tapping a candidate drops it into the field; nothing is saved until you tap Update title."),
-            HelpCard("🐞 Trace", "Opens the API trace from generating this report's short title ('workers/report-title-short')."),
+            HelpCard("🐞 Trace", "Opens the API trace from generating this report's short title ('report/title-short')."),
             HelpCard("Saver scoping", "rememberSaveable is keyed on the initial value so re-opening the overlay with a fresh seed doesn't restore a stale draft."),
         )
     ),
@@ -547,7 +547,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Rename the report's long title — the ≤50-char top-bar orange line on the View and Manage screens. Titles are metadata only — no outbound API call references them, so this never sets hasPendingPromptChange and you don't need to regenerate to see the new title applied."),
             HelpCard("One field", "Just the long title. You may leave it blank — the top-bar line then falls back to the short title (barTitle = long ?: short), so Update title stays enabled even when empty."),
             HelpCard("Find alternative long title", "Fans out to models you pick and lists candidate long titles (≤50 chars). Tapping a candidate drops it into the field; nothing is saved until you tap Update title."),
-            HelpCard("🐞 Trace", "Opens the API trace from generating this report's long title ('workers/report-title-long')."),
+            HelpCard("🐞 Trace", "Opens the API trace from generating this report's long title ('report/title-long')."),
             HelpCard("Saver scoping", "rememberSaveable is keyed on the initial value so re-opening the overlay with a fresh seed doesn't restore a stale draft."),
         )
     ),

@@ -103,7 +103,7 @@ fun buildInfoJobs(
 ): List<InfoJob> {
     val jobs = mutableListOf<InfoJob>()
 
-    // Report icons are produced by the worker engine (workers/report-icon).
+    // Report icons are produced by the worker engine (report/icon).
     // The row is eligible when that prompt has at least one resolvable worker.
     val iconPrompt = settings.internalPrompts.firstOrNull { it.category == "workers" && it.name == "report-icon" }
     val iconRowOn = iconGenEnabled && iconPrompt != null &&

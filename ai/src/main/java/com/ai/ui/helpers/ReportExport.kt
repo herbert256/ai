@@ -412,7 +412,7 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
 
     // Resolve the icon-gen agent + pricing tier so the export's cost
     // table can show a fully-attributed icon row. The first resolvable
-    // worker on workers/report-icon supplies the (provider, model) pair;
+    // worker on report/icon supplies the (provider, model) pair;
     // PricingCache looks up the tier the cost was billed against.
     val ai = com.ai.model.SettingsHolder.current
     val iconPrompt = ai?.internalPrompts?.firstOrNull {

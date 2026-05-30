@@ -679,7 +679,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = iconParts?.getOrNull(1) ?: iconAgent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "workers/report-icon",
+            type = "report/icon",
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -714,7 +714,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = agent?.let { ai.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "workers/report-language",
+            type = "report/language",
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -736,7 +736,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = pickedParts?.getOrNull(1) ?: iconAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "workers/report-language",
+            type = "report/language",
             providerDisplay = provider?.id ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -764,7 +764,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = parts?.getOrNull(1) ?: titleAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "workers/report-title",
+            type = "report/title",
             providerDisplay = provider?.id ?: parts?.firstOrNull() ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -786,7 +786,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = parts?.getOrNull(1) ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            type = "workers/model-titles",
+            type = "model/titles",
             providerDisplay = provider?.id ?: parts?.firstOrNull() ?: "",
             model = model,
             tier = pricing?.source ?: "",
@@ -814,13 +814,13 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val iconCallRows = report.iconCalls.map { c ->
         val providerEnum = AppService.findById(c.provider)
         // `c.type` is the literal `<category>/<prompt>` stamped at call
-        // time (model-icon = workers/model-icons; Find-alt = alt/<name>).
+        // time (model-icon = model/icons; Find-alt = alt/<name>).
         // Records with no stored type (legacy) fall back to the worker
         // prompt that produces icons for that row: per-agent → model-icons,
         // fan-out pair → fan-meta.
         val resolvedType = c.type ?: run {
             val isAgentChain = c.agentId in reportAgentIds
-            if (isAgentChain) "workers/model-icons" else "workers/fan-meta"
+            if (isAgentChain) "model/icons" else "fan/meta"
         }
         CostRow(
             type = resolvedType,
@@ -900,7 +900,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, inTokens, outTokens, inCents, outCents, s.traceFile)
     }
-    // Fan Meta (workers/fan-meta) — one title+icon call per fan-out pair,
+    // Fan Meta (fan/meta) — one title+icon call per fan-out pair,
     // recorded on the pair's SecondaryResult title* cost. It gets its OWN
     // cost row (provider/model from the stored titleModel = the worker
     // that billed); the pair's response row above uses inputCost/outputCost
@@ -913,7 +913,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         val model = parts?.getOrNull(1) ?: ""
         val pricing = providerEnum?.let { PricingCache.getPricing(context, it, model) }
         CostRow(
-            "workers/fan-meta", providerEnum?.id ?: parts?.firstOrNull() ?: "", model,
+            "fan/meta", providerEnum?.id ?: parts?.firstOrNull() ?: "", model,
             pricing?.source ?: "", s.titleDurationMs,
             s.titleInputTokens, s.titleOutputTokens,
             s.titleInputCost * 100, s.titleOutputCost * 100
