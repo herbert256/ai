@@ -1,6 +1,6 @@
 {
-  "name": "report-title-short",
-  "title": "Find a short title for a report",
+  "name": "report-title-long",
+  "title": "Find a long title for a report",
   "reference": false,
   "workers": [
     {

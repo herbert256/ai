@@ -158,6 +158,73 @@ class IconGenerationManager(
         return s
     }
 
+    /** One title-gen call's outcome — the cleaned title plus the cost /
+     *  trace / model metadata, so the caller can sum two calls' costs and
+     *  persist them onto the report's single set of title* fields. */
+    private data class TitleGenResult(
+        val title: String,
+        val inputTokens: Int,
+        val outputTokens: Int,
+        val inputCost: Double,
+        val outputCost: Double,
+        val durationMs: Long,
+        val traceFile: String?,
+        val model: String?,
+    )
+
+    /** Run ONE report-title worker prompt and return its single cleaned
+     *  title (capped to [cap] chars) + cost/trace metadata, or null when
+     *  the prompt is unusable or no worker produced a title. Each call
+     *  carries its own trace sink + the shared "workers/report-title"
+     *  category so the title editor's 🐞 scan finds it. */
+    private suspend fun runTitlePrompt(
+        context: Context,
+        reportId: String,
+        prompt: InternalPrompt?,
+        promptText: String,
+        aiSettings: Settings,
+        cap: Int,
+    ): TitleGenResult? {
+        if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) return null
+        val resolved = prompt.text.replace("@PROMPT@", promptText)
+        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+        val started = System.currentTimeMillis()
+        val outcome = withTracerTags(reportId = reportId, category = "workers/report-title") {
+            withTraceFilenameSink(traceSink) {
+                // A reply with no non-blank title line is a logical miss —
+                // try the next worker instead of settling for a default.
+                rvm.workerRunner.run(prompt, resolved, aiSettings, context) { resp ->
+                    (resp.analysis ?: "").lineSequence().map { cleanTitleLine(it) }.any { it.isNotBlank() }
+                }
+            }
+        }
+        val durationMs = System.currentTimeMillis() - started
+        if (outcome !is WorkerOutcome.Success) return null
+        // These prompts each return a single title line. Clean defensively
+        // (models sometimes add quotes / a "Title: " prefix) and take the
+        // first non-blank line, capped to the prompt's char budget.
+        val title = (outcome.response.analysis ?: "")
+            .lineSequence().map { cleanTitleLine(it) }.firstOrNull { it.isNotBlank() }
+            .orEmpty().take(cap)
+        if (title.isBlank()) return null
+        val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
+            it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+        }
+        val tu = outcome.response.tokenUsage
+        val inT = tu?.inputTokens ?: 0
+        val outT = tu?.outputTokens ?: 0
+        val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
+        return TitleGenResult(
+            title = title,
+            inputTokens = inT, outputTokens = outT,
+            inputCost = inT * (pricing?.promptPrice ?: 0.0),
+            outputCost = outT * (pricing?.completionPrice ?: 0.0),
+            durationMs = durationMs,
+            traceFile = traceSink.get(),
+            model = winAgent?.let { "${it.provider.id}/${it.model}" },
+        )
+    }
+
     internal fun kickOffReportTitleGeneration(
         context: Context,
         reportId: String,
@@ -172,84 +239,63 @@ class IconGenerationManager(
         // Master switch — MANUAL mode = user typed a title themselves;
         // never run the LLM call.
         if (!appViewModel.uiState.value.generalSettings.reportTitleAiOn()) return
-        // Worker-based: random-pick / 429-fallback over workers/report-title.
-        val titlePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "workers" && it.name == "report-title"
-        } ?: return
-        if (titlePrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
-        val resolved = titlePrompt.text.replace("@PROMPT@", promptText)
+        // Two worker prompts → two calls: a ≤25-char short title (list
+        // cards) and a ≤50-char long title (top-bar orange line). Each is a
+        // random-pick / 429-fallback chain over the same 'workers' swarm.
+        val shortPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "workers" && it.name == "report-title-short"
+        }
+        val longPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "workers" && it.name == "report-title-long"
+        }
+        val shortUsable = shortPrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
+        val longUsable = longPrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
+        if (!shortUsable && !longUsable) return
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withTracerTags(reportId = reportId, category = "workers/report-title") {
-                val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-                appViewModel.updateRunningInfoJobs { it + "$reportId|title" }
-                val started = System.currentTimeMillis()
-                val outcome = withTraceFilenameSink(traceSink) {
-                    // A reply with no non-blank title line is a logical miss —
-                    // try the next worker instead of settling for "AI Report".
-                    rvm.workerRunner.run(titlePrompt, resolved, aiSettings, context) { resp ->
-                        (resp.analysis ?: "").lineSequence().map { cleanTitleLine(it) }.any { it.isNotBlank() }
-                    }
-                }
-                val durationMs = System.currentTimeMillis() - started
-                when (outcome) {
-                    is WorkerOutcome.Success -> {
-                        // The prompt asks for two lines — a short title then a
-                        // long one. Clean each line defensively (some models
-                        // wrap output in quotes or add a "Title: " prefix even
-                        // when told not to), then take the first two non-blank.
-                        val lines = (outcome.response.analysis ?: "")
-                            .lineSequence()
-                            .map { cleanTitleLine(it) }
-                            .filter { it.isNotBlank() }
-                            .toList()
-                        // Short title (≤25) drives list cards; long title (≤50)
-                        // the orange line. Single-line replies leave long blank
-                        // → barTitle falls back to the short title.
-                        val generated = lines.getOrNull(0).orEmpty().take(25).ifBlank { "AI Report" }
-                        val generatedLong = lines.getOrNull(1).orEmpty().take(50)
-                        val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
-                            it.copy(model = aiSettings.getEffectiveModelForAgent(it))
-                        }
-                        val tu = outcome.response.tokenUsage
-                        val inT = tu?.inputTokens ?: 0
-                        val outT = tu?.outputTokens ?: 0
-                        val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
-                        val inC = inT * (pricing?.promptPrice ?: 0.0)
-                        val outC = outT * (pricing?.completionPrice ?: 0.0)
-                        ReportStorage.updateReportTitleFromAi(
-                            context, reportId, generated,
-                            titleLong = generatedLong.ifBlank { null },
-                            durationMs = durationMs,
-                            inputTokens = inT, outputTokens = outT,
-                            inputCost = inC, outputCost = outC,
-                            traceFile = traceSink.get(),
-                            model = winAgent?.let { "${it.provider.id}/${it.model}" },
-                            promptUsed = "report_title"
-                        )
-                        // Keep the in-memory UiState in sync so the
-                        // title row on Manage report updates the moment
-                        // the call returns, without waiting for a
-                        // navigation event to re-read from disk.
-                        appViewModel.updateUiState { st ->
-                            if (st.currentReportId == reportId) {
-                                st.copy(genericPromptTitle = generated, genericPromptTitleLong = generatedLong)
-                            } else st
-                        }
-                    }
-                    else -> ReportStorage.updateReportTitleError(
-                        context, reportId,
-                        if (outcome is WorkerOutcome.AllRateLimited) "title-gen: all workers rate-limited"
-                        else "title-gen: no worker produced a title"
-                    )
-                }
-                appViewModel.updateRunningInfoJobs { it - "$reportId|title" }
-                appViewModel.updateUiState {
-                    it.copy(iconRefreshTick = it.iconRefreshTick + 1)
-                }
-                // Icon is derived from the title's long form — run it after
-                // the title attempt so @TITLE_LONG@ reflects the new title.
-                if (thenIcon) kickOffIconGeneration(context, reportId, promptText, aiSettings)
+            appViewModel.updateRunningInfoJobs { it + "$reportId|title" }
+            // Run both calls concurrently.
+            val (short, long) = coroutineScope {
+                val s = async { runTitlePrompt(context, reportId, shortPrompt, promptText, aiSettings, cap = 25) }
+                val l = async { runTitlePrompt(context, reportId, longPrompt, promptText, aiSettings, cap = 50) }
+                s.await() to l.await()
             }
+            if (short == null && long == null) {
+                ReportStorage.updateReportTitleError(context, reportId, "title-gen: no worker produced a title")
+            } else {
+                // Short drives list cards; long the orange line (barTitle =
+                // long ?: short). If only the long call succeeded, derive the
+                // short from it so the report is never left title-less.
+                val shortTitle = short?.title ?: long?.title?.take(25) ?: "AI Report"
+                val longTitle = long?.title
+                // Sum both calls into the single set of title* cost/token
+                // fields (updateReportTitleFromAi adds them in).
+                ReportStorage.updateReportTitleFromAi(
+                    context, reportId, shortTitle,
+                    titleLong = longTitle?.takeIf { it.isNotBlank() },
+                    durationMs = (short?.durationMs ?: 0L) + (long?.durationMs ?: 0L),
+                    inputTokens = (short?.inputTokens ?: 0) + (long?.inputTokens ?: 0),
+                    outputTokens = (short?.outputTokens ?: 0) + (long?.outputTokens ?: 0),
+                    inputCost = (short?.inputCost ?: 0.0) + (long?.inputCost ?: 0.0),
+                    outputCost = (short?.outputCost ?: 0.0) + (long?.outputCost ?: 0.0),
+                    traceFile = short?.traceFile ?: long?.traceFile,
+                    model = short?.model ?: long?.model,
+                    promptUsed = "report_title"
+                )
+                // Keep the in-memory UiState in sync so the title row on
+                // Manage report updates the moment the calls return.
+                appViewModel.updateUiState { st ->
+                    if (st.currentReportId == reportId) {
+                        st.copy(genericPromptTitle = shortTitle, genericPromptTitleLong = longTitle.orEmpty())
+                    } else st
+                }
+            }
+            appViewModel.updateRunningInfoJobs { it - "$reportId|title" }
+            appViewModel.updateUiState {
+                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+            }
+            // Icon is derived from the title's long form — run it after
+            // the title attempt so @TITLE_LONG@ reflects the new title.
+            if (thenIcon) kickOffIconGeneration(context, reportId, promptText, aiSettings)
         }
     }
 
