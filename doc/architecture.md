@@ -7,7 +7,7 @@ with three view models on top of `StateFlow`. Networking goes through
 Retrofit + OkHttp (with custom interceptors for tracing and rate-limit
 retry). Persistence is split between `SharedPreferences` (user-curated
 config, caches) and JSON files under `filesDir` (reports, secondary
-results, traces, chat history, embeddings, usage stats, pricing
+results, traces, usage stats, pricing
 tier blobs).
 
 ```
@@ -16,9 +16,8 @@ tier blobs).
 │  └── AppNavHost  (Jetpack Navigation)                               │
 │       ├── HubScreen                                                 │
 │       ├── ReportsHubScreen / ReportScreen / ReportSingleResultScreen│
-│       ├── ChatsHubScreen / ChatScreens / DualChatScreen             │
 │       ├── ModelInfoScreen / ModelListScreen                         │
-│       ├── SearchScreens (Quick / Extended local + Remote semantic)  │
+│       ├── SearchScreens (Quick / Extended local)  │
 │       ├── ShareChooserScreen   (overlay before NavHost)             │
 │       ├── SettingsScreen (two-tier: enum-driven sub-screens)        │
 │       ├── HousekeepingScreen   (six NavCard rows, each its own      │
@@ -31,7 +30,6 @@ tier blobs).
 ┌─────────────────────────────────────────────────────────────────────┐
 │  ViewModels                                                         │
 │  ├── AppViewModel       — settings, prefs, model fetching          │
-│  ├── ChatViewModel      — chat state and streaming                  │
 │  └── ReportViewModel    — report + secondary-result generation,     │
 │                           multi-language fan-out, translation runs, │
 │                           Fan-out (per-pair) + Fan-in (combine)     │
@@ -59,7 +57,6 @@ tier blobs).
 │  ├── ReportStorage       — per-report JSON file persistence         │
 │  ├── SecondaryResultStorage — RERANK / META / MODERATION /          │
 │  │                            TRANSLATE persistence                 │
-│  ├── ChatHistoryManager  — chat session persistence                 │
 │  ├── HuggingFaceCache    — HF model-info cache                      │
 │  ├── BackupManager       — zip-based backup/restore                 │
 │  ├── ModelListCache      — model-list TTL bookkeeping               │
@@ -67,7 +64,6 @@ tier blobs).
 │  ├── InternalPromptSeed  — assets/internal-prompts/ loader               │
 │  ├── ExamplePromptSeed   — assets/examples.json loader              │
 │  ├── ImageAttach         — vision-image downscale + JPEG-encode     │
-│  ├── EmbeddingsStore     — content-hashed per-doc embedding cache   │
 │  │                                                                  │
 │  │ — Share-target —                                                 │
 │  └── SharedContent       — snapshot of an ACTION_SEND payload       │
@@ -82,22 +78,23 @@ tier blobs).
 
 ## Codebase shape
 
-~112,000 LOC across 323 Kotlin files:
-- `data/` — 64 files (HTTP, dispatch, streaming, tracer, rate
+~284 Kotlin files after the Chat + Experimental-features removal:
+- `data/` — ~52 files (HTTP, dispatch, streaming, tracer, rate
   limit / throttle, registry, pricing, storage, in-app file
-  logger, atomic-write helpers, bundled-asset seeds, RAG /
-  Knowledge, on-device `local/` runtime, regenerate-batch).
+  logger, atomic-write helpers, bundled-asset seeds,
+  regenerate-batch). (`ApiStreaming` keeps the SSE parser + the
+  report streaming path; the chat-only `sendChatStream` was removed.)
 - `model/` — 2 files (`SettingsModels.kt`, `SettingsHolder.kt`)
-- `viewmodel/` — 15 files (`AppViewModel` + its extracted
-  top-level types in `AppViewModelTypes.kt`, `ChatViewModel`,
-  `ReportViewModel` + extracted engines/managers such as
-  `RegenerateBatchEngine`, `SecondaryRunManager`,
-  `IconGenerationManager`)
-- `ui/` — 241 files across sub-domains (`report` × 69,
+- `viewmodel/` — ~10 files (`AppViewModel` + its extracted
+  top-level types in `AppViewModelTypes.kt`, `ReportViewModel` +
+  extracted engines/managers such as `RegenerateBatchEngine`,
+  `SecondaryRunManager`, `IconGenerationManager`)
+- `ui/` — ~220 files across sub-domains (`report` × 69,
   `cruds` × 53, `admin` × 30, `settings` × 22, `shared` × 16,
-  `helpers` × 16, `navigation` × 7, `other` × 6, `chat` × 5,
-  `search` × 4, `hub` × 4, `history` × 3, `models` × 2,
-  `share` × 2, `knowledge` × 1, `theme` × 1)
+  `helpers` × 16, `navigation` × 7, `other` × 6,
+  `search` × 4 (keyword only), `hub` × 4, `history` × 3,
+  `models` × 2, `share` × 2, `theme` × 1). The `chat` and
+  `knowledge` sub-domains were removed.
 - `MainActivity.kt`
 
 ## Key concepts
@@ -152,10 +149,6 @@ then merges any custom provider definitions the user imports.
   consumes, and the `iconRefreshTick` counter on `UiState` that
   forces icon-dependent recompositions when a background icon
   call settles.
-- **`ChatViewModel`** — chat session state and streaming. Also fires
-  the bundled `internal/chat-title` prompt asynchronously after
-  the first assistant response and stamps `ChatSession.title`
-  with the returned label.
 - **`ReportViewModel`** — report generation, secondary-result flows
   (RERANK / META / MODERATION / TRANSLATE), the multi-language
   fan-out for chat-type META and TRANSLATE, the Fan-out /
@@ -196,7 +189,7 @@ than a wall of cards.
 ### TitleBar action strip
 
 Every screen's `TitleBar` is a standardised action strip — `< Back`
-plus a context-specific subset from {💬 Chat, ℹ️ Info, 📋 Copy,
+plus a context-specific subset from {ℹ️ Info, 📋 Copy,
 📤 Share, 🔄 Refresh, 🗑 Delete, 🐞 Trace, 📝 Memo, 🏠 Home,
 ❓ Help}. Inactive icons hide; Home and Help are always last. The
 `< Back` button can be hidden via Settings (the system back /
@@ -299,10 +292,9 @@ Hardening / perf measures:
 `ACTION_SEND_MULTIPLE` intents into a `SharedContent` snapshot
 (text + subject + URI list + mime). `AppNavHost` renders
 `ShareChooserScreen` as an **overlay before the NavHost** and
-routes the user's pick to one of two destinations: Report
+routes the user's pick to the Report destination
 (routeShareToReport pre-fills title/prompt + base64s a single
-image) or Chat (stages `chatStarterText` in `UiState`). See
-[share-target.md](share-target.md).
+image). See [share-target.md](share-target.md).
 
 ### Generic CRUD list
 
@@ -373,7 +365,7 @@ separate from `UiState`.
   `ProviderThrottle` (one `Semaphore` + one sliding-window
   `Deque` per hostname). Replaces the prior per-batch fan-out
   semaphore — limits now hold across overlapping flows (report
-  + meta + fan-out + chat on the same provider). Caps come from
+  + meta + fan-out on the same provider). Caps come from
   per-provider override → `NetworkSettings` global default
   (defaults: 30 calls/min, 3 concurrent). User-tunable from
   Settings → Network and per provider. See
@@ -410,7 +402,7 @@ separate from `UiState`.
   results land in their own rows.
 - Storage write APIs validate flat ids (`isSafeFlatId`: non-blank,
   not `.` / `..`, no `/` or `\`) on `saveReport`, `deleteReport`,
-  `saveChatSession`, `saveSecondaryResult`.
+  `saveSecondaryResult`.
 - Backup restore caps per-entry and total bytes (large
   attachments truncated) before writing into `filesDir` /
   `cacheDir` from the zip.
@@ -439,10 +431,7 @@ Recovery mechanisms keep the app robust to process death:
    genuinely-stuck pairs are flagged.
 3. `rememberSaveable` on key UI state (e.g. AI Usage's expanded
    provider list, Cross drill-in scope buckets per
-   `(report, prompt)`) survives navigation away and back. Chat's
-   staged `userInput` and `attachedImage` are preserved across
-   process recreation; Dual Chat conversations persist across
-   rotation / process recreation.
+   `(report, prompt)`) survives navigation away and back.
 4. The Report Result screen recovers stale placeholders on entry,
    so the user never lands on a forever-spinning hourglass.
 
@@ -505,7 +494,7 @@ remain.
   `report-title` / `report-language` / `fan-meta` / `second-meta` /
   `second-rerank` / `second-moderation` / …), `alt/` (the
   Find-alternative variants), and `internal/` (fixed templates:
-  chat-title / model-info / model-intro / translate-text / test-model /
+  model-info / model-intro / translate-text / test-model /
   …) — seeded into `Settings.internalPrompts`. Same delta-merge
   rule — new bundled entries appear on the next start, user
   edits to existing entries survive.

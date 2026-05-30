@@ -29,10 +29,6 @@ The home screen has these big cards:
 
 - **AI Reports** — multi-model reports with rerank / chat-meta /
   fan-out / moderate / translate.
-- **AI Chat** — single-model conversation. Chat titles are
-  AI-generated (the bundled `chat-title` prompt fires after the
-  first assistant response); a first-10-words fallback fills the
-  row instantly so nothing is ever blank.
 - **AI Models** — search every model across all your providers.
 - **AI Usage** — running token / cost statistics.
 - **AI API Traces** — every recent API call as a JSON file. (Hidden
@@ -71,8 +67,6 @@ Tapping **AI Reports** lands on a hub screen with several cards:
     prompts and bodies.
   - **Extended local search** — slower, broader scan (also into
     secondaries / translations).
-  - **Remote semantic search** — embed your query against any chat
-    provider and rank reports by cosine similarity.
 - **Manage** — bulk housekeeping (pin/unpin, delete, export many).
 
 ### Selection phase
@@ -156,9 +150,8 @@ two-tier toggle action bar:
   flow. Disabled rows (no prompt configured, or a single-shot kind
   already present) render dimmed.
 
-The TitleBar above the result screen carries a 💬 Chat icon that
-starts a new chat session pre-populated with the report's
-prompt, a 📋 Copy icon, and a 📤 Share icon. The leftmost
+The TitleBar above the result screen carries a 📋 Copy icon and a
+📤 Share icon. The leftmost
 title-bar glyph is the report's generated emoji (when
 icon-gen is enabled). The footer row mirrors the agent-row
 layout and shows the report's total cost on the right; a
@@ -325,51 +318,11 @@ appears at the top of the result screen until you tap **Regenerate**.
   model-list-only edits run just the additions / changes and merge
   them in.
 
-## Chat
-
-Single-model conversation with full history. Pick a provider+model at
-the top, type messages, get streaming replies. Sessions are
-auto-saved.
-
-### AI Chat hub
-
-Like the Reports hub, the Chat hub is rich:
-
-- **Start** — `New AI Chat`, `Configure on the fly`
-  (`ModelSearchScreen` for fast picking), `Dual AI Chat`.
-- **Pinned chats** (when present).
-- **Recent** — last few chats with the 🕐 icon.
-- **Unfinished** pill — when a chat from a previous session was left
-  mid-turn, a one-tap resume.
-- **Search** — full-text scan across saved chat sessions.
-- **Manage** — bulk housekeeping.
-
-A chat session can have:
-- A vision image attached per turn (📎). Images are downscaled and
-  JPEG-encoded before base64 to keep transit + storage size low.
-- The 🌐 web-search tool toggled per provider.
-- The 🧠 reasoning-effort selector per turn (clamped to the active
-  model's supported range on session resume).
-
-A mid-session system-prompt change takes effect on the next turn,
-not just on a fresh session.
-
-## Dual Chat
-
-Two models in conversation with each other. You define two prompt
-templates that reference each other's output (`%subject%`,
-`%answer%`), pick a subject, and an interaction count. The first
-model answers about the subject; the second responds to the first;
-they take turns until they hit the count. Useful for adversarial
-cross-examination, devil's-advocate setups, or multi-step pipelines.
-Conversations persist across rotation and process recreation.
-
-### Share-target
+## Share-target
 
 Other apps can share documents into AI. From any app's share sheet,
-pick "AI"; you'll get a chooser screen with two destinations:
-**New Report** and **New Chat**. See
-[share-target.md](share-target.md).
+pick "AI"; you'll get a chooser screen with the **New Report**
+destination. See [share-target.md](share-target.md).
 
 ## Models
 
@@ -382,7 +335,7 @@ Info** screen.
 
 Six cards stacked top-to-bottom:
 
-1. **Actions** — Start AI chat • Create AI Agent.
+1. **Actions** — Create AI Agent.
 2. **Capabilities** — vision / web-search / function-calling /
    reasoning toggles plus the underlying signals from each layer.
 3. **Provider** — provider's display name links to the per-provider
@@ -483,7 +436,7 @@ only the title; tapping expands it.
 
 ### Network
 
-- **Streaming read timeout (s)** — read timeout for SSE chat /
+- **Streaming read timeout (s)** — read timeout for SSE streaming /
   report streams (default = ~10 min). Shrink it on flaky networks.
 - **Non-streaming read timeout (s)** — read timeout for analyze /
   meta / rerank / translate / model-list calls. Default is much
@@ -493,7 +446,7 @@ only the title; tapping expands it.
   60 s rate cap per provider hostname. See
   [throttle.md](throttle.md).
 - **Max concurrent calls per provider** (default 3) — concurrency
-  cap. Applies across overlapping flows (report + meta + chat).
+  cap. Applies across overlapping flows (report + meta + fan-out).
 - **Max 429 retries** (default 3) — in-line retries on a 429
   response. 0 disables.
 - **429 retry backoff (ms)** (default 1000).
@@ -526,7 +479,7 @@ doesn't lose typed changes.
 > **Note:** Anything user-driven that runs on a report's outputs
 > (Compare, Critique, Synthesize, …) is configured under **Prompt
 > management → Meta prompts**. Fan-out / Fan-in templates live
-> under their own siblings; "Other internal" (chat-title / model-info / model-intro /
+> under their own siblings; "Other internal" (model-info / model-intro /
 > translate-text / translate-title / second-rerank / second-moderation / test-model) is a
 > fixed list with no Add / Delete. The icon / title / language generators live in the
 > **Workers** category (one prompt with a fallback chain of cheap models) and their
@@ -553,7 +506,7 @@ to each other on the landing page.
 | Backup & Restore | Export the entire app to a `.zip`; restore from one. The Restore screen carries a red warning that the zip contains your API keys |
 | Export & Import | Collapsible cards for Settings / Model lists / Parameters / System prompts / Workers / Costs CSV / Prompts JSON / Runtime data / API keys / All (the All bundle has its own card; API keys are a dedicated card so they can be exported and shared separately) |
 | Refresh | Hand-off to the per-tier Refresh screen |
-| Trim by age | Drop reports / chats / traces / log files older than a chosen cutoff. Hides "Trim by age" when there's nothing to trim |
+| Trim by age | Drop reports / traces / log files older than a chosen cutoff. Hides "Trim by age" when there's nothing to trim |
 | Usage statistics | Reset the per-(provider, model, kind) counters |
 | Reset | Five dedicated sub-screens (see below) |
 
@@ -561,7 +514,7 @@ to each other on the landing page.
 card, all collapsed by default):
 
 - **Clear all runtime data** — narrower than before: wipes app
-  log, traces, chats, reports, prompt history, and usage stats.
+  log, traces, reports, prompt history, and usage stats.
   Pricing / model-list caches stay put.
 - **Clear Info providers** — wipes the seven external-info
   caches (LiteLLM, OpenRouter, models.dev, Helicone, llm-prices,
@@ -615,7 +568,7 @@ description.
 - **Rate limits + concurrency**: every provider has a per-host
   sliding-window rate cap (default 30 calls / minute) and a
   per-host concurrency cap (default 3 in flight) enforced
-  globally across every flow — report, meta, fan-out, chat,
+  globally across every flow — report, meta, fan-out,
   translate, model-list fetches. A 429 retries up to 3× with 1 s
   back-off by default. All of these are configurable under
   **Settings → Network**, and any provider can override them on
@@ -627,8 +580,7 @@ description.
 - **Reasoning effort** (low / medium / high) is plumbed through to
   models that support it (gpt-5.x / o-series via OpenAI Responses
   API; Gemini thinking models). Non-reasoning models silently ignore
-  the field; on chat session resume it's clamped to the active
-  model's supported range.
+  the field.
 - **External intent**: another app can launch this one with a
   prompt, a list of agents/flocks/swarms/models, and an action
   ("view", "share", "browser", "email"). See the in-app **Help**
