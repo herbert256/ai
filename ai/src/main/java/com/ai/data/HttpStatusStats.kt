@@ -4,8 +4,9 @@ import okhttp3.Interceptor
 import okhttp3.Response
 
 /**
- * Process-wide rolling tally of HTTP response codes, bucketed for the Live
- * Dashboard's "HTTP responses" card. Every network response (and every
+ * Process-wide rolling tally of HTTP response codes (bucketed) plus response
+ * times, feeding the Live Dashboard's "HTTP responses" and "Response times"
+ * cards from one ring of events. Every network response (and every
  * network failure, recorded as code 0) flows through
  * [HttpStatusStatsInterceptor] — the innermost OkHttp interceptor — so each
  * individual attempt is counted, including the per-attempt 429s the retry
@@ -31,10 +32,23 @@ object HttpStatusStats {
         val other: Int = 0,
     )
 
+    /** Aggregate response-time stats (ms) over one time window. [count] is
+     *  the number of samples; all others are 0 when count is 0. */
+    data class Timing(
+        val count: Int = 0,
+        val avgMs: Int = 0,
+        val minMs: Int = 0,
+        val medianMs: Int = 0,
+        val p95Ms: Int = 0,
+        val maxMs: Int = 0,
+    )
+
     /** Longest window the card asks for — also the retention horizon. */
     private const val WINDOW_MS = 5 * 60 * 1000L
 
-    private class Hit(val t: Long, val bucket: Bucket)
+    /** [durationMs] is the time to the response (chain.proceed round-trip);
+     *  null for a thrown network failure, which has no response time. */
+    private class Hit(val t: Long, val bucket: Bucket, val durationMs: Long?)
 
     private val lock = Any()
     private val hits = ArrayDeque<Hit>()
@@ -50,13 +64,14 @@ object HttpStatusStats {
         else -> Bucket.OTHER
     }
 
-    /** Record one response/attempt. Prunes anything older than [WINDOW_MS]. */
-    fun record(code: Int) {
+    /** Record one response/attempt. [durationMs] is the response time (null
+     *  for a thrown failure). Prunes anything older than [WINDOW_MS]. */
+    fun record(code: Int, durationMs: Long? = null) {
         val now = System.currentTimeMillis()
         val cutoff = now - WINDOW_MS
         val bucket = bucketOf(code)
         synchronized(lock) {
-            hits.addLast(Hit(now, bucket))
+            hits.addLast(Hit(now, bucket, durationMs))
             while (hits.isNotEmpty() && hits.first().t < cutoff) hits.removeFirst()
         }
     }
@@ -79,6 +94,36 @@ object HttpStatusStats {
         }
         return Counts(ok, r429, c4, s5, other)
     }
+
+    /** Aggregate response-time stats over the trailing [windowMs], across
+     *  every recorded response that carried a duration (failures excluded).
+     *  Percentiles use nearest-rank on the sorted sample. */
+    fun timingWithin(windowMs: Long): Timing {
+        val cutoff = System.currentTimeMillis() - windowMs
+        val ds = ArrayList<Long>()
+        synchronized(lock) {
+            for (h in hits) {
+                val d = h.durationMs
+                if (h.t >= cutoff && d != null) ds.add(d)
+            }
+        }
+        if (ds.isEmpty()) return Timing()
+        ds.sort()
+        val count = ds.size
+        val avg = (ds.sum() / count).toInt()
+        fun pct(p: Double): Int {
+            val idx = Math.round((count - 1) * p).toInt().coerceIn(0, count - 1)
+            return ds[idx].toInt()
+        }
+        return Timing(
+            count = count,
+            avgMs = avg,
+            minMs = ds.first().toInt(),
+            medianMs = pct(0.5),
+            p95Ms = pct(0.95),
+            maxMs = ds.last().toInt(),
+        )
+    }
 }
 
 /**
@@ -90,13 +135,14 @@ object HttpStatusStats {
  */
 class HttpStatusStatsInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
+        val start = System.currentTimeMillis()
         val response = try {
             chain.proceed(chain.request())
         } catch (e: Exception) {
-            HttpStatusStats.record(0)
+            HttpStatusStats.record(0)   // failure: no response time
             throw e
         }
-        HttpStatusStats.record(response.code)
+        HttpStatusStats.record(response.code, System.currentTimeMillis() - start)
         return response
     }
 }

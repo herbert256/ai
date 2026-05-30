@@ -124,6 +124,8 @@ fun AiLiveDashboardScreen(
     val hosts = remember(liveTick) { ProviderThrottle.snapshot() }
     val http1m = remember(liveTick) { HttpStatusStats.countsWithin(60_000) }
     val http5m = remember(liveTick) { HttpStatusStats.countsWithin(5 * 60_000) }
+    val rt1m = remember(liveTick) { HttpStatusStats.timingWithin(60_000) }
+    val rt5m = remember(liveTick) { HttpStatusStats.timingWithin(5 * 60_000) }
     val now = remember(liveTick) { System.currentTimeMillis() }
     val logErr = remember(liveTick) { AppLog.lastWriterError }
     val droppedLines = remember(liveTick) { AppLog.droppedLineCount }
@@ -163,6 +165,7 @@ fun AiLiveDashboardScreen(
 
             item { LiveActivitySection(caps, thrFanOut, thrMeta) }
             item { HttpCodesSection(http1m, http5m, onOpenTraceFilter) }
+            item { ResponseTimesSection(rt1m, rt5m) }
             item { ThrottleSection(hosts, onOpenTraceFilter) }
 
             val activeCooldowns = cooldowns.filterValues { it > now }
@@ -1387,6 +1390,41 @@ private fun HttpCodeRow(label: String, c1: Int, c5: Int, accent: Color, onTrace:
         Spacer(Modifier.weight(1f))
         Text("$c1", fontSize = 12.sp, color = if (c1 > 0) accent else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
         Text("$c5", fontSize = 12.sp, color = if (c5 > 0) accent else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+    }
+}
+
+/** Compact ms / s formatter for the response-times rows. */
+private fun fmtMs(ms: Int): String =
+    if (ms >= 1000) String.format(Locale.US, "%.1fs", ms / 1000.0) else "${ms}ms"
+
+/** Rolling API response-time stats over the same 1 min / 5 min windows as
+ *  the HTTP-responses card, drawn from [HttpStatusStats.timingWithin] (every
+ *  response that came back; thrown failures carry no time). Each row is an
+ *  aggregate — average, fastest, median, p95, slowest — with a dash when the
+ *  window has no samples. */
+@Composable
+private fun ResponseTimesSection(t1: HttpStatusStats.Timing, t5: HttpStatusStats.Timing) {
+    SectionCard("⏱️", "Response times", AppColors.Indigo) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.weight(1f))
+            Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
+            Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
+        }
+        ResponseTimeRow("avg", t1.count, t1.avgMs, t5.count, t5.avgMs)
+        ResponseTimeRow("min", t1.count, t1.minMs, t5.count, t5.minMs)
+        ResponseTimeRow("median", t1.count, t1.medianMs, t5.count, t5.medianMs)
+        ResponseTimeRow("p95", t1.count, t1.p95Ms, t5.count, t5.p95Ms)
+        ResponseTimeRow("max", t1.count, t1.maxMs, t5.count, t5.maxMs)
+    }
+}
+
+@Composable
+private fun ResponseTimeRow(label: String, n1: Int, v1: Int, n5: Int, v5: Int) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 12.sp, color = Color.White)
+        Spacer(Modifier.weight(1f))
+        Text(if (n1 > 0) fmtMs(v1) else "—", fontSize = 12.sp, color = if (n1 > 0) Color.White else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
+        Text(if (n5 > 0) fmtMs(v5) else "—", fontSize = 12.sp, color = if (n5 > 0) Color.White else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
     }
 }
 
