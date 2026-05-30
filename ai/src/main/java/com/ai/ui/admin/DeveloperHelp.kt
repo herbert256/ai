@@ -56,19 +56,7 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
             HelpCard("What it does", "A one-tap end-to-end stress run: submits one AI report for every Example Prompt, each using the models of the swarm named \"Level 2\". Existing runtime data is NOT cleared — the new reports are added alongside whatever is already there."),
             HelpCard("Concurrent (fire-and-forget)", "All reports are submitted at once and generate concurrently in the background, each on its own coroutine. The screen finishes the moment they're submitted — it does not wait for them. That concurrency IS the stress load (throttling, cost, icons, titles)."),
             HelpCard("Before you start", "It needs a swarm named \"Level 2\" with at least one active provider, and at least one Example Prompt. These are checked first; if either is missing the run stops with a message and nothing is submitted."),
-            HelpCard("After submitting", "Open the AI Reports list to watch them fill in. Cancelling the (brief) submit loop won't stop reports already submitted — they keep generating in the background by design."),
-            HelpCard("Stress Dashboard", "Tapping Start opens the Stress Dashboard, a live view scoped to this run's reports. Stack more runs and its counters accumulate."),
-        )
-    ),
-    "stress_test_dashboard" to HelpContent(
-        title = "Help - Stress Dashboard",
-        cards = listOf(
-            HelpCard("What you're seeing", "Live progress of every report this session's stress runs launched. Scoped to those reports only — not all app activity. Start more stress tests and the numbers accumulate; the 🗑 icon resets the tracking."),
-            HelpCard("Stress runs", "Run count, total reports launched, and a Done / Running / Problems split using the same predicates as the AI Reports hub. Cost is the summed report total for the tracked set."),
-            HelpCard("Throughput", "Elapsed since the first run, a 60-second calls/min window, reports/min, and the total scoped API traces."),
-            HelpCard("Per provider / category / model", "Call counts and errors from this session's API traces, scoped to the tracked reports — broken down by provider host, by call category (Report / meta / title / icon) and by model. These need API tracing ON."),
-            HelpCard("Live — app-wide", "The one app-wide section: in-flight calls vs caps and per-host throttle. This reflects ALL current activity, not just the stress run, because concurrency limits are global. Tap 📡 to open the full Live Dashboard."),
-            HelpCard("Reset", "🗑 clears cumulative tracking for the session. Reports already launched keep generating; only the dashboard's tracked set is emptied."),
+            HelpCard("After submitting", "Tapping Start opens the Live Dashboard so you can watch the run hit the caps, saturate hosts and move through throttling in real time. Open the AI Reports list to watch the reports themselves fill in. Cancelling the (brief) submit loop won't stop reports already submitted — they keep generating in the background by design."),
         )
     ),
     "test_all_models_l1" to HelpContent(

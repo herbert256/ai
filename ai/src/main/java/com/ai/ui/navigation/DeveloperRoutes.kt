@@ -226,18 +226,13 @@ internal fun NavGraphBuilder.developerRoutes(
                 engine = reportViewModel.stressTestEngine,
                 onBack = safePopBack,
                 onStarted = {
-                    navController.navigate(NavRoutes.AI_STRESS_DASHBOARD) {
+                    // Straight to the main Live Dashboard — the stress run is
+                    // just normal app activity the dashboard already shows.
+                    navController.navigate(NavRoutes.AI_LIVE_DASHBOARD) {
                         popUpTo(NavRoutes.AI_STRESS_TEST) { inclusive = true }
                         launchSingleTop = true
                     }
                 }
-            )
-        }
-        composable(NavRoutes.AI_STRESS_DASHBOARD) {
-            com.ai.ui.admin.StressTestDashboardScreen(
-                engine = reportViewModel.stressTestEngine,
-                onBack = safePopBack,
-                onNavigateToLiveDashboard = { navController.navigate(NavRoutes.AI_LIVE_DASHBOARD) }
             )
         }
         monitorComposable(NavRoutes.AI_APPLOG_LIST, monitorNav, MonitorPart.APP_LOG) {
