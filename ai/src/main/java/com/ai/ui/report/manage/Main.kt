@@ -59,6 +59,7 @@ import kotlinx.coroutines.withContext
 fun ReportsScreen(
     uiState: UiState,
     reportsAgentResults: Map<String, AnalysisResponse>,
+    reportsAgentPartialTexts: Map<String, String> = emptyMap(),
     runningFanOutPairs: Set<String> = emptySet(),
     /** See [FanRuntimeBundle] — three pair sets + the Fan Meta
      *  batch launcher bundled to keep this composable under the
@@ -1433,6 +1434,7 @@ fun ReportsScreen(
             reportsProgress = reportsProgress,
             reportsTotal = reportsTotal,
             reportsAgentResults = reportsAgentResults,
+            reportsAgentPartialTexts = reportsAgentPartialTexts,
             currentReportId = currentReportId,
             iconGenEnabled = iconGenEnabled,
             showRegenerateConfirm = showRegenerateConfirm,

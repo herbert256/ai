@@ -309,6 +309,9 @@ internal fun ColumnScope.GenerationPhase(
     reportsProgress: Int,
     reportsTotal: Int,
     reportsAgentResults: Map<String, AnalysisResponse>,
+    /** Live streaming preview text per in-flight agent (resultId →
+     *  accumulated SSE chunks); empty unless mid-stream. */
+    reportsAgentPartialTexts: Map<String, String> = emptyMap(),
     currentReportId: String?,
     handlers: GenerationPhaseHandlers,
     /** Tapping the green report-name line opens the main View hub
@@ -1272,6 +1275,18 @@ internal fun ColumnScope.GenerationPhase(
                     val modelTitle = agentModelTitles[agentId]?.title?.takeIf { it.isNotBlank() }
                     Text(modelTitle ?: com.ai.ui.shared.modelLabel(row.providerDisplay, displayName),
                         fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    // Live streaming preview while the agent is still running:
+                    // the growing tail of the accumulated answer, dim + compact.
+                    if (result == null) {
+                        val partial = reportsAgentPartialTexts[agentId]
+                        if (!partial.isNullOrBlank()) {
+                            Text(
+                                partial.takeLast(160).replace('\n', ' '),
+                                fontSize = 11.sp, color = AppColors.TextTertiary,
+                                maxLines = 2, overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
                 }
                 if (result?.tokenUsage != null) {
                     // Just the model's own response cost — meta costs moved

@@ -154,8 +154,14 @@ data class OpenAiRequest(
      *  reasoning routes, Groq reasoning, Mistral magistral, …). One of
      *  "low" / "medium" / "high"; null = unset. The Responses API has
      *  its own [OpenAiResponsesRequest.reasoning] block — separate field. */
-    val reasoning_effort: String? = null
+    val reasoning_effort: String? = null,
+    /** Ask the server to emit a trailing usage-only chunk on streamed
+     *  responses (OpenAI + most compatible providers). Lets the
+     *  streaming-report path recover exact token counts for cost. */
+    val stream_options: StreamOptions? = null
 )
+
+data class StreamOptions(val include_usage: Boolean)
 
 data class OpenAiResponseFormat(val type: String = "text")
 
@@ -708,7 +714,10 @@ data class GeminiModel(
 // Streaming chunk types
 // ============================================================================
 
-data class OpenAiStreamChunk(val id: String?, val choices: List<StreamChoice>?, val created: Long?)
+// `usage` is non-null only on the trailing chunk emitted when the request
+// set stream_options.include_usage=true (choices is empty on that chunk).
+// Used by the streaming-report path to keep token usage / cost exact.
+data class OpenAiStreamChunk(val id: String?, val choices: List<StreamChoice>?, val created: Long?, val usage: OpenAiUsage? = null)
 data class StreamChoice(val index: Int?, val delta: StreamDelta?, val finish_reason: String?)
 data class StreamDelta(val role: String? = null, val content: String? = null, val reasoning_content: String? = null, val reasoning: String? = null)
 
@@ -716,12 +725,21 @@ data class ClaudeStreamEvent(
     val type: String,
     val index: Int? = null,
     val delta: ClaudeStreamDelta? = null,
-    val content_block: ClaudeStreamContentBlock? = null
+    val content_block: ClaudeStreamContentBlock? = null,
+    // Anthropic splits usage across two events: `message_start` carries the
+    // input (+ cache) counts under message.usage; `message_delta` carries the
+    // running output count under usage. The streaming-report collector merges
+    // both into the final TokenUsage.
+    val message: ClaudeStreamMessage? = null,
+    val usage: ClaudeUsage? = null
 )
+data class ClaudeStreamMessage(val usage: ClaudeUsage? = null)
 data class ClaudeStreamDelta(val type: String? = null, val text: String? = null, val stop_reason: String? = null)
 data class ClaudeStreamContentBlock(val type: String? = null, val text: String? = null)
 
-data class GeminiStreamChunk(val candidates: List<GeminiStreamCandidate>?)
+// `usageMetadata` rides along on Gemini stream chunks (cumulative; the final
+// chunk holds the complete counts).
+data class GeminiStreamChunk(val candidates: List<GeminiStreamCandidate>?, val usageMetadata: GeminiUsageMetadata? = null)
 data class GeminiStreamCandidate(val content: GeminiContent?, val finishReason: String?)
 
 // ============================================================================

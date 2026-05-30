@@ -43,10 +43,16 @@ fun AnalysisRepository.sendChatStream(
 // Shared SSE reader — parses lines, extracts content via format-specific lambda
 // ============================================================================
 
-private fun parseSseStream(
+internal fun parseSseStream(
     body: ResponseBody,
     extractContent: (eventType: String?, data: String) -> String?,
-    isFinalChunk: (eventType: String?, data: String) -> Boolean = { _, _ -> false }
+    isFinalChunk: (eventType: String?, data: String) -> Boolean = { _, _ -> false },
+    // Optional usage side-channel for the streaming-report path. When set,
+    // every event is also offered to [extractUsage]; any TokenUsage it
+    // returns is handed to [onUsage] (which merges across events). Chat
+    // callers leave both null and see the unchanged content-only Flow.
+    extractUsage: ((eventType: String?, data: String) -> Pair<TokenUsage?, String?>?)? = null,
+    onUsage: ((TokenUsage, String?) -> Unit)? = null
 ): Flow<String> = flow {
     // Always decode as UTF-8 — body.charStream() consults the
     // Content-Type charset, but provider servers often omit it on
@@ -82,6 +88,11 @@ private fun parseSseStream(
                 sawTerminator = true; eventType = null; return
             }
             sawAnyData = true
+            if (extractUsage != null && onUsage != null) {
+                try {
+                    extractUsage(eventType, data)?.let { (u, raw) -> if (u != null) onUsage(u, raw) }
+                } catch (_: Exception) { /* usage is best-effort — never break the content stream */ }
+            }
             val content = extractContent(eventType, data)
             // Per-chunk TRACE: log the event-type tag and payload size
             // (not the payload itself — that would duplicate the trace
@@ -147,7 +158,7 @@ private fun parseSseStream(
 
 /** Gemini SSE terminator: a candidate chunk with a non-null `finishReason`. Gemini doesn't
  *  send a [DONE] line — it just closes the connection after this chunk. */
-private fun isGeminiFinalChunk(@Suppress("UNUSED_PARAMETER") eventType: String?, data: String): Boolean {
+internal fun isGeminiFinalChunk(@Suppress("UNUSED_PARAMETER") eventType: String?, data: String): Boolean {
     return try {
         val obj = gson.fromJson(data, com.google.gson.JsonObject::class.java) ?: return false
         val candidates = obj.getAsJsonArray("candidates") ?: return false
@@ -161,8 +172,68 @@ private fun isGeminiFinalChunk(@Suppress("UNUSED_PARAMETER") eventType: String?,
 
 private val gson = createAppGson()
 
+// ============================================================================
+// Usage extractors — recover exact token counts from the SSE stream so the
+// streaming-report path keeps cost as accurate as the non-streaming call.
+// Each returns (TokenUsage, rawUsageJson) for events that carry usage, else null.
+// ============================================================================
+
+/** OpenAI Chat Completions: the trailing include_usage chunk carries `usage`. */
+internal fun extractOpenAiUsage(service: AppService): (String?, String) -> Pair<TokenUsage?, String?>? = { _, data ->
+    try {
+        gson.fromJson(data, OpenAiStreamChunk::class.java)?.usage
+            ?.let { it.toTokenUsage(service) to gson.toJson(it) }
+    } catch (_: Exception) { null }
+}
+
+/** OpenAI Responses API: the `response.completed` event holds response.usage. */
+internal val extractResponsesApiUsage: (String?, String) -> Pair<TokenUsage?, String?>? = fn@{ eventType, data ->
+    if (eventType != "response.completed") return@fn null
+    try {
+        val usageObj = gson.fromJson(data, com.google.gson.JsonObject::class.java)
+            ?.getAsJsonObject("response")?.getAsJsonObject("usage") ?: return@fn null
+        gson.fromJson(usageObj, OpenAiUsage::class.java)?.toTokenUsage() to usageObj.toString()
+    } catch (_: Exception) { null }
+}
+
+/** Anthropic: input (+cache) on message_start, output on message_delta. */
+internal val extractClaudeUsage: (String?, String) -> Pair<TokenUsage?, String?>? = fn@{ eventType, data ->
+    try {
+        val ev = gson.fromJson(data, ClaudeStreamEvent::class.java) ?: return@fn null
+        when (eventType) {
+            "message_start" -> ev.message?.usage?.let { it.toTokenUsage() to gson.toJson(it) }
+            "message_delta" -> ev.usage?.let { it.toTokenUsage() to gson.toJson(it) }
+            else -> null
+        }
+    } catch (_: Exception) { null }
+}
+
+/** Gemini: usageMetadata rides along on chunks (cumulative; keep the latest). */
+internal val extractGeminiUsage: (String?, String) -> Pair<TokenUsage?, String?>? = { _, data ->
+    try {
+        gson.fromJson(data, GeminiStreamChunk::class.java)?.usageMetadata
+            ?.let { it.toTokenUsage() to gson.toJson(it) }
+    } catch (_: Exception) { null }
+}
+
+/** Merge usage observed across SSE events by field-wise max (handles
+ *  Anthropic's split input/output events and Gemini's cumulative chunks;
+ *  a single complete event like OpenAI's final chunk merges with the
+ *  null seed to itself). apiCost / rawJson take the latest non-null. */
+internal fun mergeUsage(a: TokenUsage?, b: TokenUsage): TokenUsage {
+    if (a == null) return b
+    return TokenUsage(
+        inputTokens = maxOf(a.inputTokens, b.inputTokens),
+        outputTokens = maxOf(a.outputTokens, b.outputTokens),
+        apiCost = b.apiCost ?: a.apiCost,
+        cachedInputTokens = maxOf(a.cachedInputTokens, b.cachedInputTokens),
+        cacheCreationTokens = maxOf(a.cacheCreationTokens, b.cacheCreationTokens),
+        reasoningTokens = maxOf(a.reasoningTokens, b.reasoningTokens)
+    )
+}
+
 /** OpenAI Chat Completions SSE: data contains choices[0].delta.content */
-private fun extractOpenAiContent(eventType: String?, data: String): String? {
+internal fun extractOpenAiContent(eventType: String?, data: String): String? {
     return try {
         val chunk = gson.fromJson(data, OpenAiStreamChunk::class.java)
         val delta = chunk?.choices?.firstOrNull()?.delta
@@ -173,7 +244,7 @@ private fun extractOpenAiContent(eventType: String?, data: String): String? {
 }
 
 /** OpenAI Responses API SSE: event=response.output_text.delta, data.delta contains text */
-private fun extractResponsesApiContent(eventType: String?, data: String): String? {
+internal fun extractResponsesApiContent(eventType: String?, data: String): String? {
     if (eventType != "response.output_text.delta") return null
     return try {
         gson.fromJson(data, com.google.gson.JsonObject::class.java)?.get("delta")?.asString?.takeIf { it.isNotEmpty() }
@@ -181,7 +252,7 @@ private fun extractResponsesApiContent(eventType: String?, data: String): String
 }
 
 /** Anthropic SSE: event=content_block_delta, data.delta.text */
-private fun extractClaudeContent(eventType: String?, data: String): String? {
+internal fun extractClaudeContent(eventType: String?, data: String): String? {
     if (eventType == "message_stop") return null  // Signal end (handled by [DONE] or stream close)
     if (eventType != "content_block_delta") return null
     return try {
@@ -190,7 +261,7 @@ private fun extractClaudeContent(eventType: String?, data: String): String? {
 }
 
 /** Gemini SSE: data contains candidates[0].content.parts[0].text */
-private fun extractGeminiContent(eventType: String?, data: String): String? {
+internal fun extractGeminiContent(eventType: String?, data: String): String? {
     return try {
         gson.fromJson(data, GeminiStreamChunk::class.java)
             ?.candidates?.firstOrNull()?.content?.parts

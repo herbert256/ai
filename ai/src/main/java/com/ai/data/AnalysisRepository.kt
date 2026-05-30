@@ -354,6 +354,90 @@ class AnalysisRepository {
     }
 
     /**
+     * Streaming sibling of [analyzeWithAgent] for the report-generation
+     * primary calls: streams the answer so the model card fills in live
+     * ([onDelta] receives each text chunk), while keeping the persisted
+     * result + cost as accurate as the non-streaming path.
+     *
+     * Falls back to [analyzeWithAgent] (the authoritative path) for cases
+     * streaming can't safely cover — LOCAL, missing key, a web-search-tool
+     * agent (so citations + tool-fallback survive), or a model LiteLLM marks
+     * non-streamable — and on any stream error / empty body. So nothing
+     * regresses and there's no systematic double-billing. When a provider
+     * streams text but reports no usage, the streamed text is kept and tokens
+     * are estimated (as chat already does) rather than re-billing the call.
+     *
+     * Request construction reuses the exact same builders as the
+     * non-streaming dispatch ([buildMessages] / [buildOpenAiRequest] /
+     * claudeReasoningBundle / geminiThinkingConfigField), so the streamed
+     * request is byte-identical aside from stream=true + usage opt-in.
+     */
+    suspend fun analyzeWithAgentStreaming(
+        agent: com.ai.model.Agent,
+        content: String,
+        prompt: String,
+        agentResolvedParams: AgentParameters = AgentParameters(),
+        overrideParams: AgentParameters? = null,
+        context: Context? = null,
+        baseUrl: String? = null,
+        imageBase64: String? = null,
+        imageMime: String? = null,
+        knowledgeBaseIds: List<String> = emptyList(),
+        aiSettings: com.ai.model.Settings? = null,
+        onDelta: (String) -> Unit
+    ): AnalysisResponse = withContext(Dispatchers.IO) {
+        val nonStreaming: suspend () -> AnalysisResponse = {
+            analyzeWithAgent(agent, content, prompt, agentResolvedParams, overrideParams, context, baseUrl, imageBase64, imageMime, knowledgeBaseIds, aiSettings)
+        }
+        val merged = mergeParameters(agentResolvedParams, overrideParams)
+        // Streaming-ineligible → authoritative non-streaming path (no preview).
+        if (agent.provider.id == AppService.LOCAL.id ||
+            agent.apiKey.isBlank() ||
+            merged.webSearchTool ||
+            PricingCache.liteLLMSupportsNativeStreaming(agent.provider, agent.model) == false) {
+            return@withContext nonStreaming()
+        }
+        val repository = this@AnalysisRepository
+        val ragPrefix = if (knowledgeBaseIds.isNotEmpty() && context != null && aiSettings != null) {
+            runCatching {
+                val hits = KnowledgeService.retrieve(context, repository, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
+                KnowledgeService.formatContextBlock(hits)
+            }.getOrDefault("")
+        } else ""
+        val finalPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
+        var params = validateParams(merged)
+        if (overrideParams != null && context != null) {
+            params = filterParametersBySupported(params, PricingCache.getSupportedParameters(context, agent.provider, agent.model))
+        }
+        val effectiveBaseUrl = baseUrl ?: agent.provider.baseUrl
+        try {
+            val resp = analyzeAgentStreaming(
+                agent.provider, agent.apiKey, finalPrompt, agent.model, params,
+                effectiveBaseUrl, imageBase64, imageMime, onDelta
+            )
+            when {
+                // Streamed OK with real usage → exact result + cost, single call.
+                resp.isSuccess && resp.tokenUsage.let { it != null && (it.inputTokens > 0 || it.outputTokens > 0) } ->
+                    resp.copy(agentName = agent.name, promptUsed = finalPrompt)
+                // Streamed OK but provider reported no usage → keep the text,
+                // estimate tokens (~4 chars/token) so a usable answer is never
+                // re-billed by falling back.
+                resp.isSuccess -> resp.copy(
+                    tokenUsage = TokenUsage((finalPrompt.length + 3) / 4, ((resp.analysis ?: "").length + 3) / 4),
+                    agentName = agent.name, promptUsed = finalPrompt
+                )
+                // Stream failed / empty → authoritative non-streaming call.
+                else -> nonStreaming()
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AppLog.w("AiAnalysis", "Streaming attempt failed for ${agent.name} (${e.message}); using non-streaming")
+            nonStreaming()
+        }
+    }
+
+    /**
      * Analyze without FEN content (player analysis).
      */
     suspend fun analyzePlayerWithAgent(

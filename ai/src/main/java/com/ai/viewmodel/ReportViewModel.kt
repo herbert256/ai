@@ -110,6 +110,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     internal val _agentResults = MutableStateFlow<Map<String, AnalysisResponse>>(emptyMap())
     val agentResults: StateFlow<Map<String, AnalysisResponse>> = _agentResults.asStateFlow()
 
+    // Live streaming preview text per in-flight agent (keyed by resultId),
+    // accumulated as SSE chunks arrive so the generation cards fill in
+    // progressively instead of showing a blank ⏳. Entries are removed once
+    // the agent terminalizes (its final result lands in [_agentResults]).
+    internal val _agentPartialTexts = MutableStateFlow<Map<String, String>>(emptyMap())
+    val agentPartialTexts: StateFlow<Map<String, String>> = _agentPartialTexts.asStateFlow()
+
     /** Authoritative Fan Out runtime state. Phase C of the fan-out
      *  redesign creates this engine alongside the existing
      *  fan-out paths in this ViewModel; Phase E wires the UI to it
@@ -601,24 +608,35 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val response = try {
             val baseUrl = appViewModel.uiState.value.aiSettings.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
             com.ai.data.withTraceFilenameSink(traceSink) {
-                appViewModel.repository.analyzeWithAgent(
-                    task.runtimeAgent,
-                    "",
-                    aiPrompt,
-                    task.resolvedParams,
-                    overrideParams,
-                    context,
-                    baseUrl,
-                    imageBase64,
-                    imageMime,
-                    knowledgeBaseIds = knowledgeBaseIds,
-                    aiSettings = appViewModel.uiState.value.aiSettings
-                )
+                if (headless) {
+                    // Background / best-effort calls have no card to stream into.
+                    appViewModel.repository.analyzeWithAgent(
+                        task.runtimeAgent, "", aiPrompt, task.resolvedParams, overrideParams,
+                        context, baseUrl, imageBase64, imageMime,
+                        knowledgeBaseIds = knowledgeBaseIds,
+                        aiSettings = appViewModel.uiState.value.aiSettings
+                    )
+                } else {
+                    // Stream the answer so the model card fills in live; the
+                    // streaming path keeps result + cost as exact as the
+                    // non-streaming call (falling back to it when needed).
+                    appViewModel.repository.analyzeWithAgentStreaming(
+                        task.runtimeAgent, "", aiPrompt, task.resolvedParams, overrideParams,
+                        context, baseUrl, imageBase64, imageMime,
+                        knowledgeBaseIds = knowledgeBaseIds,
+                        aiSettings = appViewModel.uiState.value.aiSettings
+                    ) { chunk ->
+                        _agentPartialTexts.update { m ->
+                            m + (task.resultId to ((m[task.resultId] ?: "") + chunk))
+                        }
+                    }
+                }
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             // Honor structured cancellation (Stop / nav-away) instead of
             // persisting a fake error onto the agent row. The job-level
             // finally terminalizes any row left PENDING/RUNNING as STOPPED.
+            _agentPartialTexts.update { it - task.resultId }
             throw e
         } catch (e: Exception) {
             // Cap the persisted error string — OutOfMemoryError /
@@ -628,6 +646,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             AnalysisResponse(service = task.runtimeAgent.provider, analysis = null,
                 error = (e.message ?: "Unknown error").take(2000))
         }
+        // Final result is in hand — drop the live preview so the card reads
+        // from the authoritative [_agentResults] entry below.
+        _agentPartialTexts.update { it - task.resultId }
         val durationMs = System.currentTimeMillis() - startTime
         val cost = calculateResponseCost(context, task.runtimeAgent.provider, task.runtimeAgent.model, response.tokenUsage)
         // Pin the in / out cost halves at run time using the

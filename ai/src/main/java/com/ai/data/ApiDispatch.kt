@@ -1091,6 +1091,155 @@ suspend fun AnalysisRepository.testApiConnectionWithJson(
 // Helpers
 // ============================================================================
 
+// ============================================================================
+// Streaming report dispatch — mirrors analyzeOpenAi / analyzeAnthropic /
+// analyzeGemini EXACTLY (same buildMessages / buildOpenAiRequest / reasoning
+// bundles), but with stream=true so the model card can show text as it
+// arrives. Usage is recovered from the SSE so cost stays as exact as the
+// non-streaming path. `onDelta` is called for every text chunk.
+// ============================================================================
+
+/** Format-dispatch sibling of [analyze] for the streaming-report path.
+ *  Returns the same [AnalysisResponse] shape (text + TokenUsage); on a
+ *  provider that doesn't emit in-stream usage, tokenUsage comes back null
+ *  and the caller estimates rather than re-billing. */
+internal suspend fun AnalysisRepository.analyzeAgentStreaming(
+    service: AppService, apiKey: String, prompt: String, model: String,
+    params: AgentParameters?, baseUrl: String = service.baseUrl,
+    imageBase64: String? = null, imageMime: String? = null,
+    onDelta: (String) -> Unit
+): AnalysisResponse = withContext(Dispatchers.IO) {
+    withHostGate(baseUrl) {
+        withApiCallTimeout {
+            when (service.apiFormat) {
+                ApiFormat.ANTHROPIC -> streamAnthropicReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
+                ApiFormat.GOOGLE -> streamGeminiReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
+                ApiFormat.OPENAI_COMPATIBLE -> streamOpenAiReport(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime, onDelta)
+            }
+        }
+    }
+}
+
+/** Drain an SSE [retrofit2.Response] into an [AnalysisResponse], emitting
+ *  each text chunk through [onDelta] and merging any usage events. */
+private suspend fun AnalysisRepository.collectStreamResponse(
+    service: AppService,
+    response: retrofit2.Response<okhttp3.ResponseBody>,
+    extractContent: (String?, String) -> String?,
+    extractUsage: (String?, String) -> Pair<TokenUsage?, String?>?,
+    isFinalChunk: (String?, String) -> Boolean = { _, _ -> false },
+    onDelta: (String) -> Unit
+): AnalysisResponse {
+    val headers = formatHeaders(response.headers())
+    val statusCode = response.code()
+    if (!response.isSuccessful) {
+        val err = try { response.errorBody()?.string() } catch (_: Exception) { null }
+        return AnalysisResponse(service, null, "API error: ${response.code()} ${response.message()} - $err", httpHeaders = headers, httpStatusCode = statusCode)
+    }
+    val body = response.body()
+        ?: return AnalysisResponse(service, null, "Empty response body", httpHeaders = headers, httpStatusCode = statusCode)
+    val sb = StringBuilder()
+    var usage: TokenUsage? = null
+    var rawUsage: String? = null
+    parseSseStream(body, extractContent, isFinalChunk, extractUsage) { u, raw ->
+        usage = mergeUsage(usage, u); if (!raw.isNullOrBlank()) rawUsage = raw
+    }.collect { chunk -> sb.append(chunk); onDelta(chunk) }
+    val text = sb.toString().takeIf { it.isNotBlank() }
+    return if (text != null)
+        AnalysisResponse(service, text, null, usage, rawUsageJson = rawUsage, httpHeaders = headers, httpStatusCode = statusCode)
+    else AnalysisResponse(service, null, "No response content", usage, rawUsageJson = rawUsage, httpHeaders = headers, httpStatusCode = statusCode)
+}
+
+private suspend fun AnalysisRepository.streamOpenAiReport(
+    service: AppService, apiKey: String, prompt: String, model: String,
+    params: AgentParameters?, baseUrl: String, imageBase64: String?, imageMime: String?, onDelta: (String) -> Unit
+): AnalysisResponse {
+    if (usesResponsesApi(service, model)) return streamResponsesApiReport(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime, onDelta)
+    val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
+    val chatUrl = buildChatUrl(baseUrl, service.chatPath, service.knownEndpointPaths())
+    val messages = buildMessages(params?.systemPrompt, prompt, imageBase64, imageMime)
+    val request = buildOpenAiRequest(service, model, messages, params, stream = true)
+        .copy(stream_options = StreamOptions(include_usage = true))
+    val response = api.chatStream(chatUrl, "Bearer $apiKey", request)
+    return collectStreamResponse(service, response, ::extractOpenAiContent, extractOpenAiUsage(service), onDelta = onDelta)
+}
+
+private suspend fun AnalysisRepository.streamResponsesApiReport(
+    service: AppService, apiKey: String, prompt: String, model: String,
+    params: AgentParameters?, baseUrl: String, imageBase64: String?, imageMime: String?, onDelta: (String) -> Unit
+): AnalysisResponse {
+    val api = ApiFactory.createOpenAiCompatibleApi(baseUrl)
+    val responsesUrl = responsesUrlFor(service, baseUrl)
+    val input: Any = if (imageBase64 != null) {
+        val mime = imageMime ?: "image/png"
+        listOf(mapOf(
+            "role" to "user",
+            "content" to buildList {
+                if (prompt.isNotBlank()) add(mapOf("type" to "input_text", "text" to prompt))
+                add(mapOf("type" to "input_image", "image_url" to "data:$mime;base64,$imageBase64"))
+            }
+        ))
+    } else prompt
+    val request = OpenAiResponsesRequest(
+        model = model, input = input,
+        instructions = params?.systemPrompt?.takeIf { it.isNotBlank() },
+        stream = true,
+        tools = if (params?.webSearchTool == true) responsesWebSearchTool() else null,
+        reasoning = reasoningField(service, model, params?.reasoningEffort)
+    )
+    val response = api.responsesStream(responsesUrl, "Bearer $apiKey", request)
+    return collectStreamResponse(service, response, ::extractResponsesApiContent, extractResponsesApiUsage, onDelta = onDelta)
+}
+
+private suspend fun AnalysisRepository.streamAnthropicReport(
+    service: AppService, apiKey: String, prompt: String, model: String,
+    params: AgentParameters?, imageBase64: String?, imageMime: String?, onDelta: (String) -> Unit
+): AnalysisResponse {
+    val api = ApiFactory.createClaudeApi(service.baseUrl)
+    val userMessage = ChatMessage("user", prompt, imageBase64 = imageBase64, imageMime = imageMime).toClaudeMessage()
+    val bundle = claudeReasoningBundle(service, model, params?.reasoningEffort, params?.maxTokens)
+    val request = ClaudeRequest(
+        model = model, messages = listOf(userMessage), stream = true,
+        max_tokens = bundle.maxTokens,
+        temperature = params?.temperature, top_p = params?.topP, top_k = params?.topK,
+        system = params?.systemPrompt?.takeIf { it.isNotBlank() },
+        stop_sequences = params?.stopSequences?.takeIf { it.isNotEmpty() },
+        frequency_penalty = params?.frequencyPenalty, presence_penalty = params?.presencePenalty,
+        seed = params?.seed,
+        search = if (params?.searchEnabled == true) true else null,
+        tools = if (params?.webSearchTool == true) anthropicWebSearchTool() else null,
+        thinking = bundle.thinking,
+        output_config = bundle.outputConfig
+    )
+    val response = api.createMessageStream(apiKey, request = request)
+    return collectStreamResponse(service, response, ::extractClaudeContent, extractClaudeUsage, onDelta = onDelta)
+}
+
+private suspend fun AnalysisRepository.streamGeminiReport(
+    service: AppService, apiKey: String, prompt: String, model: String,
+    params: AgentParameters?, imageBase64: String?, imageMime: String?, onDelta: (String) -> Unit
+): AnalysisResponse {
+    val genConfig = params?.let {
+        GeminiGenerationConfig(it.temperature, it.topP, it.topK, it.maxTokens,
+            it.stopSequences?.takeIf { s -> s.isNotEmpty() }, it.frequencyPenalty, it.presencePenalty, it.seed,
+            if (it.searchEnabled) true else null,
+            thinkingConfig = geminiThinkingConfigField(service, model, it.reasoningEffort))
+    }
+    val systemInstruction = params?.systemPrompt?.takeIf { it.isNotBlank() }?.let {
+        GeminiContent(listOf(GeminiPart(text = it)))
+    }
+    val userContent = ChatMessage("user", prompt, imageBase64 = imageBase64, imageMime = imageMime).toGeminiContent()
+    val request = GeminiRequest(
+        contents = listOf(userContent),
+        generationConfig = genConfig,
+        systemInstruction = systemInstruction,
+        tools = if (params?.webSearchTool == true) geminiWebSearchTool() else null
+    )
+    val api = ApiFactory.createGeminiApi(service.baseUrl)
+    val response = api.streamGenerateContent(model, apiKey, request = request)
+    return collectStreamResponse(service, response, ::extractGeminiContent, extractGeminiUsage, ::isGeminiFinalChunk, onDelta)
+}
+
 private fun buildMessages(
     systemPrompt: String?,
     prompt: String,
