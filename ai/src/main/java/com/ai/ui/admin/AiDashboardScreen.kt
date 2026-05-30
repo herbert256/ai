@@ -175,14 +175,10 @@ fun AiLiveDashboardScreen(
     }
 }
 
-/** AI Monitor — the single hub gathering the live + historical
- *  observability screens. Live Dashboard, API Traces and Application
- *  log sit here, followed by the lifetime-aggregate stat pages that
- *  used to live behind a separate "Statistics" hub (now retired — its
- *  entries were folded in here). The two per-subject aggregate pages
- *  (API trace / App log statistics) are reached from the 📈 icon on
- *  the API Traces / Application log screens, not from a card here.
- *  Knowledge totals (cheap) show inline. */
+/** AI Monitor — the hub for the live + per-call observability streams:
+ *  the Live Dashboard, the API Traces and the Application log. The
+ *  lifetime-aggregate stat pages live one level down under
+ *  [AiStatisticsScreen], reached from the 📊 Statistics card here. */
 @Composable
 fun AiMonitorScreen(
     onBack: () -> Unit,
@@ -190,21 +186,10 @@ fun AiMonitorScreen(
     onNavigateToLiveDashboard: () -> Unit = {},
     onNavigateToTraces: () -> Unit = {},
     onNavigateToAppLog: () -> Unit = {},
-    onNavigateToSpendUsage: () -> Unit = {},
-    onNavigateToCostsTier: () -> Unit = {},
-    onNavigateToReports: () -> Unit = {},
-    onNavigateToProviders: () -> Unit = {},
-    onNavigateToModels: () -> Unit = {},
+    onNavigateToStatistics: () -> Unit = {},
     onHousekeeping: (() -> Unit)? = null,
 ) {
     BackHandler { onBack() }
-    val context = LocalContext.current
-    val refreshTick = resumeRefreshTick()
-    // Only the (cheap) Knowledge totals are shown inline; everything heavier
-    // is its own page reached via a link card.
-    val kb by produceState<KnowledgeData?>(null, refreshTick) {
-        value = computeKnowledgeStats(context)
-    }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -227,11 +212,65 @@ fun AiMonitorScreen(
             item { LinkCard("📡", "Live Dashboard", "In-flight calls, caps and throttle state", onNavigateToLiveDashboard) }
             item { LinkCard("🐞", "API Traces", "Per-call request/response records", onNavigateToTraces) }
             item { LinkCard("📜", "Application log", "The in-app application log, line by line", onNavigateToAppLog) }
+            item { LinkCard("📊", "Statistics", "Lifetime totals across reports, providers, models, spend and logs", onNavigateToStatistics) }
+            item { Spacer(Modifier.height(24.dp)) }
+        }
+    }
+}
+
+/** Statistics — the hub for every lifetime-aggregate stat page. Sits one
+ *  level under the Monitor hub (reached from its 📊 Statistics card). Each
+ *  row opens its own page so the heavier breakdowns only compute when
+ *  opened; the cheap Knowledge totals show inline. The two per-subject
+ *  aggregate pages (API trace / App log statistics) are also reachable
+ *  from the 📈 icon on the API Traces / Application log screens. */
+@Composable
+fun AiStatisticsScreen(
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onNavigateToReports: () -> Unit = {},
+    onNavigateToProviders: () -> Unit = {},
+    onNavigateToModels: () -> Unit = {},
+    onNavigateToSpendUsage: () -> Unit = {},
+    onNavigateToCostsTier: () -> Unit = {},
+    onNavigateToTraceStats: () -> Unit = {},
+    onNavigateToLogStats: () -> Unit = {},
+    onHousekeeping: (() -> Unit)? = null,
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val refreshTick = resumeRefreshTick()
+    // Only the (cheap) Knowledge totals are shown inline; everything heavier
+    // is its own page reached via a link card.
+    val kb by produceState<KnowledgeData?>(null, refreshTick) {
+        value = computeKnowledgeStats(context)
+    }
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_statistics",
+            title = "Statistics",
+            subject = "Lifetime aggregates across the app",
+            onBackClick = onBack,
+            reportIcon = "📊", reportIconGoesHome = true,
+            onTitleClick = onNavigateHome,
+            onHousekeeping = onHousekeeping
+        )
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            item { Spacer(Modifier.height(4.dp)) }
             item { LinkCard("📋", "Reports", "Reports + secondary results totals", onNavigateToReports) }
             item { LinkCard("🔌", "Providers", "Per-provider keys, formats, caches, test runs", onNavigateToProviders) }
             item { LinkCard("🧠", "Models", "Capabilities, types, context, states", onNavigateToModels) }
             item { LinkCard("💰", "Spend & usage", "Calls, tokens and cost per provider", onNavigateToSpendUsage) }
             item { LinkCard("🧮", "Costs tiers", "Pricing tier per model + catalog freshness", onNavigateToCostsTier) }
+            item { LinkCard("🐞", "Trace statistics", "Aggregate stats over the API traces", onNavigateToTraceStats) }
+            item { LinkCard("📜", "App log statistics", "Aggregate stats over the application log", onNavigateToLogStats) }
             kb?.let { if (it.kbCount > 0) item { KnowledgeSection(it) } }
             item { Spacer(Modifier.height(24.dp)) }
         }

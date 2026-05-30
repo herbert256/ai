@@ -45,11 +45,10 @@ internal fun NavGraphBuilder.developerRoutes(
     navigateHome: () -> Unit
 ) {
         // The 📈 icon + title on the aggregate sub-screens jump back to the
-        // Monitor hub (popping any existing instance, not stacking). The
-        // standalone Statistics hub was retired and folded into Monitor.
+        // Statistics hub (popping any existing instance, not stacking).
         val toStatistics: () -> Unit = {
-            navController.navigate(NavRoutes.AI_MONITOR) {
-                popUpTo(NavRoutes.AI_MONITOR) { inclusive = true }
+            navController.navigate(NavRoutes.AI_STATISTICS) {
+                popUpTo(NavRoutes.AI_STATISTICS) { inclusive = true }
                 launchSingleTop = true
             }
         }
@@ -69,11 +68,19 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToLiveDashboard = { navController.navigate(NavRoutes.AI_LIVE_DASHBOARD) },
                 onNavigateToTraces = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onNavigateToAppLog = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
-                onNavigateToSpendUsage = { navController.navigate(NavRoutes.AI_SPEND_USAGE) },
-                onNavigateToCostsTier = { navController.navigate(NavRoutes.AI_COSTS_TIER) },
+                onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
+                onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
+        }
+        composable(NavRoutes.AI_STATISTICS) {
+            AiStatisticsScreen(
+                onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToReports = { navController.navigate(NavRoutes.AI_STAT_REPORTS) },
                 onNavigateToProviders = { navController.navigate(NavRoutes.AI_STAT_PROVIDERS) },
                 onNavigateToModels = { navController.navigate(NavRoutes.AI_STAT_MODELS) },
+                onNavigateToSpendUsage = { navController.navigate(NavRoutes.AI_SPEND_USAGE) },
+                onNavigateToCostsTier = { navController.navigate(NavRoutes.AI_COSTS_TIER) },
+                onNavigateToTraceStats = { navController.navigate(NavRoutes.AI_TRACE_STATS) },
+                onNavigateToLogStats = { navController.navigate(NavRoutes.AI_LOG_STATS) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
         composable(NavRoutes.AI_LIVE_DASHBOARD) {
