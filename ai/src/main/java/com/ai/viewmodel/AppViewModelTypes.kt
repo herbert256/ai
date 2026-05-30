@@ -281,7 +281,12 @@ data class GeneralSettings(
      *  everything intact. KBs already attached to existing chats /
      *  reports keep sending context at API time even while the
      *  attach UI is hidden. */
-    val experimentalFeaturesEnabled: Boolean = false
+    val experimentalFeaturesEnabled: Boolean = false,
+    /** Live Dashboard layout, persisted (and so backed up via eval_prefs):
+     *  the card ids the user pinned (open on page load) and their custom
+     *  card order. Empty = nothing pinned / default order. */
+    val pinnedDashboardCards: Set<String> = emptySet(),
+    val dashboardCardOrder: List<String> = emptyList()
 ) {
     /** Effective gates — the grand-master [metadataEnabled] ANDed with
      *  each per-item sub-flag. Every generation call site and every

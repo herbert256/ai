@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,6 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -122,14 +124,34 @@ fun AiLiveDashboardScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
 
-    // Which collapsible cards are open. `remember` (not rememberSaveable) so
-    // the screen reopens all-collapsed each time — only the always-on Live
-    // activity card ticks until the user expands a card. Each card body owns
-    // its own ticker + data, so a collapsed (un-composed) card does zero work
-    // — that's the whole point: the screen no longer recomputes every metric
-    // every 750 ms.
-    var open by remember { mutableStateOf(emptySet<String>()) }
+    val uiState by appViewModel.uiState.collectAsState()
+    val gs = uiState.generalSettings
+    val pinned = gs.pinnedDashboardCards
+    val order = reconcileDashboardOrder(gs.dashboardCardOrder)
+
+    // Expansion state. Initialised from the pinned set so pinned cards open on
+    // load and everything else (incl. Live activity) starts collapsed. Plain
+    // remember → resets to the pinned baseline each time the screen opens. Each
+    // card body owns its own ticker + data, so a collapsed (un-composed) card
+    // does zero work — the screen never recomputes a hidden card.
+    var open by remember { mutableStateOf(pinned) }
     val toggle: (String) -> Unit = { k -> open = if (k in open) open - k else open + k }
+    // Pin (open on load) + reorder are persisted on GeneralSettings → eval_prefs,
+    // so they survive restart and ride along in backup/restore automatically.
+    fun togglePin(id: String) {
+        val wasPinned = id in gs.pinnedDashboardCards
+        appViewModel.updateGeneralSettings(
+            gs.copy(pinnedDashboardCards = if (wasPinned) gs.pinnedDashboardCards - id else gs.pinnedDashboardCards + id)
+        )
+        if (!wasPinned) open = open + id   // newly pinned → show it open now
+    }
+    fun moveCard(id: String, delta: Int) {
+        val cur = reconcileDashboardOrder(gs.dashboardCardOrder).toMutableList()
+        val i = cur.indexOf(id); val j = i + delta
+        if (i < 0 || j < 0 || j > cur.lastIndex) return
+        cur[i] = cur[j]; cur[j] = id
+        appViewModel.updateGeneralSettings(gs.copy(dashboardCardOrder = cur))
+    }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -150,22 +172,22 @@ fun AiLiveDashboardScreen(
         ) {
             item { Spacer(Modifier.height(4.dp)) }
 
-            // First card — always live (the cheap caps snapshot).
-            item { LiveActivityCard(appViewModel) }
-            // Everything else is collapsed on load; its body fetches + ticks
-            // only while open.
-            item { CollapsibleCard("active", "🏃", "Active runs", AppColors.Green, open, toggle) { ActiveRunsBody(appViewModel, reportViewModel) } }
-            item { CollapsibleCard("spend", "💸", "Spend & tokens", AppColors.Green, open, toggle) { SpendTokensBody(context) } }
-            item { CollapsibleCard("http", "📊", "HTTP responses", AppColors.Indigo, open, toggle) { HttpCodesBody(onOpenTraceFilter) } }
-            item { CollapsibleCard("errors", "⚠️", "Recent errors", AppColors.Red, open, toggle) { RecentErrorsBody() } }
-            item { CollapsibleCard("times", "⏱️", "Response times", AppColors.Indigo, open, toggle) { ResponseTimesBody() } }
-            item { CollapsibleCard("slow", "🐌", "Slowest calls", AppColors.Orange, open, toggle) { SlowestCallsBody() } }
-            item { CollapsibleCard("throttle", "🌐", "Provider throttle", AppColors.Blue, open, toggle) { ThrottleBody(appViewModel, reportViewModel, onOpenTraceFilter) } }
-            item { CollapsibleCard("cooldowns", "❄️", "Model cooldowns", AppColors.Orange, open, toggle) { CooldownBody() } }
-            item { CollapsibleCard("test", "🧪", "Test all models", AppColors.Purple, open, toggle) { TestRunBody(reportViewModel, context) } }
-            item { CollapsibleCard("stress", "🔥", "Stress test", AppColors.Red, open, toggle) { StressTestBody(reportViewModel) } }
-            item { CollapsibleCard("local", "🧠", "Local runtime", AppColors.Purple, open, toggle) { LocalRuntimeBody() } }
-            item { CollapsibleCard("health", "🩺", "System health", AppColors.Green, open, toggle) { HealthBody(context) } }
+            // Cards in the user's saved order; each collapsed unless pinned.
+            // The body composes (and so fetches + ticks) only while open.
+            itemsIndexed(order, key = { _, id -> id }) { index, id ->
+                val meta = DASH_CARD_META[id] ?: return@itemsIndexed
+                CollapsibleCard(
+                    id = id, emoji = meta.emoji, title = meta.title, accent = meta.accent,
+                    open = open, pinned = pinned,
+                    isFirst = index == 0, isLast = index == order.lastIndex,
+                    onToggle = toggle,
+                    onTogglePin = { togglePin(it) },
+                    onMoveUp = { moveCard(it, -1) },
+                    onMoveDown = { moveCard(it, +1) },
+                ) {
+                    DashCardBody(id, appViewModel, reportViewModel, context, onOpenTraceFilter)
+                }
+            }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
@@ -1268,21 +1290,40 @@ private fun rememberLiveTick(periodMs: Long = 750): Int {
  *  collapsed. */
 @Composable
 private fun CollapsibleCard(
-    key: String, emoji: String, title: String, accent: Color,
-    open: Set<String>, onToggle: (String) -> Unit,
+    id: String, emoji: String, title: String, accent: Color,
+    open: Set<String>, pinned: Set<String>,
+    isFirst: Boolean, isLast: Boolean,
+    onToggle: (String) -> Unit,
+    onTogglePin: (String) -> Unit,
+    onMoveUp: (String) -> Unit,
+    onMoveDown: (String) -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val isOpen = key in open
+    val isOpen = id in open
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
-        modifier = Modifier.fillMaxWidth().clickable { onToggle(key) }
+        modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(emoji, fontSize = 16.sp)
-                Spacer(Modifier.width(8.dp))
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.weight(1f))
-                Text(if (isOpen) "▾" else "▸", fontSize = 15.sp, color = AppColors.TextTertiary)
+                // emoji + title = the expand tap target.
+                Row(
+                    modifier = Modifier.weight(1f).clickable { onToggle(id) },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(emoji, fontSize = 16.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                // Reorder ↑ ↓ (dimmed at the ends), 📌 pin (open on load), expand ▾/▸.
+                Text("↑", fontSize = 15.sp, color = if (isFirst) AppColors.TextDim else AppColors.TextSecondary,
+                    modifier = Modifier.clickable(enabled = !isFirst) { onMoveUp(id) }.padding(horizontal = 5.dp))
+                Text("↓", fontSize = 15.sp, color = if (isLast) AppColors.TextDim else AppColors.TextSecondary,
+                    modifier = Modifier.clickable(enabled = !isLast) { onMoveDown(id) }.padding(horizontal = 5.dp))
+                Text("📌", fontSize = 13.sp,
+                    modifier = Modifier.alpha(if (id in pinned) 1f else 0.3f).clickable { onTogglePin(id) }.padding(horizontal = 5.dp))
+                Text(if (isOpen) "▾" else "▸", fontSize = 15.sp, color = AppColors.TextTertiary,
+                    modifier = Modifier.clickable { onToggle(id) }.padding(start = 4.dp))
             }
             if (isOpen) {
                 Spacer(Modifier.height(8.dp))
@@ -1292,15 +1333,96 @@ private fun CollapsibleCard(
     }
 }
 
-/** First card — always live; the cheap caps snapshot keeps ticking even while
- *  every other card is collapsed. */
+/** Card identity (emoji / title / header accent), keyed by stable id. The map
+ *  iteration order is the default card order; [reconcileDashboardOrder] folds
+ *  the user's saved order over it. */
+private data class CardMeta(val emoji: String, val title: String, val accent: Color)
+private val DASH_CARD_META: Map<String, CardMeta> = linkedMapOf(
+    "live" to CardMeta("🟢", "Live activity", AppColors.Green),
+    "active" to CardMeta("🏃", "Active runs", AppColors.Green),
+    "spend" to CardMeta("💸", "Spend & tokens", AppColors.Green),
+    "http" to CardMeta("📊", "HTTP responses", AppColors.Indigo),
+    "errors" to CardMeta("⚠️", "Recent errors", AppColors.Red),
+    "times" to CardMeta("⏱️", "Response times", AppColors.Indigo),
+    "slow" to CardMeta("🐌", "Slowest calls", AppColors.Orange),
+    "throttle" to CardMeta("🌐", "Provider throttle", AppColors.Blue),
+    "cooldowns" to CardMeta("❄️", "Model cooldowns", AppColors.Orange),
+    "test" to CardMeta("🧪", "Test all models", AppColors.Purple),
+    "stress" to CardMeta("🔥", "Stress test", AppColors.Red),
+    "local" to CardMeta("🧠", "Local runtime", AppColors.Purple),
+    "health" to CardMeta("🩺", "System health", AppColors.Green),
+)
+private val DEFAULT_DASH_ORDER: List<String> = DASH_CARD_META.keys.toList()
+
+/** The saved order honoured, unknown ids dropped, and any card not in the saved
+ *  order appended in default position (so a newly-added card still appears). */
+private fun reconcileDashboardOrder(saved: List<String>): List<String> {
+    val known = saved.filter { it in DASH_CARD_META }
+    return known + DEFAULT_DASH_ORDER.filter { it !in known }
+}
+
+/** Dispatch a card id to its body composable (composed only while expanded). */
 @Composable
-private fun LiveActivityCard(appViewModel: AppViewModel) {
+private fun DashCardBody(
+    id: String, appViewModel: AppViewModel, reportViewModel: ReportViewModel,
+    context: android.content.Context, onOpenTraceFilter: (String, String) -> Unit,
+) {
+    when (id) {
+        "live" -> LiveActivityBody(appViewModel)
+        "active" -> ActiveRunsBody(appViewModel, reportViewModel)
+        "spend" -> SpendTokensBody(context)
+        "http" -> HttpCodesBody(onOpenTraceFilter)
+        "errors" -> RecentErrorsBody()
+        "times" -> ResponseTimesBody()
+        "slow" -> SlowestCallsBody()
+        "throttle" -> ThrottleBody(appViewModel, reportViewModel, onOpenTraceFilter)
+        "cooldowns" -> CooldownBody()
+        "test" -> TestRunBody(reportViewModel, context)
+        "stress" -> StressTestBody(reportViewModel)
+        "local" -> LocalRuntimeBody()
+        "health" -> HealthBody(context)
+    }
+}
+
+/** Live activity body — global calls-in-flight hero + per-feature cap bars +
+ *  throttled chips. Owns its own ticker (like every other card body now). */
+@Composable
+private fun LiveActivityBody(appViewModel: AppViewModel) {
     val tick = rememberLiveTick()
     val caps = remember(tick) { ApiCallCaps.snapshot() }
     val thrFanOut by appViewModel.throttledFanOutPairs.collectAsState()
     val thrMeta by appViewModel.throttledFanMetaPairs.collectAsState()
-    LiveActivitySection(caps, thrFanOut, thrMeta)
+    val (statusWord, statusColor) = when {
+        caps.globalInFlight == 0 -> "Idle" to AppColors.TextDim
+        caps.globalInFlight >= caps.globalMax -> "Saturated" to AppColors.Red
+        else -> "Active" to AppColors.Green
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("${caps.globalInFlight}", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = statusColor)
+        Spacer(Modifier.width(6.dp))
+        Text("/ ${caps.globalMax} calls in flight", fontSize = 13.sp, color = AppColors.TextSecondary)
+        Spacer(Modifier.weight(1f))
+        Text(
+            statusWord, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = statusColor,
+            modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(AppColors.SurfaceDark)
+                .padding(horizontal = 10.dp, vertical = 4.dp)
+        )
+    }
+    Spacer(Modifier.height(8.dp))
+    CapBar("Global", caps.globalInFlight, caps.globalMax)
+    if (caps.reportInFlight > 0) CapBar("Report", caps.reportInFlight, caps.reportMax)
+    if (caps.translationInFlight > 0) CapBar("Translation", caps.translationInFlight, caps.translationMax)
+    if (caps.fanOutInFlight > 0) CapBar("Fan-out", caps.fanOutInFlight, caps.fanOutMax)
+    if (caps.fanMetaInFlight > 0) CapBar("Fan-meta", caps.fanMetaInFlight, caps.fanMetaMax)
+    val throttled = thrFanOut.size + thrMeta.size
+    if (throttled > 0) {
+        Spacer(Modifier.height(8.dp))
+        Text("Throttled — waiting on a provider rate-limit", fontSize = 11.sp, color = AppColors.Orange)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (thrFanOut.isNotEmpty()) StatChip("🌫️", "Fan-out", thrFanOut.size, AppColors.Orange)
+            if (thrMeta.isNotEmpty()) StatChip("🪄", "Fan-meta", thrMeta.size, AppColors.Orange)
+        }
+    }
 }
 
 /** One active-runs row: a glyph + label and either `done/total` (+ bar) or
@@ -1370,50 +1492,6 @@ private fun ActiveRunsBody(appViewModel: AppViewModel, reportViewModel: ReportVi
     }
 }
 
-@Composable
-private fun LiveActivitySection(
-    caps: ApiCallCaps.Snapshot,
-    thrFanOut: Set<String>, thrMeta: Set<String>,
-) {
-    val (statusWord, statusColor) = when {
-        caps.globalInFlight == 0 -> "Idle" to AppColors.TextDim
-        caps.globalInFlight >= caps.globalMax -> "Saturated" to AppColors.Red
-        else -> "Active" to AppColors.Green
-    }
-    SectionCard("🟢", "Live activity", statusColor) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("${caps.globalInFlight}", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = statusColor)
-            Spacer(Modifier.width(6.dp))
-            Text("/ ${caps.globalMax} calls in flight", fontSize = 13.sp, color = AppColors.TextSecondary)
-            Spacer(Modifier.weight(1f))
-            Text(
-                statusWord, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = statusColor,
-                modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(AppColors.SurfaceDark)
-                    .padding(horizontal = 10.dp, vertical = 4.dp)
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-        // Bars fill to permits in use (cap saturation). Global is always
-        // shown; the per-feature bars appear only while that feature has a
-        // call in flight, so an idle dashboard isn't a wall of empty bars.
-        CapBar("Global", caps.globalInFlight, caps.globalMax)
-        if (caps.reportInFlight > 0) CapBar("Report", caps.reportInFlight, caps.reportMax)
-        if (caps.translationInFlight > 0) CapBar("Translation", caps.translationInFlight, caps.translationMax)
-        if (caps.fanOutInFlight > 0) CapBar("Fan-out", caps.fanOutInFlight, caps.fanOutMax)
-        if (caps.fanMetaInFlight > 0) CapBar("Fan-meta", caps.fanMetaInFlight, caps.fanMetaMax)
-
-        val throttled = thrFanOut.size + thrMeta.size
-        if (throttled > 0) {
-            Spacer(Modifier.height(8.dp))
-            Text("Throttled — waiting on a provider rate-limit", fontSize = 11.sp, color = AppColors.Orange)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (thrFanOut.isNotEmpty()) StatChip("🌫️", "Fan-out", thrFanOut.size, AppColors.Orange)
-                if (thrMeta.isNotEmpty()) StatChip("🪄", "Fan-meta", thrMeta.size, AppColors.Orange)
-            }
-        }
-    }
-}
-
 /** Trim a host to its last two dot-labels for a compact dashboard row —
  *  `generativelanguage.googleapis.com` → `googleapis.com`, `api.openai.com`
  *  → `openai.com`. Hosts with two or fewer labels (`openrouter.ai`) are
@@ -1478,8 +1556,8 @@ private fun ThrottleBody(
 
 /** Compact token formatter: 1234 → "1.2k", 1_500_000 → "1.5M". */
 private fun fmtTokens(n: Long): String = when {
-    n >= 1_000_000 -> String.format(Locale.US, "%.1fM", n / 1_000_000.0)
-    n >= 1_000 -> String.format(Locale.US, "%.1fk", n / 1_000.0)
+    n >= 1_000_000 -> String.format(Locale.US, "%.1f M", n / 1_000_000.0)
+    n >= 1_000 -> String.format(Locale.US, "%.1f k", n / 1_000.0)
     else -> n.toString()
 }
 
@@ -1561,7 +1639,7 @@ private fun HttpCodeRow(label: String, c1: Int, c5: Int, accent: Color, onTrace:
 
 /** Compact ms / s formatter for the response-times rows. */
 private fun fmtMs(ms: Int): String =
-    if (ms >= 1000) String.format(Locale.US, "%.1fs", ms / 1000.0) else "${ms}ms"
+    if (ms >= 1000) String.format(Locale.US, "%.1f s", ms / 1000.0) else "$ms ms"
 
 /** Rolling API response-time stats over the same 1 min / 5 min windows as
  *  the HTTP-responses card, drawn from [HttpStatusStats.timingWithin] (every
@@ -1599,9 +1677,9 @@ private fun ResponseTimeRow(label: String, n1: Int, v1: Int, n5: Int, v5: Int) {
 private fun fmtAge(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return when {
-        s < 60 -> "${s}s"
-        s < 3600 -> "${s / 60}m"
-        else -> "${s / 3600}h"
+        s < 60 -> "$s s"
+        s < 3600 -> "${s / 60} m"
+        else -> "${s / 3600} h"
     }
 }
 
@@ -1761,8 +1839,8 @@ private fun HealthBody(context: android.content.Context) {
     KeyVal("Embeddings on disk", fmtBytes(disk.embeddingsBytes))
     KeyVal("Knowledge on disk", fmtBytes(disk.knowledgeBytes))
     KeyVal("API activity", if (busy) "active" else "idle", if (busy) AppColors.Green else AppColors.TextDim)
-    KeyVal("Streaming timeout", "${NetworkSettings.streamingReadTimeoutSec}s")
-    KeyVal("Non-streaming timeout", "${NetworkSettings.nonStreamingReadTimeoutSec}s")
+    KeyVal("Streaming timeout", "${NetworkSettings.streamingReadTimeoutSec} s")
+    KeyVal("Non-streaming timeout", "${NetworkSettings.nonStreamingReadTimeoutSec} s")
     KeyVal("Per-minute cap / host", "${NetworkSettings.maxCallsPerProviderPerMinute}")
 }
 
@@ -2073,8 +2151,8 @@ private fun money4(v: Double): String = String.format(Locale.US, "$%.4f", v)
 private fun fmtDuration(ms: Long): String {
     val s = (ms / 1000).coerceAtLeast(0)
     return when {
-        s >= 3600 -> "${s / 3600}h ${(s % 3600) / 60}m"
-        s >= 600 -> "${s / 60}m"
+        s >= 3600 -> "${s / 3600} h ${(s % 3600) / 60} m"
+        s >= 600 -> "${s / 60} m"
         else -> String.format(Locale.US, "%d:%02d", s / 60, s % 60)
     }
 }
