@@ -1270,6 +1270,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val nonTranslate = all.filter { it.kind != SecondaryKind.TRANSLATE }
         val groups = nonTranslate
             .filter { !it.metaPromptId.isNullOrBlank() }
+            // Fan-out pair rows (fanOutSourceAgentId) and fan-in rows
+            // (fanInOf) are owned by FanOutEngine, not this generic Meta
+            // cascade. They carry a metaPromptId too, so without this
+            // guard a prompt/param-edit regenerate would sweep them here
+            // and recreate them via runMetaPrompt — which drops the
+            // fanOutSourceAgentId / fanInOf linkage, breaking the
+            // fan-out drill-in (it can no longer hydrate the pair grid).
+            // Leave them untouched; the fan-out re-runs through its own
+            // engine path.
+            .filter { it.fanOutSourceAgentId == null && it.fanInOf == null }
             .groupBy { it.metaPromptId!! }
         val metaPromptsLookup = appViewModel.uiState.value.aiSettings.internalPrompts.associateBy { it.id }
         for ((metaPromptId, rows) in groups) {
