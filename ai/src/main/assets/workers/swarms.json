@@ -1,0 +1,140 @@
+{
+  "swarms": [
+    {
+      "id": "9f679637-f4d4-4b50-a53c-c160d40e1b23",
+      "members": [
+        {
+          "model": "claude-haiku-4-5-20251001",
+          "provider": "Anthropic"
+        },
+        {
+          "model": "deepseek-v4-flash",
+          "provider": "DeepSeek"
+        },
+        {
+          "model": "mistral-small-latest",
+          "provider": "Mistral"
+        },
+        {
+          "model": "gpt-5.4-nano",
+          "provider": "OpenAI"
+        },
+        {
+          "model": "gemini-2.5-flash-lite",
+          "provider": "Google"
+        },
+        {
+          "model": "grok-4-1-fast-non-reasoning",
+          "provider": "xAI"
+        }
+      ],
+      "name": "Level 1",
+      "paramsIds": []
+    },
+    {
+      "id": "15095e34-9e1f-4068-940d-bd62c087c09a",
+      "members": [
+        {
+          "model": "claude-sonnet-4-6",
+          "provider": "Anthropic"
+        },
+        {
+          "model": "deepseek-chat",
+          "provider": "DeepSeek"
+        },
+        {
+          "model": "mistral-medium-latest",
+          "provider": "Mistral"
+        },
+        {
+          "model": "gpt-5.4-mini",
+          "provider": "OpenAI"
+        },
+        {
+          "model": "grok-4.3",
+          "provider": "xAI"
+        },
+        {
+          "model": "gemini-2.5-flash",
+          "provider": "Google"
+        }
+      ],
+      "name": "Level 2",
+      "paramsIds": []
+    },
+    {
+      "id": "bd1377ef-786c-476a-8698-1736dca69a5b",
+      "members": [
+        {
+          "model": "claude-opus-4-7",
+          "provider": "Anthropic"
+        },
+        {
+          "model": "deepseek-v4-pro",
+          "provider": "DeepSeek"
+        },
+        {
+          "model": "gemini-3.1-pro-preview",
+          "provider": "Google"
+        },
+        {
+          "model": "mistral-large-latest",
+          "provider": "Mistral"
+        },
+        {
+          "model": "grok-4.20-0309-reasoning",
+          "provider": "xAI"
+        },
+        {
+          "model": "gpt-5.5",
+          "provider": "OpenAI"
+        }
+      ],
+      "name": "Level 3",
+      "paramsIds": []
+    },
+    {
+      "id": "90719df5-e7bb-47ec-bb38-7e47438a1e9c",
+      "members": [
+        {
+          "model": "gpt-4o-mini",
+          "provider": "OpenAI"
+        },
+        {
+          "model": "deepseek-chat",
+          "provider": "DeepSeek"
+        },
+        {
+          "model": "llama-3.1-8b-instant",
+          "provider": "Groq"
+        },
+        {
+          "model": "llama3.1-8b",
+          "provider": "Cerebras"
+        },
+        {
+          "model": "Meta-Llama-3.1-8B-Instruct",
+          "provider": "SambaNova"
+        },
+        {
+          "model": "gemini-2.5-flash-lite",
+          "provider": "Google"
+        },
+        {
+          "model": "gpt-4.1-nano",
+          "provider": "OpenAI"
+        },
+        {
+          "model": "ministral-8b-latest",
+          "provider": "Mistral"
+        },
+        {
+          "model": "grok-4-1-fast-non-reasoning",
+          "provider": "xAI"
+        }
+      ],
+      "name": "workers",
+      "paramsIds": []
+    }
+  ]
+}
