@@ -263,7 +263,11 @@ private fun ReportsViewerScreenLoaded(
     // Load TRANSLATE secondaries up front; the picker / overlay both
     // key on this list. Empty list → no picker shown, viewer behaves
     // as before.
-    val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), report.id) {
+    // Key on SecondaryDataVersion too so a translation finishing or
+    // being deleted while this screen stays mounted re-reads from disk
+    // instead of leaving the tabs stale until a remount.
+    val secDataVersion by SecondaryDataVersion.version.collectAsState()
+    val translatesState = produceState(initialValue = emptyList<SecondaryResult>(), report.id, secDataVersion) {
         value = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, report.id, SecondaryKind.TRANSLATE)
                 .filter { !it.content.isNullOrBlank() }
@@ -425,7 +429,7 @@ private fun ReportsViewerScreenLoaded(
                     }
                 } else {
                     val hasAgentCosts = report.agents.any { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
-                    val hasSecondaryCostsState = produceState(initialValue = false, report.id) {
+                    val hasSecondaryCostsState = produceState(initialValue = false, report.id, secDataVersion) {
                         value = withContext(Dispatchers.IO) {
                             SecondaryResultStorage.listForReport(context, report.id).any { it.tokenUsage != null }
                         }
@@ -571,7 +575,11 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val agentsWithCosts = remember(report) {
         report.agents.filter { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
     }
-    val secondaryState = produceState(initialValue = emptyList<SecondaryResult>(), report.id) {
+    // Re-read when a secondary completes / is deleted while a cost view
+    // (this is shared by Report-Manage, Report-Info and the Costs screen)
+    // stays mounted — otherwise the breakdown / totals went stale.
+    val secDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secondaryState = produceState(initialValue = emptyList<SecondaryResult>(), report.id, secDataVersion) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.listForReport(context, report.id) }
     }
     val secondary = secondaryState.value

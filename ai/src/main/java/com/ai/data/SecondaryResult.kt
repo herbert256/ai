@@ -114,6 +114,7 @@ object SecondaryResultStorage {
             // next listForReport re-reads it.
             listCache[result.reportId]?.remove(target.name)
         }
+        SecondaryDataVersion.bump()
         return result
     }
 
@@ -245,6 +246,7 @@ object SecondaryResultStorage {
             target.writeTextAtomic(gson.toJson(toWrite))
             listCache[result.reportId]?.remove(target.name)
         }
+        SecondaryDataVersion.bump()
         return true
     }
 
@@ -650,6 +652,7 @@ object SecondaryResultStorage {
             // for the report stay parsed and ready for the next read.
             listCache[reportId]?.remove(target.name)
         }
+        SecondaryDataVersion.bump()
     }
 
     fun deleteAllForReport(context: Context, reportId: String) {
@@ -661,6 +664,7 @@ object SecondaryResultStorage {
             // Whole report gone — drop the entire per-report bucket.
             listCache.remove(reportId)
         }
+        SecondaryDataVersion.bump()
     }
 
     /** Counts persisted across all kinds for a report. Used by the Report

@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.Report
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
+import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.report.manage.view.rememberReportCostData
@@ -69,7 +71,10 @@ fun ReportInfoScreen(
     val report by produceState<Report?>(initialValue = null, reportId) {
         value = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId) }
     }
-    val secondaries by produceState(initialValue = emptyList<SecondaryResult>(), reportId) {
+    // Refresh the secondary summary + total-API-time when a secondary
+    // completes / is deleted while the info screen stays open.
+    val secDataVersion by SecondaryDataVersion.version.collectAsState()
+    val secondaries by produceState(initialValue = emptyList<SecondaryResult>(), reportId, secDataVersion) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.listForReport(context, reportId) }
     }
     val r = report
