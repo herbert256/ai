@@ -468,12 +468,14 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "setup_workers" to HelpContent(
         title = "Help - Workers (setup)",
         cards = listOf(
-            HelpCard("Overview", "Sub-hub under AI Setup. Three cards (Agents / Flocks / Swarms) — all three disabled until at least one provider has an API key set."),
+            HelpCard("Overview", "Sub-hub under AI Setup. Four cards (Models / Agents / Flocks / Swarms) — all disabled until at least one provider has an API key set. Below the cards, a small diagram shows how they connect."),
+            HelpCard("Models", "The cross-provider model browser (moved here from the home page). Tap a model to open its Model Info page. Count = total models across active providers."),
             HelpCard("Agents", "Named (provider, model, key, params, prompt, endpoint) tuples. Count = active agents (whose provider is currently active)."),
             HelpCard("Flocks", "Groups of agents with optional shared parameters/system prompt. Count = number of flocks."),
             HelpCard("Swarms", "Groups of (provider, model) pairs without going through agents. Count = number of swarms."),
+            HelpCard("Diagram", "Reads top-to-bottom: a provider has many models; an agent is a model with a system prompt and parameters; a flock is a collection of agents; a swarm is a collection of models."),
             HelpCard("Tips", "When you import a config bundle these counts jump in lockstep with the imported data."),
-            HelpCard("Pitfalls", "If your only API key was just removed, all three cards lock — the hub uses aiSettings.hasAnyApiKey() as its enable gate."),
+            HelpCard("Pitfalls", "If your only API key was just removed, all cards lock — the hub uses aiSettings.hasAnyApiKey() as its enable gate."),
         )
     ),
     "setup_prompts" to HelpContent(

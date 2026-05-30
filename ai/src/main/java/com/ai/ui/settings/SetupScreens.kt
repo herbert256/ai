@@ -3,6 +3,7 @@ package com.ai.ui.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -183,19 +184,129 @@ fun WorkersSetupScreen(
 ) {
     BackHandler { onBack() }
     val agentCount = remember(aiSettings.agents) { aiSettings.agents.count { aiSettings.isProviderActive(it.provider) } }
+    // Total models across active providers — matches the count shown on
+    // the Setup hub's Models card and the per-provider Models screen.
+    val modelCount = remember(aiSettings) {
+        aiSettings.getActiveServices().sumOf { aiSettings.getProvider(it).models.size }
+    }
+    // Top-level route navigator, provided at the nav-host root — lets the
+    // Models card jump to the cross-provider model browser without
+    // prop-drilling a NavController callback through the Settings chain.
+    val navRoute = com.ai.ui.shared.LocalNavigateToRoute.current
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "setup_workers", title = "Workers", subject = "Agents, flocks and swarms", onBackClick = onBack)
+        TitleBar(helpTopic = "setup_workers", title = "Workers", subject = "Models, agents, flocks and swarms", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ModelsSetupNavCard("🧠", "Models", "Browse every active provider's models", "$modelCount",
+                onClick = { navRoute(com.ai.ui.navigation.NavRoutes.AI_MODEL_SEARCH) }, enabled = hasApiKey)
             ModelsSetupNavCard("🤖", "Agents", "Named model configurations", "$agentCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }, enabled = hasApiKey)
             ModelsSetupNavCard("🦆", "Flocks", "Groups of agents", "${aiSettings.flocks.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_FLOCKS) }, enabled = hasApiKey)
             ModelsSetupNavCard("🐝", "Swarms", "Groups of provider/model pairs", "${aiSettings.swarms.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) }, enabled = hasApiKey)
+
+            Spacer(modifier = Modifier.height(6.dp))
+            WorkersDiagram()
+            Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+}
+
+/** A small "how it fits together" diagram drawn below the Workers
+ *  cards. Each entity card states its own composition via the chips
+ *  inside it, so the four relationships read at a glance:
+ *    • a provider has many models
+ *    • an agent is a model + a system prompt + parameters
+ *    • a flock is a collection of agents
+ *    • a swarm is a collection of models
+ *  Provider → Agent → Flock are linked by a connector (the real
+ *  hierarchy); Swarm sits apart since it's built straight from models. */
+@Composable
+private fun WorkersDiagram() {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text("How they connect", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            color = AppColors.TextSecondary, modifier = Modifier.padding(bottom = 10.dp))
+
+        DiagramEntity("⚙️", "Provider", AppColors.Blue, "has many models") {
+            DiagramChipRow(listOf("🧠 Model", "🧠 Model", "🧠 Model", "🧠 Model"))
+        }
+        DiagramArrow("one model becomes an…")
+        DiagramEntity("🤖", "Agent", AppColors.Green, "a model with a system prompt and parameters") {
+            DiagramChipRow(listOf("🧠 Model", "📝 System prompt", "🎛️ Parameters"), separator = "+")
+        }
+        DiagramArrow("agents grouped into a…")
+        DiagramEntity("🦆", "Flock", AppColors.Orange, "a collection of agents") {
+            DiagramChipRow(listOf("🤖 Agent", "🤖 Agent", "🤖 Agent"))
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+        DiagramEntity("🐝", "Swarm", AppColors.Purple, "a collection of models") {
+            DiagramChipRow(listOf("🧠 Model", "🧠 Model", "🧠 Model"))
+        }
+    }
+}
+
+/** One labelled box in [WorkersDiagram] — emoji + name (accent) + a
+ *  one-line caption, then the supplied composition chips. */
+@Composable
+private fun DiagramEntity(
+    emoji: String, name: String, accent: Color, caption: String, content: @Composable () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .border(1.dp, accent.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
+            .background(AppColors.CardBackground, RoundedCornerShape(10.dp))
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(emoji, fontSize = 20.sp)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = accent)
+        }
+        Text(caption, fontSize = 12.sp, color = AppColors.TextTertiary,
+            modifier = Modifier.padding(top = 3.dp, bottom = 9.dp))
+        content()
+    }
+}
+
+/** Horizontally-scrollable row of small chips (so a wide composition —
+ *  e.g. the Agent's three parts — never overflows on a narrow phone).
+ *  When [separator] is set it's drawn between chips (the Agent shows
+ *  "Model + System prompt + Parameters"). */
+@Composable
+private fun DiagramChipRow(items: List<String>, separator: String? = null) {
+    Row(
+        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        items.forEachIndexed { i, label ->
+            if (i > 0 && separator != null) {
+                Text(separator, fontSize = 13.sp, color = AppColors.TextDim)
+            }
+            Box(
+                modifier = Modifier
+                    .background(AppColors.CardBackgroundAlt, RoundedCornerShape(7.dp))
+                    .padding(horizontal = 9.dp, vertical = 5.dp)
+            ) {
+                Text(label, fontSize = 12.sp, color = AppColors.TextSecondary, maxLines = 1)
+            }
+        }
+    }
+}
+
+/** Centered down-arrow + tiny label linking two entity boxes. */
+@Composable
+private fun DiagramArrow(label: String) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("↓", fontSize = 16.sp, color = AppColors.TextDim)
+        Text(label, fontSize = 10.sp, color = AppColors.TextTertiary)
     }
 }
 

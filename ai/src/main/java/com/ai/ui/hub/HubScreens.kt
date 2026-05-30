@@ -59,7 +59,6 @@ fun HubScreen(
     onNavigateToChatsHub: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
     onNavigateToHousekeeping: () -> Unit,
-    onNavigateToModelSearch: () -> Unit,
     onNavigateToKnowledge: () -> Unit = {},
     onNavigateToExamples: () -> Unit = {},
     onOpenLatestReport: () -> Unit = {},
@@ -155,10 +154,8 @@ fun HubScreen(
                 HubCard(icon = "\uD83D\uDCDA", title = "Knowledge", onClick = onNavigateToKnowledge)
                 Spacer(modifier = Modifier.height(12.dp))
             }
-            if (hasAnyAgent) {
-                HubCard(icon = "\uD83E\uDDE0", title = "Models", onClick = onNavigateToModelSearch)
-                Spacer(modifier = Modifier.height(12.dp))
-            }
+            // Models moved to Setup \u2192 Workers (a model is the raw material
+            // agents / swarms are built from), so it sits with them now.
             HubCard(icon = "\uD83D\uDCE1", title = "Monitor", onClick = onNavigateToMonitor)
             Spacer(modifier = Modifier.height(12.dp))
             HubCard(icon = "\uD83E\uDD16", title = "Setup", onClick = onNavigateToAiSetup)

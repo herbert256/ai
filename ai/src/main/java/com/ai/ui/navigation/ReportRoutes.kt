@@ -90,7 +90,6 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateToChatsHub = { navController.navigate(NavRoutes.AI_CHATS_HUB) },
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
                 onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
-                onNavigateToModelSearch = { navController.navigate(NavRoutes.AI_MODEL_SEARCH) },
                 onNavigateToKnowledge = { navController.navigate(NavRoutes.AI_KNOWLEDGE) },
                 onNavigateToExamples = { navController.navigate(NavRoutes.AI_EXAMPLES) },
                 onOpenLatestReport = {
