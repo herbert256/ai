@@ -219,7 +219,9 @@ fun FanOutScreen(
                 it.status == com.ai.data.PairStatus.DONE ||
                     it.status == com.ai.data.PairStatus.ERROR
             }
-            if (settled) continue
+            // Runner is idle — stop the 3 s re-hydrate ticker (was `continue`,
+            // which left the timer spinning forever despite the comment above).
+            if (settled) break
             withContext(Dispatchers.IO) { engine.hydrate(context, reportId) }
         }
     }
