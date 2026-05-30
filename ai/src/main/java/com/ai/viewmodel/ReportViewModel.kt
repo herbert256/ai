@@ -1268,13 +1268,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val all = SecondaryResultStorage.listForReport(context, reportId)
         if (all.isEmpty()) return
 
-        // Group non-translate rows by their Meta prompt id so we can
-        // re-run each one. Legacy rows (no metaPromptId) are skipped:
-        // we don't have enough info to regenerate them under the new
-        // CRUD-driven flow, so leaving them in place preserves their
-        // history.
-        val nonTranslate = all.filter { it.kind != SecondaryKind.TRANSLATE }
-        val groups = nonTranslate
+        // Group META rows by their Meta prompt id so we can re-run each
+        // one. Only kind == META: RERANK / MODERATION rows can also carry
+        // a resolvable metaPromptId, but runMetaPrompt hardcodes kind =
+        // META — so cascading them here would silently re-type a persisted
+        // Rerank / Moderation row into a Meta result (vanishing from its
+        // bucket + the TopRanked-scope dropdown), and a rerank-only model
+        // would be dispatched down the chat path and error. Legacy rows
+        // (no metaPromptId) are skipped: not enough info to regenerate
+        // under the CRUD-driven flow, so leaving them preserves history.
+        val metaRows = all.filter { it.kind == SecondaryKind.META }
+        val groups = metaRows
             .filter { !it.metaPromptId.isNullOrBlank() }
             // Fan-out pair rows (fanOutSourceAgentId) and fan-in rows
             // (fanInOf) are owned by FanOutEngine, not this generic Meta
