@@ -211,10 +211,10 @@ fun WorkersSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) }, enabled = hasApiKey)
 
             Spacer(modifier = Modifier.height(6.dp))
-            WorkersDiagram()
-            // The same four relationships again as a graphical node
-            // diagram (circles + arrows) — a real image asset.
-            Spacer(modifier = Modifier.height(18.dp))
+            Text("How they connect", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                color = AppColors.TextSecondary, modifier = Modifier.padding(bottom = 10.dp))
+            // Graphical node diagram (circles + arrows) first, then the
+            // same four relationships as text cards.
             Image(
                 painter = painterResource(com.ai.R.drawable.workers_connect),
                 contentDescription = "How workers connect: a provider has many models; " +
@@ -223,6 +223,8 @@ fun WorkersSetupScreen(
                 modifier = Modifier.fillMaxWidth(),
                 contentScale = ContentScale.FillWidth
             )
+            Spacer(modifier = Modifier.height(18.dp))
+            WorkersDiagram()
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
@@ -240,9 +242,6 @@ fun WorkersSetupScreen(
 @Composable
 private fun WorkersDiagram() {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("How they connect", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-            color = AppColors.TextSecondary, modifier = Modifier.padding(bottom = 10.dp))
-
         DiagramEntity("⚙️", "Provider", AppColors.Blue, "has many models") {
             DiagramChipRow(listOf("🧠 Model", "🧠 Model", "🧠 Model", "🧠 Model"))
         }
