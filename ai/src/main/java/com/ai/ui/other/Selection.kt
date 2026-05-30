@@ -210,13 +210,49 @@ internal fun ReportSelectModelsScreen(
     var providerDropdownExpanded by remember { mutableStateOf(false) }
     var typeOnly by remember { mutableStateOf(modelTypeFilter != null) }
 
-    val effectiveServices = activeServices
-    val all = remember(aiSettings, activeServices) {
-        activeServices.flatMap { prov -> aiSettings.getModels(prov).map { prov to it } }
+    // Local models surface alongside remote providers under the
+    // synthetic AppService.LOCAL. Source depends on the picker's
+    // type filter:
+    //   - RERANK → MediaPipe TextEmbedder .tflite files (LocalEmbedder)
+    //   - else   → MediaPipe LLM Inference .task files (LocalLlm)
+    // Moderation has no on-device equivalent yet so the local list
+    // is empty there. The (provider, model) tuple ends up at the
+    // caller's onConfirm — they branch on provider.id ==
+    // AppService.LOCAL.id when needed.
+    // Master experimental-features gate read from prefs directly so
+    // we don't have to thread a flag through every caller of this
+    // picker. When off the synthetic LOCAL provider stays invisible
+    // even when .task / .tflite files exist on disk.
+    val experimentalFeatures = remember {
+        context.getSharedPreferences("eval_prefs", android.content.Context.MODE_PRIVATE)
+            .getBoolean("experimental_features", false)
+    }
+    val localModelsForFilter = remember(modelTypeFilter, context, experimentalFeatures) {
+        if (!experimentalFeatures) emptyList()
+        else when (modelTypeFilter) {
+            com.ai.data.ModelType.RERANK -> com.ai.data.local.LocalEmbedder.availableModels(context)
+            com.ai.data.ModelType.MODERATION -> emptyList()
+            else -> com.ai.data.local.LocalLlm.availableLlms(context)
+        }
+    }
+    val effectiveServices = remember(activeServices, localModelsForFilter) {
+        if (localModelsForFilter.isNotEmpty()) activeServices + AppService.LOCAL else activeServices
+    }
+    val all = remember(aiSettings, localModelsForFilter) {
+        val remote = activeServices.flatMap { prov -> aiSettings.getModels(prov).map { prov to it } }
+        val local = localModelsForFilter.map { AppService.LOCAL to it }
+        remote + local
     }
     val providerFiltered = if (providerFilter != null) all.filter { it.first == providerFilter } else all
     val typeFiltered = if (typeOnly && modelTypeFilter != null) {
-        providerFiltered.filter { (prov, model) -> aiSettings.getModelType(prov, model) == modelTypeFilter }
+        providerFiltered.filter { (prov, model) ->
+            // LOCAL is not in Settings.providers so getModelType returns
+            // null; but localModelsForFilter was already populated by
+            // modelTypeFilter, so any (LOCAL, model) pair already matches
+            // by construction. Pass it through unconditionally to keep
+            // the local rerank / LLM rows visible with the type filter on.
+            prov.id == AppService.LOCAL.id || aiSettings.getModelType(prov, model) == modelTypeFilter
+        }
     } else providerFiltered
     val searched = if (search.isBlank()) typeFiltered else typeFiltered.filter { (prov, model) ->
         prov.id.lowercase().contains(search.lowercase()) || model.lowercase().contains(search.lowercase())
@@ -245,7 +281,7 @@ internal fun ReportSelectModelsScreen(
                 DropdownMenuItem(text = { Text("All Providers", color = if (providerFilter == null) AppColors.Blue else Color.White, fontSize = 13.sp) },
                     onClick = { providerFilter = null; providerDropdownExpanded = false })
                 remember(effectiveServices) { effectiveServices.sortedBy { it.id.lowercase() } }.forEach { provider ->
-                    val mc = aiSettings.getModels(provider).size
+                    val mc = if (provider.id == AppService.LOCAL.id) localModelsForFilter.size else aiSettings.getModels(provider).size
                     DropdownMenuItem(text = { Text("${provider.id} ($mc)", color = if (providerFilter == provider) AppColors.Blue else Color.White, fontSize = 13.sp) },
                         onClick = { providerFilter = provider; providerDropdownExpanded = false })
                 }
@@ -287,7 +323,8 @@ internal fun ReportSelectModelsScreen(
             // of these (e.g. the Moderation picker passes MODERATION
             // — the user wants exactly that type then).
             val modelType = aiSettings.getModelType(provider, model)
-            val isNonTestable = modelType in com.ai.data.ModelType.NON_TESTABLE_TYPES &&
+            val isNonTestable = provider.id != AppService.LOCAL.id &&
+                modelType in com.ai.data.ModelType.NON_TESTABLE_TYPES &&
                 modelType != modelTypeFilter
             // Only an already-added row is non-selectable; advisory
             // states (cooldown / blocked / inaccessible / non-testable)
@@ -341,7 +378,8 @@ internal fun ReportSelectModelsScreen(
                 if (entry in alreadyAdded) return@filter false
                 if (providerFilter != null && prov != providerFilter) return@filter false
                 if (typeOnly && modelTypeFilter != null) {
-                    val matchesType = aiSettings.getModelType(prov, model) == modelTypeFilter
+                    val matchesType = prov.id == AppService.LOCAL.id ||
+                        aiSettings.getModelType(prov, model) == modelTypeFilter
                     if (!matchesType) return@filter false
                 }
                 if (search.isNotBlank()) {

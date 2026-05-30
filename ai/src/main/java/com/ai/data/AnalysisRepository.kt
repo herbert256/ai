@@ -1,6 +1,7 @@
 package com.ai.data
 
 import android.content.Context
+import com.ai.data.local.LocalLlm
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.delay
@@ -240,10 +241,38 @@ class AnalysisRepository {
         // simply skipped (the user can regenerate info).
         retry: Boolean = true
     ): AnalysisResponse = withContext(Dispatchers.IO) {
+        // Local on-device path — no API key, no HTTP, no retry. The
+        // sentinel AppService.LOCAL is the marker. Embedding-style
+        // simple flow: build the prompt, call MediaPipe LLM Inference,
+        // wrap the response.
+        // RAG injection: if knowledge bases are attached, retrieve
+        // top-K chunks for this prompt and prepend the rendered
+        // context block. Failures are silent (fallback to bare
+        // prompt) so an embedder hiccup doesn't kill the whole call.
+        val repository = this@AnalysisRepository
+        val ragPrefix = if (knowledgeBaseIds.isNotEmpty() && context != null && aiSettings != null) {
+            runCatching {
+                val hits = KnowledgeService.retrieve(context, repository, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
+                KnowledgeService.formatContextBlock(hits)
+            }.getOrDefault("")
+        } else ""
+
+        if (agent.provider.id == AppService.LOCAL.id) {
+            if (context == null) {
+                return@withContext AnalysisResponse(agent.provider, null, "Local LLM call requires a Context", agentName = agent.name)
+            }
+            val finalPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
+            val out = LocalLlm.generate(context, agent.model, finalPrompt)
+            return@withContext if (out != null) {
+                AnalysisResponse(agent.provider, out, null, agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 200)
+            } else {
+                AnalysisResponse(agent.provider, null, "Local LLM \"${agent.model}\" failed — verify it loaded in Housekeeping → Local LLMs.", agentName = agent.name, promptUsed = finalPrompt, httpStatusCode = 500)
+            }
+        }
         if (agent.apiKey.isBlank()) {
             return@withContext AnalysisResponse(agent.provider, null, "API key not configured for agent ${agent.name}", agentName = agent.name)
         }
-        val finalPrompt = buildPrompt(prompt, content, agent)
+        val finalPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
         suspend fun makeApiCall(): AnalysisResponse {
             var params = validateParams(mergeParameters(agentResolvedParams, overrideParams))
             if (overrideParams != null && context != null) {
@@ -368,7 +397,14 @@ class AnalysisRepository {
             PricingCache.liteLLMSupportsNativeStreaming(agent.provider, agent.model) == false) {
             return@withContext nonStreaming()
         }
-        val finalPrompt = buildPrompt(prompt, content, agent)
+        val repository = this@AnalysisRepository
+        val ragPrefix = if (knowledgeBaseIds.isNotEmpty() && context != null && aiSettings != null) {
+            runCatching {
+                val hits = KnowledgeService.retrieve(context, repository, aiSettings, knowledgeBaseIds, prompt.ifBlank { content })
+                KnowledgeService.formatContextBlock(hits)
+            }.getOrDefault("")
+        } else ""
+        val finalPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
         var params = validateParams(merged)
         if (overrideParams != null && context != null) {
             params = filterParametersBySupported(params, PricingCache.getSupportedParameters(context, agent.provider, agent.model))

@@ -50,6 +50,8 @@ import com.ai.data.AgentParameters
 import com.ai.data.AnalysisRepository
 import com.ai.data.ApiFactory
 import com.ai.data.AppService
+import com.ai.data.ChatHistoryManager
+import com.ai.data.ChatSession
 import com.ai.data.HuggingFaceCache
 import com.ai.data.HuggingFaceModelInfo
 import com.ai.data.OpenRouterModelInfo

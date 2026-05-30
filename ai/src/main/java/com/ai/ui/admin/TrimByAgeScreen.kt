@@ -15,6 +15,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
+import com.ai.data.ChatHistoryManager
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
@@ -45,6 +46,7 @@ fun TrimByAgeScreen(
             // already on the UI thread; stay consistent with the
             // existing pattern.
             val rCount = ReportStorage.getAllReports(context).count { it.timestamp < cutoff }
+            val cCount = ChatHistoryManager.getAllSessions().count { it.updatedAt < cutoff }
             val tCount = ApiTracer.getTraceFiles().count { it.timestamp < cutoff }
             AlertDialog(
                 onDismissRequest = { showTrimConfirm = false },
@@ -52,6 +54,7 @@ fun TrimByAgeScreen(
                 text = {
                     Text("Permanently deletes everything older than $days day${if (days == 1) "" else "s"}: " +
                         "$rCount report${if (rCount == 1) "" else "s"}, " +
+                        "$cCount chat session${if (cCount == 1) "" else "s"}, " +
                         "$tCount trace file${if (tCount == 1) "" else "s"}. " +
                         "Cannot be undone.")
                 },
@@ -61,10 +64,12 @@ fun TrimByAgeScreen(
                             showTrimConfirm = false
                             val reports = ReportStorage.getAllReports(context).filter { it.timestamp < cutoff }
                             reports.forEach { ReportStorage.deleteReport(context, it.id) }
+                            val chats = ChatHistoryManager.getAllSessions().filter { it.updatedAt < cutoff }
+                            chats.forEach { ChatHistoryManager.deleteSession(it.id) }
                             val traces = ApiTracer.deleteTracesOlderThan(cutoff)
                             Toast.makeText(
                                 context,
-                                "Deleted ${reports.size} reports, $traces traces older than $days days",
+                                "Deleted ${reports.size} reports, ${chats.size} chats, $traces traces older than $days days",
                                 Toast.LENGTH_LONG
                             ).show()
                         },
@@ -77,14 +82,14 @@ fun TrimByAgeScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "trim_by_age", title = "Trim by age", subject = "Delete reports & traces by age", onBackClick = onBack)
+        TitleBar(helpTopic = "trim_by_age", title = "Trim by age", subject = "Delete reports, chats & traces by age", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Trim by age", fontWeight = FontWeight.Bold, color = Color.White)
                     Text(
-                        "Deletes reports and API trace files older than the cutoff. Configuration, API keys, and prompt history stay. The confirmation dialog shows the exact per-kind count first.",
+                        "Deletes reports, chat sessions, and API trace files older than the cutoff. Configuration, API keys, knowledge bases, and prompt history stay. The confirmation dialog shows the exact per-kind count first.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
                     OutlinedTextField(
@@ -101,7 +106,7 @@ fun TrimByAgeScreen(
                         enabled = daysToKeep != null && daysToKeep > 0,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
-                    ) { Text("Clear Reports/Traces", maxLines = 1, softWrap = false) }
+                    ) { Text("Clear Reports/Chats/Traces", maxLines = 1, softWrap = false) }
                 }
             }
         }

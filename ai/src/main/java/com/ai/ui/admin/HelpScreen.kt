@@ -588,11 +588,12 @@ private fun HelpIconTable() {
         Triple("🏠", "Home", "Returns here from anywhere."),
         Triple("❓", "Help", "Opens topic-specific help for the current screen."),
         Triple("ℹ️", "Info", "Drills into model info or another details target."),
-        Triple("📋", "Copy", "Copies the screen's main payload to the system clipboard (report text, trace JSON, …)."),
+        Triple("📋", "Copy", "Copies the screen's main payload to the system clipboard (report text, trace JSON, chat transcript, …)."),
         Triple("📤", "Share", "Fires the Android share sheet (ACTION_SEND) with the screen's main payload as plain text."),
         Triple("🗑", "Trash", "Destructive scope-specific delete (clear stats, drop trace list, delete report). Only shown when the destructive scope is non-empty."),
         Triple("🐞", "Trace", "Opens API Traces filtered to the current scope (report / model / session). Only shown when tracing is on AND traces exist."),
-        Triple("🔄", "Reload", "Re-runs the screen's fetch.")
+        Triple("🔄", "Reload", "Re-runs the screen's fetch."),
+        Triple("💬", "Chat", "Opens a chat against the current context.")
     )
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {

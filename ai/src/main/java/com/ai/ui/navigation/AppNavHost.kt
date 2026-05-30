@@ -19,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import com.ai.data.*
 import com.ai.model.*
 import com.ai.viewmodel.*
+import com.ai.ui.chat.*
 import com.ai.ui.hub.*
 import com.ai.ui.report.view.*
 import com.ai.ui.report.manage.*
@@ -39,6 +40,7 @@ fun AppNavHost(
     navController: NavHostController = rememberNavController(),
     appViewModel: AppViewModel = viewModel(),
     reportViewModel: ReportViewModel = remember { ReportViewModel(appViewModel) },
+    chatViewModel: ChatViewModel = remember { ChatViewModel(appViewModel) },
     externalTitle: String? = null,
     externalSystem: String? = null,
     externalPrompt: String? = null,
@@ -168,14 +170,43 @@ fun AppNavHost(
     if (sharedContent != null && !sharedContent.isEmpty) {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
+        val uiStateForShare by appViewModel.uiState.collectAsState()
         com.ai.ui.share.ShareChooserScreen(
             shared = sharedContent,
+            experimentalFeatures = uiStateForShare.generalSettings.experimentalFeaturesEnabled,
             onCancel = onSharedContentHandled,
             onSendToReport = {
                 scope.launch {
                     routeShareToReport(context, appViewModel, navController, sharedContent)
                     onSharedContentHandled()
                 }
+            },
+            onSendToChat = {
+                appViewModel.updateUiState { it.copy(chatStarterText = sharedContent.text) }
+                // Land on the configure-on-the-fly provider picker so
+                // the user picks model/parameters; the staged starter
+                // text follows them into ChatSessionScreen via UiState.
+                navController.navigate(NavRoutes.AI_CHAT_PROVIDER) {
+                    popUpTo(NavRoutes.AI) { inclusive = false }
+                }
+                onSharedContentHandled()
+            },
+            onSendToKnowledge = {
+                // Build the queue once: any attachment URIs + the URL
+                // text (when present). The previous flow first wrote
+                // the uri list, then conditionally overwrote it with
+                // a URL-only list ONLY when uris was empty — a share
+                // carrying both `text=https://…` AND a PDF therefore
+                // dropped the URL silently. Knowledge consumes the
+                // queue and branches on content:// vs http:// per
+                // entry, so the merged list is fine.
+                val urlText = if (sharedContent.isUrl) sharedContent.text?.trim().orEmpty() else ""
+                val queue = sharedContent.uris + listOfNotNull(urlText.takeIf { it.isNotBlank() })
+                appViewModel.updateUiState { it.copy(pendingKnowledgeUris = queue) }
+                navController.navigate(NavRoutes.AI_KNOWLEDGE) {
+                    popUpTo(NavRoutes.AI) { inclusive = false }
+                }
+                onSharedContentHandled()
             }
         )
         return
@@ -265,7 +296,8 @@ fun AppNavHost(
         NavRoutes.AI_NEW_REPORT_HUB, NavRoutes.AI_NEW_REPORT, NavRoutes.AI_NEW_REPORT_WITH_PARAMS,
         NavRoutes.AI_SEARCH_REPORTS, NavRoutes.AI_ALL_REPORTS, NavRoutes.AI_EXAMPLES,
         NavRoutes.AI_PROMPT_HISTORY, NavRoutes.AI_EXAMPLE_PROMPT_PICKER,
-        NavRoutes.AI_LOCAL_SEARCH, NavRoutes.AI_QUICK_LOCAL_SEARCH,
+        NavRoutes.AI_SEARCH, NavRoutes.AI_LOCAL_SEARCH, NavRoutes.AI_QUICK_LOCAL_SEARCH,
+        NavRoutes.AI_LOCAL_SEMANTIC_SEARCH,
         NavRoutes.AI_REPORTS, NavRoutes.AI_REPORT_INFO, NavRoutes.AI_REPORT_MODEL,
         NavRoutes.AI_VIEW_PICK_REPORT, NavRoutes.AI_MANAGE_PICK_REPORT,
         NavRoutes.AI_REPORT_MANAGE
@@ -274,6 +306,7 @@ fun AppNavHost(
     // screens with no report glyph that previously fell back to the AI
     // logo. Sub-screens jump to their section hub; the hub goes Home.
     val modelSectionRoutes = setOf(NavRoutes.AI_MODEL_INFO, NavRoutes.AI_MANUAL_OVERRIDE_ADD)
+    val knowledgeSectionRoutes = setOf(NavRoutes.AI_KNOWLEDGE_NEW, NavRoutes.AI_KNOWLEDGE_DETAIL)
     // One-off screens with no section hub — show a fitting local glyph
     // whose tap goes Home. About uses the same ℹ️ it has on the home page.
     val homeIconByRoute: Map<String, String> = mapOf(
@@ -292,6 +325,13 @@ fun AppNavHost(
             com.ai.ui.shared.TopBarLeftIcon(reportDefaultIcon, rootNavigateHome)
         currentNavRoute in reportSectionRoutes ->
             com.ai.ui.shared.TopBarLeftIcon(reportDefaultIcon, rootNavigateToReportsHub)
+        currentNavRoute == NavRoutes.AI_CHATS_HUB ->
+            com.ai.ui.shared.TopBarLeftIcon("💬", navigateHome)
+        currentNavRoute.startsWith("ai_chat") || currentNavRoute.startsWith("ai_dual_chat") ->
+            com.ai.ui.shared.TopBarLeftIcon("💬") {
+                if (!navController.popBackStack(NavRoutes.AI_CHATS_HUB, false))
+                    navController.navigate(NavRoutes.AI_CHATS_HUB)
+            }
         currentNavRoute == NavRoutes.AI_HOUSEKEEPING ->
             com.ai.ui.shared.TopBarLeftIcon("🧹", navigateHome)
         currentNavRoute in housekeepingSubRoutes ->
@@ -305,6 +345,13 @@ fun AppNavHost(
             com.ai.ui.shared.TopBarLeftIcon("🧠") {
                 if (!navController.popBackStack(NavRoutes.AI_MODEL_SEARCH, false))
                     navController.navigate(NavRoutes.AI_MODEL_SEARCH)
+            }
+        currentNavRoute == NavRoutes.AI_KNOWLEDGE ->
+            com.ai.ui.shared.TopBarLeftIcon("📚", navigateHome)
+        currentNavRoute in knowledgeSectionRoutes ->
+            com.ai.ui.shared.TopBarLeftIcon("📚") {
+                if (!navController.popBackStack(NavRoutes.AI_KNOWLEDGE, false))
+                    navController.navigate(NavRoutes.AI_KNOWLEDGE)
             }
         homeIconByRoute[currentNavRoute] != null ->
             com.ai.ui.shared.TopBarLeftIcon(homeIconByRoute.getValue(currentNavRoute), navigateHome)
@@ -336,10 +383,11 @@ fun AppNavHost(
     ) {
 
         // ===== Hub =====
-        reportRoutes(navController, appViewModel, reportViewModel, safePopBack, navigateHome)
-        settingsAdminRoutes(navController, appViewModel, reportViewModel, safePopBack, navigateHome)
-        knowledgeSearchRoutes(navController, appViewModel, reportViewModel, safePopBack, navigateHome)
-        developerRoutes(navController, appViewModel, reportViewModel, safePopBack, navigateHome)
+        reportRoutes(navController, appViewModel, reportViewModel, chatViewModel, safePopBack, navigateHome)
+        settingsAdminRoutes(navController, appViewModel, reportViewModel, chatViewModel, safePopBack, navigateHome)
+        knowledgeSearchRoutes(navController, appViewModel, reportViewModel, chatViewModel, safePopBack, navigateHome)
+        developerRoutes(navController, appViewModel, reportViewModel, chatViewModel, safePopBack, navigateHome)
+        chatRoutes(navController, appViewModel, reportViewModel, chatViewModel, safePopBack, navigateHome)
     }
     // Hide the bar on the home Hub — that screen has no TitleBar
     // (it's the centered "AI" logo) so the bar would just show
@@ -491,11 +539,181 @@ private suspend fun routeShareToReport(
             }
         }
     }
+    if (nonImageUris.isNotEmpty()) {
+        appViewModel.updateUiState { it.copy(pendingReportKnowledgeUris = nonImageUris) }
+    }
     navController.navigate(NavRoutes.aiNewReportWithParams(title, prompt)) {
         popUpTo(NavRoutes.AI) { inclusive = false }
     }
 }
 
+/** Build a fresh ChatSession seeded with the report's prompt as the
+ *  user turn and the chosen agent's response as the assistant turn,
+ *  persist it via [com.ai.data.ChatHistoryManager], and return the
+ *  session id so the caller can navigate to AI_CHAT_CONTINUE. The
+ *  new session is independent of the source report — editing or
+ *  deleting either one does not affect the other.
+ *
+ *  Uses the agent's actual provider/model so the user keeps talking
+ *  to the same model that produced the report response. The first
+ *  user turn carries the report's vision attachment if there was
+ *  one. The new session inherits the agent's resolved system prompt
+ *  + parameters from current settings (same mapping the
+ *  AI_CHAT_WITH_AGENT route uses); if the agent has been deleted
+ *  since the report was written we fall back to ChatParameters
+ *  defaults. */
+internal suspend fun continueReportInChat(
+    context: android.content.Context,
+    reportId: String,
+    agentId: String,
+    aiSettings: com.ai.model.Settings
+): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return@withContext null
+    val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withContext null
+    val provider = AppService.findById(agent.provider) ?: return@withContext null
+    val responseBody = agent.responseBody?.takeIf { it.isNotBlank() } ?: return@withContext null
+
+    val settingsAgent = aiSettings.getAgentById(agentId)
+    val chatParams = if (settingsAgent != null) {
+        val rp = aiSettings.resolveAgentParameters(settingsAgent)
+        com.ai.data.ChatParameters(
+            temperature = rp.temperature, maxTokens = rp.maxTokens,
+            topP = rp.topP, topK = rp.topK,
+            frequencyPenalty = rp.frequencyPenalty, presencePenalty = rp.presencePenalty,
+            systemPrompt = rp.systemPrompt ?: "",
+            searchEnabled = rp.searchEnabled, returnCitations = rp.returnCitations,
+            searchRecency = rp.searchRecency, webSearchTool = rp.webSearchTool
+        )
+    } else com.ai.data.ChatParameters()
+
+    val now = System.currentTimeMillis()
+    val session = com.ai.data.ChatSession(
+        provider = provider,
+        model = agent.model,
+        messages = listOf(
+            com.ai.data.ChatMessage(
+                role = "user",
+                content = report.prompt,
+                timestamp = report.timestamp,
+                imageBase64 = report.imageBase64,
+                imageMime = report.imageMime
+            ),
+            com.ai.data.ChatMessage(
+                role = "assistant",
+                content = responseBody,
+                timestamp = (agent.durationMs ?: 0L).let { d -> if (d > 0) report.timestamp + d else now }
+            )
+        ),
+        parameters = chatParams,
+        createdAt = now,
+        updatedAt = now
+    )
+    if (com.ai.data.ChatHistoryManager.saveSession(session)) session.id else null
+}
+
+/** Fetch just the assistant response text for one agent of one
+ *  report. Used by the "Continue in chat … with this response only"
+ *  flows to stash the text as `chatStarterText` before routing into
+ *  the agent picker / configure-on-the-fly chains. */
+internal suspend fun readReportAgentResponse(
+    context: android.content.Context,
+    reportId: String,
+    agentId: String
+): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return@withContext null
+    val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withContext null
+    agent.responseBody?.takeIf { it.isNotBlank() }
+}
+
+/** Build a fresh ChatSession seeded from a META secondary result so
+ *  the user can continue the analysis conversationally instead of
+ *  copy-pasting it into a separate chat. The originating report's
+ *  prompt and every agent response ride along as hidden system-prompt
+ *  context; the meta prose itself becomes the assistant's visible
+ *  first turn, so the thread reads "here's the comparison — now ask
+ *  me about it". Persisted via [com.ai.data.ChatHistoryManager];
+ *  returns the new session id for AI_CHAT_CONTINUE, or null if the
+ *  report/row is gone or no provider/model resolves.
+ *
+ *  Provider/model default to the model that produced the meta row (it
+ *  already holds the analysis context); if that provider has since
+ *  been removed we fall back to the first report agent whose provider
+ *  still resolves. [activeLanguage] picks a translated META body when
+ *  the user is viewing a non-Original language. The new session is
+ *  independent of the source report. */
+internal suspend fun continueMetaInChat(
+    context: android.content.Context,
+    reportId: String,
+    resultId: String,
+    activeLanguage: String?
+): String? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val report = com.ai.data.ReportStorage.getReport(context, reportId) ?: return@withContext null
+    val row = com.ai.data.SecondaryResultStorage.get(context, reportId, resultId)
+        ?: return@withContext null
+
+    // Body: the active-language translation if the user is viewing one,
+    // else the meta row's own (Original) content.
+    val metaBody = (activeLanguage
+        ?.takeIf { it.isNotBlank() }
+        ?.let { lang ->
+            com.ai.data.SecondaryResultStorage
+                .listForReport(context, reportId, com.ai.data.SecondaryKind.TRANSLATE)
+                .firstOrNull {
+                    it.translateSourceKind == "META" &&
+                        it.translateSourceTargetId == resultId &&
+                        it.targetLanguage == lang &&
+                        !it.content.isNullOrBlank()
+                }?.content
+        }
+        ?: row.content)?.takeIf { it.isNotBlank() } ?: return@withContext null
+
+    // Prefer the model that produced the meta; fall back to the first
+    // report agent whose provider still resolves.
+    val rowProvider = AppService.findById(row.providerId)
+    val (provider, model) = if (rowProvider != null && !row.model.isNullOrBlank()) {
+        rowProvider to row.model!!
+    } else {
+        val fallback = report.agents.firstOrNull {
+            AppService.findById(it.provider) != null && !it.responseBody.isNullOrBlank()
+        }
+        val fp = fallback?.let { AppService.findById(it.provider) }
+        if (fp != null) fp to fallback.model else return@withContext null
+    }
+
+    val responsesBlock = report.agents
+        .filter { !it.responseBody.isNullOrBlank() }
+        .joinToString("\n\n---\n\n") { a ->
+            "## ${com.ai.ui.shared.shortModelName(a.model)}\n${a.responseBody}"
+        }
+    val metaName = row.metaPromptName?.takeIf { it.isNotBlank() } ?: "meta-analysis"
+    val systemPrompt = buildString {
+        appendLine("You are continuing a multi-model analysis from one of the user's reports.")
+        appendLine()
+        appendLine("ORIGINAL PROMPT")
+        appendLine(report.prompt)
+        appendLine()
+        appendLine("MODEL RESPONSES")
+        appendLine(responsesBlock)
+        appendLine()
+        append("You produced the \"$metaName\" analysis shown to the user as your first message. ")
+        append("Answer the user's follow-up questions about it — drill into specifics, ")
+        append("justify or revise points, and compare the responses as asked.")
+    }
+
+    val now = System.currentTimeMillis()
+    val session = com.ai.data.ChatSession(
+        provider = provider,
+        model = model,
+        messages = listOf(
+            com.ai.data.ChatMessage(role = "assistant", content = metaBody, timestamp = now)
+        ),
+        parameters = com.ai.data.ChatParameters(systemPrompt = systemPrompt),
+        createdAt = now,
+        updatedAt = now,
+        title = "💬 $metaName"
+    )
+    if (com.ai.data.ChatHistoryManager.saveSession(session)) session.id else null
+}
 
 /** Wraps the four standalone Jetpack-Nav View screens
  *  (ModelInfoView / AgentView / FlockView / SwarmView) in a

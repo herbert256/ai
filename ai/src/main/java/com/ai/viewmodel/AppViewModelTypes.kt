@@ -8,6 +8,8 @@ import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.data.*
+import com.ai.data.local.LocalEmbedder
+import com.ai.data.local.LocalLlm
 import com.ai.model.*
 import com.ai.ui.settings.SettingsPreferences
 import kotlinx.coroutines.Dispatchers
@@ -259,6 +261,27 @@ data class GeneralSettings(
      *  noisy enough to capture every API call + batch start/end without
      *  flooding the device with per-token streaming chatter. */
     val logLevel: com.ai.data.LogLevel = com.ai.data.LogLevel.INFO,
+    /** Whether the AI Knowledge card appears on the home Hub. Default
+     *  false — Knowledge / RAG is an advanced flow that most users
+     *  don't need; hiding it on a fresh install keeps the Hub
+     *  approachable. Surfaces a toggle under Settings → "Show AI
+     *  Knowledge card on home page" once a user wants it. The
+     *  Knowledge subsystem itself stays fully functional whether or
+     *  not the card is visible — KBs attached to a chat / report
+     *  still work, share-target Knowledge ingest still works.
+     *  Only editable when [experimentalFeaturesEnabled] is true. */
+    val showKnowledgeCard: Boolean = false,
+    /** Master gate for experimental / advanced surfaces. When false,
+     *  hides every UI surface related to on-device models (Local
+     *  LLMs, LiteRT embedders, the synthetic AppService.LOCAL
+     *  provider), AI Knowledge / RAG (Hub card, attach buttons in
+     *  chat + report, share-target "Add to Knowledge" entry,
+     *  Knowledge screens), and Local Semantic Search. Installed
+     *  model files on disk stay put; flipping this back on reveals
+     *  everything intact. KBs already attached to existing chats /
+     *  reports keep sending context at API time even while the
+     *  attach UI is hidden. */
+    val experimentalFeaturesEnabled: Boolean = false,
     /** Live Dashboard layout, persisted (and so backed up via eval_prefs):
      *  the card ids the user pinned (open on page load) and their custom
      *  card order. Empty = nothing pinned / default order. */
@@ -328,6 +351,36 @@ data class UiState(
     // preset reasoningEffort. Non-reasoning models silently ignore the
     // field at dispatch time.
     val reportReasoningEffort: String? = null,
+    /** Knowledge bases attached to the next report run. The selection
+     *  screen toggles entries here; ReportViewModel.generateGenericReports
+     *  copies the snapshot onto the new Report's knowledgeBaseIds.
+     *  AnalysisRepository.analyzeWithAgent reads it via the per-call
+     *  Report it loads to inject the context block. */
+    val attachedKnowledgeBaseIds: List<String> = emptyList(),
+    /** Initial user-input text staged by the share-target chooser
+     *  so a freshly-opened chat session pre-fills its input box.
+     *  ChatSessionScreen consumes this once on first composition
+     *  and clears it via clearChatStarterText() so navigating
+     *  away and back doesn't re-stuff the box. */
+    val chatStarterText: String? = null,
+    /** Initial vision attachment staged by the AI Chat hub's
+     *  "📸 Start with photo" entry (and any future flow that wants
+     *  to drop a chat session in with an image already attached).
+     *  Consumed by ChatSessionScreen on first composition the same
+     *  way chatStarterText is. */
+    val chatStarterImageBase64: String? = null,
+    val chatStarterImageMime: String? = null,
+    /** SAF Uri strings staged for ingestion by the AI Knowledge
+     *  screen. The list screen drops them into the active KB
+     *  after the user picks one (or creates a new KB) and clears
+     *  the queue. */
+    val pendingKnowledgeUris: List<String> = emptyList(),
+    /** Non-image SAF Uri strings staged by the share-target
+     *  chooser when the user picked "New Report". The New Report
+     *  screen surfaces a banner that lets the user auto-create a
+     *  one-shot knowledge base from these files and attach it to
+     *  the report being composed. Drained on attach / skip. */
+    val pendingReportKnowledgeUris: List<String> = emptyList(),
     val genericReportsProgress: Int = 0,
     val genericReportsTotal: Int = 0,
     val genericReportsSelectedAgents: Set<String> = emptySet(),
@@ -376,7 +429,10 @@ data class UiState(
     // on completion; multiple batches can be in flight at once. The
     // Meta button's hourglass and the Meta screen's poll loop key off
     // this being > 0.
-    val activeSecondaryBatches: Int = 0
+    val activeSecondaryBatches: Int = 0,
+    // Chat
+    val chatParameters: ChatParameters = ChatParameters(),
+    val dualChatConfig: DualChatConfig? = null
 ) {
     // Flat accessors preserved so call sites don't need updating. Grouping the 13 external
     // fields into a nested ExternalIntent struct makes "is anything external set?" checks

@@ -62,6 +62,19 @@ fun ReportModelScreen(
      *  so legacy callers still work for the "All languages" path. */
     onDeleteRowById: (String) -> Unit = { _ -> },
     onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
+    /** Pre-seed a fresh chat session with the report prompt + this
+     *  agent's response and the agent's resolved system prompt /
+     *  parameters from current settings, then open it against the
+     *  same provider/model. */
+    onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
+    /** Stash this agent's response as the next chat's input-box
+     *  starter and route to the agent picker (same flow as
+     *  AI Chat → New Chat with Agent). */
+    onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
+    /** Stash this agent's response as the next chat's input-box
+     *  starter and route to the configure-on-the-fly chain
+     *  (provider → model → params → session). */
+    onContinueWithOnTheFly: (String, String) -> Unit = { _, _ -> },
     /** Wired by the parent (ReportScreen) to set its
      *  agentIconDetailFor state. The big agent-icon glyph rendered
      *  below the response taps through here so a user can land
@@ -79,6 +92,26 @@ fun ReportModelScreen(
     // re-enters this screen with a different agentId param.
     var currentAgentId by rememberSaveable(reportId, agentId) { mutableStateOf(agentId) }
 
+    var showContinuePicker by remember { mutableStateOf(false) }
+    if (showContinuePicker) {
+        ContinueInChatPickerScreen(
+            onPickCurrent = {
+                showContinuePicker = false
+                onContinueWithCurrent(reportId, currentAgentId)
+            },
+            onPickAgentPicker = {
+                showContinuePicker = false
+                onContinueWithAgentPicker(reportId, currentAgentId)
+            },
+            onPickOnTheFly = {
+                showContinuePicker = false
+                onContinueWithOnTheFly(reportId, currentAgentId)
+            },
+            onBack = { showContinuePicker = false },
+            onNavigateHome = onNavigateHome
+        )
+        return
+    }
     BackHandler { onBack() }
     val context = LocalContext.current
     // Loaded asynchronously: getReport reads + parses the report JSON
@@ -227,6 +260,7 @@ fun ReportModelScreen(
     var confirmRemove by remember { mutableStateOf(false) }
     var confirmLangChoice by remember { mutableStateOf(false) }
     var confirmReload by remember { mutableStateOf(false) }
+    val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
 
     val agentLabel = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — ")
     // Pre-computed so the swipe handler (in the content Box below) can
@@ -267,6 +301,7 @@ fun ReportModelScreen(
             },
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
             onReload = { confirmReload = true },
+            onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
             onTranslationCompare = if (liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }
             } else null,
@@ -419,6 +454,9 @@ fun ReportModelScreen(
                 ) { Text("Translation info", fontSize = 13.sp, maxLines = 1, softWrap = false) }
             }
         }
+        // The "💬 Continue in chat" body button collapsed into the
+        // title-bar 💬 icon (gated on canContinueInChat) — same
+        // destination, single entry point.
     }
 
     if (confirmReload) {
@@ -501,6 +539,74 @@ fun ReportModelScreen(
                     }
                 }
             }
+        )
+    }
+}
+
+/** Full-screen overlay picker for the three "Continue in chat …" flows
+ *  (current history & model / agent picker / configure on the fly).
+ *  Replaces the inline three-row card on [ReportSingleResultScreen] —
+ *  one tap opens this, second tap on a row navigates to the chat
+ *  flow. Mirrors the project's full-screen overlay pattern: invoked
+ *  from the parent via early-return so the parent's remember state
+ *  survives the round-trip. */
+@Composable
+internal fun ContinueInChatPickerScreen(
+    onPickCurrent: () -> Unit,
+    onPickAgentPicker: () -> Unit,
+    onPickOnTheFly: () -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    BackHandler { onBack() }
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        TitleBar(helpTopic = "report_continue_in_chat", title = "Continue in chat", subject = "Send this answer into a new chat", onBackClick = onBack,
+            modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
+        Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+            Text(
+                "Pick how you want to continue in chat:",
+                fontSize = 12.sp, color = AppColors.TextTertiary,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+            ContinueRow(
+                icon = "📜",
+                title = "with current history and model",
+                enabled = true,
+                onClick = onPickCurrent
+            )
+            ContinueRow(
+                icon = "🤖",
+                title = "with this response only and select an agent",
+                enabled = true,
+                onClick = onPickAgentPicker
+            )
+            ContinueRow(
+                icon = "🛠️",
+                title = "with this response only and configure on the fly",
+                enabled = true,
+                onClick = onPickOnTheFly
+            )
+        }
+    }
+}
+
+@Composable
+private fun ContinueRow(icon: String, title: String, enabled: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (enabled) Modifier.clickable { onClick() } else Modifier)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = icon, fontSize = 20.sp,
+            modifier = if (enabled) Modifier else Modifier.alpha(0.4f)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+            color = if (enabled) Color.White else AppColors.TextDim
         )
     }
 }

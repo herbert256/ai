@@ -178,7 +178,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Detail view for the main report icon — the emoji shown next to the report title. Reached by tapping the 📝 icon on the report's result screen. Produced by the bundled `icons/main` one-shot prompt with `@PROMPT@` substituted to the report's prompt text."),
             HelpCard("Subject (green row)", "Always `main` (or `main_alt` after a Find-alt pick). Legacy rows whose `iconPromptUsed` is null fall back to `main`."),
-            HelpCard("Title-bar icons", "ℹ️ Model info for the model that ran the call. 📋 Copy the API-interaction body. 📤 Share via the system sheet. 🐞 jumps to the captured API trace (only when tracing was on at call time)."),
+            HelpCard("Title-bar icons", "💬 Continue in chat (preseeds a chat with the prompt + emoji). ℹ️ Model info for the model that ran the call. 📋 Copy the API-interaction body. 📤 Share via the system sheet. 🐞 jumps to the captured API trace (only when tracing was on at call time)."),
             HelpCard("Model / API interaction / Emoji cards", "Standard layout — the same shape for every Icon-lookup scope: provider + model + cumulative cost, plain `[user] … [assistant] …` 2-message transcript, big centred glyph (⏳ pending, ❌ on error)."),
             HelpCard("Find alternative icons", "Runs the bundled `icons/main_alt` variant across user-picked (provider, model) pairs. Composed at runtime as `alt.text + \"\\n\\n\" + base.text` — alt nudge first so the model reads the 'pick something distinct' constraint before the template body. Pick a returned emoji to commit it on the report."),
             HelpCard("Cost attribution", "Initial call + every alt attempt is bumped on `Report.iconInputCost / iconOutputCost`. On the Report → API cost table the alt calls surface as per-call `icon_main_alt` rows; the initial generation as `icon_main`. By-type collapses every `icon_*` row into one `icons` group."),
@@ -190,7 +190,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Detail view for one agent's per-model icon (one icon per agent on a report). Reached by tapping the agent's emoji cell on the result / manage screen. Produced by the bundled 3-tier chain `report_2` (chat-continuation) → `report` (one-shot) → `report_3` (fixed-agent fallback). The first tier that returns a usable emoji wins."),
             HelpCard("Subject (green row)", "The bundled prompt name that won — `report_2`, `report`, or `report_3`. After a Find-alt pick the subject flips to `report_alt`. Legacy rows fall back to deriving the name from `iconWinningTier`."),
-            HelpCard("Title-bar icons", "ℹ️ Model info / 📋 Copy / 📤 Share / 🐞 trace."),
+            HelpCard("Title-bar icons", "ℹ️ Model info / 📋 Copy / 📤 Share / 🐞 trace. Continue-in-chat is intentionally NOT wired here — the agent's response already lives on the result screen's row, not here."),
             HelpCard("API interaction card", "Tier-aware — tier 1 (`report_2`) shows the 4-message chat-continuation exchange (`[user] report.prompt → [assistant] agent.response → [user] icon prompt → [assistant] emoji`). Tier 2 and 3 show a 2-message one-shot exchange with the relevant template substituted."),
             HelpCard("Find alternative icons", "Runs the bundled `icons/report_alt` variant across picked models — composed as `alt.text + \"\\n\\n\" + report.text`. Pick lands on `ReportAgent.icon` for this agent only."),
             HelpCard("Cost attribution", "Bumped on `ReportAgent.iconInputCost / iconOutputCost`. Per-call audit rows are `icon_report` / `icon_report_2` / `icon_report_3` / `icon_report_alt`."),
@@ -226,7 +226,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Detail view for the report's detected-language icon — the emoji rendered next to a translated report header. Produced by the 2-step `language-detect` → `language` flow: detect first (returns the language NAME), then run the bundled `icons/language` prompt with `@LANGUAGE@` substituted to that name."),
             HelpCard("Subject (green row)", "`language` (or `language_alt` after a Find-alt pick). Legacy rows fall back to `language`."),
-            HelpCard("Title-bar icons", "ℹ️ Model info / 📋 / 📤 / 🐞."),
+            HelpCard("Title-bar icons", "💬 Continue in chat (preseeds a chat about the language). ℹ️ Model info / 📋 / 📤 / 🐞."),
             HelpCard("API interaction card", "2-message one-shot exchange: bundled `icons/language` prompt with `@LANGUAGE@` substituted, then the returned emoji."),
             HelpCard("Find alternative icons", "Runs `icons/language_alt` (composed as `alt.text + \"\\n\\n\" + language.text`) across picked models. Pick commits onto `Report.languageIcon`."),
             HelpCard("Cost attribution", "Bumped on `Report.languageIconInputCost / languageIconOutputCost`. Per-call audit rows are `icon_language` / `icon_language_alt`."),
@@ -323,7 +323,18 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Title bar — 🗑", "Always wired. Opens 'Remove from report?' confirm. Confirming drops just this row, recomputes totals, and pops back."),
             HelpCard("Title bar — 🐞", "Wired when tracing is on AND ApiTracer.getTraceFiles() finds a record where reportId == this report and model == this agent's model — opens the most recent matching trace."),
             HelpCard("Translation info", "Shown only when this report has a sourceReportId and the matching agent's responseBody is loaded — opens TranslationCompareScreen with original on top, translation on bottom."),
+            HelpCard("Continue in chat", "Disabled when the response is blank or errored. Opens the Continue picker (current history+model / pick agent / configure on the fly)."),
             HelpCard("Pitfalls", "Removing the last successful agent from a report leaves it empty — reopen the parent report and re-run from the Action row.")
+        )
+    ),
+    "report_continue_in_chat" to HelpContent(
+        title = "Help - Continue in chat",
+        cards = listOf(
+            HelpCard("Overview", "Three-row picker that hands this agent's response off to a fresh chat session as the seed turn. Reached from the 💬 button on the single-agent result."),
+            HelpCard("📜 with current history and model", "Reuses the same provider/model and the agent's resolved system prompt + parameters from current settings. The chat starts with the report prompt + this response already in the transcript."),
+            HelpCard("🤖 with this response only and select an agent", "Stashes the agent's response as the next chat's input-box starter and routes to the agent picker. The picked agent's system prompt and parameters then drive the session."),
+            HelpCard("🛠️ with this response only and configure on the fly", "Stashes the response and walks you through provider → model → parameters before opening the chat — handy when none of your saved agents fit."),
+            HelpCard("Tips", "All three rows are always enabled here; the upstream button on the single-result screen is the one that disables on empty / errored responses."),
         )
     ),
     "secondary_list" to HelpContent(
@@ -463,7 +474,8 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Meta",
         cards = listOf(
             HelpCard("What you see", "A two-card 'question and answer' layout. The top hero is the original report prompt — the question this meta was asked to think about — rendered on a purple gradient with the report's own emoji. Below it sits the meta's reply card with the meta's emoji and name in the header, the model that produced the reply underneath, and the answer body in the main panel."),
-            HelpCard("How to read it", "The answer body renders headings, lists, tables, code blocks, and reasoning sections the same way the rest of the app does. Each meta tile carries its own icon — picking a new icon for one meta affects only that tile, never the others sharing the same name. When you've picked a translated language on the parent View screen, the answer card swaps to that language's translation when one exists; otherwise the original reply stays put.")
+            HelpCard("How to read it", "The answer body renders headings, lists, tables, code blocks, and reasoning sections the same way the rest of the app does. Each meta tile carries its own icon — picking a new icon for one meta affects only that tile, never the others sharing the same name. When you've picked a translated language on the parent View screen, the answer card swaps to that language's translation when one exists; otherwise the original reply stays put."),
+            HelpCard("💬 Chat with this result", "The speech-bubble button beside the model name opens a brand-new chat seeded from this meta. The original report prompt and every model response ride along as hidden context (the chat's system prompt); the meta reply you're reading becomes the assistant's first message. Ask follow-ups — 'why did you rate B higher than A?', 'summarise in three bullets' — instead of copy-pasting into a fresh chat. The session uses the model that produced the meta and is fully independent of the report: editing or deleting either one leaves the other untouched. When you're viewing a translated language, that translation seeds the chat.")
         )
     ),
     "secondary_scope" to HelpContent(

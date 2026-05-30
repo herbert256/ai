@@ -6,6 +6,8 @@ import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.data.*
+import com.ai.data.local.LocalEmbedder
+import com.ai.data.local.LocalLlm
 import com.ai.model.*
 import com.ai.ui.settings.SettingsPreferences
 import kotlinx.coroutines.Dispatchers
@@ -471,6 +473,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.d(tag, "→ Singletons init")
         AppLog.v(tag, "  init AppLog"); AppLog.init(application)
         AppLog.v(tag, "  init ApiTracer"); ApiTracer.init(application)
+        AppLog.v(tag, "  init ChatHistoryManager"); ChatHistoryManager.init(application)
         AppLog.v(tag, "  init ReportStorage"); ReportStorage.init(application)
         AppLog.v(tag, "  init SecondaryResultStorage"); SecondaryResultStorage.init(application)
         AppLog.v(tag, "  init ProviderRegistry"); ProviderRegistry.init(application)
@@ -872,9 +875,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     // the wipe sets stay in lockstep when one is later extended.
 
     data class RuntimeWipeResult(
-        val logs: Int, val traces: Int,
+        val logs: Int, val chats: Int, val traces: Int,
         val reports: Int, val prompts: Int, val testModels: Int
     )
+    data class ConfigWipeResult(val localLlms: Int, val embedders: Int)
 
     /** Wipe the activity / personal-history surface the user almost
      *  always wants gone together: app logs, chat sessions, API
@@ -889,7 +893,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      *  Drops only the persisted `test_run.json`; the caller must also
      *  call `ModelTestEngine.clearRun()` to reset the in-memory flow. */
     fun clearAllRuntimeData(context: Context): RuntimeWipeResult {
-        AppLog.i("Housekeeping", "→ Clear logs / traces / reports / prompts / usage stats / test run")
+        AppLog.i("Housekeeping", "→ Clear logs / chats / traces / reports / prompts / usage stats / test run")
+        val chats = ChatHistoryManager.deleteAllSessions()
         val traces = ApiTracer.getTraceFiles().size
         ApiTracer.clearTraces()
         val reports = ReportStorage.deleteAllReports(context)
@@ -902,7 +907,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // was on disk at clear-time.
         val logs = AppLog.clearLogs()
         return RuntimeWipeResult(
-            logs = logs, traces = traces,
+            logs = logs, chats = chats, traces = traces,
             reports = reports, prompts = prompts, testModels = testModels
         )
     }
@@ -917,14 +922,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i("Housekeeping", "← Clear Info-provider caches done")
     }
 
-    fun clearAllConfiguration(context: Context) {
+    fun clearAllConfiguration(context: Context): ConfigWipeResult {
         AppLog.i("Housekeeping", "→ Clear all configuration")
         updateSettings(Settings())
         updateGeneralSettings(GeneralSettings())
+        val llms = LocalLlm.clearAll(context)
+        val embedders = LocalEmbedder.clearAll(context)
         // Drop the per-(name, title) emoji cache. The prompts themselves
         // are reset to defaults above; the icons should match.
         InternalPromptIconCache.clearAll(context)
-        AppLog.i("Housekeeping", "← Clear all configuration done")
+        AppLog.i("Housekeeping", "← Clear all configuration: localLlms=$llms embedders=$embedders")
+        return ConfigWipeResult(llms, embedders)
     }
 
     /** Factory-style reset that preserves API keys. Runs the cascade
@@ -966,8 +974,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 InternalPromptIconCache.clearAll(context)
                 settingsPrefs.clearPromptHistory()
                 settingsPrefs.clearLastReportPrompt()
+                KnowledgeStore.clearAll(context)
                 PricingCache.clearAll(context)
                 ModelListCache.clearAll(context)
+                EmbeddingsStore.clearAll(context)
                 // 4. Wipe provider registry
                 ProviderRegistry.resetToDefaults(context)
                 // 5. Reload providers.json from assets
@@ -1825,6 +1835,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _uiState.update { it.copy(externalIntent = ExternalIntent()) }
     }
 
+    // ===== Chat Parameters =====
+
+    fun setChatParameters(params: ChatParameters) { _uiState.update { it.copy(chatParameters = params) } }
+    fun setDualChatConfig(config: DualChatConfig?) { _uiState.update { it.copy(dualChatConfig = config) } }
     fun setReportAdvancedParameters(params: AgentParameters?) { _uiState.update { it.copy(reportAdvancedParameters = params) } }
     /** Set the report-level Parameters preset ids and resolve them into
      *  the pre-gen override so generation honours them through the

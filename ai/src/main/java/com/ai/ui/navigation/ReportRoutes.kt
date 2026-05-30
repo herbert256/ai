@@ -19,6 +19,7 @@ import androidx.navigation.compose.rememberNavController
 import com.ai.data.*
 import com.ai.model.*
 import com.ai.viewmodel.*
+import com.ai.ui.chat.*
 import com.ai.ui.hub.*
 import com.ai.ui.report.start.NewAiReportScreen
 import com.ai.ui.report.start.NewReportScreen
@@ -73,6 +74,7 @@ internal fun NavGraphBuilder.reportRoutes(
     navController: NavHostController,
     appViewModel: AppViewModel,
     reportViewModel: ReportViewModel,
+    chatViewModel: ChatViewModel,
     safePopBack: () -> Unit,
     navigateHome: () -> Unit
 ) {
@@ -85,8 +87,10 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateToHelp = { navController.navigate(NavRoutes.HELP) },
                 onNavigateToAbout = { navController.navigate(NavRoutes.ABOUT) },
                 onNavigateToReportsHub = { navController.navigate(NavRoutes.AI_REPORTS_HUB) },
+                onNavigateToChatsHub = { navController.navigate(NavRoutes.AI_CHATS_HUB) },
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
                 onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
+                onNavigateToKnowledge = { navController.navigate(NavRoutes.AI_KNOWLEDGE) },
                 onNavigateToExamples = { navController.navigate(NavRoutes.AI_EXAMPLES) },
                 onOpenLatestReport = {
                     // Resume where the user last was: prefer the
@@ -188,7 +192,10 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToQuickLocalSearch = { navController.navigate(NavRoutes.AI_QUICK_LOCAL_SEARCH) },
-                onNavigateToLocalSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEARCH) }
+                onNavigateToLocalSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEARCH) },
+                onNavigateToSearch = { navController.navigate(NavRoutes.AI_SEARCH) },
+                onNavigateToLocalSemanticSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEMANTIC_SEARCH) },
+                experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled
             )
         }
         composable(NavRoutes.AI_ALL_REPORTS) {
@@ -345,6 +352,51 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateToInternalPromptsByCategory = { cat ->
                     navController.navigate(NavRoutes.settingsInternalPromptsByCategory(cat))
                 },
+                onContinueWithCurrent = { rid, aid ->
+                    scope.launch {
+                        val sessionId = continueReportInChat(
+                            context, rid, aid,
+                            aiSettings = appViewModel.uiState.value.aiSettings
+                        ) ?: return@launch
+                        navController.navigate(NavRoutes.aiChatContinue(sessionId))
+                    }
+                },
+                onContinueWithAgentPicker = { rid, aid ->
+                    scope.launch {
+                        val response = readReportAgentResponse(context, rid, aid) ?: return@launch
+                        appViewModel.updateUiState {
+                            it.copy(
+                                chatStarterText = response,
+                                chatStarterImageBase64 = null,
+                                chatStarterImageMime = null
+                            )
+                        }
+                        navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT)
+                    }
+                },
+                onContinueWithOnTheFly = { rid, aid ->
+                    scope.launch {
+                        val response = readReportAgentResponse(context, rid, aid) ?: return@launch
+                        appViewModel.updateUiState {
+                            it.copy(
+                                chatStarterText = response,
+                                chatStarterImageBase64 = null,
+                                chatStarterImageMime = null
+                            )
+                        }
+                        navController.navigate(NavRoutes.AI_CHAT_PROVIDER)
+                    }
+                },
+                onChatWithReportPrompt = { prompt ->
+                    appViewModel.updateUiState {
+                        it.copy(
+                            chatStarterText = prompt,
+                            chatStarterImageBase64 = null,
+                            chatStarterImageMime = null
+                        )
+                    }
+                    navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT)
+                },
                 onNavigateToAppLog = { filename, search ->
                     navController.navigate(NavRoutes.aiAppLogDetail(filename, search))
                 },
@@ -493,7 +545,28 @@ internal fun NavGraphBuilder.reportRoutes(
                     onNavigateToTraceFile = { fn -> navController.navigate(NavRoutes.traceDetail(fn)) },
                     onNavigateToViewReports = { aid -> navController.navigate(NavRoutes.aiReportViewAtAgent(aid)) },
                     onRemoveAgent = { r, a -> reportViewModel.removeAgentFromReport(rmContext, r, a) },
-                    onRegenerateAgent = { r, a -> reportViewModel.regenerateAgent(rmContext, r, a) }
+                    onRegenerateAgent = { r, a -> reportViewModel.regenerateAgent(rmContext, r, a) },
+                    onContinueWithCurrent = { r, a ->
+                        rmScope.launch {
+                            val sessionId = continueReportInChat(rmContext, r, a,
+                                aiSettings = appViewModel.uiState.value.aiSettings) ?: return@launch
+                            navController.navigate(NavRoutes.aiChatContinue(sessionId))
+                        }
+                    },
+                    onContinueWithAgentPicker = { r, a ->
+                        rmScope.launch {
+                            val response = readReportAgentResponse(rmContext, r, a) ?: return@launch
+                            appViewModel.updateUiState { it.copy(chatStarterText = response, chatStarterImageBase64 = null, chatStarterImageMime = null) }
+                            navController.navigate(NavRoutes.AI_CHAT_AGENT_SELECT)
+                        }
+                    },
+                    onContinueWithOnTheFly = { r, a ->
+                        rmScope.launch {
+                            val response = readReportAgentResponse(rmContext, r, a) ?: return@launch
+                            appViewModel.updateUiState { it.copy(chatStarterText = response, chatStarterImageBase64 = null, chatStarterImageMime = null) }
+                            navController.navigate(NavRoutes.AI_CHAT_PROVIDER)
+                        }
+                    }
                 )
             }
         }

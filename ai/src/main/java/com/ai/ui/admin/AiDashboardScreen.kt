@@ -62,6 +62,7 @@ import com.ai.data.AppService
 import com.ai.data.DiskUsageStats
 import com.ai.data.HttpStatusStats
 import com.ai.data.RetryStats
+import com.ai.data.KnowledgeData
 import com.ai.data.LogStatsData
 import com.ai.data.ModelCooldownStore
 import com.ai.data.ModelTestRunState
@@ -75,6 +76,7 @@ import com.ai.data.ReportStats
 import com.ai.data.SecondaryKind
 import com.ai.data.TraceStatsData
 import com.ai.data.UsageGroupsResult
+import com.ai.data.computeKnowledgeStats
 import com.ai.data.computeLogStats
 import com.ai.data.computeTraceStats
 import com.ai.data.computeProviderModelStats
@@ -318,6 +320,11 @@ fun AiStatisticsScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val refreshTick = resumeRefreshTick()
+    // Only the (cheap) Knowledge totals are shown inline; everything heavier
+    // is its own page reached via a link card.
+    val kb by produceState<KnowledgeData?>(null, refreshTick) {
+        value = computeKnowledgeStats(context)
+    }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -344,6 +351,7 @@ fun AiStatisticsScreen(
             item { LinkCard("🧮", "Costs tiers", "Pricing tier per model + catalog freshness", onNavigateToCostsTier) }
             item { LinkCard("🐞", "Trace statistics", "Aggregate stats over the API traces", onNavigateToTraceStats) }
             item { LinkCard("📜", "App log statistics", "Aggregate stats over the application log", onNavigateToLogStats) }
+            kb?.let { if (it.kbCount > 0) item { KnowledgeSection(it) } }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
@@ -665,6 +673,7 @@ fun AiStatReportsScreen(
                             StatChip("👁", "Vision", d.withImage, AppColors.Blue)
                             StatChip("🌐", "Web search", d.withWebSearch, AppColors.Green)
                             StatChip("🧠", "Reasoning", d.withReasoning, AppColors.Purple)
+                            StatChip("📚", "Knowledge", d.withKnowledge, AppColors.Yellow)
                             StatChip("🌍", "Translated", d.translated, AppColors.Blue)
                             StatChip("📊", "Table", d.tableReports, AppColors.TextSecondary)
                         }
@@ -1402,6 +1411,7 @@ private val DASH_CARD_META: Map<String, CardMeta> = linkedMapOf(
     "cooldowns" to CardMeta("❄️", "Model cooldowns", AppColors.Orange),
     "test" to CardMeta("🧪", "Test all models", AppColors.Purple),
     "stress" to CardMeta("🔥", "Stress test", AppColors.Red),
+    "local" to CardMeta("🧠", "Local runtime", AppColors.Purple),
     "health" to CardMeta("🩺", "System health", AppColors.Green),
 )
 private val DEFAULT_DASH_ORDER: List<String> = DASH_CARD_META.keys.toList()
@@ -1431,6 +1441,7 @@ private fun DashCardBody(
         "cooldowns" -> CooldownBody()
         "test" -> TestRunBody(reportViewModel, context)
         "stress" -> StressTestBody(reportViewModel)
+        "local" -> LocalRuntimeBody(context)
         "health" -> HealthBody(context)
     }
 }
@@ -1887,11 +1898,51 @@ private fun HealthBody(context: android.content.Context) {
     if (logErr != null) Text(logErr, fontSize = 11.sp, color = AppColors.Red)
     KeyVal("Dropped log lines", "$droppedLines", if (droppedLines > 0) AppColors.Orange else Color.White)
     KeyVal("Trace files", "$traceCount (${fmtBytes(disk.traceBytes)})")
+    KeyVal("Embeddings on disk", fmtBytes(disk.embeddingsBytes))
+    KeyVal("Knowledge on disk", fmtBytes(disk.knowledgeBytes))
     KeyVal("API activity", if (busy) "active" else "idle", if (busy) AppColors.Green else AppColors.TextDim)
     KeyVal("Streaming timeout", "${NetworkSettings.streamingReadTimeoutSec} s")
     KeyVal("Non-streaming timeout", "${NetworkSettings.nonStreamingReadTimeoutSec} s")
     KeyVal("Per-minute cap / host", "${NetworkSettings.maxCallsPerProviderPerMinute}")
 }
+
+/** On-device runtime activity — which local LLM / embedder models are loaded
+ *  and which (if any) is running right now. */
+@Composable
+private fun LocalRuntimeBody(context: android.content.Context) {
+    val tick = rememberLiveTick()
+    // Imported-on-disk models rarely change — read once when the card opens.
+    // (Loaded-in-memory was the only thing shown before, which is empty unless
+    // a local model is actively held, so the card looked permanently empty.)
+    val installedLlms = remember { com.ai.data.local.LocalLlm.installedTaskFiles(context) }
+    val installedEmbedders = remember { com.ai.data.local.LocalEmbedder.availableModels(context) }
+    val runtimeInstalled = remember { com.ai.data.local.LlmRuntime.isInstalled(context) }
+    // Live in-memory / activity state — ticks.
+    val rt = remember(tick) { com.ai.data.local.LocalRuntime.snapshot() }
+    if (installedLlms.isEmpty() && installedEmbedders.isEmpty() && !rt.active) {
+        Text("No on-device models installed.", fontSize = 12.sp, color = AppColors.TextTertiary)
+        return
+    }
+    if (installedLlms.isNotEmpty() || rt.llmGenerating != null) {
+        KeyVal("LLM runtime", if (runtimeInstalled) "installed" else "not installed",
+            if (runtimeInstalled) AppColors.Green else AppColors.Orange)
+        KeyVal("LLMs imported", installedLlms.joinToString(", ").ifBlank { "—" })
+        KeyVal("Loaded in memory", rt.llmLoaded.joinToString(", ").ifBlank { "none" })
+        KeyVal("Generating", rt.llmGenerating ?: "idle",
+            if (rt.llmGenerating != null) AppColors.Green else AppColors.TextDim)
+    }
+    if (installedEmbedders.isNotEmpty() || rt.embedding != null) {
+        if (installedLlms.isNotEmpty() || rt.llmGenerating != null) Spacer(Modifier.height(6.dp))
+        KeyVal("Embedders installed", installedEmbedders.joinToString(", ").ifBlank { "—" })
+        KeyVal("Loaded in memory", rt.embedderLoaded.joinToString(", ").ifBlank { "none" })
+        KeyVal("Embedding", rt.embedding ?: "idle",
+            if (rt.embedding != null) AppColors.Green else AppColors.TextDim)
+    }
+}
+
+// =====================================================================
+// Aggregate sections
+// =====================================================================
 
 @Composable
 private fun ReportsSection(rs: ReportStats) {
@@ -1932,6 +1983,25 @@ private fun SecondariesSection(byKind: Map<SecondaryKind, Int>, metaByName: Map<
         }
     }
 }
+
+@Composable
+private fun KnowledgeSection(d: KnowledgeData) {
+    SectionCard("📚", "Knowledge", AppColors.Yellow) {
+        KeyVal("Knowledge bases", "${d.kbCount}")
+        KeyVal("Chunks", formatCompactNumber(d.kbChunks.toLong()))
+        KeyVal("Indexed text", "${formatCompactNumber(d.kbChars)} chars")
+        if (d.kbFailed > 0) KeyVal("Failed sources", "${d.kbFailed}", AppColors.Red)
+        if (d.kbSourcesByType.isNotEmpty()) {
+            Spacer(Modifier.height(6.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                d.kbSourcesByType.entries.sortedByDescending { it.value }.forEach { (type, count) ->
+                    StatChip("📄", type.name, count, AppColors.TextSecondary)
+                }
+            }
+        }
+    }
+}
+
 @Composable
 private fun CostTierSection(config: Map<String, Int>, runtime: Map<String, Int>) {
     SectionCard("🧮", "Costs tiers", AppColors.Blue) {

@@ -2,8 +2,8 @@
 
 This folder contains the full documentation for the AI app — a
 multi-provider Android client for running prompts against many AI
-models in parallel and fanning one model's response into another's
-prompt.
+models in parallel, fanning one model's response into another's
+prompt, and chatting with them.
 
 The project is a single Activity, Kotlin 2.2.10 + Jetpack Compose,
 ~112,000 LOC across 323 Kotlin files, MVVM with three primary view
@@ -16,8 +16,8 @@ metadata repositories layered into one resolved view per
 
 ### For end users
 - **[manual.md](manual.md)** — Functional walkthrough of every screen
-  and feature, from first-run setup through Reports, Translation,
-  Fan-out / Fan-in, exports, and Housekeeping.
+  and feature, from first-run setup through Reports, Chat, Dual Chat,
+  Translation, Fan-out / Fan-in, exports, and Housekeeping.
 - **[screens.md](screens.md)** — Quick reference table of every screen
   title and its subtitle line.
 
@@ -72,7 +72,16 @@ metadata repositories layered into one resolved view per
 - **[workers.md](workers.md)** — AI Workers: **Agents** (named
   provider+model+params+system-prompt configs), **Flocks** (agent
   groups), and **Swarms** (provider/model-pair groups), and how they
-  feed report selection.
+  feed report / chat selection.
+- **[knowledge.md](knowledge.md)** — RAG: knowledge bases, the nine
+  source extractors, the chunk → embed → retrieve → inject pipeline,
+  and the `FloatArray` cosine hot path.
+- **[local-runtime.md](local-runtime.md)** — The on-device runtime:
+  the synthetic `AppService.LOCAL` provider, `LocalLlm` (`.task`) and
+  `LocalEmbedder` (`.tflite`), and Local Semantic Search.
+- **[experimental.md](experimental.md)** — The master **Experimental
+  features** toggle (off by default) and every UI surface it hides:
+  on-device models, AI Knowledge / RAG, and Local Semantic Search.
 - **[model-states.md](model-states.md)** — The four model-state lists
   (Blocked, Cooldowns, Test-excluded, Inaccessible) plus manual
   model-type overrides: purpose, population, and picker effect.
@@ -86,8 +95,8 @@ metadata repositories layered into one resolved view per
   multi-language fan-out, translation runs, the side-by-side /
   Translate Run / Translate Call detail screens.
 - **[share-target.md](share-target.md)** — `ACTION_SEND` /
-  `ACTION_SEND_MULTIPLE` plumbing, the chooser, and the Report
-  landing route.
+  `ACTION_SEND_MULTIPLE` plumbing, the chooser, and the two landing
+  routes (Report, Chat).
 - **[backup-restore.md](backup-restore.md)** — Full-app zip backup
   format, two-pass validate-then-write restore, and the post-restore
   provider catalog merge.
@@ -102,8 +111,8 @@ metadata repositories layered into one resolved view per
   provide, and where the cached data lives.
 - **[persistent.md](persistent.md)** — Exact contents of every
   SharedPreferences file and every persistent JSON file under
-  `<filesDir>` including the `secondary/`, `pricing/` and `trace/`
-  trees.
+  `<filesDir>` including the `embeddings/`, `secondary/`, `pricing/`
+  and `trace/` trees.
 
 ### Backlog
 - **[TODO.md](TODO.md)** — Future work discussed but not scheduled.

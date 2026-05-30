@@ -26,13 +26,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.R
 import com.ai.data.AnalysisRepository
+import com.ai.data.KnowledgeService
+import com.ai.data.KnowledgeStore
 import com.ai.data.ModelCooldownStore
 import com.ai.data.Report
 import com.ai.data.ReportStatus
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResultStorage
+import com.ai.data.local.LocalEmbedder
 import com.ai.data.ReportStorage
 import com.ai.model.Settings
+import com.ai.ui.knowledge.displayNameForUri
+import com.ai.ui.knowledge.pickTypeForUri
+import com.ai.ui.search.supportedEmbeddingChoices
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
@@ -50,8 +56,10 @@ fun HubScreen(
     onNavigateToHelp: () -> Unit,
     onNavigateToAbout: () -> Unit,
     onNavigateToReportsHub: () -> Unit,
+    onNavigateToChatsHub: () -> Unit,
     onNavigateToAiSetup: () -> Unit,
     onNavigateToHousekeeping: () -> Unit,
+    onNavigateToKnowledge: () -> Unit = {},
     onNavigateToExamples: () -> Unit = {},
     onOpenLatestReport: () -> Unit = {},
     viewModel: AppViewModel
@@ -133,11 +141,17 @@ fun HubScreen(
             if (hasAnyAgent) {
                 HubCard(icon = "\uD83D\uDCDD", title = "Reports", onClick = onNavigateToReportsHub)
                 Spacer(modifier = Modifier.height(12.dp))
+                HubCard(icon = "\uD83D\uDCAC", title = "Chat", onClick = onNavigateToChatsHub)
+                Spacer(modifier = Modifier.height(12.dp))
             } else {
                 // No agents yet \u2192 the AI Reports hub is hidden. Offer the
                 // bundled example reports so a first-run user can open a
                 // real report without configuring a provider.
                 HubCard(icon = "\uD83D\uDCA1", title = "Examples", onClick = onNavigateToExamples)
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+            if (uiState.generalSettings.experimentalFeaturesEnabled && uiState.generalSettings.showKnowledgeCard) {
+                HubCard(icon = "\uD83D\uDCDA", title = "Knowledge", onClick = onNavigateToKnowledge)
                 Spacer(modifier = Modifier.height(12.dp))
             }
             // Models moved to Setup \u2192 Workers (a model is the raw material

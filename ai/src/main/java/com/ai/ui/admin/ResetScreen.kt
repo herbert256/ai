@@ -67,7 +67,7 @@ fun ResetRuntimeDataScreen(
                         showConfirm = false
                         Toast.makeText(
                             context,
-                            "Cleared ${r.logs} log files, ${r.traces} traces, ${r.reports} reports, ${r.prompts} prompt entries, ${r.testModels} test results, usage statistics",
+                            "Cleared ${r.logs} log files, ${r.chats} chats, ${r.traces} traces, ${r.reports} reports, ${r.prompts} prompt entries, ${r.testModels} test results, usage statistics",
                             Toast.LENGTH_LONG
                         ).show()
                     },
@@ -143,7 +143,7 @@ fun ResetInfoProvidersScreen(
 
 @Composable
 fun ResetConfigurationScreen(
-    onClearConfiguration: () -> Unit,
+    onClearConfiguration: () -> AppViewModel.ConfigWipeResult,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -159,9 +159,13 @@ fun ResetConfigurationScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        onClearConfiguration()
+                        val r = onClearConfiguration()
                         showConfirm = false
-                        Toast.makeText(context, "Configuration cleared", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            context,
+                            "Configuration cleared, ${r.localLlms} local LLM${if (r.localLlms == 1) "" else "s"} and ${r.embedders} LiteRT model${if (r.embedders == 1) "" else "s"} removed",
+                            Toast.LENGTH_LONG
+                        ).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
                 ) { Text("Clear all", maxLines = 1, softWrap = false) }

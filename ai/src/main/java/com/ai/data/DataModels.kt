@@ -39,3 +39,79 @@ data class ChatMessage(
     val imageMime: String? = null
 )
 
+/**
+ * Parameters for a chat session. [webSearchTool] is the new explicit
+ * tool-use toggle: when true the dispatch layer injects the per-format
+ * web-search tool (Anthropic web_search_20250305, Gemini googleSearch,
+ * OpenAI Responses web_search_preview). [searchEnabled] is the older
+ * flat `search:true` request flag that some providers (Perplexity, etc.)
+ * still honor — kept distinct so each provider gets the shape it expects.
+ */
+data class ChatParameters(
+    val systemPrompt: String = "",
+    val temperature: Float? = null,
+    val maxTokens: Int? = null,
+    val topP: Float? = null,
+    val topK: Int? = null,
+    val frequencyPenalty: Float? = null,
+    val presencePenalty: Float? = null,
+    val searchEnabled: Boolean = false,
+    val returnCitations: Boolean = true,
+    val searchRecency: String? = null,
+    val webSearchTool: Boolean = false,
+    /** Reasoning-effort hint for models that support it ("low" / "medium" /
+     *  "high"; null = unset). Mirrors AgentParameters.reasoningEffort —
+     *  the chat session screen sets this per-turn via the 🧠 pulldown
+     *  next to the web-search chip. Only injected at dispatch when
+     *  LiteLLM reports the model supports reasoning. */
+    val reasoningEffort: String? = null
+)
+
+/**
+ * A saved chat session with all messages.
+ */
+data class ChatSession(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val provider: AppService,
+    val model: String,
+    val messages: List<ChatMessage>,
+    val parameters: ChatParameters = ChatParameters(),
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+    /** User-pinned flag. Pinned sessions appear as their own section
+     *  above Recent on the AI Chat hub. */
+    val pinned: Boolean = false,
+    /** Knowledge bases attached to this chat. Every user turn, before
+     *  the call, the dispatcher retrieves top-K chunks for that
+     *  message and prepends a context block to the system message
+     *  (see KnowledgeService.retrieve / formatContextBlock). Empty
+     *  when RAG isn't wired for this session. */
+    val knowledgeBaseIds: List<String> = emptyList(),
+    /** Display title. Seeded with the first 10 words of the first
+     *  user message on send; replaced asynchronously by the AI
+     *  `chat_title` internal prompt after the first assistant
+     *  response. Blank for sessions saved before this field
+     *  existed — display sites fall back to [preview]. */
+    val title: String = ""
+) {
+    val preview: String
+        get() = messages.firstOrNull { it.role == "user" }?.content?.take(50) ?: "Empty chat"
+}
+
+/**
+ * Configuration for a dual-chat session.
+ */
+data class DualChatConfig(
+    val model1Provider: AppService,
+    val model1Name: String,
+    val model1SystemPrompt: String = "",
+    val model1Params: ChatParameters = ChatParameters(),
+    val model2Provider: AppService,
+    val model2Name: String,
+    val model2SystemPrompt: String = "",
+    val model2Params: ChatParameters = ChatParameters(),
+    val subject: String,
+    val interactionCount: Int = 10,
+    val firstPrompt: String = "Let's talk about %subject%",
+    val secondPrompt: String = "What do you think about: %answer%"
+)

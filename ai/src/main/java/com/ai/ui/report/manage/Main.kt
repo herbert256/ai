@@ -758,6 +758,11 @@ fun ReportsScreen(
             onRestartModelTitleFanOut = onRestartModelTitleFanOut,
             onNavigateToTraceFile = onNavigateToTraceFile,
             onNavigateToModelInfo = onNavigateToModelInfo,
+            continueChat = ContinueChatCallbacks(
+                onCurrent = onContinueWithCurrent,
+                onAgentPicker = onContinueWithAgentPicker,
+                onOnTheFly = onContinueWithOnTheFly,
+            )
         )
     ) return
 

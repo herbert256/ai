@@ -90,6 +90,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             appWideParametersIds = loadJsonList(KEY_APP_WIDE_PARAMETERS_IDS) ?: emptyList(),
             reportModelSystemPromptId = prefs.getString(KEY_REPORT_MODEL_SYSTEM_PROMPT_ID, null),
             reportModelParametersIds = loadJsonList(KEY_REPORT_MODEL_PARAMETERS_IDS) ?: emptyList(),
+            showKnowledgeCard = prefs.getBoolean(KEY_SHOW_KNOWLEDGE_CARD, false),
+            experimentalFeaturesEnabled = prefs.getBoolean(KEY_EXPERIMENTAL_FEATURES, false),
             pinnedDashboardCards = loadJsonStringSet(KEY_PINNED_DASHBOARD_CARDS),
             dashboardCardOrder = loadJsonList(KEY_DASHBOARD_CARD_ORDER) ?: emptyList(),
             recentReportModels = prefs.getString(KEY_RECENT_REPORT_MODELS, null)
@@ -152,6 +154,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_APP_WIDE_PARAMETERS_IDS, if (settings.appWideParametersIds.isEmpty()) null else gson.toJson(settings.appWideParametersIds))
             putString(KEY_REPORT_MODEL_SYSTEM_PROMPT_ID, settings.reportModelSystemPromptId)
             putString(KEY_REPORT_MODEL_PARAMETERS_IDS, if (settings.reportModelParametersIds.isEmpty()) null else gson.toJson(settings.reportModelParametersIds))
+            putBoolean(KEY_SHOW_KNOWLEDGE_CARD, settings.showKnowledgeCard)
+            putBoolean(KEY_EXPERIMENTAL_FEATURES, settings.experimentalFeaturesEnabled)
             putString(KEY_PINNED_DASHBOARD_CARDS, if (settings.pinnedDashboardCards.isEmpty()) null else gson.toJson(settings.pinnedDashboardCards.toList()))
             putString(KEY_DASHBOARD_CARD_ORDER, if (settings.dashboardCardOrder.isEmpty()) null else gson.toJson(settings.dashboardCardOrder))
             // Newline-joined: entries are "providerId|model" so newline

@@ -47,7 +47,7 @@ private data class ModelUsageEntry(
     val navigable: Boolean = true
 )
 
-/** Walk every report and per-report secondary result;
+/** Walk every chat session, report, and per-report secondary result;
  *  keep the rows whose (provider, model) matches; sort newest first
  *  and return the top 10. Caller invokes from a coroutine on
  *  Dispatchers.IO since each store is on-disk. */
@@ -58,6 +58,29 @@ private fun computeModelUsages(
     onOpenReport: (String) -> Unit
 ): List<ModelUsageEntry> {
     val out = mutableListOf<ModelUsageEntry>()
+    fun chatTitle(s: ChatSession): String {
+        val firstLine = s.messages.firstOrNull { it.role == "user" }?.content?.lineSequence()
+            ?.firstOrNull { it.isNotBlank() }?.trim()
+            ?: return "Chat session"
+        return if (firstLine.length > 80) firstLine.take(80) + "…" else firstLine
+    }
+    ChatHistoryManager.init(context)
+    // Bound chat collection to the newest matching sessions: the final list is
+    // take(10) after a cross-source sort, but if chats were added unbounded a
+    // user with >30 sessions on this model would exhaust the candidate cap
+    // before any report/secondary candidate was even considered, dropping a
+    // recent report that should have ranked top-10.
+    ChatHistoryManager.getAllSessions()
+        .filter { it.provider.id == provider.id && it.model == model }
+        .sortedByDescending { it.updatedAt }
+        .take(30)
+        .forEach { s ->
+            out += ModelUsageEntry(
+                timestamp = s.updatedAt, typeLabel = "Chat", title = chatTitle(s),
+                onOpen = {}, // chat session deep-link not supported; row is informational
+                navigable = false
+            )
+        }
     // Walk reports newest-first and stop once we have a comfortable
     // surplus of candidates — the final list is take(10) after a
     // fan out-source sort, so a 3× cap (30) covers chat / report / per-
@@ -146,6 +169,7 @@ fun ModelInfoScreen(
     onSaveSettings: (Settings) -> Unit,
     onTestAiModel: suspend (AppService, String, String) -> String?,
     onFetchModels: (AppService, String) -> Unit,
+    onStartChat: (AppService, String) -> Unit,
     onNavigateToTracesForModel: (AppService, String) -> Unit,
     onNavigateToAddManualOverride: (AppService, String) -> Unit = { _, _ -> },
     onNavigateToAddCostOverride: (AppService, String) -> Unit = { _, _ -> },
@@ -494,6 +518,11 @@ fun ModelInfoScreen(
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Actions", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = { onStartChat(provider, modelName) },
+                                        modifier = Modifier.weight(1f),
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                                    ) { Text("Start Chat", maxLines = 1, softWrap = false) }
                                     Button(
                                         onClick = { showAgentEdit = true },
                                         modifier = Modifier.weight(1f),

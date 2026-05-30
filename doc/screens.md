@@ -41,11 +41,16 @@ then subtitle.
 | Backup & Restore | Back up or restore the whole app to a zip |
 | Blocked model | \<provider\> · \<model\> |
 | Blocked models | Models the app will never call |
-| Clear all configuration | Wipe all config; keeps reports |
+| Chat | Start or resume a chat with a model |
+| Chat | \<running cost\> |
+| Chat History | Resume any of your saved chat sessions |
+| Chat Parameters | Set model & options before chatting |
+| Clear all configuration | Wipe all config; keeps reports & chats |
 | Clear Info providers | Drop cached pricing; refetch on Refresh |
 | Clear runtime data | Drop history; keeps config & API keys |
 | Configure API parameters | |
 | Configure API parameters | Current active: \<preset names\> |
+| Continue in chat | Send this answer into a new chat |
 | Cooldown | \<provider\> / \<model\> |
 | Costs | Correct model prices used in cost totals |
 | Costs | Where the money went, per call |
@@ -57,6 +62,8 @@ then subtitle.
 | Default meta items | Meta prompts auto-run when a report finishes |
 | Define model system prompt | |
 | Define model system prompt | Current active: \<prompt name\> |
+| Dual Chat | Set up two models to debate a topic |
+| Dual Chat | Two models taking turns automatically |
 | Edit Agent | \<agent name\> |
 | Edit blocked model | Block one model from being called |
 | Edit cooldown | Pause a model until a given time |
@@ -125,10 +132,15 @@ then subtitle.
 | Internal prompts | Prompts the app's own flows use |
 | Live Dashboard | What's happening right now |
 | Loading… | Loading settings… |
+| Local LiteRT models | On-device embedding models |
+| Local LLMs | On-device chat models, run offline |
+| Local models | On-device LLMs and embedders |
+| Local semantic search | On-device meaning search, no cloud |
 | Log entry | \<filename\> |
 | Log file | \<filename\> |
 | Logging and tracing | Log level and API call tracing |
 | Manage a report | |
+| Manage chats | Bulk-delete old chats or export them |
 | Manage reports | Delete old reports or export them all |
 | Manual cost override | \<provider\> · \<model\> |
 | Manual cost overrides | Prices you set by hand, beat the catalog |
@@ -164,6 +176,7 @@ then subtitle.
 | Pick an example prompt | Start a report from a sample prompt |
 | Pick inaccessible model | Add one model, with live pricing |
 | Pick model | Filter the trace list to one model |
+| Pick model for chat | Add one model, with live pricing |
 | Pick model for swarm | Add one model, with live pricing |
 | Pick model to block | Add one model, with live pricing |
 | Pick model to exclude from Test all models | Add one model, with live pricing |
@@ -196,6 +209,7 @@ then subtitle.
 | Run a Meta prompt | Choose a prompt for this action |
 | Run \<meta name\> | Tweak the prompt for this run only |
 | Scope | \<secondary kind\> |
+| Search Chats | Full-text search across saved chats |
 | Search reports | Find a report by keyword or meaning |
 | Secondary detail | \<secondary title\> |
 | Secondary results | \<secondary title\> |
@@ -204,6 +218,7 @@ then subtitle.
 | Select Model | Pick a model, with pricing & flags |
 | Select Model | \<provider id\> |
 | Select Provider | Pick a cloud provider |
+| Semantic search | Cloud embedding search by meaning |
 | Settings | App preferences, grouped by topic |
 | Setup | Providers, models, workers & prompts |
 | Source | \<model name\> |
@@ -232,7 +247,7 @@ then subtitle.
 | Translation call | Source text and its translation |
 | Translation call | \<target language\> |
 | Translation compare | \<translation title\> |
-| Trim by age | Delete reports & traces by age |
+| Trim by age | Delete reports, chats & traces by age |
 | UI tweaks | Visual and layout preferences |
 | Update from cloud | Install the latest APK from a synced file |
 | View a report | \<report title\> |

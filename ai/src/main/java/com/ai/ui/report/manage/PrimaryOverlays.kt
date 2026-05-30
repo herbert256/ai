@@ -453,6 +453,9 @@ internal fun ReportPrimaryOverlays(
                 },
                 onNavigateHome = onNavigateHome,
                 onNavigateToTraceFile = onNavigateToTraceFile,
+                onContinueWithCurrent = onContinueWithCurrent,
+                onContinueWithAgentPicker = onContinueWithAgentPicker,
+                onContinueWithOnTheFly = onContinueWithOnTheFly,
                 onRemoveAgent = { rid, aid ->
                     onRemoveAgent(rid, aid)
                     onSecondaryRefresh()
@@ -488,6 +491,9 @@ internal fun ReportPrimaryOverlays(
                     onDeleteSecondaryRowById(currentReportId, resultId)
                 },
                 onRegenerateAgent = onRegenerateAgent,
+                onContinueWithCurrent = onContinueWithCurrent,
+                onContinueWithAgentPicker = onContinueWithAgentPicker,
+                onContinueWithOnTheFly = onContinueWithOnTheFly,
                 onOpenAgentIcon = onOpenAgentIcon
             )
         }

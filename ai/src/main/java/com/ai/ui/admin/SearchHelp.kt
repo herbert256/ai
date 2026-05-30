@@ -4,8 +4,8 @@ internal val searchHelp: Map<String, HelpContent> = mapOf(
     "search_ai_reports_screen" to HelpContent(
         title = "Help - Search reports",
         cards = listOf(
-            HelpCard("What you see", "Two keyword search modes: 🔍 Quick local search (substring) and 📂 Extended local search (tokenised). Both run entirely on the device."),
-            HelpCard("How to use it", "Pick the mode that suits the question — Quick is a fast binary substring match; Extended tokenises and scores. Both are free and offline, and show matching reports with the same per-row 🔧 / 👁 icons as the dashboard.")
+            HelpCard("What you see", "Three search modes in escalating-cost order: 🔍 Quick local search (substring), 📂 Extended local search (tokenised), 🌐 Remote semantic search (cloud embeddings)."),
+            HelpCard("How to use it", "Pick the mode that suits the question — local-quick is fast and free; remote-semantic uses an embedding provider and bills accordingly. Each mode shows matching reports with the same per-row 🔧 / 👁 icons as the dashboard.")
         )
     ),
     "search_local" to HelpContent(
@@ -19,6 +19,21 @@ internal val searchHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Title-bar icons", "Help and Home only. No trace icon — the search runs locally on the phone, there's nothing to record."),
             HelpCard("Tips", "Search runs entirely on the device — no API calls, no key required. Useful even when offline."),
             HelpCard("Pitfalls", "Tokens are matched as substrings, so very short tokens (\"ai\", \"the\") will inflate scores via incidental matches. Use longer or more distinctive terms when you need precision."),
+        )
+    ),
+    "search_semantic" to HelpContent(
+        title = "Help - Semantic search",
+        cards = listOf(
+            HelpCard("Overview", "Embedding-based similarity search across saved reports. The user picks an embedding-typed model from any active OpenAI-compatible provider; query and reports are embedded, scored by cosine, top 10 returned."),
+            HelpCard("Empty state", "When no provider has an embedding-typed model, an inline panel points you at AI Setup → Manual model types overrides or fetching a provider whose list contains text-embedding-3-small."),
+            HelpCard("Model picker", "Dropdown lists every (active OpenAI-compatible service, model marked EMBEDDING) pair. Label uses the project's \"Model name layout\" setting via modelLabel."),
+            HelpCard("Query field", "Up to 3 lines, multi-line. Submitted whole — not tokenised. The text becomes a single embedding vector compared against report vectors."),
+            HelpCard("Search behaviour", "Embeds the query first; then walks every report, building a representative text from title + prompt + first 2k characters of the first non-blank agent response. Cached vectors (keyed on doc id, provider, model, content hash) are reused; new ones are batched in groups of 50."),
+            HelpCard("Status line", "Live progress: \"Indexing reports… i / N\" while scanning, then \"Embedding batch X / Y (Z reports)\" while sending. Final state is the result count or \"No matches.\""),
+            HelpCard("Result rows", "Title, timestamp, and the cosine score (3 decimals) in blue. Top 10, sorted descending; rows with score ≤ 0 are dropped."),
+            HelpCard("Title-bar icons", "Help and Home only."),
+            HelpCard("Tips", "Edit a report and a fresh content hash means the next run re-embeds it automatically — caching is correct across edits, not just identity. The 50-per-batch limit fits all observed providers."),
+            HelpCard("Pitfalls", "Costs scale with report count on first run for a new model; subsequent runs hit the cache. Switching embedding model invalidates the cache for that model only — vectors from the old model are still on disk and reused if you switch back."),
         )
     ),
     "search_quick" to HelpContent(

@@ -29,7 +29,13 @@ import com.ai.ui.shared.TitleBar
 fun ShareChooserScreen(
     shared: SharedContent,
     onCancel: () -> Unit,
-    onSendToReport: () -> Unit
+    onSendToReport: () -> Unit,
+    onSendToChat: () -> Unit,
+    onSendToKnowledge: () -> Unit,
+    /** Master experimental-features gate. When false the "Add to
+     *  Knowledge" card is hidden — Knowledge / RAG is an experimental
+     *  surface; sharing to Report or Chat stays available. */
+    experimentalFeatures: Boolean = false
 ) {
     BackHandler { onCancel() }
     val hasText = !shared.text.isNullOrBlank()
@@ -39,7 +45,7 @@ fun ShareChooserScreen(
         .fillMaxSize()
         .background(MaterialTheme.colorScheme.background)
         .padding(16.dp)) {
-        TitleBar(helpTopic = "share_target", title = "Share", subject = "Turn shared content into a report", onBackClick = onCancel)
+        TitleBar(helpTopic = "share_target", title = "Share", subject = "Turn shared content into a report/chat", onBackClick = onCancel)
 
         // Show a short preview of what was shared so the user can
         // double-check before picking a destination.
@@ -79,6 +85,24 @@ fun ShareChooserScreen(
             enabled = hasText || hasUris,
             onClick = onSendToReport
         )
+        Spacer(modifier = Modifier.height(12.dp))
+        ShareCard(
+            icon = "💬",
+            title = "New Chat",
+            description = "Open a chat with this text staged as the first turn.",
+            enabled = hasText,
+            onClick = onSendToChat
+        )
+        if (experimentalFeatures) {
+            Spacer(modifier = Modifier.height(12.dp))
+            ShareCard(
+                icon = "📚",
+                title = "Add to Knowledge",
+                description = "Open the Knowledge screen with the file or URL pre-staged. Plain shared text (not a URL) can't be ingested here — use New Report instead.",
+                enabled = hasUris || shared.isUrl,
+                onClick = onSendToKnowledge
+            )
+        }
     }
 }
 
