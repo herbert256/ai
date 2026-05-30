@@ -103,19 +103,71 @@ private fun applyWorkers(root: JsonObject, working: Settings): WorkerImportResul
         }
         return out
     }
-    val incomingAgents = readList("agents", Agent::class.java)
-    val incomingFlocks = readList("flocks", Flock::class.java)
-    val incomingSwarms = readList("swarms", Swarm::class.java)
-
     fun <T, ID> upsert(existing: List<T>, incoming: List<T>, idOf: (T) -> ID): List<T> {
         val incomingIds = incoming.map(idOf).toSet()
         return existing.filterNot { idOf(it) in incomingIds } + incoming
     }
+    // Agents first, so flocks (which travel by member NAME) can re-link
+    // against the just-imported agents as well as the existing ones.
+    val incomingAgents = readList("agents", Agent::class.java)
     val mergedAgents = upsert(working.agents, incomingAgents) { it.id }
+    val incomingFlocks = parseFlocks(root.getAsJsonArray("flocks"), mergedAgents)
+    val incomingSwarms = readList("swarms", Swarm::class.java)
+
     val mergedFlocks = upsert(working.flocks, incomingFlocks) { it.id }
     val mergedSwarms = upsert(working.swarms, incomingSwarms) { it.id }
     val updated = working.copy(agents = mergedAgents, flocks = mergedFlocks, swarms = mergedSwarms)
     return WorkerImportResult(updated, incomingAgents.size, incomingFlocks.size, incomingSwarms.size)
+}
+
+/** Parse the `flocks` array, resolving each flock's member agents by
+ *  NAME against [agents] (the merged agent set). Mirrors how swarms
+ *  travel by (provider, model): names are portable across installs
+ *  where the agent UUIDs differ. Falls back to a legacy `agentIds`
+ *  array for files exported before the switch. A bad row is skipped. */
+private fun parseFlocks(arr: JsonArray?, agents: List<Agent>): List<Flock> {
+    if (arr == null) return emptyList()
+    val idByName = agents.associate { it.name.lowercase() to it.id }
+    val out = mutableListOf<Flock>()
+    arr.forEach { el ->
+        try {
+            val o = el.asJsonObject
+            val name = o.get("name")?.asString ?: return@forEach
+            val id = o.get("id")?.asString ?: java.util.UUID.randomUUID().toString()
+            val agentIds = when {
+                o.has("agentNames") -> o.getAsJsonArray("agentNames")
+                    .mapNotNull { idByName[it.asString.lowercase()] }
+                o.has("agentIds") -> o.getAsJsonArray("agentIds").map { it.asString }
+                else -> emptyList()
+            }
+            val paramsIds = o.getAsJsonArray("paramsIds")?.map { it.asString } ?: emptyList()
+            val systemPromptId = o.get("systemPromptId")?.asString
+            out.add(Flock(id = id, name = name, agentIds = agentIds, paramsIds = paramsIds, systemPromptId = systemPromptId))
+        } catch (e: Exception) {
+            AppLog.w("ImportExport", "Skipped flock entry: ${e.message}")
+        }
+    }
+    return out
+}
+
+/** Serialise [settings] flocks with member agent NAMES (resolved from
+ *  the install-local UUIDs) so an exported flock re-links by name on
+ *  import — see [parseFlocks]. */
+private fun flocksToJsonTree(settings: Settings): JsonArray {
+    val gson = createAppGson()
+    val arr = JsonArray()
+    settings.flocks.forEach { f ->
+        arr.add(JsonObject().apply {
+            addProperty("id", f.id)
+            addProperty("name", f.name)
+            add("agentNames", JsonArray().apply {
+                f.agentIds.forEach { id -> settings.getAgentById(id)?.let { add(it.name) } }
+            })
+            add("paramsIds", gson.toJsonTree(f.paramsIds))
+            f.systemPromptId?.let { addProperty("systemPromptId", it) }
+        })
+    }
+    return arr
 }
 
 /** Runtime-data export bundle: every report + the per-report
@@ -252,7 +304,7 @@ private fun buildWorkersTree(settings: Settings): JsonObject {
     val gson = createAppGson()
     return JsonObject().apply {
         add("agents", gson.toJsonTree(settings.agents))
-        add("flocks", gson.toJsonTree(settings.flocks))
+        add("flocks", flocksToJsonTree(settings))
         add("swarms", gson.toJsonTree(settings.swarms))
     }
 }
@@ -871,8 +923,7 @@ fun ImportExportScreen(
     }
 
     fun exportFlocks() {
-        val gson = createAppGson()
-        val tree = JsonObject().apply { add("flocks", gson.toJsonTree(aiSettings.flocks)) }
+        val tree = JsonObject().apply { add("flocks", flocksToJsonTree(aiSettings)) }
         shareExportText(context, "ai_flocks-${exportTimestamp()}.json", "application/json", "Share flocks",
             createAppGson(prettyPrint = true).toJson(tree))
         Toast.makeText(context, "Flocks ready to share (${aiSettings.flocks.size})", Toast.LENGTH_SHORT).show()
