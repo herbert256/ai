@@ -46,7 +46,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Settings is a pure table of contents. Every editable preference lives one tap deeper inside one of the four sub-screens. Edits autosave on each sub-screen with a 400 ms debounce, so you don't need a Save button — just type and back out."),
             HelpCard("Network settings", "Read timeouts, per-provider throttling, and 429 / 529 retry policies. Tap the row to open the dedicated sub-screen."),
-            HelpCard("UI tweaks", "Experimental features master toggle, model name layout, full-screen, back-arrow visibility. Tap the row to open the dedicated sub-screen."),
+            HelpCard("UI tweaks", "Model name layout, full-screen, back-arrow visibility. Tap the row to open the dedicated sub-screen."),
             HelpCard("Logging and tracing", "API tracing master switch and application log level. Tap the row to open the dedicated sub-screen."),
             HelpCard("Metadata & icons", "Grand-master switch for every optional AI-generated extra — report icon / language / title, per-model icons & titles, Fan & meta icons — plus the per-item toggles it gates."),
             HelpCard("Default icons", "Edit the fallback emoji shown when a report or result has no generated icon of its own (report, model, rerank, moderate, language, translation, meta, fan-out / fan-in rows)."),
@@ -121,7 +121,6 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - UI tweaks",
         cards = listOf(
             HelpCard("Overview", "Visual / layout preferences that don't affect how the app talks to providers. Pick what's most legible for you — every option autosaves with a 400 ms debounce."),
-            HelpCard("Experimental features", "Reveals in-progress UI surfaces that aren't ready for general use yet. Off by default — leave it off unless you specifically know what you're enabling."),
             HelpCard("Model name layout", "Two radios. Model name only is the dense default — useful when you mostly run different models. Provider and model name joins the provider's display name and the model id with \" · \" — useful when you run the same model id on multiple providers.")
         )
     ),
@@ -623,8 +622,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("❄️ Model cooldowns", "Models benched by a long 429 retry-hint, with time remaining; hidden when none are cooling down. Manage/clear them from Housekeeping → Model states."),
             HelpCard("🧪 Test all models", "A live \"Test all models\" run's progress — a bar plus passed / failed / running / queued / cost / elapsed. Reflects a run started this session or restored from disk; \"No test run active\" when there's none."),
             HelpCard("🔥 Stress test", "The stress test is fire-and-forget — it submits one report per Example Prompt, then those generate in the background like any report. This card shows the submit status (submitting / submitted / error), how many runs and reports were launched this session, and how long ago. \"No stress test this session\" when none has run."),
-            HelpCard("🧠 Local runtime", "On-device model state: the LLM / embedder models imported on disk, whether the native LLM runtime is installed, which models are loaded into memory right now, and which (if any) is generating / embedding. \"No on-device models installed\" when there are none."),
-            HelpCard("🩺 System health", "Log-writer status (OK / ERROR), dropped log lines, trace-file count + size on disk, embeddings and knowledge cache sizes, API activity, the streaming/non-streaming read timeouts and the per-minute cap currently in effect. Disk sizes refresh on a slow tick."),
+            HelpCard("🩺 System health", "Log-writer status (OK / ERROR), dropped log lines, trace-file count + size on disk, API activity, the streaming/non-streaming read timeouts and the per-minute cap currently in effect. Disk sizes refresh on a slow tick."),
             HelpCard("Tips", "Open this while a Stress test (Housekeeping → Test) runs to watch the caps fill, hosts saturate and batches move through throttling in real time."),
             HelpCard("Pitfalls", "The live ticker only runs while the screen is on top — navigate away and it stops."),
         )
@@ -636,13 +634,13 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("📡 AI Live Dashboard →", "Real-time runtime state: in-flight calls, per-provider concurrency caps, and throttle / cooldown status."),
             HelpCard("🐞 AI API Traces →", "The per-call request/response records (filterable by category, provider, host, model). Needs API tracing enabled in Settings. Its 📈 icon opens the API trace statistics."),
             HelpCard("📜 Application log →", "The in-app application log, line by line. Its 📈 icon opens the App log statistics."),
-            HelpCard("📊 Statistics →", "Own hub: the lifetime-aggregate stat pages — Reports, Providers, Models, Spend & usage, Costs tiers — plus Trace and App-log statistics and the inline Knowledge totals."),
+            HelpCard("📊 Statistics →", "Own hub: the lifetime-aggregate stat pages — Reports, Providers, Models, Spend & usage, Costs tiers — plus Trace and App-log statistics."),
         )
     ),
     "ai_statistics" to HelpContent(
         title = "Help - Statistics",
         cards = listOf(
-            HelpCard("Overview", "The hub for every lifetime-aggregate stat page. Opened from the 📊 Statistics card on the Monitor hub. Each row opens its own screen, so the heavier breakdowns only compute when opened; the cheap Knowledge totals show inline. The 📈 icon on each sub-page jumps back here."),
+            HelpCard("Overview", "The hub for every lifetime-aggregate stat page. Opened from the 📊 Statistics card on the Monitor hub. Each row opens its own screen, so the heavier breakdowns only compute when opened. The 📈 icon on each sub-page jumps back here."),
             HelpCard("📋 Reports →", "Own page: report totals (running / problems / completed, agent calls, error rate, spend) and secondary-result counts by kind."),
             HelpCard("🔌 Providers →", "Own page: per-provider keys, API formats, catalog caches, throttle caps, and last test-run results."),
             HelpCard("🧠 Models →", "Own page: capabilities, types, context-length buckets, model states, deprecation, and models-per-provider."),
@@ -650,7 +648,6 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("🧮 Costs tiers →", "Own page: which pricing tier each model resolves to (Config vs Runtime columns) plus the pricing-cache catalog table."),
             HelpCard("🐞 Trace statistics →", "Own page: aggregate stats over the API traces — status split, top hosts / models / categories, activity, and report linkage. Also reachable from the 📈 icon on the API Traces screen."),
             HelpCard("📜 App log statistics →", "Own page: aggregate stats over the application log — health, by-level and by-tag counts, and per-file sizes. Also reachable from the 📈 icon on the Application log screen."),
-            HelpCard("📚 Knowledge", "Knowledge-base count, total chunks, indexed character count, failed sources, and a breakdown of sources by type. Shown inline; hidden when there are no knowledge bases."),
             HelpCard("📡 🐞 📜 📊 jump row", "Every screen under Monitor — this hub, its stat pages, the Live Dashboard, API Traces and Application log — carries these four icons at the start of the bottom bar, one per Monitor section, so you can hop straight between them without backing out to the hub. On the four main sections the icon for the screen you're already on is dropped."),
         )
     ),
@@ -692,7 +689,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("🤖 Agent calls", "Status split (success / error / stopped / in-flight) across every per-model call in every report, the error-rate bar, and the average number of models per report."),
             HelpCard("💵 Tokens & spend", "Input / output / total tokens over all agent calls, plus secondary tokens; report spend, secondary spend and the combined total; average cost per report and per call; and total compute time (summed call durations)."),
             HelpCard("🗓️ Activity", "Reports created today / in the last 7 / 30 days, how many are pinned, and the age of the oldest report (by stable creation time, falling back to last-changed for legacy reports)."),
-            HelpCard("✨ Features used", "How many reports used Vision (image), Web search, Reasoning, Knowledge (RAG), are Translated copies, or are Table-type reports."),
+            HelpCard("✨ Features used", "How many reports used Vision (image), Web search, Reasoning, are Translated copies, or are Table-type reports."),
             HelpCard("🏆 Top models / 🔌 Top providers", "The six most-called models and providers across all reports, by number of agent calls."),
             HelpCard("🔗 Secondary results", "Counts of every stored secondary by kind (Rerank / Meta / Moderation / Translate) plus the top meta-prompt names."),
             HelpCard("Pitfalls", "Heavy — one report scan plus a secondary read per report — so it lives on its own page and refreshes on a 10 s tick. Token/duration totals only count what providers reported."),
