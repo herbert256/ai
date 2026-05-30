@@ -115,7 +115,6 @@ fun ReportsScreenNav(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
-    val agentPartialTexts by reportViewModel.agentPartialTexts.collectAsState()
     // Running fan-out pair ids derived from the engine's StateFlow (the
     // single source of truth) instead of a separate set — a pair is
     // "running" exactly when its PairStatus is RUNNING. distinctUntilChanged
@@ -328,7 +327,6 @@ fun ReportsScreenNav(
     ReportsScreen(
         uiState = uiState,
         reportsAgentResults = agentResults,
-        reportsAgentPartialTexts = agentPartialTexts,
         runningFanOutPairs = runningFanOutPairs,
         fanRuntime = FanRuntimeBundle(
             throttledFanOutPairs = throttledFanOutPairs,
