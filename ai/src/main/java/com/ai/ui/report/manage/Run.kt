@@ -311,7 +311,9 @@ internal fun ReportRunScreen(
                     onDismiss = onDismissRegenerateConfirm
                 )
             } else {
-                val agentCount = models.size
+                // The report's actual agent count — NOT models.size (the
+                // staging list, empty on a normal open → "all 0 models").
+                val agentCount = uiState.genericReportsSelectedAgents.size
                 com.ai.ui.shared.ReloadConfirmationDialog(
                     target = "",
                     title = "Regenerate every agent?",
