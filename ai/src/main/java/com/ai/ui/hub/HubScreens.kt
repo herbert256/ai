@@ -126,12 +126,12 @@ fun HubScreen(
                             placeable.place(0, -visualShift)
                         }
                     }
-                    .then(
-                        if (hasAnyReport) Modifier.clickable(
-                            interactionSource = logoInteractionSource,
-                            indication = null
-                        ) { onOpenLatestReport() } else Modifier
-                    )
+                    // Tapping the logo opens the most recent report; with
+                    // no report yet it falls back to the Reports hub.
+                    .clickable(
+                        interactionSource = logoInteractionSource,
+                        indication = null
+                    ) { if (hasAnyReport) onOpenLatestReport() else onNavigateToReportsHub() }
             )
             // Inactive cards are hidden entirely (rather than rendered
             // grayed-out + non-clickable as in earlier builds). Each
