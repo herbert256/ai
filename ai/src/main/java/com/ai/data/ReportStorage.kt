@@ -1219,11 +1219,20 @@ object ReportStorage {
             agent.errorMessage = null
             agent.tokenUsage = null
             agent.cost = null
+            // The split-cost halves are written *additively* by
+            // updateAgentStatus, so a re-run would accumulate onto the
+            // stale values if we left them. Clear them with `cost`.
+            agent.inputCost = null
+            agent.outputCost = null
             agent.citations = null
             agent.searchResults = null
             agent.relatedQuestions = null
             agent.rawUsageJson = null
             agent.durationMs = null
+            // Trace pointer belongs to the response we just discarded;
+            // a pending/error row must not point 🐞 at a call that no
+            // longer corresponds to its content.
+            agent.traceFile = null
             // Per-agent icon belongs to the previous response; clear
             // it too so a regenerate doesn't keep a stale emoji from
             // an answer that no longer exists.
@@ -1233,6 +1242,7 @@ object ReportStorage {
             agent.iconOutputTokens = 0
             agent.iconInputCost = 0.0
             agent.iconOutputCost = 0.0
+            agent.iconTraceFile = null
             report.totalCost = computeReportTotalCost(report)
             report.completedAt = null
             saveReport(report)

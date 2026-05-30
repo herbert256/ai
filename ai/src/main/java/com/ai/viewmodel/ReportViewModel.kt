@@ -1583,6 +1583,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             // Drop the old result so the report row reverts to ⏳ until
             // executeReportTask publishes the new one.
             _agentResults.update { it - agentId }
+            // Reset the *persisted* row too. The full regenerateReport
+            // path calls this for every agent; the single-agent path
+            // only cleared the in-memory entry, so a failed re-run left
+            // the old content / error on disk and a successful one
+            // accumulated onto the stale additive split costs. Reset to
+            // PENDING and clear cost / trace before dispatch so the row
+            // reflects exactly this fresh attempt.
+            ReportStorage.resetAgentToPending(context, reportId, agentId)
             // Rebuild the request from the model's CURRENT capabilities
             // rather than blindly replaying the original report's flags.
             // The user may have toggled vision / web-search / reasoning
