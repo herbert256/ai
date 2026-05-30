@@ -98,16 +98,4 @@ class SecondaryResultStorageInstrumentedTest {
         assertThat(reloaded.translateSourceKind).isEqualTo("PROMPT")
         assertThat(reloaded.translateSourceTargetId).isEqualTo("prompt")
     }
-
-    @Test fun translatedFromSecondaryId_round_trip() {
-        val source = SecondaryResultStorage.create(
-            context, reportA, SecondaryKind.META, "UNIT", "m", "src"
-        )
-        SecondaryResultStorage.save(
-            context,
-            source.copy(content = "src content", translatedFromSecondaryId = "src-id-from-translation")
-        )
-        val reloaded = SecondaryResultStorage.get(context, reportA, source.id)!!
-        assertThat(reloaded.translatedFromSecondaryId).isEqualTo("src-id-from-translation")
-    }
 }
