@@ -143,6 +143,37 @@ fun AiLiveDashboardScreen(
     val thrMeta by appViewModel.throttledFanMetaPairs.collectAsState()
     val cooldowns by ModelCooldownStore.cooldowns.collectAsState()
     val testRun by reportViewModel.modelTestEngine.run.collectAsState()
+    // Active-runs + parked-on-gate sources (all reactive flows).
+    val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
+    val fanOutRuns by reportViewModel.fanOutEngine.runs.collectAsState()
+    val regenJobs by reportViewModel.regenerateBatchEngine.jobs.collectAsState()
+    val runningFanMeta by appViewModel.runningFanMetaPairs.collectAsState()
+    val thrTranslation by appViewModel.throttledTranslationItems.collectAsState()
+    val thrTest by reportViewModel.modelTestEngine.throttledKeys.collectAsState()
+    val parked = thrFanOut.size + thrMeta.size + thrTranslation.size + thrTest.size
+    val activeRuns = buildList {
+        translationRuns.values.forEach { r ->
+            if (!r.cancelled && !r.finished && r.completed < r.total) add(
+                DashRun("🌐", "→ ${r.targetLanguageName}", r.completed, r.total,
+                    r.items.count { it.status == com.ai.viewmodel.TranslationStatus.RUNNING },
+                    r.items.count { it.status == com.ai.viewmodel.TranslationStatus.PENDING })
+            )
+        }
+        fanOutRuns.values.forEach { r ->
+            if (!r.cancelled && r.runningCount + r.queuedCount > 0) add(
+                DashRun("🍱", r.metaPrompt.name, r.doneCount, r.totalPairs, r.runningCount, r.queuedCount)
+            )
+        }
+        regenJobs.values.forEach { j ->
+            if (j.status == com.ai.data.RegenerateJobStatus.RUNNING) add(
+                DashRun("🔁", "Regenerate",
+                    j.tasks.count { it.state == com.ai.data.RegenerateTaskState.SUCCESS }, j.tasks.size,
+                    j.tasks.count { it.state == com.ai.data.RegenerateTaskState.RUNNING },
+                    j.tasks.count { it.state == com.ai.data.RegenerateTaskState.WAITING })
+            )
+        }
+        if (runningFanMeta.isNotEmpty()) add(DashRun("🪄", "Fan Meta", 0, 0, runningFanMeta.size, 0))
+    }
 
     // Trace-file count for the Health card — disk read, so off the 750 ms
     // ticker: refresh on resume + a slow 10 s tick.
@@ -172,6 +203,7 @@ fun AiLiveDashboardScreen(
             item { Spacer(Modifier.height(4.dp)) }
 
             item { LiveActivitySection(caps, thrFanOut, thrMeta) }
+            if (activeRuns.isNotEmpty() || parked > 0) item { ActiveRunsSection(activeRuns, parked) }
             item { SpendTokensSection(cost1m, cost5m, tok1m, tok5m) }
             item { HttpCodesSection(http1m, http5m, onOpenTraceFilter) }
             if (recentErrors.isNotEmpty()) item { RecentErrorsSection(recentErrors, now) }
@@ -1280,6 +1312,43 @@ fun AiCostsTierScreen(
 // =====================================================================
 // Live sections
 // =====================================================================
+
+/** One active-runs row: a glyph + label and either `done/total` (+ bar) or
+ *  `N running` when the total isn't known (fan-meta). */
+private data class DashRun(
+    val glyph: String, val label: String,
+    val done: Int, val total: Int, val running: Int, val pending: Int,
+)
+
+/** What's actually running right now — translation / fan-out / regenerate /
+ *  fan-meta batches by name, with progress and a parked-on-gate summary.
+ *  Hidden when nothing is in flight. (Model-test has its own card.) */
+@Composable
+private fun ActiveRunsSection(runs: List<DashRun>, parked: Int) {
+    SectionCard("🏃", "Active runs", AppColors.Green) {
+        if (runs.isEmpty()) {
+            Text("No batches running.", fontSize = 12.sp, color = AppColors.TextTertiary)
+        } else {
+            runs.forEach { r ->
+                Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(r.glyph, fontSize = 13.sp, modifier = Modifier.padding(end = 6.dp))
+                        Text(r.label, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text(
+                            if (r.total > 0) "${r.done}/${r.total}" else "${r.running} running",
+                            fontSize = 12.sp, color = AppColors.TextSecondary
+                        )
+                    }
+                    if (r.total > 0) Bar(r.done.toFloat() / r.total, AppColors.Green)
+                }
+            }
+        }
+        if (parked > 0) {
+            Spacer(Modifier.height(4.dp))
+            Text("Parked on a provider gate: $parked", fontSize = 11.sp, color = AppColors.Orange)
+        }
+    }
+}
 
 @Composable
 private fun LiveActivitySection(
