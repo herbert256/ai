@@ -26,7 +26,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,6 +44,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -120,21 +123,43 @@ fun AiLiveDashboardScreen(
      *  to the 🐞 on each HTTP-responses (status) / provider-throttle (host)
      *  row. Field is "status" or "host". */
     onOpenTraceFilter: (field: String, value: String) -> Unit = { _, _ -> },
-    /** 🎛️ → the Configure screen (pick + order the cards). */
-    onConfigure: () -> Unit = {},
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
 
     val uiState by appViewModel.uiState.collectAsState()
     val gs = uiState.generalSettings
-    // The cards the user chose to show, in their saved order. An empty
-    // selection (the default, or "deselected everything") means show all —
-    // an empty dashboard would be pointless. Card pick + order are edited
-    // on the Configure screen (🎛️) and persisted via GeneralSettings →
-    // eval_prefs, so they survive restart + ride backup/restore.
-    val selected = dashboardSelectedKnown(gs.dashboardSelectedCards)
-    val order = reconcileDashboardOrder(gs.dashboardCardOrder).filter { it in selected }
+    val pinned = gs.pinnedDashboardCards
+    val order = reconcileDashboardOrder(gs.dashboardCardOrder)
+
+    // Expansion state. Initialised from the pinned set so pinned cards open on
+    // load and everything else (incl. Live activity) starts collapsed. Plain
+    // remember → resets to the pinned baseline each time the screen opens. Each
+    // card body owns its own ticker + data, so a collapsed (un-composed) card
+    // does zero work — the screen never recomputes a hidden card.
+    var open by remember { mutableStateOf(pinned) }
+    val toggle: (String) -> Unit = { k -> open = if (k in open) open - k else open + k }
+    // Pin (open on load) + reorder are persisted on GeneralSettings → eval_prefs,
+    // so they survive restart and ride along in backup/restore automatically.
+    fun togglePin(id: String) {
+        val wasPinned = id in gs.pinnedDashboardCards
+        appViewModel.updateGeneralSettings(
+            gs.copy(pinnedDashboardCards = if (wasPinned) gs.pinnedDashboardCards - id else gs.pinnedDashboardCards + id)
+        )
+        if (!wasPinned) open = open + id   // newly pinned → show it open now
+    }
+    fun moveCard(id: String, delta: Int) {
+        val cur = reconcileDashboardOrder(gs.dashboardCardOrder).toMutableList()
+        val i = cur.indexOf(id); val j = i + delta
+        if (i < 0 || j < 0 || j > cur.lastIndex) return
+        cur[i] = cur[j]; cur[j] = id
+        appViewModel.updateGeneralSettings(gs.copy(dashboardCardOrder = cur))
+    }
+
+    // View mode. Ephemeral (plain remember) → starts on Pinned every time
+    // the screen opens. Pinned = only the pinned cards, open, no controls;
+    // All = every card with its pin / reorder / collapse controls.
+    var mode by remember { mutableStateOf("pinned") }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -146,22 +171,60 @@ fun AiLiveDashboardScreen(
             title = "Live Dashboard",
             subject = "What's happening right now",
             onBackClick = onBack,
-            reportIcon = "📡", reportIconGoesHome = true,
-            onConfigure = onConfigure,
+            reportIcon = "📡", reportIconGoesHome = true
         )
+
+        Spacer(Modifier.height(8.dp))
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            SegmentedButton(
+                selected = mode == "pinned", onClick = { mode = "pinned" },
+                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+            ) { Text("Pinned", fontSize = 13.sp) }
+            SegmentedButton(
+                selected = mode == "all", onClick = { mode = "all" },
+                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+            ) { Text("All", fontSize = 13.sp) }
+        }
+        Spacer(Modifier.height(8.dp))
 
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            item { Spacer(Modifier.height(4.dp)) }
-
-            // Only the selected cards, each always open (no pin / reorder /
-            // collapse controls — those live on the Configure screen now).
-            itemsIndexed(order, key = { _, id -> id }) { _, id ->
-                val meta = DASH_CARD_META[id] ?: return@itemsIndexed
-                DashboardCard(meta.emoji, meta.title, meta.accent) {
-                    DashCardBody(id, appViewModel, reportViewModel, context, onOpenTraceFilter)
+            if (mode == "pinned") {
+                // Only the pinned cards, in order — each open, no controls.
+                val pinnedOrder = order.filter { it in pinned }
+                if (pinnedOrder.isEmpty()) {
+                    item {
+                        Text(
+                            "No pinned cards yet — switch to All and tap 📌 on the cards you want here.",
+                            fontSize = 13.sp, color = AppColors.TextTertiary,
+                            modifier = Modifier.padding(vertical = 16.dp)
+                        )
+                    }
+                }
+                itemsIndexed(pinnedOrder, key = { _, id -> id }) { _, id ->
+                    val meta = DASH_CARD_META[id] ?: return@itemsIndexed
+                    DashboardCard(meta.emoji, meta.title, meta.accent) {
+                        DashCardBody(id, appViewModel, reportViewModel, context, onOpenTraceFilter)
+                    }
+                }
+            } else {
+                // Every card in the user's saved order, with controls; each
+                // collapsed unless pinned (the body composes only while open).
+                itemsIndexed(order, key = { _, id -> id }) { index, id ->
+                    val meta = DASH_CARD_META[id] ?: return@itemsIndexed
+                    CollapsibleCard(
+                        id = id, emoji = meta.emoji, title = meta.title, accent = meta.accent,
+                        open = open, pinned = pinned,
+                        isFirst = index == 0, isLast = index == order.lastIndex,
+                        onToggle = toggle,
+                        onTogglePin = { togglePin(it) },
+                        onMoveUp = { moveCard(it, -1) },
+                        onMoveDown = { moveCard(it, +1) },
+                    ) {
+                        DashCardBody(id, appViewModel, reportViewModel, context, onOpenTraceFilter)
+                    }
                 }
             }
             item { Spacer(Modifier.height(24.dp)) }
@@ -169,57 +232,25 @@ fun AiLiveDashboardScreen(
     }
 }
 
-/** Configure screen for the Live Dashboard: pick which cards to show
- *  (checkbox) and order them (↑/↓). Both persist immediately via
- *  GeneralSettings, so the dashboard reflects the change on back. */
+/** A pinned-mode card — header (emoji + accent title) above an
+ *  always-shown body, no controls. */
 @Composable
-fun AiLiveDashboardConfigScreen(appViewModel: AppViewModel, onBack: () -> Unit) {
-    BackHandler { onBack() }
-    val uiState by appViewModel.uiState.collectAsState()
-    val gs = uiState.generalSettings
-    val order = reconcileDashboardOrder(gs.dashboardCardOrder)
-    val selected = dashboardSelectedKnown(gs.dashboardSelectedCards)
-
-    fun toggle(id: String) {
-        // Materialise the effective set (empty = all) before flipping one,
-        // so the first uncheck from the default persists an explicit set.
-        val base = dashboardSelectedKnown(gs.dashboardSelectedCards)
-        val next = if (id in base) base - id else base + id
-        appViewModel.updateGeneralSettings(gs.copy(dashboardSelectedCards = next))
-    }
-    fun move(id: String, delta: Int) {
-        val cur = reconcileDashboardOrder(gs.dashboardCardOrder).toMutableList()
-        val i = cur.indexOf(id); val j = i + delta
-        if (i < 0 || j < 0 || j > cur.lastIndex) return
-        cur[i] = cur[j]; cur[j] = id
-        appViewModel.updateGeneralSettings(gs.copy(dashboardCardOrder = cur))
-    }
-
-    Column(
-        modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+private fun DashboardCard(
+    emoji: String, title: String, accent: Color,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        TitleBar(
-            helpTopic = "ai_live_dashboard_config",
-            title = "Configure dashboard",
-            subject = "Pick the cards to show, and their order",
-            onBackClick = onBack,
-        )
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth().weight(1f),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            item { Spacer(Modifier.height(4.dp)) }
-            itemsIndexed(order, key = { _, id -> id }) { index, id ->
-                val meta = DASH_CARD_META[id] ?: return@itemsIndexed
-                DashConfigRow(
-                    meta = meta, checked = id in selected,
-                    isFirst = index == 0, isLast = index == order.lastIndex,
-                    onToggle = { toggle(id) }, onUp = { move(id, -1) }, onDown = { move(id, +1) },
-                )
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(emoji, fontSize = 16.sp)
+                Spacer(Modifier.width(8.dp))
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            item { Spacer(Modifier.height(24.dp)) }
+            Spacer(Modifier.height(8.dp))
+            content()
         }
     }
 }
@@ -1316,55 +1347,50 @@ private fun rememberLiveTick(periodMs: Long = 750): Int {
     return tick
 }
 
-/** A dashboard card — header (emoji + accent title) above an
- *  always-shown body. No controls: card pick + order live on the
- *  Configure screen, and only selected cards are rendered here. */
+/** A card whose body is composed (and so fetches + ticks its data) only while
+ *  expanded. Tapping the header toggles it; the body does zero work while
+ *  collapsed. */
 @Composable
-private fun DashboardCard(
-    emoji: String, title: String, accent: Color,
+private fun CollapsibleCard(
+    id: String, emoji: String, title: String, accent: Color,
+    open: Set<String>, pinned: Set<String>,
+    isFirst: Boolean, isLast: Boolean,
+    onToggle: (String) -> Unit,
+    onTogglePin: (String) -> Unit,
+    onMoveUp: (String) -> Unit,
+    onMoveDown: (String) -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val isOpen = id in open
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(emoji, fontSize = 16.sp)
-                Spacer(Modifier.width(8.dp))
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                // emoji + title = the expand tap target.
+                Row(
+                    modifier = Modifier.weight(1f).clickable { onToggle(id) },
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(emoji, fontSize = 16.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                // Reorder ↑ ↓ (dimmed at the ends), 📌 pin (open on load), expand ▾/▸.
+                Text("↑", fontSize = 15.sp, color = if (isFirst) AppColors.TextDim else AppColors.TextSecondary,
+                    modifier = Modifier.clickable(enabled = !isFirst) { onMoveUp(id) }.padding(horizontal = 5.dp))
+                Text("↓", fontSize = 15.sp, color = if (isLast) AppColors.TextDim else AppColors.TextSecondary,
+                    modifier = Modifier.clickable(enabled = !isLast) { onMoveDown(id) }.padding(horizontal = 5.dp))
+                Text("📌", fontSize = 13.sp,
+                    modifier = Modifier.alpha(if (id in pinned) 1f else 0.3f).clickable { onTogglePin(id) }.padding(horizontal = 5.dp))
+                Text(if (isOpen) "▾" else "▸", fontSize = 15.sp, color = AppColors.TextTertiary,
+                    modifier = Modifier.clickable { onToggle(id) }.padding(start = 4.dp))
             }
-            Spacer(Modifier.height(8.dp))
-            content()
-        }
-    }
-}
-
-/** One row on the Configure screen: a show/hide checkbox + the card's
- *  emoji / title, with ↑/↓ reorder controls (dimmed at the ends). */
-@Composable
-private fun DashConfigRow(
-    meta: CardMeta, checked: Boolean, isFirst: Boolean, isLast: Boolean,
-    onToggle: () -> Unit, onUp: () -> Unit, onDown: () -> Unit,
-) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { onToggle() }.padding(horizontal = 12.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Checkbox(checked = checked, onCheckedChange = { onToggle() })
-            Spacer(Modifier.width(4.dp))
-            Text(meta.emoji, fontSize = 16.sp)
-            Spacer(Modifier.width(8.dp))
-            Text(meta.title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = meta.accent,
-                modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("↑", fontSize = 18.sp, color = if (isFirst) AppColors.TextDim else AppColors.TextSecondary,
-                modifier = Modifier.clickable(enabled = !isFirst) { onUp() }.padding(horizontal = 6.dp, vertical = 4.dp))
-            Text("↓", fontSize = 18.sp, color = if (isLast) AppColors.TextDim else AppColors.TextSecondary,
-                modifier = Modifier.clickable(enabled = !isLast) { onDown() }.padding(horizontal = 6.dp, vertical = 4.dp))
+            if (isOpen) {
+                Spacer(Modifier.height(8.dp))
+                content()
+            }
         }
     }
 }
@@ -1395,14 +1421,6 @@ private val DEFAULT_DASH_ORDER: List<String> = DASH_CARD_META.keys.toList()
 private fun reconcileDashboardOrder(saved: List<String>): List<String> {
     val known = saved.filter { it in DASH_CARD_META }
     return known + DEFAULT_DASH_ORDER.filter { it !in known }
-}
-
-/** The user's selected card ids, restricted to known cards. Empty (the
- *  default, or "deselected everything") → all cards: an empty dashboard
- *  would be pointless. */
-private fun dashboardSelectedKnown(selected: Set<String>): Set<String> {
-    val known = selected.filter { it in DASH_CARD_META }.toSet()
-    return known.ifEmpty { DASH_CARD_META.keys.toSet() }
 }
 
 /** Dispatch a card id to its body composable (composed only while expanded). */

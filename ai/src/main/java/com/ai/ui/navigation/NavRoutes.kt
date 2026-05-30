@@ -102,7 +102,6 @@ object NavRoutes {
     const val AI_MONITOR = "ai_monitor"
     const val AI_STATISTICS = "ai_statistics"
     const val AI_LIVE_DASHBOARD = "ai_live_dashboard"
-    const val AI_LIVE_DASHBOARD_CONFIG = "ai_live_dashboard_config"
     const val AI_SPEND_USAGE = "ai_spend_usage"
     const val AI_COSTS_TIER = "ai_costs_tier"
     const val AI_STAT_REPORTS = "ai_stat_reports"
