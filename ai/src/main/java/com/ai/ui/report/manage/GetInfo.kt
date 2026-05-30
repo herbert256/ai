@@ -79,8 +79,9 @@ private fun com.ai.data.ReportAgent.modelTitleAttempted(): Boolean =
  * total), so the two never disagree. Pure function of the report + the
  * relevant settings/gates.
  *
- * Only **enabled** jobs are emitted (report icon/language need [iconGenEnabled]
- * + the prompt's agent resolvable; title needs [titleModeAi]; per-model
+ * Only **enabled** jobs are emitted (report icon needs [iconGenEnabled],
+ * language needs [reportLanguageOn], both need a resolvable worker;
+ * title needs [titleModeAi]; per-model
  * icon/title need [perModelIcon]/[perModelTitle]). Per-model jobs sit at
  * [InfoJobState.CLOCK] until that model's own response reaches SUCCESS (a
  * failed/pending model leaves them on the clock).
@@ -211,10 +212,11 @@ fun buildInfoJobs(
     // three report-level rows above).
     // A per-model job is "pending" (keeps the aggregate spinning) only while
     // it can still proceed: RUNNING, or CLOCK with the model still
-    // pending/running. A CLOCK left by an ERRORed model is terminal.
+    // pending/running. A CLOCK left by a STOPPED or ERRORed model is terminal.
     fun perModelPending(a: com.ai.data.ReportAgent, state: InfoJobState): Boolean =
         state == InfoJobState.RUNNING ||
-            (state == InfoJobState.CLOCK && a.reportStatus != ReportStatus.ERROR)
+            (state == InfoJobState.CLOCK &&
+                (a.reportStatus == ReportStatus.PENDING || a.reportStatus == ReportStatus.RUNNING))
 
     if (perModelTitle) {
         report.agents.forEach { a ->
@@ -308,7 +310,19 @@ fun ReportGetInfoScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val metadataIcons = com.ai.ui.shared.LocalMetadataIcons.current
-    val jobs by produceState(initialValue = emptyList<InfoJob>(), reportId, iconRefreshTick, metadataIcons, runningInfoJobs) {
+    val jobs by produceState(
+        initialValue = emptyList<InfoJob>(),
+        reportId,
+        iconRefreshTick,
+        metadataIcons,
+        runningInfoJobs,
+        settings,
+        iconGenEnabled,
+        reportLanguageOn,
+        titleModeAi,
+        perModelIcon,
+        perModelTitle
+    ) {
         value = withContext(Dispatchers.IO) {
             val r = ReportStorage.getReport(context, reportId) ?: return@withContext emptyList()
             buildInfoJobs(r, settings, iconGenEnabled, reportLanguageOn, titleModeAi, perModelIcon, perModelTitle, metadataIcons, runningInfoJobs)

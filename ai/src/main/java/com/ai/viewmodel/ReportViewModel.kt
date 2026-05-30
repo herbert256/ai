@@ -679,6 +679,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 usage.inputTokens, usage.outputTokens, usage.totalTokens)
         }
 
+        val stillPresent = ReportStorage.getReport(context, reportId)
+            ?.agents
+            ?.any { it.agentId == task.resultId } == true
+        if (!stillPresent) {
+            AppLog.d("Report", "skip UI publish for deleted agent=${task.resultId} report=$reportId")
+            return
+        }
         if (!headless) _agentResults.update { it + (task.resultId to response) }
         if (!isRegeneration && !headless) {
             appViewModel.updateUiState { state ->
@@ -1730,34 +1737,51 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // Storage read-modify-write + per-orphan deletes off the main
         // thread — this is fired from a UI click and was blocking it.
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-        ReportStorage.removeAgent(context, reportId, agentId)
-        // Cascade: every TRANSLATE row whose translateSourceKind =
-        // "AGENT" and translateSourceTargetId == this agent's id is
-        // now an orphan. Drop them so the on-disk state matches the
-        // META cascade in deleteSecondaryResult. Their cost rolls
-        // into costsFromDeletedItems so the cost view continues to
-        // reflect the real API spend.
-        val orphans = SecondaryResultStorage
-            .listForReport(context, reportId, SecondaryKind.TRANSLATE)
-            .filter { it.translateSourceKind == "AGENT" && it.translateSourceTargetId == agentId }
-        if (orphans.isNotEmpty()) {
-            var costDelta = 0.0
-            orphans.forEach { tr ->
-                costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
-                SecondaryResultStorage.delete(context, reportId, tr.id)
+            val removedStatus = ReportStorage.getReport(context, reportId)
+                ?.agents
+                ?.firstOrNull { it.agentId == agentId }
+                ?.reportStatus
+            val removedWasFinished = removedStatus == ReportStatus.SUCCESS ||
+                removedStatus == ReportStatus.ERROR ||
+                removedStatus == ReportStatus.STOPPED
+            ReportStorage.removeAgent(context, reportId, agentId)
+            // Cascade: every TRANSLATE row whose translateSourceKind =
+            // "AGENT" and translateSourceTargetId == this agent's id is
+            // now an orphan. Drop them so the on-disk state matches the
+            // META cascade in deleteSecondaryResult. Their cost rolls
+            // into costsFromDeletedItems so the cost view continues to
+            // reflect the real API spend.
+            val orphans = SecondaryResultStorage
+                .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                .filter { it.translateSourceKind == "AGENT" && it.translateSourceTargetId == agentId }
+            if (orphans.isNotEmpty()) {
+                var costDelta = 0.0
+                orphans.forEach { tr ->
+                    costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
+                    SecondaryResultStorage.delete(context, reportId, tr.id)
+                }
+                ReportStorage.removeIconCallsForSecondaryIds(context, reportId, orphans.map { it.id }.toSet())
+                if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
-        }
-        ReportStorage.bumpReportTimestamp(context, reportId)
-        _agentResults.update { it - agentId }
-        appViewModel.updateUiState { state ->
-            if (state.currentReportId != reportId) state
-            else state.copy(
-                genericReportsSelectedAgents = state.genericReportsSelectedAgents - agentId,
-                genericReportsTotal = (state.genericReportsTotal - 1).coerceAtLeast(0),
-                genericReportsProgress = (state.genericReportsProgress - 1).coerceAtLeast(0)
-            )
-        }
+            ReportStorage.bumpReportTimestamp(context, reportId)
+            _agentResults.update { it - agentId }
+            appViewModel.updateUiState { state ->
+                if (state.currentReportId != reportId) {
+                    state
+                } else {
+                    val newTotal = (state.genericReportsTotal - 1).coerceAtLeast(0)
+                    val newProgress = if (removedWasFinished) {
+                        (state.genericReportsProgress - 1).coerceAtLeast(0)
+                    } else {
+                        state.genericReportsProgress.coerceAtMost(newTotal)
+                    }
+                    state.copy(
+                        genericReportsSelectedAgents = state.genericReportsSelectedAgents - agentId,
+                        genericReportsTotal = newTotal,
+                        genericReportsProgress = newProgress
+                    )
+                }
+            }
         }
     }
 

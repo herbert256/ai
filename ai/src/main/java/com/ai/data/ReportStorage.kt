@@ -350,6 +350,9 @@ object ReportStorage {
         if ((res.selectionParamsById as Map<String, List<String>>?) == null) {
             res = res.copy(selectionParamsById = emptyMap())
         }
+        if ((res.iconCalls as MutableList<IconCallRecord>?) == null) {
+            res = res.copy(iconCalls = mutableListOf())
+        }
         return res
     }
 
@@ -1104,7 +1107,27 @@ object ReportStorage {
         if (pairIds.isEmpty()) return false
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
-            val newCalls = report.iconCalls.filterNot { it.agentId in pairIds }.toMutableList()
+            val newCalls = report.iconCalls
+                .filterNot { it.agentId in pairIds || it.attributedToSecondaryId in pairIds }
+                .toMutableList()
+            if (newCalls.size == report.iconCalls.size) return@withLock false
+            saveReport(report.copy(iconCalls = newCalls, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Remove per-call audit rows attributed to deleted secondary results.
+     *  Their spend is already carried by the deleted SecondaryResult's
+     *  aggregate cost and gets moved into costsFromDeletedItems by the
+     *  caller; keeping the audit rows would double-count the same calls. */
+    fun removeIconCallsForSecondaryIds(context: Context, reportId: String, secondaryIds: Set<String>): Boolean {
+        init(context)
+        if (secondaryIds.isEmpty()) return false
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val newCalls = report.iconCalls
+                .filterNot { it.attributedToSecondaryId in secondaryIds || it.agentId in secondaryIds }
+                .toMutableList()
             if (newCalls.size == report.iconCalls.size) return@withLock false
             saveReport(report.copy(iconCalls = newCalls, timestamp = System.currentTimeMillis()))
             true
@@ -1211,6 +1234,16 @@ object ReportStorage {
             // deleted row's title spend vanishes from the run's history.
             (removed.modelTitleInputCost + removed.modelTitleOutputCost).takeIf { it > 0.0 }?.let {
                 report.costsFromDeletedItems += it
+            }
+            val removedCalls = report.iconCalls.filter { it.agentId == agentId }
+            val structuredIconTypes = setOf<String?>(null, "model/icons", "alt/report")
+            removedCalls
+                .filterNot { it.type in structuredIconTypes }
+                .sumOf { it.inputCost + it.outputCost }
+                .takeIf { it > 0.0 }
+                ?.let { report.costsFromDeletedItems += it }
+            if (removedCalls.isNotEmpty()) {
+                report.iconCalls = report.iconCalls.filterNot { it.agentId == agentId }.toMutableList()
             }
             report.totalCost = computeReportTotalCost(report)
             saveReport(report)

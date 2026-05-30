@@ -672,14 +672,17 @@ class RegenerateBatchEngine internal constructor(
         val all = SecondaryResultStorage.listForReport(context, reportId)
         val tasks = mutableListOf<RegenerateTask>()
 
-        // ICON — main report icon (only when iconGenEnabled is on
-        // AND the report has a prompt — same prerequisite the
-        // existing kickOffIconGeneration call has). Skipped
-        // otherwise so the engine doesn't spin on a row that's
-        // never going to land.
-        if (appViewModel.uiState.value.generalSettings.iconGenEnabled &&
-            !report.prompt.isNullOrBlank()
-        ) {
+        val uiState = appViewModel.uiState.value
+        val generalSettings = uiState.generalSettings
+        val aiSettings = uiState.aiSettings
+
+        // ICON — main report icon. Match the worker dispatch gates so
+        // regenerate doesn't wait on a row that cannot be started.
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "workers" && it.name == "report-icon"
+        }
+        val iconRunnable = iconPrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
+        if (generalSettings.reportIconOn() && !report.prompt.isNullOrBlank() && iconRunnable) {
             tasks += RegenerateTask(
                 rowId = REPORT_ICON_ROW_ID,
                 phase = RegeneratePhase.ICON,
@@ -688,11 +691,13 @@ class RegenerateBatchEngine internal constructor(
             )
         }
 
-        // LANGUAGE — language detection + language-icon flow.
-        // Same gate as ICON; both are driven by iconGenEnabled.
-        if (appViewModel.uiState.value.generalSettings.iconGenEnabled &&
-            !report.prompt.isNullOrBlank()
-        ) {
+        // LANGUAGE — language detection + language-icon flow. Match
+        // the language worker's independent dispatch gate.
+        val languagePrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "workers" && it.name == "report-language"
+        }
+        val languageRunnable = languagePrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
+        if (generalSettings.reportLanguageOn() && !report.prompt.isNullOrBlank() && languageRunnable) {
             tasks += RegenerateTask(
                 rowId = REPORT_LANGUAGE_ROW_ID,
                 phase = RegeneratePhase.LANGUAGE,

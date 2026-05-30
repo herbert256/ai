@@ -316,8 +316,8 @@ internal fun ReportRunScreen(
                 val agentCount = uiState.genericReportsSelectedAgents.size
                 com.ai.ui.shared.ReloadConfirmationDialog(
                     target = "",
-                    title = "Regenerate every agent?",
-                    message = "Re-fire the API call for all $agentCount model${if (agentCount == 1) "" else "s"} on this report. The existing responses, costs, and traces are replaced. Secondary results (Meta, Fan out, Translate) are kept.",
+                    title = "Regenerate report?",
+                    message = "Re-fire all $agentCount model${if (agentCount == 1) "" else "s"} on this report, then rerun existing Meta, Fan out, Fan in, Moderation, Rerank, and Translate rows. New API cost is added to the report's existing lifetime cost.",
                     confirmLabel = "Regenerate",
                     onConfirm = {
                         onDismissRegenerateConfirm()

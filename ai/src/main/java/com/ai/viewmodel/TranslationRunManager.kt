@@ -1169,6 +1169,7 @@ class TranslationRunManager(
                 costDelta += (it.inputCost ?: 0.0) + (it.outputCost ?: 0.0)
                 SecondaryResultStorage.delete(context, sourceReportId, it.id)
             }
+            ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, rows.map { it.id }.toSet())
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, sourceReportId)
             _translationRuns.update { it - runId }
@@ -1242,6 +1243,7 @@ class TranslationRunManager(
             }
         if (failed.isEmpty()) return@launch
         failed.forEach { SecondaryResultStorage.delete(context, sourceReportId, it.id) }
+        ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, failed.map { it.id }.toSet())
         // Also drop the items from any live state so the detail
         // screen's row count updates immediately instead of waiting
         // for the next list refresh.
@@ -1281,6 +1283,7 @@ class TranslationRunManager(
             }
         if (benched.isEmpty()) return@launch
         benched.forEach { SecondaryResultStorage.delete(context, sourceReportId, it.id) }
+        ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, benched.map { it.id }.toSet())
         _translationRuns.update { runs ->
             val cur = runs[runId] ?: return@update runs
             val benchedTargetKeys = benched
@@ -1689,6 +1692,7 @@ class TranslationRunManager(
         // Delete the rows we're replacing so the rerun doesn't double
         // up under the same (target, kind) pair.
         deleteRowIds.forEach { SecondaryResultStorage.delete(context, sourceReportId, it) }
+        ReportStorage.removeIconCallsForSecondaryIds(context, sourceReportId, deleteRowIds.toSet())
 
         val state = appViewModel.uiState.value
         val aiSettings = state.aiSettings
