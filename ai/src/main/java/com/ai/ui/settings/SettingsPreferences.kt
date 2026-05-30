@@ -439,6 +439,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
      * ConcurrentHashMap and debounce disk writes to once per USAGE_STATS_FLUSH_MS window.
      */
     fun updateUsageStats(provider: AppService, model: String, inputTokens: Int, outputTokens: Int, totalTokens: Int = inputTokens + outputTokens, kind: String = "report", searchUnits: Int = 0) {
+        // Feed the Live Dashboard's rolling spend/token rate (in-memory, 5-min
+        // window) — this is the single chokepoint every token site funnels through.
+        com.ai.data.ApiUsageRates.record(provider, model, inputTokens, outputTokens)
         val stats = ensureUsageStatsCache()
         val key = "${provider.id}::$model::$kind"
         stats.compute(key) { _, existing ->

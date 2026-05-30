@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiCallCaps
 import com.ai.data.ApiTracer
+import com.ai.data.ApiUsageRates
 import com.ai.data.AppLog
 import com.ai.data.AppService
 import com.ai.data.HttpStatusStats
@@ -117,6 +118,7 @@ fun AiLiveDashboardScreen(
     onOpenTraceFilter: (field: String, value: String) -> Unit = { _, _ -> },
 ) {
     BackHandler { onBack() }
+    val context = LocalContext.current
 
     // ---- live ticker: cheap in-memory snapshots only ----
     val liveTick by produceState(0) { while (true) { delay(750); value++ } }
@@ -126,6 +128,10 @@ fun AiLiveDashboardScreen(
     val http5m = remember(liveTick) { HttpStatusStats.countsWithin(5 * 60_000) }
     val rt1m = remember(liveTick) { HttpStatusStats.timingWithin(60_000) }
     val rt5m = remember(liveTick) { HttpStatusStats.timingWithin(5 * 60_000) }
+    val tok1m = remember(liveTick) { ApiUsageRates.tokensWithin(60_000) }
+    val tok5m = remember(liveTick) { ApiUsageRates.tokensWithin(5 * 60_000) }
+    val cost1m = remember(liveTick) { ApiUsageRates.costWithin(context, 60_000) }
+    val cost5m = remember(liveTick) { ApiUsageRates.costWithin(context, 5 * 60_000) }
     val now = remember(liveTick) { System.currentTimeMillis() }
     val logErr = remember(liveTick) { AppLog.lastWriterError }
     val droppedLines = remember(liveTick) { AppLog.droppedLineCount }
@@ -164,6 +170,7 @@ fun AiLiveDashboardScreen(
             item { Spacer(Modifier.height(4.dp)) }
 
             item { LiveActivitySection(caps, thrFanOut, thrMeta) }
+            item { SpendTokensSection(cost1m, cost5m, tok1m, tok5m) }
             item { HttpCodesSection(http1m, http5m, onOpenTraceFilter) }
             item { ResponseTimesSection(rt1m, rt5m) }
             item { ThrottleSection(hosts, onOpenTraceFilter) }
@@ -1359,6 +1366,43 @@ private fun ThrottleSection(
     }
 }
 
+/** Compact token formatter: 1234 → "1.2k", 1_500_000 → "1.5M". */
+private fun fmtTokens(n: Long): String = when {
+    n >= 1_000_000 -> String.format(Locale.US, "%.1fM", n / 1_000_000.0)
+    n >= 1_000 -> String.format(Locale.US, "%.1fk", n / 1_000.0)
+    else -> n.toString()
+}
+
+/** Rolling spend + token throughput over the same 1 min / 5 min windows as
+ *  the other rate cards, from [ApiUsageRates]. The 1-minute column is the
+ *  live per-minute rate; cost is priced through the pricing cache. */
+@Composable
+private fun SpendTokensSection(
+    cost1: Double, cost5: Double,
+    tok1: ApiUsageRates.Tokens, tok5: ApiUsageRates.Tokens,
+) {
+    SectionCard("💸", "Spend & tokens", AppColors.Green) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.weight(1f))
+            Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
+            Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
+        }
+        SpendRow("Spend", money(cost1), money(cost5), AppColors.Green)
+        SpendRow("Tokens in", fmtTokens(tok1.inTok), fmtTokens(tok5.inTok), Color.White)
+        SpendRow("Tokens out", fmtTokens(tok1.outTok), fmtTokens(tok5.outTok), Color.White)
+    }
+}
+
+@Composable
+private fun SpendRow(label: String, v1: String, v5: String, accent: Color) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 12.sp, color = Color.White)
+        Spacer(Modifier.weight(1f))
+        Text(v1, fontSize = 12.sp, color = accent, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
+        Text(v5, fontSize = 12.sp, color = accent, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
+    }
+}
+
 /** Rolling HTTP response-code tally over two trailing windows (1 min /
  *  5 min), fed by [HttpStatusStats]. 429 is split out from the 4xx family
  *  because it's the rate-limit signal the live view cares about most;
@@ -1369,6 +1413,14 @@ private fun HttpCodesSection(
     onOpenTraceFilter: (String, String) -> Unit,
 ) {
     SectionCard("📊", "HTTP responses", AppColors.Indigo) {
+        // Derived throughput + success-rate over the last minute.
+        val total1 = min1.ok2xx + min1.r429 + min1.c4xx + min1.s5xx + min1.other
+        val okPct = if (total1 > 0) 100 * min1.ok2xx / total1 else 0
+        Text(
+            if (total1 > 0) "$total1 calls/min · $okPct% ok" else "idle — no calls in the last minute",
+            fontSize = 11.sp, color = if (total1 > 0 && okPct < 90) AppColors.Orange else AppColors.TextSecondary
+        )
+        Spacer(Modifier.height(6.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Spacer(Modifier.weight(1f))
             Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
