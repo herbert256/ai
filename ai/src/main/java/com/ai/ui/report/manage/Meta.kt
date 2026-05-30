@@ -193,6 +193,7 @@ internal fun ReportMetaScreen(
 private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Unit) {
     val provider = AppService.findById(r.providerId)?.id ?: r.providerId
     val kindLabel = r.metaPromptName?.takeIf { it.isNotBlank() }
+        ?.let { com.ai.data.secondaryPromptDisplayName(it) }
         ?: com.ai.data.legacyKindDisplayName(r.kind)
     var confirmDelete by remember { mutableStateOf(false) }
 
@@ -250,6 +251,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
 
     if (confirmDelete) {
         val noun = (r.metaPromptName?.takeIf { it.isNotBlank() }
+            ?.let { com.ai.data.secondaryPromptDisplayName(it) }
             ?: com.ai.data.legacyKindDisplayName(r.kind)).lowercase()
         AlertDialog(
             onDismissRequest = { confirmDelete = false },

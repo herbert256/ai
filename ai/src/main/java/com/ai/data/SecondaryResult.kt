@@ -719,6 +719,16 @@ fun legacyKindDisplayName(kind: SecondaryKind): String = when (kind) {
     SecondaryKind.TRANSLATE -> "Translate"
 }
 
+/** Display label for a secondary's prompt name. The built-in rerank /
+ *  moderation runs are stored under their internal asset prompt names
+ *  ("second-rerank" / "second-moderation"); show them as plain
+ *  "rerank" / "moderation". User-authored Meta prompt names pass through. */
+fun secondaryPromptDisplayName(metaPromptName: String): String = when (metaPromptName) {
+    "second-rerank" -> "rerank"
+    "second-moderation" -> "moderation"
+    else -> metaPromptName
+}
+
 /** Substitutes placeholders in [template] using the values for the
  *  current secondary-result run. `@RESULTS@` arrives pre-formatted
  *  from the caller — we only do plain string replace here. */
