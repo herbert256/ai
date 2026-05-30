@@ -331,6 +331,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // fires spuriously when an unrelated job
                     // completes.
                     reportRunningInBackground = false
+                    // If the run was cancelled (Stop, or a newer report start
+                    // cancelling this shared job), terminalize any rows still
+                    // PENDING/RUNNING as STOPPED — otherwise the report reads as
+                    // "generating" forever (its agents never reach a terminal
+                    // status, completedAt stays null, the hub keeps it under
+                    // "running"). NonCancellable so the write survives the
+                    // cancellation; a no-op on normal completion.
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                        ReportStorage.stopNonTerminalAgentsAsync(context, reportId)
+                    }
                 }
             }
             }
@@ -586,7 +596,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             // Honor structured cancellation (Stop / nav-away) instead of
-            // persisting a fake error onto the agent row.
+            // persisting a fake error onto the agent row. The job-level
+            // finally terminalizes any row left PENDING/RUNNING as STOPPED.
             throw e
         } catch (e: Exception) {
             // Cap the persisted error string — OutOfMemoryError /

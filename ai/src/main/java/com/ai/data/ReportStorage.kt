@@ -197,6 +197,19 @@ object ReportStorage {
     suspend fun markAgentStoppedAsync(context: Context, reportId: String, agentId: String) =
         withContext(Dispatchers.IO) { markAgentStopped(context, reportId, agentId) }
 
+    /** Terminalize every still-PENDING/RUNNING agent on a report as STOPPED.
+     *  Called from the report job's finally when a run is cancelled (Stop, or
+     *  a newer report start cancelling the shared job) so a half-finished
+     *  report doesn't read as "generating" forever — its `completedAt` then
+     *  gets set and the hub's running predicate clears. No-op when every agent
+     *  is already terminal (the normal-completion path). */
+    suspend fun stopNonTerminalAgentsAsync(context: Context, reportId: String) = withContext(Dispatchers.IO) {
+        val report = getReport(context, reportId) ?: return@withContext
+        report.agents
+            .filter { it.reportStatus == ReportStatus.PENDING || it.reportStatus == ReportStatus.RUNNING }
+            .forEach { markAgentStopped(context, reportId, it.agentId) }
+    }
+
     fun getReport(context: Context, reportId: String): Report? { init(context); return lock.withLock { loadReport(reportId) } }
     /** Cheap last-modified timestamp of the report's on-disk JSON (0 when
      *  absent). Lets a read-only cache (the View subsystem) detect edits
