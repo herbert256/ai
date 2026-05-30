@@ -606,10 +606,18 @@ private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData, basePath: Stri
     sb.append("</tr></thead>")
     sb.append("<tbody>")
     data class Row(val type: String, val provider: String, val model: String, val tier: String, val durationMs: Long?, val inT: Int, val outT: Int, val inC: Double, val outC: Double)
-    val agentRows = data.agents.filter { it.inputCost != null }.map {
+    // Lenient predicate — include a row when EITHER token usage OR a
+    // persisted cost is present, matching the single-file HTML export's
+    // renderCostsView (and the in-app cost table). The old cost!=null /
+    // tokens!=null filters silently dropped cost-only / token-only rows.
+    val agentRows = data.agents.filter {
+        it.inputCost != null || it.outputCost != null || it.inputTokens != null || it.outputTokens != null
+    }.map {
         Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0, (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
-    val secondaryRows = data.secondary.filter { it.inputTokens != null }.map {
+    val secondaryRows = data.secondary.filter {
+        it.inputTokens != null || it.outputTokens != null || it.inputCost != null || it.outputCost != null
+    }.map {
         val type = if (it.kind == SecondaryKind.TRANSLATE) {
             val src = it.translateSourceTargetId?.let { id -> data.secondary.firstOrNull { x -> x.id == id } }
             com.ai.data.translateTraceType(
@@ -626,7 +634,21 @@ private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData, basePath: Stri
             }
         Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0, (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
-    val sorted = (agentRows + secondaryRows).sortedByDescending { it.inC + it.outC }
+    // Report-icon gen + the 3-tier icon-chain per-call rows — same as
+    // renderCostsView, so the zip's Costs match the single-file export.
+    val iconRow = if (data.iconInputCost > 0.0 || data.iconOutputCost > 0.0) {
+        Row("icon", data.iconProviderDisplay, data.iconModel, data.iconPricingTier, null,
+            data.iconInputTokens, data.iconOutputTokens, data.iconInputCost * 100, data.iconOutputCost * 100)
+    } else null
+    val iconCallRows = data.iconCalls.map { c ->
+        Row("icon", c.providerDisplay, c.model, c.pricingTier, c.durationMs, c.inputTokens, c.outputTokens, c.inputCost * 100, c.outputCost * 100)
+    }
+    // Spend from rows the user has since deleted — kept in the lifetime
+    // total so the export matches the in-app cost view. Surfaced as its
+    // own row (cost in the Input column; it has no token/output split).
+    val deletedCents = data.costsFromDeletedItems * 100
+    val deletedRow = if (deletedCents > 0.0) Row("deleted", "", "", "", null, 0, 0, deletedCents, 0.0) else null
+    val sorted = (agentRows + secondaryRows + listOfNotNull(iconRow) + iconCallRows + listOfNotNull(deletedRow)).sortedByDescending { it.inC + it.outC }
     var tIn = 0; var tOut = 0; var tInC = 0.0; var tOutC = 0.0
     sorted.forEach { r ->
         tIn += r.inT; tOut += r.outT; tInC += r.inC; tOutC += r.outC

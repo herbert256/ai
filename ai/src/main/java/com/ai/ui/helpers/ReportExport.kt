@@ -617,7 +617,7 @@ private fun renderHtmlReport(
     languages.forEachIndexed { i, lv ->
         val display = if (i == 0) "block" else "none"
         sb.append("<div class='lang-block' data-lang='${lv.key}' style='display:$display'>")
-        renderLanguageBlock(sb, lv, isOriginal = (lv.key == "original"), includeJsonView = includeJsonView)
+        renderLanguageBlock(sb, lv, isOriginal = (lv.key == "original"), includeJsonView = includeJsonView, allSecondary = data.secondary)
         sb.append("</div>")
     }
 
@@ -637,7 +637,13 @@ private fun renderLanguageBlock(
     sb: StringBuilder,
     lv: HtmlLanguageView,
     isOriginal: Boolean,
-    includeJsonView: Boolean = true
+    includeJsonView: Boolean = true,
+    // The FULL secondary list (every language + TRANSLATE rows), used
+    // for the Original-only Costs view. lv.data.secondary is the
+    // language-stripped narrative slice (TRANSLATE filtered out), so
+    // feeding it to the cost table would silently omit every
+    // translation API call's spend.
+    allSecondary: List<HtmlSecondaryData> = lv.data.secondary
 ) {
     val data = lv.data
     val defaultAllTogether = data.reportType == ReportType.TABLE
@@ -655,8 +661,14 @@ private fun renderLanguageBlock(
     val hasPrompt = data.prompt.isNotBlank()
     val hasReports = data.agents.isNotEmpty()
     val hasAgentCosts = data.agents.any { it.inputTokens != null }
-    val hasSecondaryCosts = data.secondary.any { it.inputTokens != null }
-    val hasCosts = isOriginal && (hasAgentCosts || hasSecondaryCosts)
+    // Cost-presence keys off the FULL secondary list so the Costs tab
+    // still appears when only translations (filtered out of data.secondary)
+    // carry spend.
+    val hasSecondaryCosts = allSecondary.any {
+        it.inputTokens != null || it.outputTokens != null || it.inputCost != null || it.outputCost != null
+    }
+    val hasCosts = isOriginal && (hasAgentCosts || hasSecondaryCosts || data.iconInputCost > 0.0 ||
+        data.iconOutputCost > 0.0 || data.iconCalls.isNotEmpty() || data.costsFromDeletedItems > 0.0)
     val hasJson = isOriginal && data.traces.isNotEmpty() && includeJsonView
     val showReranks = isOriginal && reranks.isNotEmpty()
     val showModerations = isOriginal && moderations.isNotEmpty()
@@ -689,7 +701,7 @@ private fun renderLanguageBlock(
     if (hasPrompt) views += View("prompt", "Prompt") {
         sb.append("<div class='prompt-section'><div class='prompt-label'>Prompt:</div><pre class='prompt-text'>${esc(data.prompt)}</pre></div>")
     }
-    if (hasCosts) views += View("costs", "Costs") { renderCostsView(sb, data) }
+    if (hasCosts) views += View("costs", "Costs") { renderCostsView(sb, data, allSecondary) }
     if (hasJson) views += View("json", "JSON") { renderJsonView(sb, data.traces) }
 
     if (views.isEmpty()) return
@@ -862,7 +874,7 @@ private fun renderMetaCard(sb: StringBuilder, item: HtmlSecondaryData, maxAnchor
  *  the most expensive call is always at the top. Includes report agents
  *  AND every secondary kind (rerank/summarize/compare/moderation/
  *  translate) as separate rows. */
-private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
+private fun renderCostsView(sb: StringBuilder, data: HtmlReportData, secondaryForCosts: List<HtmlSecondaryData> = data.secondary) {
     data class Row(val type: String, val providerDisplay: String, val model: String, val tier: String, val durationMs: Long?, val inputTokens: Int, val outputTokens: Int, val inCents: Double, val outCents: Double)
     // Include a row when EITHER token usage OR a persisted cost is present
     // — the same lenient predicate for agents and secondaries, so the
@@ -874,7 +886,7 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
         Row("report", it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,
             (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }
-    val secondaryRows = data.secondary.filter {
+    val secondaryRows = secondaryForCosts.filter {
         it.inputTokens != null || it.outputTokens != null || it.inputCost != null || it.outputCost != null
     }.map {
         // Match the in-app cost table's row-type label rules: fan-out
@@ -884,7 +896,7 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData) {
         // moderation / translate keep their fixed labels.
         val type = when {
             it.kind == SecondaryKind.TRANSLATE -> {
-                val src = it.translateSourceTargetId?.let { id -> data.secondary.firstOrNull { x -> x.id == id } }
+                val src = it.translateSourceTargetId?.let { id -> secondaryForCosts.firstOrNull { x -> x.id == id } }
                 com.ai.data.translateTraceType(
                     it.translateSourceKind,
                     sourceIsFanOut = src?.fanOutSourceAgentId != null,
