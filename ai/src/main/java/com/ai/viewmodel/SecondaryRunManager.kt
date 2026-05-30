@@ -52,76 +52,8 @@ class SecondaryRunManager(
      *  bumped on entry and decremented in a finally block so the Meta
      *  screen's hourglass / poll loop reflects "anything running" no
      *  matter how many overlap. */
-    /** Rerank the current report's responses using a locally-installed
-     *  MediaPipe TextEmbedder. Embed the prompt + each successful
-     *  agent response, score by cosine similarity to the prompt, and
-     *  emit the same JSON shape the chat-model / Cohere rerank flows
-     *  produce so downstream code (Top-Ranked scope, HTML export,
-     *  detail screen) keeps working unchanged. SecondaryResult is
-     *  saved with providerId="LOCAL" so cost / usage rows stay
-     *  separate from remote provider activity. */
-    fun runLocalRerank(
-        context: Context,
-        reportId: String,
-        modelName: String
-    ): Job {
-        appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
-        return appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            try {
-                withTracerTags(reportId = reportId, category = "after/rerank") {
-                    val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
-                    val responses = report.agents
-                        .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                        .map { it.responseBody!! }
-                    if (responses.isEmpty()) return@withTracerTags
-                    val agentName = "Local / ${shortModelName(modelName)}"
-                    val placeholder = SecondaryResultStorage.create(context, reportId, SecondaryKind.RERANK, "LOCAL", modelName, agentName)
-                    ReportStorage.bumpReportTimestamp(context, reportId)
-
-                    val started = System.currentTimeMillis()
-                    val queryVec = com.ai.data.local.LocalEmbedder.embed(context, modelName, listOf(report.prompt))?.firstOrNull()
-                    val docVecs = com.ai.data.local.LocalEmbedder.embed(context, modelName, responses)
-                    val durationMs = System.currentTimeMillis() - started
-
-                    if (queryVec == null || docVecs == null) {
-                        SecondaryResultStorage.save(context, placeholder.copy(
-                            errorMessage = "Local embedder failed — check that $modelName is installed (Housekeeping → Local LiteRT models).",
-                            durationMs = durationMs
-                        ))
-                        return@withTracerTags
-                    }
-
-                    // Cosine score per doc, descending. Scores rescaled
-                    // 0-100 to match the chat-model rerank output.
-                    val scored = docVecs.mapIndexed { idx, vec ->
-                        val sim = com.ai.data.EmbeddingsStore.cosine(queryVec, vec)
-                        Triple(idx + 1, sim, ((sim.coerceIn(-1.0, 1.0) + 1.0) * 50.0).toInt().coerceIn(0, 100))
-                    }.sortedByDescending { it.second }
-
-                    val arr = com.google.gson.JsonArray()
-                    scored.forEachIndexed { rank, (originalId, sim, score) ->
-                        arr.add(com.google.gson.JsonObject().apply {
-                            addProperty("id", originalId)
-                            addProperty("rank", rank + 1)
-                            addProperty("score", score)
-                            addProperty("reason", "Cosine similarity: %.4f".format(sim))
-                        })
-                    }
-                    SecondaryResultStorage.save(context, placeholder.copy(
-                        content = arr.toString(),
-                        errorMessage = null,
-                        durationMs = durationMs
-                    ))
-                }
-            } finally {
-                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-            }
-        }
-    }
-
-    /** Single-pick Rerank runner exposed to the report action row. For
-     *  the synthetic LOCAL provider this delegates to [runLocalRerank];
-     *  for any other provider it resolves the `rerank` Internal prompt,
+    /** Single-pick Rerank runner exposed to the report action row.
+     *  Resolves the `rerank` Internal prompt,
      *  builds the @RESULTS@ block from the report's successful agent
      *  responses, and dispatches through [executeSecondaryTask] with
      *  [SecondaryKind.RERANK]. The dispatch already routes RERANK-typed
@@ -142,9 +74,6 @@ class SecondaryRunManager(
     ): Job? {
         val (provider, model) = pick
         AppLog.i("Rerank", "→ start report=$reportId via ${provider.id}/$model")
-        if (provider.id == AppService.LOCAL.id) {
-            return runLocalRerank(context, reportId, model)
-        }
         val aiSettings = appViewModel.uiState.value.aiSettings
         val rerankPrompt = aiSettings.getInternalPromptByName("second-rerank")
             ?: return null

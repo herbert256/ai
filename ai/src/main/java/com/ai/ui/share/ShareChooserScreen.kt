@@ -29,12 +29,7 @@ import com.ai.ui.shared.TitleBar
 fun ShareChooserScreen(
     shared: SharedContent,
     onCancel: () -> Unit,
-    onSendToReport: () -> Unit,
-    onSendToKnowledge: () -> Unit,
-    /** Master experimental-features gate. When false the "Add to
-     *  Knowledge" card is hidden — Knowledge / RAG is an experimental
-     *  surface; sharing to Report stays available. */
-    experimentalFeatures: Boolean = false
+    onSendToReport: () -> Unit
 ) {
     BackHandler { onCancel() }
     val hasText = !shared.text.isNullOrBlank()
@@ -84,16 +79,6 @@ fun ShareChooserScreen(
             enabled = hasText || hasUris,
             onClick = onSendToReport
         )
-        if (experimentalFeatures) {
-            Spacer(modifier = Modifier.height(12.dp))
-            ShareCard(
-                icon = "📚",
-                title = "Add to Knowledge",
-                description = "Open the Knowledge screen with the file or URL pre-staged. Plain shared text (not a URL) can't be ingested here — use New Report instead.",
-                enabled = hasUris || shared.isUrl,
-                onClick = onSendToKnowledge
-            )
-        }
     }
 }
 

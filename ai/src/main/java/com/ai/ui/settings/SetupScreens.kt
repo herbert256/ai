@@ -128,7 +128,6 @@ private fun SetupNavCard(icon: String, title: String, description: String, count
 fun ModelsSetupScreen(
     aiSettings: Settings,
     hasActiveProvider: Boolean,
-    experimentalFeatures: Boolean,
     onBack: () -> Unit,
     onBackToHome: () -> Unit,
     onNavigate: (SettingsSubScreen) -> Unit,
@@ -140,8 +139,6 @@ fun ModelsSetupScreen(
     val modelCount = remember(aiSettings) {
         aiSettings.getActiveServices().sumOf { aiSettings.getProvider(it).models.size }
     }
-    val liteRtCount = remember(refreshTick) { com.ai.data.local.LocalEmbedder.availableModels(context).size }
-    val localLlmCount = remember(refreshTick) { com.ai.data.local.LocalLlm.availableLlms(context).size }
     val cooldownCount by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
@@ -155,10 +152,6 @@ fun ModelsSetupScreen(
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_TYPES) })
             ModelsSetupNavCard("✍️", "Manual model types overrides", "Per-model type assignments that win over autodetection", "${aiSettings.modelTypeOverrides.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MANUAL_MODEL_TYPES) })
-            if (experimentalFeatures) {
-                ModelsSetupNavCard("💻", "Local Models", "On-device LLMs and LiteRT text embedders", "${liteRtCount + localLlmCount}",
-                    onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_MODELS_SETUP) })
-            }
             ModelsSetupNavCard("⏳", "Model cooldowns", "Rate-limited models benched on a >1h 429", "${cooldownCount.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_COOLDOWNS) })
             ModelsSetupNavCard("🚫", "Blocked models", "Provider/model pairs flagged as blocked — dimmed in every model picker", "${aiSettings.blockedModels.size}",
@@ -440,31 +433,6 @@ fun FanInOutPromptsHubScreen(
  *  — `.tflite` text embedders driving Local Semantic Search and
  *  Local-embedder Knowledge bases). Same shape as the other
  *  sub-hubs. */
-@Composable
-fun LocalModelsSetupScreen(
-    onBack: () -> Unit,
-    onBackToHome: () -> Unit,
-    onNavigate: (SettingsSubScreen) -> Unit
-) {
-    BackHandler { onBack() }
-    val context = LocalContext.current
-    val refreshTick = com.ai.ui.shared.resumeRefreshTick()
-    val liteRtCount = remember(refreshTick) { com.ai.data.local.LocalEmbedder.availableModels(context).size }
-    val localLlmCount = remember(refreshTick) { com.ai.data.local.LocalLlm.availableLlms(context).size }
-    Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
-    ) {
-        TitleBar(helpTopic = "setup_local_models", title = "Local models", subject = "On-device LLMs and embedders", onBackClick = onBack)
-
-        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard("📱", "Local LLMs", "On-device .task chat models that drive the synthetic Local provider", "$localLlmCount",
-                onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_LLMS) })
-            ModelsSetupNavCard("📐", "Local LiteRT models", "On-device .tflite text embedders for Local Semantic Search and Local-embedder Knowledge", "$liteRtCount",
-                onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_LITERT_MODELS) })
-        }
-    }
-}
-
 @Composable
 private fun ModelsSetupNavCard(icon: String, title: String, description: String, count: String, onClick: () -> Unit, enabled: Boolean = true) {
     Card(

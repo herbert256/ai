@@ -6,8 +6,6 @@ import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.ai.data.*
-import com.ai.data.local.LocalEmbedder
-import com.ai.data.local.LocalLlm
 import com.ai.model.*
 import com.ai.ui.settings.SettingsPreferences
 import kotlinx.coroutines.Dispatchers
@@ -877,7 +875,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val logs: Int, val traces: Int,
         val reports: Int, val prompts: Int, val testModels: Int
     )
-    data class ConfigWipeResult(val localLlms: Int, val embedders: Int)
 
     /** Wipe the activity / personal-history surface the user almost
      *  always wants gone together: app logs, chat sessions, API
@@ -920,17 +917,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.i("Housekeeping", "← Clear Info-provider caches done")
     }
 
-    fun clearAllConfiguration(context: Context): ConfigWipeResult {
+    fun clearAllConfiguration(context: Context) {
         AppLog.i("Housekeeping", "→ Clear all configuration")
         updateSettings(Settings())
         updateGeneralSettings(GeneralSettings())
-        val llms = LocalLlm.clearAll(context)
-        val embedders = LocalEmbedder.clearAll(context)
         // Drop the per-(name, title) emoji cache. The prompts themselves
         // are reset to defaults above; the icons should match.
         InternalPromptIconCache.clearAll(context)
-        AppLog.i("Housekeeping", "← Clear all configuration: localLlms=$llms embedders=$embedders")
-        return ConfigWipeResult(llms, embedders)
+        AppLog.i("Housekeeping", "← Clear all configuration done")
     }
 
     /** Factory-style reset that preserves API keys. Runs the cascade
@@ -972,10 +966,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 InternalPromptIconCache.clearAll(context)
                 settingsPrefs.clearPromptHistory()
                 settingsPrefs.clearLastReportPrompt()
-                KnowledgeStore.clearAll(context)
                 PricingCache.clearAll(context)
                 ModelListCache.clearAll(context)
-                EmbeddingsStore.clearAll(context)
                 // 4. Wipe provider registry
                 ProviderRegistry.resetToDefaults(context)
                 // 5. Reload providers.json from assets

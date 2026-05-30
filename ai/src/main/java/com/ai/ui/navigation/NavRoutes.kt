@@ -90,14 +90,9 @@ object NavRoutes {
      *  the supplied agent id. */
     fun aiReportViewAtAgent(agentId: String) =
         "ai_reports?initialView=true&initialReportsAgentId=$agentId"
-    const val AI_SEARCH = "ai_search"
     const val AI_LOCAL_SEARCH = "ai_local_search"
     const val AI_QUICK_LOCAL_SEARCH = "ai_quick_local_search"
     const val AI_REPORT_MANAGE = "ai_report_manage"
-    const val AI_KNOWLEDGE = "ai_knowledge"
-    const val AI_KNOWLEDGE_NEW = "ai_knowledge_new"
-    const val AI_KNOWLEDGE_DETAIL = "ai_knowledge_detail/{kbId}"
-    const val AI_LOCAL_SEMANTIC_SEARCH = "ai_local_semantic_search"
     const val AI_MONITOR = "ai_monitor"
     const val AI_STATISTICS = "ai_statistics"
     const val AI_LIVE_DASHBOARD = "ai_live_dashboard"
@@ -192,7 +187,6 @@ object NavRoutes {
     fun aiProviderView(providerId: String) = "ai_provider_view/$providerId"
     fun aiManualOverrideAdd(provider: String, model: String) = "ai_manual_override_add/$provider/${encode(model)}"
     fun aiManualCostOverrideAdd(provider: String, model: String) = "ai_manual_cost_override_add/$provider/${encode(model)}"
-    fun aiKnowledgeDetail(kbId: String) = "ai_knowledge_detail/$kbId"
     fun aiNewReportWithParams(title: String, prompt: String) = "ai_new_report/${encode(title)}/${encode(prompt)}"
     fun helpForTopic(topicId: String) = "help/${encode(topicId)}"
 }

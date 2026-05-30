@@ -168,33 +168,14 @@ fun AppNavHost(
     if (sharedContent != null && !sharedContent.isEmpty) {
         val context = LocalContext.current
         val scope = rememberCoroutineScope()
-        val uiStateForShare by appViewModel.uiState.collectAsState()
         com.ai.ui.share.ShareChooserScreen(
             shared = sharedContent,
-            experimentalFeatures = uiStateForShare.generalSettings.experimentalFeaturesEnabled,
             onCancel = onSharedContentHandled,
             onSendToReport = {
                 scope.launch {
                     routeShareToReport(context, appViewModel, navController, sharedContent)
                     onSharedContentHandled()
                 }
-            },
-            onSendToKnowledge = {
-                // Build the queue once: any attachment URIs + the URL
-                // text (when present). The previous flow first wrote
-                // the uri list, then conditionally overwrote it with
-                // a URL-only list ONLY when uris was empty — a share
-                // carrying both `text=https://…` AND a PDF therefore
-                // dropped the URL silently. Knowledge consumes the
-                // queue and branches on content:// vs http:// per
-                // entry, so the merged list is fine.
-                val urlText = if (sharedContent.isUrl) sharedContent.text?.trim().orEmpty() else ""
-                val queue = sharedContent.uris + listOfNotNull(urlText.takeIf { it.isNotBlank() })
-                appViewModel.updateUiState { it.copy(pendingKnowledgeUris = queue) }
-                navController.navigate(NavRoutes.AI_KNOWLEDGE) {
-                    popUpTo(NavRoutes.AI) { inclusive = false }
-                }
-                onSharedContentHandled()
             }
         )
         return
@@ -284,8 +265,7 @@ fun AppNavHost(
         NavRoutes.AI_NEW_REPORT_HUB, NavRoutes.AI_NEW_REPORT, NavRoutes.AI_NEW_REPORT_WITH_PARAMS,
         NavRoutes.AI_SEARCH_REPORTS, NavRoutes.AI_ALL_REPORTS, NavRoutes.AI_EXAMPLES,
         NavRoutes.AI_PROMPT_HISTORY, NavRoutes.AI_EXAMPLE_PROMPT_PICKER,
-        NavRoutes.AI_SEARCH, NavRoutes.AI_LOCAL_SEARCH, NavRoutes.AI_QUICK_LOCAL_SEARCH,
-        NavRoutes.AI_LOCAL_SEMANTIC_SEARCH,
+        NavRoutes.AI_LOCAL_SEARCH, NavRoutes.AI_QUICK_LOCAL_SEARCH,
         NavRoutes.AI_REPORTS, NavRoutes.AI_REPORT_INFO, NavRoutes.AI_REPORT_MODEL,
         NavRoutes.AI_VIEW_PICK_REPORT, NavRoutes.AI_MANAGE_PICK_REPORT,
         NavRoutes.AI_REPORT_MANAGE
@@ -294,7 +274,6 @@ fun AppNavHost(
     // screens with no report glyph that previously fell back to the AI
     // logo. Sub-screens jump to their section hub; the hub goes Home.
     val modelSectionRoutes = setOf(NavRoutes.AI_MODEL_INFO, NavRoutes.AI_MANUAL_OVERRIDE_ADD)
-    val knowledgeSectionRoutes = setOf(NavRoutes.AI_KNOWLEDGE_NEW, NavRoutes.AI_KNOWLEDGE_DETAIL)
     // One-off screens with no section hub — show a fitting local glyph
     // whose tap goes Home. About uses the same ℹ️ it has on the home page.
     val homeIconByRoute: Map<String, String> = mapOf(
@@ -326,13 +305,6 @@ fun AppNavHost(
             com.ai.ui.shared.TopBarLeftIcon("🧠") {
                 if (!navController.popBackStack(NavRoutes.AI_MODEL_SEARCH, false))
                     navController.navigate(NavRoutes.AI_MODEL_SEARCH)
-            }
-        currentNavRoute == NavRoutes.AI_KNOWLEDGE ->
-            com.ai.ui.shared.TopBarLeftIcon("📚", navigateHome)
-        currentNavRoute in knowledgeSectionRoutes ->
-            com.ai.ui.shared.TopBarLeftIcon("📚") {
-                if (!navController.popBackStack(NavRoutes.AI_KNOWLEDGE, false))
-                    navController.navigate(NavRoutes.AI_KNOWLEDGE)
             }
         homeIconByRoute[currentNavRoute] != null ->
             com.ai.ui.shared.TopBarLeftIcon(homeIconByRoute.getValue(currentNavRoute), navigateHome)
@@ -518,9 +490,6 @@ private suspend fun routeShareToReport(
                 it.copy(reportImageBase64 = pair.second, reportImageMime = pair.first)
             }
         }
-    }
-    if (nonImageUris.isNotEmpty()) {
-        appViewModel.updateUiState { it.copy(pendingReportKnowledgeUris = nonImageUris) }
     }
     navController.navigate(NavRoutes.aiNewReportWithParams(title, prompt)) {
         popUpTo(NavRoutes.AI) { inclusive = false }

@@ -52,12 +52,6 @@ internal fun ColumnScope.SelectionPhase(
     onParametersChange: (List<String>) -> Unit,
     onGenerate: (ReportType) -> Unit,
     onUpdateModelList: () -> Unit,
-    attachedKnowledgeBaseIds: List<String> = emptyList(),
-    onAttachKnowledgeBases: (List<String>) -> Unit = {},
-    /** Master experimental-features gate. When false the Knowledge
-     *  attach button is hidden — already-attached KBs on the report
-     *  keep sending context at API time. */
-    experimentalFeatures: Boolean = false,
     /** Per-report system prompt override. When non-null at generation
      *  time, replaces the per-agent / per-flock / external-intent
      *  system prompt for every agent in this report. */
@@ -192,38 +186,6 @@ internal fun ColumnScope.SelectionPhase(
     }
 
     Spacer(modifier = Modifier.height(8.dp))
-
-    // Knowledge attach — multi-select over saved KBs, snapshot lives
-    // in UiState.attachedKnowledgeBaseIds and gets copied onto the
-    // new Report when generation kicks off. analyzeWithAgent reads
-    // it via the per-call Report at dispatch time.
-    val ctx = LocalContext.current
-    var showKbDialog by remember { mutableStateOf(false) }
-    val kbRefreshTick = com.ai.ui.shared.resumeRefreshTick()
-    val allKbs = remember(kbRefreshTick) { com.ai.data.KnowledgeStore.listKnowledgeBases(ctx) }
-    if (experimentalFeatures && allKbs.isNotEmpty()) {
-        OutlinedButton(
-            onClick = { showKbDialog = true },
-            modifier = Modifier.fillMaxWidth(),
-            colors = AppColors.outlinedButtonColors()
-        ) {
-            val n = attachedKnowledgeBaseIds.size
-            val label = if (n == 0) "📚 Attach knowledge" else "📚 Attached: $n"
-            Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false)
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-    }
-    if (showKbDialog) {
-        com.ai.ui.knowledge.KnowledgeAttachDialog(
-            knowledgeBases = allKbs,
-            initialSelectedIds = attachedKnowledgeBaseIds.toSet(),
-            onDismiss = { showKbDialog = false },
-            onConfirm = { selected ->
-                onAttachKnowledgeBases(selected.toList())
-                showKbDialog = false
-            }
-        )
-    }
 
     // Parameters + System prompt preset selectors now live on the
     // bottom-bar 🌡️ / 🎭 icons (wired on this screen's TitleBar in

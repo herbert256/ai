@@ -87,7 +87,6 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateToReportsHub = { navController.navigate(NavRoutes.AI_REPORTS_HUB) },
                 onNavigateToAiSetup = { navController.navigate(NavRoutes.AI_SETUP) },
                 onNavigateToHousekeeping = { navController.navigate(NavRoutes.AI_HOUSEKEEPING) },
-                onNavigateToKnowledge = { navController.navigate(NavRoutes.AI_KNOWLEDGE) },
                 onNavigateToExamples = { navController.navigate(NavRoutes.AI_EXAMPLES) },
                 onOpenLatestReport = {
                     // Resume where the user last was: prefer the
@@ -189,10 +188,7 @@ internal fun NavGraphBuilder.reportRoutes(
                 onNavigateBack = safePopBack,
                 onNavigateHome = navigateHome,
                 onNavigateToQuickLocalSearch = { navController.navigate(NavRoutes.AI_QUICK_LOCAL_SEARCH) },
-                onNavigateToLocalSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEARCH) },
-                onNavigateToSearch = { navController.navigate(NavRoutes.AI_SEARCH) },
-                onNavigateToLocalSemanticSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEMANTIC_SEARCH) },
-                experimentalFeatures = uiState.generalSettings.experimentalFeaturesEnabled
+                onNavigateToLocalSearch = { navController.navigate(NavRoutes.AI_LOCAL_SEARCH) }
             )
         }
         composable(NavRoutes.AI_ALL_REPORTS) {

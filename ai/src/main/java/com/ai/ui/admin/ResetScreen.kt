@@ -143,7 +143,7 @@ fun ResetInfoProvidersScreen(
 
 @Composable
 fun ResetConfigurationScreen(
-    onClearConfiguration: () -> AppViewModel.ConfigWipeResult,
+    onClearConfiguration: () -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -159,13 +159,9 @@ fun ResetConfigurationScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        val r = onClearConfiguration()
+                        onClearConfiguration()
                         showConfirm = false
-                        Toast.makeText(
-                            context,
-                            "Configuration cleared, ${r.localLlms} local LLM${if (r.localLlms == 1) "" else "s"} and ${r.embedders} LiteRT model${if (r.embedders == 1) "" else "s"} removed",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        Toast.makeText(context, "Configuration cleared", Toast.LENGTH_LONG).show()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
                 ) { Text("Clear all", maxLines = 1, softWrap = false) }

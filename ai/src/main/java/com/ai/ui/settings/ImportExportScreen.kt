@@ -293,9 +293,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("modelNameLayout", g.modelNameLayout.name)
     addProperty("iconGenEnabled", g.iconGenEnabled)
     addProperty("reportTitleMode", g.reportTitleMode.name)
-    addProperty("showKnowledgeCard", g.showKnowledgeCard)
     addProperty("autoCreateRerankAndModeration", g.autoCreateRerankAndModeration)
-    addProperty("experimentalFeaturesEnabled", g.experimentalFeaturesEnabled)
     // Metadata sub-flags + icons blob.
     addProperty("metadataEnabled", g.metadataEnabled)
     addProperty("reportLanguageGenEnabled", g.reportLanguageGenEnabled)
@@ -376,9 +374,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         modelNameLayout = layout ?: current.modelNameLayout,
         iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled,
         reportTitleMode = titleMode ?: current.reportTitleMode,
-        showKnowledgeCard = bool("showKnowledgeCard") ?: current.showKnowledgeCard,
         autoCreateRerankAndModeration = bool("autoCreateRerankAndModeration") ?: current.autoCreateRerankAndModeration,
-        experimentalFeaturesEnabled = bool("experimentalFeaturesEnabled") ?: current.experimentalFeaturesEnabled,
         metadataEnabled = bool("metadataEnabled") ?: current.metadataEnabled,
         reportLanguageGenEnabled = bool("reportLanguageGenEnabled") ?: current.reportLanguageGenEnabled,
         perModelIconGenEnabled = bool("perModelIconGenEnabled") ?: current.perModelIconGenEnabled,

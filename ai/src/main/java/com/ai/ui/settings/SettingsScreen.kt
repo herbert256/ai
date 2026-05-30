@@ -39,9 +39,6 @@ enum class SettingsSubScreen {
     AI_DEFAULT_META_ITEMS,
     AI_PROMPTS_SETUP,
     AI_INTERNAL_PROMPTS_HUB,
-    AI_LOCAL_MODELS_SETUP,
-    AI_LOCAL_LITERT_MODELS,
-    AI_LOCAL_LLMS,
     AI_MODEL_COOLDOWNS,
     AI_BLOCKED_MODELS,
     AI_TEST_EXCLUDED_MODELS,
@@ -231,13 +228,10 @@ fun SettingsScreen(
                     SettingsSubScreen.AI_FAN_PROMPTS_HUB
                 else
                     SettingsSubScreen.AI_INTERNAL_PROMPTS_HUB
-            SettingsSubScreen.AI_LOCAL_LITERT_MODELS,
-            SettingsSubScreen.AI_LOCAL_LLMS -> currentSubScreen = SettingsSubScreen.AI_LOCAL_MODELS_SETUP
             SettingsSubScreen.AI_PROVIDERS,
             SettingsSubScreen.AI_MODELS_SETUP,
             SettingsSubScreen.AI_WORKERS_SETUP,
             SettingsSubScreen.AI_PROMPTS_SETUP,
-            SettingsSubScreen.AI_LOCAL_MODELS_SETUP,
             SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_EXTERNAL_SERVICES,
             SettingsSubScreen.AI_APP_SETTINGS,
@@ -414,7 +408,6 @@ fun SettingsScreen(
             ModelsSetupScreen(
                 aiSettings = aiSettings,
                 hasActiveProvider = aiSettings.getActiveServices().isNotEmpty(),
-                experimentalFeatures = generalSettings.experimentalFeaturesEnabled,
                 onBack = goBack, onBackToHome = onNavigateHome,
                 onNavigate = { currentSubScreen = it },
                 onHousekeeping = hkRefresh
@@ -455,12 +448,6 @@ fun SettingsScreen(
                     selectedInternalCategory = cat
                     currentSubScreen = SettingsSubScreen.AI_INTERNAL_PROMPTS
                 }
-            )
-        }
-        SettingsSubScreen.AI_LOCAL_MODELS_SETUP -> {
-            LocalModelsSetupScreen(
-                onBack = goBack, onBackToHome = onNavigateHome,
-                onNavigate = { currentSubScreen = it }
             )
         }
         SettingsSubScreen.AI_MODEL_TYPES -> {
@@ -713,12 +700,6 @@ fun SettingsScreen(
                 aiSettings = aiSettings, onSave = onSaveAi,
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
-        }
-        SettingsSubScreen.AI_LOCAL_LITERT_MODELS -> {
-            LocalLiteRtModelsScreen(onBack = goBack, onNavigateHome = onNavigateHome)
-        }
-        SettingsSubScreen.AI_LOCAL_LLMS -> {
-            LocalLlmsScreen(onBack = goBack, onNavigateHome = onNavigateHome)
         }
         SettingsSubScreen.AI_IMPORT_EXPORT -> {
             // Fold to Import-only when no provider is active yet —
@@ -1240,18 +1221,14 @@ private fun UiTweaksSubScreen(
     onNavigateHome: () -> Unit
 ) {
     var modelNameLayout by remember { mutableStateOf(generalSettings.modelNameLayout) }
-    var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
     var fullScreen by remember { mutableStateOf(generalSettings.fullScreen) }
-    var experimentalFeatures by remember { mutableStateOf(generalSettings.experimentalFeaturesEnabled) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         modelNameLayout = modelNameLayout,
-        showKnowledgeCard = showKnowledgeCard,
-        fullScreen = fullScreen,
-        experimentalFeaturesEnabled = experimentalFeatures
+        fullScreen = fullScreen
     )
 
-    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen, experimentalFeatures) {
+    LaunchedEffect(modelNameLayout, fullScreen) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1283,20 +1260,6 @@ private fun UiTweaksSubScreen(
                         onClick = { modelNameLayout = com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL }
                     )
                 }
-            }
-            ToggleSettingCard(
-                title = "Experimental features",
-                description = "Master gate for on-device Local LLMs, LiteRT embedders, AI Knowledge / RAG, and Local Semantic Search. Off (default) hides those UI surfaces — installed model files and KBs stay on disk, and any KB already attached to a chat or report keeps sending context at API time.",
-                checked = experimentalFeatures,
-                onCheckedChange = { experimentalFeatures = it }
-            )
-            if (experimentalFeatures) {
-                ToggleSettingCard(
-                    title = "Show Knowledge card on home page",
-                    description = "Show the AI Knowledge / RAG card on the Hub. Off hides the card — knowledge bases still work via the share-target chooser, and any KB already attached to a chat or report is unaffected.",
-                    checked = showKnowledgeCard,
-                    onCheckedChange = { showKnowledgeCard = it }
-                )
             }
             ToggleSettingCard(
                 title = "Full screen",

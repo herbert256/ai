@@ -33,7 +33,6 @@ internal data class ReportSectionData(
     val withImage: Int,
     val withWebSearch: Int,
     val withReasoning: Int,
-    val withKnowledge: Int,
     val translated: Int,
     val tableReports: Int,                 // ReportType.TABLE
     // Activity over time (by createdAt, falling back to timestamp).
@@ -110,15 +109,6 @@ internal data class ProviderModelData(
     val contextBuckets: Map<String, Int>,
     val maxContextModel: String?,
     val maxContextTokens: Int,
-)
-
-/** Knowledge-base totals — shown on the Monitor hub. */
-internal data class KnowledgeData(
-    val kbCount: Int,
-    val kbChunks: Int,
-    val kbChars: Long,
-    val kbSourcesByType: Map<KnowledgeSourceType, Int>,
-    val kbFailed: Int,
 )
 
 /** Spend & usage breakdown — heavy enough (per-model getPricing) that it lives
@@ -311,7 +301,6 @@ internal suspend fun computeReportStats(
         withImage = all.count { it.imageBase64 != null },
         withWebSearch = all.count { it.webSearchTool },
         withReasoning = all.count { it.reasoningEffort != null },
-        withKnowledge = all.count { it.knowledgeBaseIds.isNotEmpty() },
         translated = all.count { it.sourceReportId != null },
         tableReports = all.count { it.reportType == ReportType.TABLE },
         createdToday = all.count { now - createdAtOf(it) < dayMs },
@@ -437,19 +426,6 @@ internal suspend fun computeProviderModelStats(
         contextBuckets = contextBuckets,
         maxContextModel = maxCtxModel,
         maxContextTokens = maxCtxTokens,
-    )
-}
-
-/** Knowledge-base totals. */
-internal suspend fun computeKnowledgeStats(context: Context): KnowledgeData = withContext(Dispatchers.IO) {
-    val kbs = KnowledgeStore.listKnowledgeBases(context)
-    val allSources = kbs.flatMap { it.sources }
-    KnowledgeData(
-        kbCount = kbs.size,
-        kbChunks = kbs.sumOf { it.totalChunks },
-        kbChars = kbs.sumOf { it.totalChars },
-        kbSourcesByType = allSources.groupingBy { it.type }.eachCount(),
-        kbFailed = allSources.count { it.errorMessage != null },
     )
 }
 

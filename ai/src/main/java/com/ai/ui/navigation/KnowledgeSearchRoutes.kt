@@ -42,54 +42,6 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
     safePopBack: () -> Unit,
     navigateHome: () -> Unit
 ) {
-        composable(NavRoutes.AI_SEARCH) {
-            val context = LocalContext.current
-            val scope = rememberCoroutineScope()
-            val uiState by appViewModel.uiState.collectAsState()
-            SemanticSearchScreen(
-                aiSettings = uiState.aiSettings,
-                repository = appViewModel.repository,
-                onBack = safePopBack,
-                onNavigateHome = navigateHome,
-                onOpenReport = { reportId ->
-                    com.ai.data.LastReportTracker.record(reportId, view = false)
-                    scope.launch {
-                        reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportManage())
-                    }
-                },
-                onOpenReportView = { reportId ->
-                    com.ai.data.LastReportTracker.record(reportId, view = true)
-                    scope.launch {
-                        reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportView())
-                    }
-                }
-            )
-        }
-        composable(NavRoutes.AI_LOCAL_SEMANTIC_SEARCH) {
-            val context = LocalContext.current
-            val scope = rememberCoroutineScope()
-            com.ai.ui.search.LocalSemanticSearchScreen(
-                onBack = safePopBack,
-                onNavigateHome = navigateHome,
-                onOpenReport = { reportId ->
-                    com.ai.data.LastReportTracker.record(reportId, view = false)
-                    scope.launch {
-                        reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportManage())
-                    }
-                },
-                onOpenReportView = { reportId ->
-                    com.ai.data.LastReportTracker.record(reportId, view = true)
-                    scope.launch {
-                        reportViewModel.restoreCompletedReport(context, reportId)
-                        navController.navigate(NavRoutes.aiReportView())
-                    }
-                },
-                onNavigateToTraceFile = { navController.navigate(NavRoutes.traceDetail(it)) }
-            )
-        }
         composable(NavRoutes.AI_LOCAL_SEARCH) {
             val context = LocalContext.current
             val scope = rememberCoroutineScope()
@@ -183,42 +135,6 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
                 onConfirm = { (p, m) -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onBack = safePopBack,
                 onNavigateHome = navigateHome
-            )
-        }
-        composable(NavRoutes.AI_KNOWLEDGE) {
-            val uiState by appViewModel.uiState.collectAsState()
-            com.ai.ui.knowledge.KnowledgeListScreen(
-                onBack = safePopBack,
-                onNavigateHome = navigateHome,
-                onOpenKb = { kbId -> navController.navigate(NavRoutes.aiKnowledgeDetail(kbId)) },
-                onCreateKb = { navController.navigate(NavRoutes.AI_KNOWLEDGE_NEW) },
-                pendingUris = uiState.pendingKnowledgeUris,
-                onConsumePending = { appViewModel.updateUiState { it.copy(pendingKnowledgeUris = emptyList()) } }
-            )
-        }
-        composable(NavRoutes.AI_KNOWLEDGE_NEW) {
-            val uiState by appViewModel.uiState.collectAsState()
-            com.ai.ui.knowledge.NewKnowledgeBaseScreen(
-                aiSettings = uiState.aiSettings,
-                onBack = safePopBack,
-                onNavigateHome = navigateHome,
-                onCreated = { kbId ->
-                    navController.popBackStack()
-                    navController.navigate(NavRoutes.aiKnowledgeDetail(kbId))
-                }
-            )
-        }
-        composable(NavRoutes.AI_KNOWLEDGE_DETAIL) { entry ->
-            val kbId = entry.arguments?.getString("kbId") ?: ""
-            val uiState by appViewModel.uiState.collectAsState()
-            com.ai.ui.knowledge.KnowledgeDetailScreen(
-                aiSettings = uiState.aiSettings,
-                repository = appViewModel.repository,
-                kbId = kbId,
-                onBack = safePopBack,
-                onNavigateHome = navigateHome,
-                pendingUris = uiState.pendingKnowledgeUris,
-                onConsumePending = { appViewModel.updateUiState { it.copy(pendingKnowledgeUris = emptyList()) } }
             )
         }
 }

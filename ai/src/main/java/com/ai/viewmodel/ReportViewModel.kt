@@ -271,7 +271,6 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 imageBase64 = imageBase64, imageMime = imageMime,
                 webSearchTool = state.reportWebSearchTool,
                 reasoningEffort = state.reportReasoningEffort,
-                knowledgeBaseIds = state.attachedKnowledgeBaseIds,
                 runId = runId,
                 // Capture the generation config so Regenerate replays these
                 // exact selections instead of the live UiState/Settings.

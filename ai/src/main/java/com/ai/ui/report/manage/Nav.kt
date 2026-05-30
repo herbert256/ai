@@ -480,9 +480,6 @@ fun ReportsScreenNav(
                 reportViewModel.restoreCompletedReport(context, newId)
             }
         },
-        onRunLocalRerank = { reportId, modelName ->
-            reportViewModel.secondary.runLocalRerank(context, reportId, modelName)
-        },
         onRunRerank = { reportId, pick, languageScope, paramsIds, systemPromptId ->
             reportViewModel.secondary.runRerank(context, reportId, pick, languageScope, paramsIds, systemPromptId)
         },
@@ -547,7 +544,6 @@ fun ReportsScreenNav(
         onUpdatePairTitle = { rid, pairId, title ->
             scope.launch { reportViewModel.updateFanOutPairTitle(context, rid, pairId, title) }
         },
-        onAttachKnowledgeBases = { ids -> viewModel.updateUiState { it.copy(attachedKnowledgeBaseIds = ids) } },
         onDeleteReport = { rid ->
             reportViewModel.deleteReport(context, rid)
             // Always land on the AI Reports hub after a delete —
