@@ -1341,15 +1341,16 @@ private fun ThrottleSection(
                 }
                 Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        // 🐞 → API Traces filtered to this host (full host, not
-                        // the trimmed display label).
-                        Text("🐞", fontSize = 13.sp, modifier = Modifier.clickable { onOpenTraceFilter("host", h.host) }.padding(end = 6.dp))
                         Text(twoLevelHost(h.host), fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
                         Spacer(Modifier.weight(1f))
                         Text(
                             "con ${h.inUse}/${h.limit}  ·  min ${h.windowCount}/$windowCap",
                             fontSize = 11.sp, color = concColor
                         )
+                        // 🐞 (trailing) → API Traces filtered to this host (full
+                        // host, not the trimmed display label).
+                        Spacer(Modifier.width(16.dp))
+                        Text("🐞", fontSize = 13.sp, modifier = Modifier.clickable { onOpenTraceFilter("host", h.host) })
                     }
                     Bar(if (h.limit > 0) h.inUse.toFloat() / h.limit else 0f, concColor)
                 }
@@ -1372,6 +1373,9 @@ private fun HttpCodesSection(
             Spacer(Modifier.weight(1f))
             Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
             Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+            // Reserve the trailing 🐞 slot so the column headers line up.
+            Spacer(Modifier.width(16.dp))
+            Spacer(Modifier.width(22.dp))
         }
         HttpCodeRow("✅ 2xx", min1.ok2xx, min5.ok2xx, AppColors.Green) { onOpenTraceFilter("status", "2xx") }
         HttpCodeRow("🚧 429", min1.r429, min5.r429, AppColors.Orange) { onOpenTraceFilter("status", "429") }
@@ -1384,12 +1388,14 @@ private fun HttpCodesSection(
 @Composable
 private fun HttpCodeRow(label: String, c1: Int, c5: Int, accent: Color, onTrace: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        // 🐞 → API Traces filtered to this status class.
-        Text("🐞", fontSize = 13.sp, modifier = Modifier.clickable { onTrace() }.padding(end = 6.dp))
         Text(label, fontSize = 12.sp, color = Color.White)
         Spacer(Modifier.weight(1f))
         Text("$c1", fontSize = 12.sp, color = if (c1 > 0) accent else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
         Text("$c5", fontSize = 12.sp, color = if (c5 > 0) accent else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+        // 🐞 (trailing) → API Traces filtered to this status class. Fixed-
+        // width slot + matching header spacer keeps the 1m/5m columns aligned.
+        Spacer(Modifier.width(16.dp))
+        Text("🐞", fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.width(22.dp).clickable { onTrace() })
     }
 }
 
