@@ -496,8 +496,13 @@ class IconGenerationManager(
                             val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
                             val inC = inT * (pricing?.promptPrice ?: 0.0)
                             val outC = outT * (pricing?.completionPrice ?: 0.0)
-                            // One call → attribute its cost to the detection row;
-                            // the icon row stays 0 (the Get-Info row sums both).
+                            // One call → attribute its cost AND duration to
+                            // the detection row; the icon row stays 0 for
+                            // both. ReportInfoScreen's total-API-time sums
+                            // languageDurationMs + languageIconDurationMs, so
+                            // writing the same duration to both would count
+                            // this one call's time twice (the cost was
+                            // already handled this way — mirror it).
                             ReportStorage.updateReportLanguageDetect(
                                 context, reportId,
                                 name = name,
@@ -516,7 +521,7 @@ class IconGenerationManager(
                                 traceFile = traceSink.get(),
                                 rawResponse = analysis,
                                 promptUsed = "language",
-                                durationMs = durationMs
+                                durationMs = 0L
                             )
                         }
                     }

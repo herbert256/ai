@@ -133,9 +133,23 @@ fun buildInfoJobs(
             doneIcon = report.icon, pending = state == InfoJobState.RUNNING || state == InfoJobState.CLOCK)
     }
 
+    // Same "never ran" terminal guard as the icon row above: a finished
+    // report with no detected language, no error, and no recorded
+    // language attempt (cost / duration / prompt all empty) never ran the
+    // language flow — e.g. legacy reports, or a copy / fan-out-derived
+    // report whose source had no language. Without this the row spins
+    // "Queued…" forever on those.
+    val languageNeverRan = report.completedAt != null &&
+        report.languageName.isNullOrBlank() &&
+        report.languageIconErrorMessage == null &&
+        report.languageIconPromptUsed == null &&
+        report.languageDurationMs == null && report.languageIconDurationMs == null &&
+        report.languageInputCost == 0.0 && report.languageOutputCost == 0.0 &&
+        report.languageIconInputCost == 0.0 && report.languageIconOutputCost == 0.0
+
     // Language detection has its own gate now (split from the icon gate)
     // so report icon and report language can be toggled independently.
-    if (reportLanguageOn) {
+    if (reportLanguageOn && !languageNeverRan) {
         val langState = when {
             !report.languageIconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
             !report.languageName.isNullOrBlank() -> InfoJobState.DONE
@@ -156,7 +170,16 @@ fun buildInfoJobs(
 
     val titlePrompt = settings.internalPrompts.firstOrNull { it.category == "workers" && it.name == "report-title" }
     val titleConfigured = titlePrompt != null && titlePrompt.workers.any { settings.resolveWorker(it) != null }
-    if (titleModeAi && titleConfigured) {
+    // "Never ran" terminal guard, mirroring the icon / language rows: a
+    // finished report that recorded no AI-title attempt (no promptUsed,
+    // no error, no cost / duration) never ran the report-title job — e.g.
+    // legacy reports or a copy whose title was inherited rather than
+    // generated. Skip the row instead of spinning "Queued…" forever.
+    val titleNeverRan = report.completedAt != null &&
+        report.titlePromptUsed.isNullOrBlank() && report.titleErrorMessage == null &&
+        report.titleDurationMs == null &&
+        report.titleInputCost == 0.0 && report.titleOutputCost == 0.0
+    if (titleModeAi && titleConfigured && !titleNeverRan) {
         val state = when {
             !report.titleErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
             !report.titlePromptUsed.isNullOrBlank() -> InfoJobState.DONE

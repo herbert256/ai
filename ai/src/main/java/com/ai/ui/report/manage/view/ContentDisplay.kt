@@ -630,6 +630,25 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val mainAltOutCents = altByType["alt/main"]?.second ?: 0.0
     val languageAltInCents = altByType["alt/language"]?.first ?: 0.0
     val languageAltOutCents = altByType["alt/language"]?.second ?: 0.0
+    // Token counterparts of the cent maps above. The alt fan-out bumps
+    // BOTH the tokens and the cost onto the aggregate row that owns the
+    // icon (Report.icon*Tokens / languageIcon*Tokens / SR.tokenUsage),
+    // so — exactly like the cents — the per-call rows below would
+    // double-count the alt tokens unless we strip them out of the
+    // aggregate row here too. Previously only the cents were subtracted,
+    // inflating the token / API-call stats.
+    val altTokensByType: Map<String, Pair<Int, Int>> = report.iconCalls
+        .filter { !it.type.isNullOrBlank() }
+        .groupBy { it.type!! }
+        .mapValues { (_, list) -> list.sumOf { it.inputTokens } to list.sumOf { it.outputTokens } }
+    val altTokensBySecondary: Map<String, Pair<Int, Int>> = report.iconCalls
+        .filter { !it.attributedToSecondaryId.isNullOrBlank() }
+        .groupBy { it.attributedToSecondaryId!! }
+        .mapValues { (_, list) -> list.sumOf { it.inputTokens } to list.sumOf { it.outputTokens } }
+    val mainAltInTokens = altTokensByType["alt/main"]?.first ?: 0
+    val mainAltOutTokens = altTokensByType["alt/main"]?.second ?: 0
+    val languageAltInTokens = altTokensByType["alt/language"]?.first ?: 0
+    val languageAltOutTokens = altTokensByType["alt/language"]?.second ?: 0
 
     // Icon-gen call surfaces as its own row so the cost table totals
     // match the report total. Hidden when icon-gen wasn't run or the
@@ -657,8 +676,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             model = model,
             tier = pricing?.source ?: "",
             durationMs = null,
-            inputTokens = report.iconInputTokens,
-            outputTokens = report.iconOutputTokens,
+            inputTokens = (report.iconInputTokens - mainAltInTokens).coerceAtLeast(0),
+            outputTokens = (report.iconOutputTokens - mainAltOutTokens).coerceAtLeast(0),
             // Clamp at 0: if the aggregate icon cost wasn't yet bumped by
             // the alt-call portion (timing skew / partial write) the
             // subtraction could underflow to a negative cent value.
@@ -712,8 +731,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             model = model,
             tier = pricing?.source ?: "",
             durationMs = null,
-            inputTokens = report.languageIconInputTokens,
-            outputTokens = report.languageIconOutputTokens,
+            inputTokens = (report.languageIconInputTokens - languageAltInTokens).coerceAtLeast(0),
+            outputTokens = (report.languageIconOutputTokens - languageAltOutTokens).coerceAtLeast(0),
             inputCents = ((report.languageIconInputCost * 100) - languageAltInCents).coerceAtLeast(0.0),
             outputCents = ((report.languageIconOutputCost * 100) - languageAltOutCents).coerceAtLeast(0.0)
         )
@@ -822,6 +841,12 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
         // the SR aggregate bump can't produce a negative cent value.
         val inCents = (((s.inputCost ?: 0.0) * 100) - (srAlt?.first ?: 0.0)).coerceAtLeast(0.0)
         val outCents = (((s.outputCost ?: 0.0) * 100) - (srAlt?.second ?: 0.0)).coerceAtLeast(0.0)
+        // Same subtraction for tokens — bumpResultInputOutputCost folds the
+        // alt call's tokens into s.tokenUsage, and the per-call alt row
+        // below re-adds them, so strip the alt portion here too.
+        val srAltTok = altTokensBySecondary[s.id]
+        val inTokens = (tu.inputTokens - (srAltTok?.first ?: 0)).coerceAtLeast(0)
+        val outTokens = (tu.outputTokens - (srAltTok?.second ?: 0)).coerceAtLeast(0)
         // Cost-table "Type" column: prefer the user-given Meta prompt
         // name so a "Compare" row reads "compare", a "Critique" row
         // reads "critique", etc. Rerank / moderation / translate keep
@@ -860,7 +885,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
                 else -> "meta/meta"
             }
         }
-        CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, tu.inputTokens, tu.outputTokens, inCents, outCents)
+        CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, inTokens, outTokens, inCents, outCents)
     }
     // Fan Meta (workers/fan-meta) — one title+icon call per fan-out pair,
     // recorded on the pair's SecondaryResult title* cost. It gets its OWN
