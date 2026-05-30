@@ -318,7 +318,8 @@ fun TraceListScreen(
                 onDelete = if (canClear) { { confirmClearAll = true } } else null,
                 onHousekeeping = onHousekeeping,
                 onSettings = onSettings,
-                onStats = onStats
+                onStats = onStats,
+                statsAfterDelete = true
             )
 
             // Category / Provider / Hostname / Model selectors share

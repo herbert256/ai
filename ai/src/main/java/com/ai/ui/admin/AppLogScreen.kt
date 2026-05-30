@@ -68,7 +68,8 @@ fun AppLogListScreen(
             title = "Application log", subject = "Daily app logs for diagnosing issues",
             onBackClick = onBack,
             onDelete = if (files.isNotEmpty()) { { confirmClearAll = true } } else null,
-            onStats = onStats
+            onStats = onStats,
+            statsAfterDelete = true
         )
 
 

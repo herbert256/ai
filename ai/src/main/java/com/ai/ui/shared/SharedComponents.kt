@@ -405,6 +405,30 @@ val LocalNavigateToManagePicker = compositionLocalOf<(String) -> Unit> { {} }
  *  (default) → no 🗂️, so every non-Manage screen is unaffected. */
 val LocalManagePickReport = compositionLocalOf<(() -> Unit)?> { null }
 
+/** The four "jump to a Monitor part" navigation actions — Live
+ *  Dashboard / API Traces / Application log / Statistics. Provided
+ *  (via [LocalMonitorNav]) around every screen in the Monitor subtree,
+ *  so its [TitleBar] auto-renders the matching 📡 🐞 📜 📊 icons at the
+ *  START of the bottom icon row — letting the user hop between the four
+ *  Monitor sections from anywhere under Monitor without backing out to
+ *  the hub. Null (default) → no jump icons, so every screen outside the
+ *  Monitor subtree is unaffected. */
+/** Which of the four Monitor parts a screen IS — so its own jump icon
+ *  is dropped from the row (no point linking to where you already are).
+ *  Null for the deeper Monitor-subtree screens (Reports, Providers, …),
+ *  which aren't one of the four parts and so keep all four icons. */
+enum class MonitorPart { LIVE_DASHBOARD, TRACES, APP_LOG, STATISTICS }
+
+data class MonitorNav(
+    val onLiveDashboard: () -> Unit,
+    val onTraces: () -> Unit,
+    val onAppLog: () -> Unit,
+    val onStatistics: () -> Unit,
+    /** The part the current screen represents, whose icon is omitted. */
+    val active: MonitorPart? = null,
+)
+val LocalMonitorNav = compositionLocalOf<MonitorNav?> { null }
+
 /** Prev / next callbacks for the chronologically surrounding reports
  *  on disk. Provided by [ReportsScreenNav] (it builds the lambdas
  *  alongside the same callbacks ReportsScreen uses for its < / >
@@ -709,6 +733,10 @@ data class TitleBarIcons(
      *  Application log → App log statistics) publish it so the bottom
      *  bar carries the action. Null → glyph hidden. */
     val onStats: (() -> Unit)? = null,
+    /** When true, the 📈 statistics glyph trails the 🗑 delete icon
+     *  instead of sitting in the nav-jump group. Set by the Application
+     *  log screen. */
+    val statsAfterDelete: Boolean = false,
     /** Optional ❓ help hook. Set by the regular [TitleBar] (every
      *  non-View screen), which moved its top-bar help glyph down here.
      *  When non-null the bottom bar uses the help layout — action
@@ -739,6 +767,11 @@ data class TitleBarIcons(
      *  [validatePromptActive] is false. Null → glyph hidden. */
     val onValidatePrompt: (() -> Unit)? = null,
     val validatePromptActive: Boolean = false,
+    /** When non-null, the four "jump to a Monitor part" actions captured
+     *  from [LocalMonitorNav] — rendered as 📡 🐞 📜 📊 at the START of the
+     *  bottom icon row on every screen in the Monitor subtree. Null on
+     *  every screen outside it. */
+    val monitorNav: MonitorNav? = null,
     /** The screen's title, captured so the live "<title> - icons" overlay
      *  (white ❓ on allowlisted screens) can header itself. Null → "Icons". */
     val title: String? = null
@@ -955,6 +988,11 @@ fun TitleBar(
     onSettings: (() -> Unit)? = null,
     /** Optional 📈 jump-to-statistics hook. Null → glyph hidden. */
     onStats: (() -> Unit)? = null,
+    /** When true, the 📈 statistics glyph is placed AFTER the 🗑 delete
+     *  icon instead of in its usual nav-jump position. Set by the
+     *  Application log screen so its "App log statistics" jump trails the
+     *  clear-all action. */
+    statsAfterDelete: Boolean = false,
     /** When false, this bar renders its top chrome but does NOT publish
      *  its icons into [LocalBottomIconState]. Used by screens drawn as a
      *  visual layer ON TOP of a still-composed host (e.g. "Report - Get
@@ -1023,6 +1061,11 @@ fun TitleBar(
         onHousekeeping = onHousekeeping,
         onSettings = onSettings,
         onStats = onStats,
+        statsAfterDelete = statsAfterDelete,
+        // 📡 🐞 📜 📊 Monitor-section jump group — auto-captured from the
+        // per-subtree CompositionLocal so Monitor screens needn't thread it
+        // through their TitleBar signatures. Null on every other screen.
+        monitorNav = LocalMonitorNav.current,
         // ❓ help moved out of the top bar into the bottom icons bar
         // (right-aligned, other icons left). View screens keep their
         // top-bar ❓ — see ViewScreenTitleBar.
@@ -1446,6 +1489,18 @@ private data class BottomBarIcon(
  *  separate by [BottomIconBar] so it can stay pinned bottom-right).
  *  Order is fixed; only the non-null callbacks contribute. */
 private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = buildList {
+    // ----- Monitor-section jump group (leads the strip) -----
+    // On every screen in the Monitor subtree, the four parts of Monitor —
+    // 📡 Live Dashboard, 🐞 API Traces, 📜 Application log, 📊 Statistics —
+    // get a quick-jump icon at the very start of the row so the user can
+    // hop between sections without backing out to the hub.
+    icons.monitorNav?.let { mn ->
+        // The screen's own part is skipped — its icon would just link to here.
+        if (mn.active != MonitorPart.LIVE_DASHBOARD) add(BottomBarIcon("📡", Color.Unspecified, mn.onLiveDashboard, 28))
+        if (mn.active != MonitorPart.TRACES) add(BottomBarIcon("🐞", Color.Unspecified, mn.onTraces, 22))
+        if (mn.active != MonitorPart.APP_LOG) add(BottomBarIcon("📜", Color.Unspecified, mn.onAppLog, 28))
+        if (mn.active != MonitorPart.STATISTICS) add(BottomBarIcon("📊", Color.Unspecified, mn.onStatistics, 28))
+    }
     // ----- first-row-ish: creation / nav / share -----
     // 🆕 leads when the screen opts in (Manage report); otherwise it
     // stays in the trailing copy/edit/delete/new group below.
@@ -1460,7 +1515,10 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // AI Setup / Settings screen — grouped with the other nav-jumps.
     icons.onHousekeeping?.let { add(BottomBarIcon("🧹", Color.Unspecified, it, 28)) }
     icons.onSettings?.let { add(BottomBarIcon("⚙️", Color.Unspecified, it, 28)) }
-    icons.onStats?.let { add(BottomBarIcon("📈", Color.Unspecified, it, 28)) }
+    // 📈 statistics — normally grouped with the other nav-jumps. A screen
+    // can opt to push it past the trailing actions (statsAfterDelete) so it
+    // sits just after 🗑 delete instead — see the second-row block below.
+    if (!icons.statsAfterDelete) icons.onStats?.let { add(BottomBarIcon("📈", Color.Unspecified, it, 28)) }
     icons.onInfo?.let { add(BottomBarIcon("ℹ️", Color.Unspecified, it, 28)) }
     // 🌡️ parameters + 🎭 system prompt — paired config actions, kept
     // adjacent so they read as a couple wherever a screen exposes them.
@@ -1483,6 +1541,9 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onEdit?.let { add(BottomBarIcon("✏️", Color.Unspecified, it, 28)) }
     icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
     icons.onDelete?.let { add(BottomBarIcon("🗑", AppColors.Red, it, 22)) }
+    // 📈 statistics trailing the 🗑 delete, when the screen opted in
+    // (Application log — its App-log-statistics jump sits after clear-all).
+    if (icons.statsAfterDelete) icons.onStats?.let { add(BottomBarIcon("📈", Color.Unspecified, it, 28)) }
     if (!icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
     // 🐞 trace always sits last in the strip.
     icons.onTrace?.let { add(BottomBarIcon("🐞", Color.Unspecified, it, 22)) }

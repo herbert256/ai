@@ -35,6 +35,21 @@ import com.ai.ui.shared.*
  * Main navigation host for the app.
  */
 import androidx.navigation.NavGraphBuilder
+import androidx.navigation.NavBackStackEntry
+
+/** Registers a Monitor-subtree screen. Identical to [composable] but wraps
+ *  the destination in [LocalMonitorNav], so the screen's [TitleBar] renders
+ *  the four 📡 🐞 📜 📊 "jump to a Monitor part" icons at the start of its
+ *  bottom icon row. Screens registered with plain [composable] are
+ *  unaffected. */
+private fun NavGraphBuilder.monitorComposable(
+    route: String,
+    monitorNav: MonitorNav,
+    active: MonitorPart? = null,
+    content: @Composable (NavBackStackEntry) -> Unit,
+) = composable(route) { entry ->
+    CompositionLocalProvider(LocalMonitorNav provides monitorNav.copy(active = active)) { content(entry) }
+}
 
 internal fun NavGraphBuilder.developerRoutes(
     navController: NavHostController,
@@ -52,6 +67,26 @@ internal fun NavGraphBuilder.developerRoutes(
                 launchSingleTop = true
             }
         }
+        // The four "jump to a Monitor part" actions, provided around every
+        // screen in the Monitor subtree (via [monitorComposable]) so each
+        // one's TitleBar carries 📡 🐞 📜 📊 at the start of its icon row.
+        // Each jump pops back to the Monitor hub first, so hopping between
+        // sections keeps the back stack flat (Monitor → section) instead of
+        // piling siblings up. popUpTo a route that isn't on the stack (the
+        // screen was reached from outside Monitor) is a no-op, so the jump
+        // still works there.
+        val jumpToMonitorPart: (String) -> Unit = { route ->
+            navController.navigate(route) {
+                popUpTo(NavRoutes.AI_MONITOR) { inclusive = false }
+                launchSingleTop = true
+            }
+        }
+        val monitorNav = MonitorNav(
+            onLiveDashboard = { jumpToMonitorPart(NavRoutes.AI_LIVE_DASHBOARD) },
+            onTraces = { jumpToMonitorPart(NavRoutes.TRACE_LIST) },
+            onAppLog = { jumpToMonitorPart(NavRoutes.AI_APPLOG_LIST) },
+            onStatistics = { jumpToMonitorPart(NavRoutes.AI_STATISTICS) },
+        )
         // Open the API-trace list pre-filtered to one dimension value.
         // Shared by the trace-stats Status card and the breakdown screens.
         val openTraceFilter: (String, String) -> Unit = { field, value ->
@@ -71,7 +106,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
-        composable(NavRoutes.AI_STATISTICS) {
+        monitorComposable(NavRoutes.AI_STATISTICS, monitorNav, MonitorPart.STATISTICS) {
             AiStatisticsScreen(
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToReports = { navController.navigate(NavRoutes.AI_STAT_REPORTS) },
@@ -83,45 +118,45 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToLogStats = { navController.navigate(NavRoutes.AI_LOG_STATS) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
-        composable(NavRoutes.AI_LIVE_DASHBOARD) {
+        monitorComposable(NavRoutes.AI_LIVE_DASHBOARD, monitorNav, MonitorPart.LIVE_DASHBOARD) {
             AiLiveDashboardScreen(
                 appViewModel = appViewModel,
                 reportViewModel = reportViewModel,
                 onBack = safePopBack, onNavigateHome = navigateHome)
         }
-        composable(NavRoutes.AI_TRACE_STATS) {
+        monitorComposable(NavRoutes.AI_TRACE_STATS, monitorNav) {
             AiTraceStatsScreen(onBack = safePopBack, onNavigateHome = navigateHome, onNavigateToStatistics = toStatistics,
                 onOpenTraceFilter = openTraceFilter,
                 onOpenBreakdown = { navController.navigate(NavRoutes.aiTraceBreakdown(it)) })
         }
-        composable(NavRoutes.AI_TRACE_BREAKDOWN) { entry ->
+        monitorComposable(NavRoutes.AI_TRACE_BREAKDOWN, monitorNav) { entry ->
             AiTraceBreakdownScreen(
                 dim = entry.arguments?.getString("dim") ?: "host",
                 onBack = safePopBack, onNavigateHome = navigateHome, onNavigateToStatistics = toStatistics,
                 onOpenTraceFilter = openTraceFilter)
         }
-        composable(NavRoutes.AI_LOG_STATS) {
+        monitorComposable(NavRoutes.AI_LOG_STATS, monitorNav) {
             AiLogStatsScreen(onBack = safePopBack, onNavigateHome = navigateHome, onNavigateToStatistics = toStatistics)
         }
-        composable(NavRoutes.AI_STAT_REPORTS) {
+        monitorComposable(NavRoutes.AI_STAT_REPORTS, monitorNav) {
             AiStatReportsScreen(
                 reportViewModel = reportViewModel,
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToStatistics = toStatistics)
         }
-        composable(NavRoutes.AI_STAT_PROVIDERS) {
+        monitorComposable(NavRoutes.AI_STAT_PROVIDERS, monitorNav) {
             AiStatProvidersScreen(
                 appViewModel = appViewModel,
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToStatistics = toStatistics)
         }
-        composable(NavRoutes.AI_STAT_MODELS) {
+        monitorComposable(NavRoutes.AI_STAT_MODELS, monitorNav) {
             AiStatModelsScreen(
                 appViewModel = appViewModel,
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToStatistics = toStatistics)
         }
-        composable(NavRoutes.AI_SPEND_USAGE) {
+        monitorComposable(NavRoutes.AI_SPEND_USAGE, monitorNav) {
             val uiState by appViewModel.uiState.collectAsState()
             AiSpendUsageScreen(
                 openRouterApiKey = uiState.generalSettings.openRouterApiKey.ifBlank {
@@ -133,7 +168,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToTraceProvider = { pid -> navController.navigate(NavRoutes.traceListFiltered(provider = pid)) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
-        composable(NavRoutes.AI_USAGE_PROVIDER) { entry ->
+        monitorComposable(NavRoutes.AI_USAGE_PROVIDER, monitorNav) { entry ->
             val pid = try { java.net.URLDecoder.decode(entry.arguments?.getString("providerId") ?: "", "UTF-8") } catch (_: Exception) { "" }
             AiSpendUsageProviderScreen(
                 providerId = pid,
@@ -141,7 +176,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
                 onNavigateToStatistics = toStatistics)
         }
-        composable(NavRoutes.AI_COSTS_TIER) {
+        monitorComposable(NavRoutes.AI_COSTS_TIER, monitorNav) {
             AiCostsTierScreen(
                 appViewModel = appViewModel,
                 onBack = safePopBack, onNavigateHome = navigateHome,
@@ -204,7 +239,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToLiveDashboard = { navController.navigate(NavRoutes.AI_LIVE_DASHBOARD) }
             )
         }
-        composable(NavRoutes.AI_APPLOG_LIST) {
+        monitorComposable(NavRoutes.AI_APPLOG_LIST, monitorNav, MonitorPart.APP_LOG) {
             com.ai.ui.admin.AppLogListScreen(
                 onBack = safePopBack,
                 onSelectLog = { name -> navController.navigate(NavRoutes.aiAppLogDetail(name)) },
@@ -382,7 +417,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToAbout = { navController.navigate(NavRoutes.ABOUT) }
             )
         }
-        composable(NavRoutes.TRACE_LIST) {
+        monitorComposable(NavRoutes.TRACE_LIST, monitorNav, MonitorPart.TRACES) {
             val uiState by appViewModel.uiState.collectAsState()
             TraceListScreen(aiSettings = uiState.aiSettings,
                 onBack = safePopBack, onNavigateHome = navigateHome,

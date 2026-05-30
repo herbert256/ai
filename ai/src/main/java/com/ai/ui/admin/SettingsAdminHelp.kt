@@ -641,6 +641,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("🐞 Trace statistics →", "Own page: aggregate stats over the API traces — status split, top hosts / models / categories, activity, and report linkage. Also reachable from the 📈 icon on the API Traces screen."),
             HelpCard("📜 App log statistics →", "Own page: aggregate stats over the application log — health, by-level and by-tag counts, and per-file sizes. Also reachable from the 📈 icon on the Application log screen."),
             HelpCard("📚 Knowledge", "Knowledge-base count, total chunks, indexed character count, failed sources, and a breakdown of sources by type. Shown inline; hidden when there are no knowledge bases."),
+            HelpCard("📡 🐞 📜 📊 jump row", "Every screen under Monitor — this hub, its stat pages, the Live Dashboard, API Traces and Application log — carries these four icons at the start of the bottom bar, one per Monitor section, so you can hop straight between them without backing out to the hub. On the four main sections the icon for the screen you're already on is dropped."),
         )
     ),
     "ai_trace_stats" to HelpContent(
