@@ -53,6 +53,7 @@ import com.ai.data.ApiCallCaps
 import com.ai.data.ApiTracer
 import com.ai.data.AppLog
 import com.ai.data.AppService
+import com.ai.data.HttpStatusStats
 import com.ai.data.KnowledgeData
 import com.ai.data.LogStatsData
 import com.ai.data.ModelCooldownStore
@@ -117,6 +118,8 @@ fun AiLiveDashboardScreen(
     val liveTick by produceState(0) { while (true) { delay(750); value++ } }
     val caps = remember(liveTick) { ApiCallCaps.snapshot() }
     val hosts = remember(liveTick) { ProviderThrottle.snapshot() }
+    val http1m = remember(liveTick) { HttpStatusStats.countsWithin(60_000) }
+    val http5m = remember(liveTick) { HttpStatusStats.countsWithin(5 * 60_000) }
     val now = remember(liveTick) { System.currentTimeMillis() }
     val logErr = remember(liveTick) { AppLog.lastWriterError }
     val droppedLines = remember(liveTick) { AppLog.droppedLineCount }
@@ -156,6 +159,7 @@ fun AiLiveDashboardScreen(
 
             item { LiveActivitySection(caps, thrFanOut, thrMeta) }
             item { ThrottleSection(hosts) }
+            item { HttpCodesSection(http1m, http5m) }
 
             val activeCooldowns = cooldowns.filterValues { it > now }
             if (activeCooldowns.isNotEmpty()) {
@@ -1282,12 +1286,14 @@ private fun LiveActivitySection(
             )
         }
         Spacer(Modifier.height(8.dp))
-        // Bars fill to permits in use (cap saturation).
+        // Bars fill to permits in use (cap saturation). Global is always
+        // shown; the per-feature bars appear only while that feature has a
+        // call in flight, so an idle dashboard isn't a wall of empty bars.
         CapBar("Global", caps.globalInFlight, caps.globalMax)
-        CapBar("Report", caps.reportInFlight, caps.reportMax)
-        CapBar("Translation", caps.translationInFlight, caps.translationMax)
-        CapBar("Fan-out", caps.fanOutInFlight, caps.fanOutMax)
-        CapBar("Fan-meta", caps.fanMetaInFlight, caps.fanMetaMax)
+        if (caps.reportInFlight > 0) CapBar("Report", caps.reportInFlight, caps.reportMax)
+        if (caps.translationInFlight > 0) CapBar("Translation", caps.translationInFlight, caps.translationMax)
+        if (caps.fanOutInFlight > 0) CapBar("Fan-out", caps.fanOutInFlight, caps.fanOutMax)
+        if (caps.fanMetaInFlight > 0) CapBar("Fan-meta", caps.fanMetaInFlight, caps.fanMetaMax)
 
         val throttled = thrFanOut.size + thrMeta.size
         if (throttled > 0) {
@@ -1299,6 +1305,15 @@ private fun LiveActivitySection(
             }
         }
     }
+}
+
+/** Trim a host to its last two dot-labels for a compact dashboard row —
+ *  `generativelanguage.googleapis.com` → `googleapis.com`, `api.openai.com`
+ *  → `openai.com`. Hosts with two or fewer labels (`openrouter.ai`) are
+ *  returned unchanged. */
+private fun twoLevelHost(host: String): String {
+    val labels = host.split('.').filter { it.isNotBlank() }
+    return if (labels.size >= 2) labels.takeLast(2).joinToString(".") else host
 }
 
 @Composable
@@ -1316,7 +1331,7 @@ private fun ThrottleSection(hosts: List<ProviderThrottle.HostThrottleStat>) {
                 }
                 Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(h.host, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                        Text(twoLevelHost(h.host), fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
                         Text(
                             "con ${h.inUse}/${h.limit}  ·  min ${h.windowCount}/$windowCap",
                             fontSize = 11.sp, color = concColor
@@ -1326,6 +1341,36 @@ private fun ThrottleSection(hosts: List<ProviderThrottle.HostThrottleStat>) {
                 }
             }
         }
+    }
+}
+
+/** Rolling HTTP response-code tally over two trailing windows (1 min /
+ *  5 min), fed by [HttpStatusStats]. 429 is split out from the 4xx family
+ *  because it's the rate-limit signal the live view cares about most;
+ *  network failures land in "other". */
+@Composable
+private fun HttpCodesSection(min1: HttpStatusStats.Counts, min5: HttpStatusStats.Counts) {
+    SectionCard("📊", "HTTP responses", AppColors.Indigo) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Spacer(Modifier.weight(1f))
+            Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+            Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+        }
+        HttpCodeRow("✅ 2xx", min1.ok2xx, min5.ok2xx, AppColors.Green)
+        HttpCodeRow("🚧 429", min1.r429, min5.r429, AppColors.Orange)
+        HttpCodeRow("⚠️ 4xx", min1.c4xx, min5.c4xx, AppColors.Orange)
+        HttpCodeRow("🔥 5xx", min1.s5xx, min5.s5xx, AppColors.Red)
+        HttpCodeRow("▫️ other", min1.other, min5.other, AppColors.TextDim)
+    }
+}
+
+@Composable
+private fun HttpCodeRow(label: String, c1: Int, c5: Int, accent: Color) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 12.sp, color = Color.White)
+        Spacer(Modifier.weight(1f))
+        Text("$c1", fontSize = 12.sp, color = if (c1 > 0) accent else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+        Text("$c5", fontSize = 12.sp, color = if (c5 > 0) accent else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
     }
 }
 
