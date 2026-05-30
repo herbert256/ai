@@ -3,14 +3,15 @@ package com.ai.ui.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -215,99 +216,21 @@ fun WorkersSetupScreen(
     }
 }
 
-/** A small "how it fits together" diagram drawn below the Workers
- *  cards. Each entity card states its own composition via the chips
- *  inside it, so the four relationships read at a glance:
- *    • a provider has many models
- *    • an agent is a model + a system prompt + parameters
- *    • a flock is a collection of agents
- *    • a swarm is a collection of models
- *  Provider → Agent → Flock are linked by a connector (the real
- *  hierarchy); Swarm sits apart since it's built straight from models. */
+/** The "how they connect" diagram below the Workers cards — an actual
+ *  image asset (res/drawable-nodpi/workers_connect.png) scaled to the
+ *  column width. Shows: a provider has many models; an agent is a model
+ *  with a system prompt and parameters; a flock is a collection of
+ *  agents; a swarm is a collection of models. */
 @Composable
 private fun WorkersDiagram() {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text("How they connect", fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-            color = AppColors.TextSecondary, modifier = Modifier.padding(bottom = 10.dp))
-
-        DiagramEntity("⚙️", "Provider", AppColors.Blue, "has many models") {
-            DiagramChipRow(listOf("🧠 Model", "🧠 Model", "🧠 Model", "🧠 Model"))
-        }
-        DiagramArrow("one model becomes an…")
-        DiagramEntity("🤖", "Agent", AppColors.Green, "a model with a system prompt and parameters") {
-            DiagramChipRow(listOf("🧠 Model", "📝 System prompt", "🎛️ Parameters"), separator = "+")
-        }
-        DiagramArrow("agents grouped into a…")
-        DiagramEntity("🦆", "Flock", AppColors.Orange, "a collection of agents") {
-            DiagramChipRow(listOf("🤖 Agent", "🤖 Agent", "🤖 Agent"))
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-        DiagramEntity("🐝", "Swarm", AppColors.Purple, "a collection of models") {
-            DiagramChipRow(listOf("🧠 Model", "🧠 Model", "🧠 Model"))
-        }
-    }
-}
-
-/** One labelled box in [WorkersDiagram] — emoji + name (accent) + a
- *  one-line caption, then the supplied composition chips. */
-@Composable
-private fun DiagramEntity(
-    emoji: String, name: String, accent: Color, caption: String, content: @Composable () -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth()
-            .border(1.dp, accent.copy(alpha = 0.55f), RoundedCornerShape(10.dp))
-            .background(AppColors.CardBackground, RoundedCornerShape(10.dp))
-            .padding(12.dp)
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(emoji, fontSize = 20.sp)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(name, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = accent)
-        }
-        Text(caption, fontSize = 12.sp, color = AppColors.TextTertiary,
-            modifier = Modifier.padding(top = 3.dp, bottom = 9.dp))
-        content()
-    }
-}
-
-/** Horizontally-scrollable row of small chips (so a wide composition —
- *  e.g. the Agent's three parts — never overflows on a narrow phone).
- *  When [separator] is set it's drawn between chips (the Agent shows
- *  "Model + System prompt + Parameters"). */
-@Composable
-private fun DiagramChipRow(items: List<String>, separator: String? = null) {
-    Row(
-        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        items.forEachIndexed { i, label ->
-            if (i > 0 && separator != null) {
-                Text(separator, fontSize = 13.sp, color = AppColors.TextDim)
-            }
-            Box(
-                modifier = Modifier
-                    .background(AppColors.CardBackgroundAlt, RoundedCornerShape(7.dp))
-                    .padding(horizontal = 9.dp, vertical = 5.dp)
-            ) {
-                Text(label, fontSize = 12.sp, color = AppColors.TextSecondary, maxLines = 1)
-            }
-        }
-    }
-}
-
-/** Centered down-arrow + tiny label linking two entity boxes. */
-@Composable
-private fun DiagramArrow(label: String) {
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text("↓", fontSize = 16.sp, color = AppColors.TextDim)
-        Text(label, fontSize = 10.sp, color = AppColors.TextTertiary)
-    }
+    Image(
+        painter = painterResource(com.ai.R.drawable.workers_connect),
+        contentDescription = "How workers connect: a provider has many models; " +
+            "an agent is a model with a system prompt and parameters; " +
+            "a flock is a collection of agents; a swarm is a collection of models.",
+        modifier = Modifier.fillMaxWidth(),
+        contentScale = ContentScale.FillWidth
+    )
 }
 
 // ===== Prompts Setup hub =====
