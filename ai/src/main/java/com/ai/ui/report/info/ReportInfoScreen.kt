@@ -130,7 +130,7 @@ fun ReportInfoScreen(
             InfoRow("Short title", r.title.ifBlank { "—" },
                 traceFile = r.titleTraceFile, onTrace = onOpenTrace)
             InfoRow("Long title", r.titleLong?.takeIf { it.isNotBlank() } ?: "—",
-                traceFile = r.titleTraceFile, onTrace = onOpenTrace)
+                traceFile = r.titleLongTraceFile, onTrace = onOpenTrace)
             InfoRow("Language", buildString {
                 append(r.languageName?.takeIf { it.isNotBlank() } ?: "—")
                 r.languageIcon?.takeIf { it.isNotBlank() }?.let { append("  $it") }
@@ -367,6 +367,7 @@ internal fun totalApiDurationMs(report: Report, secondaries: List<SecondaryResul
     ms += report.languageDurationMs ?: 0L
     ms += report.languageIconDurationMs ?: 0L
     ms += report.titleDurationMs ?: 0L
+    ms += report.titleLongDurationMs ?: 0L
     secondaries.forEach {
         ms += it.durationMs ?: 0L
         ms += it.titleDurationMs ?: 0L

@@ -81,6 +81,7 @@ object ReportStorage {
             report.agents.sumOf { it.modelTitleInputCost + it.modelTitleOutputCost } +
             report.iconInputCost + report.iconOutputCost +
             report.titleInputCost + report.titleOutputCost +
+            report.titleLongInputCost + report.titleLongOutputCost +
             report.languageInputCost + report.languageOutputCost +
             report.languageIconInputCost + report.languageIconOutputCost +
             // Find-alt title fan-out (report-title + model-title) is the
@@ -488,26 +489,36 @@ object ReportStorage {
     fun updateReportTitleFromAi(
         context: Context, reportId: String, newTitle: String,
         titleLong: String? = null,
-        durationMs: Long? = null,
-        inputTokens: Int, outputTokens: Int,
-        inputCost: Double, outputCost: Double,
-        traceFile: String? = null,
-        model: String? = null,
-        promptUsed: String? = null
+        promptUsed: String? = null,
+        // SHORT call (≤25, drives Report.title) → title* fields.
+        shortInputTokens: Int = 0, shortOutputTokens: Int = 0,
+        shortInputCost: Double = 0.0, shortOutputCost: Double = 0.0,
+        shortTraceFile: String? = null, shortModel: String? = null, shortDurationMs: Long? = null,
+        // LONG call (≤50, drives Report.titleLong) → titleLong* fields.
+        longInputTokens: Int = 0, longOutputTokens: Int = 0,
+        longInputCost: Double = 0.0, longOutputCost: Double = 0.0,
+        longTraceFile: String? = null, longModel: String? = null, longDurationMs: Long? = null,
     ): Boolean {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val updated = report.copy(
                 title = newTitle, titleLong = titleLong, titleErrorMessage = null,
-                titleInputTokens = report.titleInputTokens + inputTokens,
-                titleOutputTokens = report.titleOutputTokens + outputTokens,
-                titleInputCost = report.titleInputCost + inputCost,
-                titleOutputCost = report.titleOutputCost + outputCost,
-                titleTraceFile = traceFile,
-                titleModel = model,
+                titleInputTokens = report.titleInputTokens + shortInputTokens,
+                titleOutputTokens = report.titleOutputTokens + shortOutputTokens,
+                titleInputCost = report.titleInputCost + shortInputCost,
+                titleOutputCost = report.titleOutputCost + shortOutputCost,
+                titleTraceFile = shortTraceFile,
+                titleModel = shortModel,
+                titleDurationMs = shortDurationMs ?: report.titleDurationMs,
+                titleLongInputTokens = report.titleLongInputTokens + longInputTokens,
+                titleLongOutputTokens = report.titleLongOutputTokens + longOutputTokens,
+                titleLongInputCost = report.titleLongInputCost + longInputCost,
+                titleLongOutputCost = report.titleLongOutputCost + longOutputCost,
+                titleLongTraceFile = longTraceFile,
+                titleLongModel = longModel,
+                titleLongDurationMs = longDurationMs ?: report.titleLongDurationMs,
                 titlePromptUsed = promptUsed ?: report.titlePromptUsed,
-                titleDurationMs = durationMs ?: report.titleDurationMs,
                 timestamp = System.currentTimeMillis()
             )
             updated.totalCost = computeReportTotalCost(updated)

@@ -288,6 +288,18 @@ data class Report(
      *  AI title-gen alongside the short [title]; null/blank for manually-set
      *  titles, which fall back to [title] via [barTitle]. */
     var titleLong: String? = null,
+    /** The title is produced by TWO calls (short ≤25 + long ≤50). The
+     *  [titleInputTokens] … block above holds the SHORT call's spend; these
+     *  mirror it for the LONG call so each surfaces as its own cost row
+     *  (report/title-short vs report/title-long). All zero in MANUAL mode,
+     *  while running, or on legacy reports. */
+    var titleLongInputTokens: Int = 0,
+    var titleLongOutputTokens: Int = 0,
+    var titleLongInputCost: Double = 0.0,
+    var titleLongOutputCost: Double = 0.0,
+    var titleLongTraceFile: String? = null,
+    var titleLongModel: String? = null,
+    var titleLongDurationMs: Long? = null,
     /** Wall-clock duration (ms) of each report-level metadata API call,
      *  for the Report-info screen's total-API-time tally. Null on legacy
      *  reports / before the call ran. The agent + secondary + icon-chain

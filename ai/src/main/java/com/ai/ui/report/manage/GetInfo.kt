@@ -177,8 +177,9 @@ fun buildInfoJobs(
     // generated. Skip the row instead of spinning "Queued…" forever.
     val titleNeverRan = report.completedAt != null &&
         report.titlePromptUsed.isNullOrBlank() && report.titleErrorMessage == null &&
-        report.titleDurationMs == null &&
-        report.titleInputCost == 0.0 && report.titleOutputCost == 0.0
+        report.titleDurationMs == null && report.titleLongDurationMs == null &&
+        report.titleInputCost == 0.0 && report.titleOutputCost == 0.0 &&
+        report.titleLongInputCost == 0.0 && report.titleLongOutputCost == 0.0
     if (titleModeAi && titleConfigured && !titleNeverRan) {
         val state = when {
             !report.titleErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
@@ -189,7 +190,8 @@ fun buildInfoJobs(
         val label = report.titleErrorMessage?.takeIf { it.isNotBlank() }
             ?: report.title.takeIf { !report.titlePromptUsed.isNullOrBlank() }
             ?: if (state == InfoJobState.RUNNING) "Generating…" else "Queued…"
-        jobs += InfoJob("title", label, state, report.titleInputCost + report.titleOutputCost,
+        jobs += InfoJob("title", label, state,
+            report.titleInputCost + report.titleOutputCost + report.titleLongInputCost + report.titleLongOutputCost,
             doneIcon = "🏷️", pending = state == InfoJobState.RUNNING || state == InfoJobState.CLOCK)
     }
 

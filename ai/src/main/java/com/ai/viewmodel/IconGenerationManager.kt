@@ -445,19 +445,27 @@ class IconGenerationManager(
                 // short from it so the report is never left title-less.
                 val shortTitle = short?.title ?: long?.title?.take(25) ?: "AI Report"
                 val longTitle = long?.title
-                // Sum both calls into the single set of title* cost/token
-                // fields (updateReportTitleFromAi adds them in).
+                // Persist each call's spend into its own cost/token block so
+                // the cost table shows two rows: report/title-short and
+                // report/title-long.
                 ReportStorage.updateReportTitleFromAi(
                     context, reportId, shortTitle,
                     titleLong = longTitle?.takeIf { it.isNotBlank() },
-                    durationMs = (short?.durationMs ?: 0L) + (long?.durationMs ?: 0L),
-                    inputTokens = (short?.inputTokens ?: 0) + (long?.inputTokens ?: 0),
-                    outputTokens = (short?.outputTokens ?: 0) + (long?.outputTokens ?: 0),
-                    inputCost = (short?.inputCost ?: 0.0) + (long?.inputCost ?: 0.0),
-                    outputCost = (short?.outputCost ?: 0.0) + (long?.outputCost ?: 0.0),
-                    traceFile = short?.traceFile ?: long?.traceFile,
-                    model = short?.model ?: long?.model,
-                    promptUsed = "report_title"
+                    promptUsed = "report_title",
+                    shortInputTokens = short?.inputTokens ?: 0,
+                    shortOutputTokens = short?.outputTokens ?: 0,
+                    shortInputCost = short?.inputCost ?: 0.0,
+                    shortOutputCost = short?.outputCost ?: 0.0,
+                    shortTraceFile = short?.traceFile,
+                    shortModel = short?.model,
+                    shortDurationMs = short?.durationMs,
+                    longInputTokens = long?.inputTokens ?: 0,
+                    longOutputTokens = long?.outputTokens ?: 0,
+                    longInputCost = long?.inputCost ?: 0.0,
+                    longOutputCost = long?.outputCost ?: 0.0,
+                    longTraceFile = long?.traceFile,
+                    longModel = long?.model,
+                    longDurationMs = long?.durationMs,
                 )
                 // Keep the in-memory UiState in sync so the title row on
                 // Manage report updates the moment the calls return.

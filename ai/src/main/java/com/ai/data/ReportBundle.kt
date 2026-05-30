@@ -212,6 +212,7 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
         iconCalls = remappedIconCalls,
         iconTraceFile = remapTrace(parsedReport.iconTraceFile),
         titleTraceFile = remapTrace(parsedReport.titleTraceFile),
+        titleLongTraceFile = remapTrace(parsedReport.titleLongTraceFile),
         languageTraceFile = remapTrace(parsedReport.languageTraceFile),
         languageIconTraceFile = remapTrace(parsedReport.languageIconTraceFile)
     )

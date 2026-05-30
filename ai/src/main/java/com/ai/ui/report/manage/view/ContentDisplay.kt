@@ -589,7 +589,8 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val hasLanguageIconCost = report.languageIconInputCost > 0.0 || report.languageIconOutputCost > 0.0
     val hasLanguageCost = hasLanguageDetectCost || hasLanguageIconCost
     val hasModelTitleCost = report.agents.any { it.modelTitleInputCost > 0.0 || it.modelTitleOutputCost > 0.0 }
-    val hasTitleCost = report.titleInputCost > 0.0 || report.titleOutputCost > 0.0
+    val hasTitleCost = report.titleInputCost > 0.0 || report.titleOutputCost > 0.0 ||
+        report.titleLongInputCost > 0.0 || report.titleLongOutputCost > 0.0
     if (agentsWithCosts.isEmpty() && secondary.isEmpty() && !hasIconCost && !hasIconCalls && !hasLanguageCost && !hasModelTitleCost && !hasTitleCost) return null
 
     val agentRows = agentsWithCosts.map { agent ->
@@ -748,34 +749,44 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             traceFile = report.languageIconTraceFile
         )
     } else null
-    // Report-title row — the one internal/report_title call that names
-    // the whole report (short + long). provider/model come from the
-    // stored Report.titleModel ("provider/model"), else the bundled
-    // report_title agent's default. Folded into the total so this screen
-    // matches Report-Manage's bottom-bar total (which already counts the
-    // title via infoMetaTotal).
-    val titleRow: CostRow? = if (hasTitleCost) {
-        val titlePrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "workers" && it.name == "report-title-short"
-        }
-        val titleAgent = titlePrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
-        val parts = report.titleModel?.split("/", limit = 2)
-        val provider = parts?.firstOrNull()?.let { AppService.findById(it) } ?: titleAgent?.provider
-        val model = parts?.getOrNull(1) ?: titleAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
+    // Report-title rows — the title is two calls (short ≤25 + long ≤50), so
+    // each surfaces as its own cost row (report/title-short, report/title-long).
+    // provider/model come from each call's stored "provider/model", else the
+    // bundled report-title-short agent's default. Folded into the total so
+    // this screen matches Report-Manage's bottom-bar total.
+    val titleFallbackAgent = ai?.internalPrompts?.firstOrNull {
+        it.category == "workers" && it.name == "report-title-short"
+    }?.workers?.firstNotNullOfOrNull { ai.resolveWorker(it) }
+    fun titleCostRow(
+        type: String, storedModel: String?, inTok: Int, outTok: Int,
+        inCost: Double, outCost: Double, trace: String?, durMs: Long?
+    ): CostRow? {
+        if (inCost <= 0.0 && outCost <= 0.0) return null
+        val parts = storedModel?.split("/", limit = 2)
+        val provider = parts?.firstOrNull()?.let { AppService.findById(it) } ?: titleFallbackAgent?.provider
+        val model = parts?.getOrNull(1) ?: titleFallbackAgent?.let { ai?.getEffectiveModelForAgent(it) } ?: ""
         val pricing = provider?.let { PricingCache.getPricing(context, it, model) }
-        CostRow(
-            type = "report/title",
+        return CostRow(
+            type = type,
             providerDisplay = provider?.id ?: parts?.firstOrNull() ?: "",
             model = model,
             tier = pricing?.source ?: "",
-            durationMs = null,
-            inputTokens = report.titleInputTokens,
-            outputTokens = report.titleOutputTokens,
-            inputCents = report.titleInputCost * 100,
-            outputCents = report.titleOutputCost * 100,
-            traceFile = report.titleTraceFile
+            durationMs = durMs,
+            inputTokens = inTok, outputTokens = outTok,
+            inputCents = inCost * 100, outputCents = outCost * 100,
+            traceFile = trace
         )
-    } else null
+    }
+    val titleShortRow: CostRow? = titleCostRow(
+        "report/title-short", report.titleModel,
+        report.titleInputTokens, report.titleOutputTokens,
+        report.titleInputCost, report.titleOutputCost, report.titleTraceFile, report.titleDurationMs
+    )
+    val titleLongRow: CostRow? = titleCostRow(
+        "report/title-long", report.titleLongModel,
+        report.titleLongInputTokens, report.titleLongOutputTokens,
+        report.titleLongInputCost, report.titleLongOutputCost, report.titleLongTraceFile, report.titleLongDurationMs
+    )
     // Per-agent model-title rows — one per agent whose response was
     // titled by the internal/model_title call. provider/model come from
     // the stored "provider/model" string of the (fixed) title agent.
@@ -919,7 +930,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             s.titleInputCost * 100, s.titleOutputCost * 100
         )
     }
-    val rows = (agentRows + secondaryRows + fanMetaRows + listOfNotNull(iconRow, languageDetectRow, languageIconRow, titleRow) + modelTitleRows + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
+    val rows = (agentRows + secondaryRows + fanMetaRows + listOfNotNull(iconRow, languageDetectRow, languageIconRow, titleShortRow, titleLongRow) + modelTitleRows + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
 
     // GroupTotal carries an optional (provider, model) split so the
     // "By model" table can render the two as separate columns (same

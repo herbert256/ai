@@ -1422,7 +1422,8 @@ internal fun TitleRow(
             val r = com.ai.data.ReportStorage.getReport(context, reportId)
             TitleSnapshot(
                 r?.title, r?.titlePromptUsed, r?.titleErrorMessage,
-                (r?.titleInputCost ?: 0.0) + (r?.titleOutputCost ?: 0.0),
+                (r?.titleInputCost ?: 0.0) + (r?.titleOutputCost ?: 0.0) +
+                    (r?.titleLongInputCost ?: 0.0) + (r?.titleLongOutputCost ?: 0.0),
                 loaded = true
             )
         }
