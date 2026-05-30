@@ -288,6 +288,7 @@ internal fun FanOutConfirmScreen(
     reportId: String,
     context: android.content.Context,
     aiSettings: com.ai.model.Settings,
+    letSelfRespond: Boolean,
     onCancel: () -> Unit,
     onRun: (InternalPrompt, Set<String>, Set<String>, List<String>, String?) -> Unit
 ) {
@@ -329,9 +330,12 @@ internal fun FanOutConfirmScreen(
     // store. Keyed on fanOutMp.id so switching prompts reseeds the
     // field with the new template.
     var editablePrompt by remember(fanOutMp.id) { mutableStateOf(fanOutMp.text) }
-    val pairCount = selectedInitiators.sumOf { init ->
-        selectedResponders.count { resp -> resp != init }
-    }
+    // Off: skip self-pairs (a model reacting to its own answer). On: the
+    // full initiators × responders matrix, self-pairs included.
+    val pairCount = if (letSelfRespond) selectedInitiators.size * selectedResponders.size
+        else selectedInitiators.sumOf { init ->
+            selectedResponders.count { resp -> resp != init }
+        }
     fun agentLabel(a: com.ai.data.ReportAgent): String =
         a.agentName.takeIf { it.isNotBlank() } ?: "${a.provider} · ${a.model}"
     BackHandler { onCancel() }
@@ -363,7 +367,8 @@ internal fun FanOutConfirmScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "Running ${fanOutMp.name} fires the prompt once per (responder, initiator) pair. Each call substitutes the initiator's response into @RESPONSE@ and sends the assembled prompt to the responder. Self-pairs are skipped.",
+                "Running ${fanOutMp.name} fires the prompt once per (responder, initiator) pair. Each call substitutes the initiator's response into @RESPONSE@ and sends the assembled prompt to the responder. " +
+                    if (letSelfRespond) "Each model also reacts to its own answer." else "Self-pairs are skipped.",
                 fontSize = 13.sp, color = AppColors.TextSecondary
             )
             Card(

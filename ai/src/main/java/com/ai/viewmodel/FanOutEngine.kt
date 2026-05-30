@@ -298,7 +298,10 @@ class FanOutEngine internal constructor(
         responderAgentIds: Set<String>? = null,
         sourceLanguage: String? = null,
         paramsIds: List<String> = emptyList(),
-        systemPromptId: String? = null
+        systemPromptId: String? = null,
+        /** When true, a model is also paired with its OWN answer (the
+         *  self-pair the matrix normally skips). Default false. */
+        includeSelfResponses: Boolean = false
     ): Job? {
         val rk = runKey(reportId, metaPrompt.id)
         runJobs[rk]?.let { if (it.isActive) return it }
@@ -344,7 +347,7 @@ class FanOutEngine internal constructor(
                     for (answerer in answerers) {
                         val provider = AppService.findById(answerer.provider) ?: continue
                         for (source in sources) {
-                            if (source.agentId == answerer.agentId) continue
+                            if (source.agentId == answerer.agentId && !includeSelfResponses) continue
                             val agentName = "${provider.id} / ${shortModelName(answerer.model)}$langSuffix"
                             val placeholder = SecondaryResultStorage.create(
                                 context, reportId, SecondaryKind.META, provider.id, answerer.model, agentName

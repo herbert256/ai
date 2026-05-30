@@ -214,7 +214,7 @@ fun ReportsScreen(
     /** Fired by the View screen's "Language missing" popup. Routes
      *  to ReportViewModel.translateMissingItems. */
     onTranslateMissingItems: (String, List<com.ai.viewmodel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
-    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?, List<String>, String?) -> Unit = { _, _, _, _, _, _, _ -> },
+    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?, List<String>, String?, Boolean) -> Unit = { _, _, _, _, _, _, _, _ -> },
     onRunFanIn: (String, com.ai.model.InternalPrompt, Pair<AppService, String>, String?, List<String>, String?) -> Unit = { _, _, _, _, _, _ -> },
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Args: source reportId, active provider id,
@@ -582,6 +582,7 @@ fun ReportsScreen(
     var secondaryScopeMetaPrompt by st.secondaryScopeMetaPrompt
     var pendingSecondaryScope by st.pendingSecondaryScope
     var pendingLanguageScope by st.pendingLanguageScope
+    var fanOutSelfRespond by st.fanOutSelfRespond
     // Fan-out confirm dialog: shown after the scope screen, before
     // kicking off N answerers × S sources calls. The user can still
     // cancel from here if the count looks too high.
@@ -829,9 +830,11 @@ fun ReportsScreen(
                 reranks = sd.reranks,
                 languages = sd.languages,
                 totalReports = sd.totalReports,
-                onContinue = { chosenScope, chosenLangScope ->
+                initialSelfRespond = fanOutSelfRespond,
+                onContinue = { chosenScope, chosenLangScope, chosenSelfRespond ->
                     pendingSecondaryScope = chosenScope
                     pendingLanguageScope = chosenLangScope
+                    fanOutSelfRespond = chosenSelfRespond
                     // Forward without clearing secondaryScopeMetaPrompt;
                     // the scope render guards on fanOutConfirmMetaPrompt /
                     // metaRunScreenPrompt being non-null so the higher
@@ -886,6 +889,7 @@ fun ReportsScreen(
                 reportId = currentReportId,
                 context = context,
                 aiSettings = aiSettings,
+                letSelfRespond = fanOutSelfRespond,
                 // Back from Run → unwind to Scope (state still set);
                 // back from there → Picker; back from there → main.
                 onCancel = { fanOutConfirmMetaPrompt = null },
@@ -912,7 +916,8 @@ fun ReportsScreen(
                         com.ai.data.SecondaryScope.Manual(initiators),
                         responders,
                         sourceLanguage,
-                        pIds, spId
+                        pIds, spId,
+                        fanOutSelfRespond
                     )
                     // Land on the Fan Out L1 page so the user watches the
                     // run progress instead of the report screen.

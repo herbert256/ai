@@ -468,8 +468,8 @@ fun ReportsScreenNav(
         onTranslateMissingItems = { reportId, items, target, targetNative ->
             reportViewModel.translation.translateMissingItems(context, reportId, items, target, targetNative)
         },
-        onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds, systemPromptId ->
-            reportViewModel.fanOutEngine.startRun(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds = paramsIds, systemPromptId = systemPromptId)
+        onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds, systemPromptId, includeSelf ->
+            reportViewModel.fanOutEngine.startRun(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds = paramsIds, systemPromptId = systemPromptId, includeSelfResponses = includeSelf)
         },
         onRunFanIn = { reportId, metaPrompt, pick, sourceLanguage, paramsIds, systemPromptId ->
             reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, pick, sourceLanguage, paramsIds, systemPromptId)

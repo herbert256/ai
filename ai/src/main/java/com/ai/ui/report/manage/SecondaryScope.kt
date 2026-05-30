@@ -41,7 +41,8 @@ internal fun SecondaryScopeScreen(
     reranks: List<SecondaryResult>,
     languages: List<Pair<String, String?>>, // (English, native) pairs; empty when no translations
     totalReports: Int,
-    onContinue: (SecondaryScope, SecondaryLanguageScope) -> Unit,
+    initialSelfRespond: Boolean = false,
+    onContinue: (SecondaryScope, SecondaryLanguageScope, Boolean) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
@@ -108,6 +109,10 @@ internal fun SecondaryScopeScreen(
     val isFanOut = metaPrompt.category == "fan_out"
     val isSingleLanguage = isFanOut || isLanguageOnly
     var fanOutPickedLanguage by remember(isSingleLanguage) { mutableStateOf("") }
+    // Fan Out only: include self-pairs (a model reacting to its own
+    // answer). Seeded from the caller so a Run→back→Scope round-trip
+    // keeps the choice.
+    var letSelfRespond by remember { mutableStateOf(initialSelfRespond) }
     // Initiator / responder model pickers used to live on this
     // screen for fan_out; they're back on the Run page (above the
     // prompt) so the Scope step stays focused on scope + language.
@@ -152,7 +157,7 @@ internal fun SecondaryScopeScreen(
                         SecondaryLanguageScope.Selected(picked)
                     }
                 }
-                onContinue(scope, langScope)
+                onContinue(scope, langScope, letSelfRespond)
             },
             enabled = canContinue,
             modifier = Modifier.fillMaxWidth(),
@@ -296,6 +301,35 @@ internal fun SecondaryScopeScreen(
                                 )
                             }
                         }
+                    }
+                }
+            }
+
+            // Fan Out only: opt models into reacting to their OWN answer.
+            // Off by default (the matrix skips self-pairs); on adds one
+            // self-pair per model so the run becomes a full N×N.
+            if (isFanOut) {
+                Spacer(modifier = Modifier.height(20.dp))
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable { letSelfRespond = !letSelfRespond }
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Let models respond to their own answers",
+                                fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "A model also reacts to the answer it gave",
+                                fontSize = 11.sp, color = AppColors.TextTertiary
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Switch(checked = letSelfRespond, onCheckedChange = { letSelfRespond = it })
                     }
                 }
             }

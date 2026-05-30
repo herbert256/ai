@@ -486,6 +486,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Only top ranked reports", "Available for meta / fan-out prompts when the report has at least one rerank row. Pick the rerank source from a dropdown and an N (1..total)."),
             HelpCard("Manual select models", "Tick exactly which agent rows to include. Defaults to every successful agent ticked, so it's a starting point you can prune."),
             HelpCard("Languages section", "Only shown for chat-type prompts when the report has translation rows. All languages = original + every translated; Select languages = pick a subset alongside the original."),
+            HelpCard("Let models respond to their own answers", "Fan Out only. Off by default — a model is never paired with its own answer, so the matrix is N×(N−1). Turn it on to add one self-pair per model (each model also reacts to the answer it gave), making the run a full N×N. The call count on the next 'Fan Out - run' screen updates to match."),
             HelpCard("Continue", "Disabled until the chosen scope yields at least one input — Top-Ranked needs a rerank picked + count > 0, Manual needs at least one tick."),
             HelpCard("Pitfalls", "Rerank / moderation runs always operate on the full agent set — those kinds skip this screen entirely."),
         )
@@ -627,7 +628,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Fan out — confirm run",
         cards = listOf(
             HelpCard("Overview", "Confirmation screen shown after the Fan out scope picker, before the runner kicks off. Lists exactly how many calls a Run will fire and which models are involved."),
-            HelpCard("Counts grid", "answerers × responses-per-report = total calls. Falls back to a flat 'N calls' line when scope is uneven enough that the grid math doesn't divide cleanly."),
+            HelpCard("Counts grid", "initiators × responders = total calls. By default self-pairs are skipped, so the total is N×(N−1). When 'Let models respond to their own answers' was switched on in the scope step, self-pairs are included and the total becomes the full N×N."),
             HelpCard("Scope", "All reports / Top-N ranked / Manual selection. Reflects the choice made on the previous screen — back to change it."),
             HelpCard("Answerer / Source lists", "Two cards listing the model names on each side of the fan out. A model appears in both when it's both an answerer and a source."),
             HelpCard("Fan-out prompt", "Preview of the prompt body (≤12 lines) that will be sent for every pair, with @RESPONSE@ filled in at run time."),

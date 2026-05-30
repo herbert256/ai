@@ -135,6 +135,10 @@ internal class ReportsScreenState(
     val secondaryScopeMetaPrompt: MutableState<InternalPrompt?>,
     val pendingSecondaryScope: MutableState<SecondaryScope>,
     val pendingLanguageScope: MutableState<SecondaryLanguageScope>,
+    /** Fan Out only: "Let models respond to their own answers" — when true,
+     *  self-pairs (a model reacting to its own answer) are included. Carried
+     *  from the scope screen to the run screen + engine. */
+    val fanOutSelfRespond: MutableState<Boolean>,
     val fanOutConfirmMetaPrompt: MutableState<InternalPrompt?>,
     val fanInPickerPrompt: MutableState<InternalPrompt?>,
     val fanInPickerSourceLanguage: MutableState<String?>,
@@ -219,6 +223,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
     val secondaryScopeMetaPrompt = rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     val pendingSecondaryScope = rememberSaveable(stateSaver = SecondaryScopeSaver) { mutableStateOf<SecondaryScope>(SecondaryScope.AllReports) }
     val pendingLanguageScope = rememberSaveable(stateSaver = SecondaryLanguageScopeSaver) { mutableStateOf<SecondaryLanguageScope>(SecondaryLanguageScope.AllPresent) }
+    val fanOutSelfRespond = rememberSaveable { mutableStateOf(false) }
     val fanOutConfirmMetaPrompt = rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     val fanInPickerPrompt = rememberSaveable(stateSaver = InternalPromptSaver) { mutableStateOf<InternalPrompt?>(null) }
     val fanInPickerSourceLanguage = rememberSaveable { mutableStateOf<String?>(null) }
@@ -301,6 +306,7 @@ internal fun rememberReportsScreenState(initialModels: List<ReportModel>): Repor
         secondaryScopeMetaPrompt,
         pendingSecondaryScope,
         pendingLanguageScope,
+        fanOutSelfRespond,
         fanOutConfirmMetaPrompt,
         fanInPickerPrompt,
         fanInPickerSourceLanguage,
