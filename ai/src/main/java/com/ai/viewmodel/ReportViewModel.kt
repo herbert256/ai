@@ -1416,7 +1416,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.clearPairIconFanOut(pairId)
             }
         appViewModel.clearIconFanOut(reportId)
-        ReportStorage.deleteReport(context, reportId)
+        // The disk delete (report file + per-report secondary dir) off the
+        // main thread; the cancellations above are non-blocking and must
+        // run synchronously first so nothing is still writing as we delete.
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            ReportStorage.deleteReport(context, reportId)
+        }
         if (cleared) dismissGenericReportsDialog()
     }
 
@@ -1714,6 +1719,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  Report screen's row click leads to a single-result viewer with a
      *  "Remove model from report" button — that's this. */
     fun removeAgentFromReport(context: Context, reportId: String, agentId: String) {
+        // Storage read-modify-write + per-orphan deletes off the main
+        // thread — this is fired from a UI click and was blocking it.
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
         ReportStorage.removeAgent(context, reportId, agentId)
         // Cascade: every TRANSLATE row whose translateSourceKind =
         // "AGENT" and translateSourceTargetId == this agent's id is
@@ -1741,6 +1749,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 genericReportsTotal = (state.genericReportsTotal - 1).coerceAtLeast(0),
                 genericReportsProgress = (state.genericReportsProgress - 1).coerceAtLeast(0)
             )
+        }
         }
     }
 
