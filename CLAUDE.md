@@ -7,8 +7,10 @@ having in the prompt window from the first turn.
 
 ## Project at a glance
 
-Android multi-provider AI app — reports, chat, dual chat, RAG
-knowledge bases, on-device LLM and embedder, share-target ingest.
+Android multi-provider AI app — reports, secondary results
+(rerank / meta / moderate / translate), fan-out / fan-in,
+share-target ingest. Reports-only: Chat, AI Knowledge/RAG,
+on-device models, and semantic search were removed.
 **42 cloud providers** across three API formats
 (`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`); 40 share unified
 code paths via the format dispatch, only Anthropic and Google
@@ -23,7 +25,7 @@ have format-specific code.
 | Persistence | SharedPreferences + JSON files in `<filesDir>` + Jetpack DataStore |
 | Networking | Retrofit + OkHttp + custom interceptors (tracing, 429 retry) |
 | Streaming | Kotlin Flow over SSE |
-| Size | ~106,440 LOC across 306 Kotlin files (61 data, 231 ui, 11 viewmodel, 2 model, 1 entry) |
+| Size | ~284 Kotlin files (52 data, 220 ui, 10 viewmodel, 2 model, 1 entry) after the Chat + Experimental-features removal |
 
 ## Documentation
 
@@ -38,9 +40,6 @@ Anything operational beyond this file is in `doc/`:
 - `doc/parameters.md` — how generation parameters resolve (precedence per call site)
 - `doc/system-prompts.md` — how the system prompt resolves per call site
 - `doc/workers.md` — Agents / Flocks / Swarms
-- `doc/knowledge.md` — RAG: KBs, nine extractors, embedding, retrieval
-- `doc/local-runtime.md` — `LocalLlm` + `LocalEmbedder` (synthetic `AppService.LOCAL`)
-- `doc/experimental.md` — the master Experimental-features toggle and what it hides
 - `doc/model-states.md` — Blocked / Cooldowns / Test-excluded / Inaccessible + type overrides
 - `doc/regenerate.md` — Get-info + the regenerate-batch orchestration engine
 - `doc/report-icons.md` — per-report emoji + per-agent 3-tier icon chain
@@ -82,7 +81,7 @@ adb install -r ai/build/outputs/apk/debug/ai-debug.apk \
 JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleRelease
 
 # Logcat — current tag set
-adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppViewModel|AtomicFileWrite|BackupManager|ChatHistoryManager|ImportExport|KnowledgeService|LocalEmbedder|LocalLlm|LocalRuntime|ModelListCache|PricingCache|ProviderRegistry|ReportExport|ReportStorage|SettingsExport"
+adb logcat | grep -E "AiAnalysis|ApiDispatch|ApiTracer|AppViewModel|AtomicFileWrite|BackupManager|ImportExport|ModelListCache|PricingCache|ProviderRegistry|ReportExport|ReportStorage|SettingsExport"
 ```
 
 ## Cycle convention (load-bearing)
@@ -117,29 +116,28 @@ explicit request**. The full procedures live in
 
 Top-level under `ai/src/main/java/com/ai/`:
 
-- `data/` (61 files) — provider model (`AppService`,
+- `data/` (~52 files) — provider model (`AppService`,
   `ApiFormat`), dispatch (`ApiDispatch`, `ApiStreaming`,
   `ApiClient`), tracing (`ApiTracer` + the in-memory
   `cachedTraceFiles` cache), retry interceptor, repository
   façade (`AnalysisRepository`), `PricingCache` (tier blobs in
   `<filesDir>/pricing/`, timestamps in `pricing_cache.xml`),
-  storage (`ReportStorage`, `ChatHistoryManager`,
-  `SecondaryResultStorage`, `PromptCache`, `ModelListCache`,
-  `EmbeddingsStore`, `ApiTracer`), RAG layer (`Knowledge*`,
-  `KnowledgeService`, `KnowledgeExtractors`), on-device runtime
-  (`LocalLlm`, `LocalEmbedder`), `BackupManager`, `AppDataStore`,
-  `SharedContent`.
+  storage (`ReportStorage`, `SecondaryResultStorage`,
+  `PromptCache`, `ModelListCache`, `ApiTracer`), `BackupManager`,
+  `AppDataStore`, `SharedContent`. (`ApiStreaming` keeps the SSE
+  parser + the report streaming path; the chat-only `sendChatStream`
+  was removed.)
 - `model/` (2 files) — settings data classes.
-- `viewmodel/` (11 files) — `AppViewModel`, `ChatViewModel`,
-  `ReportViewModel` plus extracted engines/managers
-  (`RegenerateBatchEngine`, `SecondaryRunManager`,
-  `IconGenerationManager`, …). Other view models delegate state to
-  `AppViewModel`.
-- `ui/` (231 files) — Compose screens grouped by domain
+- `viewmodel/` (~10 files) — `AppViewModel`, `ReportViewModel`
+  plus extracted engines/managers (`RegenerateBatchEngine`,
+  `SecondaryRunManager`, `IconGenerationManager`, …). Other view
+  models delegate state to `AppViewModel`.
+- `ui/` (~220 files) — Compose screens grouped by domain
   (`report/` ×66, `cruds/` ×52, `admin/` ×27, `settings/` ×22,
-  `helpers/`, `shared/`, `navigation/`, `other/`, `chat/`,
-  `search/`, `hub/`, `history/`, `share/`, `models/`,
-  `knowledge/`, `theme/`).
+  `helpers/`, `shared/`, `navigation/`, `other/`,
+  `search/` (keyword search only), `hub/`, `history/`, `share/`,
+  `models/`, `theme/`). The `chat/` and `knowledge/` domains were
+  removed.
 
 Two non-obvious conventions:
 
@@ -153,12 +151,12 @@ Two non-obvious conventions:
 
 ## Critical gotchas (the rest are in `doc/development.md`)
 
-- **`AppService.LOCAL` is synthetic.** Its id is `"Local"`. Not in
-  `ProviderRegistry`, reachable only via `AppService.findById`
-  (which special-cases `LOCAL.id` before delegating). Routes the
-  dispatch to `LocalLlm.generate` / `LocalEmbedder.embed` instead of
-  Retrofit. Surfaces as a normal "Local" provider in every picker.
-  See `doc/local-runtime.md`.
+- **`AppService.LOCAL` is now an INERT sentinel.** The on-device
+  runtime (`LocalLlm` / `LocalEmbedder`) was removed; `LOCAL` is kept
+  only as a synthetic-provider object (id `"Local"`) so old persisted
+  data deserializes and a couple of icon-fallback `?: AppService.LOCAL`
+  display sites still compile. It never appears in any picker and no
+  dispatch path executes it — don't wire new behaviour to it.
 - **Anthropic `max_tokens` is required** (defaults to 4096).
   OpenAI treats it as optional.
 - **Google auth uses `?key=` query param**, not `Authorization`.
@@ -180,15 +178,10 @@ Two non-obvious conventions:
   get `DEFAULT_PRICING` during the cold window — recomposition
   picks up real values once the preload finishes. Don't try to
   "fix" it by removing the guard.
-- **Backup excludes `local_llms/` + `local_models/`** via
-  `FILES_DIR_BACKUP_EXCLUDES`. The same set is preserved
-  through `clearFilesDirForRestore`. `doc/backup-restore.md`
+- **Backup still excludes `local_llms/` + `local_models/`** via
+  `FILES_DIR_BACKUP_EXCLUDES` (harmless — those dirs are now orphaned
+  since the on-device runtime was removed). `doc/backup-restore.md`
   has the full design.
-- **`KnowledgeChunk.embedding` is `FloatArray`**, not
-  `List<Double>`. Storage on disk is unchanged (Gson serialises
-  both as JSON arrays of numbers); the type matters for in-memory
-  heap and the primitive `EmbeddingsStore.cosine(FloatArray)`
-  hot path used by RAG retrieval.
 - **`RateLimitRetryInterceptor` retries 429s up to 5× with 3s
   back-off** and has an explicit `Looper.myLooper() ==
   getMainLooper()` guard. Don't remove the guard — it prevents

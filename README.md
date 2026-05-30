@@ -1,10 +1,10 @@
-# AI — Multi-Provider AI Reports & Chat
+# AI — Multi-Provider AI Reports
 
-Android app for AI-powered reports and conversations using 42 cloud
-AI services. Run the same prompt against many models at once,
-compare responses side-by-side, rerank / chat-meta / moderate /
-translate them, fan out one model's response into another's
-prompt, and chat with real-time streaming.
+Android app for AI-powered reports using 42 cloud AI services. Run
+the same prompt against many models at once, compare responses
+side-by-side with real-time streaming, rerank / chat-meta / moderate /
+translate them, and fan out one model's response into another's
+prompt.
 
 ## Features
 
@@ -25,13 +25,10 @@ prompt, and chat with real-time streaming.
   N model outputs into a ranked list, a content-policy verdict, or
   a multi-language translation; rerank routes through a provider's
   dedicated `/rerank` endpoint when the picked model supports it
-- **AI Chat** with multi-turn conversations, streaming, vision,
-  reasoning-effort selection, and auto-saved history
-- **AI Dual Chat** — two models in conversation with each other
-- **Reports Search** — Quick local search, Extended local search,
-  and Remote semantic search across your saved reports
+- **Reports Search** — Quick local search and Extended local search
+  (keyword) across your saved reports
 - **Share-Target** — receive `ACTION_SEND` from any app to start a
-  Report or Chat from the shared payload
+  Report from the shared payload
 - **AI Flocks** (agent groups) and **AI Swarms** (provider/model
   groups) for organising configurations
 - **Reusable Parameters** and **System Prompts** assignable to agents,
@@ -89,9 +86,6 @@ order:
 | [doc/system-prompts.md](doc/system-prompts.md) | How the system prompt resolves per call site |
 | [doc/secondary-results.md](doc/secondary-results.md) | Rerank / Meta prompts / Moderate / Translate / Fan-out / Fan-in deep dive |
 | [doc/workers.md](doc/workers.md) | AI Workers: Agents, Flocks, Swarms |
-| [doc/knowledge.md](doc/knowledge.md) | RAG: knowledge bases, nine extractors, embedding, retrieval |
-| [doc/local-runtime.md](doc/local-runtime.md) | On-device `LocalLlm` + `LocalEmbedder`, synthetic `AppService.LOCAL` |
-| [doc/experimental.md](doc/experimental.md) | The master Experimental-features toggle and what it hides |
 | [doc/model-states.md](doc/model-states.md) | Blocked / Cooldowns / Test-excluded / Inaccessible + type overrides |
 | [doc/regenerate.md](doc/regenerate.md) | Get-info + the regenerate-batch orchestration engine |
 | [doc/report-icons.md](doc/report-icons.md) | Per-report + per-model emoji from the worker engine; Find-alternative / Manual edit / Select icon |
