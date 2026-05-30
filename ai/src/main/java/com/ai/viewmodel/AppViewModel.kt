@@ -645,6 +645,53 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← system-prompts.json delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms", it)
         }
 
+        // Mirror of the prompt delta-merges for the bundled worker pools:
+        // workers/swarms.json — append any bundled Swarm whose name isn't
+        // present yet (e.g. the "workers" pool the worker prompts point at),
+        // so an APK upgrade lands it without the user importing by hand.
+        AppLog.d(tag, "→ workers/swarms.json delta-merge")
+        val tSwarms = System.currentTimeMillis()
+        runCatching {
+            val bundled = com.ai.data.SwarmSeed.loadFromAssets(application)
+            if (bundled.isNotEmpty()) {
+                val before = ai.swarms.size
+                val merged = com.ai.data.SwarmSeed.ensureAllPresent(ai.swarms, bundled)
+                val added = merged.size - before
+                if (added != 0) {
+                    ai = ai.copy(swarms = merged)
+                    settingsPrefs.saveSettings(ai)
+                }
+                AppLog.d(tag, "← workers/swarms.json delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (added=$added)")
+            } else {
+                AppLog.d(tag, "← workers/swarms.json delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (empty asset)")
+            }
+        }.onFailure {
+            AppLog.w(tag, "← workers/swarms.json delta-merge failed in ${System.currentTimeMillis() - tSwarms}ms", it)
+        }
+
+        // workers/flocks.json — same, resolving each flock's member agents
+        // by NAME against the current agent set (ai.agents is already
+        // loaded from prefs at this point).
+        AppLog.d(tag, "→ workers/flocks.json delta-merge")
+        val tFlocks = System.currentTimeMillis()
+        runCatching {
+            val bundled = com.ai.data.FlockSeed.loadFromAssets(application, ai.agents)
+            if (bundled.isNotEmpty()) {
+                val before = ai.flocks.size
+                val merged = com.ai.data.FlockSeed.ensureAllPresent(ai.flocks, bundled)
+                val added = merged.size - before
+                if (added != 0) {
+                    ai = ai.copy(flocks = merged)
+                    settingsPrefs.saveSettings(ai)
+                }
+                AppLog.d(tag, "← workers/flocks.json delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (added=$added)")
+            } else {
+                AppLog.d(tag, "← workers/flocks.json delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (empty asset)")
+            }
+        }.onFailure {
+            AppLog.w(tag, "← workers/flocks.json delta-merge failed in ${System.currentTimeMillis() - tFlocks}ms", it)
+        }
+
         // Mirror of the internal-prompts/ / examples.json delta-merge for
         // excluded.json: append any (provider, model) test-excluded
         // pair not yet present so APK upgrades that ship a curated

@@ -6,20 +6,14 @@
       "agentNames": [
         "Cerebras",
         "Anthropic",
-        "MiniMax",
         "DeepSeek",
         "Moonshot",
-        "Fireworks",
         "xAI",
         "Google",
         "Z.AI",
         "OpenAI",
         "Groq",
-        "Cohere",
-        "Together",
-        "Mistral",
-        "SiliconFlow",
-        "DeepInfra"
+        "Mistral"
       ],
       "paramsIds": []
     }
