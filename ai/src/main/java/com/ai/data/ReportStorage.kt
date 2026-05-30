@@ -13,6 +13,13 @@ import kotlin.concurrent.withLock
  */
 object ReportStorage {
     private const val REPORTS_DIR = "reports"
+    /** iconCalls `type` values for the report-level Find-alt title
+     *  fan-out (short + long report title, per-model title). These are
+     *  the only alt records with no structured cost field; see
+     *  [computeReportTotalCost]. Pair-title alts share "alt/model_title"
+     *  but carry attributedToSecondaryId, so the caller also filters on
+     *  that being null. */
+    private val TITLE_ALT_TYPES = setOf("alt/report_title", "alt/report_title_long", "alt/model_title")
     private val gson = createAppGson()
     private val lock = ReentrantLock()
     @Volatile private var reportsDir: File? = null
@@ -75,7 +82,20 @@ object ReportStorage {
             report.iconInputCost + report.iconOutputCost +
             report.titleInputCost + report.titleOutputCost +
             report.languageInputCost + report.languageOutputCost +
-            report.languageIconInputCost + report.languageIconOutputCost
+            report.languageIconInputCost + report.languageIconOutputCost +
+            // Find-alt title fan-out (report-title + model-title) is the
+            // one alt category with NO structured cost home — its spend
+            // lives only in the iconCalls audit (runTitleCandidate writes
+            // appendIconCall but bumps no titleInputCost / modelTitleInputCost).
+            // The cost table already counts it via its per-call rows, so
+            // without this term totalCost undercounts every alternative-
+            // title search. Restrict to attributedToSecondaryId == null so
+            // the pair-title-alt records (which DO have a structured home on
+            // their SecondaryResult and share the "alt/model_title" type)
+            // are excluded.
+            report.iconCalls
+                .filter { it.attributedToSecondaryId == null && it.type in TITLE_ALT_TYPES }
+                .sumOf { it.inputCost + it.outputCost }
 
     fun updateAgentStatus(
         context: Context, reportId: String, agentId: String, status: ReportStatus,
@@ -526,13 +546,18 @@ object ReportStorage {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
-            saveReport(report.copy(
+            val updated = report.copy(
                 iconInputTokens = report.iconInputTokens + inputTokens,
                 iconOutputTokens = report.iconOutputTokens + outputTokens,
                 iconInputCost = report.iconInputCost + inputCost,
                 iconOutputCost = report.iconOutputCost + outputCost,
                 timestamp = System.currentTimeMillis()
-            ))
+            )
+            // Find-alt report-icon fan-out spend feeds totalCost too;
+            // without this recompute the dashboards / bottom-bar total
+            // undercount every alt-icon search on the report icon.
+            updated.totalCost = computeReportTotalCost(updated)
+            saveReport(updated)
             true
         }
     }
@@ -656,13 +681,17 @@ object ReportStorage {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
-            saveReport(report.copy(
+            val updated = report.copy(
                 languageIconInputTokens = report.languageIconInputTokens + inputTokens,
                 languageIconOutputTokens = report.languageIconOutputTokens + outputTokens,
                 languageIconInputCost = report.languageIconInputCost + inputCost,
                 languageIconOutputCost = report.languageIconOutputCost + outputCost,
                 timestamp = System.currentTimeMillis()
-            ))
+            )
+            // See bumpReportIconCost: language-icon Find-alt spend feeds
+            // totalCost too, so recompute it here as well.
+            updated.totalCost = computeReportTotalCost(updated)
+            saveReport(updated)
             true
         }
     }
@@ -1017,10 +1046,18 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val newCalls = (report.iconCalls + record).toMutableList()
-            saveReport(report.copy(
+            val updated = report.copy(
                 iconCalls = newCalls,
                 timestamp = System.currentTimeMillis()
-            ))
+            )
+            // Title-alt records are the only iconCalls that feed totalCost
+            // directly (computeReportTotalCost sums TITLE_ALT_TYPES). Every
+            // other type already has its cost bumped onto a structured
+            // field by the caller, for which this recompute is a harmless
+            // idempotent refresh. Either way the report total stays live as
+            // the alt fan-out streams in.
+            updated.totalCost = computeReportTotalCost(updated)
+            saveReport(updated)
             true
         }
     }
@@ -1127,6 +1164,13 @@ object ReportStorage {
             // Per-agent icon spend also stays out of the live total
             // once the row is gone — same as the primary cost field.
             (removed.iconInputCost + removed.iconOutputCost).takeIf { it > 0.0 }?.let {
+                report.costsFromDeletedItems += it
+            }
+            // Per-agent model-title spend is summed into totalCost too
+            // (computeReportTotalCost adds modelTitleInputCost/OutputCost),
+            // so it must likewise roll into costsFromDeletedItems or the
+            // deleted row's title spend vanishes from the run's history.
+            (removed.modelTitleInputCost + removed.modelTitleOutputCost).takeIf { it > 0.0 }?.let {
                 report.costsFromDeletedItems += it
             }
             report.totalCost = computeReportTotalCost(report)
