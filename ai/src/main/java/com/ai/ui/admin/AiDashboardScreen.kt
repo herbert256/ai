@@ -122,76 +122,14 @@ fun AiLiveDashboardScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
 
-    // ---- live ticker: cheap in-memory snapshots only ----
-    val liveTick by produceState(0) { while (true) { delay(750); value++ } }
-    val caps = remember(liveTick) { ApiCallCaps.snapshot() }
-    val hosts = remember(liveTick) { ProviderThrottle.snapshot() }
-    val http1m = remember(liveTick) { HttpStatusStats.countsWithin(60_000) }
-    val http5m = remember(liveTick) { HttpStatusStats.countsWithin(5 * 60_000) }
-    val rt1m = remember(liveTick) { HttpStatusStats.timingWithin(60_000) }
-    val rt5m = remember(liveTick) { HttpStatusStats.timingWithin(5 * 60_000) }
-    val tok1m = remember(liveTick) { ApiUsageRates.tokensWithin(60_000) }
-    val tok5m = remember(liveTick) { ApiUsageRates.tokensWithin(5 * 60_000) }
-    val cost1m = remember(liveTick) { ApiUsageRates.costWithin(context, 60_000) }
-    val cost5m = remember(liveTick) { ApiUsageRates.costWithin(context, 5 * 60_000) }
-    val recentErrors = remember(liveTick) { HttpStatusStats.recentErrors(5) }
-    val slowest = remember(liveTick) { HttpStatusStats.slowestWithin(5 * 60_000, 3) }
-    val retries1m = remember(liveTick) { RetryStats.retriesWithin(60_000) }
-    val retryInFlight = remember(liveTick) { RetryStats.inFlightCount() }
-    val localRt = remember(liveTick) { com.ai.data.local.LocalRuntime.snapshot() }
-    val now = remember(liveTick) { System.currentTimeMillis() }
-    val logErr = remember(liveTick) { AppLog.lastWriterError }
-    val droppedLines = remember(liveTick) { AppLog.droppedLineCount }
-
-    // ---- live reactive flows ----
-    val thrFanOut by appViewModel.throttledFanOutPairs.collectAsState()
-    val thrMeta by appViewModel.throttledFanMetaPairs.collectAsState()
-    val cooldowns by ModelCooldownStore.cooldowns.collectAsState()
-    val testRun by reportViewModel.modelTestEngine.run.collectAsState()
-    // Active-runs + parked-on-gate sources (all reactive flows).
-    val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
-    val fanOutRuns by reportViewModel.fanOutEngine.runs.collectAsState()
-    val regenJobs by reportViewModel.regenerateBatchEngine.jobs.collectAsState()
-    val runningFanMeta by appViewModel.runningFanMetaPairs.collectAsState()
-    val thrTranslation by appViewModel.throttledTranslationItems.collectAsState()
-    val thrTest by reportViewModel.modelTestEngine.throttledKeys.collectAsState()
-    val parked = thrFanOut.size + thrMeta.size + thrTranslation.size + thrTest.size
-    val activeRuns = buildList {
-        translationRuns.values.forEach { r ->
-            if (!r.cancelled && !r.finished && r.completed < r.total) add(
-                DashRun("🌐", "→ ${r.targetLanguageName}", r.completed, r.total,
-                    r.items.count { it.status == com.ai.viewmodel.TranslationStatus.RUNNING },
-                    r.items.count { it.status == com.ai.viewmodel.TranslationStatus.PENDING })
-            )
-        }
-        fanOutRuns.values.forEach { r ->
-            if (!r.cancelled && r.runningCount + r.queuedCount > 0) add(
-                DashRun("🍱", r.metaPrompt.name, r.doneCount, r.totalPairs, r.runningCount, r.queuedCount)
-            )
-        }
-        regenJobs.values.forEach { j ->
-            if (j.status == com.ai.data.RegenerateJobStatus.RUNNING) add(
-                DashRun("🔁", "Regenerate",
-                    j.tasks.count { it.state == com.ai.data.RegenerateTaskState.SUCCESS }, j.tasks.size,
-                    j.tasks.count { it.state == com.ai.data.RegenerateTaskState.RUNNING },
-                    j.tasks.count { it.state == com.ai.data.RegenerateTaskState.WAITING })
-            )
-        }
-        if (runningFanMeta.isNotEmpty()) add(DashRun("🪄", "Fan Meta", 0, 0, runningFanMeta.size, 0))
-    }
-
-    // Trace-file count for the Health card — disk read, so off the 750 ms
-    // ticker: refresh on resume + a slow 10 s tick.
-    val refreshTick = resumeRefreshTick()
-    val slowTick by produceState(0) { while (true) { delay(10_000); value++ } }
-    val traceCount by produceState(0, refreshTick, slowTick) {
-        value = withContext(Dispatchers.IO) { ApiTracer.getTraceCount() }
-    }
-    // On-disk cache footprint — a recursive size walk, so also off the fast
-    // ticker (resume + the slow 10 s tick).
-    val disk by produceState(DiskUsageStats.Snapshot(), refreshTick, slowTick) {
-        value = withContext(Dispatchers.IO) { DiskUsageStats.snapshot(context) }
-    }
+    // Which collapsible cards are open. `remember` (not rememberSaveable) so
+    // the screen reopens all-collapsed each time — only the always-on Live
+    // activity card ticks until the user expands a card. Each card body owns
+    // its own ticker + data, so a collapsed (un-composed) card does zero work
+    // — that's the whole point: the screen no longer recomputes every metric
+    // every 750 ms.
+    var open by remember { mutableStateOf(emptySet<String>()) }
+    val toggle: (String) -> Unit = { k -> open = if (k in open) open - k else open + k }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -212,30 +150,21 @@ fun AiLiveDashboardScreen(
         ) {
             item { Spacer(Modifier.height(4.dp)) }
 
-            item { LiveActivitySection(caps, thrFanOut, thrMeta) }
-            if (activeRuns.isNotEmpty() || parked > 0) item { ActiveRunsSection(activeRuns, parked) }
-            item { SpendTokensSection(cost1m, cost5m, tok1m, tok5m) }
-            item { HttpCodesSection(http1m, http5m, onOpenTraceFilter) }
-            if (recentErrors.isNotEmpty()) item { RecentErrorsSection(recentErrors, now) }
-            item { ResponseTimesSection(rt1m, rt5m) }
-            if (slowest.isNotEmpty()) item { SlowestCallsSection(slowest) }
-            item { ThrottleSection(hosts, parked, retries1m, retryInFlight, onOpenTraceFilter) }
-
-            val activeCooldowns = cooldowns.filterValues { it > now }
-            if (activeCooldowns.isNotEmpty()) {
-                item { CooldownSection(activeCooldowns, now) }
-            }
-
-            testRun?.let { run -> item { TestRunSection(run, now) } }
-
-            if (localRt.active) item { LocalRuntimeSection(localRt) }
-
-            item {
-                HealthSection(
-                    logErr = logErr, droppedLines = droppedLines, traceCount = traceCount,
-                    disk = disk, busy = caps.globalInFlight > 0
-                )
-            }
+            // First card — always live (the cheap caps snapshot).
+            item { LiveActivityCard(appViewModel) }
+            // Everything else is collapsed on load; its body fetches + ticks
+            // only while open.
+            item { CollapsibleCard("active", "🏃", "Active runs", AppColors.Green, open, toggle) { ActiveRunsBody(appViewModel, reportViewModel) } }
+            item { CollapsibleCard("spend", "💸", "Spend & tokens", AppColors.Green, open, toggle) { SpendTokensBody(context) } }
+            item { CollapsibleCard("http", "📊", "HTTP responses", AppColors.Indigo, open, toggle) { HttpCodesBody(onOpenTraceFilter) } }
+            item { CollapsibleCard("errors", "⚠️", "Recent errors", AppColors.Red, open, toggle) { RecentErrorsBody() } }
+            item { CollapsibleCard("times", "⏱️", "Response times", AppColors.Indigo, open, toggle) { ResponseTimesBody() } }
+            item { CollapsibleCard("slow", "🐌", "Slowest calls", AppColors.Orange, open, toggle) { SlowestCallsBody() } }
+            item { CollapsibleCard("throttle", "🌐", "Provider throttle", AppColors.Blue, open, toggle) { ThrottleBody(appViewModel, reportViewModel, onOpenTraceFilter) } }
+            item { CollapsibleCard("cooldowns", "❄️", "Model cooldowns", AppColors.Orange, open, toggle) { CooldownBody() } }
+            item { CollapsibleCard("test", "🧪", "Test all models", AppColors.Purple, open, toggle) { TestRunBody(reportViewModel) } }
+            item { CollapsibleCard("local", "🧠", "Local runtime", AppColors.Purple, open, toggle) { LocalRuntimeBody() } }
+            item { CollapsibleCard("health", "🩺", "System health", AppColors.Green, open, toggle) { HealthBody(context) } }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
@@ -1325,6 +1254,54 @@ fun AiCostsTierScreen(
 // Live sections
 // =====================================================================
 
+/** A 750 ms ticker scoped to this composable's lifetime — a collapsed card's
+ *  body isn't composed, so its ticker never starts and it does no work. */
+@Composable
+private fun rememberLiveTick(periodMs: Long = 750): Int {
+    val tick by produceState(0) { while (true) { delay(periodMs); value++ } }
+    return tick
+}
+
+/** A card whose body is composed (and so fetches + ticks its data) only while
+ *  expanded. Tapping the header toggles it; the body does zero work while
+ *  collapsed. */
+@Composable
+private fun CollapsibleCard(
+    key: String, emoji: String, title: String, accent: Color,
+    open: Set<String>, onToggle: (String) -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val isOpen = key in open
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+        modifier = Modifier.fillMaxWidth().clickable { onToggle(key) }
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(emoji, fontSize = 16.sp)
+                Spacer(Modifier.width(8.dp))
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.weight(1f))
+                Text(if (isOpen) "▾" else "▸", fontSize = 15.sp, color = AppColors.TextTertiary)
+            }
+            if (isOpen) {
+                Spacer(Modifier.height(8.dp))
+                content()
+            }
+        }
+    }
+}
+
+/** First card — always live; the cheap caps snapshot keeps ticking even while
+ *  every other card is collapsed. */
+@Composable
+private fun LiveActivityCard(appViewModel: AppViewModel) {
+    val tick = rememberLiveTick()
+    val caps = remember(tick) { ApiCallCaps.snapshot() }
+    val thrFanOut by appViewModel.throttledFanOutPairs.collectAsState()
+    val thrMeta by appViewModel.throttledFanMetaPairs.collectAsState()
+    LiveActivitySection(caps, thrFanOut, thrMeta)
+}
+
 /** One active-runs row: a glyph + label and either `done/total` (+ bar) or
  *  `N running` when the total isn't known (fan-meta). */
 private data class DashRun(
@@ -1334,31 +1311,61 @@ private data class DashRun(
 
 /** What's actually running right now — translation / fan-out / regenerate /
  *  fan-meta batches by name, with progress and a parked-on-gate summary.
- *  Hidden when nothing is in flight. (Model-test has its own card.) */
+ *  Reactive (no ticker): updates straight off the run StateFlows. */
 @Composable
-private fun ActiveRunsSection(runs: List<DashRun>, parked: Int) {
-    SectionCard("🏃", "Active runs", AppColors.Green) {
-        if (runs.isEmpty()) {
-            Text("No batches running.", fontSize = 12.sp, color = AppColors.TextTertiary)
-        } else {
-            runs.forEach { r ->
-                Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(r.glyph, fontSize = 13.sp, modifier = Modifier.padding(end = 6.dp))
-                        Text(r.label, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                        Text(
-                            if (r.total > 0) "${r.done}/${r.total}" else "${r.running} running",
-                            fontSize = 12.sp, color = AppColors.TextSecondary
-                        )
-                    }
-                    if (r.total > 0) Bar(r.done.toFloat() / r.total, AppColors.Green)
+private fun ActiveRunsBody(appViewModel: AppViewModel, reportViewModel: ReportViewModel) {
+    val translationRuns by reportViewModel.translation.translationRuns.collectAsState()
+    val fanOutRuns by reportViewModel.fanOutEngine.runs.collectAsState()
+    val regenJobs by reportViewModel.regenerateBatchEngine.jobs.collectAsState()
+    val runningFanMeta by appViewModel.runningFanMetaPairs.collectAsState()
+    val thrFanOut by appViewModel.throttledFanOutPairs.collectAsState()
+    val thrMeta by appViewModel.throttledFanMetaPairs.collectAsState()
+    val thrTranslation by appViewModel.throttledTranslationItems.collectAsState()
+    val thrTest by reportViewModel.modelTestEngine.throttledKeys.collectAsState()
+    val parked = thrFanOut.size + thrMeta.size + thrTranslation.size + thrTest.size
+    val runs = buildList {
+        translationRuns.values.forEach { r ->
+            if (!r.cancelled && !r.finished && r.completed < r.total) add(
+                DashRun("🌐", "→ ${r.targetLanguageName}", r.completed, r.total,
+                    r.items.count { it.status == com.ai.viewmodel.TranslationStatus.RUNNING },
+                    r.items.count { it.status == com.ai.viewmodel.TranslationStatus.PENDING })
+            )
+        }
+        fanOutRuns.values.forEach { r ->
+            if (!r.cancelled && r.runningCount + r.queuedCount > 0) add(
+                DashRun("🍱", r.metaPrompt.name, r.doneCount, r.totalPairs, r.runningCount, r.queuedCount)
+            )
+        }
+        regenJobs.values.forEach { j ->
+            if (j.status == com.ai.data.RegenerateJobStatus.RUNNING) add(
+                DashRun("🔁", "Regenerate",
+                    j.tasks.count { it.state == com.ai.data.RegenerateTaskState.SUCCESS }, j.tasks.size,
+                    j.tasks.count { it.state == com.ai.data.RegenerateTaskState.RUNNING },
+                    j.tasks.count { it.state == com.ai.data.RegenerateTaskState.WAITING })
+            )
+        }
+        if (runningFanMeta.isNotEmpty()) add(DashRun("🪄", "Fan Meta", 0, 0, runningFanMeta.size, 0))
+    }
+    if (runs.isEmpty()) {
+        Text("No batches running.", fontSize = 12.sp, color = AppColors.TextTertiary)
+    } else {
+        runs.forEach { r ->
+            Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(r.glyph, fontSize = 13.sp, modifier = Modifier.padding(end = 6.dp))
+                    Text(r.label, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(
+                        if (r.total > 0) "${r.done}/${r.total}" else "${r.running} running",
+                        fontSize = 12.sp, color = AppColors.TextSecondary
+                    )
                 }
+                if (r.total > 0) Bar(r.done.toFloat() / r.total, AppColors.Green)
             }
         }
-        if (parked > 0) {
-            Spacer(Modifier.height(4.dp))
-            Text("Parked on a provider gate: $parked", fontSize = 11.sp, color = AppColors.Orange)
-        }
+    }
+    if (parked > 0) {
+        Spacer(Modifier.height(4.dp))
+        Text("Parked on a provider gate: $parked", fontSize = 11.sp, color = AppColors.Orange)
     }
 }
 
@@ -1416,47 +1423,53 @@ private fun twoLevelHost(host: String): String {
 }
 
 @Composable
-private fun ThrottleSection(
-    hosts: List<ProviderThrottle.HostThrottleStat>,
-    parked: Int, retries1m: Int, retryInFlight: Int,
+private fun ThrottleBody(
+    appViewModel: AppViewModel, reportViewModel: ReportViewModel,
     onOpenTraceFilter: (String, String) -> Unit,
 ) {
-    SectionCard("🌐", "Provider throttle", AppColors.Blue) {
-        // Pressure summary: items parked on a gate, retry rate, and how many
-        // calls are right now sleeping in a retry backoff.
-        if (parked > 0 || retries1m > 0 || retryInFlight > 0) {
-            Text(
-                "Parked $parked · retries 1m $retries1m · backing off $retryInFlight",
-                fontSize = 11.sp,
-                color = if (retryInFlight > 0 || parked > 0) AppColors.Orange else AppColors.TextSecondary
-            )
-            Spacer(Modifier.height(6.dp))
-        }
-        if (hosts.isEmpty()) {
-            Text("Idle — no active hosts.", fontSize = 12.sp, color = AppColors.TextTertiary)
-        } else {
-            val windowCap = NetworkSettings.maxCallsPerProviderPerMinute
-            hosts.forEach { h ->
-                val concColor = when {
-                    h.free == 0 -> AppColors.Red
-                    h.inUse > 0 -> AppColors.Orange
-                    else -> AppColors.Green
+    val tick = rememberLiveTick()
+    val hosts = remember(tick) { ProviderThrottle.snapshot() }
+    val retries1m = remember(tick) { RetryStats.retriesWithin(60_000) }
+    val retryInFlight = remember(tick) { RetryStats.inFlightCount() }
+    val thrFanOut by appViewModel.throttledFanOutPairs.collectAsState()
+    val thrMeta by appViewModel.throttledFanMetaPairs.collectAsState()
+    val thrTranslation by appViewModel.throttledTranslationItems.collectAsState()
+    val thrTest by reportViewModel.modelTestEngine.throttledKeys.collectAsState()
+    val parked = thrFanOut.size + thrMeta.size + thrTranslation.size + thrTest.size
+    // Pressure summary: items parked on a gate, retry rate, and how many
+    // calls are right now sleeping in a retry backoff.
+    if (parked > 0 || retries1m > 0 || retryInFlight > 0) {
+        Text(
+            "Parked $parked · retries 1m $retries1m · backing off $retryInFlight",
+            fontSize = 11.sp,
+            color = if (retryInFlight > 0 || parked > 0) AppColors.Orange else AppColors.TextSecondary
+        )
+        Spacer(Modifier.height(6.dp))
+    }
+    if (hosts.isEmpty()) {
+        Text("Idle — no active hosts.", fontSize = 12.sp, color = AppColors.TextTertiary)
+    } else {
+        val windowCap = NetworkSettings.maxCallsPerProviderPerMinute
+        hosts.forEach { h ->
+            val concColor = when {
+                h.free == 0 -> AppColors.Red
+                h.inUse > 0 -> AppColors.Orange
+                else -> AppColors.Green
+            }
+            Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(twoLevelHost(h.host), fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                    Spacer(Modifier.weight(1f))
+                    Text(
+                        "con ${h.inUse}/${h.limit}  ·  min ${h.windowCount}/$windowCap",
+                        fontSize = 11.sp, color = concColor
+                    )
+                    // 🐞 (trailing) → API Traces filtered to this host (full
+                    // host, not the trimmed display label).
+                    Spacer(Modifier.width(16.dp))
+                    Text("🐞", fontSize = 13.sp, modifier = Modifier.clickable { onOpenTraceFilter("host", h.host) })
                 }
-                Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(twoLevelHost(h.host), fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
-                        Spacer(Modifier.weight(1f))
-                        Text(
-                            "con ${h.inUse}/${h.limit}  ·  min ${h.windowCount}/$windowCap",
-                            fontSize = 11.sp, color = concColor
-                        )
-                        // 🐞 (trailing) → API Traces filtered to this host (full
-                        // host, not the trimmed display label).
-                        Spacer(Modifier.width(16.dp))
-                        Text("🐞", fontSize = 13.sp, modifier = Modifier.clickable { onOpenTraceFilter("host", h.host) })
-                    }
-                    Bar(if (h.limit > 0) h.inUse.toFloat() / h.limit else 0f, concColor)
-                }
+                Bar(if (h.limit > 0) h.inUse.toFloat() / h.limit else 0f, concColor)
             }
         }
     }
@@ -1473,20 +1486,20 @@ private fun fmtTokens(n: Long): String = when {
  *  the other rate cards, from [ApiUsageRates]. The 1-minute column is the
  *  live per-minute rate; cost is priced through the pricing cache. */
 @Composable
-private fun SpendTokensSection(
-    cost1: Double, cost5: Double,
-    tok1: ApiUsageRates.Tokens, tok5: ApiUsageRates.Tokens,
-) {
-    SectionCard("💸", "Spend & tokens", AppColors.Green) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.weight(1f))
-            Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
-            Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
-        }
-        SpendRow("Spend", money(cost1), money(cost5), AppColors.Green)
-        SpendRow("Tokens in", fmtTokens(tok1.inTok), fmtTokens(tok5.inTok), Color.White)
-        SpendRow("Tokens out", fmtTokens(tok1.outTok), fmtTokens(tok5.outTok), Color.White)
+private fun SpendTokensBody(context: android.content.Context) {
+    val tick = rememberLiveTick()
+    val cost1 = remember(tick) { ApiUsageRates.costWithin(context, 60_000) }
+    val cost5 = remember(tick) { ApiUsageRates.costWithin(context, 5 * 60_000) }
+    val tok1 = remember(tick) { ApiUsageRates.tokensWithin(60_000) }
+    val tok5 = remember(tick) { ApiUsageRates.tokensWithin(5 * 60_000) }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.weight(1f))
+        Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
+        Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
     }
+    SpendRow("Spend", money(cost1), money(cost5), AppColors.Green)
+    SpendRow("Tokens in", fmtTokens(tok1.inTok), fmtTokens(tok5.inTok), Color.White)
+    SpendRow("Tokens out", fmtTokens(tok1.outTok), fmtTokens(tok5.outTok), Color.White)
 }
 
 @Composable
@@ -1504,33 +1517,31 @@ private fun SpendRow(label: String, v1: String, v5: String, accent: Color) {
  *  because it's the rate-limit signal the live view cares about most;
  *  network failures land in "other". */
 @Composable
-private fun HttpCodesSection(
-    min1: HttpStatusStats.Counts, min5: HttpStatusStats.Counts,
-    onOpenTraceFilter: (String, String) -> Unit,
-) {
-    SectionCard("📊", "HTTP responses", AppColors.Indigo) {
-        // Derived throughput + success-rate over the last minute.
-        val total1 = min1.ok2xx + min1.r429 + min1.c4xx + min1.s5xx + min1.other
-        val okPct = if (total1 > 0) 100 * min1.ok2xx / total1 else 0
-        Text(
-            if (total1 > 0) "$total1 calls/min · $okPct% ok" else "idle — no calls in the last minute",
-            fontSize = 11.sp, color = if (total1 > 0 && okPct < 90) AppColors.Orange else AppColors.TextSecondary
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.weight(1f))
-            Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
-            Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
-            // Reserve the trailing 🐞 slot so the column headers line up.
-            Spacer(Modifier.width(16.dp))
-            Spacer(Modifier.width(22.dp))
-        }
-        HttpCodeRow("✅ 2xx", min1.ok2xx, min5.ok2xx, AppColors.Green) { onOpenTraceFilter("status", "2xx") }
-        HttpCodeRow("🚧 429", min1.r429, min5.r429, AppColors.Orange) { onOpenTraceFilter("status", "429") }
-        HttpCodeRow("⚠️ 4xx", min1.c4xx, min5.c4xx, AppColors.Orange) { onOpenTraceFilter("status", "4xx") }
-        HttpCodeRow("🔥 5xx", min1.s5xx, min5.s5xx, AppColors.Red) { onOpenTraceFilter("status", "5xx") }
-        HttpCodeRow("▫️ other", min1.other, min5.other, AppColors.TextDim) { onOpenTraceFilter("status", "other") }
+private fun HttpCodesBody(onOpenTraceFilter: (String, String) -> Unit) {
+    val tick = rememberLiveTick()
+    val min1 = remember(tick) { HttpStatusStats.countsWithin(60_000) }
+    val min5 = remember(tick) { HttpStatusStats.countsWithin(5 * 60_000) }
+    // Derived throughput + success-rate over the last minute.
+    val total1 = min1.ok2xx + min1.r429 + min1.c4xx + min1.s5xx + min1.other
+    val okPct = if (total1 > 0) 100 * min1.ok2xx / total1 else 0
+    Text(
+        if (total1 > 0) "$total1 calls/min · $okPct% ok" else "idle — no calls in the last minute",
+        fontSize = 11.sp, color = if (total1 > 0 && okPct < 90) AppColors.Orange else AppColors.TextSecondary
+    )
+    Spacer(Modifier.height(6.dp))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.weight(1f))
+        Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+        Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+        // Reserve the trailing 🐞 slot so the column headers line up.
+        Spacer(Modifier.width(16.dp))
+        Spacer(Modifier.width(22.dp))
     }
+    HttpCodeRow("✅ 2xx", min1.ok2xx, min5.ok2xx, AppColors.Green) { onOpenTraceFilter("status", "2xx") }
+    HttpCodeRow("🚧 429", min1.r429, min5.r429, AppColors.Orange) { onOpenTraceFilter("status", "429") }
+    HttpCodeRow("⚠️ 4xx", min1.c4xx, min5.c4xx, AppColors.Orange) { onOpenTraceFilter("status", "4xx") }
+    HttpCodeRow("🔥 5xx", min1.s5xx, min5.s5xx, AppColors.Red) { onOpenTraceFilter("status", "5xx") }
+    HttpCodeRow("▫️ other", min1.other, min5.other, AppColors.TextDim) { onOpenTraceFilter("status", "other") }
 }
 
 @Composable
@@ -1557,19 +1568,20 @@ private fun fmtMs(ms: Int): String =
  *  aggregate — average, fastest, median, p95, slowest — with a dash when the
  *  window has no samples. */
 @Composable
-private fun ResponseTimesSection(t1: HttpStatusStats.Timing, t5: HttpStatusStats.Timing) {
-    SectionCard("⏱️", "Response times", AppColors.Indigo) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Spacer(Modifier.weight(1f))
-            Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
-            Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
-        }
-        ResponseTimeRow("avg", t1.count, t1.avgMs, t5.count, t5.avgMs)
-        ResponseTimeRow("min", t1.count, t1.minMs, t5.count, t5.minMs)
-        ResponseTimeRow("median", t1.count, t1.medianMs, t5.count, t5.medianMs)
-        ResponseTimeRow("p95", t1.count, t1.p95Ms, t5.count, t5.p95Ms)
-        ResponseTimeRow("max", t1.count, t1.maxMs, t5.count, t5.maxMs)
+private fun ResponseTimesBody() {
+    val tick = rememberLiveTick()
+    val t1 = remember(tick) { HttpStatusStats.timingWithin(60_000) }
+    val t5 = remember(tick) { HttpStatusStats.timingWithin(5 * 60_000) }
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.weight(1f))
+        Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
+        Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
     }
+    ResponseTimeRow("avg", t1.count, t1.avgMs, t5.count, t5.avgMs)
+    ResponseTimeRow("min", t1.count, t1.minMs, t5.count, t5.minMs)
+    ResponseTimeRow("median", t1.count, t1.medianMs, t5.count, t5.medianMs)
+    ResponseTimeRow("p95", t1.count, t1.p95Ms, t5.count, t5.p95Ms)
+    ResponseTimeRow("max", t1.count, t1.maxMs, t5.count, t5.maxMs)
 }
 
 @Composable
@@ -1595,113 +1607,147 @@ private fun fmtAge(ms: Long): String {
 private fun errCodeLabel(code: Int): String = if (code == 0) "FAIL" else code.toString()
 
 /** Live feed of the most recent error responses / failures — host · model ·
- *  code · message · age. Hidden when there are none. Fed by
- *  [HttpStatusStats.recentErrors]; independent of the tracing toggle. */
+ *  code · message · age. Fed by [HttpStatusStats.recentErrors]; independent
+ *  of the tracing toggle. */
 @Composable
-private fun RecentErrorsSection(errors: List<HttpStatusStats.ErrorEvent>, now: Long) {
-    SectionCard("⚠️", "Recent errors", AppColors.Red) {
-        errors.forEach { e ->
-            val codeColor = if (e.code == 0 || e.code >= 500) AppColors.Red else AppColors.Orange
-            Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(errCodeLabel(e.code), fontSize = 12.sp, color = codeColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp))
-                    Text(twoLevelHost(e.host ?: "?"), fontSize = 12.sp, color = Color.White, maxLines = 1)
-                    e.model?.takeIf { it.isNotBlank() }?.let {
-                        Spacer(Modifier.width(6.dp))
-                        Text("· ${com.ai.ui.shared.shortModelName(it)}", fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    } ?: Spacer(Modifier.weight(1f))
-                    Text(fmtAge(now - e.t), fontSize = 11.sp, color = AppColors.TextTertiary)
-                }
-                Text(e.message, fontSize = 11.sp, color = AppColors.TextSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+private fun RecentErrorsBody() {
+    val tick = rememberLiveTick()
+    val errors = remember(tick) { HttpStatusStats.recentErrors(5) }
+    val now = remember(tick) { System.currentTimeMillis() }
+    if (errors.isEmpty()) {
+        Text("No errors recently.", fontSize = 12.sp, color = AppColors.TextTertiary)
+        return
+    }
+    errors.forEach { e ->
+        val codeColor = if (e.code == 0 || e.code >= 500) AppColors.Red else AppColors.Orange
+        Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(errCodeLabel(e.code), fontSize = 12.sp, color = codeColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp))
+                Text(twoLevelHost(e.host ?: "?"), fontSize = 12.sp, color = Color.White, maxLines = 1)
+                e.model?.takeIf { it.isNotBlank() }?.let {
+                    Spacer(Modifier.width(6.dp))
+                    Text("· ${com.ai.ui.shared.shortModelName(it)}", fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                } ?: Spacer(Modifier.weight(1f))
+                Text(fmtAge(now - e.t), fontSize = 11.sp, color = AppColors.TextTertiary)
             }
+            Text(e.message, fontSize = 11.sp, color = AppColors.TextSecondary, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
     }
 }
 
 /** The slowest calls in the last 5 minutes (host/model · duration), slowest
- *  first — names the call behind the Response-times p95/max. Hidden when
- *  there are no samples. */
+ *  first — names the call behind the Response-times p95/max. */
 @Composable
-private fun SlowestCallsSection(slow: List<HttpStatusStats.Slow>) {
-    SectionCard("🐌", "Slowest calls (5m)", AppColors.Orange) {
-        slow.forEach { s ->
-            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(twoLevelHost(s.host ?: "?"), fontSize = 12.sp, color = Color.White, maxLines = 1)
-                s.model?.takeIf { it.isNotBlank() }?.let {
-                    Spacer(Modifier.width(6.dp))
-                    Text("· ${com.ai.ui.shared.shortModelName(it)}", fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                } ?: Spacer(Modifier.weight(1f))
-                Text(fmtMs(s.durationMs.toInt()), fontSize = 12.sp, color = AppColors.Orange, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
-            }
+private fun SlowestCallsBody() {
+    val tick = rememberLiveTick()
+    val slow = remember(tick) { HttpStatusStats.slowestWithin(5 * 60_000, 3) }
+    if (slow.isEmpty()) {
+        Text("No calls in the last 5 minutes.", fontSize = 12.sp, color = AppColors.TextTertiary)
+        return
+    }
+    slow.forEach { s ->
+        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(twoLevelHost(s.host ?: "?"), fontSize = 12.sp, color = Color.White, maxLines = 1)
+            s.model?.takeIf { it.isNotBlank() }?.let {
+                Spacer(Modifier.width(6.dp))
+                Text("· ${com.ai.ui.shared.shortModelName(it)}", fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            } ?: Spacer(Modifier.weight(1f))
+            Text(fmtMs(s.durationMs.toInt()), fontSize = 12.sp, color = AppColors.Orange, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
         }
     }
 }
 
 @Composable
-private fun CooldownSection(active: Map<String, Long>, now: Long) {
-    SectionCard("❄️", "Model cooldowns", AppColors.Orange) {
-        active.entries.sortedBy { it.value }.take(12).forEach { (key, until) ->
-            val provider = key.substringBefore(":")
-            val model = key.substringAfter(":")
-            Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("$provider · $model", fontSize = 12.sp, color = Color.White, maxLines = 1)
-                Text(fmtDuration(until - now) + " left", fontSize = 12.sp, color = AppColors.Orange, fontWeight = FontWeight.Medium)
-            }
+private fun CooldownBody() {
+    val tick = rememberLiveTick()
+    val cooldowns by ModelCooldownStore.cooldowns.collectAsState()
+    val now = remember(tick) { System.currentTimeMillis() }
+    val active = cooldowns.filterValues { it > now }
+    if (active.isEmpty()) {
+        Text("No models cooling down.", fontSize = 12.sp, color = AppColors.TextTertiary)
+        return
+    }
+    active.entries.sortedBy { it.value }.take(12).forEach { (key, until) ->
+        val provider = key.substringBefore(":")
+        val model = key.substringAfter(":")
+        Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text("$provider · $model", fontSize = 12.sp, color = Color.White, maxLines = 1)
+            Text(fmtDuration(until - now) + " left", fontSize = 12.sp, color = AppColors.Orange, fontWeight = FontWeight.Medium)
         }
-        if (active.size > 12) {
-            Text("+ ${active.size - 12} more", fontSize = 11.sp, color = AppColors.TextTertiary)
-        }
+    }
+    if (active.size > 12) {
+        Text("+ ${active.size - 12} more", fontSize = 11.sp, color = AppColors.TextTertiary)
     }
 }
 
 @Composable
-private fun TestRunSection(run: ModelTestRunState, now: Long) {
-    val finished = run.doneCount + run.errorCount
-    SectionCard("🧪", "Test all models", AppColors.Purple) {
-        Bar(if (run.total > 0) finished.toFloat() / run.total else 0f, AppColors.Purple)
-        Spacer(Modifier.height(6.dp))
-        KeyVal("Progress", "$finished / ${run.total}")
-        KeyVal("Passed", "${run.doneCount}", AppColors.Green)
-        KeyVal("Failed", "${run.errorCount}", if (run.errorCount > 0) AppColors.Red else Color.White)
-        KeyVal("Running", "${run.runningCount}", AppColors.Orange)
-        KeyVal("Queued", "${run.queuedCount}")
-        KeyVal("Cost", money(run.totalCost), AppColors.Green)
-        KeyVal("Elapsed", fmtDuration(now - run.startedAt))
+private fun TestRunBody(reportViewModel: ReportViewModel) {
+    val tick = rememberLiveTick()
+    val run by reportViewModel.modelTestEngine.run.collectAsState()
+    val now = remember(tick) { System.currentTimeMillis() }
+    val r = run
+    if (r == null) {
+        Text("No test run active.", fontSize = 12.sp, color = AppColors.TextTertiary)
+        return
     }
+    val finished = r.doneCount + r.errorCount
+    Bar(if (r.total > 0) finished.toFloat() / r.total else 0f, AppColors.Purple)
+    Spacer(Modifier.height(6.dp))
+    KeyVal("Progress", "$finished / ${r.total}")
+    KeyVal("Passed", "${r.doneCount}", AppColors.Green)
+    KeyVal("Failed", "${r.errorCount}", if (r.errorCount > 0) AppColors.Red else Color.White)
+    KeyVal("Running", "${r.runningCount}", AppColors.Orange)
+    KeyVal("Queued", "${r.queuedCount}")
+    KeyVal("Cost", money(r.totalCost), AppColors.Green)
+    KeyVal("Elapsed", fmtDuration(now - r.startedAt))
 }
 
 @Composable
-private fun HealthSection(logErr: String?, droppedLines: Long, traceCount: Int, disk: DiskUsageStats.Snapshot, busy: Boolean) {
-    SectionCard("🩺", "System health", AppColors.Green) {
-        KeyVal("Log writer", if (logErr == null) "OK" else "ERROR", if (logErr == null) AppColors.Green else AppColors.Red)
-        if (logErr != null) Text(logErr, fontSize = 11.sp, color = AppColors.Red)
-        KeyVal("Dropped log lines", "$droppedLines", if (droppedLines > 0) AppColors.Orange else Color.White)
-        KeyVal("Trace files", "$traceCount (${fmtBytes(disk.traceBytes)})")
-        KeyVal("Embeddings on disk", fmtBytes(disk.embeddingsBytes))
-        KeyVal("Knowledge on disk", fmtBytes(disk.knowledgeBytes))
-        KeyVal("API activity", if (busy) "active" else "idle", if (busy) AppColors.Green else AppColors.TextDim)
-        KeyVal("Streaming timeout", "${NetworkSettings.streamingReadTimeoutSec}s")
-        KeyVal("Non-streaming timeout", "${NetworkSettings.nonStreamingReadTimeoutSec}s")
-        KeyVal("Per-minute cap / host", "${NetworkSettings.maxCallsPerProviderPerMinute}")
+private fun HealthBody(context: android.content.Context) {
+    val tick = rememberLiveTick()
+    val logErr = remember(tick) { AppLog.lastWriterError }
+    val droppedLines = remember(tick) { AppLog.droppedLineCount }
+    val busy = remember(tick) { ApiCallCaps.snapshot().globalInFlight > 0 }
+    // Disk + trace count are IO — slow 10 s tick (computed only while this
+    // card is open).
+    val slowTick by produceState(0) { while (true) { delay(10_000); value++ } }
+    val traceCount by produceState(0, slowTick) {
+        value = withContext(Dispatchers.IO) { ApiTracer.getTraceCount() }
     }
+    val disk by produceState(DiskUsageStats.Snapshot(), slowTick) {
+        value = withContext(Dispatchers.IO) { DiskUsageStats.snapshot(context) }
+    }
+    KeyVal("Log writer", if (logErr == null) "OK" else "ERROR", if (logErr == null) AppColors.Green else AppColors.Red)
+    if (logErr != null) Text(logErr, fontSize = 11.sp, color = AppColors.Red)
+    KeyVal("Dropped log lines", "$droppedLines", if (droppedLines > 0) AppColors.Orange else Color.White)
+    KeyVal("Trace files", "$traceCount (${fmtBytes(disk.traceBytes)})")
+    KeyVal("Embeddings on disk", fmtBytes(disk.embeddingsBytes))
+    KeyVal("Knowledge on disk", fmtBytes(disk.knowledgeBytes))
+    KeyVal("API activity", if (busy) "active" else "idle", if (busy) AppColors.Green else AppColors.TextDim)
+    KeyVal("Streaming timeout", "${NetworkSettings.streamingReadTimeoutSec}s")
+    KeyVal("Non-streaming timeout", "${NetworkSettings.nonStreamingReadTimeoutSec}s")
+    KeyVal("Per-minute cap / host", "${NetworkSettings.maxCallsPerProviderPerMinute}")
 }
 
 /** On-device runtime activity — which local LLM / embedder models are loaded
- *  and which (if any) is running right now. Shown only when something is
- *  loaded or active. */
+ *  and which (if any) is running right now. */
 @Composable
-private fun LocalRuntimeSection(rt: com.ai.data.local.LocalRuntime.Snapshot) {
-    SectionCard("🧠", "Local runtime", AppColors.Purple) {
-        if (rt.llmLoaded.isNotEmpty() || rt.llmGenerating != null) {
-            KeyVal("LLM loaded", rt.llmLoaded.joinToString(", ").ifBlank { "—" })
-            KeyVal("Generating", rt.llmGenerating ?: "idle",
-                if (rt.llmGenerating != null) AppColors.Green else AppColors.TextDim)
-        }
-        if (rt.embedderLoaded.isNotEmpty() || rt.embedding != null) {
-            KeyVal("Embedder loaded", rt.embedderLoaded.joinToString(", ").ifBlank { "—" })
-            KeyVal("Embedding", rt.embedding ?: "idle",
-                if (rt.embedding != null) AppColors.Green else AppColors.TextDim)
-        }
+private fun LocalRuntimeBody() {
+    val tick = rememberLiveTick()
+    val rt = remember(tick) { com.ai.data.local.LocalRuntime.snapshot() }
+    if (!rt.active) {
+        Text("No on-device model loaded.", fontSize = 12.sp, color = AppColors.TextTertiary)
+        return
+    }
+    if (rt.llmLoaded.isNotEmpty() || rt.llmGenerating != null) {
+        KeyVal("LLM loaded", rt.llmLoaded.joinToString(", ").ifBlank { "—" })
+        KeyVal("Generating", rt.llmGenerating ?: "idle",
+            if (rt.llmGenerating != null) AppColors.Green else AppColors.TextDim)
+    }
+    if (rt.embedderLoaded.isNotEmpty() || rt.embedding != null) {
+        KeyVal("Embedder loaded", rt.embedderLoaded.joinToString(", ").ifBlank { "—" })
+        KeyVal("Embedding", rt.embedding ?: "idle",
+            if (rt.embedding != null) AppColors.Green else AppColors.TextDim)
     }
 }
 
