@@ -29,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,9 +48,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.Report
 import com.ai.data.ReportAgent
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
+import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
@@ -113,9 +116,11 @@ fun FanOutViewScreen(
         val translates: List<SecondaryResult>
     )
 
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
     val loadedState = produceState(
         initialValue = Loaded(null, emptyList(), emptyList()),
-        currentReportId, currentPromptName
+        currentReportId, currentPromptName, reportDataVersion, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
             val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)

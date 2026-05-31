@@ -24,7 +24,8 @@ import com.ai.ui.shared.TitleBar
 fun TrimByAgeScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onDeleteReport: (String) -> Unit = {}
+    onDeleteReport: (String) -> Unit = {},
+    onDeleteReports: (List<String>) -> Unit = { ids -> ids.forEach(onDeleteReport) }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -64,7 +65,7 @@ fun TrimByAgeScreen(
                         onClick = {
                             showTrimConfirm = false
                             val reports = ReportStorage.getAllReports(context).filter { it.timestamp < cutoff }
-                            reports.forEach { onDeleteReport(it.id) }
+                            onDeleteReports(reports.map { it.id })
                             val chats = ChatHistoryManager.getAllSessions().filter { it.updatedAt < cutoff }
                             chats.forEach { ChatHistoryManager.deleteSession(it.id) }
                             val traces = ApiTracer.deleteTracesOlderThan(cutoff)

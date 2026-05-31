@@ -37,6 +37,7 @@ fun HistoryScreenNav(
      *  🔧 icon both keep firing onOpenReportResult (Manage). */
     onOpenReportView: (String) -> Unit = {},
     onDeleteReport: (String) -> Unit = {},
+    onDeleteReports: (List<String>) -> Unit = { ids -> ids.forEach(onDeleteReport) },
     onHousekeeping: (() -> Unit)? = null
 ) {
     BackHandler { onNavigateBack() }
@@ -180,7 +181,7 @@ fun HistoryScreenNav(
                         // sweep runs.
                         val reportsToDelete = allReports.map { it.id }
                         allReports = emptyList(); currentPage = 0
-                        reportsToDelete.forEach(onDeleteReport)
+                        onDeleteReports(reportsToDelete)
                     }) { Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false) }
                 },
                 dismissButton = {

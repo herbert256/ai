@@ -1373,8 +1373,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    /** Delete a report file and, if it's the one currently shown, dismiss the screen state. */
-    fun deleteReport(context: Context, reportId: String) {
+    private fun cancelReportOwnedWorkBeforeDelete(reportId: String): Boolean {
         val cleared = appViewModel.uiState.value.currentReportId == reportId
         // Cancel every in-flight coroutine attached to this report
         // BEFORE deleting it from disk. Otherwise:
@@ -1436,13 +1435,38 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.clearPairIconFanOut(pairId)
             }
         appViewModel.clearIconFanOut(reportId)
+        if (cleared) dismissGenericReportsDialog()
+        return cleared
+    }
+
+    /** Delete a report file and, if it's the one currently shown, dismiss the screen state. */
+    fun deleteReport(context: Context, reportId: String) {
+        cancelReportOwnedWorkBeforeDelete(reportId)
         // The disk delete (report file + per-report secondary dir) off the
         // main thread; the cancellations above are non-blocking and must
         // run synchronously first so nothing is still writing as we delete.
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             ReportStorage.deleteReport(context, reportId)
         }
-        if (cleared) dismissGenericReportsDialog()
+    }
+
+    fun bulkDeleteReports(
+        context: Context,
+        reportIds: List<String>,
+        onProgress: ((deleted: Int, total: Int) -> Unit)? = null,
+        onComplete: (() -> Unit)? = null
+    ): Job {
+        val ids = reportIds.distinct().filter { it.isNotBlank() }
+        ids.forEach { cancelReportOwnedWorkBeforeDelete(it) }
+        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            ids.forEachIndexed { index, reportId ->
+                ReportStorage.deleteReport(context, reportId)
+                if (onProgress != null) {
+                    withContext(Dispatchers.Main) { onProgress(index + 1, ids.size) }
+                }
+            }
+            if (onComplete != null) withContext(Dispatchers.Main) { onComplete() }
+        }
     }
 
     /** Toggle the persisted pinned flag for [reportId]. Pinned reports

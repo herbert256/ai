@@ -256,7 +256,8 @@ internal fun NavGraphBuilder.developerRoutes(
             com.ai.ui.admin.TrimByAgeScreen(
                 onBack = { navController.popBackStack() },
                 onNavigateHome = navigateHome,
-                onDeleteReport = { reportId -> reportViewModel.deleteReport(context, reportId) }
+                onDeleteReport = { reportId -> reportViewModel.deleteReport(context, reportId) },
+                onDeleteReports = { reportIds -> reportViewModel.bulkDeleteReports(context, reportIds) }
             )
         }
         composable(NavRoutes.AI_RESET) {

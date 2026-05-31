@@ -303,6 +303,8 @@ object ReportStorage {
         // report so /files/secondary/<reportId>/ doesn't accumulate orphans.
         SecondaryResultStorage.deleteAllForReport(context, reportId)
         RegenerateBatchStorage.delete(context, reportId)
+        ApiTracer.init(context)
+        ApiTracer.deleteTracesForReport(reportId)
         ReportDataVersion.bump()
     }
     fun deleteAllReports(context: Context): Int {
@@ -316,6 +318,8 @@ object ReportStorage {
         deletedIds.forEach { reportId ->
             SecondaryResultStorage.deleteAllForReport(context, reportId)
             RegenerateBatchStorage.delete(context, reportId)
+            ApiTracer.init(context)
+            ApiTracer.deleteTracesForReport(reportId)
         }
         if (deletedIds.isNotEmpty()) ReportDataVersion.bump()
         return deletedIds.size

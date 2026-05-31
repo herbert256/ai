@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -42,8 +43,10 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.data.InternalPromptIconCache
 import com.ai.data.Report
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
+import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
@@ -104,9 +107,11 @@ fun MetaViewScreen(
         val report: Report?
     )
 
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(null, emptyMap(), null),
-        currentReportId, currentResultId
+        currentReportId, currentResultId, reportDataVersion, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
             val r = SecondaryResultStorage.get(context, currentReportId, currentResultId)

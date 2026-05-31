@@ -170,6 +170,7 @@ internal fun NavGraphBuilder.knowledgeSearchRoutes(
                     }
                 },
                 onDeleteReport = { reportId -> reportViewModel.deleteReport(context, reportId) },
+                onDeleteReports = { reportIds -> reportViewModel.bulkDeleteReports(context, reportIds) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_TRIM_BY_AGE) }
             )
         }

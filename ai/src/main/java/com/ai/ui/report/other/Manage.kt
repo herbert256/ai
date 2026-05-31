@@ -44,7 +44,14 @@ import java.util.zip.ZipOutputStream
 fun ReportManageScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onDeleteReport: (String) -> Unit = {}
+    onDeleteReport: (String) -> Unit = {},
+    onDeleteReports: (List<String>, (deleted: Int, total: Int) -> Unit, () -> Unit) -> Unit = { ids, progress, complete ->
+        ids.forEachIndexed { index, id ->
+            onDeleteReport(id)
+            progress(index + 1, ids.size)
+        }
+        complete()
+    }
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -135,27 +142,41 @@ fun ReportManageScreen(
         // re-reads + parses every JSON, which can be MB-sized for
         // image-attached reports. The previous synchronous remember
         // ANR'd the UI thread on devices with hundreds of reports.
-        val candidatesState = produceState<List<com.ai.data.Report>?>(initialValue = null, daysText) {
+        val candidatesState = produceState<List<com.ai.data.Report>?>(initialValue = null, days, cutoff) {
             value = withContext(Dispatchers.IO) {
                 ReportStorage.getAllReports(context).filter { !it.pinned && it.timestamp < cutoff }
             }
         }
-        val candidates = candidatesState.value ?: emptyList()
+        val candidateList = candidatesState.value
+        val candidates = candidateList ?: emptyList()
+        val scanning = candidateList == null
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text("Delete ${candidates.size} reports?") },
-            text = { Text("Reports older than $days days (pinned excluded). This cannot be undone.") },
+            title = { Text(if (scanning) "Scanning reports…" else "Delete ${candidates.size} reports?") },
+            text = {
+                Text(
+                    if (scanning) "Finding reports older than $days days."
+                    else "Reports older than $days days (pinned excluded). This cannot be undone."
+                )
+            },
             confirmButton = {
-                TextButton(onClick = {
-                    confirmDelete = false
-                    working = true
-                    scope.launch {
-                        val n = candidates.size
-                        candidates.forEach { onDeleteReport(it.id) }
-                        status = "Deleted $n reports."
-                        working = false
+                TextButton(
+                    enabled = !scanning && candidates.isNotEmpty() && !working,
+                    onClick = {
+                        confirmDelete = false
+                        working = true
+                        val ids = candidates.map { it.id }
+                        status = "Deleting 0/${ids.size} reports…"
+                        onDeleteReports(
+                            ids,
+                            { deleted, total -> status = "Deleting $deleted/$total reports…" },
+                            {
+                                status = "Deleted ${ids.size} reports."
+                                working = false
+                            }
+                        )
                     }
-                }) { Text("Delete", color = AppColors.Red) }
+                ) { Text("Delete", color = AppColors.Red) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
         )

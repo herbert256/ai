@@ -317,6 +317,28 @@ object ApiTracer {
         ok
     }
 
+    fun deleteTracesForReport(reportId: String): Int = lock.withLock {
+        val dir = traceDir ?: return 0
+        if (!dir.exists()) return 0
+        var count = 0
+        val deletedNames = mutableSetOf<String>()
+        dir.listFiles()?.forEach { file ->
+            if (file.extension == "json") {
+                try {
+                    val info = parseTraceFileInfoStreaming(file)
+                    if (info?.reportId == reportId && file.delete()) {
+                        count++
+                        deletedNames += file.name
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+        cachedTraceFiles?.let { current ->
+            cachedTraceFiles = current.filterNot { it.filename in deletedNames }
+        }
+        count
+    }
+
     fun deleteTracesOlderThan(cutoffTimestamp: Long): Int = lock.withLock {
         val dir = traceDir ?: return 0
         if (!dir.exists()) return 0
@@ -493,4 +515,3 @@ object NetworkSettings {
     /** Wait between successive 529 retry attempts, in milliseconds. */
     @Volatile var retryBackoffMs529: Long = 1_000L
 }
-

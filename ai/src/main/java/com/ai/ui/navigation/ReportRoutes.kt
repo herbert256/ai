@@ -231,7 +231,10 @@ internal fun NavGraphBuilder.reportRoutes(
             com.ai.ui.report.other.ReportManageScreen(
                 onBack = safePopBack,
                 onNavigateHome = navigateHome,
-                onDeleteReport = { rid -> reportViewModel.deleteReport(context, rid) }
+                onDeleteReport = { rid -> reportViewModel.deleteReport(context, rid) },
+                onDeleteReports = { ids, progress, complete ->
+                    reportViewModel.bulkDeleteReports(context, ids, progress, complete)
+                }
             )
         }
         composable(NavRoutes.AI_NEW_REPORT) {

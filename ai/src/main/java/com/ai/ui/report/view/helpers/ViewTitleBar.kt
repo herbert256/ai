@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -48,6 +49,8 @@ import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.R
+import com.ai.data.ReportDataVersion
+import com.ai.data.SecondaryDataVersion
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.AiLogoButton
 import com.ai.ui.shared.ReportGlyphIcon
@@ -138,7 +141,9 @@ fun ViewTitleBar(
     // leaving the original [reportTitle] — when there's no language
     // context or no translation row.
     val context = LocalContext.current
-    val translatedTitle by produceState<String?>(null, reportId, activeLanguage) {
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
+    val translatedTitle by produceState<String?>(null, reportId, activeLanguage, reportDataVersion, secondaryDataVersion) {
         value = if (reportId != null && !activeLanguage.isNullOrBlank()) {
             withContext(Dispatchers.IO) {
                 val rep = ViewReportCache.get(context, reportId)
