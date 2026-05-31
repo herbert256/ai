@@ -18,7 +18,6 @@ import com.ai.data.PairStatus
 import com.ai.data.PricingCache
 import com.ai.data.ProviderThrottle
 import com.ai.data.ModelCooldownStore
-import com.ai.data.RESPONSE_CHANGE_SOURCE_CHAT
 import com.ai.data.RESPONSE_CHANGE_SOURCE_REASONING_EFFORT
 import com.ai.data.RESPONSE_CHANGE_SOURCE_TEMPERATURE
 import com.ai.data.RESPONSE_CHANGE_SOURCE_WEB_SEARCH
@@ -356,6 +355,539 @@ class FanOutEngine internal constructor(
         return LangCtx(native, translatedPrompt, bodies)
     }
 
+    private fun updateTemperatureSweepState(key: String, transform: (TemperatureSweepState) -> TemperatureSweepState) {
+        _temperatureSweepStates.update { current ->
+            val existing = current[key] ?: return@update current
+            current + (key to transform(existing))
+        }
+    }
+
+    private fun setTemperatureSweepCandidate(key: String, index: Int, candidate: TemperatureSweepCandidate) {
+        updateTemperatureSweepState(key) { state ->
+            state.copy(candidates = state.candidates.mapIndexed { i, old -> if (i == index) candidate else old })
+        }
+    }
+
+    fun clearFanOutTemperatureSweep(reportId: String, pairId: String) {
+        val key = TemperatureSweepState.key(reportId, pairId)
+        temperatureSweepJobs.remove(key)?.cancel()
+        _temperatureSweepStates.update { it - key }
+    }
+
+    private fun updateReasoningEffortSweepState(
+        key: String,
+        transform: (ReasoningEffortSweepState) -> ReasoningEffortSweepState
+    ) {
+        _reasoningEffortSweepStates.update { current ->
+            val existing = current[key] ?: return@update current
+            current + (key to transform(existing))
+        }
+    }
+
+    private fun setReasoningEffortCandidate(key: String, index: Int, candidate: ReasoningEffortCandidate) {
+        updateReasoningEffortSweepState(key) { state ->
+            state.copy(candidates = state.candidates.mapIndexed { i, old -> if (i == index) candidate else old })
+        }
+    }
+
+    fun clearFanOutReasoningEffortSweep(reportId: String, pairId: String) {
+        val key = ReasoningEffortSweepState.key(reportId, pairId)
+        reasoningEffortSweepJobs.remove(key)?.cancel()
+        _reasoningEffortSweepStates.update { it - key }
+    }
+
+    private fun updateWebSearchReplayState(key: String, transform: (WebSearchReplayState) -> WebSearchReplayState) {
+        _webSearchReplayStates.update { current ->
+            val existing = current[key] ?: return@update current
+            current + (key to transform(existing))
+        }
+    }
+
+    fun clearFanOutWebSearchReplay(reportId: String, pairId: String) {
+        val key = WebSearchReplayState.key(reportId, pairId)
+        webSearchReplayJobs.remove(key)?.cancel()
+        _webSearchReplayStates.update { it - key }
+    }
+
+    private data class FanOutPairReplayTask(
+        val reportId: String,
+        val provider: AppService,
+        val model: String,
+        val agent: Agent,
+        val prompt: String,
+        val resolvedParams: AgentParameters,
+        val baseUrl: String,
+        val aiSettings: Settings
+    )
+
+    private data class FanOutVariationCallResult(
+        val response: AnalysisResponse,
+        val cost: Double?,
+        val durationMs: Long,
+        val traceFile: String?
+    )
+
+    private fun resolveFanOutSourceCount(context: Context, report: Report, row: SecondaryResult): Int {
+        val successful = report.agents.filter {
+            it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+        }
+        val scoped = when (val scope = SecondaryScope.decodeOrAllReports(row.secondaryScope)) {
+            SecondaryScope.AllReports -> successful
+            is SecondaryScope.Manual -> successful.filter { it.agentId in scope.agentIds }
+            is SecondaryScope.TopRanked -> {
+                val rerank = SecondaryResultStorage.get(context, report.id, scope.rerankResultId)
+                val topIds = extractTopRankedIds(rerank?.content, scope.count)
+                if (topIds.isNullOrEmpty()) successful
+                else topIds.mapNotNull { idx -> successful.getOrNull(idx - 1) }
+            }
+        }
+        return scoped.size.takeIf { it > 0 } ?: successful.size.coerceAtLeast(1)
+    }
+
+    private fun buildFanOutPairReplayTask(context: Context, runKey: FanOutRunKey, pairId: String): FanOutPairReplayTask {
+        val run = _runs.value[runKey] ?: error("Fan-out run no longer exists")
+        val row = SecondaryResultStorage.get(context, run.reportId, pairId)
+            ?: error("Fan-out pair no longer exists")
+        val sourceId = row.fanOutSourceAgentId ?: error("This row is not a fan-out pair")
+        val report = ReportStorage.getReport(context, run.reportId) ?: error("Report not found")
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val provider = AppService.findById(row.providerId) ?: error("Provider ${row.providerId} is not registered")
+        val metaPrompt = row.metaPromptId?.let { aiSettings.getInternalPromptById(it) }
+            ?: row.metaPromptName?.let { aiSettings.getInternalPromptByName(it) }
+            ?: aiSettings.getInternalPromptById(run.metaPrompt.id)
+            ?: error("Fan-out prompt no longer exists")
+        val source = report.agents.firstOrNull { it.agentId == sourceId }
+            ?: error("Source model response no longer exists")
+        val langCtx = resolveLangCtx(context, run.reportId, report, row.targetLanguage)
+        val sourceBody = langCtx?.bodies?.get(source.agentId) ?: source.responseBody.orEmpty()
+        if (sourceBody.isBlank()) error("Source model response is empty")
+        val question = langCtx?.prompt ?: report.prompt
+        val resolvedBase = resolveSecondaryPrompt(
+            metaPrompt.text,
+            question = question,
+            results = "",
+            count = resolveFanOutSourceCount(context, report, row),
+            title = report.title
+        )
+        val resolvedPrompt = resolvedBase.replace("@RESPONSE@", sourceBody)
+        val agent = Agent(
+            id = "fanout:${row.id}",
+            name = row.agentName,
+            provider = provider,
+            model = row.model,
+            apiKey = aiSettings.getApiKey(provider)
+        )
+        val params = resolveSecondaryParams(
+            appViewModel.uiState.value.generalSettings,
+            aiSettings,
+            row.secondaryParameterPresetIds.orEmpty(),
+            row.secondarySystemPromptId,
+            metaPrompt
+        )
+        return FanOutPairReplayTask(
+            reportId = run.reportId,
+            provider = provider,
+            model = row.model,
+            agent = agent,
+            prompt = resolvedPrompt,
+            resolvedParams = params,
+            baseUrl = aiSettings.getEffectiveEndpointUrlForAgent(agent),
+            aiSettings = aiSettings
+        )
+    }
+
+    private fun fanOutWebSearchPrompt(prompt: String): String =
+        if (prompt.isBlank()) FAN_OUT_WEB_SEARCH_PROMPT_SUFFIX
+        else prompt.trimEnd() + "\n\n" + FAN_OUT_WEB_SEARCH_PROMPT_SUFFIX
+
+    private suspend fun runFanOutVariationCall(
+        context: Context,
+        task: FanOutPairReplayTask,
+        kind: String,
+        prompt: String = task.prompt,
+        resolvedParams: AgentParameters = task.resolvedParams,
+        overrideParams: AgentParameters? = null
+    ): FanOutVariationCallResult = withTracerTags(reportId = task.reportId, category = kind) {
+        val traceSink = AtomicReference<String?>(null)
+        val startTime = System.currentTimeMillis()
+        val response = try {
+            ApiCallCaps.fanOut.withPermit {
+                ApiCallCaps.global.withPermit {
+                    val releaser = acquireOrRequeue(providerHost(task.provider))
+                    try {
+                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                            withTraceFilenameSink(traceSink) {
+                                appViewModel.repository.analyzeWithAgent(
+                                    task.agent,
+                                    "",
+                                    prompt,
+                                    resolvedParams,
+                                    overrideParams,
+                                    context,
+                                    task.baseUrl,
+                                    aiSettings = task.aiSettings
+                                )
+                            }
+                        }
+                    } finally {
+                        releaser.release()
+                    }
+                }
+            }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            AnalysisResponse(
+                service = task.provider,
+                analysis = null,
+                error = (e.message ?: "Unknown error").take(2000),
+                agentName = task.agent.name
+            )
+        }
+        val durationMs = System.currentTimeMillis() - startTime
+        val cost = calculateResponseCost(context, task.provider, task.model, response.tokenUsage)
+        if (response.error == null && response.tokenUsage != null) {
+            val usage = response.tokenUsage
+            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                task.provider,
+                task.model,
+                usage.inputTokens,
+                usage.outputTokens,
+                usage.totalTokens,
+                kind = kind
+            )
+        }
+        FanOutVariationCallResult(response, cost, durationMs, traceSink.get())
+    }
+
+    fun startFanOutTemperatureSweep(
+        context: Context,
+        runKey: FanOutRunKey,
+        pairId: String,
+        temperatures: List<Float>
+    ): Job {
+        val run = _runs.value[runKey]
+        val reportId = run?.reportId ?: runKey.substringBefore('|')
+        val key = TemperatureSweepState.key(reportId, pairId)
+        val temps = temperatures.take(3)
+        temperatureSweepJobs.remove(key)?.cancel()
+        _temperatureSweepStates.update {
+            it + (key to TemperatureSweepState(
+                reportId = reportId,
+                agentId = pairId,
+                candidates = temps.map { temp -> TemperatureSweepCandidate.Pending(temp) },
+                isRunning = true
+            ))
+        }
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val task = buildFanOutPairReplayTask(context, runKey, pairId)
+                val supportedParams = PricingCache.getSupportedParameters(context, task.provider, task.model)
+                if (supportedParams != null && supportedParams.none { it.equals("temperature", ignoreCase = true) }) {
+                    val msg = "${task.provider.id}/${task.model} does not report temperature support."
+                    updateTemperatureSweepState(key) { sweep ->
+                        sweep.copy(
+                            isRunning = false,
+                            unavailableMessage = msg,
+                            candidates = sweep.candidates.map { candidate ->
+                                TemperatureSweepCandidate.Error(candidate.temperature, msg, null, null, null)
+                            }
+                        )
+                    }
+                    return@launch
+                }
+                val range = temperatureRangeForProvider(task.provider)
+                val invalidTemp = temps.firstOrNull { !range.contains(it) }
+                if (temps.size != 3 || invalidTemp != null) {
+                    val msg = "${task.provider.id}/${task.model} allows temperature " +
+                        "${formatSweepTemperature(range.min)}..${formatSweepTemperature(range.max)}."
+                    updateTemperatureSweepState(key) { sweep ->
+                        sweep.copy(
+                            isRunning = false,
+                            unavailableMessage = msg,
+                            candidates = sweep.candidates.map { candidate ->
+                                TemperatureSweepCandidate.Error(candidate.temperature, msg, null, null, null)
+                            }
+                        )
+                    }
+                    return@launch
+                }
+                val canReason = task.aiSettings.acceptsReasoningEffortParam(task.provider, task.model)
+                val canWeb = task.aiSettings.isWebSearchCapable(task.provider, task.model)
+                val baseParams = task.resolvedParams.copy(
+                    webSearchTool = task.resolvedParams.webSearchTool && canWeb,
+                    reasoningEffort = if (canReason) task.resolvedParams.reasoningEffort else null
+                )
+                temps.forEachIndexed { index, temp ->
+                    setTemperatureSweepCandidate(key, index, TemperatureSweepCandidate.Running(temp))
+                    val result = runFanOutVariationCall(
+                        context = context,
+                        task = task,
+                        kind = FAN_OUT_TEMPERATURE_CALL_KIND,
+                        resolvedParams = baseParams,
+                        overrideParams = AgentParameters(temperature = temp)
+                    )
+                    val response = result.response
+                    val candidate = if (response.isSuccess && !response.analysis.isNullOrBlank()) {
+                        TemperatureSweepCandidate.Success(
+                            temperature = temp,
+                            response = response.analysis,
+                            tokenUsage = response.tokenUsage,
+                            cost = result.cost,
+                            durationMs = result.durationMs,
+                            traceFile = result.traceFile
+                        )
+                    } else {
+                        TemperatureSweepCandidate.Error(
+                            temperature = temp,
+                            message = response.error ?: "No response body",
+                            httpStatusCode = response.httpStatusCode,
+                            durationMs = result.durationMs,
+                            traceFile = result.traceFile
+                        )
+                    }
+                    setTemperatureSweepCandidate(key, index, candidate)
+                }
+                updateTemperatureSweepState(key) { it.copy(isRunning = false) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                updateTemperatureSweepState(key) {
+                    it.copy(isRunning = false, unavailableMessage = (e.message ?: "Temperature sweep failed").take(2000))
+                }
+            }
+        }
+        temperatureSweepJobs[key] = job
+        job.invokeOnCompletion { temperatureSweepJobs.remove(key, job) }
+        return job
+    }
+
+    fun applyFanOutTemperatureCandidate(context: Context, runKey: FanOutRunKey, pairId: String, candidateIndex: Int) {
+        val run = _runs.value[runKey] ?: return
+        val key = TemperatureSweepState.key(run.reportId, pairId)
+        val candidate = _temperatureSweepStates.value[key]?.candidates
+            ?.getOrNull(candidateIndex) as? TemperatureSweepCandidate.Success ?: return
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            applyFanOutPairContent(
+                context = context,
+                runKey = runKey,
+                pairId = pairId,
+                content = candidate.response,
+                changeSource = RESPONSE_CHANGE_SOURCE_TEMPERATURE,
+                changeValue = formatSweepTemperature(candidate.temperature)
+            )
+            _temperatureSweepStates.update { it - key }
+        }
+    }
+
+    fun startFanOutReasoningEffortSweep(
+        context: Context,
+        runKey: FanOutRunKey,
+        pairId: String,
+        efforts: List<String?>
+    ): Job {
+        val run = _runs.value[runKey]
+        val reportId = run?.reportId ?: runKey.substringBefore('|')
+        val key = ReasoningEffortSweepState.key(reportId, pairId)
+        val requestedEfforts = efforts
+        reasoningEffortSweepJobs.remove(key)?.cancel()
+        _reasoningEffortSweepStates.update {
+            it + (key to ReasoningEffortSweepState(
+                reportId = reportId,
+                agentId = pairId,
+                candidates = requestedEfforts.map { effort -> ReasoningEffortCandidate.Pending(effort) },
+                isRunning = true
+            ))
+        }
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val task = buildFanOutPairReplayTask(context, runKey, pairId)
+                if (!task.aiSettings.acceptsReasoningEffortParam(task.provider, task.model)) {
+                    val msg = "${task.provider.id}/${task.model} does not accept controllable reasoning effort."
+                    updateReasoningEffortSweepState(key) { sweep ->
+                        sweep.copy(
+                            isRunning = false,
+                            unavailableMessage = msg,
+                            candidates = sweep.candidates.map { candidate ->
+                                ReasoningEffortCandidate.Error(candidate.effort, msg, null, null, null)
+                            }
+                        )
+                    }
+                    return@launch
+                }
+                val supportedLevels = task.aiSettings.getProvider(task.provider)
+                    .modelCapabilities[task.model]
+                    ?.reasoningEffortLevels
+                    ?.map { it.lowercase(Locale.US) }
+                    ?.toSet()
+                val canWeb = task.aiSettings.isWebSearchCapable(task.provider, task.model)
+                val baseParams = task.resolvedParams.copy(
+                    webSearchTool = task.resolvedParams.webSearchTool && canWeb,
+                    reasoningEffort = null
+                )
+                requestedEfforts.forEachIndexed { index, effort ->
+                    if (effort != null && supportedLevels != null && effort !in supportedLevels) {
+                        val msg = "${formatSweepReasoningEffort(effort)} reasoning effort is not reported as supported by " +
+                            "${task.provider.id}/${task.model}."
+                        setReasoningEffortCandidate(
+                            key,
+                            index,
+                            ReasoningEffortCandidate.Error(effort, msg, null, null, null)
+                        )
+                        return@forEachIndexed
+                    }
+                    setReasoningEffortCandidate(key, index, ReasoningEffortCandidate.Running(effort))
+                    val result = runFanOutVariationCall(
+                        context = context,
+                        task = task,
+                        kind = FAN_OUT_REASONING_CALL_KIND,
+                        resolvedParams = if (effort == null) baseParams else baseParams.copy(reasoningEffort = task.resolvedParams.reasoningEffort),
+                        overrideParams = effort?.let { AgentParameters(reasoningEffort = it) }
+                    )
+                    val response = result.response
+                    val candidate = if (response.isSuccess && !response.analysis.isNullOrBlank()) {
+                        ReasoningEffortCandidate.Success(
+                            effort = effort,
+                            response = response.analysis,
+                            tokenUsage = response.tokenUsage,
+                            cost = result.cost,
+                            durationMs = result.durationMs,
+                            traceFile = result.traceFile
+                        )
+                    } else {
+                        ReasoningEffortCandidate.Error(
+                            effort = effort,
+                            message = response.error ?: "No response body",
+                            httpStatusCode = response.httpStatusCode,
+                            durationMs = result.durationMs,
+                            traceFile = result.traceFile
+                        )
+                    }
+                    setReasoningEffortCandidate(key, index, candidate)
+                }
+                updateReasoningEffortSweepState(key) { it.copy(isRunning = false) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                updateReasoningEffortSweepState(key) {
+                    it.copy(isRunning = false, unavailableMessage = (e.message ?: "Reasoning effort sweep failed").take(2000))
+                }
+            }
+        }
+        reasoningEffortSweepJobs[key] = job
+        job.invokeOnCompletion { reasoningEffortSweepJobs.remove(key, job) }
+        return job
+    }
+
+    fun applyFanOutReasoningEffortCandidate(context: Context, runKey: FanOutRunKey, pairId: String, candidateIndex: Int) {
+        val run = _runs.value[runKey] ?: return
+        val key = ReasoningEffortSweepState.key(run.reportId, pairId)
+        val candidate = _reasoningEffortSweepStates.value[key]?.candidates
+            ?.getOrNull(candidateIndex) as? ReasoningEffortCandidate.Success ?: return
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            applyFanOutPairContent(
+                context = context,
+                runKey = runKey,
+                pairId = pairId,
+                content = candidate.response,
+                changeSource = RESPONSE_CHANGE_SOURCE_REASONING_EFFORT,
+                changeValue = formatSweepReasoningEffort(candidate.effort)
+            )
+            _reasoningEffortSweepStates.update { it - key }
+        }
+    }
+
+    fun startFanOutWebSearchReplay(context: Context, runKey: FanOutRunKey, pairId: String): Job {
+        val run = _runs.value[runKey]
+        val reportId = run?.reportId ?: runKey.substringBefore('|')
+        val key = WebSearchReplayState.key(reportId, pairId)
+        webSearchReplayJobs.remove(key)?.cancel()
+        _webSearchReplayStates.update {
+            it + (key to WebSearchReplayState(
+                reportId = reportId,
+                agentId = pairId,
+                result = WebSearchReplayResult.Running,
+                isRunning = true
+            ))
+        }
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val task = buildFanOutPairReplayTask(context, runKey, pairId)
+                if (!task.aiSettings.isWebSearchCapable(task.provider, task.model)) {
+                    val msg = "${task.provider.id}/${task.model} does not report web-search support."
+                    updateWebSearchReplayState(key) {
+                        it.copy(
+                            isRunning = false,
+                            result = WebSearchReplayResult.Error(msg, null, null, null),
+                            unavailableMessage = msg
+                        )
+                    }
+                    return@launch
+                }
+                val canReason = task.aiSettings.acceptsReasoningEffortParam(task.provider, task.model)
+                val baseParams = task.resolvedParams.copy(
+                    reasoningEffort = if (canReason) task.resolvedParams.reasoningEffort else null
+                )
+                val result = runFanOutVariationCall(
+                    context = context,
+                    task = task,
+                    kind = FAN_OUT_WEB_SEARCH_CALL_KIND,
+                    prompt = fanOutWebSearchPrompt(task.prompt),
+                    resolvedParams = baseParams,
+                    overrideParams = AgentParameters(webSearchTool = true)
+                )
+                val response = result.response
+                val replay = if (response.isSuccess && !response.analysis.isNullOrBlank()) {
+                    WebSearchReplayResult.Success(
+                        response = response.analysis,
+                        tokenUsage = response.tokenUsage,
+                        cost = result.cost,
+                        durationMs = result.durationMs,
+                        traceFile = result.traceFile
+                    )
+                } else {
+                    WebSearchReplayResult.Error(
+                        message = response.error ?: "No response body",
+                        httpStatusCode = response.httpStatusCode,
+                        durationMs = result.durationMs,
+                        traceFile = result.traceFile
+                    )
+                }
+                updateWebSearchReplayState(key) { it.copy(isRunning = false, result = replay) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val msg = (e.message ?: "Web search replay failed").take(2000)
+                updateWebSearchReplayState(key) {
+                    it.copy(
+                        isRunning = false,
+                        result = WebSearchReplayResult.Error(msg, null, null, null),
+                        unavailableMessage = msg
+                    )
+                }
+            }
+        }
+        webSearchReplayJobs[key] = job
+        job.invokeOnCompletion { webSearchReplayJobs.remove(key, job) }
+        return job
+    }
+
+    fun applyFanOutWebSearchReplay(context: Context, runKey: FanOutRunKey, pairId: String) {
+        val run = _runs.value[runKey] ?: return
+        val key = WebSearchReplayState.key(run.reportId, pairId)
+        val result = _webSearchReplayStates.value[key]?.result as? WebSearchReplayResult.Success ?: return
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            applyFanOutPairContent(
+                context = context,
+                runKey = runKey,
+                pairId = pairId,
+                content = result.response,
+                changeSource = RESPONSE_CHANGE_SOURCE_WEB_SEARCH
+            )
+            _webSearchReplayStates.update { it - key }
+        }
+    }
+
     /** Launch a brand-new fan-out run. The single canonical launch
      *  path (replaces the legacy `SecondaryRunManager.runFanOutPrompt`):
      *  resolves the scope + responder set, pre-creates every
@@ -550,7 +1082,18 @@ class FanOutEngine internal constructor(
         runJobs.filterKeys { it.startsWith(prefix) }.values.forEach { it.cancel() }
         _runs.value.filterKeys { it.startsWith(prefix) }
             .values.flatMap { it.pairs.values.map { p -> p.id } }
-            .forEach { pairJobs[it]?.cancel() }
+            .forEach {
+                pairJobs[it]?.cancel()
+                temperatureSweepJobs[TemperatureSweepState.key(reportId, it)]?.cancel()
+                reasoningEffortSweepJobs[ReasoningEffortSweepState.key(reportId, it)]?.cancel()
+                webSearchReplayJobs[WebSearchReplayState.key(reportId, it)]?.cancel()
+            }
+        temperatureSweepJobs.keys.filter { it.startsWith(prefix) }.forEach { temperatureSweepJobs.remove(it)?.cancel() }
+        reasoningEffortSweepJobs.keys.filter { it.startsWith(prefix) }.forEach { reasoningEffortSweepJobs.remove(it)?.cancel() }
+        webSearchReplayJobs.keys.filter { it.startsWith(prefix) }.forEach { webSearchReplayJobs.remove(it)?.cancel() }
+        _temperatureSweepStates.update { it.filterKeys { key -> !key.startsWith(prefix) } }
+        _reasoningEffortSweepStates.update { it.filterKeys { key -> !key.startsWith(prefix) } }
+        _webSearchReplayStates.update { it.filterKeys { key -> !key.startsWith(prefix) } }
         dropRunsForReport(reportId)
     }
 

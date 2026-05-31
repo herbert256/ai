@@ -983,7 +983,9 @@ class SecondaryRunManager(
                             targetLanguageNative = seedLang.second,
                             metaPromptId = metaPrompt.id,
                             metaPromptName = metaPrompt.name,
-                            secondaryScope = scopeChoice.encode()
+                            secondaryScope = scopeChoice.encode(),
+                            secondaryParameterPresetIds = paramsIds,
+                            secondarySystemPromptId = systemPromptId
                         )
                     }
                 }

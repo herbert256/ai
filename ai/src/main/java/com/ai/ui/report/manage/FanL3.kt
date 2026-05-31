@@ -46,10 +46,16 @@ import com.ai.data.PairState
 import com.ai.data.PairStatus
 import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStorage
+import com.ai.data.RESPONSE_CHANGE_SOURCE_CHAT
 import com.ai.data.SecondaryResultStorage
+import com.ai.data.TemperatureRange
 import com.ai.data.UserNote
 import com.ai.data.notesFor
 import com.ai.data.toPairState
+import com.ai.data.temperatureRangeForProvider
+import com.ai.ui.report.manage.view.ReasoningEffortSweepScreen
+import com.ai.ui.report.manage.view.TemperatureSweepScreen
+import com.ai.ui.report.manage.view.WebSearchReplayScreen
 import androidx.compose.runtime.collectAsState
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
@@ -63,6 +69,9 @@ import com.ai.viewmodel.FanOutEngine
 import kotlinx.coroutines.Dispatchers
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.produceState
+import com.ai.viewmodel.ReasoningEffortSweepState
+import com.ai.viewmodel.TemperatureSweepState
+import com.ai.viewmodel.WebSearchReplayState
 import kotlinx.coroutines.withContext
 
 /**
@@ -227,12 +236,81 @@ internal fun FanOutL3Screen(
     val pairFresh by produceState<com.ai.data.SecondaryResult?>(null, pair.id, secDataVersion) {
         value = withContext(Dispatchers.IO) { SecondaryResultStorage.get(context, run.reportId, pair.id) }
     }
+    val pairBody = pairFresh?.content ?: pair.content
+    val responseChangeLabel = (pairFresh?.responseChangeSource ?: pair.responseChangeSource)
+        ?.takeIf { it.isNotBlank() }
+        ?.let { source ->
+            (pairFresh?.responseChangeValue ?: pair.responseChangeValue)
+                ?.takeIf { it.isNotBlank() }
+                ?.let { value -> "Changed by $source: $value" }
+                ?: "Changed by $source"
+        }
+    val canChangePairResponse = answererProviderService != null && !pairBody.isNullOrBlank()
+    val temperatureSweepStates by engine.temperatureSweepStates.collectAsState()
+    val reasoningEffortSweepStates by engine.reasoningEffortSweepStates.collectAsState()
+    val webSearchReplayStates by engine.webSearchReplayStates.collectAsState()
+    val temperatureSweepKey = TemperatureSweepState.key(run.reportId, pair.id)
+    val reasoningEffortSweepKey = ReasoningEffortSweepState.key(run.reportId, pair.id)
+    val webSearchReplayKey = WebSearchReplayState.key(run.reportId, pair.id)
+    var showTemperatureSweep by remember { mutableStateOf(false) }
+    var showReasoningEffortSweep by remember { mutableStateOf(false) }
+    var showWebSearchReplay by remember { mutableStateOf(false) }
+    if (showTemperatureSweep) {
+        TemperatureSweepScreen(
+            reportId = run.reportId,
+            agentId = pair.id,
+            modelLabel = answererLabel,
+            temperatureRange = answererProviderService?.let(::temperatureRangeForProvider) ?: TemperatureRange.Default,
+            state = temperatureSweepStates[temperatureSweepKey],
+            onSubmit = { temps -> engine.startFanOutTemperatureSweep(context, run.key, pair.id, temps) },
+            onUseCandidate = { index -> engine.applyFanOutTemperatureCandidate(context, run.key, pair.id, index) },
+            onTrace = actions.onNavigateToTraceFile,
+            onBack = {
+                engine.clearFanOutTemperatureSweep(run.reportId, pair.id)
+                showTemperatureSweep = false
+            }
+        )
+        return
+    }
+    if (showReasoningEffortSweep) {
+        ReasoningEffortSweepScreen(
+            reportId = run.reportId,
+            agentId = pair.id,
+            modelLabel = answererLabel,
+            state = reasoningEffortSweepStates[reasoningEffortSweepKey],
+            onSubmit = { efforts -> engine.startFanOutReasoningEffortSweep(context, run.key, pair.id, efforts) },
+            onUseCandidate = { index -> engine.applyFanOutReasoningEffortCandidate(context, run.key, pair.id, index) },
+            onTrace = actions.onNavigateToTraceFile,
+            onBack = {
+                engine.clearFanOutReasoningEffortSweep(run.reportId, pair.id)
+                showReasoningEffortSweep = false
+            }
+        )
+        return
+    }
+    if (showWebSearchReplay) {
+        WebSearchReplayScreen(
+            reportId = run.reportId,
+            agentId = pair.id,
+            modelLabel = answererLabel,
+            originalResponse = pairBody,
+            state = webSearchReplayStates[webSearchReplayKey],
+            onStart = { engine.startFanOutWebSearchReplay(context, run.key, pair.id) },
+            onUseResponse = { engine.applyFanOutWebSearchReplay(context, run.key, pair.id) },
+            onTrace = actions.onNavigateToTraceFile,
+            onBack = {
+                engine.clearFanOutWebSearchReplay(run.reportId, pair.id)
+                showWebSearchReplay = false
+            }
+        )
+        return
+    }
     var showAgentChat by remember { mutableStateOf(false) }
     if (showAgentChat) {
         answererProviderService?.let { svc ->
             val seed = buildList {
                 add(com.ai.data.ChatMessage(role = "user", content = run.metaPrompt.text.replace("@RESPONSE@", sourceBody ?: "")))
-                pair.content?.takeIf { it.isNotBlank() }?.let { add(com.ai.data.ChatMessage(role = "assistant", content = it)) }
+                pairBody?.takeIf { it.isNotBlank() }?.let { add(com.ai.data.ChatMessage(role = "assistant", content = it)) }
             }
             AgentChatScreen(
                 titleBarSubject = answererLabel,
@@ -243,7 +321,15 @@ internal fun FanOutL3Screen(
                 initialParams = com.ai.data.ChatParameters(),
                 aiSettings = aiSettings,
                 onSaveMessages = { SecondaryResultStorage.updateChatMessages(context, run.reportId, pair.id, it) },
-                onApply = { SecondaryResultStorage.updateContent(context, run.reportId, pair.id, it) },
+                onApply = {
+                    engine.applyFanOutPairContent(
+                        context = context,
+                        runKey = run.key,
+                        pairId = pair.id,
+                        content = it,
+                        changeSource = RESPONSE_CHANGE_SOURCE_CHAT
+                    )
+                },
                 onBack = { showAgentChat = false }
             )
             return
@@ -306,8 +392,17 @@ internal fun FanOutL3Screen(
                 onReload = { actions.onRerunPair(run.key, pair.key) },
                 onDelete = { confirmDelete = true },
                 onAddNote = { noteEdit = NoteEdit.Add },
-                onAgentChat = if (answererProviderService != null && !pair.content.isNullOrBlank()) {
+                onAgentChat = if (canChangePairResponse) {
                     { showAgentChat = true }
+                } else null,
+                onTemperatureSweep = if (canChangePairResponse) {
+                    { showTemperatureSweep = true }
+                } else null,
+                onReasoningEffortSweep = if (canChangePairResponse) {
+                    { showReasoningEffortSweep = true }
+                } else null,
+                onWebSearchReplay = if (canChangePairResponse) {
+                    { showWebSearchReplay = true }
                 } else null
             )
             UserNotesSection(
@@ -436,6 +531,18 @@ internal fun FanOutL3Screen(
                     }
                 }
                 Spacer(Modifier.height(6.dp))
+                responseChangeLabel?.let { label ->
+                    Text(
+                        text = label,
+                        color = AppColors.Yellow,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier
+                            .background(AppColors.CardBackgroundAlt)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                    Spacer(Modifier.height(6.dp))
+                }
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                     when (pair.status) {
                         PairStatus.ERROR -> Text(
