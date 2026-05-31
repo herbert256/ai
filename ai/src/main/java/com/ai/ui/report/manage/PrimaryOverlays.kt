@@ -42,6 +42,7 @@ import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.IconCandidate
 import com.ai.viewmodel.ReportViewModel
+import com.ai.viewmodel.TemperatureSweepState
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -102,6 +103,10 @@ internal fun ReportPrimaryOverlays(
     onContinueWithOnTheFly: (String, String) -> Unit,
     onRemoveAgent: (String, String) -> Unit,
     onRegenerateAgent: (String, String) -> Unit,
+    temperatureSweepStates: Map<String, TemperatureSweepState>,
+    onStartTemperatureSweep: (String, String, List<Float>) -> Unit,
+    onApplyTemperatureCandidate: (String, String, Int) -> Unit,
+    onClearTemperatureSweep: (String, String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
     onOpenAgentIcon: (String) -> Unit,
     onSecondaryRefresh: () -> Unit,
@@ -500,7 +505,11 @@ internal fun ReportPrimaryOverlays(
                 onContinueWithCurrent = onContinueWithCurrent,
                 onContinueWithAgentPicker = onContinueWithAgentPicker,
                 onContinueWithOnTheFly = onContinueWithOnTheFly,
-                onOpenAgentIcon = onOpenAgentIcon
+                onOpenAgentIcon = onOpenAgentIcon,
+                temperatureSweepStates = temperatureSweepStates,
+                onStartTemperatureSweep = onStartTemperatureSweep,
+                onApplyTemperatureCandidate = onApplyTemperatureCandidate,
+                onClearTemperatureSweep = onClearTemperatureSweep
             )
         }
         return true
@@ -519,4 +528,3 @@ internal fun ReportPrimaryOverlays(
 
     return false
 }
-

@@ -33,6 +33,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
+import com.ai.viewmodel.TemperatureSweepState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -87,7 +88,11 @@ fun ReportModelScreen(
     /** Real-route 👁 target: open the View "Model reports" screen for this
      *  report seeded at the given agent. Used when there's no overlay
      *  [LocalPendingViewOverManage] holder (the standalone route). */
-    onNavigateToViewReports: (String) -> Unit = {}
+    onNavigateToViewReports: (String) -> Unit = {},
+    temperatureSweepStates: Map<String, TemperatureSweepState> = emptyMap(),
+    onStartTemperatureSweep: (String, String, List<Float>) -> Unit = { _, _, _ -> },
+    onApplyTemperatureCandidate: (String, String, Int) -> Unit = { _, _, _ -> },
+    onClearTemperatureSweep: (String, String) -> Unit = { _, _ -> }
 ) {
     // Track which agent is currently shown locally so the Previous /
     // Next buttons at the bottom can step through report.agents
@@ -115,6 +120,7 @@ fun ReportModelScreen(
         )
         return
     }
+    var showTemperatureSweep by remember { mutableStateOf(false) }
     BackHandler { onBack() }
     val context = LocalContext.current
     // Re-key on the report data version so an in-place edit (🗣️ refine
@@ -131,6 +137,31 @@ fun ReportModelScreen(
     val report = reportState.value
     val agent = report?.agents?.find { it.agentId == currentAgentId }
     val provider = agent?.let { AppService.findById(it.provider) }
+
+    if (showTemperatureSweep) {
+        val sweepAgentId = currentAgentId
+        TemperatureSweepScreen(
+            reportId = reportId,
+            agentId = sweepAgentId,
+            modelLabel = agent?.let {
+                provider?.let { p -> com.ai.ui.shared.modelLabel(p.id, it.model, separator = " — ") }
+                    ?: it.model
+            } ?: "Model response",
+            state = temperatureSweepStates[TemperatureSweepState.key(reportId, sweepAgentId)],
+            onSubmit = { temps -> onStartTemperatureSweep(reportId, sweepAgentId, temps) },
+            onUseCandidate = { index ->
+                onApplyTemperatureCandidate(reportId, sweepAgentId, index)
+                onClearTemperatureSweep(reportId, sweepAgentId)
+                showTemperatureSweep = false
+            },
+            onTrace = onNavigateToTraceFile,
+            onBack = {
+                onClearTemperatureSweep(reportId, sweepAgentId)
+                showTemperatureSweep = false
+            }
+        )
+        return
+    }
 
     if (report == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -358,6 +389,7 @@ fun ReportModelScreen(
             onReload = { confirmReload = true },
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
             onAgentChat = if (canContinueInChat) { { showAgentChat = true } } else null,
+            onTemperatureSweep = { showTemperatureSweep = true },
             onTranslationCompare = if (liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }
             } else null,

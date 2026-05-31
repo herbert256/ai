@@ -51,6 +51,7 @@ import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.IconCandidate
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.ResolvedAltPrompt
+import com.ai.viewmodel.TemperatureSweepState
 import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
@@ -236,6 +237,10 @@ fun ReportsScreen(
     onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     onRemoveAgent: (String, String) -> Unit = { _, _ -> },
     onRegenerateAgent: (String, String) -> Unit = { _, _ -> },
+    temperatureSweepStates: Map<String, TemperatureSweepState> = emptyMap(),
+    onStartTemperatureSweep: (String, String, List<Float>) -> Unit = { _, _, _ -> },
+    onApplyTemperatureCandidate: (String, String, Int) -> Unit = { _, _, _ -> },
+    onClearTemperatureSweep: (String, String) -> Unit = { _, _ -> },
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
     onExportAll: suspend (String, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _ -> },
     translationRuns: List<com.ai.viewmodel.TranslationRunState> = emptyList(),
@@ -693,6 +698,10 @@ fun ReportsScreen(
             onContinueWithOnTheFly = onContinueWithOnTheFly,
             onRemoveAgent = onRemoveAgent,
             onRegenerateAgent = onRegenerateAgent,
+            temperatureSweepStates = temperatureSweepStates,
+            onStartTemperatureSweep = onStartTemperatureSweep,
+            onApplyTemperatureCandidate = onApplyTemperatureCandidate,
+            onClearTemperatureSweep = onClearTemperatureSweep,
             onNavigateToModelInfo = onNavigateToModelInfo,
             onOpenAgentIcon = { agentIconDetailFor = it },
             onSecondaryRefresh = onSecondaryRefresh,

@@ -28,6 +28,38 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 
+sealed class TemperatureSweepCandidate(open val temperature: Float) {
+    data class Pending(override val temperature: Float) : TemperatureSweepCandidate(temperature)
+    data class Running(override val temperature: Float) : TemperatureSweepCandidate(temperature)
+    data class Success(
+        override val temperature: Float,
+        val response: String,
+        val tokenUsage: TokenUsage?,
+        val cost: Double?,
+        val durationMs: Long,
+        val traceFile: String?
+    ) : TemperatureSweepCandidate(temperature)
+    data class Error(
+        override val temperature: Float,
+        val message: String,
+        val httpStatusCode: Int?,
+        val durationMs: Long?,
+        val traceFile: String?
+    ) : TemperatureSweepCandidate(temperature)
+}
+
+data class TemperatureSweepState(
+    val reportId: String,
+    val agentId: String,
+    val candidates: List<TemperatureSweepCandidate>,
+    val isRunning: Boolean = false,
+    val unavailableMessage: String? = null
+) {
+    companion object {
+        fun key(reportId: String, agentId: String): String = "$reportId|$agentId"
+    }
+}
+
 /**
  * ViewModel for AI report generation: task building, concurrent execution, cost calculation.
  * Delegates to AppViewModel for shared state and settings.
@@ -36,6 +68,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     private var reportGenerationJob: Job? = null
     @Volatile private var reportRunningInBackground = false
+    private val temperatureSweepJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private val _temperatureSweepStates = MutableStateFlow<Map<String, TemperatureSweepState>>(emptyMap())
+    val temperatureSweepStates: StateFlow<Map<String, TemperatureSweepState>> = _temperatureSweepStates.asStateFlow()
 
     /** In-flight regenerate jobs (single-agent regenerateAgent +
      *  forceRegenerateAllAgents), keyed by reportId, so deleteReport can
@@ -454,6 +489,52 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    private fun buildTemperatureSweepTask(report: Report, state: UiState, reportAgent: ReportAgent): ReportTask? {
+        val ai = state.aiSettings
+        val provider = AppService.findById(reportAgent.provider) ?: return null
+        val reportLevelSystemPrompt = report.reportSystemPromptId
+            ?.let { ai.getSystemPromptById(it)?.prompt }
+        val preGenParamsActive = report.advancedParameters != null || report.parameterPresetIds.isNotEmpty() ||
+            report.webSearchTool || report.reasoningEffort != null
+        val currentAgent = reportAgent.agentId
+            .takeUnless { it.startsWith("swarm:") }
+            ?.let { ai.getAgentById(it) }
+        val sid = "swarm:${provider.id}:${reportAgent.model}"
+        val task = if (currentAgent != null) {
+            buildReportTasks(
+                ai, listOf(currentAgent), emptyList(), report.selectionParamsById,
+                state.externalSystemPrompt, reportLevelSystemPrompt,
+                state.generalSettings, emptySet(), preGenParamsActive
+            ).firstOrNull()
+        } else {
+            buildReportTasks(
+                ai, emptyList(), listOf(SwarmMember(provider, reportAgent.model)),
+                report.selectionParamsById, state.externalSystemPrompt, reportLevelSystemPrompt,
+                state.generalSettings, setOf(sid), preGenParamsActive
+            ).firstOrNull()
+        } ?: return null
+        val endpointId = currentAgent?.endpointId?.takeIf { currentAgent.provider.id == provider.id }
+        val apiKey = currentAgent
+            ?.takeIf { it.provider.id == provider.id }
+            ?.let { ai.getEffectiveApiKeyForAgent(it.copy(provider = provider, model = reportAgent.model)) }
+            ?: ai.getApiKey(provider)
+        val runtimeAgent = Agent(
+            id = reportAgent.agentId,
+            name = currentAgent?.name ?: reportAgent.agentName,
+            provider = provider,
+            model = reportAgent.model,
+            apiKey = apiKey,
+            endpointId = endpointId,
+            paramsIds = currentAgent?.paramsIds ?: emptyList(),
+            systemPromptId = currentAgent?.systemPromptId
+        )
+        return task.copy(
+            resultId = reportAgent.agentId,
+            reportAgent = reportAgent.copy(reportStatus = ReportStatus.PENDING),
+            runtimeAgent = runtimeAgent
+        )
+    }
+
     /** True when a Google model is benched in [ModelCooldownStore]
      *  because the provider answered a >1h 429. The dispatch
      *  runners delete the in-flight item instead of erroring it. */
@@ -705,6 +786,189 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 (response.tokenUsage?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") +
                 (cost?.let { " cost=${"%.5f".format(it)}" } ?: "")
         )
+    }
+
+    private fun updateTemperatureSweepState(key: String, transform: (TemperatureSweepState) -> TemperatureSweepState) {
+        _temperatureSweepStates.update { current ->
+            val existing = current[key] ?: return@update current
+            current + (key to transform(existing))
+        }
+    }
+
+    private fun setTemperatureSweepCandidate(
+        key: String,
+        index: Int,
+        candidate: TemperatureSweepCandidate
+    ) {
+        updateTemperatureSweepState(key) { state ->
+            state.copy(candidates = state.candidates.mapIndexed { i, old -> if (i == index) candidate else old })
+        }
+    }
+
+    fun clearTemperatureSweep(reportId: String, agentId: String) {
+        val key = TemperatureSweepState.key(reportId, agentId)
+        temperatureSweepJobs.remove(key)?.cancel()
+        _temperatureSweepStates.update { it - key }
+    }
+
+    fun applyTemperatureCandidate(context: Context, reportId: String, agentId: String, candidateIndex: Int) {
+        val key = TemperatureSweepState.key(reportId, agentId)
+        val candidate = _temperatureSweepStates.value[key]?.candidates
+            ?.getOrNull(candidateIndex) as? TemperatureSweepCandidate.Success ?: return
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            ReportStorage.applyAgentChatResponse(context, reportId, agentId, candidate.response)
+            _temperatureSweepStates.update { it - key }
+        }
+    }
+
+    fun startTemperatureSweep(
+        context: Context,
+        reportId: String,
+        agentId: String,
+        temperatures: List<Float>
+    ): Job {
+        val key = TemperatureSweepState.key(reportId, agentId)
+        val temps = temperatures.take(3).map { it.coerceIn(0f, 2f) }
+        temperatureSweepJobs.remove(key)?.cancel()
+        _temperatureSweepStates.update {
+            it + (key to TemperatureSweepState(
+                reportId = reportId,
+                agentId = agentId,
+                candidates = temps.map { temp -> TemperatureSweepCandidate.Pending(temp) },
+                isRunning = true
+            ))
+        }
+        val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            try {
+                val report = ReportStorage.getReport(context, reportId) ?: run {
+                    updateTemperatureSweepState(key) {
+                        it.copy(isRunning = false, unavailableMessage = "Report not found")
+                    }
+                    return@launch
+                }
+                val state = appViewModel.uiState.value
+                val ai = state.aiSettings
+                val savedAgent = report.agents.firstOrNull { it.agentId == agentId } ?: run {
+                    updateTemperatureSweepState(key) {
+                        it.copy(isRunning = false, unavailableMessage = "Model response no longer exists in this report")
+                    }
+                    return@launch
+                }
+                val task = buildTemperatureSweepTask(report, state, savedAgent) ?: run {
+                    updateTemperatureSweepState(key) {
+                        it.copy(isRunning = false, unavailableMessage = "Model response no longer matches a runnable report agent")
+                    }
+                    return@launch
+                }
+                val supportedParams = PricingCache.getSupportedParameters(context, task.runtimeAgent.provider, task.runtimeAgent.model)
+                if (supportedParams != null && supportedParams.none { it.equals("temperature", ignoreCase = true) }) {
+                    val msg = "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} does not report temperature support."
+                    updateTemperatureSweepState(key) { sweep ->
+                        sweep.copy(
+                            isRunning = false,
+                            unavailableMessage = msg,
+                            candidates = sweep.candidates.map { candidate ->
+                                TemperatureSweepCandidate.Error(candidate.temperature, msg, null, null, null)
+                            }
+                        )
+                    }
+                    return@launch
+                }
+                val canReason = ai.acceptsReasoningEffortParam(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val canWeb = ai.isWebSearchCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val canVision = ai.isVisionCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val baseOverride = resolveReportOverrideParams(
+                    ai, report.parameterPresetIds, report.advancedParameters,
+                    report.webSearchTool, report.reasoningEffort
+                )
+                val gatedOverride = (baseOverride ?: AgentParameters()).copy(
+                    webSearchTool = (baseOverride?.webSearchTool == true || report.webSearchTool) && canWeb,
+                    reasoningEffort = if (canReason) baseOverride?.reasoningEffort else null
+                )
+                val effectiveImage = if (canVision) report.imageBase64 else null
+                val effectiveImageMime = if (canVision) report.imageMime else null
+                val baseUrl = ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
+                val knowledgeBaseIds = report.knowledgeBaseIds
+
+                withTracerTags(reportId = reportId, category = "Temperature sweep") {
+                    temps.forEachIndexed { index, temp ->
+                        setTemperatureSweepCandidate(key, index, TemperatureSweepCandidate.Running(temp))
+                        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                        val startTime = System.currentTimeMillis()
+                        val response = try {
+                            ApiCallCaps.global.withPermit {
+                                ApiCallCaps.report.withPermit {
+                                    val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                    try {
+                                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                            withTraceFilenameSink(traceSink) {
+                                                appViewModel.repository.analyzeWithAgentStreaming(
+                                                    task.runtimeAgent, "", report.prompt,
+                                                    task.resolvedParams,
+                                                    gatedOverride.copy(temperature = temp),
+                                                    context, baseUrl, effectiveImage, effectiveImageMime,
+                                                    knowledgeBaseIds = knowledgeBaseIds,
+                                                    aiSettings = ai
+                                                ) { /* transient comparison; no live preview */ }
+                                            }
+                                        }
+                                    } finally {
+                                        releaser.release()
+                                    }
+                                }
+                            }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            AnalysisResponse(
+                                service = task.runtimeAgent.provider,
+                                analysis = null,
+                                error = (e.message ?: "Unknown error").take(2000)
+                            )
+                        }
+                        val durationMs = System.currentTimeMillis() - startTime
+                        val cost = calculateResponseCost(context, task.runtimeAgent.provider, task.runtimeAgent.model, response.tokenUsage)
+                        val traceFile = traceSink.get()
+                        if (response.error == null && response.tokenUsage != null) {
+                            val usage = response.tokenUsage
+                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                task.runtimeAgent.provider, task.runtimeAgent.model,
+                                usage.inputTokens, usage.outputTokens, usage.totalTokens
+                            )
+                        }
+                        val candidate = if (response.isSuccess && !response.analysis.isNullOrBlank()) {
+                            TemperatureSweepCandidate.Success(
+                                temperature = temp,
+                                response = response.analysis,
+                                tokenUsage = response.tokenUsage,
+                                cost = cost,
+                                durationMs = durationMs,
+                                traceFile = traceFile
+                            )
+                        } else {
+                            TemperatureSweepCandidate.Error(
+                                temperature = temp,
+                                message = response.error ?: "No response body",
+                                httpStatusCode = response.httpStatusCode,
+                                durationMs = durationMs,
+                                traceFile = traceFile
+                            )
+                        }
+                        setTemperatureSweepCandidate(key, index, candidate)
+                    }
+                }
+                updateTemperatureSweepState(key) { it.copy(isRunning = false) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                updateTemperatureSweepState(key) {
+                    it.copy(isRunning = false, unavailableMessage = (e.message ?: "Temperature sweep failed").take(2000))
+                }
+            }
+        }
+        temperatureSweepJobs[key] = job
+        job.invokeOnCompletion { temperatureSweepJobs.remove(key, job) }
+        return job
     }
 
 
@@ -1402,6 +1666,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // zombie report), and a regenerate batch would keep dispatching
         // agent calls against a gone report.
         translation.cancelAllForReport(reportId)
+        temperatureSweepJobs.entries
+            .filter { it.key.startsWith(fanOutPrefix) }
+            .forEach { it.value.cancel() }
+        _temperatureSweepStates.update { states ->
+            states.filterKeys { !it.startsWith(fanOutPrefix) }
+        }
         // Synchronous: the async cancel() returns before its launch body
         // cancels the orchestrator, so the batch could still be dispatching
         // when we delete below.
