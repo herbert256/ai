@@ -382,6 +382,35 @@ val LocalSystemPromptChange = compositionLocalOf<(String?) -> Unit> { {} }
  *  [LocalSystemPromptChange]. Default no-op. */
 val LocalGenerateNoteTitle = compositionLocalOf<(String, String, String) -> Unit> { { _, _, _ -> } }
 
+/** Bridge that lets the in-report "refine this answer" chat screen
+ *  (🗣️ on Model-response / Fan-out-response) reach the chat engine
+ *  without a view-model handle. Provided around the report area in
+ *  AppNavHost, wired to ChatViewModel + AppViewModel. Null off the
+ *  report area. See [com.ai.ui.report.manage.AgentChatScreen]. */
+class AgentChatBridge(
+    /** Stream one chat turn. [agentIdForKey] resolves the settings
+     *  Agent's effective API key/endpoint when non-null; else the
+     *  provider-level key is used. Returns content chunks. */
+    val send: (
+        service: com.ai.data.AppService,
+        model: String,
+        agentIdForKey: String?,
+        messages: List<com.ai.data.ChatMessage>,
+        params: com.ai.data.ChatParameters
+    ) -> kotlinx.coroutines.flow.Flow<String>,
+    /** Rough token estimate (chars/4) — for AI Usage accounting. */
+    val estimateTokens: (String) -> Int,
+    /** Record one turn's tokens into the global AI Usage ledger. */
+    val recordUsage: (service: com.ai.data.AppService, model: String, inputTokens: Int, outputTokens: Int) -> Unit,
+)
+val LocalAgentChat = compositionLocalOf<AgentChatBridge?> { null }
+
+/** Current AI [com.ai.model.Settings], provided around the report area so
+ *  deep Manage screens (e.g. the 🗣️ refine chat + its 🎭/🌡️ pickers) can
+ *  read agents / system prompts / parameter presets without threading
+ *  uiState through every layer. Defaults to empty Settings off the report area. */
+val LocalAiSettings = compositionLocalOf { com.ai.model.Settings() }
+
 /** Opens the standalone "Report information" screen for a reportId.
  *  Provided around the AI_REPORTS composable; the Manage hub's ℹ️ icon
  *  reads it. A CompositionLocal (not a threaded arg) for the same
@@ -672,6 +701,8 @@ fun shareText(context: android.content.Context, text: String, subject: String? =
 data class TitleBarIcons(
     val helpTopic: String?,
     val onChat: (() -> Unit)?,
+    /** Optional 🗣️ refine-in-chat hook (Model response / Fan-out response). */
+    val onAgentChat: (() -> Unit)? = null,
     val onInfo: (() -> Unit)?,
     /** Optional 👁 view-report hook. Distinct from [onInfo] (ℹ️
      *  Model Info) — this one opens the View tile grid for the
@@ -915,6 +946,11 @@ fun TitleBar(
     onOpenManage: (() -> Unit)? = null,
     onReload: (() -> Unit)? = null,
     onChat: (() -> Unit)? = null,
+    /** Optional 🗣️ refine-in-chat hook — opens the in-report agent chat
+     *  that lets the user iterate on this answer ("be more verbose") and
+     *  Apply a reply back into the report. Distinct from [onChat] (💬),
+     *  which sends the answer out to the Chat section. Null → glyph hidden. */
+    onAgentChat: (() -> Unit)? = null,
     /** Optional 📋 copy-to-clipboard hook. Wire it from screens that
      *  display substantial copyable text (agent response, raw JSON,
      *  prompt body, translated text, redacted trace bytes, …). Null →
@@ -1053,6 +1089,7 @@ fun TitleBar(
         helpTopic = helpTopic,
         title = title,
         onChat = onChat,
+        onAgentChat = onAgentChat,
         onInfo = onInfo,
         onOpenView = onOpenView,
         onOpenManage = onOpenManage,
@@ -1531,6 +1568,7 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // stays in the trailing copy/edit/delete/new group below.
     if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
     icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
+    icons.onAgentChat?.let { add(BottomBarIcon("🗣️", Color.Unspecified, it, 28)) }
     // 🗂️ pick another report (same glyph as the View hub's picker) —
     // leads the nav group on the Manage screens that support it.
     icons.onPickReport?.let { add(BottomBarIcon("🗂️", Color.Unspecified, it, 28)) }
@@ -1663,6 +1701,8 @@ internal val LEGEND_OVERLAY_TOPICS = setOf(
     "cost_view", "report_continue_in_chat", "regenerate_batch",
     // User notes.
     "report_notes",
+    // In-report refine chat.
+    "report_agent_chat",
 )
 
 @Composable

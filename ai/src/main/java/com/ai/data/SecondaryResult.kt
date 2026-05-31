@@ -201,6 +201,23 @@ object SecondaryResultStorage {
         }
     }
 
+    /** Replace a fan-out pair's in-report refine-chat conversation
+     *  ([SecondaryResult.chatMessages]). Returns false when the row is
+     *  gone. Leaves [content] untouched — see [updateContent] for Apply. */
+    fun updateChatMessages(context: Context, reportId: String, resultId: String, messages: List<ChatMessage>): Boolean {
+        val existing = get(context, reportId, resultId) ?: return false
+        save(context, existing.copy(chatMessages = messages))
+        return true
+    }
+
+    /** Overwrite a fan-out pair's [SecondaryResult.content] with a chosen
+     *  refine-chat reply (the 🗣️ "Apply" action). */
+    fun updateContent(context: Context, reportId: String, resultId: String, content: String): Boolean {
+        val existing = get(context, reportId, resultId) ?: return false
+        save(context, existing.copy(content = content))
+        return true
+    }
+
     /** True when a row for [resultId] exists on disk under [reportId].
      *  Used by long-running fan-out / meta coroutines to drop their
      *  final save when the user deleted the placeholder mid-flight.

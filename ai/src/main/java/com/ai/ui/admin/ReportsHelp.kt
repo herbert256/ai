@@ -12,6 +12,16 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Deleted targets", "If the model response or secondary a note was pinned to is later removed, its notes are grouped under 'Deleted item' here so you can still read or delete them. (Notes on a removed model are pruned automatically.)")
         )
     ),
+    "report_agent_chat" to HelpContent(
+        title = "Help - Refine answer",
+        cards = listOf(
+            HelpCard("What this is", "A chat with the model that produced this answer, anchored to the report. It opens seeded with the original prompt and the current answer, so you can ask for changes — e.g. \"please be more verbose\" or \"add a code example\"."),
+            HelpCard("Apply", "Each assistant reply has an Apply button. Tapping it overwrites this answer in the report with that reply. Nothing is changed until you Apply, so you can explore freely first."),
+            HelpCard("Conversation is saved", "The back-and-forth is stored on this answer, so re-opening 🗣️ continues where you left off."),
+            HelpCard("System prompt & parameters", "🎭 and 🌡️ pick a system prompt / parameter preset for the next reply (seeded from the agent's own settings)."),
+            HelpCard("Cost", "Refine-chat turns are billed like a normal chat and counted in AI Usage (statistics), not added to the report's cost table.")
+        )
+    ),
     "report_user_note_edit" to HelpContent(
         title = "Help - Edit note",
         cards = listOf(

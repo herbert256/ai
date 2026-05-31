@@ -207,6 +207,35 @@ object ReportStorage {
         relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, durationMs = durationMs,
         traceFile = traceFile)
 
+    /** Persist the in-report "refine" chat conversation for one agent.
+     *  Replaces [ReportAgent.chatMessages] wholesale (the screen owns the
+     *  full list). Does NOT touch the agent's response — see
+     *  [applyAgentChatResponse] for the Apply action. */
+    fun saveAgentChatMessages(context: Context, reportId: String, agentId: String, messages: List<ChatMessage>): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withLock false
+            agent.chatMessages = messages
+            saveReport(report.copy(timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Overwrite an agent's [ReportAgent.responseBody] with a chosen chat
+     *  reply (the 🗣️ "Apply" action). Leaves cost/tokens untouched — the
+     *  refine-chat spend is tracked in global AI Usage, not the report. */
+    fun applyAgentChatResponse(context: Context, reportId: String, agentId: String, body: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withLock false
+            agent.responseBody = body
+            saveReport(report.copy(timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
     fun markAgentError(
         context: Context, reportId: String, agentId: String, httpStatus: Int?,
         errorMessage: String?, responseHeaders: String? = null, responseBody: String? = null, durationMs: Long? = null,

@@ -217,6 +217,39 @@ internal fun FanOutL3Screen(
         }
     }
 
+    // 🗣️ refine-in-chat overlay for this fan-out pair's answer.
+    val aiSettings = com.ai.ui.shared.LocalAiSettings.current
+    val secDataVersion by com.ai.data.SecondaryDataVersion.version.collectAsState()
+    // Fresh on-disk row (re-read on every secondary save) so the 🗣️ Apply
+    // — which rewrites content — reflects here even though `pair` comes
+    // from the in-memory run snapshot. Drives both the displayed content
+    // and the refine-chat's persisted conversation.
+    val pairFresh by produceState<com.ai.data.SecondaryResult?>(null, pair.id, secDataVersion) {
+        value = withContext(Dispatchers.IO) { SecondaryResultStorage.get(context, run.reportId, pair.id) }
+    }
+    var showAgentChat by remember { mutableStateOf(false) }
+    if (showAgentChat) {
+        answererProviderService?.let { svc ->
+            val seed = buildList {
+                add(com.ai.data.ChatMessage(role = "user", content = run.metaPrompt.text.replace("@RESPONSE@", sourceBody ?: "")))
+                pair.content?.takeIf { it.isNotBlank() }?.let { add(com.ai.data.ChatMessage(role = "assistant", content = it)) }
+            }
+            AgentChatScreen(
+                titleBarSubject = answererLabel,
+                service = svc,
+                model = pair.model,
+                agentIdForKey = null,
+                initialMessages = (pairFresh?.chatMessages ?: emptyList()).ifEmpty { seed },
+                initialParams = com.ai.data.ChatParameters(),
+                aiSettings = aiSettings,
+                onSaveMessages = { SecondaryResultStorage.updateChatMessages(context, run.reportId, pair.id, it) },
+                onApply = { SecondaryResultStorage.updateContent(context, run.reportId, pair.id, it) },
+                onBack = { showAgentChat = false }
+            )
+            return
+        }
+    }
+
     // Trace lookups — answerer trace = closest-timestamp trace for
     // this pair's reportId + model. Source trace = most-recent trace
     // for the source agent's reportId + model.
@@ -272,7 +305,10 @@ internal fun FanOutL3Screen(
                 } else null,
                 onReload = { actions.onRerunPair(run.key, pair.key) },
                 onDelete = { confirmDelete = true },
-                onAddNote = { noteEdit = NoteEdit.Add }
+                onAddNote = { noteEdit = NoteEdit.Add },
+                onAgentChat = if (answererProviderService != null && !pair.content.isNullOrBlank()) {
+                    { showAgentChat = true }
+                } else null
             )
             UserNotesSection(
                 reportId = run.reportId,
@@ -415,7 +451,7 @@ internal fun FanOutL3Screen(
                             color = AppColors.TextTertiary, fontSize = 13.sp
                         )
                         PairStatus.DONE -> {
-                            val body = pair.content
+                            val body = pairFresh?.content ?: pair.content
                             if (body.isNullOrBlank()) {
                                 Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
                             } else {

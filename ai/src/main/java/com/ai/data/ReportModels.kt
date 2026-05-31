@@ -92,7 +92,15 @@ data class ReportAgent(
      *  Report-info screen's total-API-time tally. Null before it ran. */
     var modelTitleDurationMs: Long? = null,
     /** Bundled prompt name that produced [modelTitle] — "model_title". */
-    var modelTitlePromptUsed: String? = null
+    var modelTitlePromptUsed: String? = null,
+    /** In-report "refine this answer" chat: the persisted conversation the
+     *  user has with this agent (🗣️ on the Model-response screen). Seeded
+     *  on first open from the report prompt + [responseBody]; each reply is
+     *  appended. The user can Apply any assistant reply, which overwrites
+     *  [responseBody]. Immutable list — always replaced wholesale, never
+     *  mutated in place (so the Gson empty-list coercion is harmless).
+     *  Empty on legacy rows / agents never refined. */
+    var chatMessages: List<ChatMessage> = emptyList()
 )
 
 /** One captured API call from the 3-tier Create → Report icons

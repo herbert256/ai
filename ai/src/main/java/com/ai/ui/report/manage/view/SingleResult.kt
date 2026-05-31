@@ -117,10 +117,15 @@ fun ReportModelScreen(
     }
     BackHandler { onBack() }
     val context = LocalContext.current
+    // Re-key on the report data version so an in-place edit (🗣️ refine
+    // Apply, regenerate, icon/title write) re-reads the report and the
+    // body / chatMessages refresh. ViewReportCache is mtime-staleness-safe,
+    // so the re-read returns the fresh parse.
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
     // Loaded asynchronously: getReport reads + parses the report JSON
     // (which can be MB-sized for image-attached reports). The Loading
     // → Loaded transition keeps the UI thread free while reading.
-    val reportState = produceState<com.ai.data.Report?>(initialValue = null, reportId) {
+    val reportState = produceState<com.ai.data.Report?>(initialValue = null, reportId, reportDataVersion) {
         value = withContext(Dispatchers.IO) { com.ai.ui.report.view.helpers.ViewReportCache.get(context, reportId) }
     }
     val report = reportState.value
@@ -278,6 +283,40 @@ fun ReportModelScreen(
         }
     }
 
+    // 🗣️ refine-in-chat overlay for THIS agent's answer.
+    val aiSettings = com.ai.ui.shared.LocalAiSettings.current
+    var showAgentChat by remember { mutableStateOf(false) }
+    if (showAgentChat) {
+        val settingsAgent = aiSettings.getAgentById(currentAgentId)
+        val initialParams = if (settingsAgent != null) {
+            val rp = aiSettings.resolveAgentParameters(settingsAgent)
+            com.ai.data.ChatParameters(
+                temperature = rp.temperature, maxTokens = rp.maxTokens, topP = rp.topP, topK = rp.topK,
+                frequencyPenalty = rp.frequencyPenalty, presencePenalty = rp.presencePenalty,
+                systemPrompt = rp.systemPrompt ?: "",
+                searchEnabled = rp.searchEnabled, returnCitations = rp.returnCitations,
+                searchRecency = rp.searchRecency, webSearchTool = rp.webSearchTool
+            )
+        } else com.ai.data.ChatParameters()
+        val seed = buildList {
+            add(com.ai.data.ChatMessage(role = "user", content = report.prompt, imageBase64 = report.imageBase64, imageMime = report.imageMime))
+            agent.responseBody?.takeIf { it.isNotBlank() }?.let { add(com.ai.data.ChatMessage(role = "assistant", content = it)) }
+        }
+        AgentChatScreen(
+            titleBarSubject = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — "),
+            service = provider,
+            model = agent.model,
+            agentIdForKey = currentAgentId,
+            initialMessages = agent.chatMessages.ifEmpty { seed },
+            initialParams = initialParams,
+            aiSettings = aiSettings,
+            onSaveMessages = { ReportStorage.saveAgentChatMessages(context, reportId, currentAgentId, it) },
+            onApply = { ReportStorage.applyAgentChatResponse(context, reportId, currentAgentId, it) },
+            onBack = { showAgentChat = false }
+        )
+        return
+    }
+
     val agentLabel = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — ")
     // Pre-computed so the swipe handler (in the content Box below) can
     // close over the same ordering the Previous / Next buttons use.
@@ -318,6 +357,7 @@ fun ReportModelScreen(
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
             onReload = { confirmReload = true },
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
+            onAgentChat = if (canContinueInChat) { { showAgentChat = true } } else null,
             onTranslationCompare = if (liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }
             } else null,

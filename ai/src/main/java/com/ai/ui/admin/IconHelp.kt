@@ -51,6 +51,10 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     "report_notes" to listOf(
         Triple("✍️", "Add note", "Add a new note to this report. Edit (✏️) and delete (🗑) live on each note card."),
     ),
+    "report_agent_chat" to listOf(
+        Triple("🎭", "System prompt", "Pick the system prompt used for the next reply."),
+        Triple("🌡️", "Parameters", "Pick the parameter preset(s) used for the next reply."),
+    ),
     "report_new" to listOf(
         Triple("🌡️", "Parameters", "Configure API parameters: pick the preset(s) for this report."),
         Triple("🎭", "System prompt", "Pick the system prompt for this report."),
@@ -301,6 +305,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("📋", "Copy", "Copy the response text."),
         Triple("📤", "Share", "Share the response text."),
         Triple("👁", "View", "Open the full per-agent View."),
+        Triple("🗣️", "Refine", "Chat with this model to refine its answer; Apply folds a reply back into the report."),
         Triple("✍️", "Add note", "Attach a free-text note to this model response."),
         Triple("🌐", "Compare", "Show the original and its translation side by side."),
         Triple("🔄", "Regenerate", "Re-run this single model."),
@@ -358,6 +363,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     "secondary_fan_out_l3" to listOf(
         Triple("ℹ️", "Information", "Open the answering model's info."),
         Triple("👁", "View", "Open this pair in the View screen."),
+        Triple("🗣️", "Refine", "Chat with this model to refine its answer; Apply folds a reply back into the report."),
         Triple("✍️", "Add note", "Attach a free-text note to this fan-out response."),
         Triple("🔄", "Regenerate", "Re-run this initiator → responder pair."),
         Triple("🗑", "Delete", "Delete this pair."),
