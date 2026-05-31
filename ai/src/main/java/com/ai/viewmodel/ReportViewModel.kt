@@ -1074,7 +1074,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val supportedFixedEfforts = setOf("low", "medium", "high")
         val requestedEfforts = efforts.take(4).map { raw ->
             raw?.trim()?.lowercase(Locale.US)?.takeIf { it in supportedFixedEfforts }
-        }.ifEmpty { listOf(null, "low", "medium", "high") }
+        }.ifEmpty { listOf("low", "high") }
         reasoningEffortSweepJobs.remove(key)?.cancel()
         _reasoningEffortSweepStates.update {
             it + (key to ReasoningEffortSweepState(

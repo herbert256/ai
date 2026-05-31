@@ -140,6 +140,9 @@ internal data class HtmlSecondaryData(
     val fanOutSourceAgentId: String? = null,
     /** Set when this row is a fan-in combine-reports follow-up. */
     val fanInOf: String? = null,
+    /** TOURNAMENT rows only — "MATCH" for pairwise judgment rows,
+     *  "AGGREGATE" for rolled-up ranking rows. */
+    val tournamentRole: String? = null,
     /** [com.ai.data.SecondaryResult.icon] — fan-out pair icon (or any
      *  other per-row icon the secondary carries). Additive, prefixed
      *  on per-secondary headings. Null / blank → no prefix. */
@@ -370,6 +373,7 @@ internal fun buildHtmlReportData(context: android.content.Context, report: Repor
             metaPromptName = s.metaPromptName,
             fanOutSourceAgentId = s.fanOutSourceAgentId,
             fanInOf = s.fanInOf,
+            tournamentRole = s.tournamentRole,
             icon = s.icon
         )
     }

@@ -44,6 +44,7 @@ import com.ai.viewmodel.ReasoningEffortCandidate
 import com.ai.viewmodel.ReasoningEffortSweepState
 
 private val ReasoningEffortSweepOptions = listOf<String?>(null, "low", "medium", "high")
+private val DefaultReasoningEffortSweepKeys = setOf("low", "high")
 
 @Composable
 internal fun ReasoningEffortSweepScreen(
@@ -57,7 +58,11 @@ internal fun ReasoningEffortSweepScreen(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
+    var selectedEffortKeys by remember(reportId, agentId) { mutableStateOf(DefaultReasoningEffortSweepKeys) }
     var locallySubmittedEfforts by remember(reportId, agentId) { mutableStateOf<List<String?>?>(null) }
+    val selectedEfforts = remember(selectedEffortKeys) {
+        ReasoningEffortSweepOptions.filter { optionKey(it) in selectedEffortKeys }
+    }
     val displayState = state ?: locallySubmittedEfforts?.let { efforts ->
         ReasoningEffortSweepState(
             reportId = reportId,
@@ -68,6 +73,7 @@ internal fun ReasoningEffortSweepScreen(
     }
     val running = displayState?.isRunning == true
     val candidates = displayState?.candidates.orEmpty()
+    val canSubmit = selectedEfforts.isNotEmpty() && !running
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -86,15 +92,26 @@ internal fun ReasoningEffortSweepScreen(
                 Text("Candidates", fontSize = 12.sp, color = AppColors.TextTertiary)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     ReasoningEffortSweepOptions.forEach { effort ->
-                        ReasoningEffortOptionPill(effort = effort, modifier = Modifier.weight(1f))
+                        val key = optionKey(effort)
+                        ReasoningEffortOptionPill(
+                            effort = effort,
+                            selected = key in selectedEffortKeys,
+                            enabled = !running,
+                            onClick = {
+                                selectedEffortKeys =
+                                    if (key in selectedEffortKeys) selectedEffortKeys - key
+                                    else selectedEffortKeys + key
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
                     }
                 }
                 Button(
                     onClick = {
-                        locallySubmittedEfforts = ReasoningEffortSweepOptions
-                        onSubmit(ReasoningEffortSweepOptions)
+                        locallySubmittedEfforts = selectedEfforts
+                        onSubmit(selectedEfforts)
                     },
-                    enabled = !running,
+                    enabled = canSubmit,
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -102,7 +119,12 @@ internal fun ReasoningEffortSweepScreen(
                         CircularProgressIndicator(modifier = Modifier.height(14.dp).width(14.dp), strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-                    Text(if (running) "Running…" else "Submit", maxLines = 1, softWrap = false)
+                    Text(
+                        if (running) "Running…"
+                        else "Submit ${selectedEfforts.size} call${if (selectedEfforts.size == 1) "" else "s"}",
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
                 displayState?.unavailableMessage?.takeIf { it.isNotBlank() }?.let {
                     Text(it, color = AppColors.Red, fontSize = 12.sp)
@@ -139,11 +161,22 @@ internal fun ReasoningEffortSweepScreen(
 }
 
 @Composable
-private fun ReasoningEffortOptionPill(effort: String?, modifier: Modifier = Modifier) {
-    Card(colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark), modifier = modifier) {
+private fun ReasoningEffortOptionPill(
+    effort: String?,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val container = if (selected) AppColors.Indigo else AppColors.SurfaceDark
+    val textColor = if (selected) AppColors.TextPrimary else AppColors.TextSecondary
+    Card(
+        colors = CardDefaults.cardColors(containerColor = container),
+        modifier = modifier.clickable(enabled = enabled, onClick = onClick)
+    ) {
         Text(
-            reasoningEffortLabel(effort),
-            color = AppColors.TextPrimary,
+            if (selected) "✓ ${reasoningEffortLabel(effort)}" else reasoningEffortLabel(effort),
+            color = textColor,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
@@ -225,3 +258,5 @@ private fun reasoningCandidateStatus(candidate: ReasoningEffortCandidate): Strin
 
 private fun reasoningEffortLabel(effort: String?): String =
     effort?.replaceFirstChar { it.uppercase() } ?: "None"
+
+private fun optionKey(effort: String?): String = effort ?: "none"
