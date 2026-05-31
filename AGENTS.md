@@ -109,9 +109,8 @@ explicit request**. The full procedures live in
   not just the latest prompt's diff.
 - Any source-code change from a prompt gets committed before
   ending the turn — don't wait for an explicit "commit".
-- After a successful commit, build + deploy to **both** targets
-  (device install **and** `cp` to `/Users/herbert/cloud/ai.apk`),
-  not only after explicit-commit prompts.
+- Do not run an extra build/deploy solely because a commit
+  succeeded; the default cycle's pre-commit build/deploy is enough.
 
 ## Code layout pointers
 
