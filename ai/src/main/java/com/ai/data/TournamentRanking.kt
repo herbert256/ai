@@ -16,7 +16,7 @@ import com.google.gson.JsonParser
  * (`extractTopRankedIds`).
  */
 
-enum class TournamentMethod { COPELAND, ELO, DAVIDSON, SCHULZE, MARKOV }
+enum class TournamentMethod { COPELAND, ELO, DAVIDSON, TIDEMAN, MARKOV }
 
 /** Square win matrix over the tournament's responses. [ids] are the
  *  1-based `[N]` ids (the same the @RESULTS@ block / rerank JSON use);
@@ -105,7 +105,7 @@ fun rankFor(method: TournamentMethod, m: WinMatrix): List<RankRow> = when (metho
     TournamentMethod.COPELAND -> copeland(m)
     TournamentMethod.ELO -> elo(m)
     TournamentMethod.DAVIDSON -> davidson(m)
-    TournamentMethod.SCHULZE -> schulze(m)
+    TournamentMethod.TIDEMAN -> tideman(m)
     TournamentMethod.MARKOV -> markov(m)
 }
 
@@ -194,71 +194,71 @@ fun davidson(m: WinMatrix): List<RankRow> {
     return assignRanks(scored)
 }
 
-/** Schulze / beatpath ranking. Each pair's ordered-match points become
- *  the pairwise preference strength. The Floyd-Warshall pass then finds
- *  strongest paths, and candidates are ordered by the Schulze pairwise
- *  relation. The visible score is the percentage of opponents beaten by
- *  strongest paths. */
-fun schulze(m: WinMatrix): List<RankRow> {
+/** Tideman / Ranked Pairs. Each pair's ordered-match points give a directed
+ *  strength; the pairwise majorities are sorted strongest-first (by margin,
+ *  then winning support) and "locked in" one by one, skipping any edge that
+ *  would create a cycle with the already-locked ones. The locked graph is a
+ *  DAG; candidates are ordered by how many others they dominate in it (the
+ *  source, which dominates all, ranks first). It's an ordering method, so
+ *  the visible score is rank-based and the locked record is the reason. */
+fun tideman(m: WinMatrix): List<RankRow> {
     val n = m.n
     if (n == 0) return emptyList()
     if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
 
+    // Directed strength: i's total credit over j across both orientations.
     val d = Array(n) { i ->
         DoubleArray(n) { j ->
             if (i == j) 0.0 else m.wins[i][j] * (m.games.getOrNull(i)?.getOrNull(j) ?: 0.0)
         }
     }
-    val p = Array(n) { DoubleArray(n) }
-    for (i in 0 until n) {
-        for (j in 0 until n) {
-            if (i != j && d[i][j] > d[j][i]) p[i][j] = d[i][j]
-        }
+    // One majority per unordered pair — winner = higher d. Skip exact ties.
+    data class Majority(val w: Int, val l: Int, val margin: Double, val support: Double)
+    val majorities = ArrayList<Majority>()
+    for (i in 0 until n) for (j in i + 1 until n) {
+        val dij = d[i][j]; val dji = d[j][i]
+        if (dij == dji) continue
+        if (dij > dji) majorities.add(Majority(i, j, dij - dji, dij))
+        else majorities.add(Majority(j, i, dji - dij, dji))
     }
-    for (i in 0 until n) {
-        for (j in 0 until n) {
-            if (i == j) continue
-            for (k in 0 until n) {
-                if (i == k || j == k) continue
-                p[j][k] = maxOf(p[j][k], minOf(p[j][i], p[i][k]))
-            }
-        }
+    // Strongest first: larger margin, then larger winning support, then a
+    // deterministic id tiebreak so the lock order is reproducible.
+    majorities.sortWith(
+        compareByDescending<Majority> { it.margin }
+            .thenByDescending { it.support }
+            .thenBy { m.ids[it.w] }
+            .thenBy { m.ids[it.l] }
+    )
+    // Lock each majority unless it would close a cycle (the loser already
+    // reaches the winner). reach is the transitive closure of locked edges.
+    val reach = Array(n) { BooleanArray(n) }
+    for (mj in majorities) {
+        if (reach[mj.l][mj.w]) continue // would create a cycle → skip
+        val from = (0 until n).filter { it == mj.w || reach[it][mj.w] }
+        val to = (0 until n).filter { it == mj.l || reach[mj.l][it] }
+        for (a in from) for (b in to) reach[a][b] = true
     }
-
-    val pathWins = DoubleArray(n) { i ->
-        (0 until n).sumOf { j ->
-            when {
-                i == j -> 0.0
-                p[i][j] > p[j][i] -> 1.0
-                p[i][j] == p[j][i] -> 0.5
-                else -> 0.0
-            }
-        }
-    }
-    val pathMargin = DoubleArray(n) { i -> (0 until n).sumOf { j -> p[i][j] - p[j][i] } }
-    val order = (0 until n).sortedWith { a, b ->
-        when {
-            p[a][b] > p[b][a] -> -1
-            p[a][b] < p[b][a] -> 1
-            pathWins[a] != pathWins[b] -> -pathWins[a].compareTo(pathWins[b])
-            pathMargin[a] != pathMargin[b] -> -pathMargin[a].compareTo(pathMargin[b])
-            else -> m.ids[a].compareTo(m.ids[b])
-        }
-    }
+    // a reaches b ⇒ reachCount[a] > reachCount[b], so ordering by reach count
+    // is consistent with the locked DAG; ties (incomparable nodes) fall back
+    // to net margin then id.
+    val reachCount = IntArray(n) { i -> (0 until n).count { it != i && reach[i][it] } }
+    val marginSum = DoubleArray(n) { i -> (0 until n).sumOf { j -> d[i][j] - d[j][i] } }
+    val order = (0 until n).sortedWith(
+        compareByDescending<Int> { reachCount[it] }
+            .thenByDescending { marginSum[it] }
+            .thenBy { m.ids[it] }
+    )
     val denom = (n - 1).coerceAtLeast(1)
     return order.mapIndexed { rank, i ->
-        // Schulze is an ORDERING method. On a dense / cyclic round-robin the
-        // strongest-path strengths saturate (most pairs end up beatpath-tied,
-        // p[i][j] == p[j][i]), so any beatpath-derived cardinal score — the
-        // win-count OR the margin — collapses to a single value. Score by
-        // rank position instead so the column stays monotonic and distinct;
-        // the beatpath record stays in the reason for context.
+        // Ranked Pairs is an ORDERING method — score by rank position so the
+        // column stays monotonic and distinct; the locked dominance is the
+        // reason for context.
         val score = 100.0 * (n - 1 - rank) / denom
         RankRow(
             id = m.ids[i],
             rank = rank + 1,
             score = Math.round(score * 10.0) / 10.0,
-            reason = "Beatpath wins %.1f of %d".format(pathWins[i], denom)
+            reason = "Beats %d via locked pairs".format(reachCount[i])
         )
     }
 }
@@ -324,7 +324,7 @@ fun markov(m: WinMatrix): List<RankRow> {
  *  single game scored by the pair's fractional result, updating ratings
  *  K=32 from a 1500 base. NOTE: Elo is order-sensitive; the fixed id
  *  ordering makes the result reproducible but is a weaker fit for a
- *  static round-robin than Copeland / Schulze / Markov. */
+ *  static round-robin than Copeland / Tideman / Markov. */
 fun elo(m: WinMatrix): List<RankRow> {
     val n = m.n
     if (n == 0) return emptyList()

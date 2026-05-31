@@ -427,7 +427,7 @@ private fun MethodSelector(selected: TournamentMethod, onSelect: (TournamentMeth
             TournamentMethod.COPELAND,
             TournamentMethod.ELO,
             TournamentMethod.DAVIDSON,
-            TournamentMethod.SCHULZE,
+            TournamentMethod.TIDEMAN,
             TournamentMethod.MARKOV
         ).forEach { method ->
             TournamentMethodChip(methodLabel(method), selected == method) {
@@ -822,7 +822,7 @@ private fun methodLabel(method: TournamentMethod): String = when (method) {
     TournamentMethod.COPELAND -> "Copeland"
     TournamentMethod.ELO -> "Elo"
     TournamentMethod.DAVIDSON -> "Davidson"
-    TournamentMethod.SCHULZE -> "Schulze"
+    TournamentMethod.TIDEMAN -> "Tideman"
     TournamentMethod.MARKOV -> "Markov"
 }
 
@@ -831,7 +831,7 @@ private fun scoreText(score: Double?, method: TournamentMethod): String {
     return when (method) {
         TournamentMethod.COPELAND,
         TournamentMethod.DAVIDSON,
-        TournamentMethod.SCHULZE,
+        TournamentMethod.TIDEMAN,
         TournamentMethod.MARKOV -> String.format(java.util.Locale.US, "%.1f", score)
         else -> formatRerankScore(score)
     }
