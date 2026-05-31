@@ -64,7 +64,6 @@ import com.ai.ui.report.view.helpers.ViewReportCache
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.LocalTournamentOpenState
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -79,7 +78,12 @@ import kotlinx.coroutines.withContext
 fun TournamentPodiumViewScreen(
     reportId: String,
     resultId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    /** Overrides the 🔧 manage action. The inline podium (shown over the
+     *  Manage tournament drill-in) passes one that just pops back to the
+     *  drill-in; the View-hub pages leave it null and use the
+     *  ManageJump.Tournament jump below. */
+    onOpenManageOverride: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -101,16 +105,15 @@ fun TournamentPodiumViewScreen(
     }
     val loaded = loadedState.value
     val currentMethod = decodeTournamentMatrix(loaded.row?.tournamentMatrix)?.second ?: TournamentMethod.COPELAND
-    // The 🔧 manage icon opens the Tournament page in Manage. Setting the
-    // shared tournament-open holder is sufficient on its own: ReportsScreenNav
-    // early-returns the Manage tournament drill-in whenever it's non-null, so
-    // the View overlay is replaced by it. Basing this on the (always-inherited)
-    // open-state holder — rather than LocalOpenManage, which isn't provided on
-    // every View render path — makes the icon appear and work on all of them.
-    val tournamentOpenState = LocalTournamentOpenState.current
-    val onOpenTournamentManage: (() -> Unit)? = tournamentOpenState?.let { holder ->
-        { holder.value = currentReportId }
-    }
+    // The 🔧 manage icon opens the Tournament page in Manage. From the View
+    // pages we dispatch ManageJump.Tournament through LocalOpenManage (the same
+    // View→Manage channel every other View screen uses, and the only one
+    // reliably provided on the View bottom-bar paths); the manage-side handler
+    // sets the tournament-open holder + closes View, so the Manage tournament
+    // drill-in appears. The inline podium passes [onOpenManageOverride] instead.
+    val openManage = com.ai.ui.shared.LocalOpenManage.current
+    val onOpenTournamentManage: (() -> Unit)? = onOpenManageOverride
+        ?: openManage?.let { dispatch -> { dispatch(com.ai.ui.shared.ManageJump.Tournament(currentReportId)) } }
     var headToHeadAgentId by rememberSaveable(currentReportId, currentResultId) { mutableStateOf<String?>(null) }
     val selectedHeadToHeadAgentId = headToHeadAgentId
     if (selectedHeadToHeadAgentId != null) {

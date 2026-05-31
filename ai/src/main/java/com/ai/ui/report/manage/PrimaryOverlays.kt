@@ -156,6 +156,11 @@ internal fun ReportPrimaryOverlays(
     onOpenFanOutView: (metaPromptName: String, language: String?) -> Unit,
     onCloseFanOutView: () -> Unit
 ): Boolean {
+    // Holder for the Manage tournament drill-in — set by a
+    // ManageJump.Tournament so a View tournament page's 🔧 lands on the
+    // Manage Tournament page. Read here (composable scope) so both
+    // LocalOpenManage handlers below can capture it.
+    val tournamentOpenHolder = com.ai.ui.shared.LocalTournamentOpenState.current
     // Manage → View 👁 jump. This block runs BEFORE every other
     // overlay so the requested View sub-screen renders on top of
     // whatever Manage overlay is otherwise active. The Manage flag
@@ -330,6 +335,11 @@ internal fun ReportPrimaryOverlays(
                     onCloseFanOutView()
                     onShowViewReportScreenChange(false)
                 }
+                is com.ai.ui.shared.ManageJump.Tournament -> {
+                    tournamentOpenHolder?.value = jump.reportId
+                    onCloseFanOutView()
+                    onShowViewReportScreenChange(false)
+                }
                 is com.ai.ui.shared.ManageJump.MetaResult -> onOpenMetaResultIdChange(jump.id)
                 is com.ai.ui.shared.ManageJump.TranslationRun -> onOpenTranslationRunIdChange(jump.id)
                 is com.ai.ui.shared.ManageJump.ReportsViewer -> {
@@ -415,6 +425,12 @@ internal fun ReportPrimaryOverlays(
             // to reveal the Report - manage main screen.
             when (jump) {
                 is com.ai.ui.shared.ManageJump.Main -> {
+                    onShowViewReportScreenChange(false)
+                }
+                is com.ai.ui.shared.ManageJump.Tournament -> {
+                    // Open the Manage tournament drill-in; closing View reveals
+                    // it (ReportsScreenNav early-returns the tournament overlay).
+                    tournamentOpenHolder?.value = jump.reportId
                     onShowViewReportScreenChange(false)
                 }
                 is com.ai.ui.shared.ManageJump.MetaResult -> onOpenMetaResultIdChange(jump.id)

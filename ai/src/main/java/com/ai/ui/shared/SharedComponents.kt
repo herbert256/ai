@@ -298,6 +298,10 @@ sealed class ManageJump {
     object Main : ManageJump()
     data class MetaResult(val id: String) : ManageJump()
     data class TranslationRun(val id: String) : ManageJump()
+    /** Open the Manage Tournament drill-in for [reportId] (the manage-side
+     *  handler sets [LocalTournamentOpenState], which ReportsScreenNav
+     *  early-returns into the tournament overlay). */
+    data class Tournament(val reportId: String) : ManageJump()
     data class ReportsViewer(
         val initialAgentId: String?,
         val section: String?
