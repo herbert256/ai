@@ -379,10 +379,20 @@ class TournamentEngine internal constructor(
         val run = _runs.value[reportId] ?: return
         val aggId = run.aggregateRowId ?: return
         val report = ReportStorage.getReport(context, reportId) ?: return
-        val successful = report.agents.filter {
-            it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-        }
-        val idByAgent = successful.withIndex().associate { (i, a) -> a.agentId to (i + 1) }
+        // The tournament's participants are FIXED at launch (the responses in
+        // its matches). Numbering the [N] ids through the report's CURRENT
+        // success set truncated the ranking whenever a participant was
+        // transiently non-SUCCESS (mid-generate / regenerate): computeWinMatrix
+        // silently drops unresolved responses, so the matrix shrank (e.g. 9 of
+        // 39). Number every participant by its stable position in the report's
+        // agent order instead — for participants (which were all SUCCESS at
+        // launch) this reproduces the launch-time success ordering the View /
+        // Top-ranked expect, but it can't be shrunk by a later status dip.
+        val participantIds = run.matches.values
+            .flatMapTo(HashSet()) { listOf(it.responseAId, it.responseBId) }
+        val idByAgent = report.agents
+            .filter { it.agentId in participantIds }
+            .withIndex().associate { (i, a) -> a.agentId to (i + 1) }
         val matrix = computeWinMatrix(run.matches.values.toList()) { idByAgent[it] }
         val ranks = rankFor(run.selectedMethod, matrix)
         val row = SecondaryResultStorage.get(context, reportId, aggId) ?: return
@@ -506,7 +516,21 @@ class TournamentEngine internal constructor(
                         it.tournamentRole == ROLE_MATCH && it.content.isNullOrBlank() &&
                             it.errorMessage == null && it.durationMs == null && !matchJobs.containsKey(it.id)
                     }.associateBy { it.id }
-                if (diskById.isEmpty()) return@launch
+                if (diskById.isEmpty()) {
+                    // No stale matches left, but the aggregate matrix may be
+                    // truncated (an old recompute ran during a partial-SUCCESS
+                    // window). Re-sync once if it covers fewer responses than
+                    // the run's participants. Guarded so it can't loop.
+                    val participants = run.matches.values
+                        .flatMapTo(HashSet()) { listOf(it.responseAId, it.responseBId) }.size
+                    val storedN = run.aggregateRowId
+                        ?.let { SecondaryResultStorage.get(context, reportId, it)?.tournamentMatrix }
+                        ?.let { decodeTournamentMatrix(it)?.first?.ids?.size } ?: 0
+                    if (participants >= 2 && storedN < participants) {
+                        recomputeAndPersistAggregate(context, reportId)
+                    }
+                    return@launch
+                }
                 val staleRows = run.matches.values
                     .filter { it.status == MatchStatus.PENDING && it.id in diskById }
                     .mapNotNull { diskById[it.id] }
