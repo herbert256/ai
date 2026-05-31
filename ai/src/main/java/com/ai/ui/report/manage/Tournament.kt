@@ -179,12 +179,12 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     var groupKey by rememberSaveable { mutableStateOf("") }
     var matchKey by rememberSaveable { mutableStateOf("") }
     var showResults by rememberSaveable { mutableStateOf(false) }
-    val pendingViewHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
-    val onOpenTournamentView: (() -> Unit)? = run?.aggregateRowId?.let { aggregateRowId ->
-        pendingViewHolder?.let { holder ->
-            { holder.value = com.ai.ui.shared.ViewJump.Tournament(aggregateRowId) }
-        }
-    }
+    // The 👁 view icon opens the View Tournament (podium) screen inline —
+    // the same destination as the "View results" button. The
+    // LocalPendingViewOverManage jump can't be used here: this tournament
+    // overlay early-returns above ReportsScreen, so nothing observes that
+    // holder while the overlay is up, and the jump silently did nothing.
+    val onOpenTournamentView: (() -> Unit)? = run?.aggregateRowId?.let { { showResults = true } }
 
     BackHandler {
         when {
