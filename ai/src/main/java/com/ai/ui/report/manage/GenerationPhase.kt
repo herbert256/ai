@@ -145,12 +145,13 @@ internal fun buildEveryItems(
         .map { row ->
             val name = row.metaPromptName ?: "Meta"
             val prompt = promptByName[name]
+            val displayName = secondaryPromptDisplayName(name)
             val own = row.targetLanguage?.takeIf { it.isNotBlank() } ?: ""
             val langs = mutableSetOf<String>()
             langs.add(if (own.isEmpty()) "" else fold(own))
             translateByMetaId[row.id]?.forEach { trLang -> langs.add(fold(trLang)) }
             EveryItem(
-                label = name,
+                label = displayName,
                 prompt = prompt,
                 availableLanguages = langs,
                 sourceRows = listOf(row),
@@ -160,14 +161,14 @@ internal fun buildEveryItems(
     val rerank = secondaryRuns
         .filter { it.kind == SecondaryKind.RERANK }
         .map { row -> EveryItem(
-            label = row.metaPromptName ?: "Rerank",
+            label = row.metaPromptName?.let(::secondaryPromptDisplayName) ?: "Rerank",
             sourceRows = listOf(row),
             open = { lang -> onOpenSecondaryRun(row.id, lang) }
         ) }
     val moderation = secondaryRuns
         .filter { it.kind == SecondaryKind.MODERATION }
         .map { row -> EveryItem(
-            label = row.metaPromptName ?: "Moderation",
+            label = row.metaPromptName?.let(::secondaryPromptDisplayName) ?: "Moderation",
             sourceRows = listOf(row),
             open = { lang -> onOpenSecondaryRun(row.id, lang) }
         ) }
@@ -902,7 +903,8 @@ internal fun ColumnScope.GenerationPhase(
                         run.kind == SecondaryKind.TOURNAMENT ->
                             if (run.tournamentRole == "MATCH") "tournament-match" else "tournament"
                         run.fanInOf != null -> "fan-in"
-                        run.metaPromptName?.isNotBlank() == true -> run.metaPromptName.lowercase()
+                        run.metaPromptName?.isNotBlank() == true ->
+                            secondaryPromptDisplayName(run.metaPromptName).lowercase()
                         else -> when (run.kind) {
                             SecondaryKind.RERANK -> "rerank"
                             SecondaryKind.META -> "meta"
