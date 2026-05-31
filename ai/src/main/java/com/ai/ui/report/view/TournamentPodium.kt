@@ -78,12 +78,7 @@ import kotlinx.coroutines.withContext
 fun TournamentPodiumViewScreen(
     reportId: String,
     resultId: String,
-    onBack: () -> Unit,
-    /** Overrides the 🔧 manage action. The inline podium (shown over the
-     *  Manage tournament drill-in) passes one that just pops back to the
-     *  drill-in; the View-hub pages leave it null and use the
-     *  ManageJump.Tournament jump below. */
-    onOpenManageOverride: (() -> Unit)? = null
+    onBack: () -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -110,10 +105,10 @@ fun TournamentPodiumViewScreen(
     // View→Manage channel every other View screen uses, and the only one
     // reliably provided on the View bottom-bar paths); the manage-side handler
     // sets the tournament-open holder + closes View, so the Manage tournament
-    // drill-in appears. The inline podium passes [onOpenManageOverride] instead.
+    // drill-in appears.
     val openManage = com.ai.ui.shared.LocalOpenManage.current
-    val onOpenTournamentManage: (() -> Unit)? = onOpenManageOverride
-        ?: openManage?.let { dispatch -> { dispatch(com.ai.ui.shared.ManageJump.Tournament(currentReportId)) } }
+    val onOpenTournamentManage: (() -> Unit)? =
+        openManage?.let { dispatch -> { dispatch(com.ai.ui.shared.ManageJump.Tournament(currentReportId)) } }
     var headToHeadAgentId by rememberSaveable(currentReportId, currentResultId) { mutableStateOf<String?>(null) }
     val selectedHeadToHeadAgentId = headToHeadAgentId
     if (selectedHeadToHeadAgentId != null) {

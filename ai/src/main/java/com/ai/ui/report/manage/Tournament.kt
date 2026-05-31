@@ -60,7 +60,6 @@ import com.ai.data.ReportStorage
 import com.ai.data.TournamentMethod
 import com.ai.data.TournamentRunState
 import com.ai.data.barTitle
-import com.ai.ui.report.view.TournamentPodiumViewScreen
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
@@ -178,17 +177,22 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     var level by rememberSaveable { mutableStateOf(1) }       // 1 = L1, 2 = L2, 3 = L3
     var groupKey by rememberSaveable { mutableStateOf("") }
     var matchKey by rememberSaveable { mutableStateOf("") }
-    var showResults by rememberSaveable { mutableStateOf(false) }
-    // The 👁 view icon opens the View Tournament (podium) screen inline —
-    // the same destination as the "View results" button. The
-    // LocalPendingViewOverManage jump can't be used here: this tournament
-    // overlay early-returns above ReportsScreen, so nothing observes that
-    // holder while the overlay is up, and the jump silently did nothing.
-    val onOpenTournamentView: (() -> Unit)? = run?.aggregateRowId?.let { { showResults = true } }
+    // The 👁 view icon opens the real View Tournament podium. We can't set
+    // LocalPendingViewOverManage and have it observed while this overlay is up
+    // (it early-returns above ReportsScreen), so we stage the jump AND close
+    // the overlay in one tap: once openTournamentReportId clears, ReportsScreen
+    // composes and ReportPrimaryOverlays renders the staged ViewJump.Tournament
+    // over Manage (back from there pops to the Manage report screen).
+    val pendingViewHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+    val onOpenTournamentView: (() -> Unit)? = run?.aggregateRowId?.let { rowId ->
+        {
+            pendingViewHolder?.value = com.ai.ui.shared.ViewJump.Tournament(rowId)
+            onBack()
+        }
+    }
 
     BackHandler {
         when {
-            showResults -> showResults = false
             level == 3 -> level = 2
             level == 2 -> level = 1
             else -> onBack()
@@ -210,21 +214,6 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
         return
     }
 
-    if (showResults && run.aggregateRowId != null) {
-        // Inline over the Manage drill-in: the 🔧 just pops back to the
-        // drill-in (we're already in Manage). Provide the report's icon —
-        // the Manage flow doesn't supply LocalReportIcon, so without this
-        // the podium's title bar falls back to the generic report glyph.
-        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides reportIcon) {
-            TournamentPodiumViewScreen(
-                reportId = reportId, resultId = run.aggregateRowId!!,
-                onBack = { showResults = false },
-                onOpenManageOverride = { showResults = false }
-            )
-        }
-        return
-    }
-
     when (level) {
         2 -> TournamentL2(run, agents, reportTitle, reportIcon, groupKey, groupMode,
             onOpenView = onOpenTournamentView,
@@ -238,7 +227,6 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
         else -> TournamentL1(run, agents, reportTitle, reportIcon, groupMode, throttled,
             setGroupMode = { groupMode = it },
             openGroup = { gk -> groupKey = gk; level = 2 },
-            onViewResults = { showResults = true },
             onRestartFailed = { scope.launch { engine.restartFailedMatches(context, reportId) } },
             onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
             onOpenView = onOpenTournamentView,
@@ -295,7 +283,6 @@ private fun TournamentL1(
     throttled: Set<String>,
     setGroupMode: (TournamentGroupMode) -> Unit,
     openGroup: (String) -> Unit,
-    onViewResults: () -> Unit,
     onRestartFailed: () -> Unit,
     onDeleteRun: () -> Unit,
     onOpenView: (() -> Unit)?,
@@ -394,12 +381,6 @@ private fun TournamentL1(
 
             Spacer(Modifier.height(16.dp))
             // Action buttons.
-            if (run.allTerminal && run.errorCount == 0 && run.aggregateRowId != null) {
-                Button(
-                    onClick = onViewResults, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
-                ) { Text("View results", fontSize = 14.sp) }
-            }
             if (run.errorCount > 0) {
                 Spacer(Modifier.height(8.dp))
                 Button(

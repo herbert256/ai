@@ -208,7 +208,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Tournament results",
         cards = listOf(
             HelpCard("The ranking + method switch", "The top table is the 1..N ranking, best first, with a score and one-line reason per answer — the same layout the Rerank view uses. The method buttons re-aggregate the SAME head-to-head results instantly and with no extra API calls. Copeland ranks by opponent wins, Elo replays pairs as rated games, Davidson fits a tie-aware pairwise strength model, Tideman (ranked pairs) locks in the strongest pairwise victories while skipping cycles, and Markov uses a stationary graph ranking. Whichever method is selected is also the ordering a Top-ranked scope (Meta / Translate) will use."),
-            HelpCard("Where it comes from", "Reached from the Tournament page's 'View results' button once every match is judged. A tournament is selectable as a Top-ranked source anywhere a rerank is, because its ranking conforms to the same format.")
+            HelpCard("Where it comes from", "Reached from the report's View home (the Tournament tile), or by tapping the 👁 view icon on the Tournament page in Manage. A tournament is selectable as a Top-ranked source anywhere a rerank is, because its ranking conforms to the same format.")
         )
     ),
     "tournament_l1" to HelpContent(
@@ -216,7 +216,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("What it is", "A tournament ranks the report's answers by pairwise head-to-head judging. Every unordered pair of responses is judged twice — once each way (A-vs-B and B-vs-A) — to cancel first-position bias, so for N answers there are N(N-1) matches. Each match is judged by the WORKER engine (the round-robin chain of cheap models in your 'workers' swarm), so judging spreads across many models rather than one. Start a tournament from the report's 🆕 Create launcher → Tournament."),
             HelpCard("Statistics + grouping", "The counters show Total / Done / Running / Wait (throttled) / Queue / Errors / Cost. The two chips switch how the matches below are grouped: 'Judge models' groups by the worker model that judged each match; 'Report models' groups by the report answer being compared. The green row fill shows progress for the active grouping. Tap a group to drill into its matches, then a match to see the two responses and the verdict."),
-            HelpCard("View results", "Once every match is judged, a 'View results' button appears — it opens the 1..N ranking with the tournament method switch. The 🗑 in the title bar deletes the whole tournament; 'Restart failed' re-judges any errored matches.")
+            HelpCard("Viewing the ranking", "The 👁 view icon at the bottom opens the View Tournament screen — the 1..N ranking with the tournament method switch. The 🗑 in the title bar deletes the whole tournament; 'Restart failed' re-judges any errored matches.")
         )
     ),
     "tournament_l2" to HelpContent(
