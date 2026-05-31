@@ -330,6 +330,7 @@ sealed class ViewJump {
     data class FanIn(val id: String) : ViewJump()
     data class FanOut(val metaPromptName: String) : ViewJump()
     data class TranslationRun(val runId: String) : ViewJump()
+    data class Tournament(val id: String) : ViewJump()
     data class Reports(val agentId: String?) : ViewJump()
 }
 

@@ -60,7 +60,7 @@ import com.ai.data.ReportStorage
 import com.ai.data.TournamentMethod
 import com.ai.data.TournamentRunState
 import com.ai.data.barTitle
-import com.ai.ui.report.view.TournamentViewScreen
+import com.ai.ui.report.view.TournamentPodiumViewScreen
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
@@ -179,6 +179,12 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     var groupKey by rememberSaveable { mutableStateOf("") }
     var matchKey by rememberSaveable { mutableStateOf("") }
     var showResults by rememberSaveable { mutableStateOf(false) }
+    val pendingViewHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
+    val onOpenTournamentView: (() -> Unit)? = run?.aggregateRowId?.let { aggregateRowId ->
+        pendingViewHolder?.let { holder ->
+            { holder.value = com.ai.ui.shared.ViewJump.Tournament(aggregateRowId) }
+        }
+    }
 
     BackHandler {
         when {
@@ -205,15 +211,17 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     }
 
     if (showResults && run.aggregateRowId != null) {
-        TournamentViewScreen(reportId = reportId, resultId = run.aggregateRowId!!, onBack = { showResults = false })
+        TournamentPodiumViewScreen(reportId = reportId, resultId = run.aggregateRowId!!, onBack = { showResults = false })
         return
     }
 
     when (level) {
         2 -> TournamentL2(run, agents, reportTitle, reportIcon, groupKey, groupMode,
+            onOpenView = onOpenTournamentView,
             openMatch = { mk -> matchKey = mk; level = 3 },
             onBack = { level = 1 })
         3 -> TournamentL3(run, agents, reportTitle, reportIcon, matchKey, groupKey, groupMode,
+            onOpenView = onOpenTournamentView,
             onBack = { level = 2 },
             onRerun = { scope.launch { engine.rerunMatch(context, reportId, matchKey) } },
             onStep = { mk -> matchKey = mk })
@@ -223,6 +231,7 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
             onViewResults = { showResults = true },
             onRestartFailed = { scope.launch { engine.restartFailedMatches(context, reportId) } },
             onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
+            onOpenView = onOpenTournamentView,
             onBack = onBack)
     }
 }
@@ -279,6 +288,7 @@ private fun TournamentL1(
     onViewResults: () -> Unit,
     onRestartFailed: () -> Unit,
     onDeleteRun: () -> Unit,
+    onOpenView: (() -> Unit)?,
     onBack: () -> Unit
 ) {
     val throttledCount = run.matches.values.count { it.id in throttled }
@@ -288,6 +298,7 @@ private fun TournamentL1(
             subject = reportTitle,
             reportIcon = reportIcon,
             onBackClick = onBack,
+            onOpenView = onOpenView,
             onDelete = onDeleteRun
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -491,6 +502,7 @@ private fun TournamentL2(
     reportIcon: String,
     groupKey: String,
     groupMode: TournamentGroupMode,
+    onOpenView: (() -> Unit)?,
     openMatch: (String) -> Unit,
     onBack: () -> Unit
 ) {
@@ -508,6 +520,7 @@ private fun TournamentL2(
             title = screenTitle,
             subject = reportTitle,
             reportIcon = reportIcon,
+            onOpenView = onOpenView,
             onBackClick = onBack
         )
         TournamentGreenSubject(title)
@@ -654,6 +667,7 @@ private fun TournamentL3(
     matchKey: String,
     groupKey: String,
     groupMode: TournamentGroupMode,
+    onOpenView: (() -> Unit)?,
     onBack: () -> Unit,
     onRerun: () -> Unit,
     onStep: (String) -> Unit
@@ -670,6 +684,7 @@ private fun TournamentL3(
             subject = reportTitle,
             reportIcon = reportIcon,
             onBackClick = onBack,
+            onOpenView = onOpenView,
             onReload = onRerun
         )
         if (m == null) {

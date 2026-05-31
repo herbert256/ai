@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,10 +25,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -35,7 +38,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -258,8 +263,10 @@ private data class TournamentViewSide(
 private data class TournamentViewMatch(
     val firstAgentId: String,
     val firstLabel: String,
+    val firstResponse: String?,
     val secondAgentId: String,
     val secondLabel: String,
+    val secondResponse: String?,
     val firstPass: TournamentViewSide,
     val swappedPass: TournamentViewSide
 )
@@ -284,6 +291,7 @@ private fun loadTournamentPodium(
         )
     }.toMap()
     val agentIdToLabel = successful.associate { it.agentId to shortModelName(it.model) }
+    val agentIdToResponse = successful.associate { it.agentId to it.responseBody }
     val matchRows = row?.tournamentJudgeRunId?.let { runId ->
         SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
             .filter { it.tournamentRole == "MATCH" && it.tournamentJudgeRunId == runId }
@@ -305,13 +313,14 @@ private fun loadTournamentPodium(
         doneMatches = matchRows.count { !it.content.isNullOrBlank() || it.durationMs != null },
         totalMatches = matchRows.size,
         tieCount = records.values.sumOf { it.draws } / 2,
-        matches = buildTournamentViewMatches(matchRows, agentIdToLabel)
+        matches = buildTournamentViewMatches(matchRows, agentIdToLabel, agentIdToResponse)
     )
 }
 
 private fun buildTournamentViewMatches(
     rows: List<SecondaryResult>,
-    agentIdToLabel: Map<String, String>
+    agentIdToLabel: Map<String, String>,
+    agentIdToResponse: Map<String, String?>
 ): List<TournamentViewMatch> {
     val byPair = rows
         .filter { !it.matchResponseAId.isNullOrBlank() && !it.matchResponseBId.isNullOrBlank() }
@@ -329,8 +338,10 @@ private fun buildTournamentViewMatches(
         TournamentViewMatch(
             firstAgentId = firstId,
             firstLabel = agentIdToLabel[firstId] ?: "?",
+            firstResponse = agentIdToResponse[firstId],
             secondAgentId = secondId,
             secondLabel = agentIdToLabel[secondId] ?: "?",
+            secondResponse = agentIdToResponse[secondId],
             firstPass = tournamentViewSideFrom(firstPassRow),
             swappedPass = tournamentViewSideFrom(swappedPassRow)
         )
@@ -540,6 +551,35 @@ private fun TournamentModelHeadToHeadViewScreen(
     val won = sides.count { tournamentResultFor(agentId, it) == "won" }
     val drew = sides.count { tournamentResultFor(agentId, it) == "draw" }
     val lost = sides.count { tournamentResultFor(agentId, it) == "lost" }
+    var currentMatchIndex by rememberSaveable(agentId) { mutableStateOf(0) }
+    LaunchedEffect(matches.size, agentId) {
+        currentMatchIndex = when {
+            matches.isEmpty() -> 0
+            currentMatchIndex in matches.indices -> currentMatchIndex
+            else -> currentMatchIndex.coerceIn(0, matches.lastIndex)
+        }
+    }
+    val swipeThresholdPx = with(LocalDensity.current) { 72.dp.toPx() }
+    var swipeDragX by remember(matches.size, agentId) { mutableStateOf(0f) }
+    val safeMatchIndex = if (matches.isEmpty()) 0 else currentMatchIndex.coerceIn(0, matches.lastIndex)
+    val swipeModifier = if (matches.size > 1) {
+        Modifier.pointerInput(matches.size, safeMatchIndex) {
+            detectHorizontalDragGestures(
+                onDragStart = { swipeDragX = 0f },
+                onHorizontalDrag = { _, dragAmount -> swipeDragX += dragAmount },
+                onDragCancel = { swipeDragX = 0f },
+                onDragEnd = {
+                    when {
+                        swipeDragX > swipeThresholdPx -> currentMatchIndex = steppedMatchIndex(safeMatchIndex, matches.size, -1)
+                        swipeDragX < -swipeThresholdPx -> currentMatchIndex = steppedMatchIndex(safeMatchIndex, matches.size, 1)
+                    }
+                    swipeDragX = 0f
+                }
+            )
+        }
+    } else {
+        Modifier
+    }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -554,7 +594,7 @@ private fun TournamentModelHeadToHeadViewScreen(
             onBack = onBack
         )
         LazyColumn(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().then(swipeModifier),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
         ) {
@@ -571,8 +611,26 @@ private fun TournamentModelHeadToHeadViewScreen(
                     )
                 }
             } else {
-                items(matches) { match ->
+                val match = matches[safeMatchIndex]
+                item {
+                    TournamentHeadToHeadCounter(current = safeMatchIndex + 1, total = matches.size)
+                }
+                item {
                     TournamentHeadToHeadCard(match = match, agentId = agentId)
+                }
+                item {
+                    TournamentResponseCard(
+                        title = "A - ${match.firstLabel}",
+                        titleColor = tournamentResponseColor(match, match.firstAgentId),
+                        body = match.firstResponse
+                    )
+                }
+                item {
+                    TournamentResponseCard(
+                        title = "B - ${match.secondLabel}",
+                        titleColor = tournamentResponseColor(match, match.secondAgentId),
+                        body = match.secondResponse
+                    )
                 }
             }
         }
@@ -592,6 +650,17 @@ private fun TournamentHeadToHeadSummary(won: Int, drew: Int, lost: Int) {
 }
 
 @Composable
+private fun TournamentHeadToHeadCounter(current: Int, total: Int) {
+    Text(
+        "$current / $total",
+        color = AppColors.TextTertiary,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+    )
+}
+
+@Composable
 private fun TournamentHeadToHeadCard(match: TournamentViewMatch, agentId: String) {
     val opponent = if (match.firstAgentId == agentId) match.secondLabel else match.firstLabel
     Column(
@@ -606,9 +675,7 @@ private fun TournamentHeadToHeadCard(match: TournamentViewMatch, agentId: String
             "vs $opponent",
             color = Color.White,
             fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            fontWeight = FontWeight.SemiBold
         )
         TournamentOrientationLine(
             label = "A <> B",
@@ -627,7 +694,13 @@ private fun TournamentHeadToHeadCard(match: TournamentViewMatch, agentId: String
 private fun TournamentOrientationLine(label: String, side: TournamentViewSide, agentId: String) {
     val result = tournamentResultFor(agentId, side)
     val (resultLabel, resultColor) = tournamentResultStyle(result)
-    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.Black.copy(alpha = 0.18f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -638,7 +711,7 @@ private fun TournamentOrientationLine(label: String, side: TournamentViewSide, a
                 color = AppColors.TextSecondary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.width(54.dp),
+                modifier = Modifier.width(56.dp),
                 maxLines = 1
             )
             Text(
@@ -646,29 +719,46 @@ private fun TournamentOrientationLine(label: String, side: TournamentViewSide, a
                 color = resultColor,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.width(54.dp),
-                maxLines = 1
-            )
-            Text(
-                "Judge: ${side.judge ?: "-"}",
-                color = AppColors.TextTertiary,
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
             )
         }
+        Text(
+            "Judge: ${side.judge ?: "-"}",
+            color = AppColors.TextTertiary,
+            fontSize = 11.sp
+        )
         val detail = side.error ?: side.reason
         if (!detail.isNullOrBlank()) {
             Text(
                 detail,
                 color = AppColors.TextTertiary,
-                fontSize = 11.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 62.dp)
+                fontSize = 11.sp
             )
         }
+    }
+}
+
+@Composable
+private fun TournamentResponseCard(title: String, titleColor: Color, body: String?) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(AppColors.CardBackground)
+            .border(1.dp, titleColor.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            title,
+            color = titleColor,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            body?.trim()?.takeIf { it.isNotEmpty() } ?: "(empty response)",
+            color = AppColors.TextSecondary,
+            fontSize = 12.sp
+        )
     }
 }
 
@@ -685,7 +775,27 @@ private fun tournamentResultStyle(result: String): Pair<String, Color> = when (r
     "lost" -> "lost" to AppColors.Red
     "draw" -> "draw" to AppColors.Blue
     "error" -> "error" to AppColors.Red
-    else -> "..." to AppColors.TextTertiary
+    else -> "pending" to AppColors.TextTertiary
+}
+
+private fun tournamentResponseColor(match: TournamentViewMatch, agentId: String): Color {
+    val sides = listOf(match.firstPass, match.swappedPass)
+    val wins = sides.count { it.error.isNullOrBlank() && !it.tie && it.winnerAgentId == agentId }
+    val losses = sides.count {
+        it.error.isNullOrBlank() && !it.tie && !it.winnerAgentId.isNullOrBlank() && it.winnerAgentId != agentId
+    }
+    val draws = sides.count { it.error.isNullOrBlank() && it.tie }
+    return when {
+        wins > losses -> AppColors.Green
+        losses > wins -> AppColors.Red
+        wins > 0 || draws > 0 -> AppColors.Blue
+        else -> AppColors.TextSecondary
+    }
+}
+
+private fun steppedMatchIndex(current: Int, size: Int, delta: Int): Int {
+    if (size <= 1) return current
+    return (current + delta + size) % size
 }
 
 @Composable

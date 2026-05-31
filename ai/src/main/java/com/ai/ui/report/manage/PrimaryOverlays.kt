@@ -289,6 +289,9 @@ internal fun ReportPrimaryOverlays(
                 is com.ai.ui.shared.ViewJump.TranslationRun -> TranslateViewScreen(
                     reportId = rid, translationRunId = jump.runId, onBack = close
                 )
+                is com.ai.ui.shared.ViewJump.Tournament -> TournamentPodiumViewScreen(
+                    reportId = rid, resultId = jump.id, onBack = close
+                )
                 is com.ai.ui.shared.ViewJump.Reports -> ReportsViewScreen(
                     reportId = rid,
                     availableLanguages = viewLanguageNames,
