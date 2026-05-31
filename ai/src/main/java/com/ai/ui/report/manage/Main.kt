@@ -228,6 +228,7 @@ fun ReportsScreen(
     onRunRerank: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _, _ -> },
     onRunModeration: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _ -> },
     onRunTournament: (String) -> Unit = { },
+    onRunJudgeJudges: (String) -> Unit = { },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     /** Bulk delete on the report VM's viewModelScope so a Stop /
      *  navigate-away during a Fan-out delete doesn't abandon a half-
@@ -1554,7 +1555,8 @@ fun ReportsScreen(
             onDismissRegenerateConfirm = { showRegenerateConfirm = false },
             onRegenerate = onRegenerate,
             onChatWithReportPrompt = onChatWithReportPrompt,
-            onRunTournament = onRunTournament
+            onRunTournament = onRunTournament,
+            onRunJudgeJudges = onRunJudgeJudges
         )
     }
 }

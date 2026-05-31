@@ -909,6 +909,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
                 else -> "meta/meta"
             }
             SecondaryKind.TOURNAMENT -> "after/tournament"
+            SecondaryKind.JUDGES -> "after/judges"
         }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, inTokens, outTokens, inCents, outCents, s.traceFile)
     }

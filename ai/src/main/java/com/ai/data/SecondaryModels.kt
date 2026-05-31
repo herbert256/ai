@@ -6,7 +6,7 @@ import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-enum class SecondaryKind { RERANK, META, MODERATION, TRANSLATE, TOURNAMENT }
+enum class SecondaryKind { RERANK, META, MODERATION, TRANSLATE, TOURNAMENT, JUDGES }
 
 /** Per-kind "Type" for a TRANSLATE call — drives the trace category, the
  *  report cost-table Type column, and the AI Usage `kind`, so each kind of

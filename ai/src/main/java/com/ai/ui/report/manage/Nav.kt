@@ -286,6 +286,10 @@ fun ReportsScreenNav(
         stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
     ) { mutableStateOf<String?>(null) }
     val openTournamentId = openTournamentReportId.value
+    val openJudgeEvalReportId = rememberSaveable(
+        stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
+    ) { mutableStateOf<String?>(null) }
+    val openJudgeEvalId = openJudgeEvalReportId.value
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
             onOpenManage = onOpenReportManage,
@@ -319,7 +323,9 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalRegenerateBatchEngine provides reportViewModel.regenerateBatchEngine,
         com.ai.ui.shared.LocalRegenerateBatchOpenState provides openRegenerateBatchReportId,
         com.ai.ui.shared.LocalTournamentEngine provides reportViewModel.tournamentEngine,
-        com.ai.ui.shared.LocalTournamentOpenState provides openTournamentReportId
+        com.ai.ui.shared.LocalTournamentOpenState provides openTournamentReportId,
+        com.ai.ui.shared.LocalJudgeEvalEngine provides reportViewModel.judgeEvalEngine,
+        com.ai.ui.shared.LocalJudgeEvalOpenState provides openJudgeEvalReportId
     ) {
     // Regenerate-batch overlay — layered here (inside the provider) so it
     // sees the report-context locals (ids/switch/neighbor nav, icon
@@ -339,6 +345,14 @@ fun ReportsScreenNav(
             reportId = openTournamentId,
             engine = reportViewModel.tournamentEngine,
             onClose = { openTournamentReportId.value = null }
+        )
+        return@CompositionLocalProvider
+    }
+    if (openJudgeEvalId != null) {
+        JudgeEvalOverlay(
+            reportId = openJudgeEvalId,
+            engine = reportViewModel.judgeEvalEngine,
+            onClose = { openJudgeEvalReportId.value = null }
         )
         return@CompositionLocalProvider
     }
@@ -516,6 +530,9 @@ fun ReportsScreenNav(
         onRunTournament = { reportId ->
             reportViewModel.tournamentEngine.startRun(context, reportId)
         },
+        onRunJudgeJudges = { reportId ->
+            reportViewModel.judgeEvalEngine.startRun(context, reportId)
+        },
         onDeleteSecondary = { reportId, resultId ->
             reportViewModel.secondary.deleteSecondaryResult(context, reportId, resultId)
         },
@@ -672,6 +689,8 @@ fun ReportsScreenNav(
             reportViewModel.fanOutEngine.resumeStaleRunsForReport(context, rid)
             // Tournament runs share the same app-kill recovery contract.
             reportViewModel.tournamentEngine.resumeStaleRunsForReport(context, rid)
+            // Judge-the-judges runs too.
+            reportViewModel.judgeEvalEngine.resumeStaleRunsForReport(context, rid)
         },
         onResumeStaleRuns = { rid ->
             reportViewModel.secondary.resumeStaleRunsForReport(context, rid)

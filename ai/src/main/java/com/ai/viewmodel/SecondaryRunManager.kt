@@ -351,6 +351,10 @@ class SecondaryRunManager(
         //     not tournaments, so an interrupted tournament never auto-resumed.
         rvm.tournamentEngine.resumeStaleRunsForReport(context, reportId)
 
+        // 2c'. Judge-the-judges batches: same contract — JudgeEvalEngine owns
+        //      the lifecycle (hydrate → re-dispatch stale cells).
+        rvm.judgeEvalEngine.resumeStaleRunsForReport(context, reportId)
+
         // 2b. Fan Meta batches: relaunch any fan-meta sweep the user
         //     started (some pair already carries a title/icon / error /
         //     run id) so a batch interrupted by an app kill resumes from
@@ -378,6 +382,8 @@ class SecondaryRunManager(
                 // them through the single-Meta path or terminalize them here, or
                 // the engine's in-flight pending matches get clobbered ❌.
                 it.kind != SecondaryKind.TOURNAMENT &&
+                // JUDGES cells are owned by JudgeEvalEngine — same contract.
+                it.kind != SecondaryKind.JUDGES &&
                 it.content.isNullOrBlank() &&
                 it.errorMessage == null &&
                 it.durationMs == null &&
@@ -421,6 +427,8 @@ class SecondaryRunManager(
             // fan-out pairs; terminalizing its pending matches here is what made
             // a big tournament show a flood of "No data yet" ❌ mid-run.
             if (row.kind == SecondaryKind.TOURNAMENT) return@forEach
+            // JUDGES cells are owned by JudgeEvalEngine — same contract.
+            if (row.kind == SecondaryKind.JUDGES) return@forEach
             // Translation rows in an active or newly-resumed run are
             // covered by startMissingTranslations; skip them here.
             if (row.kind == SecondaryKind.TRANSLATE &&
@@ -1281,6 +1289,7 @@ class SecondaryRunManager(
                 SecondaryKind.MODERATION -> "Moderation"
                 SecondaryKind.TRANSLATE -> "Translation"
                 SecondaryKind.TOURNAMENT -> "Tournament match"
+                SecondaryKind.JUDGES -> "Judge match"
                 SecondaryKind.META -> "Meta '${metaPrompt.name}'"
             }
             AuditLog.append(reportId, "$what result produced by ${provider.id}/$model")
@@ -1294,6 +1303,7 @@ class SecondaryRunManager(
                     SecondaryKind.MODERATION -> "moderation"
                     SecondaryKind.TRANSLATE -> "translate"
                     SecondaryKind.TOURNAMENT -> "tournament"
+                    SecondaryKind.JUDGES -> "judges"
                 }
             )
         }

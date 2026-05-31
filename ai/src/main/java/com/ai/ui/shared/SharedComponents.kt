@@ -592,6 +592,13 @@ val LocalTournamentEngine = compositionLocalOf<com.ai.viewmodel.TournamentEngine
 val LocalTournamentOpenState =
     compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
 
+/** [LocalTournamentEngine] analog for the "Judge the judges" drill-in. */
+val LocalJudgeEvalEngine = compositionLocalOf<com.ai.viewmodel.JudgeEvalEngine?> { null }
+
+/** Shared "Judge-the-judges L1 is open for reportId X" state slot. */
+val LocalJudgeEvalOpenState =
+    compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
+
 /** Per-row 🔧 / 👁 callbacks surfaced to nested report-list
  *  pickers (the +Report previous-report picker on the report
  *  screen) and the first-composition seed for the View tile-grid

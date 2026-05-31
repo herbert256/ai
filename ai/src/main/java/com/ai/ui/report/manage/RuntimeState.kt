@@ -270,6 +270,9 @@ internal fun rememberReportRuntimeState(
                     // so they don't render as per-match rows here — mirrors how
                     // fan-out pairs are excluded below.
                     .filter { it.kind != SecondaryKind.TOURNAMENT }
+                    // Judge-the-judges cells + aggregate collapse into the single
+                    // JudgeEvalManageRow drill-in — same as tournament above.
+                    .filter { it.kind != SecondaryKind.JUDGES }
                     .filter { it.fanOutSourceAgentId == null }
                     .sortedByDescending { it.timestamp }
                 translateRows = all.filter { it.kind == SecondaryKind.TRANSLATE }

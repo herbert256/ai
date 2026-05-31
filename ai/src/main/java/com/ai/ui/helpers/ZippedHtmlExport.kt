@@ -507,6 +507,7 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
         SecondaryKind.META -> "meta"
         SecondaryKind.TRANSLATE -> "translation"
         SecondaryKind.TOURNAMENT -> "tournament"
+        SecondaryKind.JUDGES -> "judges"
     })
     // Section index
     val sb = StringBuilder()
@@ -527,6 +528,7 @@ private fun emitSecondaryKind(zos: ZipOutputStream, data: HtmlReportData, kind: 
         SecondaryKind.TRANSLATE -> "internal/Translate"
         SecondaryKind.META -> "meta/meta"
         SecondaryKind.TOURNAMENT -> "after/tournament"
+        SecondaryKind.JUDGES -> "after/judges"
     }
     withFiles.forEach { (filename, itemLabel, s) ->
         emit(zos, "${basePath}$label/$filename", secondaryPage(label, itemLabel, s, data, maxAnchor, traceIndex, traceCategory, basePath, langDisplay))
@@ -634,6 +636,7 @@ private fun emitCosts(zos: ZipOutputStream, data: HtmlReportData, basePath: Stri
                 SecondaryKind.MODERATION -> "moderation"
                 SecondaryKind.TRANSLATE -> "translate"
                 SecondaryKind.TOURNAMENT -> "tournament"
+                SecondaryKind.JUDGES -> "judges"
             }
         Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0, (it.inputCost ?: 0.0) * 100, (it.outputCost ?: 0.0) * 100)
     }

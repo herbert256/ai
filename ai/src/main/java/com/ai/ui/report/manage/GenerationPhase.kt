@@ -781,6 +781,11 @@ internal fun ColumnScope.GenerationPhase(
         item(key = "tournament-batch-row") {
             TournamentManageRow()
         }
+        // Judge-the-judges batch — single self-hiding row; opens the L1
+        // stats + agreement-analysis drill-in overlay.
+        item(key = "judge-eval-batch-row") {
+            JudgeEvalManageRow()
+        }
         // Meta runs — one row per individual rerank / summarize /
         // compare / moderation result on this report, sharing the
         // agent rows' layout (status icon + label + cost). Status
@@ -906,6 +911,7 @@ internal fun ColumnScope.GenerationPhase(
                             SecondaryKind.MODERATION -> "moderate"
                             SecondaryKind.TRANSLATE -> "translate"
                             SecondaryKind.TOURNAMENT -> "tournament"
+                            SecondaryKind.JUDGES -> "judges"
                         }
                     }
                     RowTypeCell(typeLabel)

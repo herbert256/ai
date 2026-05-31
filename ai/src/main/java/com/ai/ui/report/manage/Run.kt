@@ -113,7 +113,9 @@ internal fun ReportRunScreen(
     runningInfoJobs: Set<String> = emptySet(),
     onChatWithReportPrompt: (String) -> Unit,
     /** Launch a worker-judged pairwise tournament on the report. */
-    onRunTournament: (String) -> Unit = { }
+    onRunTournament: (String) -> Unit = { },
+    /** Launch the "Judge the judges" batch on the report. */
+    onRunJudgeJudges: (String) -> Unit = { }
 ) {
     val aiSettings = uiState.aiSettings
     val context = LocalContext.current
@@ -121,9 +123,11 @@ internal fun ReportRunScreen(
     // dialog showing the match count — judging runs on the worker engine,
     // so there is no judge model to pick.
     var confirmTournament by rememberSaveable { mutableStateOf(false) }
+    var confirmJudgeJudges by rememberSaveable { mutableStateOf(false) }
     // Open-state for the Tournament L1 overlay — set on Run so the user lands
     // on the batch screen immediately instead of staying on Manage.
     val tournamentOpenState = com.ai.ui.shared.LocalTournamentOpenState.current
+    val judgeEvalOpenState = com.ai.ui.shared.LocalJudgeEvalOpenState.current
     val tournamentResponseCount = reportsAgentResults.values.count { it.error == null && !it.analysis.isNullOrBlank() }
     val navigateToReportInfo = com.ai.ui.shared.LocalNavigateToReportInfo.current
     // Bumped every time the user taps the bottom-bar 📌 icon so the
@@ -556,6 +560,8 @@ internal fun ReportRunScreen(
                     fanOutEnabled = aiSettings.internalPrompts.any { it.category == "fan_out" },
                     // Tournament needs ≥2 responses; multiple judges allowed (not single-shot).
                     tournamentEnabled = tournamentResponseCount >= 2,
+                    // Judge-the-judges needs ≥2 responses to form a head-to-head pair.
+                    judgeJudgesEnabled = tournamentResponseCount >= 2,
                     onMeta = {
                         st.showCreateOverview.value = false
                         generationHandlers.onOpenMetaPicker()
@@ -581,6 +587,10 @@ internal fun ReportRunScreen(
                     onTournament = {
                         st.showCreateOverview.value = false
                         confirmTournament = true
+                    },
+                    onJudgeJudges = {
+                        st.showCreateOverview.value = false
+                        confirmJudgeJudges = true
                     },
                     onBack = { st.showCreateOverview.value = false }
                 )
@@ -612,6 +622,37 @@ internal fun ReportRunScreen(
                 },
                 dismissButton = {
                     androidx.compose.material3.TextButton(onClick = { confirmTournament = false }) {
+                        androidx.compose.material3.Text("Cancel")
+                    }
+                }
+            )
+        }
+
+        // Judge-the-judges launch — every judge model judges the same 25
+        // random head-to-heads, then we score their agreement.
+        if (confirmJudgeJudges && currentReportId != null) {
+            val pairCount = tournamentResponseCount * (tournamentResponseCount - 1) / 2
+            val matches = pairCount.coerceAtMost(25)
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { confirmJudgeJudges = false },
+                title = { androidx.compose.material3.Text("Judge the judges?") },
+                text = {
+                    androidx.compose.material3.Text(
+                        "This gives the same $matches random head-to-head${if (matches == 1) "" else "s"} to " +
+                            "every judge model (the worker models), then scores how the judges agree with one another."
+                    )
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        currentReportId?.let {
+                            onRunJudgeJudges(it)
+                            judgeEvalOpenState?.value = it
+                        }
+                        confirmJudgeJudges = false
+                    }) { androidx.compose.material3.Text("Run") }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { confirmJudgeJudges = false }) {
                         androidx.compose.material3.Text("Cancel")
                     }
                 }

@@ -231,6 +231,26 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("What you see", "One head-to-head: the coloured A/B model lines, the verdict (winner + confidence + the judge's one-line reason), which worker model judged it, the orientation (A-vs-B or the swapped B-vs-A pass), and the two full response cards. Swipe horizontally to step through the other matches in this group; the 🔄 in the title bar re-judges this match through the worker engine.")
         )
     ),
+    "judge_eval_l1" to HelpContent(
+        title = "Help - Judge the judges",
+        cards = listOf(
+            HelpCard("What it is", "This batch evaluates the JUDGES. It takes the same judge models the Tournament uses (the worker models in your 'workers' swarm) and gives EVERY judge the SAME 25 random head-to-head pairs from this report's answers, so their verdicts can be compared. Start it from the report's 🆕 Create launcher → Judge the judges."),
+            HelpCard("Statistics", "The counters show Total cells (judges × matches) / Done / Running / Wait (throttled) / Queue / Errors / Cost, with the judge and match counts below. While running, one row per judge shows its progress."),
+            HelpCard("The analysis", "When every cell is judged, the judges are ranked by CONSENSUS AGREEMENT — how often each judge matched the majority verdict across the 25 matches. 'Consensus strength' is the average agreement (high = the judges broadly agree). Each judge row also shows its tie-rate, A/B lean (a position-bias proxy), average confidence, and error count. Tap a judge to see its verdict on each match next to the consensus; the 🗑 deletes the whole run, 'Restart failed' re-judges errored cells.")
+        )
+    ),
+    "judge_eval_l2" to HelpContent(
+        title = "Help - Judge detail",
+        cards = listOf(
+            HelpCard("What you see", "Every match this judge judged: the two models compared, the judge's verdict (A / B / tie), and whether it agreed (✓) or disagreed (✗) with the consensus of all judges. Tap a row for the full match detail.")
+        )
+    ),
+    "judge_eval_l3" to HelpContent(
+        title = "Help - Judge match",
+        cards = listOf(
+            HelpCard("What you see", "One head-to-head as this judge saw it: its verdict + confidence + one-line reason, the consensus verdict for comparison, and the two full response cards (the chosen side highlighted). The 🔄 in the title bar re-judges this single cell.")
+        )
+    ),
     // Per-scope Icon-lookup help — one topic for each of the six
     // adapters (main / agent / meta / translation / language /
     // fan-out pair). IconLookupContext.helpTopic carries the right

@@ -274,6 +274,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  [fanOutEngine]; see [TournamentEngine]. */
     val tournamentEngine: TournamentEngine = TournamentEngine(appViewModel, this)
 
+    /** Runtime owner for the "Judge the judges" batch — gives every judge
+     *  (the worker models named by the Tournament prompt) the same random
+     *  matches and scores their inter-judge agreement. See [JudgeEvalEngine]. */
+    val judgeEvalEngine: JudgeEvalEngine = JudgeEvalEngine(appViewModel, this)
+
     /** Per-report orchestrator for the "Regenerate report" batch
      *  job. Replaces the legacy one-shot [regenerateReport] call —
      *  the title-bar 🔁 icon's confirm dialog now calls
@@ -2408,6 +2413,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         fanOutEngine.cancelAllForReport(reportId)
         // Tournament runs + per-match coroutines likewise.
         tournamentEngine.cancelAllForReport(reportId)
+        // Judge-the-judges runs + per-cell coroutines likewise.
+        judgeEvalEngine.cancelAllForReport(reportId)
         // Translation runs + the regenerate-batch orchestrator are also
         // report-owned and were NOT cancelled here — a translation
         // completing after the delete writes via SecondaryResultStorage

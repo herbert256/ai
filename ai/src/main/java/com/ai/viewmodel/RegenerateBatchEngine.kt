@@ -867,6 +867,8 @@ class RegenerateBatchEngine internal constructor(
     private fun isMetaPhaseRow(r: SecondaryResult): Boolean =
         r.kind != SecondaryKind.TRANSLATE &&
             r.kind != SecondaryKind.TOURNAMENT &&
+            // JUDGES cells are owned by JudgeEvalEngine, not the regenerate batch.
+            r.kind != SecondaryKind.JUDGES &&
             r.fanOutSourceAgentId == null &&
             r.fanInOf == null
 

@@ -49,12 +49,14 @@ internal fun ReportCreateOverviewScreen(
     moderationEnabled: Boolean,
     fanOutEnabled: Boolean,
     tournamentEnabled: Boolean,
+    judgeJudgesEnabled: Boolean,
     onMeta: () -> Unit,
     onRerank: () -> Unit,
     onModeration: () -> Unit,
     onFanOut: () -> Unit,
     onTranslate: () -> Unit,
     onTournament: () -> Unit,
+    onJudgeJudges: () -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -79,6 +81,7 @@ internal fun ReportCreateOverviewScreen(
             CreateRow("🚦", "Moderation", "Safety-check the answers", moderationEnabled, onModeration)
             CreateRow("🔱", "Fan out", "Fan one answer out to every model", fanOutEnabled, onFanOut)
             CreateRow("🥊", "Tournament", "Head-to-head judge every pair of answers", tournamentEnabled, onTournament)
+            CreateRow("⚖️", "Judge the judges", "Score the judge models by how they judge 25 head-to-heads", judgeJudgesEnabled, onJudgeJudges)
             CreateRow("🌐", "Translate", "Translate the report into other languages", true, onTranslate)
             Spacer(modifier = Modifier.height(16.dp))
         }

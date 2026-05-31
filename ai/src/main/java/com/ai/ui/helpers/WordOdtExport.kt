@@ -202,6 +202,7 @@ private fun appendSecondary(
         SecondaryKind.META -> "meta"
         SecondaryKind.TRANSLATE -> "translation"
         SecondaryKind.TOURNAMENT -> "tournament"
+        SecondaryKind.JUDGES -> "judges"
     }
     val sectionIcon = com.ai.ui.helpers.iconPrefixPlain(com.ai.ui.helpers.metaPromptIcon(sectionIconKey))
     out += DocBlock(DocBlockKind.HEADING, "$sectionIcon$heading", 2)
@@ -259,6 +260,7 @@ private fun appendCosts(out: MutableList<DocBlock>, data: com.ai.ui.helpers.Html
                 SecondaryKind.MODERATION -> "moderation"
                 SecondaryKind.TRANSLATE -> "translate"
                 SecondaryKind.TOURNAMENT -> "tournament"
+                SecondaryKind.JUDGES -> "judges"
             }
         rows += Row(
             type, s.providerDisplay, s.model, s.pricingTier ?: "",

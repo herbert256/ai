@@ -923,6 +923,7 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData, secondaryFo
                 SecondaryKind.MODERATION -> "moderation"
                 SecondaryKind.TRANSLATE -> "translate"
                 SecondaryKind.TOURNAMENT -> "tournament"
+                SecondaryKind.JUDGES -> "judges"
             }
         }
         Row(type, it.providerDisplay, it.model, it.pricingTier ?: "", it.durationMs, it.inputTokens ?: 0, it.outputTokens ?: 0,

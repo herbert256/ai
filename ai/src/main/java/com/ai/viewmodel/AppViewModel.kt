@@ -119,6 +119,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _throttledTournamentMatches.update(block)
     }
 
+    /** Judge-eval ("Judge the judges") cell row ids whose judge call is
+     *  actively in flight — the batch L1 "Run" stat (parallel to
+     *  [runningTournamentMatches]). */
+    private val _runningJudgeEvalCells = MutableStateFlow<Set<String>>(emptySet())
+    val runningJudgeEvalCells: StateFlow<Set<String>> = _runningJudgeEvalCells.asStateFlow()
+    internal fun updateRunningJudgeEvalCells(block: (Set<String>) -> Set<String>) {
+        _runningJudgeEvalCells.update(block)
+    }
+
+    /** Judge-eval cell row ids parked on a provider's rate/concurrency gate
+     *  — the batch L1 "Wait" counter (parallel to [throttledTournamentMatches]). */
+    private val _throttledJudgeEvalCells = MutableStateFlow<Set<String>>(emptySet())
+    val throttledJudgeEvalCells: StateFlow<Set<String>> = _throttledJudgeEvalCells.asStateFlow()
+    internal fun updateThrottledJudgeEvalCells(block: (Set<String>) -> Set<String>) {
+        _throttledJudgeEvalCells.update(block)
+    }
+
     /** Translation item ids currently parked on a provider's rate /
      *  concurrency gate (the dispatcher's [acquireOrRequeue] wait). Surfaces
      *  as the Translation L1 "Throttled" column — same role as
