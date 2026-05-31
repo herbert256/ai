@@ -1347,7 +1347,7 @@ internal fun RowTypeCell(text: String) {
         // Start padding adds a visible gap between every row's
         // leftmost 24 dp status cell (✅ / emoji / ⏳ / ❌ / 🆕)
         // and the type label here — the two were touching before.
-        modifier = Modifier.width(80.dp).padding(start = 8.dp, end = 6.dp)
+        modifier = Modifier.width(96.dp).padding(start = 8.dp, end = 6.dp)
     )
 }
 
