@@ -70,6 +70,47 @@ internal fun resolveSecondaryParams(
     return if (sp != null) base.copy(systemPrompt = sp) else base
 }
 
+/** Overlay one transient parameter selection over an existing resolved
+ *  parameter set. Mirrors AnalysisRepository.mergeParameters semantics:
+ *  nullable scalars override when present, default-false booleans OR
+ *  together, and returnCitations uses AND so either side can opt out. */
+internal fun overlayAgentParameters(base: AgentParameters?, overlay: AgentParameters?): AgentParameters? {
+    if (base == null) return overlay
+    if (overlay == null) return base
+    return AgentParameters(
+        temperature = overlay.temperature ?: base.temperature,
+        maxTokens = overlay.maxTokens ?: base.maxTokens,
+        topP = overlay.topP ?: base.topP,
+        topK = overlay.topK ?: base.topK,
+        frequencyPenalty = overlay.frequencyPenalty ?: base.frequencyPenalty,
+        presencePenalty = overlay.presencePenalty ?: base.presencePenalty,
+        systemPrompt = overlay.systemPrompt?.takeIf { it.isNotBlank() } ?: base.systemPrompt,
+        stopSequences = overlay.stopSequences?.takeIf { it.isNotEmpty() } ?: base.stopSequences,
+        seed = overlay.seed ?: base.seed,
+        responseFormatJson = overlay.responseFormatJson || base.responseFormatJson,
+        searchEnabled = overlay.searchEnabled || base.searchEnabled,
+        returnCitations = overlay.returnCitations && base.returnCitations,
+        searchRecency = overlay.searchRecency ?: base.searchRecency,
+        webSearchTool = overlay.webSearchTool || base.webSearchTool,
+        reasoningEffort = overlay.reasoningEffort ?: base.reasoningEffort
+    )
+}
+
+/** Build the transient parameter override used by prompt-edit replays.
+ *  The picked Parameters preset and System prompt are not persisted; they
+ *  only alter the replay call currently being submitted. */
+internal fun promptEditOverrideParams(
+    aiSettings: Settings,
+    parameterPresetIds: List<String>,
+    systemPromptId: String?
+): AgentParameters? {
+    val selectedParams = aiSettings.mergeParameters(parameterPresetIds)
+    val selectedSystemPrompt = systemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt }
+    return if (selectedSystemPrompt != null) {
+        (selectedParams ?: AgentParameters()).copy(systemPrompt = selectedSystemPrompt)
+    } else selectedParams
+}
+
 /** First Flock the agent is a member of with a still-resolvable
  *  system prompt id. Used during report generation to pick up a
  *  Flock-level system prompt when one applies. */

@@ -56,6 +56,7 @@ import com.ai.data.temperatureRangeForProvider
 import com.ai.ui.report.manage.view.ReasoningEffortSweepScreen
 import com.ai.ui.report.manage.view.TemperatureSweepScreen
 import com.ai.ui.report.manage.view.WebSearchReplayScreen
+import com.ai.ui.report.manage.view.PromptEditReplayScreen
 import androidx.compose.runtime.collectAsState
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
@@ -69,6 +70,7 @@ import com.ai.viewmodel.FanOutEngine
 import kotlinx.coroutines.Dispatchers
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.produceState
+import com.ai.viewmodel.PromptEditReplayState
 import com.ai.viewmodel.ReasoningEffortSweepState
 import com.ai.viewmodel.TemperatureSweepState
 import com.ai.viewmodel.WebSearchReplayState
@@ -249,12 +251,43 @@ internal fun FanOutL3Screen(
     val temperatureSweepStates by engine.temperatureSweepStates.collectAsState()
     val reasoningEffortSweepStates by engine.reasoningEffortSweepStates.collectAsState()
     val webSearchReplayStates by engine.webSearchReplayStates.collectAsState()
+    val promptEditReplayStates by engine.promptEditReplayStates.collectAsState()
     val temperatureSweepKey = TemperatureSweepState.key(run.reportId, pair.id)
     val reasoningEffortSweepKey = ReasoningEffortSweepState.key(run.reportId, pair.id)
     val webSearchReplayKey = WebSearchReplayState.key(run.reportId, pair.id)
+    val promptEditReplayKey = PromptEditReplayState.key(run.reportId, pair.id)
     var showTemperatureSweep by remember { mutableStateOf(false) }
     var showReasoningEffortSweep by remember { mutableStateOf(false) }
     var showWebSearchReplay by remember { mutableStateOf(false) }
+    var showPromptEditReplay by remember { mutableStateOf(false) }
+    val resolvedFanOutPrompt by produceState<String?>(initialValue = null, run.key, pair.id, secDataVersion) {
+        value = engine.resolveFanOutPairPrompt(context, run.key, pair.id)
+    }
+    if (showPromptEditReplay) {
+        PromptEditReplayScreen(
+            reportId = run.reportId,
+            targetId = pair.id,
+            title = "Edit prompt replay",
+            modelLabel = answererLabel,
+            initialPrompt = resolvedFanOutPrompt ?: run.metaPrompt.text.replace("@RESPONSE@", sourceBody ?: ""),
+            state = promptEditReplayStates[promptEditReplayKey],
+            aiSettings = aiSettings,
+            onCallModel = { prompt, paramsIds, systemPromptId ->
+                engine.startFanOutPromptEditReplay(context, run.key, pair.id, prompt, paramsIds, systemPromptId)
+            },
+            onUseResponse = {
+                engine.applyFanOutPromptEditReplay(context, run.key, pair.id)
+                engine.clearFanOutPromptEditReplay(run.reportId, pair.id)
+                showPromptEditReplay = false
+            },
+            onTrace = actions.onNavigateToTraceFile,
+            onBack = {
+                engine.clearFanOutPromptEditReplay(run.reportId, pair.id)
+                showPromptEditReplay = false
+            }
+        )
+        return
+    }
     if (showTemperatureSweep) {
         TemperatureSweepScreen(
             reportId = run.reportId,
@@ -403,6 +436,9 @@ internal fun FanOutL3Screen(
                 } else null,
                 onWebSearchReplay = if (canChangePairResponse) {
                     { showWebSearchReplay = true }
+                } else null,
+                onEdit = if (canChangePairResponse) {
+                    { showPromptEditReplay = true }
                 } else null
             )
             UserNotesSection(

@@ -6,6 +6,7 @@ import com.ai.data.AnalysisResponse
 import com.ai.data.ApiCallCaps
 import com.ai.data.AppLog
 import com.ai.data.AppService
+import com.ai.data.FAN_OUT_PROMPT_EDIT_CALL_KIND
 import com.ai.data.CombinedReportState
 import com.ai.data.FAN_OUT_REASONING_CALL_KIND
 import com.ai.data.FAN_OUT_TEMPERATURE_CALL_KIND
@@ -18,6 +19,7 @@ import com.ai.data.PairStatus
 import com.ai.data.PricingCache
 import com.ai.data.ProviderThrottle
 import com.ai.data.ModelCooldownStore
+import com.ai.data.RESPONSE_CHANGE_SOURCE_EDIT
 import com.ai.data.RESPONSE_CHANGE_SOURCE_REASONING_EFFORT
 import com.ai.data.RESPONSE_CHANGE_SOURCE_TEMPERATURE
 import com.ai.data.RESPONSE_CHANGE_SOURCE_WEB_SEARCH
@@ -110,6 +112,9 @@ class FanOutEngine internal constructor(
     private val _webSearchReplayStates = MutableStateFlow<Map<String, WebSearchReplayState>>(emptyMap())
     val webSearchReplayStates: StateFlow<Map<String, WebSearchReplayState>> = _webSearchReplayStates.asStateFlow()
 
+    private val _promptEditReplayStates = MutableStateFlow<Map<String, PromptEditReplayState>>(emptyMap())
+    val promptEditReplayStates: StateFlow<Map<String, PromptEditReplayState>> = _promptEditReplayStates.asStateFlow()
+
     /** Per-pair coroutines, keyed by [PairState.id] (= on-disk
      *  SecondaryResult id). Registered before the coroutine starts
      *  via [CoroutineStart.LAZY] so concurrent deletes can always
@@ -118,6 +123,7 @@ class FanOutEngine internal constructor(
     private val temperatureSweepJobs = ConcurrentHashMap<String, Job>()
     private val reasoningEffortSweepJobs = ConcurrentHashMap<String, Job>()
     private val webSearchReplayJobs = ConcurrentHashMap<String, Job>()
+    private val promptEditReplayJobs = ConcurrentHashMap<String, Job>()
 
     /** Top-level batch Job per [FanOutRunKey]. Used by
      *  [rerunComplete] / [deleteRun] to cancelAndJoin a whole
@@ -409,6 +415,19 @@ class FanOutEngine internal constructor(
         _webSearchReplayStates.update { it - key }
     }
 
+    private fun updatePromptEditReplayState(key: String, transform: (PromptEditReplayState) -> PromptEditReplayState) {
+        _promptEditReplayStates.update { current ->
+            val existing = current[key] ?: return@update current
+            current + (key to transform(existing))
+        }
+    }
+
+    fun clearFanOutPromptEditReplay(reportId: String, pairId: String) {
+        val key = PromptEditReplayState.key(reportId, pairId)
+        promptEditReplayJobs.remove(key)?.cancel()
+        _promptEditReplayStates.update { it - key }
+    }
+
     private data class FanOutPairReplayTask(
         val reportId: String,
         val provider: AppService,
@@ -495,6 +514,11 @@ class FanOutEngine internal constructor(
             aiSettings = aiSettings
         )
     }
+
+    suspend fun resolveFanOutPairPrompt(context: Context, runKey: FanOutRunKey, pairId: String): String? =
+        withContext(Dispatchers.IO) {
+            runCatching { buildFanOutPairReplayTask(context, runKey, pairId).prompt }.getOrNull()
+        }
 
     private fun fanOutWebSearchPrompt(prompt: String): String =
         if (prompt.isBlank()) FAN_OUT_WEB_SEARCH_PROMPT_SUFFIX
@@ -888,6 +912,114 @@ class FanOutEngine internal constructor(
         }
     }
 
+    fun startFanOutPromptEditReplay(
+        context: Context,
+        runKey: FanOutRunKey,
+        pairId: String,
+        prompt: String,
+        parameterPresetIds: List<String>,
+        systemPromptId: String?
+    ): Job {
+        val run = _runs.value[runKey]
+        val reportId = run?.reportId ?: runKey.substringBefore('|')
+        val key = PromptEditReplayState.key(reportId, pairId)
+        val editedPrompt = prompt.trim()
+        promptEditReplayJobs.remove(key)?.cancel()
+        _promptEditReplayStates.update {
+            it + (key to PromptEditReplayState(
+                reportId = reportId,
+                agentId = pairId,
+                result = PromptEditReplayResult.Running,
+                isRunning = true
+            ))
+        }
+        val job = appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            try {
+                if (editedPrompt.isBlank()) {
+                    val msg = "Prompt is empty"
+                    updatePromptEditReplayState(key) {
+                        it.copy(
+                            isRunning = false,
+                            result = PromptEditReplayResult.Error(msg, null, null, null),
+                            unavailableMessage = msg
+                        )
+                    }
+                    return@launch
+                }
+                val task = buildFanOutPairReplayTask(context, runKey, pairId)
+                val canReason = task.aiSettings.acceptsReasoningEffortParam(task.provider, task.model)
+                val canWeb = task.aiSettings.isWebSearchCapable(task.provider, task.model)
+                val baseParams = task.resolvedParams.copy(
+                    webSearchTool = task.resolvedParams.webSearchTool && canWeb,
+                    reasoningEffort = if (canReason) task.resolvedParams.reasoningEffort else null
+                )
+                val screenOverride = promptEditOverrideParams(task.aiSettings, parameterPresetIds, systemPromptId)
+                val finalParams = overlayAgentParameters(baseParams, screenOverride)!!.let { merged ->
+                    merged.copy(
+                        webSearchTool = merged.webSearchTool && canWeb,
+                        reasoningEffort = if (canReason) merged.reasoningEffort else null
+                    )
+                }
+                val result = runFanOutVariationCall(
+                    context = context,
+                    task = task,
+                    kind = FAN_OUT_PROMPT_EDIT_CALL_KIND,
+                    prompt = editedPrompt,
+                    resolvedParams = finalParams,
+                    overrideParams = null
+                )
+                val response = result.response
+                val replay = if (response.isSuccess && !response.analysis.isNullOrBlank()) {
+                    PromptEditReplayResult.Success(
+                        response = response.analysis,
+                        tokenUsage = response.tokenUsage,
+                        cost = result.cost,
+                        durationMs = result.durationMs,
+                        traceFile = result.traceFile
+                    )
+                } else {
+                    PromptEditReplayResult.Error(
+                        message = response.error ?: "No response body",
+                        httpStatusCode = response.httpStatusCode,
+                        durationMs = result.durationMs,
+                        traceFile = result.traceFile
+                    )
+                }
+                updatePromptEditReplayState(key) { it.copy(isRunning = false, result = replay) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val msg = (e.message ?: "Prompt edit replay failed").take(2000)
+                updatePromptEditReplayState(key) {
+                    it.copy(
+                        isRunning = false,
+                        result = PromptEditReplayResult.Error(msg, null, null, null),
+                        unavailableMessage = msg
+                    )
+                }
+            }
+        }
+        promptEditReplayJobs[key] = job
+        job.invokeOnCompletion { promptEditReplayJobs.remove(key, job) }
+        return job
+    }
+
+    fun applyFanOutPromptEditReplay(context: Context, runKey: FanOutRunKey, pairId: String) {
+        val run = _runs.value[runKey] ?: return
+        val key = PromptEditReplayState.key(run.reportId, pairId)
+        val result = _promptEditReplayStates.value[key]?.result as? PromptEditReplayResult.Success ?: return
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            applyFanOutPairContent(
+                context = context,
+                runKey = runKey,
+                pairId = pairId,
+                content = result.response,
+                changeSource = RESPONSE_CHANGE_SOURCE_EDIT
+            )
+            _promptEditReplayStates.update { it - key }
+        }
+    }
+
     /** Launch a brand-new fan-out run. The single canonical launch
      *  path (replaces the legacy `SecondaryRunManager.runFanOutPrompt`):
      *  resolves the scope + responder set, pre-creates every
@@ -1087,13 +1219,16 @@ class FanOutEngine internal constructor(
                 temperatureSweepJobs[TemperatureSweepState.key(reportId, it)]?.cancel()
                 reasoningEffortSweepJobs[ReasoningEffortSweepState.key(reportId, it)]?.cancel()
                 webSearchReplayJobs[WebSearchReplayState.key(reportId, it)]?.cancel()
+                promptEditReplayJobs[PromptEditReplayState.key(reportId, it)]?.cancel()
             }
         temperatureSweepJobs.keys.filter { it.startsWith(prefix) }.forEach { temperatureSweepJobs.remove(it)?.cancel() }
         reasoningEffortSweepJobs.keys.filter { it.startsWith(prefix) }.forEach { reasoningEffortSweepJobs.remove(it)?.cancel() }
         webSearchReplayJobs.keys.filter { it.startsWith(prefix) }.forEach { webSearchReplayJobs.remove(it)?.cancel() }
+        promptEditReplayJobs.keys.filter { it.startsWith(prefix) }.forEach { promptEditReplayJobs.remove(it)?.cancel() }
         _temperatureSweepStates.update { it.filterKeys { key -> !key.startsWith(prefix) } }
         _reasoningEffortSweepStates.update { it.filterKeys { key -> !key.startsWith(prefix) } }
         _webSearchReplayStates.update { it.filterKeys { key -> !key.startsWith(prefix) } }
+        _promptEditReplayStates.update { it.filterKeys { key -> !key.startsWith(prefix) } }
         dropRunsForReport(reportId)
     }
 

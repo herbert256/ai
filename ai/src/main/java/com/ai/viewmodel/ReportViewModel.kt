@@ -123,6 +123,36 @@ data class WebSearchReplayState(
     }
 }
 
+sealed class PromptEditReplayResult {
+    data object Pending : PromptEditReplayResult()
+    data object Running : PromptEditReplayResult()
+    data class Success(
+        val response: String,
+        val tokenUsage: TokenUsage?,
+        val cost: Double?,
+        val durationMs: Long,
+        val traceFile: String?
+    ) : PromptEditReplayResult()
+    data class Error(
+        val message: String,
+        val httpStatusCode: Int?,
+        val durationMs: Long?,
+        val traceFile: String?
+    ) : PromptEditReplayResult()
+}
+
+data class PromptEditReplayState(
+    val reportId: String,
+    val agentId: String,
+    val result: PromptEditReplayResult = PromptEditReplayResult.Pending,
+    val isRunning: Boolean = false,
+    val unavailableMessage: String? = null
+) {
+    companion object {
+        fun key(reportId: String, agentId: String): String = "$reportId|$agentId"
+    }
+}
+
 private const val WEB_SEARCH_REPLAY_PROMPT_SUFFIX =
     "Give the most actual information, do a websearch for this."
 
@@ -154,6 +184,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private val webSearchReplayJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
     private val _webSearchReplayStates = MutableStateFlow<Map<String, WebSearchReplayState>>(emptyMap())
     val webSearchReplayStates: StateFlow<Map<String, WebSearchReplayState>> = _webSearchReplayStates.asStateFlow()
+    private val promptEditReplayJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private val _promptEditReplayStates = MutableStateFlow<Map<String, PromptEditReplayState>>(emptyMap())
+    val promptEditReplayStates: StateFlow<Map<String, PromptEditReplayState>> = _promptEditReplayStates.asStateFlow()
 
     /** In-flight regenerate jobs (single-agent regenerateAgent +
      *  forceRegenerateAllAgents), keyed by reportId, so deleteReport can
@@ -1474,6 +1507,211 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
         webSearchReplayJobs[key] = job
         job.invokeOnCompletion { webSearchReplayJobs.remove(key, job) }
+        return job
+    }
+
+    private fun updatePromptEditReplayState(key: String, transform: (PromptEditReplayState) -> PromptEditReplayState) {
+        _promptEditReplayStates.update { current ->
+            val existing = current[key] ?: return@update current
+            current + (key to transform(existing))
+        }
+    }
+
+    fun clearPromptEditReplay(reportId: String, agentId: String) {
+        val key = PromptEditReplayState.key(reportId, agentId)
+        promptEditReplayJobs.remove(key)?.cancel()
+        _promptEditReplayStates.update { it - key }
+    }
+
+    fun applyPromptEditReplay(context: Context, reportId: String, agentId: String) {
+        val key = PromptEditReplayState.key(reportId, agentId)
+        val result = _promptEditReplayStates.value[key]?.result as? PromptEditReplayResult.Success ?: return
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            ReportStorage.applyAgentChatResponse(
+                context = context,
+                reportId = reportId,
+                agentId = agentId,
+                body = result.response,
+                changeSource = RESPONSE_CHANGE_SOURCE_EDIT
+            )
+            _promptEditReplayStates.update { it - key }
+        }
+    }
+
+    fun startPromptEditReplay(
+        context: Context,
+        reportId: String,
+        agentId: String,
+        prompt: String,
+        parameterPresetIds: List<String>,
+        systemPromptId: String?
+    ): Job {
+        val key = PromptEditReplayState.key(reportId, agentId)
+        val editedPrompt = prompt.trim()
+        promptEditReplayJobs.remove(key)?.cancel()
+        _promptEditReplayStates.update {
+            it + (key to PromptEditReplayState(
+                reportId = reportId,
+                agentId = agentId,
+                result = PromptEditReplayResult.Running,
+                isRunning = true
+            ))
+        }
+        val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            try {
+                if (editedPrompt.isBlank()) {
+                    val msg = "Prompt is empty"
+                    updatePromptEditReplayState(key) {
+                        it.copy(
+                            isRunning = false,
+                            result = PromptEditReplayResult.Error(msg, null, null, null),
+                            unavailableMessage = msg
+                        )
+                    }
+                    return@launch
+                }
+                val report = ReportStorage.getReport(context, reportId) ?: run {
+                    val msg = "Report not found"
+                    updatePromptEditReplayState(key) {
+                        it.copy(
+                            isRunning = false,
+                            result = PromptEditReplayResult.Error(msg, null, null, null),
+                            unavailableMessage = msg
+                        )
+                    }
+                    return@launch
+                }
+                val state = appViewModel.uiState.value
+                val ai = state.aiSettings
+                val savedAgent = report.agents.firstOrNull { it.agentId == agentId } ?: run {
+                    val msg = "Model response no longer exists in this report"
+                    updatePromptEditReplayState(key) {
+                        it.copy(
+                            isRunning = false,
+                            result = PromptEditReplayResult.Error(msg, null, null, null),
+                            unavailableMessage = msg
+                        )
+                    }
+                    return@launch
+                }
+                val task = buildTemperatureSweepTask(report, state, savedAgent) ?: run {
+                    val msg = "Model response no longer matches a runnable report agent"
+                    updatePromptEditReplayState(key) {
+                        it.copy(
+                            isRunning = false,
+                            result = PromptEditReplayResult.Error(msg, null, null, null),
+                            unavailableMessage = msg
+                        )
+                    }
+                    return@launch
+                }
+                val canReason = ai.acceptsReasoningEffortParam(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val canWeb = ai.isWebSearchCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val canVision = ai.isVisionCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val baseOverride = resolveReportOverrideParams(
+                    ai, report.parameterPresetIds, report.advancedParameters,
+                    report.webSearchTool, report.reasoningEffort
+                )
+                val gatedOverride = (baseOverride ?: AgentParameters()).copy(
+                    webSearchTool = (baseOverride?.webSearchTool == true || report.webSearchTool) && canWeb,
+                    reasoningEffort = if (canReason) baseOverride?.reasoningEffort else null
+                )
+                val screenOverride = promptEditOverrideParams(ai, parameterPresetIds, systemPromptId)
+                val baseResolved = if (canReason) task.resolvedParams else task.resolvedParams.copy(reasoningEffort = null)
+                val finalParams = overlayAgentParameters(
+                    overlayAgentParameters(baseResolved, gatedOverride),
+                    screenOverride
+                )!!.let { merged ->
+                    merged.copy(
+                        webSearchTool = merged.webSearchTool && canWeb,
+                        reasoningEffort = if (canReason) merged.reasoningEffort else null
+                    )
+                }
+                val effectiveImage = if (canVision) report.imageBase64 else null
+                val effectiveImageMime = if (canVision) report.imageMime else null
+                val baseUrl = ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
+                val knowledgeBaseIds = report.knowledgeBaseIds
+
+                withTracerTags(reportId = reportId, category = MODEL_PROMPT_EDIT_CALL_KIND) {
+                    val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                    val startTime = System.currentTimeMillis()
+                    val response = try {
+                        ApiCallCaps.global.withPermit {
+                            ApiCallCaps.report.withPermit {
+                                val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                try {
+                                    withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                        withTraceFilenameSink(traceSink) {
+                                            appViewModel.repository.analyzeWithAgentStreaming(
+                                                task.runtimeAgent, "", editedPrompt,
+                                                finalParams, null,
+                                                context, baseUrl, effectiveImage, effectiveImageMime,
+                                                knowledgeBaseIds = knowledgeBaseIds,
+                                                aiSettings = ai
+                                            ) { /* transient prompt edit; no live preview */ }
+                                        }
+                                    }
+                                } finally {
+                                    releaser.release()
+                                }
+                            }
+                        }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        AnalysisResponse(
+                            service = task.runtimeAgent.provider,
+                            analysis = null,
+                            error = (e.message ?: "Unknown error").take(2000)
+                        )
+                    }
+                    val durationMs = System.currentTimeMillis() - startTime
+                    val cost = calculateResponseCost(context, task.runtimeAgent.provider, task.runtimeAgent.model, response.tokenUsage)
+                    val traceFile = traceSink.get()
+                    if (response.error == null && response.tokenUsage != null) {
+                        val usage = response.tokenUsage
+                        appViewModel.settingsPrefs.updateUsageStatsAsync(
+                            task.runtimeAgent.provider,
+                            task.runtimeAgent.model,
+                            usage.inputTokens,
+                            usage.outputTokens,
+                            usage.totalTokens,
+                            kind = MODEL_PROMPT_EDIT_CALL_KIND
+                        )
+                    }
+                    val result = if (response.isSuccess && !response.analysis.isNullOrBlank()) {
+                        PromptEditReplayResult.Success(
+                            response = response.analysis,
+                            tokenUsage = response.tokenUsage,
+                            cost = cost,
+                            durationMs = durationMs,
+                            traceFile = traceFile
+                        )
+                    } else {
+                        PromptEditReplayResult.Error(
+                            message = response.error ?: "No response body",
+                            httpStatusCode = response.httpStatusCode,
+                            durationMs = durationMs,
+                            traceFile = traceFile
+                        )
+                    }
+                    updatePromptEditReplayState(key) { it.copy(isRunning = false, result = result) }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val msg = (e.message ?: "Prompt edit replay failed").take(2000)
+                updatePromptEditReplayState(key) {
+                    it.copy(
+                        isRunning = false,
+                        result = PromptEditReplayResult.Error(msg, null, null, null),
+                        unavailableMessage = msg
+                    )
+                }
+            }
+        }
+        promptEditReplayJobs[key] = job
+        job.invokeOnCompletion { promptEditReplayJobs.remove(key, job) }
         return job
     }
 

@@ -41,6 +41,7 @@ import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.IconCandidate
+import com.ai.viewmodel.PromptEditReplayState
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.ReasoningEffortSweepState
 import com.ai.viewmodel.TemperatureSweepState
@@ -117,6 +118,10 @@ internal fun ReportPrimaryOverlays(
     onStartWebSearchReplay: (String, String) -> Unit,
     onApplyWebSearchReplay: (String, String) -> Unit,
     onClearWebSearchReplay: (String, String) -> Unit,
+    promptEditReplayStates: Map<String, PromptEditReplayState>,
+    onStartPromptEditReplay: (String, String, String, List<String>, String?) -> Unit,
+    onApplyPromptEditReplay: (String, String) -> Unit,
+    onClearPromptEditReplay: (String, String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
     onOpenAgentIcon: (String) -> Unit,
     onSecondaryRefresh: () -> Unit,
@@ -527,7 +532,11 @@ internal fun ReportPrimaryOverlays(
                 webSearchReplayStates = webSearchReplayStates,
                 onStartWebSearchReplay = onStartWebSearchReplay,
                 onApplyWebSearchReplay = onApplyWebSearchReplay,
-                onClearWebSearchReplay = onClearWebSearchReplay
+                onClearWebSearchReplay = onClearWebSearchReplay,
+                promptEditReplayStates = promptEditReplayStates,
+                onStartPromptEditReplay = onStartPromptEditReplay,
+                onApplyPromptEditReplay = onApplyPromptEditReplay,
+                onClearPromptEditReplay = onClearPromptEditReplay
             )
         }
         return true

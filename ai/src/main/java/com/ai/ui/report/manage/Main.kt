@@ -49,6 +49,7 @@ import com.ai.viewmodel.AltEditPayload
 import com.ai.viewmodel.AltPromptFlow
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.IconCandidate
+import com.ai.viewmodel.PromptEditReplayState
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.ResolvedAltPrompt
 import com.ai.viewmodel.ReasoningEffortSweepState
@@ -252,6 +253,10 @@ fun ReportsScreen(
     onStartWebSearchReplay: (String, String) -> Unit = { _, _ -> },
     onApplyWebSearchReplay: (String, String) -> Unit = { _, _ -> },
     onClearWebSearchReplay: (String, String) -> Unit = { _, _ -> },
+    promptEditReplayStates: Map<String, PromptEditReplayState> = emptyMap(),
+    onStartPromptEditReplay: (String, String, String, List<String>, String?) -> Unit = { _, _, _, _, _ -> },
+    onApplyPromptEditReplay: (String, String) -> Unit = { _, _ -> },
+    onClearPromptEditReplay: (String, String) -> Unit = { _, _ -> },
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
     onExportAll: suspend (String, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _ -> },
     translationRuns: List<com.ai.viewmodel.TranslationRunState> = emptyList(),
@@ -721,6 +726,10 @@ fun ReportsScreen(
             onStartWebSearchReplay = onStartWebSearchReplay,
             onApplyWebSearchReplay = onApplyWebSearchReplay,
             onClearWebSearchReplay = onClearWebSearchReplay,
+            promptEditReplayStates = promptEditReplayStates,
+            onStartPromptEditReplay = onStartPromptEditReplay,
+            onApplyPromptEditReplay = onApplyPromptEditReplay,
+            onClearPromptEditReplay = onClearPromptEditReplay,
             onNavigateToModelInfo = onNavigateToModelInfo,
             onOpenAgentIcon = { agentIconDetailFor = it },
             onSecondaryRefresh = onSecondaryRefresh,

@@ -36,6 +36,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
+import com.ai.viewmodel.PromptEditReplayState
 import com.ai.viewmodel.ReasoningEffortSweepState
 import com.ai.viewmodel.TemperatureSweepState
 import com.ai.viewmodel.WebSearchReplayState
@@ -105,7 +106,11 @@ fun ReportModelScreen(
     webSearchReplayStates: Map<String, WebSearchReplayState> = emptyMap(),
     onStartWebSearchReplay: (String, String) -> Unit = { _, _ -> },
     onApplyWebSearchReplay: (String, String) -> Unit = { _, _ -> },
-    onClearWebSearchReplay: (String, String) -> Unit = { _, _ -> }
+    onClearWebSearchReplay: (String, String) -> Unit = { _, _ -> },
+    promptEditReplayStates: Map<String, PromptEditReplayState> = emptyMap(),
+    onStartPromptEditReplay: (String, String, String, List<String>, String?) -> Unit = { _, _, _, _, _ -> },
+    onApplyPromptEditReplay: (String, String) -> Unit = { _, _ -> },
+    onClearPromptEditReplay: (String, String) -> Unit = { _, _ -> }
 ) {
     // Track which agent is currently shown locally so the Previous /
     // Next buttons at the bottom can step through report.agents
@@ -136,8 +141,10 @@ fun ReportModelScreen(
     var showTemperatureSweep by remember { mutableStateOf(false) }
     var showReasoningEffortSweep by remember { mutableStateOf(false) }
     var showWebSearchReplay by remember { mutableStateOf(false) }
+    var showPromptEditReplay by remember { mutableStateOf(false) }
     BackHandler { onBack() }
     val context = LocalContext.current
+    val aiSettings = com.ai.ui.shared.LocalAiSettings.current
     // Re-key on the report data version so an in-place edit (🗣️ refine
     // Apply, regenerate, icon/title write) re-reads the report and the
     // body / chatMessages refresh. ViewReportCache is mtime-staleness-safe,
@@ -152,6 +159,36 @@ fun ReportModelScreen(
     val report = reportState.value
     val agent = report?.agents?.find { it.agentId == currentAgentId }
     val provider = agent?.let { AppService.findById(it.provider) }
+
+    if (showPromptEditReplay) {
+        val replayAgentId = currentAgentId
+        PromptEditReplayScreen(
+            reportId = reportId,
+            targetId = replayAgentId,
+            title = "Edit prompt replay",
+            modelLabel = agent?.let {
+                provider?.let { p -> com.ai.ui.shared.modelLabel(p.id, it.model, separator = " — ") }
+                    ?: it.model
+            } ?: "Model response",
+            initialPrompt = report?.prompt.orEmpty(),
+            state = promptEditReplayStates[PromptEditReplayState.key(reportId, replayAgentId)],
+            aiSettings = aiSettings,
+            onCallModel = { prompt, paramsIds, systemPromptId ->
+                onStartPromptEditReplay(reportId, replayAgentId, prompt, paramsIds, systemPromptId)
+            },
+            onUseResponse = {
+                onApplyPromptEditReplay(reportId, replayAgentId)
+                onClearPromptEditReplay(reportId, replayAgentId)
+                showPromptEditReplay = false
+            },
+            onTrace = onNavigateToTraceFile,
+            onBack = {
+                onClearPromptEditReplay(reportId, replayAgentId)
+                showPromptEditReplay = false
+            }
+        )
+        return
+    }
 
     if (showTemperatureSweep) {
         val sweepAgentId = currentAgentId
@@ -387,7 +424,6 @@ fun ReportModelScreen(
     }
 
     // 🗣️ refine-in-chat overlay for THIS agent's answer.
-    val aiSettings = com.ai.ui.shared.LocalAiSettings.current
     var showAgentChat by remember { mutableStateOf(false) }
     if (showAgentChat) {
         val settingsAgent = aiSettings.getAgentById(currentAgentId)
@@ -474,6 +510,7 @@ fun ReportModelScreen(
             onTemperatureSweep = { showTemperatureSweep = true },
             onReasoningEffortSweep = { showReasoningEffortSweep = true },
             onWebSearchReplay = { showWebSearchReplay = true },
+            onEdit = { showPromptEditReplay = true },
             onTranslationCompare = if (liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }
             } else null,
