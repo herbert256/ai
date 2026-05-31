@@ -62,11 +62,20 @@ internal fun TemperatureSweepScreen(
 ) {
     BackHandler { onBack() }
     var tempTexts by rememberSaveable(reportId, agentId) { mutableStateOf(listOf("0", "1", "2")) }
+    var locallySubmittedTemps by remember(reportId, agentId) { mutableStateOf<List<Float>?>(null) }
     val parsedTemps = remember(tempTexts) { tempTexts.map { it.toFloatOrNull() } }
     val validTemps = parsedTemps.filterNotNull()
     val allValid = validTemps.size == 3 && validTemps.all { it in 0f..2f }
-    val running = state?.isRunning == true
-    val candidates = state?.candidates.orEmpty()
+    val displayState = state ?: locallySubmittedTemps?.let { temps ->
+        TemperatureSweepState(
+            reportId = reportId,
+            agentId = agentId,
+            candidates = temps.map { TemperatureSweepCandidate.Pending(it) },
+            isRunning = true
+        )
+    }
+    val running = displayState?.isRunning == true
+    val candidates = displayState?.candidates.orEmpty()
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -89,7 +98,7 @@ internal fun TemperatureSweepScreen(
                             value = text,
                             onValueChange = { next ->
                                 tempTexts = tempTexts.mapIndexed { i, old ->
-                                    if (i == index) next.filter { ch -> ch.isDigit() || ch == '.' }.take(4) else old
+                                    if (i == index) next.take(8) else old
                                 }
                             },
                             label = { Text("T${index + 1}") },
@@ -103,7 +112,10 @@ internal fun TemperatureSweepScreen(
                     }
                 }
                 Button(
-                    onClick = { onSubmit(validTemps) },
+                    onClick = {
+                        locallySubmittedTemps = validTemps
+                        onSubmit(validTemps)
+                    },
                     enabled = allValid && !running,
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
                     modifier = Modifier.fillMaxWidth()
@@ -114,7 +126,7 @@ internal fun TemperatureSweepScreen(
                     }
                     Text(if (running) "Running…" else "Submit", maxLines = 1, softWrap = false)
                 }
-                state?.unavailableMessage?.takeIf { it.isNotBlank() }?.let {
+                displayState?.unavailableMessage?.takeIf { it.isNotBlank() }?.let {
                     Text(it, color = AppColors.Red, fontSize = 12.sp)
                 }
             }
