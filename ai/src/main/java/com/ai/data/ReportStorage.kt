@@ -375,12 +375,19 @@ object ReportStorage {
         if ((res.selectionParamsById as Map<String, List<String>>?) == null) {
             res = res.copy(selectionParamsById = emptyMap())
         }
-        if ((res.iconCalls as MutableList<IconCallRecord>?) == null) {
-            res = res.copy(iconCalls = mutableListOf())
-        }
-        if ((res.userNotes as MutableList<UserNote>?) == null) {
-            res = res.copy(userNotes = mutableListOf())
-        }
+        // iconCalls / userNotes are declared MutableList, but the
+        // NullSafeFieldAdapterFactory coerces a *missing* field to the
+        // IMMUTABLE emptyList() singleton (reflection bypasses the type).
+        // An `as MutableList` cast on that throws ClassCastException
+        // ("EmptyList cannot be cast to MutableList") and the whole report
+        // fails to load. Copy into a real MutableList instead — this both
+        // dodges the cast and gives the in-place mutators (removeAgent etc.)
+        // a writable list. A plain field read needs no checkcast, so this
+        // is safe even when the field holds an immutable empty.
+        res = res.copy(
+            iconCalls = res.iconCalls.toMutableList(),
+            userNotes = res.userNotes.toMutableList()
+        )
         return res
     }
 
