@@ -622,9 +622,13 @@ class FanOutEngine internal constructor(
                 }
                 val range = temperatureRangeForProvider(task.provider)
                 val invalidTemp = temps.firstOrNull { !range.contains(it) }
-                if (temps.size != 3 || invalidTemp != null) {
-                    val msg = "${task.provider.id}/${task.model} allows temperature " +
-                        "${formatSweepTemperature(range.min)}..${formatSweepTemperature(range.max)}."
+                if (temps.isEmpty() || invalidTemp != null) {
+                    val msg = if (temps.isEmpty()) {
+                        "Choose at least one temperature."
+                    } else {
+                        "${task.provider.id}/${task.model} allows temperature " +
+                            "${formatSweepTemperature(range.min)}..${formatSweepTemperature(range.max)}."
+                    }
                     updateTemperatureSweepState(key) { sweep ->
                         sweep.copy(
                             isRunning = false,

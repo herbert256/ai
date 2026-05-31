@@ -1004,9 +1004,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 }
                 val temperatureRange = temperatureRangeForProvider(task.runtimeAgent.provider)
                 val invalidTemp = temps.firstOrNull { !temperatureRange.contains(it) }
-                if (temps.size != 3 || invalidTemp != null) {
-                    val msg = "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} allows temperature " +
-                        "${formatSweepTemperature(temperatureRange.min)}..${formatSweepTemperature(temperatureRange.max)}."
+                if (temps.isEmpty() || invalidTemp != null) {
+                    val msg = if (temps.isEmpty()) {
+                        "Choose at least one temperature."
+                    } else {
+                        "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} allows temperature " +
+                            "${formatSweepTemperature(temperatureRange.min)}..${formatSweepTemperature(temperatureRange.max)}."
+                    }
                     updateTemperatureSweepState(key) { sweep ->
                         sweep.copy(
                             isRunning = false,

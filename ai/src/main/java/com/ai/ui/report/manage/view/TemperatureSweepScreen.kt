@@ -23,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -66,10 +67,15 @@ internal fun TemperatureSweepScreen(
     var tempTexts by rememberSaveable(reportId, agentId, temperatureRange.min, temperatureRange.max) {
         mutableStateOf(defaultTemperatureTexts(temperatureRange))
     }
+    var selectedIndexes by remember(reportId, agentId, temperatureRange.min, temperatureRange.max) {
+        mutableStateOf(setOf(0, 1, 2))
+    }
     var locallySubmittedTemps by remember(reportId, agentId) { mutableStateOf<List<Float>?>(null) }
     val parsedTemps = remember(tempTexts) { tempTexts.map { it.toFloatOrNull() } }
-    val validTemps = parsedTemps.filterNotNull()
-    val allValid = validTemps.size == 3 && validTemps.all { temperatureRange.contains(it) }
+    val selectedTemps = selectedIndexes.sorted().mapNotNull { parsedTemps.getOrNull(it) }
+    val selectedAllValid = selectedIndexes.isNotEmpty() &&
+        selectedTemps.size == selectedIndexes.size &&
+        selectedTemps.all { temperatureRange.contains(it) }
     val displayState = state ?: locallySubmittedTemps?.let { temps ->
         TemperatureSweepState(
             reportId = reportId,
@@ -102,29 +108,44 @@ internal fun TemperatureSweepScreen(
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     tempTexts.forEachIndexed { index, text ->
-                        OutlinedTextField(
-                            value = text,
-                            onValueChange = { next ->
-                                tempTexts = tempTexts.mapIndexed { i, old ->
-                                    if (i == index) next.take(8) else old
-                                }
-                            },
-                            label = { Text("T${index + 1}") },
-                            singleLine = true,
-                            enabled = !running,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            isError = parsedTemps.getOrNull(index)?.let { !temperatureRange.contains(it) } ?: true,
-                            colors = AppColors.outlinedFieldColors(),
-                            modifier = Modifier.weight(1f)
-                        )
+                        val selected = index in selectedIndexes
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Checkbox(
+                                    checked = selected,
+                                    enabled = !running,
+                                    onCheckedChange = { checked ->
+                                        selectedIndexes = if (checked) selectedIndexes + index else selectedIndexes - index
+                                    }
+                                )
+                                Text("T${index + 1}", fontSize = 12.sp, color = AppColors.TextSecondary)
+                            }
+                            OutlinedTextField(
+                                value = text,
+                                onValueChange = { next ->
+                                    tempTexts = tempTexts.mapIndexed { i, old ->
+                                        if (i == index) next.take(8) else old
+                                    }
+                                },
+                                singleLine = true,
+                                enabled = !running && selected,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                isError = selected && (parsedTemps.getOrNull(index)?.let { !temperatureRange.contains(it) } ?: true),
+                                colors = AppColors.outlinedFieldColors(),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
                 Button(
                     onClick = {
-                        locallySubmittedTemps = validTemps
-                        onSubmit(validTemps)
+                        locallySubmittedTemps = selectedTemps
+                        onSubmit(selectedTemps)
                     },
-                    enabled = allValid && !running,
+                    enabled = selectedAllValid && !running,
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -132,7 +153,12 @@ internal fun TemperatureSweepScreen(
                         CircularProgressIndicator(modifier = Modifier.height(14.dp).width(14.dp), strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-                    Text(if (running) "Running…" else "Submit", maxLines = 1, softWrap = false)
+                    Text(
+                        if (running) "Running…"
+                        else "Submit ${selectedIndexes.size} call${if (selectedIndexes.size == 1) "" else "s"}",
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
                 displayState?.unavailableMessage?.takeIf { it.isNotBlank() }?.let {
                     Text(it, color = AppColors.Red, fontSize = 12.sp)
