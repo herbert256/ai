@@ -1,0 +1,8 @@
+{
+  "name": "second-tournament",
+  "title": "Judge two responses head-to-head",
+  "reference": false,
+  "agent": "*select",
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

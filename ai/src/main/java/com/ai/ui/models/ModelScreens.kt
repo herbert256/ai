@@ -113,6 +113,7 @@ private fun computeModelUsages(
                     SecondaryKind.META -> sec.metaPromptName?.takeIf { it.isNotBlank() } ?: "Meta"
                     SecondaryKind.MODERATION -> "Moderate"
                     SecondaryKind.TRANSLATE -> "Translate"
+                    SecondaryKind.TOURNAMENT -> "Tournament"
                 }
                 out += ModelUsageEntry(
                     timestamp = sec.timestamp, typeLabel = typeLabel,

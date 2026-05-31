@@ -1,0 +1,243 @@
+package com.ai.data
+
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
+
+/**
+ * Pure aggregation for the Tournament feature — folds a set of pairwise
+ * [MatchState] verdicts into a 1..N ranking, three interchangeable ways.
+ * No Android / coroutine dependencies, so it's trivially unit-testable
+ * and cheap enough to recompute on the result-screen method toggle.
+ *
+ * All three methods emit the same `[{id, rank, score, reason}]` shape the
+ * single-shot Rerank uses, so a tournament aggregate row drops straight
+ * into the existing rerank renderers and the Top-ranked scope
+ * (`extractTopRankedIds`).
+ */
+
+enum class TournamentMethod { COPELAND, BRADLEY_TERRY, ELO }
+
+/** Square win matrix over the tournament's responses. [ids] are the
+ *  1-based `[N]` ids (the same the @RESULTS@ block / rerank JSON use);
+ *  `wins[i][j]` is the fractional credit response i earned against j,
+ *  combining the two swapped orientations of that pair (see
+ *  [computeWinMatrix]). `wins[i][j] + wins[j][i] == 1.0` for every
+ *  contested pair, and both are 0.0 for an un-contested one. */
+class WinMatrix(val ids: List<Int>, val wins: Array<DoubleArray>) {
+    val n: Int get() = ids.size
+}
+
+/** One ranked row in the rerank-compatible output. */
+data class RankRow(val id: Int, val rank: Int, val score: Double, val reason: String)
+
+/** Fold every DONE match into the win matrix. [idForAgentId] maps a
+ *  response's agentId to its 1-based `[N]` id; matches whose responses
+ *  don't resolve are skipped. The two orientations of a pair are
+ *  averaged: agree → 1.0/0.0, disagree or tie → 0.5/0.5, a single
+ *  present orientation → that orientation's verdict, none → no contest. */
+fun computeWinMatrix(matches: List<MatchState>, idForAgentId: (String) -> Int?): WinMatrix {
+    // Every agentId that appears, resolved to its numeric id and sorted.
+    val agentIds = LinkedHashSet<String>()
+    matches.forEach { agentIds.add(it.responseAId); agentIds.add(it.responseBId) }
+    val resolved = agentIds.mapNotNull { aid -> idForAgentId(aid)?.let { aid to it } }
+        .sortedBy { it.second }
+    val ids = resolved.map { it.second }
+    val n = ids.size
+    val wins = Array(n) { DoubleArray(n) }
+    if (n < 2) return WinMatrix(ids, wins)
+
+    // Ordered-verdict lookup over decided matches.
+    val verdictByOrdered = HashMap<Pair<String, String>, String>()
+    matches.filter { it.status == MatchStatus.DONE && it.verdict != null }
+        .forEach { verdictByOrdered[it.responseAId to it.responseBId] = it.verdict!! }
+
+    for (a in 0 until n) {
+        for (b in a + 1 until n) {
+            val agA = resolved[a].first
+            val agB = resolved[b].first
+            val votes = mutableListOf<Double>() // 1.0 = agA won, 0.0 = agB won, 0.5 = tie
+            verdictByOrdered[agA to agB]?.let { v ->
+                votes.add(when (v) { "A" -> 1.0; "B" -> 0.0; else -> 0.5 })
+            }
+            verdictByOrdered[agB to agA]?.let { v ->
+                votes.add(when (v) { "A" -> 0.0; "B" -> 1.0; else -> 0.5 })
+            }
+            if (votes.isEmpty()) continue
+            val creditA = votes.average()
+            wins[a][b] = creditA
+            wins[b][a] = 1.0 - creditA
+        }
+    }
+    return WinMatrix(ids, wins)
+}
+
+/** Dispatch to the chosen aggregation method. */
+fun rankFor(method: TournamentMethod, m: WinMatrix): List<RankRow> = when (method) {
+    TournamentMethod.COPELAND -> copeland(m)
+    TournamentMethod.BRADLEY_TERRY -> bradleyTerry(m)
+    TournamentMethod.ELO -> elo(m)
+}
+
+/** Win-count / Copeland: rank by total fractional wins; score = win-rate
+ *  scaled 0-100. Order-independent and robust for a full round-robin. */
+fun copeland(m: WinMatrix): List<RankRow> {
+    val n = m.n
+    if (n == 0) return emptyList()
+    val games = (n - 1).coerceAtLeast(1)
+    val scored = (0 until n).map { i ->
+        val w = (0 until n).sumOf { j -> m.wins[i][j] }
+        Triple(m.ids[i], w, 100.0 * w / games)
+    }
+    return assignRanks(scored.map { RankScored(it.first, it.third, "Won %.1f of %d head-to-heads".format(it.second, games)) })
+}
+
+/** Bradley–Terry: estimate a latent strength p_i per response via the
+ *  standard MM iteration `p_i ← W_i / Σ_{j≠i} n_ij/(p_i+p_j)`, then rank
+ *  by strength. score = strength rescaled so the strongest is 100. A
+ *  small prior pseudo-count keeps an all-win / all-loss response from
+ *  diverging. */
+fun bradleyTerry(m: WinMatrix): List<RankRow> {
+    val n = m.n
+    if (n == 0) return emptyList()
+    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
+    // Add a tiny symmetric prior (0.5 win each way vs a virtual opponent
+    // pool) so totals can't be 0 and strengths stay finite.
+    val prior = 0.25
+    val wins = Array(n) { i -> DoubleArray(n) { j -> m.wins[i][j] } }
+    val totalWins = DoubleArray(n) { i -> (0 until n).sumOf { j -> wins[i][j] } + prior }
+    // games between i and j: 1.0 for every contested pair, else 0.
+    val games = Array(n) { i ->
+        DoubleArray(n) { j -> if (i == j) 0.0 else if (wins[i][j] + wins[j][i] > 0.0) 1.0 else 0.0 }
+    }
+    var p = DoubleArray(n) { 1.0 }
+    repeat(200) {
+        val next = DoubleArray(n)
+        for (i in 0 until n) {
+            var denom = prior / (p[i] + 1.0) // virtual prior opponent at strength 1
+            for (j in 0 until n) {
+                if (i == j) continue
+                val nij = games[i][j]
+                if (nij > 0.0) denom += nij / (p[i] + p[j])
+            }
+            next[i] = if (denom > 0.0) totalWins[i] / denom else p[i]
+        }
+        // Renormalize to Σp = n to stop drift.
+        val sum = next.sum()
+        if (sum > 0.0) for (i in 0 until n) next[i] = next[i] * n / sum
+        var maxDelta = 0.0
+        for (i in 0 until n) maxDelta = maxOf(maxDelta, kotlin.math.abs(next[i] - p[i]) / (p[i] + 1e-9))
+        p = next
+        if (maxDelta < 1e-6) return@repeat
+    }
+    val maxP = p.maxOrNull() ?: 1.0
+    val scored = (0 until n).map { i ->
+        RankScored(m.ids[i], if (maxP > 0.0) 100.0 * p[i] / maxP else 0.0, "Strength %.3f".format(p[i]))
+    }
+    return assignRanks(scored)
+}
+
+/** Elo: replay each contested pair once (in deterministic id order) as a
+ *  single game scored by the pair's fractional result, updating ratings
+ *  K=32 from a 1500 base. NOTE: Elo is order-sensitive; the fixed id
+ *  ordering makes the result reproducible but is a weaker fit for a
+ *  static round-robin than Copeland / Bradley–Terry. */
+fun elo(m: WinMatrix): List<RankRow> {
+    val n = m.n
+    if (n == 0) return emptyList()
+    val r = DoubleArray(n) { 1500.0 }
+    val k = 32.0
+    for (i in 0 until n) {
+        for (j in i + 1 until n) {
+            if (m.wins[i][j] + m.wins[j][i] <= 0.0) continue // uncontested
+            val sI = m.wins[i][j] // fractional score for i vs j
+            val eI = 1.0 / (1.0 + Math.pow(10.0, (r[j] - r[i]) / 400.0))
+            r[i] += k * (sI - eI)
+            r[j] += k * ((1.0 - sI) - (1.0 - eI))
+        }
+    }
+    val scored = (0 until n).map { i ->
+        RankScored(m.ids[i], Math.round(r[i]).toDouble(), "Elo %d".format(Math.round(r[i])))
+    }
+    return assignRanks(scored)
+}
+
+private data class RankScored(val id: Int, val score: Double, val reason: String)
+
+/** Sort by score desc (tiebreak id asc for determinism) and assign
+ *  rank 1..N. */
+private fun assignRanks(scored: List<RankScored>): List<RankRow> {
+    val sorted = scored.sortedWith(compareByDescending<RankScored> { it.score }.thenBy { it.id })
+    return sorted.mapIndexed { idx, s -> RankRow(s.id, idx + 1, s.score, s.reason) }
+}
+
+/** Serialize ranks into the rerank-compatible `[{id,rank,score,reason}]`
+ *  JSON the rest of the system already parses. Scores are rounded to 4
+ *  decimals to match the rerank tolerance. */
+fun List<RankRow>.toRerankJson(): String {
+    val arr = JsonArray()
+    forEach { row ->
+        arr.add(JsonObject().apply {
+            addProperty("id", row.id)
+            addProperty("rank", row.rank)
+            // Integer-valued scores serialise clean; fractional keep 2dp.
+            val s = if (row.score == Math.floor(row.score)) row.score.toInt() else
+                "%.2f".format(row.score).toDouble()
+            addProperty("score", s)
+            addProperty("reason", row.reason)
+        })
+    }
+    return createAppGson(prettyPrint = true).toJson(arr)
+}
+
+/** Encode the win matrix + the method that produced the aggregate's
+ *  current `content`, for the [SecondaryResult.tournamentMatrix] sidecar.
+ *  Lets the result screen recompute all three rankings locally without
+ *  re-reading every match row. */
+fun WinMatrix.encode(method: TournamentMethod): String {
+    val obj = JsonObject()
+    val idsArr = JsonArray(); ids.forEach { idsArr.add(it) }
+    obj.add("ids", idsArr)
+    val winsArr = JsonArray()
+    wins.forEach { row ->
+        val r = JsonArray(); row.forEach { r.add(it) }; winsArr.add(r)
+    }
+    obj.add("wins", winsArr)
+    obj.addProperty("method", method.name)
+    return obj.toString()
+}
+
+/** Re-rank an AGGREGATE tournament row for [method] from its stored win
+ *  matrix and persist the new `content` + matrix sidecar. A pure local
+ *  recompute (no API calls) the result-screen method toggle uses; the
+ *  save bumps [SecondaryDataVersion] so observers reload. No-op when the
+ *  row or its matrix sidecar is missing. */
+fun applyTournamentMethod(context: android.content.Context, reportId: String, rowId: String, method: TournamentMethod) {
+    val row = SecondaryResultStorage.get(context, reportId, rowId) ?: return
+    val decoded = decodeTournamentMatrix(row.tournamentMatrix) ?: return
+    val ranks = rankFor(method, decoded.first)
+    SecondaryResultStorage.save(context, row.copy(
+        content = ranks.toRerankJson(),
+        tournamentMatrix = decoded.first.encode(method)
+    ))
+}
+
+/** Inverse of [WinMatrix.encode] — returns the matrix and the stored
+ *  method, or null when the sidecar is missing / malformed. */
+fun decodeTournamentMatrix(json: String?): Pair<WinMatrix, TournamentMethod>? {
+    if (json.isNullOrBlank()) return null
+    return try {
+        val obj = JsonParser.parseString(json).asJsonObject
+        val ids = obj.getAsJsonArray("ids").map { it.asInt }
+        val winsArr = obj.getAsJsonArray("wins")
+        val wins = Array(winsArr.size()) { i ->
+            val row = winsArr[i].asJsonArray
+            DoubleArray(row.size()) { j -> row[j].asDouble }
+        }
+        val method = try { TournamentMethod.valueOf(obj.get("method").asString) }
+            catch (_: Exception) { TournamentMethod.COPELAND }
+        WinMatrix(ids, wins) to method
+    } catch (_: Exception) {
+        null
+    }
+}

@@ -1,0 +1,20 @@
+You are an impartial judge comparing two AI responses to the same question.
+
+QUESTION:
+@QUESTION@
+
+RESPONSE A:
+@RESPONSE_A@
+
+RESPONSE B:
+@RESPONSE_B@
+
+Decide which response is better on accuracy, completeness, clarity, and usefulness. Judge the content only — ignore which one is shown first.
+
+Output ONLY a JSON object — no prose, no code fences — of the form:
+
+{"verdict": "A", "confidence": 0.85, "reason": "..."}
+
+`verdict` is "A" if Response A is better, "B" if Response B is better, or "tie" if they are equally good.
+`confidence` is a number from 0.0 to 1.0.
+`reason` is one short sentence.

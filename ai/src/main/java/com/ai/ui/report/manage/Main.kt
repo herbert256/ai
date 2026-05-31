@@ -224,6 +224,7 @@ fun ReportsScreen(
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onRunRerank: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _, _ -> },
     onRunModeration: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _ -> },
+    onRunTournament: (String, AppService, String) -> Unit = { _, _, _ -> },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     /** Bulk delete on the report VM's viewModelScope so a Stop /
      *  navigate-away during a Fan-out delete doesn't abandon a half-
@@ -814,7 +815,12 @@ fun ReportsScreen(
             value = withContext(Dispatchers.IO) {
                 val report = com.ai.data.ReportStorage.getReport(context, rid)
                 val all = com.ai.data.SecondaryResultStorage.listForReport(context, rid)
-                val rr = all.filter { it.kind == com.ai.data.SecondaryKind.RERANK }
+                // Tournament aggregate rows conform to the rerank JSON
+                // contract, so they're selectable as a Top-ranked source too.
+                val rr = all.filter {
+                    it.kind == com.ai.data.SecondaryKind.RERANK ||
+                        (it.kind == com.ai.data.SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE")
+                }
                 val successfulAgents = report?.agents?.filter { it.reportStatus == com.ai.data.ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }.orEmpty()
                 val nativeByLang = LinkedHashMap<String, String?>()
                 all.filter { it.kind == com.ai.data.SecondaryKind.TRANSLATE && !it.targetLanguage.isNullOrBlank() }
@@ -1517,7 +1523,8 @@ fun ReportsScreen(
             runningInfoJobs = runningInfoJobs,
             onDismissRegenerateConfirm = { showRegenerateConfirm = false },
             onRegenerate = onRegenerate,
-            onChatWithReportPrompt = onChatWithReportPrompt
+            onChatWithReportPrompt = onChatWithReportPrompt,
+            onRunTournament = onRunTournament
         )
     }
 }

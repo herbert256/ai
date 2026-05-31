@@ -601,6 +601,12 @@ class RegenerateBatchEngine internal constructor(
                     reportViewModel.iconGen.runFanMetaBatch(context, reportId, promptId)
                 }
             }
+            RegeneratePhase.TOURNAMENT -> {
+                // resetRowsForPhase cleared every match row to a placeholder;
+                // the engine re-dispatches them in one idempotent pass and
+                // recomputes the aggregate ranking once they settle.
+                reportViewModel.tournamentEngine.resumeStaleRunsForReport(context, reportId, resetAttempts = true)
+            }
         }
     }
 
@@ -841,11 +847,26 @@ class RegenerateBatchEngine internal constructor(
             )
         }
 
+        // TOURNAMENT — one task per per-match row. The AGGREGATE row is
+        // recomputed by the dispatcher (no API call), so it isn't a task.
+        val tournamentMatchRows = all.filter {
+            it.kind == SecondaryKind.TOURNAMENT && it.tournamentRole == "MATCH"
+        }
+        for (row in tournamentMatchRows) {
+            tasks += RegenerateTask(
+                rowId = row.id,
+                phase = RegeneratePhase.TOURNAMENT,
+                label = "tournament: " + shortModelName(row.model),
+                state = RegenerateTaskState.WAITING
+            )
+        }
+
         tasks
     }
 
     private fun isMetaPhaseRow(r: SecondaryResult): Boolean =
         r.kind != SecondaryKind.TRANSLATE &&
+            r.kind != SecondaryKind.TOURNAMENT &&
             r.fanOutSourceAgentId == null &&
             r.fanInOf == null
 

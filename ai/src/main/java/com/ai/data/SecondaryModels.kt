@@ -6,7 +6,7 @@ import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-enum class SecondaryKind { RERANK, META, MODERATION, TRANSLATE }
+enum class SecondaryKind { RERANK, META, MODERATION, TRANSLATE, TOURNAMENT }
 
 /** Per-kind "Type" for a TRANSLATE call — drives the trace category, the
  *  report cost-table Type column, and the AI Usage `kind`, so each kind of
@@ -189,7 +189,34 @@ data class SecondaryResult(
      *  fan-out prompt + [content]; each reply is appended. Applying a reply
      *  overwrites [content]. Immutable list (always replaced wholesale).
      *  Empty on legacy rows / pairs never refined. */
-    val chatMessages: List<ChatMessage> = emptyList()
+    val chatMessages: List<ChatMessage> = emptyList(),
+    // -------- TOURNAMENT (kind == TOURNAMENT) --------
+    /** Distinguishes the two row shapes a tournament produces within
+     *  one kind, the way [fanOutSourceAgentId] / [fanInOf] split fan-out
+     *  pairs from fan-in rows. "MATCH" = one ordered head-to-head
+     *  judgment; "AGGREGATE" = the per-judge-model rolled-up ranking row.
+     *  Null on every non-tournament row. */
+    val tournamentRole: String? = null,
+    /** Shared by every row (all matches + the aggregate) of one judge
+     *  model's tournament on this report: "${reportId}|${providerId}|${model}".
+     *  This is the run key — hydration groups rows into a run by it.
+     *  Null on non-tournament rows. */
+    val tournamentJudgeRunId: String? = null,
+    /** MATCH rows: agentId of the response placed in the @RESPONSE_A@ slot. */
+    val matchResponseAId: String? = null,
+    /** MATCH rows: agentId of the response placed in the @RESPONSE_B@ slot. */
+    val matchResponseBId: String? = null,
+    /** MATCH rows: 0 for the canonical (lowId-vs-highId) orientation, 1
+     *  for the swapped re-judgment. Together (A,B,orientation) uniquely
+     *  key the match within a run. Null on non-MATCH rows. */
+    val matchOrientation: Int? = null,
+    /** AGGREGATE rows only: the win matrix + which method produced the
+     *  current [content] array, encoded JSON
+     *  (`{"ids":[…],"wins":[[…]],"method":"COPELAND"}`). Lets the result
+     *  screen recompute all three rankings locally and re-persist
+     *  [content] on a method toggle without re-reading every match row.
+     *  Null until the aggregate is first computed. */
+    val tournamentMatrix: String? = null
 )
 
 /** Total USD spend captured on this row: the primary in/out cost PLUS

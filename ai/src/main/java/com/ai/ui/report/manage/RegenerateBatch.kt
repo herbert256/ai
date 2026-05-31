@@ -446,4 +446,5 @@ private val RegeneratePhase.label: String
         RegeneratePhase.FAN_IN -> "Fan-in"
         RegeneratePhase.TRANSLATIONS -> "Translations"
         RegeneratePhase.FAN_META -> "Fan Meta"
+        RegeneratePhase.TOURNAMENT -> "Tournament"
     }
