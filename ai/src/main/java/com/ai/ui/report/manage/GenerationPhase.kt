@@ -393,6 +393,7 @@ internal fun ColumnScope.GenerationPhase(
      *  [AgentIconRow.icon]) render the default ✅/❌/⏳/🆕 cell. */
     agentIconRows: Map<String, AgentIconRow> = emptyMap(),
     agentModelTitles: Map<String, AgentModelTitle> = emptyMap(),
+    showModelNamesInReportRows: Boolean = false,
     /** Persisted agent records (frozen cost split pinned at run
      *  completion). The bottom-bar total prefers these over a live
      *  recompute so it matches the Report-Costs screen, which reads the
@@ -1285,8 +1286,10 @@ internal fun ColumnScope.GenerationPhase(
                 Column(modifier = Modifier.weight(1f)) {
                     // A generated per-model title (when present) replaces the
                     // model name on the 'report' row — see [AgentModelTitle].
-                    val modelTitle = agentModelTitles[agentId]?.title?.takeIf { it.isNotBlank() }
-                    Text(modelTitle ?: com.ai.ui.shared.modelLabel(row.providerDisplay, displayName),
+                    val modelLabel = com.ai.ui.shared.modelLabel(row.providerDisplay, displayName)
+                    val modelTitle = if (showModelNamesInReportRows) null
+                        else agentModelTitles[agentId]?.title?.takeIf { it.isNotBlank() }
+                    Text(modelTitle ?: modelLabel,
                         fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (result?.tokenUsage != null) {

@@ -268,6 +268,7 @@ internal fun ReportRunScreen(
         // Running total cost, reported up from GenerationPhase, shown in
         // the bottom icon bar (top row, right, above ❓).
         var totalCostForBar by remember { mutableStateOf(0.0) }
+        var showModelNamesInReportRows by rememberSaveable(currentReportId) { mutableStateOf(false) }
         // 🗂️ pick-another-report on the Manage hub → the unfiltered picker,
         // returning to the hub for the chosen report. Provided only around
         // the TitleBar so the auto-captured bottom-bar icon appears here.
@@ -311,6 +312,10 @@ internal fun ReportRunScreen(
                 { generationHandlers.onTogglePin(); pinTick++ }
             } else null,
             isPinned = isPinned,
+            onToggleModelRowLabels = if (currentReportId != null) {
+                { showModelNamesInReportRows = !showModelNamesInReportRows }
+            } else null,
+            modelRowLabelsShowModelNames = showModelNamesInReportRows,
             // ✏️ opens the full-screen "Edit report" overview (layer on top
             // of this hub) instead of the old 3-button pop-up.
             onEdit = { st.showEditReportOverview.value = true },
@@ -402,6 +407,7 @@ internal fun ReportRunScreen(
             languageName = languageName,
             agentIconRows = agentIconRows,
             agentModelTitles = agentModelTitles,
+            showModelNamesInReportRows = showModelNamesInReportRows,
             agentRecordsByAgentId = agentRecordsByAgentId,
             infoEnabled = infoEnabled,
             infoState = infoState,

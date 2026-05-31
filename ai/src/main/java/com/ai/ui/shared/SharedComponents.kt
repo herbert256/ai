@@ -763,6 +763,11 @@ data class TitleBarIcons(
      *  glyph (orange when pinned, white when not). Ignored when
      *  [onPin] is null. */
     val isPinned: Boolean = false,
+    /** Optional 🔤 row-label toggle. Wired from Report - manage to
+     *  switch model rows between generated titles and raw model names. */
+    val onToggleModelRowLabels: (() -> Unit)? = null,
+    /** True when model rows currently show raw model names. */
+    val modelRowLabelsShowModelNames: Boolean = false,
     /** Optional 🆕 add hook. CRUD list pages publish it so the bottom
      *  bar carries the "add new entry" action (replacing the old top-of-
      *  list Add button). Null → glyph hidden. */
@@ -1025,6 +1030,11 @@ fun TitleBar(
     /** Current pinned state, drives the 📌 glyph colour in the bottom
      *  bar (orange when pinned). Ignored when [onPin] is null. */
     isPinned: Boolean = false,
+    /** Optional 🔤 row-label toggle. Used by Manage report to switch
+     *  agent rows between generated titles and raw model names. */
+    onToggleModelRowLabels: (() -> Unit)? = null,
+    /** True when agent rows currently show raw model names. */
+    modelRowLabelsShowModelNames: Boolean = false,
     /** Explicit swipe-right (older report) handler. Pass `null` to
      *  let the bar auto-wire itself from [LocalCurrentReportIdForSwipe]
      *  + [LocalReportIdsNewestFirst] + [LocalReportSwitchHandler]
@@ -1134,6 +1144,8 @@ fun TitleBar(
         onCopyReport = onCopyReport,
         onPin = onPin,
         isPinned = isPinned,
+        onToggleModelRowLabels = onToggleModelRowLabels,
+        modelRowLabelsShowModelNames = modelRowLabelsShowModelNames,
         onAdd = onAdd,
         addFirst = addFirst,
         costText = costText,
@@ -1624,6 +1636,9 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onValidatePrompt?.let { add(BottomBarIcon("🚩", Color.Unspecified, it, 28, alpha = if (icons.validatePromptActive) 1f else 0.35f)) }
     icons.onCopy?.let { add(BottomBarIcon("📋", Color.Unspecified, it, 28)) }
     icons.onPin?.let { add(BottomBarIcon("📌", Color.Unspecified, it, 28, alpha = if (icons.isPinned) 1f else 0.35f)) }
+    icons.onToggleModelRowLabels?.let {
+        add(BottomBarIcon("🔤", Color.Unspecified, it, 28, alpha = if (icons.modelRowLabelsShowModelNames) 1f else 0.55f))
+    }
     icons.onShare?.let { add(BottomBarIcon("📤", Color.Unspecified, it, 28)) }
     icons.onCopyReport?.let { add(BottomBarIcon("👯", Color.Unspecified, it, 28)) }
     // ----- second-row-ish: 👁 view leads the second row, the per-item

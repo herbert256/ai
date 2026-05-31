@@ -38,6 +38,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("🌡️", "Parameters", "Pick the preset(s) used as this report's parameters on the next Regenerate."),
         Triple("🎭", "System prompt", "Pick the system prompt used for this report."),
         Triple("📌", "Pin / unpin", "Keep this report at the top of the lists (orange when pinned)."),
+        Triple("🔤", "Row labels", "Switch report rows between generated titles and raw model names."),
         Triple("📤", "Export", "Export / share the report (once the run has completed)."),
         Triple("👯", "Duplicate", "Make a copy of this report."),
         Triple("👁", "View", "Open the per-agent results / View hub for this report."),
