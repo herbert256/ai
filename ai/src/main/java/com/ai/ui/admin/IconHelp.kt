@@ -328,6 +328,8 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("📋", "Copy", "Copy this result's text."),
         Triple("📤", "Share", "Share this result's text."),
         Triple("👁", "View", "Open this result in the View screen."),
+        Triple("💬", "Chat", "Continue this analysis in a chat (opens the Chat section; Meta results only)."),
+        Triple("🗣️", "Refine", "Chat with the model to refine this analysis; Apply folds a reply back into the report (Meta results only)."),
         Triple("✍️", "Add note", "Attach a free-text note to this meta / rerank / moderation result."),
         Triple("🌐", "Compare", "Show the original and its translation side by side."),
         Triple("🗑", "Delete", "Delete this result (with multiple languages, just the active one)."),

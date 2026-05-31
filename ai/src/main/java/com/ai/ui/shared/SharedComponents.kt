@@ -382,6 +382,12 @@ val LocalSystemPromptChange = compositionLocalOf<(String?) -> Unit> { {} }
  *  [LocalSystemPromptChange]. Default no-op. */
 val LocalGenerateNoteTitle = compositionLocalOf<(String, String, String) -> Unit> { { _, _, _ -> } }
 
+/** Continue a META secondary result in the Chat section — `(reportId,
+ *  resultId, activeLanguage?)`. The 💬 icon on the meta-item detail reads
+ *  it. Provided around the report area, wired to `continueMetaInChat` +
+ *  navigate. Default no-op. */
+val LocalContinueMetaInChat = compositionLocalOf<(String, String, String?) -> Unit> { { _, _, _ -> } }
+
 /** Bridge that lets the in-report "refine this answer" chat screen
  *  (🗣️ on Model-response / Fan-out-response) reach the chat engine
  *  without a view-model handle. Provided around the report area in

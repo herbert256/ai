@@ -314,6 +314,12 @@ internal fun NavGraphBuilder.reportRoutes(
                 com.ai.ui.shared.LocalGenerateNoteTitle provides { rid, nid, txt ->
                     reportViewModel.generateUserNoteTitle(context, rid, nid, txt)
                 },
+                com.ai.ui.shared.LocalContinueMetaInChat provides { rid, resid, lang ->
+                    scope.launch {
+                        val sid = continueMetaInChat(context, rid, resid, lang) ?: return@launch
+                        navController.navigate(NavRoutes.aiChatContinue(sid))
+                    }
+                },
                 com.ai.ui.shared.LocalActiveTranslationReportIds provides activeTranslationReportIds,
                 com.ai.ui.shared.LocalNavigateToReportInfo provides { rid ->
                     navController.navigate(NavRoutes.aiReportInfo(rid))

@@ -109,6 +109,15 @@ internal fun SecondaryResultDetailScreen(
     }
     val parentReport = parentReportState.value
     val reportLanguageName = parentReport?.languageName?.takeIf { it.isNotBlank() }
+    // Fresh on-disk row, re-read on every secondary save, so a 🗣️ refine
+    // Apply (which rewrites content) reflects here even though `result`
+    // arrives as a stale param from the list mount. Drives the Original-
+    // language content + the refine chat's persisted conversation.
+    val secDataVersion by com.ai.data.SecondaryDataVersion.version.collectAsState()
+    val resultFresh by produceState<SecondaryResult?>(null, result.id, secDataVersion) {
+        value = withContext(Dispatchers.IO) { SecondaryResultStorage.get(context, result.reportId, result.id) }
+    }
+    val originalContent = resultFresh?.content ?: result.content
     // Only show language tabs where THIS meta actually has content —
     // either the seed-language row itself (result.targetLanguage) or
     // a cross-translate TRANSLATE row pointing back at it. Include
@@ -195,8 +204,8 @@ internal fun SecondaryResultDetailScreen(
     // translation)" placeholder rather than falling back to the
     // foreign-language source).
     val displayContent: String? = when {
-        result.kind != SecondaryKind.META -> result.content
-        activeLangName == result.targetLanguage -> result.content
+        result.kind != SecondaryKind.META -> originalContent
+        activeLangName == result.targetLanguage -> originalContent
         else -> activeTranslateRow?.content
     }
     val traceFilename = activeTranslateRow?.traceFile?.takeIf { it.isNotBlank() } ?: baseTraceFilename
@@ -297,6 +306,33 @@ internal fun SecondaryResultDetailScreen(
         }
     }
 
+    // 💬 / 🗣️ chat — META rows only (plain meta + fan-in). Rerank /
+    // moderation content is structured, so chat / refine don't apply.
+    val isMeta = result.kind == SecondaryKind.META
+    val hasContent = !originalContent.isNullOrBlank()
+    val continueMetaInChat = com.ai.ui.shared.LocalContinueMetaInChat.current
+    val aiSettings = com.ai.ui.shared.LocalAiSettings.current
+    var showAgentChat by remember { mutableStateOf(false) }
+    if (showAgentChat && providerService != null) {
+        val seed = buildList {
+            add(com.ai.data.ChatMessage(role = "user", content = parentReport?.prompt?.takeIf { it.isNotBlank() } ?: "Analyse the model responses."))
+            originalContent?.takeIf { it.isNotBlank() }?.let { add(com.ai.data.ChatMessage(role = "assistant", content = it)) }
+        }
+        AgentChatScreen(
+            titleBarSubject = title,
+            service = providerService,
+            model = result.model,
+            agentIdForKey = null,
+            initialMessages = (resultFresh?.chatMessages ?: result.chatMessages).ifEmpty { seed },
+            initialParams = com.ai.data.ChatParameters(),
+            aiSettings = aiSettings,
+            onSaveMessages = { SecondaryResultStorage.updateChatMessages(context, result.reportId, result.id, it) },
+            onApply = { SecondaryResultStorage.updateContent(context, result.reportId, result.id, it) },
+            onBack = { showAgentChat = false }
+        )
+        return
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         // 👁 → matching View sub-screen, per-kind dispatch.
@@ -333,6 +369,10 @@ internal fun SecondaryResultDetailScreen(
             },
             onOpenView = onOpenViewJump,
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
+            // 💬 continue this analysis in the Chat section; 🗣️ refine it in
+            // place. META rows only (plain meta + fan-in).
+            onChat = if (isMeta && hasContent) { { continueMetaInChat(result.reportId, result.id, activeLangName) } } else null,
+            onAgentChat = if (isMeta && hasContent && providerService != null) { { showAgentChat = true } } else null,
             onTranslationCompare = if (liveTranslateActive != null && !result.content.isNullOrBlank() && !liveTranslateActive.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }
             } else null,
