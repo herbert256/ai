@@ -119,6 +119,10 @@ fun TournamentManageRow() {
                 text = rowText, color = Color.White, fontSize = 13.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
             )
+            if (run.totalCost > 0.0) {
+                Text(formatCents(run.totalCost), fontSize = 10.sp,
+                    color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+            }
         }
         HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
     }
