@@ -201,9 +201,10 @@ fun TournamentViewScreen(
             // that model's head-to-heads on its own screen.
             val rankRows = row?.content?.let { parseRerankRows(it) }
             if (rankRows != null && rankRows.isNotEmpty()) {
-                // Points / Bradley–Terry always show one decimal (even 100.0);
-                // Copeland / Elo keep their natural formatting. Reason hidden.
-                val scoreDecimals = if (currentMethod == TournamentMethod.POINTS ||
+                // Copeland / Points / Bradley-Terry always show one
+                // decimal (even 100.0); Elo keeps natural formatting.
+                val scoreDecimals = if (currentMethod == TournamentMethod.COPELAND ||
+                    currentMethod == TournamentMethod.POINTS ||
                     currentMethod == TournamentMethod.BRADLEY_TERRY) 1 else null
                 RerankTable(
                     rankRows, loaded.agentLabels,

@@ -535,6 +535,7 @@ private fun methodLabel(method: TournamentMethod): String = when (method) {
 private fun scoreText(score: Double?, method: TournamentMethod): String {
     if (score == null) return "-"
     return when (method) {
+        TournamentMethod.COPELAND,
         TournamentMethod.BRADLEY_TERRY,
         TournamentMethod.POINTS -> String.format(java.util.Locale.US, "%.1f", score)
         else -> formatRerankScore(score)
