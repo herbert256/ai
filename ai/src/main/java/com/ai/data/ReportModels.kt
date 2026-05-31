@@ -8,6 +8,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.concurrent.withLock
 
+const val RESPONSE_CHANGE_SOURCE_CHAT = "Chat"
+const val RESPONSE_CHANGE_SOURCE_TEMPERATURE = "Temperature"
+const val RESPONSE_CHANGE_SOURCE_REASONING_EFFORT = "Reasoning Effort"
+const val RESPONSE_CHANGE_SOURCE_WEB_SEARCH = "Web Search"
+
 data class ReportAgent(
     val agentId: String,
     val agentName: String,
@@ -19,6 +24,10 @@ data class ReportAgent(
     var requestBody: String? = null,
     var responseHeaders: String? = null,
     var responseBody: String? = null,
+    /** User-selected replacement marker for [responseBody]. Null for the
+     *  original model response or after a normal regenerate. */
+    var responseChangeSource: String? = null,
+    var responseChangeValue: String? = null,
     var errorMessage: String? = null,
     var tokenUsage: TokenUsage? = null,
     var cost: Double? = null,
@@ -452,4 +461,3 @@ val Report.barTitle: String get() = titleLong?.takeIf { it.isNotBlank() } ?: tit
 fun Report.notesFor(targetKind: String, targetId: String): List<UserNote> =
     userNotes.filter { it.targetKind == targetKind && it.targetId == targetId }
         .sortedByDescending { it.createdAt }
-

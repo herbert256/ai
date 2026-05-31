@@ -134,7 +134,11 @@ object ReportStorage {
             if (requestHeaders != null) agent.requestHeaders = requestHeaders
             if (requestBody != null) agent.requestBody = requestBody
             if (responseHeaders != null) agent.responseHeaders = responseHeaders
-            if (responseBody != null) agent.responseBody = responseBody
+            if (responseBody != null) {
+                agent.responseBody = responseBody
+                agent.responseChangeSource = null
+                agent.responseChangeValue = null
+            }
             // On a SUCCESS transition, every "result" field is replaced
             // with what the new call provided — including clearing any
             // leftover errorMessage / citations / etc. from a prior
@@ -222,15 +226,24 @@ object ReportStorage {
         }
     }
 
-    /** Overwrite an agent's [ReportAgent.responseBody] with a chosen chat
-     *  reply (the 🗣️ "Apply" action). Leaves cost/tokens untouched — the
-     *  refine-chat spend is tracked in global AI Usage, not the report. */
-    fun applyAgentChatResponse(context: Context, reportId: String, agentId: String, body: String): Boolean {
+    /** Overwrite an agent's [ReportAgent.responseBody] with a chosen
+     *  replacement. Leaves cost/tokens untouched — trial-call spend is
+     *  tracked in global AI Usage, not the report. */
+    fun applyAgentChatResponse(
+        context: Context,
+        reportId: String,
+        agentId: String,
+        body: String,
+        changeSource: String? = null,
+        changeValue: String? = null
+    ): Boolean {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withLock false
             agent.responseBody = body
+            agent.responseChangeSource = changeSource?.takeIf { it.isNotBlank() }
+            agent.responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
             saveReport(report.copy(timestamp = System.currentTimeMillis()))
             true
         }
@@ -1506,6 +1519,8 @@ object ReportStorage {
             agent.requestBody = null
             agent.responseHeaders = null
             agent.responseBody = null
+            agent.responseChangeSource = null
+            agent.responseChangeValue = null
             agent.errorMessage = null
             agent.citations = null
             agent.searchResults = null
@@ -1533,6 +1548,8 @@ object ReportStorage {
             agent.requestBody = null
             agent.responseHeaders = null
             agent.responseBody = null
+            agent.responseChangeSource = null
+            agent.responseChangeValue = null
             agent.errorMessage = null
             agent.tokenUsage = null
             agent.cost = null

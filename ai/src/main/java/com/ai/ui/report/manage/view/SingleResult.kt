@@ -24,6 +24,7 @@ import com.ai.data.ApiTracer
 import com.ai.data.AppService
 import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStorage
+import com.ai.data.RESPONSE_CHANGE_SOURCE_CHAT
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
@@ -302,6 +303,11 @@ fun ReportModelScreen(
         }
     }
     val displayBody = activeAgentTranslateRow?.content ?: agent.responseBody
+    val responseChangeLabel = agent.responseChangeSource?.takeIf { it.isNotBlank() }?.let { source ->
+        agent.responseChangeValue?.takeIf { it.isNotBlank() }?.let { value ->
+            "Changed by $source: $value"
+        } ?: "Changed by $source"
+    }
     val traceFilename = activeAgentTranslateRow?.traceFile?.takeIf { it.isNotBlank() } ?: agentTraceFilename
 
     // For translated reports: load the source agent's response so the
@@ -408,7 +414,15 @@ fun ReportModelScreen(
             initialParams = initialParams,
             aiSettings = aiSettings,
             onSaveMessages = { ReportStorage.saveAgentChatMessages(context, reportId, currentAgentId, it) },
-            onApply = { ReportStorage.applyAgentChatResponse(context, reportId, currentAgentId, it) },
+            onApply = {
+                ReportStorage.applyAgentChatResponse(
+                    context = context,
+                    reportId = reportId,
+                    agentId = currentAgentId,
+                    body = it,
+                    changeSource = RESPONSE_CHANGE_SOURCE_CHAT
+                )
+            },
             onBack = { showAgentChat = false }
         )
         return
@@ -561,6 +575,24 @@ fun ReportModelScreen(
                                 }
                             }
                             Spacer(modifier = Modifier.height(12.dp))
+                        }
+                        responseChangeLabel?.let { label ->
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = AppColors.Yellow,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(AppColors.CardBackgroundAlt)
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(10.dp))
                         }
                         // The response in a card; corner 🐞 → response trace.
                         Box(modifier = Modifier.fillMaxWidth()

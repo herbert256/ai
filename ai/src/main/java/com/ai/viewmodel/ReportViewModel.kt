@@ -904,7 +904,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val candidate = _temperatureSweepStates.value[key]?.candidates
             ?.getOrNull(candidateIndex) as? TemperatureSweepCandidate.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            ReportStorage.applyAgentChatResponse(context, reportId, agentId, candidate.response)
+            ReportStorage.applyAgentChatResponse(
+                context = context,
+                reportId = reportId,
+                agentId = agentId,
+                body = candidate.response,
+                changeSource = RESPONSE_CHANGE_SOURCE_TEMPERATURE,
+                changeValue = formatSweepTemperature(candidate.temperature)
+            )
             _temperatureSweepStates.update { it - key }
         }
     }
@@ -1104,7 +1111,14 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val candidate = _reasoningEffortSweepStates.value[key]?.candidates
             ?.getOrNull(candidateIndex) as? ReasoningEffortCandidate.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            ReportStorage.applyAgentChatResponse(context, reportId, agentId, candidate.response)
+            ReportStorage.applyAgentChatResponse(
+                context = context,
+                reportId = reportId,
+                agentId = agentId,
+                body = candidate.response,
+                changeSource = RESPONSE_CHANGE_SOURCE_REASONING_EFFORT,
+                changeValue = formatSweepReasoningEffort(candidate.effort)
+            )
             _reasoningEffortSweepStates.update { it - key }
         }
     }
@@ -1293,7 +1307,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val key = WebSearchReplayState.key(reportId, agentId)
         val result = _webSearchReplayStates.value[key]?.result as? WebSearchReplayResult.Success ?: return
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            ReportStorage.applyAgentChatResponse(context, reportId, agentId, result.response)
+            ReportStorage.applyAgentChatResponse(
+                context = context,
+                reportId = reportId,
+                agentId = agentId,
+                body = result.response,
+                changeSource = RESPONSE_CHANGE_SOURCE_WEB_SEARCH
+            )
             _webSearchReplayStates.update { it - key }
         }
     }
