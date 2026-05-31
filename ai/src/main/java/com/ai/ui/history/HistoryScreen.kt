@@ -25,7 +25,6 @@ import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 import com.ai.ui.shared.*
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
@@ -37,11 +36,12 @@ fun HistoryScreenNav(
      *  grid (`showViewReportScreen`). The row's main tap area and the
      *  🔧 icon both keep firing onOpenReportResult (Manage). */
     onOpenReportView: (String) -> Unit = {},
+    onDeleteReport: (String) -> Unit = {},
+    onDeleteReports: (List<String>) -> Unit = { ids -> ids.forEach(onDeleteReport) },
     onHousekeeping: (() -> Unit)? = null
 ) {
     BackHandler { onNavigateBack() }
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var allReports by remember { mutableStateOf(emptyList<Report>()) }
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
     LaunchedEffect(refreshTick) {
@@ -157,9 +157,7 @@ fun HistoryScreenNav(
                             val remaining = filteredReports.size - 1
                             val newTotalPages = if (remaining <= 0) 1 else (remaining + pageSize - 1) / pageSize
                             if (currentPage >= newTotalPages) currentPage = (newTotalPages - 1).coerceAtLeast(0)
-                            scope.launch(Dispatchers.IO) {
-                                ReportStorage.deleteReport(context, report.id)
-                            }
+                            onDeleteReport(report.id)
                         }
                     )
                 }
@@ -181,10 +179,9 @@ fun HistoryScreenNav(
                         // file I/O. The list is cleared on Main first
                         // so the UI is responsive while the disk
                         // sweep runs.
+                        val reportsToDelete = allReports.map { it.id }
                         allReports = emptyList(); currentPage = 0
-                        scope.launch(Dispatchers.IO) {
-                            ReportStorage.deleteAllReports(context)
-                        }
+                        onDeleteReports(reportsToDelete)
                     }) { Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false) }
                 },
                 dismissButton = {

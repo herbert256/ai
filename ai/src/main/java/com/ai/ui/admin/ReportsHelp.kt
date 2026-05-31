@@ -1,6 +1,44 @@
 package com.ai.ui.admin
 
 internal val reportsHelp: Map<String, HelpContent> = mapOf(
+    "value_view" to HelpContent(
+        title = "Help - Value view",
+        cards = listOf(
+            HelpCard("What this is", "A cost × quality map of the models in this report. The horizontal axis is each model's cost; the vertical axis is its rerank score (quality). It answers \"which model gives most of the quality for the least cost?\". It only appears once the report has a Rerank — that's where the quality scores come from."),
+            HelpCard("How to read it", "Top-left is the sweet spot: cheap and high-scoring. 💎 marks the best-value model (the most quality per cost on the frontier). The blue line is the Pareto frontier — the models that aren't beaten on both cost and quality. Dimmed points are 'dominated': another model is at least as good for the same or less money."),
+            HelpCard("Where it comes from", "Pure derivation — no new API calls. It reuses the per-agent cost already stored on the report and the scores from the most recent Rerank. Scores are model-scaled (e.g. 0–1 vs 0–100), so the quality axis auto-scales to this report's range."),
+            HelpCard("List below the chart", "Each model with its cost and score, sorted best-value first, badged 💎 Best value / Pareto / dominated.")
+        )
+    ),
+    "report_notes" to HelpContent(
+        title = "Help - User notes",
+        cards = listOf(
+            HelpCard("What this is", "Every free-text note you've attached anywhere in this report, grouped by what each note is pinned to (the report itself, a model response, a fan-out run or response, or a meta / rerank / moderation result). Notes are yours only — they're never sent to any model."),
+            HelpCard("Adding a note", "Use the ✍️ icon on a report, model response, fan-out or secondary screen to pin a note to that thing. ✍️ here on this screen adds a note to the report as a whole. A thing can hold any number of notes — ✍️ again adds another."),
+            HelpCard("Reading & editing", "Each note shows as a card collapsed to its AI title (or its first line until the title arrives); tap it to expand the full text. When expanded, ✏️ edits the note and 🗑 deletes it (no undo)."),
+            HelpCard("Titles", "Saving a note (add or edit) kicks off a quick background call that gives it a short title — the card's headline. Editing the text regenerates the title. The tiny cost shows in the report's cost table under the 'note' group."),
+            HelpCard("On the View screens", "The same notes also appear, read-only, at the top of the matching View screen (a model response, a secondary result, a fan-out). You can't add or change notes there — use ✍️ on the Manage side."),
+            HelpCard("Deleted targets", "If the model response or secondary a note was pinned to is later removed, its notes are grouped under 'Deleted item' here so you can still read or delete them. (Notes on a removed model are pruned automatically.)")
+        )
+    ),
+    "report_agent_chat" to HelpContent(
+        title = "Help - Refine answer",
+        cards = listOf(
+            HelpCard("What this is", "A chat with the model that produced this answer, anchored to the report. It opens seeded with the original prompt and the current answer, so you can ask for changes — e.g. \"please be more verbose\" or \"add a code example\"."),
+            HelpCard("Apply", "Each assistant reply has an Apply button. Tapping it overwrites this answer in the report with that reply. Nothing is changed until you Apply, so you can explore freely first."),
+            HelpCard("Conversation is saved", "The back-and-forth is stored on this answer, so re-opening 🗣️ continues where you left off."),
+            HelpCard("System prompt & parameters", "🎭 and 🌡️ pick a system prompt / parameter preset for the next reply (seeded from the agent's own settings)."),
+            HelpCard("Cost", "Refine-chat turns are billed like a normal chat and counted in AI Usage (statistics), not added to the report's cost table.")
+        )
+    ),
+    "report_user_note_edit" to HelpContent(
+        title = "Help - Edit note",
+        cards = listOf(
+            HelpCard("What this is", "A plain text editor for one user note. Type anything you want to remember about this report or one of its parts."),
+            HelpCard("How to use it", "Enter your text and tap Save note (disabled while the field is empty). Back / cancel discards the edit. Your note text is private and is not included in any report/model API call."),
+            HelpCard("Auto title", "On save, a short title is generated for the note by a quick background call (the bundled workers/user-note prompt) and becomes the card's headline. It refreshes a moment after you save and regenerates whenever you edit the text.")
+        )
+    ),
     "reports_hub" to HelpContent(
         title = "Help - Reports",
         cards = listOf(
@@ -822,8 +860,8 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Search card", "Toggle expands to three independent fields: Title, Prompt, Response. Each narrows the list further (logical AND). 'Search (active)' label appears on the toggle when any field is non-blank."),
             HelpCard("Pagination", "Auto-sized to the screen — pageSize derived from maxHeight and a 56dp row height. < Prev / Next > controls when totalPages > 1."),
             HelpCard("Per-row content", "Title (truncated) on the left, MM/dd HH:mm date on the right. Per-row 🐞 (when tracing is on AND ApiTracer has any entries for this reportId) opens the trace list filtered to that report."),
-            HelpCard("Per-row delete", "Each row has a ✕ that opens a confirm dialog. Confirming deletes the report on Dispatchers.IO and re-loads the list."),
-            HelpCard("Title bar — 🗑", "Wired when allReports is non-empty. Confirm dialog shows the count; confirming calls ReportStorage.deleteAllReports and clears the local list."),
+            HelpCard("Per-row delete", "Each row has a ✕ that opens a confirm dialog. Confirming removes the row locally and routes the disk delete through the report cleanup path."),
+            HelpCard("Title bar — 🗑", "Wired when allReports is non-empty. Confirm dialog shows the count; confirming routes each report through the report cleanup path and clears the local list."),
             HelpCard("Title bar — others", "ℹ️ / 🔄 / 🐞 not wired at the list level (those are per-row)."),
             HelpCard("Pitfalls", "Deleting a report cascades — its secondaries (Translate / Meta / Rerank / Moderate) and any trace files for that reportId also go.")
         )

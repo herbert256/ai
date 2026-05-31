@@ -92,7 +92,15 @@ data class ReportAgent(
      *  Report-info screen's total-API-time tally. Null before it ran. */
     var modelTitleDurationMs: Long? = null,
     /** Bundled prompt name that produced [modelTitle] — "model_title". */
-    var modelTitlePromptUsed: String? = null
+    var modelTitlePromptUsed: String? = null,
+    /** In-report "refine this answer" chat: the persisted conversation the
+     *  user has with this agent (🗣️ on the Model-response screen). Seeded
+     *  on first open from the report prompt + [responseBody]; each reply is
+     *  appended. The user can Apply any assistant reply, which overwrites
+     *  [responseBody]. Immutable list — always replaced wholesale, never
+     *  mutated in place (so the Gson empty-list coercion is harmless).
+     *  Empty on legacy rows / agents never refined. */
+    var chatMessages: List<ChatMessage> = emptyList()
 )
 
 /** One captured API call from the 3-tier Create → Report icons
@@ -134,6 +142,31 @@ data class IconCallRecord(
      *  SR's own cost row — avoiding double-counting once the per-
      *  call alt rows are added below it. */
     val attributedToSecondaryId: String? = null
+)
+
+/** A free-text note the user attaches to something in a report. The
+ *  note's [targetKind] + [targetId] identify what it's pinned to:
+ *  - "REPORT"     → the whole report ([targetId] = reportId)
+ *  - "AGENT"      → one model response ([targetId] = ReportAgent.agentId)
+ *  - "SECONDARY"  → a meta / rerank / moderation / fan-out-pair row
+ *                   ([targetId] = SecondaryResult.id / PairState.id)
+ *  - "FANOUT_RUN" → a whole fan-out run ([targetId] = FanOutRunState.key)
+ *  All of a report's notes live on [Report.userNotes] (one JSON file),
+ *  so the "all notes" screen is a plain filter. [targetKind] is a String
+ *  (not an enum) to match the existing `translateSourceKind` convention
+ *  and keep Gson round-trips trivial. */
+data class UserNote(
+    val id: String,
+    val targetKind: String,
+    val targetId: String,
+    val text: String,
+    /** Short AI-generated headline for the note, produced by the bundled
+     *  `workers/user-note` prompt whenever the note is saved (add/edit).
+     *  Null while generation is in flight, on failure, or when no worker
+     *  could resolve — the card then falls back to the text preview. */
+    val title: String? = null,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 enum class ReportType { CLASSIC, TABLE }
@@ -398,7 +431,13 @@ data class Report(
      *  the earlier wording being lost or scattered across disconnected
      *  reports. Empty on legacy reports / reports whose prompt was
      *  never edited. */
-    val promptHistory: List<PromptRevision> = emptyList()
+    val promptHistory: List<PromptRevision> = emptyList(),
+    /** Free-text notes the user attached to this report and its parts.
+     *  See [UserNote] for the targetKind/targetId scheme. Empty on
+     *  legacy reports / reports the user never annotated. Guarded in
+     *  [com.ai.data.ReportStorage]'s normalizeReport against Gson's
+     *  default-not-applied null trap, same as [iconCalls]. */
+    var userNotes: MutableList<UserNote> = mutableListOf()
 )
 
 /** Title for the top-bar orange line: the long title when present, else the
@@ -406,4 +445,11 @@ data class Report(
  *  manually-set report shows its short title here. List cards / search /
  *  exports keep using [Report.title] directly. */
 val Report.barTitle: String get() = titleLong?.takeIf { it.isNotBlank() } ?: title
+
+/** The user notes pinned to one target ([targetKind] + [targetId]),
+ *  newest first. Pure filter over [Report.userNotes] — callers load the
+ *  report (e.g. via ReportStorage.getReport) and call this. */
+fun Report.notesFor(targetKind: String, targetId: String): List<UserNote> =
+    userNotes.filter { it.targetKind == targetKind && it.targetId == targetId }
+        .sortedByDescending { it.createdAt }
 

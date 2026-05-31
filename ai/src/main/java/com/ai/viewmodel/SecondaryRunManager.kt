@@ -1276,6 +1276,7 @@ class SecondaryRunManager(
         // on the result page.
         val deleted = SecondaryResultStorage.get(context, reportId, resultId)
         var costDelta = deleted?.fullCost() ?: 0.0
+        val deletedSecondaryIds = mutableSetOf(resultId)
         SecondaryResultStorage.delete(context, reportId, resultId)
         // Cascade: when a META row is deleted, its cross-translate
         // TRANSLATE rows (translateSourceKind = "META",
@@ -1289,9 +1290,11 @@ class SecondaryRunManager(
                 .filter { it.translateSourceKind == "META" && it.translateSourceTargetId == resultId }
             orphans.forEach { tr ->
                 costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
+                deletedSecondaryIds += tr.id
                 SecondaryResultStorage.delete(context, reportId, tr.id)
             }
         }
+        ReportStorage.removeIconCallsForSecondaryIds(context, reportId, deletedSecondaryIds)
         if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
         // Bump the parent report's timestamp — removing a meta /
         // translation row is a real change to what the report contains
@@ -1312,12 +1315,14 @@ class SecondaryRunManager(
             // cascade-delete META cross-translate orphans.
             var costDelta = 0.0
             val deletedMetaIds = mutableSetOf<String>()
+            val deletedSecondaryIds = mutableSetOf<String>()
             resultIds.forEach { id ->
                 runCatching {
                     SecondaryResultStorage.get(context, reportId, id)?.let { r ->
                         costDelta += r.fullCost()
                         if (r.kind == SecondaryKind.META) deletedMetaIds.add(id)
                     }
+                    deletedSecondaryIds += id
                     SecondaryResultStorage.delete(context, reportId, id)
                 }
             }
@@ -1329,9 +1334,11 @@ class SecondaryRunManager(
                     .filter { it.translateSourceKind == "META" && it.translateSourceTargetId in deletedMetaIds }
                 orphans.forEach { tr ->
                     costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
+                    deletedSecondaryIds += tr.id
                     SecondaryResultStorage.delete(context, reportId, tr.id)
                 }
             }
+            ReportStorage.removeIconCallsForSecondaryIds(context, reportId, deletedSecondaryIds)
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, reportId)
             withContext(Dispatchers.Main) { onComplete() }

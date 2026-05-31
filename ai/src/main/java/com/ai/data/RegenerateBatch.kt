@@ -18,6 +18,11 @@ package com.ai.data
  * <filesDir>/regenerate/<reportId>.json via [RegenerateBatchStorage].
  */
 enum class RegeneratePhase {
+    /** Re-runs the report title workers before icon generation so
+     *  report/icon can derive from the fresh long title. Single
+     *  synthetic task — rowId == [REPORT_TITLE_ROW_ID]. */
+    TITLE,
+
     /** Re-runs the report's main 🎯 icon-gen call
      *  ([com.ai.viewmodel.ReportViewModel.kickOffIconGeneration]).
      *  Single synthetic task — rowId == [REPORT_ICON_ROW_ID]. */
@@ -88,6 +93,11 @@ enum class RegenerateJobStatus {
  *  [com.ai.data.Report.icon] / [com.ai.data.Report.iconErrorMessage]
  *  off disk directly. */
 const val REPORT_ICON_ROW_ID = "__report_icon__"
+
+/** Synthetic rowId for the report-level title task. The engine reads
+ *  [com.ai.data.Report.titlePromptUsed] /
+ *  [com.ai.data.Report.titleErrorMessage] off disk directly. */
+const val REPORT_TITLE_ROW_ID = "__report_title__"
 
 /** Synthetic rowId for the report-level language task. The engine
  *  reads [com.ai.data.Report.languageName] /

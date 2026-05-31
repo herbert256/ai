@@ -274,7 +274,7 @@ class AnalysisRepository {
         }
         val finalPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
         suspend fun makeApiCall(): AnalysisResponse {
-            var params = validateParams(mergeParameters(agentResolvedParams, overrideParams))
+            var params = validateParams(mergeParameters(agentResolvedParams, overrideParams), agent.provider)
             if (overrideParams != null && context != null) {
                 params = filterParametersBySupported(params, PricingCache.getSupportedParameters(context, agent.provider, agent.model))
             }
@@ -405,7 +405,7 @@ class AnalysisRepository {
             }.getOrDefault("")
         } else ""
         val finalPrompt = withRagPrefix(buildPrompt(prompt, content, agent), ragPrefix)
-        var params = validateParams(merged)
+        var params = validateParams(merged, agent.provider)
         if (overrideParams != null && context != null) {
             params = filterParametersBySupported(params, PricingCache.getSupportedParameters(context, agent.provider, agent.model))
         }
@@ -450,7 +450,7 @@ class AnalysisRepository {
         }
         val finalPrompt = prompt.replace("@DATE@", formatCurrentDate())
         suspend fun makeApiCall(): AnalysisResponse {
-            val params = validateParams(agentResolvedParams)
+            val params = validateParams(agentResolvedParams, agent.provider)
             return analyze(agent.provider, agent.apiKey, finalPrompt, agent.model, params).copy(agentName = agent.name, promptUsed = finalPrompt)
         }
         withRetry(
@@ -515,9 +515,10 @@ class AnalysisRepository {
         }
     }
 
-    internal fun validateParams(params: AgentParameters): AgentParameters {
+    internal fun validateParams(params: AgentParameters, provider: AppService? = null): AgentParameters {
+        val temperatureRange = provider?.let(::temperatureRangeForProvider) ?: TemperatureRange.Default
         return params.copy(
-            temperature = params.temperature?.coerceIn(0f, 2f),
+            temperature = params.temperature?.coerceIn(temperatureRange.min, temperatureRange.max),
             topP = params.topP?.coerceIn(0f, 1f),
             topK = params.topK?.coerceAtLeast(1),
             maxTokens = params.maxTokens?.coerceAtLeast(1),

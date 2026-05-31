@@ -71,7 +71,7 @@ fun NewReportScreen(
         mutableStateOf(initialTitle.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, "") ?: "" })
     }
     val rawPrompt = remember { initialPrompt.ifEmpty { prefs.getString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, "") ?: "" } }
-    val userTagBlock = remember { userTagRegex.find(rawPrompt)?.value ?: "" }
+    var userTagBlock by remember { mutableStateOf(userTagRegex.find(rawPrompt)?.value ?: "") }
     var prompt by remember { mutableStateOf(rawPrompt.replace(userTagRegex, "").trim()) }
     // (mime, base64) of an optional image attached to the prompt — passed
     // through to every agent in the report. Seeded from UiState when the
@@ -207,7 +207,7 @@ fun NewReportScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_new", title = "New Report", subject = "Write your prompt, then pick models", onBackClick = onNavigateBack,
             onParameters = { showAdvancedParams = true }, onSystemPrompt = { showSystemPromptDialog = true },
-            onClear = { title = ""; prompt = ""; attachedImage = null },
+            onClear = { title = ""; prompt = ""; userTagBlock = ""; attachedImage = null },
             onAttach = { showAttachChooser = true },
             onValidatePrompt = { if (moderationModel == null) showModerationPicker = true else moderationModel = null },
             validatePromptActive = moderationModel != null)
@@ -241,6 +241,26 @@ fun NewReportScreen(
             Spacer(modifier = Modifier.height(12.dp))
         }
 
+        if (userTagBlock.isNotBlank()) {
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Shared user instructions attached",
+                        fontSize = 12.sp,
+                        color = AppColors.TextSecondary,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { userTagBlock = "" }) {
+                        Text("Remove", color = AppColors.Red, fontSize = 12.sp)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
         // Primary CTA hoisted into its own full-width row so the
         // "advance" affordance is always reachable without picking
         // it out of the Clear / 📎 row.
@@ -248,10 +268,11 @@ fun NewReportScreen(
             onClick = next@{
                     val titleRequired = !uiState.generalSettings.reportTitleAiOn()
                     if ((titleRequired && title.isBlank()) || prompt.isBlank() || isModerating) return@next
-                    val fullPrompt = if (userTagBlock.isNotEmpty()) "$prompt\n$userTagBlock" else prompt
+                    val visiblePrompt = prompt.trim()
+                    val fullPrompt = if (userTagBlock.isNotBlank()) "$visiblePrompt\n$userTagBlock" else visiblePrompt
                     prefs.edit().putString(SettingsPreferences.KEY_LAST_AI_REPORT_TITLE, title)
-                        .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, fullPrompt).apply()
-                    SettingsPreferences(prefs, context.filesDir).savePromptToHistory(title, fullPrompt)
+                        .putString(SettingsPreferences.KEY_LAST_AI_REPORT_PROMPT, visiblePrompt).apply()
+                    SettingsPreferences(prefs, context.filesDir).savePromptToHistory(title, visiblePrompt)
 
                     fun proceed() {
                         reportViewModel.showGenericAgentSelection(

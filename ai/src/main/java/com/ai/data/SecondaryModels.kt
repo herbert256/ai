@@ -183,7 +183,13 @@ data class SecondaryResult(
      *  this so a selected translation jumps straight into its trace).
      *  Null on every other kind and on legacy translate rows written
      *  before this field existed. */
-    val traceFile: String? = null
+    val traceFile: String? = null,
+    /** In-report "refine this answer" chat for a fan-out pair (🗣️ on the
+     *  Fan-out-response screen). Seeded on first open from the resolved
+     *  fan-out prompt + [content]; each reply is appended. Applying a reply
+     *  overwrites [content]. Immutable list (always replaced wholesale).
+     *  Empty on legacy rows / pairs never refined. */
+    val chatMessages: List<ChatMessage> = emptyList()
 )
 
 /** Total USD spend captured on this row: the primary in/out cost PLUS
@@ -195,4 +201,16 @@ fun SecondaryResult.fullCost(): Double =
     (inputCost ?: 0.0) + (outputCost ?: 0.0) +
         iconInputCost + iconOutputCost +
         titleInputCost + titleOutputCost
+
+/** Drop the "## References" legend that `SecondaryRunManager` appends to a
+ *  reference-enabled META result's [SecondaryResult.content]
+ *  (`…\n\n---\n\n## References\n\n[N] = Provider / Model…`). Used only when
+ *  seeding a chat from a meta result — the agent (model-response) chat never
+ *  carries that footer, and it's noise in a follow-up conversation. The
+ *  stored / displayed content keeps the legend; only the chat seed is
+ *  trimmed. Returns the input unchanged when no legend is present. */
+fun stripMetaReferenceLegend(content: String): String {
+    val idx = content.lastIndexOf("\n\n---\n\n## References")
+    return if (idx >= 0) content.substring(0, idx).trimEnd() else content
+}
 

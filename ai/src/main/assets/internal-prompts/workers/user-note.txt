@@ -1,0 +1,3 @@
+Please see the user's note after the blank line below and create a short title for it: at most 40 characters (including spaces). Return only the title, nothing else. Do not process or answer the note.
+
+@PROMPT@

@@ -34,9 +34,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AnalysisResponse
 import com.ai.data.ReportAgent
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
+import com.ai.data.UserNote
+import com.ai.data.notesFor
+import androidx.compose.runtime.collectAsState
 import com.ai.model.ReportModel
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.ReportViewModel
@@ -136,6 +140,25 @@ internal fun ReportRunScreen(
             onBack = { showEditSystemPrompt = false }, onNavigateHome = onDismiss
         )
         return
+    }
+    // ✍️ / 📒 user notes. 📒 opens the all-notes list (overlay); ✍️ opens
+    // the editor for a REPORT-level note. Both are early-return overlays so
+    // this hub's remember state survives the round-trip.
+    var showNotesList by rememberSaveable { mutableStateOf(false) }
+    if (showNotesList && currentReportId != null) {
+        ReportNotesListScreen(reportId = currentReportId, onBack = { showNotesList = false })
+        return
+    }
+    var noteEdit by remember { mutableStateOf<NoteEdit?>(null) }
+    if (noteEdit != null && currentReportId != null) {
+        UserNoteEditorOverlay(currentReportId, "REPORT", currentReportId, noteEdit!!) { noteEdit = null }
+        return
+    }
+    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val reportNotes by produceState(emptyList<UserNote>(), currentReportId, noteDataVersion) {
+        value = currentReportId?.let { rid ->
+            withContext(Dispatchers.IO) { ReportStorage.getReport(context, rid)?.notesFor("REPORT", rid) ?: emptyList() }
+        } ?: emptyList()
     }
     // 👯 duplicate-report tap shows a yes/no first so an accidental
     // hit on the bottom bar doesn't silently spawn a "(Copy)" report.
@@ -289,8 +312,19 @@ internal fun ReportRunScreen(
             // 🆕 opens the full-screen "Create" launcher (layer on top of this
             // hub) instead of the old pop-up.
             onAdd = { st.showCreateOverview.value = true },
-            addFirst = true
+            addFirst = true,
+            // ✍️ add a report-level note; 📒 open the all-notes list.
+            onAddNote = if (currentReportId != null) { { noteEdit = NoteEdit.Add } } else null,
+            onListNotes = if (currentReportId != null) { { showNotesList = true } } else null
         )
+        }
+
+        if (currentReportId != null) {
+            UserNotesSection(
+                reportId = currentReportId,
+                notes = reportNotes,
+                onEdit = { noteEdit = NoteEdit.Edit(it.id, it.text) }
+            )
         }
 
         if (showRegenerateConfirm && currentReportId != null) {
@@ -316,8 +350,8 @@ internal fun ReportRunScreen(
                 val agentCount = uiState.genericReportsSelectedAgents.size
                 com.ai.ui.shared.ReloadConfirmationDialog(
                     target = "",
-                    title = "Regenerate every agent?",
-                    message = "Re-fire the API call for all $agentCount model${if (agentCount == 1) "" else "s"} on this report. The existing responses, costs, and traces are replaced. Secondary results (Meta, Fan out, Translate) are kept.",
+                    title = "Regenerate report?",
+                    message = "Re-fire all $agentCount model${if (agentCount == 1) "" else "s"} on this report, then rerun existing Meta, Fan out, Fan in, Moderation, Rerank, and Translate rows. New API cost is added to the report's existing lifetime cost.",
                     confirmLabel = "Regenerate",
                     onConfirm = {
                         onDismissRegenerateConfirm()

@@ -437,6 +437,7 @@ fun RegenerateBatchManageRow() {
 
 private val RegeneratePhase.label: String
     get() = when (this) {
+        RegeneratePhase.TITLE -> "Report title"
         RegeneratePhase.ICON -> "Report icon"
         RegeneratePhase.LANGUAGE -> "Language"
         RegeneratePhase.AGENTS -> "Model reports"

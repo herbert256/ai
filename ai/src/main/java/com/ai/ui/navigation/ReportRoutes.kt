@@ -221,14 +221,20 @@ internal fun NavGraphBuilder.reportRoutes(
             ) {
                 com.ai.ui.hub.AllAiReportsScreen(
                     onNavigateBack = safePopBack,
-                    onNavigateHome = navigateHome
+                    onNavigateHome = navigateHome,
+                    reportViewModel = reportViewModel
                 )
             }
         }
         composable(NavRoutes.AI_REPORT_MANAGE) {
+            val context = LocalContext.current
             com.ai.ui.report.other.ReportManageScreen(
                 onBack = safePopBack,
-                onNavigateHome = navigateHome
+                onNavigateHome = navigateHome,
+                onDeleteReport = { rid -> reportViewModel.deleteReport(context, rid) },
+                onDeleteReports = { ids, progress, complete ->
+                    reportViewModel.bulkDeleteReports(context, ids, progress, complete)
+                }
             )
         }
         composable(NavRoutes.AI_NEW_REPORT) {
@@ -304,6 +310,15 @@ internal fun NavGraphBuilder.reportRoutes(
             CompositionLocalProvider(
                 com.ai.ui.shared.LocalSystemPromptChange provides { id ->
                     appViewModel.setReportSystemPromptId(id)
+                },
+                com.ai.ui.shared.LocalGenerateNoteTitle provides { rid, nid, txt ->
+                    reportViewModel.generateUserNoteTitle(context, rid, nid, txt)
+                },
+                com.ai.ui.shared.LocalContinueMetaInChat provides { rid, resid, lang ->
+                    scope.launch {
+                        val sid = continueMetaInChat(context, rid, resid, lang) ?: return@launch
+                        navController.navigate(NavRoutes.aiChatContinue(sid))
+                    }
                 },
                 com.ai.ui.shared.LocalActiveTranslationReportIds provides activeTranslationReportIds,
                 com.ai.ui.shared.LocalNavigateToReportInfo provides { rid ->
@@ -532,6 +547,7 @@ internal fun NavGraphBuilder.reportRoutes(
             val aid = entry.arguments?.getString("agentId") ?: ""
             val rmContext = LocalContext.current
             val rmScope = rememberCoroutineScope()
+            val temperatureSweepStates by reportViewModel.temperatureSweepStates.collectAsState()
             com.ai.ui.navigation.ViewSubScreenWithTitleNav(
                 navController = navController,
                 currentReportId = rid
@@ -546,6 +562,16 @@ internal fun NavGraphBuilder.reportRoutes(
                     onNavigateToViewReports = { aid -> navController.navigate(NavRoutes.aiReportViewAtAgent(aid)) },
                     onRemoveAgent = { r, a -> reportViewModel.removeAgentFromReport(rmContext, r, a) },
                     onRegenerateAgent = { r, a -> reportViewModel.regenerateAgent(rmContext, r, a) },
+                    temperatureSweepStates = temperatureSweepStates,
+                    onStartTemperatureSweep = { r, a, temps ->
+                        reportViewModel.startTemperatureSweep(rmContext, r, a, temps)
+                    },
+                    onApplyTemperatureCandidate = { r, a, index ->
+                        reportViewModel.applyTemperatureCandidate(rmContext, r, a, index)
+                    },
+                    onClearTemperatureSweep = { r, a ->
+                        reportViewModel.clearTemperatureSweep(r, a)
+                    },
                     onContinueWithCurrent = { r, a ->
                         rmScope.launch {
                             val sessionId = continueReportInChat(rmContext, r, a,

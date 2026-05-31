@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -40,9 +41,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.data.Report
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
+import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
@@ -84,9 +87,11 @@ fun TranslateViewScreen(
         val metaSources: Map<String, SecondaryResult>
     )
 
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
     val loadedState = produceState<Loaded>(
         initialValue = Loaded(emptyList(), null, emptyMap()),
-        currentReportId, currentTranslationRunId
+        currentReportId, currentTranslationRunId, reportDataVersion, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
             val all = SecondaryResultStorage.listForReport(context, currentReportId)

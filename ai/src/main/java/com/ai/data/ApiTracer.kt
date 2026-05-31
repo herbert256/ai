@@ -126,6 +126,7 @@ object ApiTracer {
             val safeHost = trace.hostname.replace(Regex("[^A-Za-z0-9.-]"), "_")
             "${safeHost}_${ts}_${seq}.json"
         }
+        val normalizedTrace = trace.copy(category = normalizeApiCallCategory(trace.category))
         val isUpdate = filename != null
         // Step 1 — disk write OUTSIDE the lock (Bug 20). The atomic write is
         // already crash-safe and self-contained; serializing it under the
@@ -135,7 +136,7 @@ object ApiTracer {
         // return count as failure — the cache must never reflect a file
         // that isn't on disk.
         val wrote = try {
-            File(dir, resolvedFilename).writeTextAtomic(gson.toJson(trace))
+            File(dir, resolvedFilename).writeTextAtomic(gson.toJson(normalizedTrace))
         } catch (e: Exception) {
             AppLog.e("ApiTracer", "Failed to save trace ($resolvedFilename): ${e.message}")
             false
@@ -149,14 +150,14 @@ object ApiTracer {
         // freshly-written file forever. On any failure we invalidate
         // the cache so the next getTraceFiles() rebuilds it from
         // disk and re-sees the new trace.
-        AppLog.v("ApiTracer", "trace written $resolvedFilename status=${trace.response.statusCode} partial=${trace.partial}")
+        AppLog.v("ApiTracer", "trace written $resolvedFilename status=${normalizedTrace.response.statusCode} partial=${normalizedTrace.partial}")
         lock.withLock {
             try {
                 cachedTraceFiles?.let { current ->
                     val info = TraceFileInfo(
-                        resolvedFilename, trace.hostname, trace.timestamp,
-                        trace.response.statusCode, trace.reportId, trace.model,
-                        trace.category, trace.runId, trace.partial
+                        resolvedFilename, normalizedTrace.hostname, normalizedTrace.timestamp,
+                        normalizedTrace.response.statusCode, normalizedTrace.reportId, normalizedTrace.model,
+                        normalizedTrace.category, normalizedTrace.runId, normalizedTrace.partial
                     )
                     val next = if (isUpdate) {
                         // Streaming partial → final overwrite reuses the
@@ -247,7 +248,7 @@ object ApiTracer {
                     }
                 }
                 reader.endObject()
-                TraceFileInfo(file.name, hostname, timestamp, statusCode, reportId, model, category, runId, partial)
+                TraceFileInfo(file.name, hostname, timestamp, statusCode, reportId, model, normalizeApiCallCategory(category), runId, partial)
             }
         } catch (_: Exception) { null }
     }
@@ -273,14 +274,26 @@ object ApiTracer {
     fun readTraceFile(filename: String): ApiTrace? = lock.withLock {
         val file = File(traceDir ?: return null, filename)
         if (!file.exists()) return null
-        try { gson.fromJson(file.readText(), ApiTrace::class.java) } catch (_: Exception) { null }
+        try {
+            gson.fromJson(file.readText(), ApiTrace::class.java)
+                ?.let { it.copy(category = normalizeApiCallCategory(it.category)) }
+        } catch (_: Exception) { null }
     }
 
     fun readTraceFileRaw(filename: String): String? = lock.withLock {
         val file = File(traceDir ?: return null, filename)
         if (!file.exists()) return null
-        try { file.readText() } catch (_: Exception) { null }
+        try { normalizeRawTraceCategory(file.readText()) } catch (_: Exception) { null }
     }
+
+    private fun normalizeRawTraceCategory(raw: String): String =
+        if (!raw.contains("\"Temperature sweep\"")) raw
+        else try {
+            val trace = gson.fromJson(raw, ApiTrace::class.java)
+            gson.toJson(trace.copy(category = normalizeApiCallCategory(trace.category)))
+        } catch (_: Exception) {
+            raw
+        }
 
     /** Append [suffix] to an already-written trace's category. Lets
      *  a caller tag a trace after the fact once it knows the call's
@@ -315,6 +328,28 @@ object ApiTracer {
             cachedTraceFiles = current.filterNot { it.filename == filename }
         }
         ok
+    }
+
+    fun deleteTracesForReport(reportId: String): Int = lock.withLock {
+        val dir = traceDir ?: return 0
+        if (!dir.exists()) return 0
+        var count = 0
+        val deletedNames = mutableSetOf<String>()
+        dir.listFiles()?.forEach { file ->
+            if (file.extension == "json") {
+                try {
+                    val info = parseTraceFileInfoStreaming(file)
+                    if (info?.reportId == reportId && file.delete()) {
+                        count++
+                        deletedNames += file.name
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+        cachedTraceFiles?.let { current ->
+            cachedTraceFiles = current.filterNot { it.filename in deletedNames }
+        }
+        count
     }
 
     fun deleteTracesOlderThan(cutoffTimestamp: Long): Int = lock.withLock {
@@ -493,4 +528,3 @@ object NetworkSettings {
     /** Wait between successive 529 retry attempts, in milliseconds. */
     @Volatile var retryBackoffMs529: Long = 1_000L
 }
-

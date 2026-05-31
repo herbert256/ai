@@ -42,6 +42,7 @@ import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.IconCandidate
 import com.ai.viewmodel.ReportViewModel
+import com.ai.viewmodel.TemperatureSweepState
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -102,6 +103,10 @@ internal fun ReportPrimaryOverlays(
     onContinueWithOnTheFly: (String, String) -> Unit,
     onRemoveAgent: (String, String) -> Unit,
     onRegenerateAgent: (String, String) -> Unit,
+    temperatureSweepStates: Map<String, TemperatureSweepState>,
+    onStartTemperatureSweep: (String, String, List<Float>) -> Unit,
+    onApplyTemperatureCandidate: (String, String, Int) -> Unit,
+    onClearTemperatureSweep: (String, String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
     onOpenAgentIcon: (String) -> Unit,
     onSecondaryRefresh: () -> Unit,
@@ -152,6 +157,50 @@ internal fun ReportPrimaryOverlays(
     val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
     val resetTickHolder = com.ai.ui.shared.LocalMainViewResetTick.current
     val jump = pendingHolder?.value
+    val viewEveryItems = remember(secondaryRuns, translateRows, fanOutSummaries, aiSettings, reportLanguageName) {
+        val base = buildEveryItems(
+            secondaryRuns, aiSettings,
+            onOpenSecondaryRun = { id, lang ->
+                onSecondaryLockedLanguageChange(lang)
+                onOpenMetaResultIdChange(id)
+            },
+            onViewSecondaryName = { name, kind, lang ->
+                onListLockedLanguageChange(lang)
+                onListTargetChange(kind, name)
+            },
+            onOpenTranslationRun = { runId -> onOpenTranslationRunIdChange(runId) },
+            reportLanguageName = reportLanguageName,
+            translates = translateRows
+        )
+        val fanOutItemsByName = (base["fan_out"].orEmpty())
+            .associateBy { it.label }
+            .toMutableMap()
+        fanOutSummaries.forEach { summary ->
+            if (summary.metaPromptName !in fanOutItemsByName) {
+                fanOutItemsByName[summary.metaPromptName] = EveryItem(
+                    label = summary.metaPromptName,
+                    open = { lang ->
+                        onOpenFanOutView(summary.metaPromptName, lang)
+                    }
+                )
+            }
+        }
+        base + ("fan_out" to fanOutItemsByName.values.toList())
+    }
+    val moderationFlagged = remember(secondaryRuns) {
+        anyModerationFlagged(secondaryRuns)
+    }
+    val viewLanguageTabs = remember(translateRows, reportLanguageName) {
+        buildLangTabs(translateRows, originalAlias = reportLanguageName)
+    }
+    val viewLanguageNames = remember(viewLanguageTabs) {
+        buildList {
+            add("")
+            viewLanguageTabs.forEach { tab ->
+                if (tab.key != LangTab.ORIGINAL_KEY) add(tab.displayName)
+            }
+        }
+    }
     if (jump != null && currentReportId != null) {
         val rid = currentReportId
         // [close] pops one layer back to the underlying Manage
@@ -190,13 +239,17 @@ internal fun ReportPrimaryOverlays(
                     promptTitle = uiState.genericPromptTitle,
                     reportIcon = effectiveReportIcon,
                     perModelIconGenEnabled = uiState.generalSettings.perModelIconGenEnabled,
-                    everyItems = emptyMap(),
+                    everyItems = viewEveryItems,
                     internalPrompts = aiSettings.internalPrompts,
                     useInternalPromptsIcons = uiState.generalSettings.useInternalPromptsIcons,
                     iconRefreshTick = uiState.iconRefreshTick,
                     onMissingPromptIcon = promptIconCallbacks.onKickoff,
+                    moderationFlagged = moderationFlagged,
                     onOpenHtmlPreview = { onHtmlPreviewDetailChange(ReportExportDetail.COMPLETE) },
                     onViewIcons = { onShowIconsViewChange(true) },
+                    onTranslateMissingItems = { items, target, targetNative ->
+                        onTranslateMissingItems(rid, items, target, targetNative)
+                    },
                     onBack = close
                 )
                 is com.ai.ui.shared.ViewJump.Rerank -> RerankViewScreen(
@@ -223,7 +276,7 @@ internal fun ReportPrimaryOverlays(
                 )
                 is com.ai.ui.shared.ViewJump.Reports -> ReportsViewScreen(
                     reportId = rid,
-                    availableLanguages = emptyList(),
+                    availableLanguages = viewLanguageNames,
                     initialLanguage = null,
                     initialAgentId = jump.agentId,
                     onBack = { close() }
@@ -234,7 +287,7 @@ internal fun ReportPrimaryOverlays(
                 )
                 is com.ai.ui.shared.ViewJump.Prompt -> PromptViewScreen(
                     reportId = rid,
-                    availableLanguages = emptyList(),
+                    availableLanguages = viewLanguageNames,
                     initialLanguage = null,
                     onBack = { _ -> close() }
                 )
@@ -314,48 +367,6 @@ internal fun ReportPrimaryOverlays(
         && openTranslationRunId == null
         && listKind == null
     ) {
-        val viewEveryItems = remember(secondaryRuns, translateRows, fanOutSummaries, aiSettings, reportLanguageName) {
-            val base = buildEveryItems(
-                secondaryRuns, aiSettings,
-                onOpenSecondaryRun = { id, lang ->
-                    onSecondaryLockedLanguageChange(lang)
-                    onOpenMetaResultIdChange(id)
-                },
-                onViewSecondaryName = { name, kind, lang ->
-                    onListLockedLanguageChange(lang)
-                    onListTargetChange(kind, name)
-                },
-                onOpenTranslationRun = { runId -> onOpenTranslationRunIdChange(runId) },
-                reportLanguageName = reportLanguageName,
-                translates = translateRows
-            )
-            // Fan-out pair rows are excluded from secondaryRuns (they
-            // live in fanOutSummaries with a separate grouping). Merge
-            // them into the "fan_out" bucket so Report - view shows
-            // one tile per fan-out run, matching the Meta pattern.
-            val fanOutItemsByName = (base["fan_out"].orEmpty())
-                .associateBy { it.label }
-                .toMutableMap()
-            fanOutSummaries.forEach { summary ->
-                if (summary.metaPromptName !in fanOutItemsByName) {
-                    fanOutItemsByName[summary.metaPromptName] = EveryItem(
-                        label = summary.metaPromptName,
-                        open = { lang ->
-                            // Report - view's fan-out tile lands on the
-                            // dedicated content-only FanOutViewScreen
-                            // instead of the management-heavy
-                            // FanOutScreen (the latter is still reached
-                            // from Report - manage's fan-out row).
-                            onOpenFanOutView(summary.metaPromptName, lang)
-                        }
-                    )
-                }
-            }
-            base + ("fan_out" to fanOutItemsByName.values.toList())
-        }
-        val moderationFlagged = remember(secondaryRuns) {
-            anyModerationFlagged(secondaryRuns)
-        }
         // When the user arrived directly on View via the per-row 👁
         // icon on a hub list (initialView == true), back from the
         // main View overlay should pop the AI_REPORTS route entirely
@@ -494,7 +505,11 @@ internal fun ReportPrimaryOverlays(
                 onContinueWithCurrent = onContinueWithCurrent,
                 onContinueWithAgentPicker = onContinueWithAgentPicker,
                 onContinueWithOnTheFly = onContinueWithOnTheFly,
-                onOpenAgentIcon = onOpenAgentIcon
+                onOpenAgentIcon = onOpenAgentIcon,
+                temperatureSweepStates = temperatureSweepStates,
+                onStartTemperatureSweep = onStartTemperatureSweep,
+                onApplyTemperatureCandidate = onApplyTemperatureCandidate,
+                onClearTemperatureSweep = onClearTemperatureSweep
             )
         }
         return true
@@ -513,5 +528,3 @@ internal fun ReportPrimaryOverlays(
 
     return false
 }
-
-

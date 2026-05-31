@@ -22,14 +22,20 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
 import com.ai.data.AppService
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
+import com.ai.data.TemperatureRange
+import com.ai.data.UserNote
+import com.ai.data.notesFor
+import com.ai.data.temperatureRangeForProvider
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
+import com.ai.viewmodel.TemperatureSweepState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -84,7 +90,11 @@ fun ReportModelScreen(
     /** Real-route 👁 target: open the View "Model reports" screen for this
      *  report seeded at the given agent. Used when there's no overlay
      *  [LocalPendingViewOverManage] holder (the standalone route). */
-    onNavigateToViewReports: (String) -> Unit = {}
+    onNavigateToViewReports: (String) -> Unit = {},
+    temperatureSweepStates: Map<String, TemperatureSweepState> = emptyMap(),
+    onStartTemperatureSweep: (String, String, List<Float>) -> Unit = { _, _, _ -> },
+    onApplyTemperatureCandidate: (String, String, Int) -> Unit = { _, _, _ -> },
+    onClearTemperatureSweep: (String, String) -> Unit = { _, _ -> }
 ) {
     // Track which agent is currently shown locally so the Previous /
     // Next buttons at the bottom can step through report.agents
@@ -112,17 +122,49 @@ fun ReportModelScreen(
         )
         return
     }
+    var showTemperatureSweep by remember { mutableStateOf(false) }
     BackHandler { onBack() }
     val context = LocalContext.current
+    // Re-key on the report data version so an in-place edit (🗣️ refine
+    // Apply, regenerate, icon/title write) re-reads the report and the
+    // body / chatMessages refresh. ViewReportCache is mtime-staleness-safe,
+    // so the re-read returns the fresh parse.
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
     // Loaded asynchronously: getReport reads + parses the report JSON
     // (which can be MB-sized for image-attached reports). The Loading
     // → Loaded transition keeps the UI thread free while reading.
-    val reportState = produceState<com.ai.data.Report?>(initialValue = null, reportId) {
+    val reportState = produceState<com.ai.data.Report?>(initialValue = null, reportId, reportDataVersion) {
         value = withContext(Dispatchers.IO) { com.ai.ui.report.view.helpers.ViewReportCache.get(context, reportId) }
     }
     val report = reportState.value
     val agent = report?.agents?.find { it.agentId == currentAgentId }
     val provider = agent?.let { AppService.findById(it.provider) }
+
+    if (showTemperatureSweep) {
+        val sweepAgentId = currentAgentId
+        TemperatureSweepScreen(
+            reportId = reportId,
+            agentId = sweepAgentId,
+            modelLabel = agent?.let {
+                provider?.let { p -> com.ai.ui.shared.modelLabel(p.id, it.model, separator = " — ") }
+                    ?: it.model
+            } ?: "Model response",
+            temperatureRange = provider?.let(::temperatureRangeForProvider) ?: TemperatureRange.Default,
+            state = temperatureSweepStates[TemperatureSweepState.key(reportId, sweepAgentId)],
+            onSubmit = { temps -> onStartTemperatureSweep(reportId, sweepAgentId, temps) },
+            onUseCandidate = { index ->
+                onApplyTemperatureCandidate(reportId, sweepAgentId, index)
+                onClearTemperatureSweep(reportId, sweepAgentId)
+                showTemperatureSweep = false
+            },
+            onTrace = onNavigateToTraceFile,
+            onBack = {
+                onClearTemperatureSweep(reportId, sweepAgentId)
+                showTemperatureSweep = false
+            }
+        )
+        return
+    }
 
     if (report == null) {
         Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -262,6 +304,53 @@ fun ReportModelScreen(
     var confirmReload by remember { mutableStateOf(false) }
     val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
 
+    // ✍️ user notes for THIS agent (follows prev/next via currentAgentId).
+    var noteEdit by remember { mutableStateOf<NoteEdit?>(null) }
+    if (noteEdit != null) {
+        UserNoteEditorOverlay(reportId, "AGENT", currentAgentId, noteEdit!!) { noteEdit = null }
+        return
+    }
+    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val agentNotes by produceState(emptyList<UserNote>(), reportId, currentAgentId, noteDataVersion) {
+        value = withContext(Dispatchers.IO) {
+            ReportStorage.getReport(context, reportId)?.notesFor("AGENT", currentAgentId) ?: emptyList()
+        }
+    }
+
+    // 🗣️ refine-in-chat overlay for THIS agent's answer.
+    val aiSettings = com.ai.ui.shared.LocalAiSettings.current
+    var showAgentChat by remember { mutableStateOf(false) }
+    if (showAgentChat) {
+        val settingsAgent = aiSettings.getAgentById(currentAgentId)
+        val initialParams = if (settingsAgent != null) {
+            val rp = aiSettings.resolveAgentParameters(settingsAgent)
+            com.ai.data.ChatParameters(
+                temperature = rp.temperature, maxTokens = rp.maxTokens, topP = rp.topP, topK = rp.topK,
+                frequencyPenalty = rp.frequencyPenalty, presencePenalty = rp.presencePenalty,
+                systemPrompt = rp.systemPrompt ?: "",
+                searchEnabled = rp.searchEnabled, returnCitations = rp.returnCitations,
+                searchRecency = rp.searchRecency, webSearchTool = rp.webSearchTool
+            )
+        } else com.ai.data.ChatParameters()
+        val seed = buildList {
+            add(com.ai.data.ChatMessage(role = "user", content = report.prompt, imageBase64 = report.imageBase64, imageMime = report.imageMime))
+            agent.responseBody?.takeIf { it.isNotBlank() }?.let { add(com.ai.data.ChatMessage(role = "assistant", content = it)) }
+        }
+        AgentChatScreen(
+            titleBarSubject = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — "),
+            service = provider,
+            model = agent.model,
+            agentIdForKey = currentAgentId,
+            initialMessages = agent.chatMessages.ifEmpty { seed },
+            initialParams = initialParams,
+            aiSettings = aiSettings,
+            onSaveMessages = { ReportStorage.saveAgentChatMessages(context, reportId, currentAgentId, it) },
+            onApply = { ReportStorage.applyAgentChatResponse(context, reportId, currentAgentId, it) },
+            onBack = { showAgentChat = false }
+        )
+        return
+    }
+
     val agentLabel = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — ")
     // Pre-computed so the swipe handler (in the content Box below) can
     // close over the same ordering the Previous / Next buttons use.
@@ -302,6 +391,8 @@ fun ReportModelScreen(
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
             onReload = { confirmReload = true },
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
+            onAgentChat = if (canContinueInChat) { { showAgentChat = true } } else null,
+            onTemperatureSweep = { showTemperatureSweep = true },
             onTranslationCompare = if (liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }
             } else null,
@@ -311,9 +402,19 @@ fun ReportModelScreen(
             onShare = displayBody?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.shareText(context, body, "Model response — $agentLabel") }
             },
+            onAddNote = { noteEdit = NoteEdit.Add },
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 
+        if (agentNotes.isNotEmpty()) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                UserNotesSection(
+                    reportId = reportId,
+                    notes = agentNotes,
+                    onEdit = { noteEdit = NoteEdit.Edit(it.id, it.text) }
+                )
+            }
+        }
 
         if (langTabs.size > 1) {
             LanguagePickerRow(

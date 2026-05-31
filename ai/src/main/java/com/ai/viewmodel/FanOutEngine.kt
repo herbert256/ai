@@ -623,6 +623,7 @@ class FanOutEngine internal constructor(
             if (failed.isEmpty()) return@launch
             val costDelta = failed.sumOf { it.totalCost }
             failed.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
+            ReportStorage.removeFanOutIconCalls(context, run.reportId, failed.map { it.id }.toSet())
             _runs.update { runs ->
                 val cur = runs[runKey] ?: return@update runs
                 val keepKeys = failed.map { it.key }.toSet()
@@ -647,6 +648,7 @@ class FanOutEngine internal constructor(
             if (benched.isEmpty()) return@launch
             val costDelta = benched.sumOf { it.totalCost }
             benched.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
+            ReportStorage.removeFanOutIconCalls(context, run.reportId, benched.map { it.id }.toSet())
             _runs.update { runs ->
                 val cur = runs[runKey] ?: return@update runs
                 val dropKeys = benched.map { it.key }.toSet()
@@ -673,6 +675,7 @@ class FanOutEngine internal constructor(
         if (failed.isEmpty()) return@launch
         val costDelta = failed.sumOf { it.totalCost }
         failed.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
+        ReportStorage.removeFanOutIconCalls(context, run.reportId, failed.map { it.id }.toSet())
         _runs.update { runs ->
             val cur = runs[runKey] ?: return@update runs
             val keepKeys = failed.map { it.key }.toSet()
@@ -816,6 +819,7 @@ class FanOutEngine internal constructor(
             val pair = run.pairs[pairKey] ?: return@launch
             pairJobs[pair.id]?.cancelAndJoin()
             SecondaryResultStorage.delete(context, run.reportId, pair.id)
+            ReportStorage.removeFanOutIconCalls(context, run.reportId, setOf(pair.id))
             dropPair(runKey, pairKey)
             ReportStorage.bumpReportTimestamp(context, run.reportId)
         }
@@ -839,9 +843,11 @@ class FanOutEngine internal constructor(
             // icon + title spend rolls into the tally too — summing only
             // inputCost + outputCost dropped it.
             val costDelta = run.pairs.values.sumOf { it.totalCost }
+            val pairIds = run.pairs.values.map { it.id }.toSet()
             run.pairs.values.forEach { pair ->
                 SecondaryResultStorage.delete(context, run.reportId, pair.id)
             }
+            ReportStorage.removeFanOutIconCalls(context, run.reportId, pairIds)
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
             dropRun(runKey)
             // Re-fire through the engine's own launch path, reproducing the
@@ -867,6 +873,7 @@ class FanOutEngine internal constructor(
             // accounted for its deletes; the title-bar 🗑 did not).
             val costDelta = run.pairs.values.sumOf { it.totalCost } +
                 run.combinedReports.sumOf { it.totalCost }
+            val pairIds = run.pairs.values.map { it.id }.toSet()
             // Now disk deletes — safe because no coroutine can still
             // be heading toward a saveIfStillPresent against these ids.
             run.pairs.values.forEach { pair ->
@@ -875,6 +882,7 @@ class FanOutEngine internal constructor(
             run.combinedReports.forEach { cr ->
                 SecondaryResultStorage.delete(context, run.reportId, cr.id)
             }
+            ReportStorage.removeFanOutIconCalls(context, run.reportId, pairIds)
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
             dropRun(runKey)
             ReportStorage.bumpReportTimestamp(context, run.reportId)
@@ -938,6 +946,7 @@ class FanOutEngine internal constructor(
         victims.forEach { pairJobs[it.id]?.cancelAndJoin() }
         val costDelta = victims.sumOf { it.totalCost }
         victims.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
+        ReportStorage.removeFanOutIconCalls(context, run.reportId, victims.map { it.id }.toSet())
         _runs.update { runs ->
             val cur = runs[runKey] ?: return@update runs
             val keepKeys = victims.map { it.key }.toSet()

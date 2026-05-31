@@ -5,8 +5,18 @@ import java.io.File
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.withContext
 import kotlin.concurrent.withLock
+
+object ReportDataVersion {
+    private val _version = MutableStateFlow(0L)
+    val version: StateFlow<Long> = _version.asStateFlow()
+    fun bump() { _version.update { it + 1 } }
+}
 
 /**
  * Thread-safe report persistence. Stores each report as JSON file in /files/reports/.
@@ -96,6 +106,13 @@ object ReportStorage {
             // are excluded.
             report.iconCalls
                 .filter { it.attributedToSecondaryId == null && it.type in TITLE_ALT_TYPES }
+                .sumOf { it.inputCost + it.outputCost } +
+            // User-note AI titles (workers/user-note) also have no structured
+            // cost home — their spend lives only in the iconCalls audit
+            // (type "note/title"). Count it here so the lifetime total
+            // includes it; the cost table renders the matching per-call row.
+            report.iconCalls
+                .filter { it.type == "note/title" }
                 .sumOf { it.inputCost + it.outputCost }
 
     fun updateAgentStatus(
@@ -107,11 +124,11 @@ object ReportStorage {
         citations: List<String>? = null,
         searchResults: List<SearchResult>? = null, relatedQuestions: List<String>? = null,
         rawUsageJson: String? = null, durationMs: Long? = null, traceFile: String? = null
-    ) {
+    ): Boolean {
         init(context)
-        lock.withLock {
-            val report = loadReport(reportId) ?: return
-            val agent = report.agents.find { it.agentId == agentId } ?: return
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val agent = report.agents.find { it.agentId == agentId } ?: return@withLock false
             agent.reportStatus = status
             agent.httpStatus = httpStatus
             if (requestHeaders != null) agent.requestHeaders = requestHeaders
@@ -169,6 +186,7 @@ object ReportStorage {
                 report.completedAt = System.currentTimeMillis()
             }
             saveReport(report)
+            true
         }
     }
 
@@ -188,6 +206,35 @@ object ReportStorage {
         citations = citations, searchResults = searchResults,
         relatedQuestions = relatedQuestions, rawUsageJson = rawUsageJson, durationMs = durationMs,
         traceFile = traceFile)
+
+    /** Persist the in-report "refine" chat conversation for one agent.
+     *  Replaces [ReportAgent.chatMessages] wholesale (the screen owns the
+     *  full list). Does NOT touch the agent's response — see
+     *  [applyAgentChatResponse] for the Apply action. */
+    fun saveAgentChatMessages(context: Context, reportId: String, agentId: String, messages: List<ChatMessage>): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withLock false
+            agent.chatMessages = messages
+            saveReport(report.copy(timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Overwrite an agent's [ReportAgent.responseBody] with a chosen chat
+     *  reply (the 🗣️ "Apply" action). Leaves cost/tokens untouched — the
+     *  refine-chat spend is tracked in global AI Usage, not the report. */
+    fun applyAgentChatResponse(context: Context, reportId: String, agentId: String, body: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val agent = report.agents.firstOrNull { it.agentId == agentId } ?: return@withLock false
+            agent.responseBody = body
+            saveReport(report.copy(timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
 
     fun markAgentError(
         context: Context, reportId: String, agentId: String, httpStatus: Int?,
@@ -291,18 +338,32 @@ object ReportStorage {
         // Cascade: drop any rerank/summary meta-results associated with the
         // report so /files/secondary/<reportId>/ doesn't accumulate orphans.
         SecondaryResultStorage.deleteAllForReport(context, reportId)
+        RegenerateBatchStorage.delete(context, reportId)
+        ApiTracer.init(context)
+        ApiTracer.deleteTracesForReport(reportId)
+        ReportDataVersion.bump()
     }
     fun deleteAllReports(context: Context): Int {
         init(context)
-        var deleted = 0
+        val deletedIds = mutableListOf<String>()
         lock.withLock {
             reportsDir?.listFiles { f -> f.extension == "json" }?.forEach { f ->
-                val reportId = f.nameWithoutExtension
-                if (f.delete()) deleted++
-                SecondaryResultStorage.deleteAllForReport(context, reportId)
+                if (f.delete()) deletedIds += f.nameWithoutExtension
             }
         }
-        return deleted
+        deletedIds.forEach { reportId ->
+            SecondaryResultStorage.deleteAllForReport(context, reportId)
+            RegenerateBatchStorage.delete(context, reportId)
+            ApiTracer.init(context)
+            ApiTracer.deleteTracesForReport(reportId)
+        }
+        if (deletedIds.isNotEmpty()) ReportDataVersion.bump()
+        return deletedIds.size
+    }
+
+    fun reportExists(context: Context, reportId: String): Boolean {
+        init(context)
+        return lock.withLock { loadReport(reportId) != null }
     }
 
     private fun loadReport(reportId: String): Report? {
@@ -350,6 +411,19 @@ object ReportStorage {
         if ((res.selectionParamsById as Map<String, List<String>>?) == null) {
             res = res.copy(selectionParamsById = emptyMap())
         }
+        // iconCalls / userNotes are declared MutableList, but the
+        // NullSafeFieldAdapterFactory coerces a *missing* field to the
+        // IMMUTABLE emptyList() singleton (reflection bypasses the type).
+        // An `as MutableList` cast on that throws ClassCastException
+        // ("EmptyList cannot be cast to MutableList") and the whole report
+        // fails to load. Copy into a real MutableList instead — this both
+        // dodges the cast and gives the in-place mutators (removeAgent etc.)
+        // a writable list. A plain field read needs no checkcast, so this
+        // is safe even when the field holds an immutable empty.
+        res = res.copy(
+            iconCalls = res.iconCalls.toMutableList(),
+            userNotes = res.userNotes.toMutableList()
+        )
         return res
     }
 
@@ -377,6 +451,8 @@ object ReportStorage {
             // from disk until the next reload, where the fresh load
             // would silently hand back the pre-update report.
             AppLog.e("ReportStorage", "Failed to save report ${report.id} (writeTextAtomic returned false)")
+        } else {
+            ReportDataVersion.bump()
         }
     }
 
@@ -561,6 +637,21 @@ object ReportStorage {
             val report = loadReport(reportId) ?: return@withLock false
             if (report.titleErrorMessage == null) return@withLock false
             saveReport(report.copy(titleErrorMessage = null, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Reset the title-gen row for a full regenerate while keeping all
+     *  previously accrued title cost/token/trace fields additive. */
+    fun clearReportTitleKeepingCost(context: Context, reportId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            saveReport(report.copy(
+                titleErrorMessage = null,
+                titlePromptUsed = null,
+                timestamp = System.currentTimeMillis()
+            ))
             true
         }
     }
@@ -1094,6 +1185,108 @@ object ReportStorage {
         }
     }
 
+    // -----------------------------------------------------------------
+    // User notes — free-text annotations the user attaches to a report
+    // and its parts. All notes for a report live on [Report.userNotes]
+    // (one JSON file); the targetKind/targetId pair identifies what each
+    // note is pinned to. See [UserNote].
+    // -----------------------------------------------------------------
+
+    /** Append a new [UserNote] to the report. Returns the created note
+     *  (with its generated id + timestamps) or null when the report
+     *  can't be loaded / [text] is blank. */
+    fun addUserNote(
+        context: Context, reportId: String,
+        targetKind: String, targetId: String, text: String
+    ): UserNote? {
+        init(context)
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return null
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock null
+            val now = System.currentTimeMillis()
+            val note = UserNote(
+                id = UUID.randomUUID().toString(),
+                targetKind = targetKind, targetId = targetId,
+                text = trimmed, createdAt = now, updatedAt = now
+            )
+            val newNotes = (report.userNotes + note).toMutableList()
+            saveReport(report.copy(userNotes = newNotes, timestamp = now))
+            note
+        }
+    }
+
+    /** Replace the body of an existing note (by id). Returns false when
+     *  the report / note isn't found or [text] is blank. */
+    fun updateUserNote(context: Context, reportId: String, noteId: String, text: String): Boolean {
+        init(context)
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return false
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            if (report.userNotes.none { it.id == noteId }) return@withLock false
+            val now = System.currentTimeMillis()
+            // Clear the stale title — the edited text gets a fresh AI title
+            // (the caller re-fires note-title generation on save).
+            val newNotes = report.userNotes.map {
+                if (it.id == noteId) it.copy(text = trimmed, title = null, updatedAt = now) else it
+            }.toMutableList()
+            saveReport(report.copy(userNotes = newNotes, timestamp = now))
+            true
+        }
+    }
+
+    /** Set the AI-generated title on a note (by id). No-op when the report
+     *  or note is gone (e.g. the note was deleted while the title call was
+     *  in flight). */
+    fun setUserNoteTitle(context: Context, reportId: String, noteId: String, title: String): Boolean {
+        init(context)
+        val trimmed = title.trim()
+        if (trimmed.isBlank()) return false
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            if (report.userNotes.none { it.id == noteId }) return@withLock false
+            val newNotes = report.userNotes.map {
+                if (it.id == noteId) it.copy(title = trimmed) else it
+            }.toMutableList()
+            saveReport(report.copy(userNotes = newNotes, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Remove a note by id. Returns false when nothing was removed. The
+     *  note's `note/title` iconCalls are pruned and their cost rolled into
+     *  [Report.costsFromDeletedItems] so the lifetime total stays stable
+     *  (same convention as [removeAgent]). */
+    fun deleteUserNote(context: Context, reportId: String, noteId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val newNotes = report.userNotes.filterNot { it.id == noteId }.toMutableList()
+            if (newNotes.size == report.userNotes.size) return@withLock false
+            report.userNotes = newNotes
+            rollNoteTitleCostsToDeleted(report, setOf(noteId))
+            report.totalCost = computeReportTotalCost(report)
+            saveReport(report.copy(timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Move the `note/title` iconCall spend for [noteIds] into
+     *  [Report.costsFromDeletedItems] and drop those records, so deleting a
+     *  note doesn't make the lifetime total shrink or leave an orphan cost
+     *  row. Mutates [report] in place. */
+    private fun rollNoteTitleCostsToDeleted(report: Report, noteIds: Set<String>) {
+        if (noteIds.isEmpty()) return
+        val removed = report.iconCalls.filter { it.type == "note/title" && it.agentId in noteIds }
+        if (removed.isEmpty()) return
+        removed.sumOf { it.inputCost + it.outputCost }.takeIf { it > 0.0 }
+            ?.let { report.costsFromDeletedItems += it }
+        report.iconCalls = report.iconCalls
+            .filterNot { it.type == "note/title" && it.agentId in noteIds }
+            .toMutableList()
+    }
+
     /** Drop every fan-out icon-chain [IconCallRecord] from the
      *  report's iconCalls audit log — the records whose agentId is a
      *  fan-out pair id (in [pairIds], since fan-out tier calls record
@@ -1104,7 +1297,27 @@ object ReportStorage {
         if (pairIds.isEmpty()) return false
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
-            val newCalls = report.iconCalls.filterNot { it.agentId in pairIds }.toMutableList()
+            val newCalls = report.iconCalls
+                .filterNot { it.agentId in pairIds || it.attributedToSecondaryId in pairIds }
+                .toMutableList()
+            if (newCalls.size == report.iconCalls.size) return@withLock false
+            saveReport(report.copy(iconCalls = newCalls, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Remove per-call audit rows attributed to deleted secondary results.
+     *  Their spend is already carried by the deleted SecondaryResult's
+     *  aggregate cost and gets moved into costsFromDeletedItems by the
+     *  caller; keeping the audit rows would double-count the same calls. */
+    fun removeIconCallsForSecondaryIds(context: Context, reportId: String, secondaryIds: Set<String>): Boolean {
+        init(context)
+        if (secondaryIds.isEmpty()) return false
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val newCalls = report.iconCalls
+                .filterNot { it.attributedToSecondaryId in secondaryIds || it.agentId in secondaryIds }
+                .toMutableList()
             if (newCalls.size == report.iconCalls.size) return@withLock false
             saveReport(report.copy(iconCalls = newCalls, timestamp = System.currentTimeMillis()))
             true
@@ -1212,6 +1425,27 @@ object ReportStorage {
             (removed.modelTitleInputCost + removed.modelTitleOutputCost).takeIf { it > 0.0 }?.let {
                 report.costsFromDeletedItems += it
             }
+            val removedCalls = report.iconCalls.filter { it.agentId == agentId }
+            val structuredIconTypes = setOf<String?>(null, "model/icons", "alt/report")
+            removedCalls
+                .filterNot { it.type in structuredIconTypes }
+                .sumOf { it.inputCost + it.outputCost }
+                .takeIf { it > 0.0 }
+                ?.let { report.costsFromDeletedItems += it }
+            if (removedCalls.isNotEmpty()) {
+                report.iconCalls = report.iconCalls.filterNot { it.agentId == agentId }.toMutableList()
+            }
+            // Prune the deleted agent's user notes — same spirit as the
+            // iconCalls prune above, so the 📒 all-notes list doesn't show
+            // notes pinned to a model that's gone. Their note/title spend
+            // rolls into costsFromDeletedItems (like the agent's own costs).
+            val prunedNoteIds = report.userNotes
+                .filter { it.targetKind == "AGENT" && it.targetId == agentId }
+                .map { it.id }.toSet()
+            report.userNotes = report.userNotes
+                .filterNot { it.targetKind == "AGENT" && it.targetId == agentId }
+                .toMutableList()
+            rollNoteTitleCostsToDeleted(report, prunedNoteIds)
             report.totalCost = computeReportTotalCost(report)
             saveReport(report)
             true

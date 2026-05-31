@@ -56,8 +56,16 @@ import com.ai.data.FanOutRunKey
 import com.ai.data.FanOutRunState
 import com.ai.data.PairState
 import com.ai.data.PairStatus
+import com.ai.data.ReportDataVersion
+import com.ai.data.ReportStorage
+import com.ai.data.UserNote
 import com.ai.data.iconStatus
+import com.ai.data.notesFor
 import com.ai.data.titleStatus
+import androidx.compose.runtime.produceState
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ReloadConfirmationDialog
@@ -110,6 +118,22 @@ internal fun FanOutL1Screen(
     // run is really gone, then navigates back.
     var deleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+
+    // ✍️ user notes for this fan-out run (MAIN page only — the "Fan out"
+    // page, not the Fan Meta lens). Target = the run key.
+    val notesContext = LocalContext.current
+    val isMainMode = mode == FanOutMode.MAIN
+    var noteEdit by remember { mutableStateOf<NoteEdit?>(null) }
+    if (noteEdit != null) {
+        UserNoteEditorOverlay(run.reportId, "FANOUT_RUN", run.key, noteEdit!!) { noteEdit = null }
+        return
+    }
+    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val fanRunNotes by produceState(emptyList<UserNote>(), run.reportId, run.key, noteDataVersion) {
+        value = withContext(Dispatchers.IO) {
+            ReportStorage.getReport(notesContext, run.reportId)?.notesFor("FANOUT_RUN", run.key) ?: emptyList()
+        }
+    }
 
     val subject = run.metaPrompt.title.takeIf { it.isNotBlank() }
         ?.let { "${run.metaPrompt.name} — $it" } ?: run.metaPrompt.name
@@ -165,8 +189,16 @@ internal fun FanOutL1Screen(
             onReload = { confirmRerunComplete = true },
             onTrace = if (l1RunId != null && com.ai.data.ApiTracer.isTracingEnabled)
                 { { actions.onNavigateToTraceRunList(l1RunId) } } else null,
-            onDelete = { confirmDelete = true }
+            onDelete = { confirmDelete = true },
+            onAddNote = if (isMainMode) { { noteEdit = NoteEdit.Add } } else null
         )
+        if (isMainMode) {
+            UserNotesSection(
+                reportId = run.reportId,
+                notes = fanRunNotes,
+                onEdit = { noteEdit = NoteEdit.Edit(it.id, it.text) }
+            )
+        }
 
         // Status counts + cost — pinned at the top of the page so
         // they stay put as the model list scrolls; kept visible even

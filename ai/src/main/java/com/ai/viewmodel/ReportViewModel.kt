@@ -27,6 +27,43 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import java.util.Locale
+
+sealed class TemperatureSweepCandidate(open val temperature: Float) {
+    data class Pending(override val temperature: Float) : TemperatureSweepCandidate(temperature)
+    data class Running(override val temperature: Float) : TemperatureSweepCandidate(temperature)
+    data class Success(
+        override val temperature: Float,
+        val response: String,
+        val tokenUsage: TokenUsage?,
+        val cost: Double?,
+        val durationMs: Long,
+        val traceFile: String?
+    ) : TemperatureSweepCandidate(temperature)
+    data class Error(
+        override val temperature: Float,
+        val message: String,
+        val httpStatusCode: Int?,
+        val durationMs: Long?,
+        val traceFile: String?
+    ) : TemperatureSweepCandidate(temperature)
+}
+
+data class TemperatureSweepState(
+    val reportId: String,
+    val agentId: String,
+    val candidates: List<TemperatureSweepCandidate>,
+    val isRunning: Boolean = false,
+    val unavailableMessage: String? = null
+) {
+    companion object {
+        fun key(reportId: String, agentId: String): String = "$reportId|$agentId"
+    }
+}
+
+private fun formatSweepTemperature(value: Float): String =
+    if (value % 1f == 0f) value.toInt().toString()
+    else String.format(Locale.US, "%.2f", value).trimEnd('0').trimEnd('.')
 
 /**
  * ViewModel for AI report generation: task building, concurrent execution, cost calculation.
@@ -36,6 +73,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
     private var reportGenerationJob: Job? = null
     @Volatile private var reportRunningInBackground = false
+    private val temperatureSweepJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private val _temperatureSweepStates = MutableStateFlow<Map<String, TemperatureSweepState>>(emptyMap())
+    val temperatureSweepStates: StateFlow<Map<String, TemperatureSweepState>> = _temperatureSweepStates.asStateFlow()
 
     /** In-flight regenerate jobs (single-agent regenerateAgent +
      *  forceRegenerateAllAgents), keyed by reportId, so deleteReport can
@@ -454,6 +494,52 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    private fun buildTemperatureSweepTask(report: Report, state: UiState, reportAgent: ReportAgent): ReportTask? {
+        val ai = state.aiSettings
+        val provider = AppService.findById(reportAgent.provider) ?: return null
+        val reportLevelSystemPrompt = report.reportSystemPromptId
+            ?.let { ai.getSystemPromptById(it)?.prompt }
+        val preGenParamsActive = report.advancedParameters != null || report.parameterPresetIds.isNotEmpty() ||
+            report.webSearchTool || report.reasoningEffort != null
+        val currentAgent = reportAgent.agentId
+            .takeUnless { it.startsWith("swarm:") }
+            ?.let { ai.getAgentById(it) }
+        val sid = "swarm:${provider.id}:${reportAgent.model}"
+        val task = if (currentAgent != null) {
+            buildReportTasks(
+                ai, listOf(currentAgent), emptyList(), report.selectionParamsById,
+                state.externalSystemPrompt, reportLevelSystemPrompt,
+                state.generalSettings, emptySet(), preGenParamsActive
+            ).firstOrNull()
+        } else {
+            buildReportTasks(
+                ai, emptyList(), listOf(SwarmMember(provider, reportAgent.model)),
+                report.selectionParamsById, state.externalSystemPrompt, reportLevelSystemPrompt,
+                state.generalSettings, setOf(sid), preGenParamsActive
+            ).firstOrNull()
+        } ?: return null
+        val endpointId = currentAgent?.endpointId?.takeIf { currentAgent.provider.id == provider.id }
+        val apiKey = currentAgent
+            ?.takeIf { it.provider.id == provider.id }
+            ?.let { ai.getEffectiveApiKeyForAgent(it.copy(provider = provider, model = reportAgent.model)) }
+            ?: ai.getApiKey(provider)
+        val runtimeAgent = Agent(
+            id = reportAgent.agentId,
+            name = currentAgent?.name ?: reportAgent.agentName,
+            provider = provider,
+            model = reportAgent.model,
+            apiKey = apiKey,
+            endpointId = endpointId,
+            paramsIds = currentAgent?.paramsIds ?: emptyList(),
+            systemPromptId = currentAgent?.systemPromptId
+        )
+        return task.copy(
+            resultId = reportAgent.agentId,
+            reportAgent = reportAgent.copy(reportStatus = ReportStatus.PENDING),
+            runtimeAgent = runtimeAgent
+        )
+    }
+
     /** True when a Google model is benched in [ModelCooldownStore]
      *  because the provider answered a >1h 429. The dispatch
      *  runners delete the in-flight item instead of erroring it. */
@@ -656,7 +742,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // A benched-on-this-call >1h 429 flows through the normal
         // error path — it stays as a visible red row, same as any
         // other failure, instead of being removed from the run.
-        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+        val persisted = kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
             if (response.isSuccess) {
                 ReportStorage.markAgentSuccessAsync(context, reportId, task.resultId,
                     response.httpStatusCode ?: 200, response.httpHeaders, response.analysis,
@@ -672,6 +758,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     traceFile = traceSink.get())
             }
         }
+        if (!persisted) {
+            cost?.takeIf { it > 0.0 }?.let {
+                ReportStorage.bumpCostsFromDeletedItems(context, reportId, it)
+            }
+        }
 
         if (response.error == null && response.tokenUsage != null) {
             val usage = response.tokenUsage
@@ -679,6 +770,13 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 usage.inputTokens, usage.outputTokens, usage.totalTokens)
         }
 
+        val stillPresent = ReportStorage.getReport(context, reportId)
+            ?.agents
+            ?.any { it.agentId == task.resultId } == true
+        if (!stillPresent) {
+            AppLog.d("Report", "skip UI publish for deleted agent=${task.resultId} report=$reportId")
+            return
+        }
         if (!headless) _agentResults.update { it + (task.resultId to response) }
         if (!isRegeneration && !headless) {
             appViewModel.updateUiState { state ->
@@ -693,6 +791,206 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 (response.tokenUsage?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") +
                 (cost?.let { " cost=${"%.5f".format(it)}" } ?: "")
         )
+    }
+
+    private fun updateTemperatureSweepState(key: String, transform: (TemperatureSweepState) -> TemperatureSweepState) {
+        _temperatureSweepStates.update { current ->
+            val existing = current[key] ?: return@update current
+            current + (key to transform(existing))
+        }
+    }
+
+    private fun setTemperatureSweepCandidate(
+        key: String,
+        index: Int,
+        candidate: TemperatureSweepCandidate
+    ) {
+        updateTemperatureSweepState(key) { state ->
+            state.copy(candidates = state.candidates.mapIndexed { i, old -> if (i == index) candidate else old })
+        }
+    }
+
+    fun clearTemperatureSweep(reportId: String, agentId: String) {
+        val key = TemperatureSweepState.key(reportId, agentId)
+        temperatureSweepJobs.remove(key)?.cancel()
+        _temperatureSweepStates.update { it - key }
+    }
+
+    fun applyTemperatureCandidate(context: Context, reportId: String, agentId: String, candidateIndex: Int) {
+        val key = TemperatureSweepState.key(reportId, agentId)
+        val candidate = _temperatureSweepStates.value[key]?.candidates
+            ?.getOrNull(candidateIndex) as? TemperatureSweepCandidate.Success ?: return
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            ReportStorage.applyAgentChatResponse(context, reportId, agentId, candidate.response)
+            _temperatureSweepStates.update { it - key }
+        }
+    }
+
+    fun startTemperatureSweep(
+        context: Context,
+        reportId: String,
+        agentId: String,
+        temperatures: List<Float>
+    ): Job {
+        val key = TemperatureSweepState.key(reportId, agentId)
+        val temps = temperatures.take(3)
+        temperatureSweepJobs.remove(key)?.cancel()
+        _temperatureSweepStates.update {
+            it + (key to TemperatureSweepState(
+                reportId = reportId,
+                agentId = agentId,
+                candidates = temps.map { temp -> TemperatureSweepCandidate.Pending(temp) },
+                isRunning = true
+            ))
+        }
+        val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            try {
+                val report = ReportStorage.getReport(context, reportId) ?: run {
+                    updateTemperatureSweepState(key) {
+                        it.copy(isRunning = false, unavailableMessage = "Report not found")
+                    }
+                    return@launch
+                }
+                val state = appViewModel.uiState.value
+                val ai = state.aiSettings
+                val savedAgent = report.agents.firstOrNull { it.agentId == agentId } ?: run {
+                    updateTemperatureSweepState(key) {
+                        it.copy(isRunning = false, unavailableMessage = "Model response no longer exists in this report")
+                    }
+                    return@launch
+                }
+                val task = buildTemperatureSweepTask(report, state, savedAgent) ?: run {
+                    updateTemperatureSweepState(key) {
+                        it.copy(isRunning = false, unavailableMessage = "Model response no longer matches a runnable report agent")
+                    }
+                    return@launch
+                }
+                val supportedParams = PricingCache.getSupportedParameters(context, task.runtimeAgent.provider, task.runtimeAgent.model)
+                if (supportedParams != null && supportedParams.none { it.equals("temperature", ignoreCase = true) }) {
+                    val msg = "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} does not report temperature support."
+                    updateTemperatureSweepState(key) { sweep ->
+                        sweep.copy(
+                            isRunning = false,
+                            unavailableMessage = msg,
+                            candidates = sweep.candidates.map { candidate ->
+                                TemperatureSweepCandidate.Error(candidate.temperature, msg, null, null, null)
+                            }
+                        )
+                    }
+                    return@launch
+                }
+                val temperatureRange = temperatureRangeForProvider(task.runtimeAgent.provider)
+                val invalidTemp = temps.firstOrNull { !temperatureRange.contains(it) }
+                if (temps.size != 3 || invalidTemp != null) {
+                    val msg = "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} allows temperature " +
+                        "${formatSweepTemperature(temperatureRange.min)}..${formatSweepTemperature(temperatureRange.max)}."
+                    updateTemperatureSweepState(key) { sweep ->
+                        sweep.copy(
+                            isRunning = false,
+                            unavailableMessage = msg,
+                            candidates = sweep.candidates.map { candidate ->
+                                TemperatureSweepCandidate.Error(candidate.temperature, msg, null, null, null)
+                            }
+                        )
+                    }
+                    return@launch
+                }
+                val canReason = ai.acceptsReasoningEffortParam(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val canWeb = ai.isWebSearchCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val canVision = ai.isVisionCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val baseOverride = resolveReportOverrideParams(
+                    ai, report.parameterPresetIds, report.advancedParameters,
+                    report.webSearchTool, report.reasoningEffort
+                )
+                val gatedOverride = (baseOverride ?: AgentParameters()).copy(
+                    webSearchTool = (baseOverride?.webSearchTool == true || report.webSearchTool) && canWeb,
+                    reasoningEffort = if (canReason) baseOverride?.reasoningEffort else null
+                )
+                val effectiveImage = if (canVision) report.imageBase64 else null
+                val effectiveImageMime = if (canVision) report.imageMime else null
+                val baseUrl = ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
+                val knowledgeBaseIds = report.knowledgeBaseIds
+
+                withTracerTags(reportId = reportId, category = MODEL_TEMPERATURE_CALL_KIND) {
+                    temps.forEachIndexed { index, temp ->
+                        setTemperatureSweepCandidate(key, index, TemperatureSweepCandidate.Running(temp))
+                        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                        val startTime = System.currentTimeMillis()
+                        val response = try {
+                            ApiCallCaps.global.withPermit {
+                                ApiCallCaps.report.withPermit {
+                                    val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                    try {
+                                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                            withTraceFilenameSink(traceSink) {
+                                                appViewModel.repository.analyzeWithAgentStreaming(
+                                                    task.runtimeAgent, "", report.prompt,
+                                                    task.resolvedParams,
+                                                    gatedOverride.copy(temperature = temp),
+                                                    context, baseUrl, effectiveImage, effectiveImageMime,
+                                                    knowledgeBaseIds = knowledgeBaseIds,
+                                                    aiSettings = ai
+                                                ) { /* transient comparison; no live preview */ }
+                                            }
+                                        }
+                                    } finally {
+                                        releaser.release()
+                                    }
+                                }
+                            }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            AnalysisResponse(
+                                service = task.runtimeAgent.provider,
+                                analysis = null,
+                                error = (e.message ?: "Unknown error").take(2000)
+                            )
+                        }
+                        val durationMs = System.currentTimeMillis() - startTime
+                        val cost = calculateResponseCost(context, task.runtimeAgent.provider, task.runtimeAgent.model, response.tokenUsage)
+                        val traceFile = traceSink.get()
+                        if (response.error == null && response.tokenUsage != null) {
+                            val usage = response.tokenUsage
+                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                task.runtimeAgent.provider, task.runtimeAgent.model,
+                                usage.inputTokens, usage.outputTokens, usage.totalTokens,
+                                kind = MODEL_TEMPERATURE_CALL_KIND
+                            )
+                        }
+                        val candidate = if (response.isSuccess && !response.analysis.isNullOrBlank()) {
+                            TemperatureSweepCandidate.Success(
+                                temperature = temp,
+                                response = response.analysis,
+                                tokenUsage = response.tokenUsage,
+                                cost = cost,
+                                durationMs = durationMs,
+                                traceFile = traceFile
+                            )
+                        } else {
+                            TemperatureSweepCandidate.Error(
+                                temperature = temp,
+                                message = response.error ?: "No response body",
+                                httpStatusCode = response.httpStatusCode,
+                                durationMs = durationMs,
+                                traceFile = traceFile
+                            )
+                        }
+                        setTemperatureSweepCandidate(key, index, candidate)
+                    }
+                }
+                updateTemperatureSweepState(key) { it.copy(isRunning = false) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                updateTemperatureSweepState(key) {
+                    it.copy(isRunning = false, unavailableMessage = (e.message ?: "Temperature sweep failed").take(2000))
+                }
+            }
+        }
+        temperatureSweepJobs[key] = job
+        job.invokeOnCompletion { temperatureSweepJobs.remove(key, job) }
+        return job
     }
 
 
@@ -1361,8 +1659,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
-    /** Delete a report file and, if it's the one currently shown, dismiss the screen state. */
-    fun deleteReport(context: Context, reportId: String) {
+    private fun cancelReportOwnedWorkBeforeDelete(reportId: String): Boolean {
         val cleared = appViewModel.uiState.value.currentReportId == reportId
         // Cancel every in-flight coroutine attached to this report
         // BEFORE deleting it from disk. Otherwise:
@@ -1391,6 +1688,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // zombie report), and a regenerate batch would keep dispatching
         // agent calls against a gone report.
         translation.cancelAllForReport(reportId)
+        temperatureSweepJobs.entries
+            .filter { it.key.startsWith(fanOutPrefix) }
+            .forEach { it.value.cancel() }
+        _temperatureSweepStates.update { states ->
+            states.filterKeys { !it.startsWith(fanOutPrefix) }
+        }
         // Synchronous: the async cancel() returns before its launch body
         // cancels the orchestrator, so the batch could still be dispatching
         // when we delete below.
@@ -1424,13 +1727,38 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 appViewModel.clearPairIconFanOut(pairId)
             }
         appViewModel.clearIconFanOut(reportId)
+        if (cleared) dismissGenericReportsDialog()
+        return cleared
+    }
+
+    /** Delete a report file and, if it's the one currently shown, dismiss the screen state. */
+    fun deleteReport(context: Context, reportId: String) {
+        cancelReportOwnedWorkBeforeDelete(reportId)
         // The disk delete (report file + per-report secondary dir) off the
         // main thread; the cancellations above are non-blocking and must
         // run synchronously first so nothing is still writing as we delete.
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             ReportStorage.deleteReport(context, reportId)
         }
-        if (cleared) dismissGenericReportsDialog()
+    }
+
+    fun bulkDeleteReports(
+        context: Context,
+        reportIds: List<String>,
+        onProgress: ((deleted: Int, total: Int) -> Unit)? = null,
+        onComplete: (() -> Unit)? = null
+    ): Job {
+        val ids = reportIds.distinct().filter { it.isNotBlank() }
+        ids.forEach { cancelReportOwnedWorkBeforeDelete(it) }
+        return appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            ids.forEachIndexed { index, reportId ->
+                ReportStorage.deleteReport(context, reportId)
+                if (onProgress != null) {
+                    withContext(Dispatchers.Main) { onProgress(index + 1, ids.size) }
+                }
+            }
+            if (onComplete != null) withContext(Dispatchers.Main) { onComplete() }
+        }
     }
 
     /** Toggle the persisted pinned flag for [reportId]. Pinned reports
@@ -1730,35 +2058,59 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // Storage read-modify-write + per-orphan deletes off the main
         // thread — this is fired from a UI click and was blocking it.
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-        ReportStorage.removeAgent(context, reportId, agentId)
-        // Cascade: every TRANSLATE row whose translateSourceKind =
-        // "AGENT" and translateSourceTargetId == this agent's id is
-        // now an orphan. Drop them so the on-disk state matches the
-        // META cascade in deleteSecondaryResult. Their cost rolls
-        // into costsFromDeletedItems so the cost view continues to
-        // reflect the real API spend.
-        val orphans = SecondaryResultStorage
-            .listForReport(context, reportId, SecondaryKind.TRANSLATE)
-            .filter { it.translateSourceKind == "AGENT" && it.translateSourceTargetId == agentId }
-        if (orphans.isNotEmpty()) {
-            var costDelta = 0.0
-            orphans.forEach { tr ->
-                costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
-                SecondaryResultStorage.delete(context, reportId, tr.id)
+            val removedStatus = ReportStorage.getReport(context, reportId)
+                ?.agents
+                ?.firstOrNull { it.agentId == agentId }
+                ?.reportStatus
+            val removedWasFinished = removedStatus == ReportStatus.SUCCESS ||
+                removedStatus == ReportStatus.ERROR ||
+                removedStatus == ReportStatus.STOPPED
+            ReportStorage.removeAgent(context, reportId, agentId)
+            // Cascade: every TRANSLATE row whose translateSourceKind =
+            // "AGENT" and translateSourceTargetId == this agent's id is
+            // now an orphan. Drop them so the on-disk state matches the
+            // META cascade in deleteSecondaryResult. Their cost rolls
+            // into costsFromDeletedItems so the cost view continues to
+            // reflect the real API spend.
+            val orphans = SecondaryResultStorage
+                .listForReport(context, reportId, SecondaryKind.TRANSLATE)
+                .filter { it.translateSourceKind == "AGENT" && it.translateSourceTargetId == agentId }
+            if (orphans.isNotEmpty()) {
+                var costDelta = 0.0
+                orphans.forEach { tr ->
+                    costDelta += (tr.inputCost ?: 0.0) + (tr.outputCost ?: 0.0)
+                    SecondaryResultStorage.delete(context, reportId, tr.id)
+                }
+                ReportStorage.removeIconCallsForSecondaryIds(context, reportId, orphans.map { it.id }.toSet())
+                if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
             }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, reportId)
+            _agentResults.update { it - agentId }
+            appViewModel.updateUiState { state ->
+                if (state.currentReportId != reportId) {
+                    state
+                } else {
+                    val newTotal = (state.genericReportsTotal - 1).coerceAtLeast(0)
+                    val newProgress = if (removedWasFinished) {
+                        (state.genericReportsProgress - 1).coerceAtLeast(0)
+                    } else {
+                        state.genericReportsProgress.coerceAtMost(newTotal)
+                    }
+                    state.copy(
+                        genericReportsSelectedAgents = state.genericReportsSelectedAgents - agentId,
+                        genericReportsTotal = newTotal,
+                        genericReportsProgress = newProgress
+                    )
+                }
+            }
         }
-        ReportStorage.bumpReportTimestamp(context, reportId)
-        _agentResults.update { it - agentId }
-        appViewModel.updateUiState { state ->
-            if (state.currentReportId != reportId) state
-            else state.copy(
-                genericReportsSelectedAgents = state.genericReportsSelectedAgents - agentId,
-                genericReportsTotal = (state.genericReportsTotal - 1).coerceAtLeast(0),
-                genericReportsProgress = (state.genericReportsProgress - 1).coerceAtLeast(0)
-            )
-        }
-        }
+    }
+
+    /** Generate (or regenerate) the AI title for one user note. Called from
+     *  the note editor on every save (add/edit) via [com.ai.ui.shared.
+     *  LocalGenerateNoteTitle]. Delegates to the worker-title flow. */
+    fun generateUserNoteTitle(context: Context, reportId: String, noteId: String, noteText: String) {
+        iconGen.kickOffUserNoteTitle(context, reportId, noteId, noteText, appViewModel.uiState.value.aiSettings)
     }
 
 }

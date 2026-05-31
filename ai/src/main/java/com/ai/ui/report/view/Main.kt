@@ -47,6 +47,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -64,6 +65,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.SecondaryKind
+import com.ai.data.ReportDataVersion
+import com.ai.data.SecondaryDataVersion
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
@@ -188,6 +191,19 @@ internal fun ViewAiReportScreen(
                 reportId = reportId,
                 onBack = backToMain
             )
+        }
+        return
+    }
+    // Value view — cost × quality (Pareto) frontier, shown only when a
+    // rerank exists (see the conditional tile below). Same overlay
+    // pattern as Costs.
+    var showValueView by rememberSaveable(resetTick) { mutableStateOf(false) }
+    if (showValueView) {
+        val backToMain: () -> Unit = { showValueView = false }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            ValueViewScreen(reportId = reportId, onBack = backToMain)
         }
         return
     }
@@ -389,8 +405,10 @@ internal fun ViewAiReportScreen(
         val list: List<com.ai.data.SecondaryResult>,
         val report: com.ai.data.Report?
     )
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
     val translatesState = androidx.compose.runtime.produceState(
-        initialValue = TranslatesLoad(emptyList(), null), reportId
+        initialValue = TranslatesLoad(emptyList(), null), reportId, reportDataVersion, secondaryDataVersion
     ) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             val list = com.ai.data.SecondaryResultStorage
@@ -837,7 +855,7 @@ internal fun ViewAiReportScreen(
     // Re-keyed on currentLanguageState.value so the per-tile
     // `enabled` flag re-evaluates when the View picker changes.
     val currentLang = currentLanguageState.value
-    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, onOpenHtmlPreview, onViewIcons) {
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, onOpenHtmlPreview, onViewIcons, everyItems) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
@@ -875,6 +893,11 @@ internal fun ViewAiReportScreen(
             // result page's bottom-bar icons (📜 App Log, 🐞 Trace
             // list).
             add(IdentifiedTile("doc:Icons", ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons() }))
+            // Value view — cost × quality frontier. Only meaningful with a
+            // rerank to supply per-model quality scores.
+            if (everyItems["rerank"].orEmpty().isNotEmpty()) {
+                add(IdentifiedTile("doc:Value", ViewTile("Value view", "💎", AppColors.Green) { showValueView = true }))
+            }
         }
     }
 
@@ -1144,6 +1167,7 @@ internal fun ViewAiReportScreen(
             // 📋 (hub only) → the "pick a report to view" screen.
             onViewList = com.ai.ui.shared.LocalNavigateToReportPicker.current
         )
+        com.ai.ui.report.manage.ViewUserNotes(reportId, "REPORT", reportId)
 
         // One picker for the whole View screen; tile clicks below
         // forward the active language to the opened sub-screen.

@@ -22,11 +22,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
 import com.ai.data.AppService
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
+import com.ai.data.UserNote
+import com.ai.data.notesFor
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.TitleBar
@@ -106,6 +109,15 @@ internal fun SecondaryResultDetailScreen(
     }
     val parentReport = parentReportState.value
     val reportLanguageName = parentReport?.languageName?.takeIf { it.isNotBlank() }
+    // Fresh on-disk row, re-read on every secondary save, so a 🗣️ refine
+    // Apply (which rewrites content) reflects here even though `result`
+    // arrives as a stale param from the list mount. Drives the Original-
+    // language content + the refine chat's persisted conversation.
+    val secDataVersion by com.ai.data.SecondaryDataVersion.version.collectAsState()
+    val resultFresh by produceState<SecondaryResult?>(null, result.id, secDataVersion) {
+        value = withContext(Dispatchers.IO) { SecondaryResultStorage.get(context, result.reportId, result.id) }
+    }
+    val originalContent = resultFresh?.content ?: result.content
     // Only show language tabs where THIS meta actually has content —
     // either the seed-language row itself (result.targetLanguage) or
     // a cross-translate TRANSLATE row pointing back at it. Include
@@ -192,8 +204,8 @@ internal fun SecondaryResultDetailScreen(
     // translation)" placeholder rather than falling back to the
     // foreign-language source).
     val displayContent: String? = when {
-        result.kind != SecondaryKind.META -> result.content
-        activeLangName == result.targetLanguage -> result.content
+        result.kind != SecondaryKind.META -> originalContent
+        activeLangName == result.targetLanguage -> originalContent
         else -> activeTranslateRow?.content
     }
     val traceFilename = activeTranslateRow?.traceFile?.takeIf { it.isNotBlank() } ?: baseTraceFilename
@@ -280,6 +292,51 @@ internal fun SecondaryResultDetailScreen(
         return
     }
 
+    // ✍️ user notes for this secondary row (meta / rerank / moderation /
+    // fan-out pair / fan-in — every kind is one SecondaryResult).
+    var noteEdit by remember { mutableStateOf<NoteEdit?>(null) }
+    if (noteEdit != null) {
+        UserNoteEditorOverlay(result.reportId, "SECONDARY", result.id, noteEdit!!) { noteEdit = null }
+        return
+    }
+    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val secondaryNotes by produceState(emptyList<UserNote>(), result.reportId, result.id, noteDataVersion) {
+        value = withContext(Dispatchers.IO) {
+            ReportStorage.getReport(context, result.reportId)?.notesFor("SECONDARY", result.id) ?: emptyList()
+        }
+    }
+
+    // 💬 / 🗣️ chat — META rows only (plain meta + fan-in). Rerank /
+    // moderation content is structured, so chat / refine don't apply.
+    val isMeta = result.kind == SecondaryKind.META
+    val hasContent = !originalContent.isNullOrBlank()
+    val continueMetaInChat = com.ai.ui.shared.LocalContinueMetaInChat.current
+    val aiSettings = com.ai.ui.shared.LocalAiSettings.current
+    var showAgentChat by remember { mutableStateOf(false) }
+    if (showAgentChat && providerService != null) {
+        val seed = buildList {
+            add(com.ai.data.ChatMessage(role = "user", content = parentReport?.prompt?.takeIf { it.isNotBlank() } ?: "Analyse the model responses."))
+            // Strip the meta-only "## References" footer from the seed (kept
+            // in the displayed result; just noise in a refine chat).
+            originalContent?.takeIf { it.isNotBlank() }
+                ?.let { com.ai.data.stripMetaReferenceLegend(it) }
+                ?.let { add(com.ai.data.ChatMessage(role = "assistant", content = it)) }
+        }
+        AgentChatScreen(
+            titleBarSubject = title,
+            service = providerService,
+            model = result.model,
+            agentIdForKey = null,
+            initialMessages = (resultFresh?.chatMessages ?: result.chatMessages).ifEmpty { seed },
+            initialParams = com.ai.data.ChatParameters(),
+            aiSettings = aiSettings,
+            onSaveMessages = { SecondaryResultStorage.updateChatMessages(context, result.reportId, result.id, it) },
+            onApply = { SecondaryResultStorage.updateContent(context, result.reportId, result.id, it) },
+            onBack = { showAgentChat = false }
+        )
+        return
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         // 👁 → matching View sub-screen, per-kind dispatch.
@@ -316,6 +373,10 @@ internal fun SecondaryResultDetailScreen(
             },
             onOpenView = onOpenViewJump,
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
+            // 💬 continue this analysis in the Chat section; 🗣️ refine it in
+            // place. META rows only (plain meta + fan-in).
+            onChat = if (isMeta && hasContent) { { continueMetaInChat(result.reportId, result.id, activeLangName) } } else null,
+            onAgentChat = if (isMeta && hasContent && providerService != null) { { showAgentChat = true } } else null,
             onTranslationCompare = if (liveTranslateActive != null && !result.content.isNullOrBlank() && !liveTranslateActive.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }
             } else null,
@@ -324,7 +385,13 @@ internal fun SecondaryResultDetailScreen(
             },
             onShare = displayContent?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.shareText(context, body, "${result.kind.name} — $title") }
-            }
+            },
+            onAddNote = { noteEdit = NoteEdit.Add }
+        )
+        UserNotesSection(
+            reportId = result.reportId,
+            notes = secondaryNotes,
+            onEdit = { noteEdit = NoteEdit.Edit(it.id, it.text) }
         )
         if (result.kind == SecondaryKind.META && langTabs.size > 1 && forcedLanguage == null) {
             LanguagePickerRow(

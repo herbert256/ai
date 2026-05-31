@@ -22,7 +22,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,8 +35,8 @@ import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.ReportListRow
 import com.ai.ui.shared.TitleBar
+import com.ai.viewmodel.ReportViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** Paginated browser of every saved report, no vertical scroll.
@@ -52,10 +51,10 @@ import kotlinx.coroutines.withContext
 @Composable
 fun AllAiReportsScreen(
     onNavigateBack: () -> Unit,
-    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    reportViewModel: ReportViewModel
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
     // Bumped after a row 🗑 delete completes — re-fires the disk
     // scan so the deleted row drops from the page immediately.
@@ -125,10 +124,8 @@ fun AllAiReportsScreen(
                                 onOpenManage = bundle.onOpenManage,
                                 onOpenView = bundle.onOpenView,
                                 onDelete = { rid ->
-                                    scope.launch(Dispatchers.IO) {
-                                        ReportStorage.deleteReport(context, rid)
-                                        deleteTick++
-                                    }
+                                    reportViewModel.deleteReport(context, rid)
+                                    deleteTick++
                                 }
                             )
                         }

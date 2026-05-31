@@ -8,6 +8,7 @@ import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -58,6 +59,30 @@ fun AppNavHost(
     val sweepContext = LocalContext.current
     LaunchedEffect(Unit) {
         reportViewModel.secondary.startBackgroundResumeSweep(sweepContext)
+    }
+
+    // Bridge for the in-report "refine this answer" chat (🗣️ on Model
+    // response / Fan-out response). Lets those deep Manage screens reach
+    // the chat engine without threading a view-model through every layer.
+    val agentChatBridge = remember(appViewModel, chatViewModel) {
+        com.ai.ui.shared.AgentChatBridge(
+            send = { service, model, agentIdForKey, messages, params ->
+                val settings = appViewModel.uiState.value.aiSettings
+                val settingsAgent = agentIdForKey?.let { settings.getAgentById(it) }
+                val apiKey = settingsAgent?.let { settings.getEffectiveApiKeyForAgent(it) }
+                    ?: settings.getApiKey(service)
+                val baseUrl = settingsAgent?.let { settings.getEffectiveEndpointUrlForAgent(it) }
+                chatViewModel.sendChatMessageStream(
+                    service = service, apiKey = apiKey, model = model,
+                    messages = messages, sessionParams = params,
+                    baseUrl = baseUrl, context = sweepContext
+                )
+            },
+            estimateTokens = { com.ai.viewmodel.AppViewModel.estimateTokens(it) },
+            recordUsage = { service, model, inTok, outTok ->
+                appViewModel.viewModelScope.launch { chatViewModel.recordChatStatistics(service, model, inTok, outTok) }
+            }
+        )
     }
 
     val safePopBack: () -> Unit = {
@@ -370,6 +395,8 @@ fun AppNavHost(
         com.ai.ui.shared.LocalMetadataEnabled provides rootUiStateForLayout.generalSettings.metadataEnabled,
         com.ai.ui.shared.LocalMetadataIcons provides rootUiStateForLayout.generalSettings.metadataIcons,
         com.ai.ui.shared.LocalBottomIconState provides bottomBarIconState,
+        com.ai.ui.shared.LocalAgentChat provides agentChatBridge,
+        com.ai.ui.shared.LocalAiSettings provides rootUiStateForLayout.aiSettings,
         com.ai.ui.shared.LocalNavigateHome provides rootNavigateHome,
         com.ai.ui.shared.LocalNavigateToReportsHub provides rootNavigateToReportsHub,
         com.ai.ui.shared.LocalNavigateToHelp provides rootNavigateHelp,
@@ -705,7 +732,10 @@ internal suspend fun continueMetaInChat(
         provider = provider,
         model = model,
         messages = listOf(
-            com.ai.data.ChatMessage(role = "assistant", content = metaBody, timestamp = now)
+            // Strip the appended "## References" legend — it's a meta-only
+            // footer we add, never part of a model response, and noise in a
+            // follow-up chat.
+            com.ai.data.ChatMessage(role = "assistant", content = com.ai.data.stripMetaReferenceLegend(metaBody), timestamp = now)
         ),
         parameters = com.ai.data.ChatParameters(systemPrompt = systemPrompt),
         createdAt = now,

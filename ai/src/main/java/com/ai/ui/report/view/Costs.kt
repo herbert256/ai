@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.foundation.clickable
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.Report
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
@@ -85,7 +87,8 @@ fun CostsViewScreen(
     var currentReportId by rememberSaveable(reportId) { mutableStateOf(reportId) }
     val reportIdsList = com.ai.ui.shared.LocalReportIdsNewestFirst.current
     val switchReport = com.ai.ui.shared.LocalReportSwitchHandler.current
-    val reportState = produceState<Report?>(initialValue = null, currentReportId) {
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val reportState = produceState<Report?>(initialValue = null, currentReportId, reportDataVersion) {
         value = withContext(Dispatchers.IO) { com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId) }
     }
     val report = reportState.value

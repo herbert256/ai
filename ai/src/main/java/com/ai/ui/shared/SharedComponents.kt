@@ -374,6 +374,49 @@ val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
  *  surface the function to nested screens. Default no-op. */
 val LocalSystemPromptChange = compositionLocalOf<(String?) -> Unit> { {} }
 
+/** Fire AI title-generation for one user note — `(reportId, noteId,
+ *  noteText)`. Invoked by the note editor on every save (add/edit).
+ *  Provided around the AI_REPORTS composable, wired to
+ *  `ReportViewModel.generateUserNoteTitle`. A CompositionLocal (not a
+ *  threaded arg) for the same 64 KB-ceiling reason as
+ *  [LocalSystemPromptChange]. Default no-op. */
+val LocalGenerateNoteTitle = compositionLocalOf<(String, String, String) -> Unit> { { _, _, _ -> } }
+
+/** Continue a META secondary result in the Chat section — `(reportId,
+ *  resultId, activeLanguage?)`. The 💬 icon on the meta-item detail reads
+ *  it. Provided around the report area, wired to `continueMetaInChat` +
+ *  navigate. Default no-op. */
+val LocalContinueMetaInChat = compositionLocalOf<(String, String, String?) -> Unit> { { _, _, _ -> } }
+
+/** Bridge that lets the in-report "refine this answer" chat screen
+ *  (🗣️ on Model-response / Fan-out-response) reach the chat engine
+ *  without a view-model handle. Provided around the report area in
+ *  AppNavHost, wired to ChatViewModel + AppViewModel. Null off the
+ *  report area. See [com.ai.ui.report.manage.AgentChatScreen]. */
+class AgentChatBridge(
+    /** Stream one chat turn. [agentIdForKey] resolves the settings
+     *  Agent's effective API key/endpoint when non-null; else the
+     *  provider-level key is used. Returns content chunks. */
+    val send: (
+        service: com.ai.data.AppService,
+        model: String,
+        agentIdForKey: String?,
+        messages: List<com.ai.data.ChatMessage>,
+        params: com.ai.data.ChatParameters
+    ) -> kotlinx.coroutines.flow.Flow<String>,
+    /** Rough token estimate (chars/4) — for AI Usage accounting. */
+    val estimateTokens: (String) -> Int,
+    /** Record one turn's tokens into the global AI Usage ledger. */
+    val recordUsage: (service: com.ai.data.AppService, model: String, inputTokens: Int, outputTokens: Int) -> Unit,
+)
+val LocalAgentChat = compositionLocalOf<AgentChatBridge?> { null }
+
+/** Current AI [com.ai.model.Settings], provided around the report area so
+ *  deep Manage screens (e.g. the 🗣️ refine chat + its 🎭/🌡️ pickers) can
+ *  read agents / system prompts / parameter presets without threading
+ *  uiState through every layer. Defaults to empty Settings off the report area. */
+val LocalAiSettings = compositionLocalOf { com.ai.model.Settings() }
+
 /** Opens the standalone "Report information" screen for a reportId.
  *  Provided around the AI_REPORTS composable; the Manage hub's ℹ️ icon
  *  reads it. A CompositionLocal (not a threaded arg) for the same
@@ -664,6 +707,10 @@ fun shareText(context: android.content.Context, text: String, subject: String? =
 data class TitleBarIcons(
     val helpTopic: String?,
     val onChat: (() -> Unit)?,
+    /** Optional 🗣️ refine-in-chat hook (Model response / Fan-out response). */
+    val onAgentChat: (() -> Unit)? = null,
+    /** Optional 🌡️ temperature sweep hook (Model response). */
+    val onTemperatureSweep: (() -> Unit)? = null,
     val onInfo: (() -> Unit)?,
     /** Optional 👁 view-report hook. Distinct from [onInfo] (ℹ️
      *  Model Info) — this one opens the View tile grid for the
@@ -719,6 +766,12 @@ data class TitleBarIcons(
     /** Optional ✏️ edit hook. CRUD view pages publish it so the bottom
      *  bar carries the "edit this entry" action. Null → glyph hidden. */
     val onEdit: (() -> Unit)? = null,
+    /** Optional ✍️ add-user-note hook (report-manage screens). Null →
+     *  glyph hidden. */
+    val onAddNote: (() -> Unit)? = null,
+    /** Optional 📒 list-all-notes hook (Manage report only). Null →
+     *  glyph hidden. */
+    val onListNotes: (() -> Unit)? = null,
     /** Optional 🧹 jump-to-Housekeeping hook. Screens with a clear
      *  counterpart Housekeeping screen (e.g. AI Setup → Costs ↔
      *  Housekeeping → Costs) publish it to navigate there. Null →
@@ -901,6 +954,15 @@ fun TitleBar(
     onOpenManage: (() -> Unit)? = null,
     onReload: (() -> Unit)? = null,
     onChat: (() -> Unit)? = null,
+    /** Optional 🗣️ refine-in-chat hook — opens the in-report agent chat
+     *  that lets the user iterate on this answer ("be more verbose") and
+     *  Apply a reply back into the report. Distinct from [onChat] (💬),
+     *  which sends the answer out to the Chat section. Null → glyph hidden. */
+    onAgentChat: (() -> Unit)? = null,
+    /** Optional 🌡️ temperature sweep hook — opens the transient
+     *  three-temperature candidate runner for a model response. Null →
+     *  glyph hidden. */
+    onTemperatureSweep: (() -> Unit)? = null,
     /** Optional 📋 copy-to-clipboard hook. Wire it from screens that
      *  display substantial copyable text (agent response, raw JSON,
      *  prompt body, translated text, redacted trace bytes, …). Null →
@@ -972,6 +1034,15 @@ fun TitleBar(
     onCostClick: (() -> Unit)? = null,
     /** Optional ✏️ edit hook (CRUD view pages). Null → glyph hidden. */
     onEdit: (() -> Unit)? = null,
+    /** Optional ✍️ add-user-note hook. Wired by the report-manage
+     *  screens that can carry user notes (the report, a model response,
+     *  a fan-out run/pair, a secondary row). Opens the note editor for
+     *  the thing on this screen. Null → glyph hidden. */
+    onAddNote: (() -> Unit)? = null,
+    /** Optional 📒 list-all-notes hook. Wired only by the main Manage
+     *  report screen — opens the "all notes in this report" screen.
+     *  Null → glyph hidden. */
+    onListNotes: (() -> Unit)? = null,
     /** Optional 🌡️ parameters / 🎭 system-prompt hooks — paired config
      *  actions surfaced in the bottom bar (replacing inline buttons). */
     onParameters: (() -> Unit)? = null,
@@ -1030,6 +1101,8 @@ fun TitleBar(
         helpTopic = helpTopic,
         title = title,
         onChat = onChat,
+        onAgentChat = onAgentChat,
+        onTemperatureSweep = onTemperatureSweep,
         onInfo = onInfo,
         onOpenView = onOpenView,
         onOpenManage = onOpenManage,
@@ -1052,6 +1125,8 @@ fun TitleBar(
         costText = costText,
         onCostClick = onCostClick,
         onEdit = onEdit,
+        onAddNote = onAddNote,
+        onListNotes = onListNotes,
         onParameters = onParameters,
         onSystemPrompt = onSystemPrompt,
         onClear = onClear,
@@ -1506,6 +1581,8 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // stays in the trailing copy/edit/delete/new group below.
     if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
     icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
+    icons.onAgentChat?.let { add(BottomBarIcon("🗣️", Color.Unspecified, it, 28)) }
+    icons.onTemperatureSweep?.let { add(BottomBarIcon("🌡️", Color.Unspecified, it, 28)) }
     // 🗂️ pick another report (same glyph as the View hub's picker) —
     // leads the nav group on the Manage screens that support it.
     icons.onPickReport?.let { add(BottomBarIcon("🗂️", Color.Unspecified, it, 28)) }
@@ -1538,6 +1615,8 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onOpenView?.let { add(BottomBarIcon("👁", Color.Unspecified, it, 32, fontSize = 18.sp)) }
     icons.onTranslationCompare?.let { add(BottomBarIcon("🌐", Color.Unspecified, it, 28)) }
     icons.onMemo?.let { add(BottomBarIcon("📝", Color.Unspecified, it, 28)) }
+    icons.onAddNote?.let { add(BottomBarIcon("✍️", Color.Unspecified, it, 28)) }
+    icons.onListNotes?.let { add(BottomBarIcon("📒", Color.Unspecified, it, 28)) }
     icons.onEdit?.let { add(BottomBarIcon("✏️", Color.Unspecified, it, 28)) }
     icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
     icons.onDelete?.let { add(BottomBarIcon("🗑", AppColors.Red, it, 22)) }
@@ -1634,6 +1713,10 @@ internal val LEGEND_OVERLAY_TOPICS = setOf(
     // Per-agent result / content / cost / misc manage screens.
     "report_single_result", "content_model_response", "content_one_page",
     "cost_view", "report_continue_in_chat", "regenerate_batch",
+    // User notes.
+    "report_notes",
+    // In-report refine chat.
+    "report_agent_chat",
 )
 
 @Composable
@@ -1872,4 +1955,3 @@ private fun IconLegendOverlay(
         }
     }
 }
-

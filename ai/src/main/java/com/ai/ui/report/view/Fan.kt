@@ -29,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,9 +48,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.Report
 import com.ai.data.ReportAgent
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
+import com.ai.data.SecondaryDataVersion
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
@@ -113,9 +116,11 @@ fun FanOutViewScreen(
         val translates: List<SecondaryResult>
     )
 
+    val reportDataVersion by ReportDataVersion.version.collectAsState()
+    val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
     val loadedState = produceState(
         initialValue = Loaded(null, emptyList(), emptyList()),
-        currentReportId, currentPromptName
+        currentReportId, currentPromptName, reportDataVersion, secondaryDataVersion
     ) {
         value = withContext(Dispatchers.IO) {
             val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(context, currentReportId)
@@ -303,6 +308,12 @@ fun FanOutViewScreen(
             oneOrAll = showAll,
             onToggleOneOrAll = { showAll = !showAll }
         )
+        // Notes pinned to the whole fan-out run. The run key matches the
+        // Manage side: runKey(reportId, metaPromptId) — the metaPromptId is
+        // read off any loaded pair (they all share this run's prompt).
+        pairs.firstOrNull()?.metaPromptId?.let { mid ->
+            com.ai.ui.report.manage.ViewUserNotes(currentReportId, "FANOUT_RUN", com.ai.data.runKey(currentReportId, mid))
+        }
         if (report == null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(top = 32.dp),
