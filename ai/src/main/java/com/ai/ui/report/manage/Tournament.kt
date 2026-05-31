@@ -54,6 +54,7 @@ import com.ai.ui.report.view.TournamentViewScreen
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.shortModelName
 import com.ai.viewmodel.TournamentEngine
 import kotlinx.coroutines.Dispatchers
@@ -171,7 +172,7 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
 
     if (run == null) {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(helpTopic = "tournament_l1", title = "Tournament", subject = null, onBackClick = onBack, publishBottomBar = false)
+            TitleBar(helpTopic = "tournament_l1", title = "Tournament", subject = null, onBackClick = onBack)
             Spacer(Modifier.height(20.dp))
             Text("No tournament on this report.", color = AppColors.TextSecondary, fontSize = 14.sp)
         }
@@ -256,7 +257,7 @@ private fun TournamentL1(
         TitleBar(
             helpTopic = "tournament_l1", title = "Tournament",
             subject = "${run.doneCount}/${run.totalMatches}",
-            onBackClick = onBack, publishBottomBar = false,
+            onBackClick = onBack,
             onDelete = onDeleteRun
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -269,11 +270,7 @@ private fun TournamentL1(
                 StatCell("Wait", throttledCount.toString())
                 StatCell("Queue", run.queuedCount.toString())
                 StatCell("Err", run.errorCount.toString(), if (run.errorCount > 0) AppColors.Red else AppColors.TextSecondary)
-                StatCell("Judges", run.distinctJudgeModels.size.toString())
-            }
-            if (run.totalCost > 0) {
-                Spacer(Modifier.height(4.dp))
-                Text("Cost: $%.4f".format(run.totalCost), color = AppColors.TextTertiary, fontSize = 12.sp)
+                StatCell("Cost", "${formatCents(run.totalCost, 2)} ¢")
             }
             Spacer(Modifier.height(12.dp))
 
@@ -282,7 +279,7 @@ private fun TournamentL1(
                 FilterChip(
                     selected = groupMode == TournamentGroupMode.TOURNAMENT_MODELS,
                     onClick = { setGroupMode(TournamentGroupMode.TOURNAMENT_MODELS) },
-                    label = { Text("Tournament models", fontSize = 12.sp) },
+                    label = { Text("Judge models", fontSize = 12.sp) },
                     modifier = Modifier.weight(1f)
                 )
                 FilterChip(
@@ -301,7 +298,12 @@ private fun TournamentL1(
                     color = AppColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
-            groups.forEach { g -> GroupRowItem(g) { openGroup(g.key) } }
+            groups.forEach { g ->
+                // Judge models: lead with the number of calls this judge made
+                // (= matches it judged). Report models: no count cell at all.
+                val leading = if (groupMode == TournamentGroupMode.TOURNAMENT_MODELS) g.total.toString() else null
+                GroupRowItem(g, leading) { openGroup(g.key) }
+            }
 
             Spacer(Modifier.height(16.dp))
             // Action buttons.
@@ -332,7 +334,7 @@ private fun StatCell(label: String, value: String, valueColor: Color = Color.Whi
 }
 
 @Composable
-private fun GroupRowItem(g: GroupRow, onClick: () -> Unit) {
+private fun GroupRowItem(g: GroupRow, leadingText: String?, onClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
@@ -342,9 +344,11 @@ private fun GroupRowItem(g: GroupRow, onClick: () -> Unit) {
             .padding(bottom = 0.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("${g.done}/${g.total}", color = AppColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.width(48.dp))
+        if (leadingText != null) {
+            Text(leadingText, color = AppColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.width(48.dp))
+        }
         Text(g.label, color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (g.cost > 0) Text("$%.4f".format(g.cost), color = AppColors.TextTertiary, fontSize = 11.sp)
+        if (g.cost > 0) Text("${formatCents(g.cost)} ¢", color = AppColors.TextTertiary, fontSize = 11.sp)
     }
     Spacer(Modifier.height(6.dp))
 }
@@ -363,7 +367,7 @@ private fun TournamentL2(
     val matches = matchesForGroup(run, groupKey)
     val title = groupKey.substringAfter(":").let { if (groupKey.startsWith("judge:")) shortModelName(it.substringAfterLast('/')) else agentLabel(agents, it) }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "tournament_l2", title = "Tournament", subject = title, onBackClick = onBack, publishBottomBar = false)
+        TitleBar(helpTopic = "tournament_l2", title = "Tournament", subject = title, onBackClick = onBack)
         LazyColumn(Modifier.fillMaxSize()) {
             items(matches, key = { it.key }) { m -> MatchRowItem(m, agents) { openMatch(m.key) } }
             item { Spacer(Modifier.height(24.dp)) }
@@ -423,7 +427,7 @@ private fun TournamentL3(
     val idx = scoped.indexOfFirst { it.key == matchKey }
     val m = scoped.getOrNull(idx) ?: run.matches[matchKey]
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "tournament_l3", title = "Tournament", subject = "match", onBackClick = onBack, publishBottomBar = false, onReload = onRerun)
+        TitleBar(helpTopic = "tournament_l3", title = "Tournament", subject = "match", onBackClick = onBack, onReload = onRerun)
         if (m == null) {
             Text("Match not found.", color = AppColors.TextSecondary, fontSize = 14.sp)
             return@Column
