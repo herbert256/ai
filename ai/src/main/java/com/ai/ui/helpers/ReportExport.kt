@@ -905,8 +905,7 @@ private fun renderCostsView(sb: StringBuilder, data: HtmlReportData, secondaryFo
         // fall back to the user-given Meta prompt name; rerank /
         // moderation / translate keep their fixed labels.
         val type = when {
-            it.kind == SecondaryKind.TOURNAMENT ->
-                if (it.tournamentRole == "MATCH") "tournament-match" else "tournament"
+            it.kind == SecondaryKind.TOURNAMENT -> "tournament"
             it.kind == SecondaryKind.TRANSLATE -> {
                 val src = it.translateSourceTargetId?.let { id -> secondaryForCosts.firstOrNull { x -> x.id == id } }
                 com.ai.data.translateTraceType(

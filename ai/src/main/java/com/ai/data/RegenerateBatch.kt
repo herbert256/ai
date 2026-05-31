@@ -57,7 +57,13 @@ enum class RegeneratePhase {
     /** Per-fan-out-pair Fan Meta re-runs. One task per fan-out pair
      *  row that previously carried a title and/or icon (or an error).
      *  One worker call regenerates both the title and the icon. */
-    FAN_META
+    FAN_META,
+
+    /** Tournament per-match rows (kind == TOURNAMENT, role == MATCH).
+     *  Re-dispatched via the tournament engine's resume-stale pass; the
+     *  AGGREGATE ranking row is recomputed once its matches settle (not
+     *  a task — it makes no API call). */
+    TOURNAMENT
 }
 
 enum class RegenerateTaskState {

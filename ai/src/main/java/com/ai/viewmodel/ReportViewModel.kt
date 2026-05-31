@@ -196,6 +196,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  polling loop. */
     val fanOutEngine: FanOutEngine = FanOutEngine(appViewModel, this)
 
+    /** Runtime owner for pairwise Tournament runs (head-to-head judging
+     *  aggregated to a rerank-compatible ranking). Sibling of
+     *  [fanOutEngine]; see [TournamentEngine]. */
+    val tournamentEngine: TournamentEngine = TournamentEngine(appViewModel, this)
+
     /** Per-report orchestrator for the "Regenerate report" batch
      *  job. Replaces the legacy one-shot [regenerateReport] call —
      *  the title-bar 🔁 icon's confirm dialog now calls
@@ -1919,6 +1924,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         val fanOutPrefix = "$reportId|"
         // Fan-out runs + per-pair coroutines are owned by the engine now.
         fanOutEngine.cancelAllForReport(reportId)
+        // Tournament runs + per-match coroutines likewise.
+        tournamentEngine.cancelAllForReport(reportId)
         // Translation runs + the regenerate-batch orchestrator are also
         // report-owned and were NOT cancelled here — a translation
         // completing after the delete writes via SecondaryResultStorage

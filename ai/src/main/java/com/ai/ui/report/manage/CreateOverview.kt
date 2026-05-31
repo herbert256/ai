@@ -48,11 +48,13 @@ internal fun ReportCreateOverviewScreen(
     rerankEnabled: Boolean,
     moderationEnabled: Boolean,
     fanOutEnabled: Boolean,
+    tournamentEnabled: Boolean,
     onMeta: () -> Unit,
     onRerank: () -> Unit,
     onModeration: () -> Unit,
     onFanOut: () -> Unit,
     onTranslate: () -> Unit,
+    onTournament: () -> Unit,
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
@@ -76,6 +78,7 @@ internal fun ReportCreateOverviewScreen(
             CreateRow("🏆", "Rerank", "Rank the model answers best-first", rerankEnabled, onRerank)
             CreateRow("🚦", "Moderation", "Safety-check the answers", moderationEnabled, onModeration)
             CreateRow("🔱", "Fan out", "Fan one answer out to every model", fanOutEnabled, onFanOut)
+            CreateRow("🥊", "Tournament", "Head-to-head judge every pair of answers", tournamentEnabled, onTournament)
             CreateRow("🌐", "Translate", "Translate the report into other languages", true, onTranslate)
             Spacer(modifier = Modifier.height(16.dp))
         }

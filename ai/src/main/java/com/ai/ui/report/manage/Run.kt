@@ -14,8 +14,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import com.ai.data.AppService
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -109,10 +111,17 @@ internal fun ReportRunScreen(
     onRestartInfoErrors: (String) -> Unit = {},
     /** Report-level info jobs whose call is actively in flight. */
     runningInfoJobs: Set<String> = emptySet(),
-    onChatWithReportPrompt: (String) -> Unit
+    onChatWithReportPrompt: (String) -> Unit,
+    /** Launch a pairwise tournament with the picked judge model. */
+    onRunTournament: (String, AppService, String) -> Unit = { _, _, _ -> }
 ) {
     val aiSettings = uiState.aiSettings
     val context = LocalContext.current
+    // Tournament judge-picker overlay state (self-contained, like the
+    // Create overlay). pendingJudge stages a pick for the confirm dialog.
+    var showTournamentPicker by rememberSaveable { mutableStateOf(false) }
+    var pendingJudge by remember { mutableStateOf<Pair<AppService, String>?>(null) }
+    val tournamentResponseCount = reportsAgentResults.values.count { it.error == null && !it.analysis.isNullOrBlank() }
     val navigateToReportInfo = com.ai.ui.shared.LocalNavigateToReportInfo.current
     // Bumped every time the user taps the bottom-bar 📌 icon so the
     // isPinned produceState re-reads from disk and the 📌 tint flips
@@ -536,6 +545,8 @@ internal fun ReportRunScreen(
                     rerankEnabled = secondaryCounts.rerank == 0,
                     moderationEnabled = secondaryCounts.moderation == 0,
                     fanOutEnabled = aiSettings.internalPrompts.any { it.category == "fan_out" },
+                    // Tournament needs ≥2 responses; multiple judges allowed (not single-shot).
+                    tournamentEnabled = tournamentResponseCount >= 2,
                     onMeta = {
                         st.showCreateOverview.value = false
                         generationHandlers.onOpenMetaPicker()
@@ -558,9 +569,61 @@ internal fun ReportRunScreen(
                         st.showCreateOverview.value = false
                         generationHandlers.onTranslate()
                     },
+                    onTournament = {
+                        st.showCreateOverview.value = false
+                        showTournamentPicker = true
+                    },
                     onBack = { st.showCreateOverview.value = false }
                 )
             }
+        }
+
+        // Tournament judge picker (single-pick chat model) → confirm dialog
+        // showing the N(N-1) call count → launch.
+        if (showTournamentPicker && currentReportId != null) {
+            val rid = currentReportId
+            CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "🥊"),
+                com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides { showTournamentPicker = false }
+            ) {
+                com.ai.ui.other.ReportSelectModelsScreen(
+                    aiSettings = aiSettings,
+                    titleText = "Tournament — pick judge",
+                    modelTypeFilter = null,
+                    onConfirm = { pick ->
+                        pendingJudge = pick
+                        showTournamentPicker = false
+                    },
+                    onBack = { showTournamentPicker = false },
+                    onNavigateHome = { st.showCreateOverview.value = false; showTournamentPicker = false }
+                )
+            }
+        }
+        pendingJudge?.let { (judgeProvider, judgeModel) ->
+            val matchCount = tournamentResponseCount * (tournamentResponseCount - 1)
+            androidx.compose.material3.AlertDialog(
+                onDismissRequest = { pendingJudge = null },
+                title = { androidx.compose.material3.Text("Run tournament?") },
+                text = {
+                    androidx.compose.material3.Text(
+                        "This runs $matchCount head-to-head judgments " +
+                            "($tournamentResponseCount answers, each pair judged both ways) with " +
+                            "${judgeProvider.id} / ${com.ai.ui.shared.shortModelName(judgeModel)}."
+                    )
+                },
+                confirmButton = {
+                    androidx.compose.material3.TextButton(onClick = {
+                        currentReportId?.let { onRunTournament(it, judgeProvider, judgeModel) }
+                        pendingJudge = null
+                    }) { androidx.compose.material3.Text("Run") }
+                },
+                dismissButton = {
+                    androidx.compose.material3.TextButton(onClick = { pendingJudge = null }) {
+                        androidx.compose.material3.Text("Cancel")
+                    }
+                }
+            )
         }
     } // close outer Box
 }
