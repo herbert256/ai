@@ -54,6 +54,8 @@ import com.ai.data.notesFor
 import com.ai.data.toPairState
 import com.ai.data.temperatureRangeForProvider
 import com.ai.ui.report.manage.view.ReasoningEffortSweepScreen
+import com.ai.ui.report.manage.view.ResponseChangeAction
+import com.ai.ui.report.manage.view.ResponseChangeActionsScreen
 import com.ai.ui.report.manage.view.TemperatureSweepScreen
 import com.ai.ui.report.manage.view.WebSearchReplayScreen
 import com.ai.ui.report.manage.view.PromptEditReplayScreen
@@ -260,8 +262,80 @@ internal fun FanOutL3Screen(
     var showReasoningEffortSweep by remember { mutableStateOf(false) }
     var showWebSearchReplay by remember { mutableStateOf(false) }
     var showPromptEditReplay by remember { mutableStateOf(false) }
+    var showResponseChangeActions by remember { mutableStateOf(false) }
+    var showAgentChat by remember { mutableStateOf(false) }
     val resolvedFanOutPrompt by produceState<String?>(initialValue = null, run.key, pair.id, secDataVersion) {
         value = engine.resolveFanOutPairPrompt(context, run.key, pair.id)
+    }
+    if (showResponseChangeActions) {
+        val canRunVariation = answererProviderService != null
+        ResponseChangeActionsScreen(
+            title = "Change response",
+            subject = answererLabel,
+            actions = listOf(
+                ResponseChangeAction(
+                    icon = "🔄",
+                    title = "Reload",
+                    description = "Rerun this fan-out pair with the saved fan-out prompt and settings.",
+                    onClick = {
+                        showResponseChangeActions = false
+                        actions.onRerunPair(run.key, pair.key)
+                    }
+                ),
+                ResponseChangeAction(
+                    icon = "✏️",
+                    title = "Edit prompt",
+                    description = "Edit the resolved fan-out prompt only for this pair replay.",
+                    enabled = canRunVariation,
+                    onClick = {
+                        showResponseChangeActions = false
+                        showPromptEditReplay = true
+                    }
+                ),
+                ResponseChangeAction(
+                    icon = "🗣️",
+                    title = "Chat",
+                    description = "Refine the pair response in a chat and apply a chosen assistant reply.",
+                    enabled = canChangePairResponse,
+                    onClick = {
+                        showResponseChangeActions = false
+                        showAgentChat = true
+                    }
+                ),
+                ResponseChangeAction(
+                    icon = "🌡️",
+                    title = "Temperature sweep",
+                    description = "Run one to three temperature variants and select the best pair response.",
+                    enabled = canRunVariation,
+                    onClick = {
+                        showResponseChangeActions = false
+                        showTemperatureSweep = true
+                    }
+                ),
+                ResponseChangeAction(
+                    icon = "🧠",
+                    title = "Reasoning Effort",
+                    description = "Compare selected reasoning-effort levels for this pair when supported.",
+                    enabled = canRunVariation,
+                    onClick = {
+                        showResponseChangeActions = false
+                        showReasoningEffortSweep = true
+                    }
+                ),
+                ResponseChangeAction(
+                    icon = "🧭",
+                    title = "Web search",
+                    description = "Replay this pair once with web search enabled and apply the result.",
+                    enabled = canRunVariation,
+                    onClick = {
+                        showResponseChangeActions = false
+                        showWebSearchReplay = true
+                    }
+                )
+            ),
+            onBack = { showResponseChangeActions = false }
+        )
+        return
     }
     if (showPromptEditReplay) {
         PromptEditReplayScreen(
@@ -338,7 +412,6 @@ internal fun FanOutL3Screen(
         )
         return
     }
-    var showAgentChat by remember { mutableStateOf(false) }
     if (showAgentChat) {
         answererProviderService?.let { svc ->
             val seed = buildList {
@@ -422,24 +495,9 @@ internal fun FanOutL3Screen(
                 onTrace = if (ApiTracer.isTracingEnabled && answererTrace != null) {
                     { actions.onNavigateToTraceFile(answererTrace!!) }
                 } else null,
-                onReload = { actions.onRerunPair(run.key, pair.key) },
                 onDelete = { confirmDelete = true },
                 onAddNote = { noteEdit = NoteEdit.Add },
-                onAgentChat = if (canChangePairResponse) {
-                    { showAgentChat = true }
-                } else null,
-                onTemperatureSweep = if (canChangePairResponse) {
-                    { showTemperatureSweep = true }
-                } else null,
-                onReasoningEffortSweep = if (canChangePairResponse) {
-                    { showReasoningEffortSweep = true }
-                } else null,
-                onWebSearchReplay = if (canChangePairResponse) {
-                    { showWebSearchReplay = true }
-                } else null,
-                onEdit = if (canChangePairResponse) {
-                    { showPromptEditReplay = true }
-                } else null
+                onEdit = { showResponseChangeActions = true }
             )
             UserNotesSection(
                 reportId = run.reportId,

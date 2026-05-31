@@ -142,6 +142,7 @@ fun ReportModelScreen(
     var showReasoningEffortSweep by remember { mutableStateOf(false) }
     var showWebSearchReplay by remember { mutableStateOf(false) }
     var showPromptEditReplay by remember { mutableStateOf(false) }
+    var showResponseChangeActions by remember { mutableStateOf(false) }
     BackHandler { onBack() }
     val context = LocalContext.current
     val aiSettings = com.ai.ui.shared.LocalAiSettings.current
@@ -409,6 +410,74 @@ fun ReportModelScreen(
     var confirmLangChoice by remember { mutableStateOf(false) }
     var confirmReload by remember { mutableStateOf(false) }
     val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
+    val agentLabel = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — ")
+    var showAgentChat by remember { mutableStateOf(false) }
+
+    if (showResponseChangeActions) {
+        ResponseChangeActionsScreen(
+            title = "Change response",
+            subject = agentLabel,
+            actions = listOf(
+                ResponseChangeAction(
+                    icon = "🔄",
+                    title = "Reload",
+                    description = "Regenerate this model response with the report's saved prompt and settings.",
+                    onClick = {
+                        showResponseChangeActions = false
+                        confirmReload = true
+                    }
+                ),
+                ResponseChangeAction(
+                    icon = "✏️",
+                    title = "Edit prompt",
+                    description = "Edit the prompt only for this model replay, optionally changing parameters and system prompt.",
+                    onClick = {
+                        showResponseChangeActions = false
+                        showPromptEditReplay = true
+                    }
+                ),
+                ResponseChangeAction(
+                    icon = "🗣️",
+                    title = "Chat",
+                    description = "Refine the response in a chat and apply a chosen assistant reply.",
+                    enabled = canContinueInChat,
+                    onClick = {
+                        showResponseChangeActions = false
+                        showAgentChat = true
+                    }
+                ),
+                ResponseChangeAction(
+                    icon = "🌡️",
+                    title = "Temperature sweep",
+                    description = "Run one to three temperature variants and select the best response.",
+                    onClick = {
+                        showResponseChangeActions = false
+                        showTemperatureSweep = true
+                    }
+                ),
+                ResponseChangeAction(
+                    icon = "🧠",
+                    title = "Reasoning Effort",
+                    description = "Compare selected reasoning-effort levels when the model supports them.",
+                    onClick = {
+                        showResponseChangeActions = false
+                        showReasoningEffortSweep = true
+                    }
+                ),
+                ResponseChangeAction(
+                    icon = "🧭",
+                    title = "Web search",
+                    description = "Replay once with web search enabled and apply the web-search result.",
+                    onClick = {
+                        showResponseChangeActions = false
+                        showWebSearchReplay = true
+                    }
+                )
+            ),
+            onBack = { showResponseChangeActions = false }
+        )
+        return
+    }
 
     // ✍️ user notes for THIS agent (follows prev/next via currentAgentId).
     var noteEdit by remember { mutableStateOf<NoteEdit?>(null) }
@@ -424,7 +493,6 @@ fun ReportModelScreen(
     }
 
     // 🗣️ refine-in-chat overlay for THIS agent's answer.
-    var showAgentChat by remember { mutableStateOf(false) }
     if (showAgentChat) {
         val settingsAgent = aiSettings.getAgentById(currentAgentId)
         val initialParams = if (settingsAgent != null) {
@@ -464,7 +532,6 @@ fun ReportModelScreen(
         return
     }
 
-    val agentLabel = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — ")
     // Pre-computed so the swipe handler (in the content Box below) can
     // close over the same ordering the Previous / Next buttons use.
     val orderedAgents = remember(report.agents) {
@@ -502,15 +569,10 @@ fun ReportModelScreen(
                 else confirmRemove = true
             },
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
-            onReload = { confirmReload = true },
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
             // Swap the 💬 chat and 🔄 reload positions on this screen.
             swapChatAndReload = true,
-            onAgentChat = if (canContinueInChat) { { showAgentChat = true } } else null,
-            onTemperatureSweep = { showTemperatureSweep = true },
-            onReasoningEffortSweep = { showReasoningEffortSweep = true },
-            onWebSearchReplay = { showWebSearchReplay = true },
-            onEdit = { showPromptEditReplay = true },
+            onEdit = { showResponseChangeActions = true },
             onTranslationCompare = if (liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }
             } else null,
