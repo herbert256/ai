@@ -365,6 +365,12 @@ val LocalMainViewResetTick = compositionLocalOf<MutableState<Int>?> { null }
  *  takes the user back to the active report's result page. */
 val LocalNavigateToCurrentReport = compositionLocalOf<(() -> Unit)?> { null }
 
+/** Override for the top-right (mirrored) AI logo's tap target. Provided
+ *  around the report Manage / View subtrees so the logo takes the user to
+ *  the Reports hub ("Reports" home option) instead of all the way Home.
+ *  Null everywhere else → the logo falls back to navigate-Home. */
+val LocalReportHubNav = compositionLocalOf<(() -> Unit)?> { null }
+
 /** Per-report system-prompt setter, provided around the AI_REPORTS
  *  composable in AppNavHost so descendants (Report - manage's Edit
  *  Row 2) can fire the per-report system-prompt picker without
@@ -1402,9 +1408,11 @@ internal fun AppTopBarChrome(
                     modifier = Modifier.weight(1f)
                         .let { base -> if (titleClick != null) base.clickable(onClick = titleClick) else base }
                 )
-                // Right — mirrored AI logo → Home.
+                // Right — mirrored AI logo → Home, or the Reports hub on
+                // report Manage / View screens (via LocalReportHubNav).
+                val reportHubNav = LocalReportHubNav.current
                 AiLogoButton(
-                    onClick = navigateHome,
+                    onClick = reportHubNav ?: navigateHome,
                     modifier = Modifier.align(Alignment.Top),
                     size = 44.dp, mirrored = true
                 )

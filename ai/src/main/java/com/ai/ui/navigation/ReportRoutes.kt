@@ -332,6 +332,14 @@ internal fun NavGraphBuilder.reportRoutes(
                 },
                 com.ai.ui.shared.LocalNavigateToManagePicker provides { kind ->
                     navController.navigate(NavRoutes.aiManagePickReport(kind))
+                },
+                // Top-right AI logo on Manage / View screens → Reports hub
+                // (not all the way Home).
+                com.ai.ui.shared.LocalReportHubNav provides {
+                    navController.navigate(NavRoutes.AI_REPORTS_HUB) {
+                        popUpTo(NavRoutes.AI_REPORTS_HUB) { inclusive = false }
+                        launchSingleTop = true
+                    }
                 }
             ) {
             ReportsScreenNav(viewModel = appViewModel, reportViewModel = reportViewModel,
