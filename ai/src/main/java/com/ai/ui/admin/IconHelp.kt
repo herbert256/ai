@@ -41,10 +41,15 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("📤", "Export", "Export / share the report (once the run has completed)."),
         Triple("👯", "Duplicate", "Make a copy of this report."),
         Triple("👁", "View", "Open the per-agent results / View hub for this report."),
+        Triple("✍️", "Add note", "Attach a free-text note to this report."),
+        Triple("📒", "Notes", "Show every user note in this report."),
         Triple("✏️", "Edit", "Change the prompt, title, or models."),
         Triple("🔄", "Regenerate", "Re-run every agent (once the run has completed)."),
         Triple("🗑", "Delete", "Delete this report (asks to confirm)."),
         Triple("🐞", "Trace", "API traces for this report (each agent row has its own 🐞)."),
+    ),
+    "report_notes" to listOf(
+        Triple("✍️", "Add note", "Add a new note to this report. Edit (✏️) and delete (🗑) live on each note card."),
     ),
     "report_new" to listOf(
         Triple("🌡️", "Parameters", "Configure API parameters: pick the preset(s) for this report."),
@@ -296,6 +301,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("📋", "Copy", "Copy the response text."),
         Triple("📤", "Share", "Share the response text."),
         Triple("👁", "View", "Open the full per-agent View."),
+        Triple("✍️", "Add note", "Attach a free-text note to this model response."),
         Triple("🌐", "Compare", "Show the original and its translation side by side."),
         Triple("🔄", "Regenerate", "Re-run this single model."),
         Triple("🗑", "Delete", "Remove this response (with multiple languages, just the active one)."),
@@ -317,6 +323,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("📋", "Copy", "Copy this result's text."),
         Triple("📤", "Share", "Share this result's text."),
         Triple("👁", "View", "Open this result in the View screen."),
+        Triple("✍️", "Add note", "Attach a free-text note to this meta / rerank / moderation result."),
         Triple("🌐", "Compare", "Show the original and its translation side by side."),
         Triple("🗑", "Delete", "Delete this result (with multiple languages, just the active one)."),
         Triple("🐞", "Trace", "Open the API trace for this result."),
@@ -336,6 +343,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     ),
     "secondary_fan_out_l1" to listOf(
         Triple("👁", "View", "Open the fan-out in the View screen."),
+        Triple("✍️", "Add note", "Attach a free-text note to this fan-out run."),
         Triple("🔄", "Regenerate", "Re-run the whole fan-out."),
         Triple("🗑", "Delete", "Delete this fan-out run."),
         Triple("🐞", "Trace", "Open the API trace for the fan-out."),
@@ -350,6 +358,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     "secondary_fan_out_l3" to listOf(
         Triple("ℹ️", "Information", "Open the answering model's info."),
         Triple("👁", "View", "Open this pair in the View screen."),
+        Triple("✍️", "Add note", "Attach a free-text note to this fan-out response."),
         Triple("🔄", "Regenerate", "Re-run this initiator → responder pair."),
         Triple("🗑", "Delete", "Delete this pair."),
         Triple("🐞", "Trace", "Open the API trace for this pair."),

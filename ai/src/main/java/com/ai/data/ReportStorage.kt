@@ -378,6 +378,9 @@ object ReportStorage {
         if ((res.iconCalls as MutableList<IconCallRecord>?) == null) {
             res = res.copy(iconCalls = mutableListOf())
         }
+        if ((res.userNotes as MutableList<UserNote>?) == null) {
+            res = res.copy(userNotes = mutableListOf())
+        }
         return res
     }
 
@@ -1139,6 +1142,67 @@ object ReportStorage {
         }
     }
 
+    // -----------------------------------------------------------------
+    // User notes — free-text annotations the user attaches to a report
+    // and its parts. All notes for a report live on [Report.userNotes]
+    // (one JSON file); the targetKind/targetId pair identifies what each
+    // note is pinned to. See [UserNote].
+    // -----------------------------------------------------------------
+
+    /** Append a new [UserNote] to the report. Returns the created note
+     *  (with its generated id + timestamps) or null when the report
+     *  can't be loaded / [text] is blank. */
+    fun addUserNote(
+        context: Context, reportId: String,
+        targetKind: String, targetId: String, text: String
+    ): UserNote? {
+        init(context)
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return null
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock null
+            val now = System.currentTimeMillis()
+            val note = UserNote(
+                id = UUID.randomUUID().toString(),
+                targetKind = targetKind, targetId = targetId,
+                text = trimmed, createdAt = now, updatedAt = now
+            )
+            val newNotes = (report.userNotes + note).toMutableList()
+            saveReport(report.copy(userNotes = newNotes, timestamp = now))
+            note
+        }
+    }
+
+    /** Replace the body of an existing note (by id). Returns false when
+     *  the report / note isn't found or [text] is blank. */
+    fun updateUserNote(context: Context, reportId: String, noteId: String, text: String): Boolean {
+        init(context)
+        val trimmed = text.trim()
+        if (trimmed.isBlank()) return false
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            if (report.userNotes.none { it.id == noteId }) return@withLock false
+            val now = System.currentTimeMillis()
+            val newNotes = report.userNotes.map {
+                if (it.id == noteId) it.copy(text = trimmed, updatedAt = now) else it
+            }.toMutableList()
+            saveReport(report.copy(userNotes = newNotes, timestamp = now))
+            true
+        }
+    }
+
+    /** Remove a note by id. Returns false when nothing was removed. */
+    fun deleteUserNote(context: Context, reportId: String, noteId: String): Boolean {
+        init(context)
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            val newNotes = report.userNotes.filterNot { it.id == noteId }.toMutableList()
+            if (newNotes.size == report.userNotes.size) return@withLock false
+            saveReport(report.copy(userNotes = newNotes, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
     /** Drop every fan-out icon-chain [IconCallRecord] from the
      *  report's iconCalls audit log — the records whose agentId is a
      *  fan-out pair id (in [pairIds], since fan-out tier calls record
@@ -1287,6 +1351,12 @@ object ReportStorage {
             if (removedCalls.isNotEmpty()) {
                 report.iconCalls = report.iconCalls.filterNot { it.agentId == agentId }.toMutableList()
             }
+            // Prune the deleted agent's user notes — same spirit as the
+            // iconCalls prune above, so the 📒 all-notes list doesn't show
+            // notes pinned to a model that's gone.
+            report.userNotes = report.userNotes
+                .filterNot { it.targetKind == "AGENT" && it.targetId == agentId }
+                .toMutableList()
             report.totalCost = computeReportTotalCost(report)
             saveReport(report)
             true

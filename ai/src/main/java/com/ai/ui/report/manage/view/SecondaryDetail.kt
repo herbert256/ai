@@ -22,11 +22,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
 import com.ai.data.AppService
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
+import com.ai.data.UserNote
+import com.ai.data.notesFor
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.CollapsibleCard
 import com.ai.ui.shared.TitleBar
@@ -280,6 +283,20 @@ internal fun SecondaryResultDetailScreen(
         return
     }
 
+    // ✍️ user notes for this secondary row (meta / rerank / moderation /
+    // fan-out pair / fan-in — every kind is one SecondaryResult).
+    var noteEdit by remember { mutableStateOf<NoteEdit?>(null) }
+    if (noteEdit != null) {
+        UserNoteEditorOverlay(result.reportId, "SECONDARY", result.id, noteEdit!!) { noteEdit = null }
+        return
+    }
+    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val secondaryNotes by produceState(emptyList<UserNote>(), result.reportId, result.id, noteDataVersion) {
+        value = withContext(Dispatchers.IO) {
+            ReportStorage.getReport(context, result.reportId)?.notesFor("SECONDARY", result.id) ?: emptyList()
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
         // 👁 → matching View sub-screen, per-kind dispatch.
@@ -324,7 +341,13 @@ internal fun SecondaryResultDetailScreen(
             },
             onShare = displayContent?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.shareText(context, body, "${result.kind.name} — $title") }
-            }
+            },
+            onAddNote = { noteEdit = NoteEdit.Add }
+        )
+        UserNotesSection(
+            reportId = result.reportId,
+            notes = secondaryNotes,
+            onEdit = { noteEdit = NoteEdit.Edit(it.id, it.text) }
         )
         if (result.kind == SecondaryKind.META && langTabs.size > 1 && forcedLanguage == null) {
             LanguagePickerRow(

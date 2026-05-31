@@ -1,6 +1,22 @@
 package com.ai.ui.admin
 
 internal val reportsHelp: Map<String, HelpContent> = mapOf(
+    "report_notes" to HelpContent(
+        title = "Help - User notes",
+        cards = listOf(
+            HelpCard("What this is", "Every free-text note you've attached anywhere in this report, grouped by what each note is pinned to (the report itself, a model response, a fan-out run or response, or a meta / rerank / moderation result). Notes are yours only — they're never sent to any model."),
+            HelpCard("Adding a note", "Use the ✍️ icon on a report, model response, fan-out or secondary screen to pin a note to that thing. ✍️ here on this screen adds a note to the report as a whole. A thing can hold any number of notes — ✍️ again adds another."),
+            HelpCard("Reading & editing", "Each note shows as a card collapsed to its first line; tap it to expand the full text. When expanded, ✏️ edits the note and 🗑 deletes it (no undo)."),
+            HelpCard("Deleted targets", "If the model response or secondary a note was pinned to is later removed, its notes are grouped under 'Deleted item' here so you can still read or delete them. (Notes on a removed model are pruned automatically.)")
+        )
+    ),
+    "report_user_note_edit" to HelpContent(
+        title = "Help - Edit note",
+        cards = listOf(
+            HelpCard("What this is", "A plain text editor for one user note. Type anything you want to remember about this report or one of its parts."),
+            HelpCard("How to use it", "Enter your text and tap Save note (disabled while the field is empty). Back / cancel discards the edit. Notes are private to you and are not included in any API call; they don't trigger a regenerate.")
+        )
+    ),
     "reports_hub" to HelpContent(
         title = "Help - Reports",
         cards = listOf(

@@ -136,6 +136,26 @@ data class IconCallRecord(
     val attributedToSecondaryId: String? = null
 )
 
+/** A free-text note the user attaches to something in a report. The
+ *  note's [targetKind] + [targetId] identify what it's pinned to:
+ *  - "REPORT"     → the whole report ([targetId] = reportId)
+ *  - "AGENT"      → one model response ([targetId] = ReportAgent.agentId)
+ *  - "SECONDARY"  → a meta / rerank / moderation / fan-out-pair row
+ *                   ([targetId] = SecondaryResult.id / PairState.id)
+ *  - "FANOUT_RUN" → a whole fan-out run ([targetId] = FanOutRunState.key)
+ *  All of a report's notes live on [Report.userNotes] (one JSON file),
+ *  so the "all notes" screen is a plain filter. [targetKind] is a String
+ *  (not an enum) to match the existing `translateSourceKind` convention
+ *  and keep Gson round-trips trivial. */
+data class UserNote(
+    val id: String,
+    val targetKind: String,
+    val targetId: String,
+    val text: String,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis()
+)
+
 enum class ReportType { CLASSIC, TABLE }
 
 enum class ReportStatus { PENDING, RUNNING, SUCCESS, ERROR, STOPPED }
@@ -398,7 +418,13 @@ data class Report(
      *  the earlier wording being lost or scattered across disconnected
      *  reports. Empty on legacy reports / reports whose prompt was
      *  never edited. */
-    val promptHistory: List<PromptRevision> = emptyList()
+    val promptHistory: List<PromptRevision> = emptyList(),
+    /** Free-text notes the user attached to this report and its parts.
+     *  See [UserNote] for the targetKind/targetId scheme. Empty on
+     *  legacy reports / reports the user never annotated. Guarded in
+     *  [com.ai.data.ReportStorage]'s normalizeReport against Gson's
+     *  default-not-applied null trap, same as [iconCalls]. */
+    var userNotes: MutableList<UserNote> = mutableListOf()
 )
 
 /** Title for the top-bar orange line: the long title when present, else the
@@ -406,4 +432,11 @@ data class Report(
  *  manually-set report shows its short title here. List cards / search /
  *  exports keep using [Report.title] directly. */
 val Report.barTitle: String get() = titleLong?.takeIf { it.isNotBlank() } ?: title
+
+/** The user notes pinned to one target ([targetKind] + [targetId]),
+ *  newest first. Pure filter over [Report.userNotes] — callers load the
+ *  report (e.g. via ReportStorage.getReport) and call this. */
+fun Report.notesFor(targetKind: String, targetId: String): List<UserNote> =
+    userNotes.filter { it.targetKind == targetKind && it.targetId == targetId }
+        .sortedByDescending { it.createdAt }
 

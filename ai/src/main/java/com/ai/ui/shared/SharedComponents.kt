@@ -719,6 +719,12 @@ data class TitleBarIcons(
     /** Optional ✏️ edit hook. CRUD view pages publish it so the bottom
      *  bar carries the "edit this entry" action. Null → glyph hidden. */
     val onEdit: (() -> Unit)? = null,
+    /** Optional ✍️ add-user-note hook (report-manage screens). Null →
+     *  glyph hidden. */
+    val onAddNote: (() -> Unit)? = null,
+    /** Optional 📒 list-all-notes hook (Manage report only). Null →
+     *  glyph hidden. */
+    val onListNotes: (() -> Unit)? = null,
     /** Optional 🧹 jump-to-Housekeeping hook. Screens with a clear
      *  counterpart Housekeeping screen (e.g. AI Setup → Costs ↔
      *  Housekeeping → Costs) publish it to navigate there. Null →
@@ -972,6 +978,15 @@ fun TitleBar(
     onCostClick: (() -> Unit)? = null,
     /** Optional ✏️ edit hook (CRUD view pages). Null → glyph hidden. */
     onEdit: (() -> Unit)? = null,
+    /** Optional ✍️ add-user-note hook. Wired by the report-manage
+     *  screens that can carry user notes (the report, a model response,
+     *  a fan-out run/pair, a secondary row). Opens the note editor for
+     *  the thing on this screen. Null → glyph hidden. */
+    onAddNote: (() -> Unit)? = null,
+    /** Optional 📒 list-all-notes hook. Wired only by the main Manage
+     *  report screen — opens the "all notes in this report" screen.
+     *  Null → glyph hidden. */
+    onListNotes: (() -> Unit)? = null,
     /** Optional 🌡️ parameters / 🎭 system-prompt hooks — paired config
      *  actions surfaced in the bottom bar (replacing inline buttons). */
     onParameters: (() -> Unit)? = null,
@@ -1052,6 +1067,8 @@ fun TitleBar(
         costText = costText,
         onCostClick = onCostClick,
         onEdit = onEdit,
+        onAddNote = onAddNote,
+        onListNotes = onListNotes,
         onParameters = onParameters,
         onSystemPrompt = onSystemPrompt,
         onClear = onClear,
@@ -1538,6 +1555,8 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onOpenView?.let { add(BottomBarIcon("👁", Color.Unspecified, it, 32, fontSize = 18.sp)) }
     icons.onTranslationCompare?.let { add(BottomBarIcon("🌐", Color.Unspecified, it, 28)) }
     icons.onMemo?.let { add(BottomBarIcon("📝", Color.Unspecified, it, 28)) }
+    icons.onAddNote?.let { add(BottomBarIcon("✍️", Color.Unspecified, it, 28)) }
+    icons.onListNotes?.let { add(BottomBarIcon("📒", Color.Unspecified, it, 28)) }
     icons.onEdit?.let { add(BottomBarIcon("✏️", Color.Unspecified, it, 28)) }
     icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
     icons.onDelete?.let { add(BottomBarIcon("🗑", AppColors.Red, it, 22)) }
@@ -1634,6 +1653,8 @@ internal val LEGEND_OVERLAY_TOPICS = setOf(
     // Per-agent result / content / cost / misc manage screens.
     "report_single_result", "content_model_response", "content_one_page",
     "cost_view", "report_continue_in_chat", "regenerate_batch",
+    // User notes.
+    "report_notes",
 )
 
 @Composable

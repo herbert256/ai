@@ -22,10 +22,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
 import com.ai.data.AppService
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
+import com.ai.data.UserNote
+import com.ai.data.notesFor
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.horizontalSwipeNavigation
@@ -262,6 +265,19 @@ fun ReportModelScreen(
     var confirmReload by remember { mutableStateOf(false) }
     val canContinueInChat = !agent.responseBody.isNullOrBlank() && agent.errorMessage.isNullOrBlank()
 
+    // ✍️ user notes for THIS agent (follows prev/next via currentAgentId).
+    var noteEdit by remember { mutableStateOf<NoteEdit?>(null) }
+    if (noteEdit != null) {
+        UserNoteEditorOverlay(reportId, "AGENT", currentAgentId, noteEdit!!) { noteEdit = null }
+        return
+    }
+    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val agentNotes by produceState(emptyList<UserNote>(), reportId, currentAgentId, noteDataVersion) {
+        value = withContext(Dispatchers.IO) {
+            ReportStorage.getReport(context, reportId)?.notesFor("AGENT", currentAgentId) ?: emptyList()
+        }
+    }
+
     val agentLabel = com.ai.ui.shared.modelLabel(provider.id, agent.model, separator = " — ")
     // Pre-computed so the swipe handler (in the content Box below) can
     // close over the same ordering the Previous / Next buttons use.
@@ -311,9 +327,19 @@ fun ReportModelScreen(
             onShare = displayBody?.takeIf { it.isNotBlank() }?.let { body ->
                 { com.ai.ui.shared.shareText(context, body, "Model response — $agentLabel") }
             },
+            onAddNote = { noteEdit = NoteEdit.Add },
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
 
+        if (agentNotes.isNotEmpty()) {
+            Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                UserNotesSection(
+                    reportId = reportId,
+                    notes = agentNotes,
+                    onEdit = { noteEdit = NoteEdit.Edit(it.id, it.text) }
+                )
+            }
+        }
 
         if (langTabs.size > 1) {
             LanguagePickerRow(

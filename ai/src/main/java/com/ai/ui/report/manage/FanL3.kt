@@ -44,9 +44,13 @@ import com.ai.data.AppService
 import com.ai.data.FanOutRunState
 import com.ai.data.PairState
 import com.ai.data.PairStatus
+import com.ai.data.ReportDataVersion
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryResultStorage
+import com.ai.data.UserNote
+import com.ai.data.notesFor
 import com.ai.data.toPairState
+import androidx.compose.runtime.collectAsState
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
@@ -200,6 +204,19 @@ internal fun FanOutL3Screen(
         return
     }
 
+    // ✍️ user notes for this fan-out response (the pair = one SecondaryResult).
+    var noteEdit by remember { mutableStateOf<NoteEdit?>(null) }
+    if (noteEdit != null) {
+        UserNoteEditorOverlay(run.reportId, "SECONDARY", pair.id, noteEdit!!) { noteEdit = null }
+        return
+    }
+    val noteDataVersion by ReportDataVersion.version.collectAsState()
+    val pairNotes by produceState(emptyList<UserNote>(), run.reportId, pair.id, noteDataVersion) {
+        value = withContext(Dispatchers.IO) {
+            ReportStorage.getReport(context, run.reportId)?.notesFor("SECONDARY", pair.id) ?: emptyList()
+        }
+    }
+
     // Trace lookups — answerer trace = closest-timestamp trace for
     // this pair's reportId + model. Source trace = most-recent trace
     // for the source agent's reportId + model.
@@ -254,7 +271,13 @@ internal fun FanOutL3Screen(
                     { actions.onNavigateToTraceFile(answererTrace!!) }
                 } else null,
                 onReload = { actions.onRerunPair(run.key, pair.key) },
-                onDelete = { confirmDelete = true }
+                onDelete = { confirmDelete = true },
+                onAddNote = { noteEdit = NoteEdit.Add }
+            )
+            UserNotesSection(
+                reportId = run.reportId,
+                notes = pairNotes,
+                onEdit = { noteEdit = NoteEdit.Edit(it.id, it.text) }
             )
             // Bespoke row instead of the shared HardcodedSubjectRow —
             // this screen also surfaces the role next to the answerer
