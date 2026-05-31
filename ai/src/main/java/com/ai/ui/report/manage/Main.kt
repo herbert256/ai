@@ -263,7 +263,7 @@ fun ReportsScreen(
     /** Item ids currently parked on a provider rate / concurrency gate;
      *  feeds the translation L1 "Throttled" stat. */
     throttledTranslationItems: Set<String> = emptySet(),
-    onStartTranslation: (String, String, String, List<Pair<AppService, String>>, List<String>, String?) -> Unit = { _, _, _, _, _, _ -> },
+    onStartTranslation: (String, String, String, List<Pair<AppService, String>>, List<String>, String?) -> String? = { _, _, _, _, _, _ -> null },
     translationLifecycle: TranslationLifecycleCallbacks = TranslationLifecycleCallbacks(),
     onContinueWithCurrent: (String, String) -> Unit = { _, _ -> },
     onContinueWithAgentPicker: (String, String) -> Unit = { _, _ -> },
@@ -1112,7 +1112,7 @@ fun ReportsScreen(
                 onClearAll = { translationModels = emptyList() },
                 onAction = { },
                 onActionWithParams = { pIds, spId ->
-                    onStartTranslation(
+                    val newRunId = onStartTranslation(
                         currentReportId,
                         pickingTranslateModelFor.name,
                         pickingTranslateModelFor.native,
@@ -1122,6 +1122,9 @@ fun ReportsScreen(
                     translationModels = emptyList()
                     pickerTarget = PickerTarget.NEW_REPORT
                     showTranslateModelPicker = null
+                    // Land on the Translation L1 page so the user watches the
+                    // run progress instead of the report screen.
+                    if (!newRunId.isNullOrBlank()) openTranslationRunId = newRunId
                 },
                 onBack = {
                     pickerTarget = PickerTarget.NEW_REPORT

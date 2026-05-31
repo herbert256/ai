@@ -643,7 +643,9 @@ fun ReportsScreenNav(
             .toList(),
         throttledTranslationItems = throttledTranslationItems,
         onStartTranslation = { sourceId, langName, langNative, models, paramsIds, systemPromptId ->
-            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, models, paramsIds, systemPromptId)
+            // Returns the new run's id so Manage can land on the Translation
+            // L1 page immediately (blank when no models → no navigation).
+            reportViewModel.translation.startTranslation(context, sourceId, langName, langNative, models, paramsIds, systemPromptId).first
         },
         translationLifecycle = TranslationLifecycleCallbacks(
             onCancelRun = { runId -> reportViewModel.translation.cancelTranslation(runId) },

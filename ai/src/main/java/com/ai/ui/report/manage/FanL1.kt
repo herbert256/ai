@@ -745,6 +745,9 @@ internal fun FanOutL1Screen(
                 TextButton(onClick = {
                     confirmStartTitles = false
                     onLaunchFanMeta(run.key)
+                    // Switch to the Fan Meta (META) view so the user watches
+                    // the batch progress instead of staying on the fan-out page.
+                    onShowFanMeta()
                 }) { Text("Yes", maxLines = 1, softWrap = false) }
             },
             dismissButton = {

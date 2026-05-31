@@ -2379,7 +2379,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 .distinct()
             for (t in translates) SecondaryResultStorage.delete(context, reportId, t.id)
             for (run in translateRuns) {
-                translation.startTranslation(context, reportId, run.lang, run.native, listOf(run.provider to run.model)).join()
+                translation.startTranslation(context, reportId, run.lang, run.native, listOf(run.provider to run.model)).second.join()
             }
         }
     }

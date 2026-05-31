@@ -121,6 +121,9 @@ internal fun ReportRunScreen(
     // dialog showing the match count — judging runs on the worker engine,
     // so there is no judge model to pick.
     var confirmTournament by rememberSaveable { mutableStateOf(false) }
+    // Open-state for the Tournament L1 overlay — set on Run so the user lands
+    // on the batch screen immediately instead of staying on Manage.
+    val tournamentOpenState = com.ai.ui.shared.LocalTournamentOpenState.current
     val tournamentResponseCount = reportsAgentResults.values.count { it.error == null && !it.analysis.isNullOrBlank() }
     val navigateToReportInfo = com.ai.ui.shared.LocalNavigateToReportInfo.current
     // Bumped every time the user taps the bottom-bar 📌 icon so the
@@ -600,7 +603,10 @@ internal fun ReportRunScreen(
                 },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = {
-                        currentReportId?.let { onRunTournament(it) }
+                        currentReportId?.let {
+                            onRunTournament(it)
+                            tournamentOpenState?.value = it
+                        }
                         confirmTournament = false
                     }) { androidx.compose.material3.Text("Run") }
                 },

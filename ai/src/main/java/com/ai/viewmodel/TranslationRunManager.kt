@@ -118,10 +118,10 @@ class TranslationRunManager(
         models: List<Pair<AppService, String>>,
         paramsIds: List<String> = emptyList(),
         systemPromptId: String? = null
-    ): Job {
+    ): Pair<String, Job> {
         if (models.isEmpty()) {
             AppLog.w("Translation", "startTranslation called with empty models — skipping")
-            return appViewModel.viewModelScope.launch {}
+            return "" to appViewModel.viewModelScope.launch {}
         }
         val runId = java.util.UUID.randomUUID().toString()
         val job = appViewModel.viewModelScope.launch(rvm.reportLogContext(sourceReportId)) {
@@ -618,7 +618,7 @@ class TranslationRunManager(
         }
         translationJobs[runId] = job
         job.invokeOnCompletion { translationJobs.remove(runId) }
-        return job
+        return runId to job
     }
 
     /** Result of a single translation call. A [Failed] is non-terminal
