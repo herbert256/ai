@@ -6,7 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -14,11 +14,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.ApiTracer
 import com.ai.data.AuditFileInfo
 import com.ai.data.AuditLog
 import com.ai.data.ReportStorage
@@ -33,6 +33,10 @@ private fun fmtTime(millis: Long): String = try {
     java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US).format(java.util.Date(millis))
 } catch (_: Exception) { "" }
 
+/** Alternating row background: even rows one shade, odd rows another. */
+private fun rowBackground(index: Int): Color =
+    if (index % 2 == 0) AppColors.CardBackground else AppColors.CardBackgroundAlt
+
 // ===== Audit list =====
 
 /** One report's row on the Audit list: its file metadata plus the
@@ -43,6 +47,7 @@ private data class AuditRow(val info: AuditFileInfo, val title: String?)
 @Composable
 fun AuditListScreen(
     onBack: () -> Unit,
+    onNavigateToMonitor: () -> Unit,
     onSelect: (String) -> Unit
 ) {
     BackHandler { onBack() }
@@ -63,6 +68,10 @@ fun AuditListScreen(
             helpTopic = "audit_list",
             title = "Audit", subject = "Per-report audit trail",
             onBackClick = onBack,
+            // 🧾 section glyph top-left; tapping it (or the title) jumps to Monitor.
+            reportIcon = "🧾",
+            onReportIconClick = onNavigateToMonitor,
+            onTitleClick = onNavigateToMonitor,
             onDelete = if (rows.isNotEmpty()) { { confirmClearAll = true } } else null
         )
 
@@ -78,8 +87,8 @@ fun AuditListScreen(
             }
         } else {
             LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                items(rows, key = { it.info.reportId }) { row ->
-                    AuditListItem(row, onClick = { onSelect(row.info.reportId) })
+                itemsIndexed(rows, key = { _, r -> r.info.reportId }) { index, row ->
+                    AuditListItem(row, index, onClick = { onSelect(row.info.reportId) })
                 }
             }
         }
@@ -106,8 +115,8 @@ fun AuditListScreen(
 }
 
 @Composable
-private fun AuditListItem(row: AuditRow, onClick: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+private fun AuditListItem(row: AuditRow, index: Int, onClick: () -> Unit) {
+    Card(colors = CardDefaults.cardColors(containerColor = rowBackground(index)),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically) {
@@ -116,7 +125,6 @@ private fun AuditListItem(row: AuditRow, onClick: () -> Unit) {
                     row.title ?: "(deleted report)",
                     fontSize = 13.sp,
                     color = if (row.title != null) Color.White else AppColors.TextTertiary,
-                    fontWeight = if (row.title != null) FontWeight.Normal else FontWeight.Normal,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
                 Text(
@@ -136,17 +144,34 @@ private fun AuditListItem(row: AuditRow, onClick: () -> Unit) {
 @Composable
 fun AuditDetailScreen(
     reportId: String,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToMonitor: () -> Unit,
+    onNavigateToTrace: (String) -> Unit
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
     var lines by remember { mutableStateOf<List<String>>(emptyList()) }
     var title by remember { mutableStateOf<String?>(null) }
+    // Traces for this report, used to resolve an API-call line → its trace.
+    var traces by remember { mutableStateOf<List<com.ai.data.TraceFileInfo>>(emptyList()) }
     LaunchedEffect(reportId) {
         lines = withContext(Dispatchers.IO) { AuditLog.lines(reportId) }
         title = withContext(Dispatchers.IO) { ReportStorage.getReport(context, reportId)?.title }
+        traces = withContext(Dispatchers.IO) { ApiTracer.getTraceFilesForReport(reportId) }
     }
     var confirmDelete by remember { mutableStateOf(false) }
+
+    // Resolve the trace whose timestamp is nearest this line's timestamp
+    // (the technical line is written at dispatch completion ≈ trace time;
+    // its paired functional line lands a few ms later). Restricted to this
+    // report's traces so concurrent reports can't cross-match.
+    fun traceFor(line: String): String? {
+        val ts = parseAuditMillis(line) ?: return null
+        return traces.asSequence()
+            .filter { kotlin.math.abs(it.timestamp - ts) <= 30_000L }
+            .minByOrNull { kotlin.math.abs(it.timestamp - ts) }
+            ?.filename
+    }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
@@ -154,6 +179,9 @@ fun AuditDetailScreen(
             title = "Audit",
             subject = title ?: reportId,
             onBackClick = onBack,
+            reportIcon = "🧾",
+            onReportIconClick = onNavigateToMonitor,
+            onTitleClick = onNavigateToMonitor,
             onDelete = { confirmDelete = true },
             onCopy = { copyToClipboard(context, lines.joinToString("\n"), "audit") },
             onShare = { shareText(context, lines.joinToString("\n"), "Audit $reportId") }
@@ -161,21 +189,39 @@ fun AuditDetailScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(AppColors.CardBackground).padding(8.dp)) {
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
             if (lines.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("(empty)", color = AppColors.TextTertiary)
                 }
             } else {
-                LazyColumn(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    items(lines.size) { i ->
-                        Text(
-                            lines[i],
-                            fontSize = 11.sp,
-                            color = colorForAuditLine(lines[i]),
-                            fontFamily = FontFamily.Monospace,
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 1.dp)
-                        )
+                LazyColumn {
+                    itemsIndexed(lines) { i, line ->
+                        val apiLine = isApiLine(bodyOf(line))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(rowBackground(i))
+                                .then(
+                                    if (apiLine) Modifier.clickable {
+                                        val tf = traceFor(line)
+                                        if (tf != null) onNavigateToTrace(tf)
+                                        else Toast.makeText(
+                                            context,
+                                            "No trace for this call (enable tracing in Settings)",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else Modifier
+                                )
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                line,
+                                fontSize = 11.sp,
+                                color = colorForAuditLine(line),
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
                     }
                 }
             }
@@ -183,7 +229,7 @@ fun AuditDetailScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            "${lines.size} line${if (lines.size == 1) "" else "s"}",
+            "${lines.size} line${if (lines.size == 1) "" else "s"} · tap an API-call line for its trace",
             fontSize = 11.sp, color = AppColors.TextTertiary,
             modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
         )
@@ -215,17 +261,41 @@ fun AuditDetailScreen(
     }
 }
 
+/** The message body of an audit line, i.e. everything after the
+ *  `yyyy-MM-dd HH:mm:ss.SSS ` (24-char) timestamp prefix. */
+private fun bodyOf(line: String): String = if (line.length > 24) line.substring(24) else line
+
+/** Parse the `yyyy-MM-dd HH:mm:ss.SSS` prefix of an audit line to epoch
+ *  millis (device timezone, matching how [AuditLog] formats it). */
+private fun parseAuditMillis(line: String): Long? {
+    if (line.length < 23) return null
+    return try {
+        java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", java.util.Locale.US)
+            .parse(line.substring(0, 23))?.time
+    } catch (_: Exception) { null }
+}
+
+/** True when a line records an API call — either the technical line
+ *  (`API …`) or a functional line that pairs with one (response, title,
+ *  language, icon, secondary result). Drives the tap-to-trace target. */
+private fun isApiLine(body: String): Boolean =
+    body.startsWith("API ") ||
+        body.startsWith("Response received") ||
+        body.startsWith("Title '") ||
+        body.startsWith("Language '") ||
+        body.startsWith("Icon '") ||
+        body.startsWith("AI title '") ||
+        body.contains("result produced by")
+
 /** Tint audit lines so structure scans at a glance: API technical lines
  *  are dim, errors red, batch start/end and the report start line stand
  *  out. Everything else is the default near-white. */
 private fun colorForAuditLine(line: String): Color {
-    // Drop the leading "yyyy-MM-dd HH:mm:ss.SSS " timestamp before matching.
-    val body = if (line.length > 24) line.substring(24) else line
+    val body = bodyOf(line)
     return when {
         body.startsWith("API ") && " · ERROR " in body -> AppColors.Red
         body.startsWith("API ") -> AppColors.TextTertiary
-        body.startsWith("Start ") || body.startsWith("End ") ||
-            body.startsWith("Start AI report") -> AppColors.Blue
+        body.startsWith("Start ") || body.startsWith("End ") -> AppColors.Blue
         body.startsWith("Deleted ") || body == "Report deleted" -> AppColors.Orange
         else -> Color(0xFFCCCCCC)
     }

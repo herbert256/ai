@@ -244,15 +244,27 @@ internal fun NavGraphBuilder.developerRoutes(
                 onStats = { navController.navigate(NavRoutes.AI_LOG_STATS) }
             )
         }
+        val toMonitorHub: () -> Unit = {
+            navController.navigate(NavRoutes.AI_MONITOR) {
+                popUpTo(NavRoutes.AI_MONITOR) { inclusive = false }
+                launchSingleTop = true
+            }
+        }
         monitorComposable(NavRoutes.AI_AUDIT_LIST, monitorNav, MonitorPart.AUDIT) {
             com.ai.ui.admin.AuditListScreen(
                 onBack = safePopBack,
+                onNavigateToMonitor = toMonitorHub,
                 onSelect = { reportId -> navController.navigate(NavRoutes.aiAuditDetail(reportId)) }
             )
         }
         monitorComposable(NavRoutes.AI_AUDIT_DETAIL, monitorNav, MonitorPart.AUDIT) { entry ->
             val rid = entry.arguments?.getString("reportId") ?: ""
-            com.ai.ui.admin.AuditDetailScreen(reportId = rid, onBack = safePopBack)
+            com.ai.ui.admin.AuditDetailScreen(
+                reportId = rid,
+                onBack = safePopBack,
+                onNavigateToMonitor = toMonitorHub,
+                onNavigateToTrace = { tf -> navController.navigate(NavRoutes.traceDetail(tf)) }
+            )
         }
         composable(NavRoutes.AI_BACKUP_RESTORE) {
             val uiState by appViewModel.uiState.collectAsState()

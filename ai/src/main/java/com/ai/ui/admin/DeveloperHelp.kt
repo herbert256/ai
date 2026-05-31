@@ -193,7 +193,8 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Audit — report list",
         cards = listOf(
             HelpCard("Overview", "One row per report that has an audit trail, newest-activity-first. Each report keeps an append-only audit file under `<filesDir>/audit/<reportId>.log` recording every action, batch and API call against it."),
-            HelpCard("Row", "Shows the report's live title (or *(deleted report)* when the report's been removed — the audit survives deletion), the short report id, the last-activity time and the line count."),
+            HelpCard("Row", "Shows the report's live title (or *(deleted report)* when the report's been removed — the audit survives deletion), the short report id, the last-activity time and the line count. Rows alternate background shade for readability."),
+            HelpCard("Title bar — 🧾 / title", "Tapping the 🧾 icon or the screen title jumps back to the Monitor hub."),
             HelpCard("Title bar — 🗑", "Clears every audit file after confirmation. Reports themselves are untouched — only their audit trails are removed."),
             HelpCard("Tap a row", "Opens that report's audit lines."),
             HelpCard("Reached from", "Monitor → Audit, or the 🧾 jump icon on any Monitor screen.")
@@ -202,10 +203,11 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
     "audit_detail" to HelpContent(
         title = "Help - Audit — report detail",
         cards = listOf(
-            HelpCard("Overview", "The full audit trail for one report, oldest-first. The first line is always *Start AI report with internal id: <UUID>*. Each line is timestamped `yyyy-MM-dd HH:mm:ss.SSS`."),
+            HelpCard("Overview", "The full audit trail for one report, oldest-first. The first line is always *Start AI report with internal id: <UUID>*. Each line is timestamped `yyyy-MM-dd HH:mm:ss.SSS`; rows alternate background shade."),
             HelpCard("What's recorded", "Every user action that changes something (delete a model, apply a sweep/chat candidate, edit the title, add/edit/delete a note, pin, duplicate, regenerate, …), every batch start/end (Fan Out, Translation, Tournament) and every API call. Each API call writes two lines — a technical line (URL · tokens in/out · cost) and a functional line (e.g. *Response received for report model …*). A failed call writes only the technical line carrying the error."),
-            HelpCard("Line colour", "Dim grey = API technical line · 🔴 red = API error · 🔵 blue = report start / batch start-end · 🟠 orange = a deletion. Everything else is near-white."),
-            HelpCard("Title bar — Copy / Share / 🗑", "Copy / Share grab the whole trail. 🗑 deletes this report's audit file (the report itself is untouched)."),
+            HelpCard("Tap an API-call line", "Tapping a technical or functional API-call line opens that call's API Trace detail (matched by timestamp). Requires tracing to be enabled — otherwise a toast says no trace was recorded. Non-API lines (start/end, user actions) aren't tappable."),
+            HelpCard("Line colour", "Dim grey = API technical line · 🔴 red = API error · 🔵 blue = batch start/end · 🟠 orange = a deletion. Everything else is near-white."),
+            HelpCard("Title bar — 🧾 / title", "Tapping the 🧾 icon or the screen title jumps to the Monitor hub. Copy / Share grab the whole trail. 🗑 deletes this report's audit file (the report itself is untouched)."),
             HelpCard("Reached from", "Tap a report on the Audit list.")
         )
     ),
