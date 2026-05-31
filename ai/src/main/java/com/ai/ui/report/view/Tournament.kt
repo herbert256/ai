@@ -33,7 +33,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.ai.data.AppService
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
 import com.ai.data.SecondaryDataVersion
@@ -47,6 +46,7 @@ import com.ai.data.decodeTournamentMatrix
 import com.ai.data.parseMatchVerdict
 import com.ai.ui.helpers.RerankTable
 import com.ai.ui.helpers.parseRerankRows
+import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.shortModelName
@@ -149,7 +149,6 @@ fun TournamentViewScreen(
     val loaded = state.value
     val row = loaded.row
     val currentMethod = decodeTournamentMatrix(row?.tournamentMatrix)?.second ?: TournamentMethod.COPELAND
-    val judgeLabel = row?.let { "${AppService.findById(it.providerId)?.id ?: it.providerId} / ${shortModelName(it.model)}" }
 
     // Drill-in: tap a ranking row → that model's head-to-heads (own screen).
     var h2hModel by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
@@ -167,12 +166,12 @@ fun TournamentViewScreen(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(
+        ViewTitleBar(
+            reportTitle = loaded.reportTitle,
+            screenTitle = "Tournament",
+            subject = null,
             helpTopic = "view_tournament",
-            title = "Tournament",
-            subject = judgeLabel,
-            onBackClick = onBack,
-            publishBottomBar = false
+            onBack = onBack
         )
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),

@@ -567,6 +567,7 @@ private fun RowScope.TournamentL2Cell(
     columnIndex: Int
 ) {
     val align = if (columnIndex == 0) TextAlign.Center else TextAlign.Start
+    val columnWeight = if (columnIndex == 0) 0.62f else 1.19f
     Text(
         text = text,
         color = color,
@@ -575,9 +576,9 @@ private fun RowScope.TournamentL2Cell(
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         textAlign = align,
-        modifier = Modifier.weight(1f).padding(
+        modifier = Modifier.weight(columnWeight).padding(
             start = if (columnIndex == 0) 0.dp else 2.dp,
-            end = if (columnIndex == 0) 1.dp else 2.dp
+            end = if (columnIndex == 0) 0.dp else 2.dp
         )
     )
 }
@@ -699,23 +700,12 @@ private fun TournamentL3(
         ) {
             Spacer(Modifier.height(6.dp))
             // Verdict block.
-            val winnerLabel = when (m.verdict) { "A" -> labelA; "B" -> labelB; "tie" -> "tie"; else -> "—" }
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground).padding(12.dp)
             ) {
                 Text("A - $labelA", color = colorA, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("B - $labelB", color = colorB, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    "Winner: $winnerLabel",
-                    color = when (m.verdict) {
-                        "A", "B" -> AppColors.Green
-                        "tie" -> AppColors.Blue
-                        else -> AppColors.TextSecondary
-                    },
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
+                Spacer(Modifier.height(6.dp))
                 m.confidence?.let { Text("Confidence: ${"%.0f".format(it * 100)}%", color = AppColors.TextSecondary, fontSize = 12.sp) }
                 if (!m.reason.isNullOrBlank()) Text(m.reason!!, color = AppColors.TextSecondary, fontSize = 12.sp)
                 Text("Orientation: ${if (m.orientation == 0) "A-vs-B" else "B-vs-A (swapped)"}", color = AppColors.TextTertiary, fontSize = 11.sp)
