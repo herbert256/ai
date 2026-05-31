@@ -66,7 +66,7 @@ import kotlinx.coroutines.withContext
  *  canonical pair: "A" = labelA won, "B" = labelB won, "tie", or null
  *  (pending) — so the active model's result is orientation-independent to
  *  compute. [trace] is that judging call's trace filename when recorded. */
-private data class H2HSide(val winner: String?, val reason: String?, val error: String?, val trace: String?)
+private data class H2HSide(val winner: String?, val reason: String?, val error: String?, val trace: String?, val judge: String?)
 
 /** One head-to-head pair carrying BOTH orientations: [ab] = A-vs-B
  *  (orientation 0), [ba] = B-vs-A (orientation 1). */
@@ -130,7 +130,10 @@ fun TournamentViewScreen(
                             if (winnerAgent == agA) "A" else "B"
                         }
                     }
-                    return H2HSide(winner, parsed?.reason, r?.errorMessage, r?.traceFile)
+                    // Judging worker model for this orientation — the match row's
+                    // model (sentinel "*pending"/"*workers" until judged → null).
+                    val judge = r?.model?.takeIf { it.isNotBlank() && !it.startsWith("*") }?.let { shortModelName(it) }
+                    return H2HSide(winner, parsed?.reason, r?.errorMessage, r?.traceFile, judge)
                 }
                 MatchRow(
                     labelA = agentIdToLabel[agA] ?: "?",
@@ -295,7 +298,7 @@ private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBac
             matches.forEach { m ->
                 val opponent = if (m.labelA == model) m.labelB else m.labelA
                 val side = sideOf(m)
-                HeadToHeadRow(opponent, resultFor(model, side, m.labelA, m.labelB), side.reason, side.error, side.trace, orientationLabel)
+                HeadToHeadRow(opponent, resultFor(model, side, m.labelA, m.labelB), side.reason, side.error, side.trace, side.judge, orientationLabel)
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -303,7 +306,7 @@ private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBac
 }
 
 @Composable
-private fun HeadToHeadRow(opponent: String, result: String, reason: String?, error: String?, trace: String?, orientation: String) {
+private fun HeadToHeadRow(opponent: String, result: String, reason: String?, error: String?, trace: String?, judge: String?, orientation: String) {
     val (label, color) = when (result) {
         "won" -> "won" to AppColors.Green
         "lost" -> "lost" to AppColors.Red
@@ -324,9 +327,16 @@ private fun HeadToHeadRow(opponent: String, result: String, reason: String?, err
                 error != null -> Text("⚠ ${error.take(60)}", color = AppColors.TextTertiary, fontSize = 11.sp)
                 !reason.isNullOrBlank() -> Text(reason, color = AppColors.TextTertiary, fontSize = 11.sp)
             }
+            // Last line: the judging worker model, with the 🐞 trace link
+            // right of it (for the orientation the card is showing).
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(top = 2.dp)
+            ) {
+                Text("Judge: ${judge ?: "—"}", color = AppColors.Blue, fontSize = 11.sp)
+                TraceBug(orientation, trace)
+            }
         }
-        // Single 🐞 trace deep-link, for the orientation the card is showing.
-        TraceBug(orientation, trace)
         Text(label, color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(start = 6.dp))
     }
@@ -338,17 +348,16 @@ private fun HeadToHeadRow(opponent: String, result: String, reason: String?, err
 private fun TraceBug(orientation: String, traceFile: String?) {
     val navigateToRoute = com.ai.ui.shared.LocalNavigateToRoute.current
     val context = LocalContext.current
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Text(
+        "🐞", fontSize = 14.sp,
+        color = if (traceFile.isNullOrBlank()) AppColors.TextTertiary else Color.White,
         modifier = Modifier
+            .padding(start = 6.dp)
             .clip(RoundedCornerShape(6.dp))
             .clickable {
                 if (!traceFile.isNullOrBlank()) navigateToRoute(com.ai.ui.navigation.NavRoutes.traceDetail(traceFile))
                 else android.widget.Toast.makeText(context, "No trace for $orientation (enable tracing in Settings)", android.widget.Toast.LENGTH_SHORT).show()
             }
             .padding(horizontal = 4.dp, vertical = 2.dp)
-    ) {
-        Text("🐞", fontSize = 14.sp, color = if (traceFile.isNullOrBlank()) AppColors.TextTertiary else Color.White)
-        Text(orientation, fontSize = 8.sp, color = AppColors.TextTertiary)
-    }
+    )
 }
