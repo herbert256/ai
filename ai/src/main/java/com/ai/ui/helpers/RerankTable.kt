@@ -80,7 +80,14 @@ internal fun parseRerankRows(content: String): List<RerankRow>? {
 }
 
 @Composable
-internal fun RerankTable(rows: List<RerankRow>, agentLabels: Map<Int, String>) {
+internal fun RerankTable(
+    rows: List<RerankRow>,
+    agentLabels: Map<Int, String>,
+    /** When non-null, each ranking row becomes clickable and fires this with
+     *  the tapped row (used by the Tournament result screen to drill into a
+     *  model's head-to-heads). Null → rows are inert (the default). */
+    onRowClick: ((RerankRow) -> Unit)? = null
+) {
     val hColor = AppColors.Blue
     val hSize = 12.sp
     Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
@@ -98,7 +105,9 @@ internal fun RerankTable(rows: List<RerankRow>, agentLabels: Map<Int, String>) {
             HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
             rows.forEach { r ->
                 val label = agentLabels[r.id] ?: "[${r.id}] (unknown)"
-                Row(modifier = Modifier.padding(vertical = 6.dp)) {
+                Row(modifier = Modifier
+                    .then(if (onRowClick != null) Modifier.clickable { onRowClick(r) } else Modifier)
+                    .padding(vertical = 6.dp)) {
                     Text(r.rank?.toString() ?: "—", fontSize = 12.sp, color = AppColors.TextSecondary,
                         fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.width(48.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)

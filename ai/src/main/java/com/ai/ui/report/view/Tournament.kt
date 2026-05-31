@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -60,6 +62,9 @@ import kotlinx.coroutines.withContext
  * the stored win matrix — no API calls — and a per-match list so the
  * user can inspect every judged pair.
  */
+/** One collapsed head-to-head (the two orientations of a pair merged). */
+private data class MatchRow(val labelA: String, val labelB: String, val verdict: String?, val reason: String?, val error: String?)
+
 @Composable
 fun TournamentViewScreen(
     reportId: String,
@@ -70,7 +75,6 @@ fun TournamentViewScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    data class MatchRow(val labelA: String, val labelB: String, val verdict: String?, val reason: String?, val error: String?)
     data class Loaded(
         val row: SecondaryResult?,
         val agentLabels: Map<Int, String>,
@@ -100,19 +104,29 @@ fun TournamentViewScreen(
                     .filter { it.tournamentRole == "MATCH" && it.tournamentJudgeRunId == rk }
             }.orEmpty()
             // Collapse the two orientations into one display row per unordered
-            // pair (keyed by the sorted agent-id pair); show the canonical
-            // orientation's verdict for the snippet.
+            // pair (keyed by the sorted agent-id pair). The verdict COMBINES
+            // both orientations (same clear-winner / draw rule the win matrix
+            // + Points use) so the head-to-heads agree with the ranking; the
+            // canonical orientation's reason is kept as context.
             val byPair = matchRows.groupBy {
                 listOf(it.matchResponseAId, it.matchResponseBId).sortedBy { id -> id ?: "" }
             }
             val display = byPair.values.mapNotNull { rows ->
                 val canonical = rows.minByOrNull { it.matchOrientation ?: 0 } ?: return@mapNotNull null
-                val v = parseMatchVerdict(canonical.content)
+                // Credit for agA (canonical A-slot) across both orientations.
+                val votes = rows.mapNotNull { r ->
+                    val v = parseMatchVerdict(r.content)?.verdict ?: return@mapNotNull null
+                    if ((r.matchOrientation ?: 0) == 0) when (v) { "A" -> 1.0; "B" -> 0.0; else -> 0.5 }
+                    else when (v) { "A" -> 0.0; "B" -> 1.0; else -> 0.5 }
+                }
+                val combined = if (votes.isEmpty()) null else votes.average().let {
+                    when { it > 0.5 -> "A"; it < 0.5 -> "B"; else -> "tie" }
+                }
                 MatchRow(
                     labelA = agentIdToLabel[canonical.matchResponseAId] ?: "?",
                     labelB = agentIdToLabel[canonical.matchResponseBId] ?: "?",
-                    verdict = v?.verdict,
-                    reason = v?.reason,
+                    verdict = combined,
+                    reason = parseMatchVerdict(canonical.content)?.reason,
                     error = rows.firstNotNullOfOrNull { it.errorMessage }
                 )
             }
@@ -124,6 +138,18 @@ fun TournamentViewScreen(
     val row = loaded.row
     val currentMethod = decodeTournamentMatrix(row?.tournamentMatrix)?.second ?: TournamentMethod.COPELAND
     val judgeLabel = row?.let { "${AppService.findById(it.providerId)?.id ?: it.providerId} / ${shortModelName(it.model)}" }
+
+    // Drill-in: tap a ranking row → that model's head-to-heads (own screen).
+    var h2hModel by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+    val h2hTarget = h2hModel
+    if (h2hTarget != null) {
+        ModelHeadToHeadsScreen(
+            model = h2hTarget,
+            matches = loaded.matches.filter { it.labelA == h2hTarget || it.labelB == h2hTarget },
+            onBack = { h2hModel = null }
+        )
+        return
+    }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
@@ -141,9 +167,9 @@ fun TournamentViewScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Spacer(Modifier.height(4.dp))
-            // 3-way aggregation method toggle.
+            // Aggregation method toggle (scrolls — four methods).
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 MethodChip("Copeland", TournamentMethod.COPELAND == currentMethod) {
@@ -155,27 +181,23 @@ fun TournamentViewScreen(
                 MethodChip("Elo", TournamentMethod.ELO == currentMethod) {
                     if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.ELO) }
                 }
+                MethodChip("Points", TournamentMethod.POINTS == currentMethod) {
+                    if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.POINTS) }
+                }
             }
 
-            // Ranking — reuse the shared rerank table.
+            // Ranking — reuse the shared rerank table. Tapping a row opens
+            // that model's head-to-heads on its own screen.
             val rankRows = row?.content?.let { parseRerankRows(it) }
             if (rankRows != null && rankRows.isNotEmpty()) {
-                RerankTable(rankRows, loaded.agentLabels)
+                RerankTable(rankRows, loaded.agentLabels, onRowClick = { r ->
+                    h2hModel = loaded.agentLabels[r.id]
+                })
             } else if (loaded.totalMatches > 0) {
                 Text(
                     "Judging ${loaded.doneMatches}/${loaded.totalMatches} matches…",
                     color = AppColors.TextSecondary, fontSize = 14.sp
                 )
-            }
-
-            // Per-match inspection list.
-            if (loaded.matches.isNotEmpty()) {
-                Text(
-                    "Head-to-heads (${loaded.doneMatches}/${loaded.totalMatches})",
-                    color = AppColors.TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 6.dp)
-                )
-                loaded.matches.forEach { m -> MatchListRow(m.labelA, m.labelB, m.verdict, m.reason, m.error) }
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -197,13 +219,64 @@ private fun MethodChip(label: String, selected: Boolean, onClick: () -> Unit) {
     )
 }
 
+/** This model's result in a collapsed head-to-head: won / lost / draw /
+ *  error / pending — from [model]'s perspective. */
+private fun resultFor(model: String, m: MatchRow): String = when {
+    m.error != null -> "error"
+    m.verdict == "tie" -> "draw"
+    m.verdict == null -> "pending"
+    (m.verdict == "A" && m.labelA == model) || (m.verdict == "B" && m.labelB == model) -> "won"
+    else -> "lost"
+}
+
+/** Drill-in opened from a ranking row: every head-to-head [model] played,
+ *  from its own perspective (vs opponent → won / lost / draw + reason). */
 @Composable
-private fun MatchListRow(labelA: String, labelB: String, verdict: String?, reason: String?, error: String?) {
-    val winner = when (verdict) {
-        "A" -> labelA
-        "B" -> labelB
-        "tie" -> "tie"
-        else -> null
+private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "view_tournament",
+            title = "Head-to-heads", subject = model,
+            onBackClick = onBack, publishBottomBar = false
+        )
+        if (matches.isEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Text("No head-to-heads for this model.", color = AppColors.TextSecondary, fontSize = 14.sp)
+            return@Column
+        }
+        val won = matches.count { resultFor(model, it) == "won" }
+        val lost = matches.count { resultFor(model, it) == "lost" }
+        val drew = matches.count { resultFor(model, it) == "draw" }
+        Column(
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "$won won · $drew drawn · $lost lost",
+                color = AppColors.TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
+            )
+            matches.forEach { m ->
+                val opponent = if (m.labelA == model) m.labelB else m.labelA
+                HeadToHeadRow(opponent, resultFor(model, m), m.reason, m.error)
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+private fun HeadToHeadRow(opponent: String, result: String, reason: String?, error: String?) {
+    val (label, color) = when (result) {
+        "won" -> "won" to AppColors.Green
+        "lost" -> "lost" to AppColors.Red
+        "draw" -> "draw" to AppColors.Orange
+        "error" -> "error" to AppColors.Red
+        else -> "…" to AppColors.TextTertiary
     }
     Row(
         modifier = Modifier.fillMaxWidth()
@@ -213,15 +286,12 @@ private fun MatchListRow(labelA: String, labelB: String, verdict: String?, reaso
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("$labelA  vs  $labelB", color = Color.White, fontSize = 13.sp)
-            val sub = when {
-                error != null -> "⚠ ${error.take(60)}"
-                winner == "tie" -> "tie"
-                winner != null -> "winner: $winner"
-                else -> "…"
+            Text("vs  $opponent", color = Color.White, fontSize = 13.sp)
+            when {
+                error != null -> Text("⚠ ${error.take(60)}", color = AppColors.TextTertiary, fontSize = 11.sp)
+                !reason.isNullOrBlank() -> Text(reason, color = AppColors.TextTertiary, fontSize = 11.sp)
             }
-            Text(sub, color = AppColors.TextTertiary, fontSize = 11.sp)
-            if (!reason.isNullOrBlank()) Text(reason, color = AppColors.TextTertiary, fontSize = 11.sp)
         }
+        Text(label, color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }

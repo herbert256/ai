@@ -16,7 +16,7 @@ import com.google.gson.JsonParser
  * (`extractTopRankedIds`).
  */
 
-enum class TournamentMethod { COPELAND, BRADLEY_TERRY, ELO }
+enum class TournamentMethod { COPELAND, BRADLEY_TERRY, ELO, POINTS }
 
 /** Square win matrix over the tournament's responses. [ids] are the
  *  1-based `[N]` ids (the same the @RESULTS@ block / rerank JSON use);
@@ -77,6 +77,7 @@ fun rankFor(method: TournamentMethod, m: WinMatrix): List<RankRow> = when (metho
     TournamentMethod.COPELAND -> copeland(m)
     TournamentMethod.BRADLEY_TERRY -> bradleyTerry(m)
     TournamentMethod.ELO -> elo(m)
+    TournamentMethod.POINTS -> points(m)
 }
 
 /** Win-count / Copeland: rank by total fractional wins; score = win-rate
@@ -132,7 +133,37 @@ fun bradleyTerry(m: WinMatrix): List<RankRow> {
     }
     val maxP = p.maxOrNull() ?: 1.0
     val scored = (0 until n).map { i ->
-        RankScored(m.ids[i], if (maxP > 0.0) 100.0 * p[i] / maxP else 0.0, "Strength %.3f".format(p[i]))
+        // Score rescaled so the strongest is 100, kept to ONE decimal.
+        val raw = if (maxP > 0.0) 100.0 * p[i] / maxP else 0.0
+        RankScored(m.ids[i], Math.round(raw * 10.0) / 10.0, "Strength %.3f".format(p[i]))
+    }
+    return assignRanks(scored)
+}
+
+/** Chess-style points: combine the two orientations of each pair into one
+ *  result (1 for a clear win, 0 for a clear loss, ½ each for a draw — a
+ *  draw being any pair with no clear winner), then rank by total points.
+ *  The win matrix already merges A-vs-B and B-vs-A into [WinMatrix.wins],
+ *  so `wins[i][j] > 0.5` is a clear win for i, `< 0.5` a clear loss, and
+ *  `== 0.5` (split verdicts or an explicit tie) a draw. */
+fun points(m: WinMatrix): List<RankRow> {
+    val n = m.n
+    if (n == 0) return emptyList()
+    val scored = (0 until n).map { i ->
+        var pts = 0.0
+        var played = 0
+        for (j in 0 until n) {
+            if (i == j) continue
+            if (m.wins[i][j] + m.wins[j][i] <= 0.0) continue // uncontested pair
+            played++
+            pts += when {
+                m.wins[i][j] > 0.5 -> 1.0
+                m.wins[i][j] < 0.5 -> 0.0
+                else -> 0.5
+            }
+        }
+        val ptsText = if (pts == Math.floor(pts)) "%.0f".format(pts) else "%.1f".format(pts)
+        RankScored(m.ids[i], pts, "$ptsText / $played games")
     }
     return assignRanks(scored)
 }
