@@ -95,6 +95,8 @@ fun TournamentManageRow() {
         if (run.errorCount > 0) append(" · ${run.errorCount} failed")
         else if (run.allTerminal) append(" · done")
     }
+    val tournamentIcon = com.ai.ui.shared.LocalMetadataIcons.current.tournament
+        .takeIf { it.isNotBlank() } ?: com.ai.data.MetadataDefaults.TOURNAMENT
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth()
@@ -107,7 +109,7 @@ fun TournamentManageRow() {
                     AnimatedHourglass(fontSize = 16.sp)
                 }
                 run.errorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                else -> Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                else -> Text(tournamentIcon, fontSize = 16.sp, modifier = Modifier.width(24.dp))
             }
             RowTypeCell("tournament")
             Text(
