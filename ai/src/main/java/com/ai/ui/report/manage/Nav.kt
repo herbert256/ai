@@ -282,6 +282,10 @@ fun ReportsScreenNav(
         stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
     ) { mutableStateOf<String?>(null) }
     val openRegenBatchId = openRegenerateBatchReportId.value
+    val openTournamentReportId = rememberSaveable(
+        stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
+    ) { mutableStateOf<String?>(null) }
+    val openTournamentId = openTournamentReportId.value
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
             onOpenManage = onOpenReportManage,
@@ -313,7 +317,9 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalPendingViewOverManage provides pendingViewOverManage,
         com.ai.ui.shared.LocalMainViewResetTick provides mainViewResetTick,
         com.ai.ui.shared.LocalRegenerateBatchEngine provides reportViewModel.regenerateBatchEngine,
-        com.ai.ui.shared.LocalRegenerateBatchOpenState provides openRegenerateBatchReportId
+        com.ai.ui.shared.LocalRegenerateBatchOpenState provides openRegenerateBatchReportId,
+        com.ai.ui.shared.LocalTournamentEngine provides reportViewModel.tournamentEngine,
+        com.ai.ui.shared.LocalTournamentOpenState provides openTournamentReportId
     ) {
     // Regenerate-batch overlay — layered here (inside the provider) so it
     // sees the report-context locals (ids/switch/neighbor nav, icon
@@ -325,6 +331,14 @@ fun ReportsScreenNav(
             engine = reportViewModel.regenerateBatchEngine,
             onClose = { openRegenerateBatchReportId.value = null },
             iconRefreshTick = uiState.iconRefreshTick
+        )
+        return@CompositionLocalProvider
+    }
+    if (openTournamentId != null) {
+        TournamentOverlay(
+            reportId = openTournamentId,
+            engine = reportViewModel.tournamentEngine,
+            onClose = { openTournamentReportId.value = null }
         )
         return@CompositionLocalProvider
     }
@@ -499,8 +513,8 @@ fun ReportsScreenNav(
         onRunModeration = { reportId, pick, languageScope ->
             reportViewModel.secondary.runModeration(context, reportId, pick, languageScope)
         },
-        onRunTournament = { reportId, judgeProvider, judgeModel ->
-            reportViewModel.tournamentEngine.startRun(context, reportId, judgeProvider, judgeModel)
+        onRunTournament = { reportId ->
+            reportViewModel.tournamentEngine.startRun(context, reportId)
         },
         onDeleteSecondary = { reportId, resultId ->
             reportViewModel.secondary.deleteSecondaryResult(context, reportId, resultId)

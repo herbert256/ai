@@ -227,7 +227,7 @@ fun ReportsScreen(
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onRunRerank: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _, _ -> },
     onRunModeration: (String, Pair<AppService, String>, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _, _ -> },
-    onRunTournament: (String, AppService, String) -> Unit = { _, _, _ -> },
+    onRunTournament: (String) -> Unit = { },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     /** Bulk delete on the report VM's viewModelScope so a Stop /
      *  navigate-away during a Fan-out delete doesn't abandon a half-

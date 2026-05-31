@@ -687,6 +687,70 @@ object SecondaryResultStorage {
         }
     }
 
+    /** Commit a tournament MATCH worker call: overwrite the row's
+     *  provider/model (was the pre-judge sentinel) with the winning worker,
+     *  plus the verdict [content], cost and duration — atomically, in one
+     *  write. No-op when the row was deleted mid-call. Used by
+     *  [com.ai.viewmodel.TournamentEngine]. */
+    fun recordTournamentMatch(
+        context: Context, reportId: String, resultId: String,
+        providerId: String, model: String, content: String,
+        inputTokens: Int, outputTokens: Int,
+        inputCost: Double, outputCost: Double, durationMs: Long
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = resolveReportDirForRead(reportId) ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                providerId = providerId,
+                model = model,
+                agentName = "$providerId / $model",
+                content = content,
+                errorMessage = null,
+                tokenUsage = TokenUsage(inputTokens = inputTokens, outputTokens = outputTokens),
+                inputCost = inputCost,
+                outputCost = outputCost,
+                durationMs = durationMs
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+        SecondaryDataVersion.bump()
+    }
+
+    /** Reset a tournament MATCH row back to its pre-judge placeholder shape
+     *  (sentinel provider/model, blank content/cost) so a re-judge starts
+     *  clean. No-op when the row is gone. */
+    fun resetTournamentMatch(context: Context, reportId: String, resultId: String) {
+        init(context)
+        lock.withLock {
+            val dir = resolveReportDirForRead(reportId) ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                providerId = TOURNAMENT_PENDING_PROVIDER,
+                model = TOURNAMENT_PENDING_MODEL,
+                agentName = "$TOURNAMENT_PENDING_PROVIDER / $TOURNAMENT_PENDING_MODEL",
+                content = null,
+                errorMessage = null,
+                inputCost = null,
+                outputCost = null,
+                tokenUsage = null,
+                durationMs = null,
+                timestamp = System.currentTimeMillis()
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+        SecondaryDataVersion.bump()
+    }
+
     fun delete(context: Context, reportId: String, resultId: String) {
         init(context)
         lock.withLock {

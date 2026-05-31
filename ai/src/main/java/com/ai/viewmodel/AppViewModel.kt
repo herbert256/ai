@@ -101,6 +101,24 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _throttledFanMetaPairs.update(block)
     }
 
+    /** Tournament match row ids whose worker call is actively in flight —
+     *  the Tournament L1 stats panel reads this (parallel to
+     *  [runningFanMetaPairs]). */
+    private val _runningTournamentMatches = MutableStateFlow<Set<String>>(emptySet())
+    val runningTournamentMatches: StateFlow<Set<String>> = _runningTournamentMatches.asStateFlow()
+    internal fun updateRunningTournamentMatches(block: (Set<String>) -> Set<String>) {
+        _runningTournamentMatches.update(block)
+    }
+
+    /** Tournament match row ids parked inside
+     *  [com.ai.data.ProviderThrottle.acquire] (parallel to
+     *  [throttledFanMetaPairs]) — the L1 "Throttled" counter. */
+    private val _throttledTournamentMatches = MutableStateFlow<Set<String>>(emptySet())
+    val throttledTournamentMatches: StateFlow<Set<String>> = _throttledTournamentMatches.asStateFlow()
+    internal fun updateThrottledTournamentMatches(block: (Set<String>) -> Set<String>) {
+        _throttledTournamentMatches.update(block)
+    }
+
     /** Translation item ids currently parked on a provider's rate /
      *  concurrency gate (the dispatcher's [acquireOrRequeue] wait). Surfaces
      *  as the Translation L1 "Throttled" column — same role as

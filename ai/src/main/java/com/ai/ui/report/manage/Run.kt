@@ -112,15 +112,15 @@ internal fun ReportRunScreen(
     /** Report-level info jobs whose call is actively in flight. */
     runningInfoJobs: Set<String> = emptySet(),
     onChatWithReportPrompt: (String) -> Unit,
-    /** Launch a pairwise tournament with the picked judge model. */
-    onRunTournament: (String, AppService, String) -> Unit = { _, _, _ -> }
+    /** Launch a worker-judged pairwise tournament on the report. */
+    onRunTournament: (String) -> Unit = { }
 ) {
     val aiSettings = uiState.aiSettings
     val context = LocalContext.current
-    // Tournament judge-picker overlay state (self-contained, like the
-    // Create overlay). pendingJudge stages a pick for the confirm dialog.
-    var showTournamentPicker by rememberSaveable { mutableStateOf(false) }
-    var pendingJudge by remember { mutableStateOf<Pair<AppService, String>?>(null) }
+    // Tournament is started from the Create launcher with just a confirm
+    // dialog showing the match count — judging runs on the worker engine,
+    // so there is no judge model to pick.
+    var confirmTournament by rememberSaveable { mutableStateOf(false) }
     val tournamentResponseCount = reportsAgentResults.values.count { it.error == null && !it.analysis.isNullOrBlank() }
     val navigateToReportInfo = com.ai.ui.shared.LocalNavigateToReportInfo.current
     // Bumped every time the user taps the bottom-bar 📌 icon so the
@@ -577,55 +577,35 @@ internal fun ReportRunScreen(
                     },
                     onTournament = {
                         st.showCreateOverview.value = false
-                        showTournamentPicker = true
+                        confirmTournament = true
                     },
                     onBack = { st.showCreateOverview.value = false }
                 )
             }
         }
 
-        // Tournament judge picker (single-pick chat model) → confirm dialog
-        // showing the N(N-1) call count → launch.
-        if (showTournamentPicker && currentReportId != null) {
-            val rid = currentReportId
-            CompositionLocalProvider(
-                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "🥊"),
-                com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
-                com.ai.ui.shared.LocalNavigateToCurrentReport provides { showTournamentPicker = false }
-            ) {
-                com.ai.ui.other.ReportSelectModelsScreen(
-                    aiSettings = aiSettings,
-                    titleText = "Tournament — pick judge",
-                    modelTypeFilter = null,
-                    onConfirm = { pick ->
-                        pendingJudge = pick
-                        showTournamentPicker = false
-                    },
-                    onBack = { showTournamentPicker = false },
-                    onNavigateHome = { st.showCreateOverview.value = false; showTournamentPicker = false }
-                )
-            }
-        }
-        pendingJudge?.let { (judgeProvider, judgeModel) ->
+        // Tournament launch — a single confirm dialog showing the N(N-1)
+        // worker-call count. Judging runs on the worker engine.
+        if (confirmTournament && currentReportId != null) {
             val matchCount = tournamentResponseCount * (tournamentResponseCount - 1)
             androidx.compose.material3.AlertDialog(
-                onDismissRequest = { pendingJudge = null },
+                onDismissRequest = { confirmTournament = false },
                 title = { androidx.compose.material3.Text("Run tournament?") },
                 text = {
                     androidx.compose.material3.Text(
                         "This runs $matchCount head-to-head judgments " +
-                            "($tournamentResponseCount answers, each pair judged both ways) with " +
-                            "${judgeProvider.id} / ${com.ai.ui.shared.shortModelName(judgeModel)}."
+                            "($tournamentResponseCount answers, each pair judged both ways), " +
+                            "judged by the worker engine."
                     )
                 },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = {
-                        currentReportId?.let { onRunTournament(it, judgeProvider, judgeModel) }
-                        pendingJudge = null
+                        currentReportId?.let { onRunTournament(it) }
+                        confirmTournament = false
                     }) { androidx.compose.material3.Text("Run") }
                 },
                 dismissButton = {
-                    androidx.compose.material3.TextButton(onClick = { pendingJudge = null }) {
+                    androidx.compose.material3.TextButton(onClick = { confirmTournament = false }) {
                         androidx.compose.material3.Text("Cancel")
                     }
                 }

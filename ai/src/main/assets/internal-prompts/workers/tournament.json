@@ -1,0 +1,16 @@
+{
+  "name": "tournament",
+  "title": "Judge two responses head-to-head.",
+  "reference": false,
+  "workers": [
+    {
+      "agent": "*N/A",
+      "provider": "*N/A",
+      "model": "*N/A",
+      "flock": "*N/A",
+      "swarm": "workers"
+    }
+  ],
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}

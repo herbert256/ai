@@ -3,10 +3,11 @@ package com.ai.viewmodel
 import android.content.Context
 import com.ai.data.ApiCallCaps
 import com.ai.data.AppLog
-import com.ai.data.AppService
 import com.ai.data.AuditLog
 import com.ai.data.MatchState
 import com.ai.data.MatchStatus
+import com.ai.data.PricingCache
+import com.ai.data.ProviderThrottle
 import com.ai.data.ReportAgent
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
@@ -14,6 +15,8 @@ import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.SecondaryScope
+import com.ai.data.TOURNAMENT_PENDING_MODEL
+import com.ai.data.TOURNAMENT_PENDING_PROVIDER
 import com.ai.data.TournamentMethod
 import com.ai.data.TournamentRunKey
 import com.ai.data.TournamentRunState
@@ -21,18 +24,19 @@ import com.ai.data.computeWinMatrix
 import com.ai.data.decodeTournamentMatrix
 import com.ai.data.encode
 import com.ai.data.matchKey
+import com.ai.data.parseMatchVerdict
 import com.ai.data.rankFor
 import com.ai.data.resolveSecondaryPrompt
 import com.ai.data.toMatchState
 import com.ai.data.toRerankJson
 import com.ai.data.tournamentRunKey
 import com.ai.data.withTracerTags
-import com.ai.ui.shared.shortModelName
+import com.ai.model.InternalPrompt
+import com.ai.model.Settings
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.asContextElement
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,28 +44,26 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Authoritative runtime owner for every Tournament run on every report —
- * the sibling of [FanOutEngine] for pairwise head-to-head judging.
+ * Authoritative runtime owner for the Tournament run on every report.
  *
  * A tournament judges every unordered pair of a report's successful
- * responses TWICE (swapped, to cancel position bias) with one chosen
- * judge model, persisting each ordered judgment as a MATCH
- * [SecondaryResult] row (kind == TOURNAMENT). Once the matches settle
- * the engine folds them into a win matrix (see
- * [com.ai.data.TournamentRanking]) and writes a single AGGREGATE row
- * whose `content` is the rerank-compatible ranking for the currently
- * selected method — so the result feeds the existing rerank renderers
- * and the Top-ranked scope unchanged.
+ * responses TWICE (A-vs-B and B-vs-A, to cancel position bias) — and each
+ * match is judged by the WORKER engine (the round-robin chain of cheap
+ * models in the `workers` swarm), exactly like the Fan Meta batch. The
+ * judging model isn't known until the worker chain returns; the winning
+ * worker is then recorded on the MATCH row's (providerId, model). Once the
+ * matches settle the engine folds them into a win matrix (see
+ * [com.ai.data.TournamentRanking]) and writes a single AGGREGATE row whose
+ * `content` is the rerank-compatible ranking for the selected method.
  *
- * Structure mirrors [FanOutEngine] — StateFlow of run states, per-match
- * Job map with LAZY register-before-start, [runThrottledBatch] dispatch
- * reusing [SecondaryRunManager.executeSecondaryTask], disk hydration and
- * app-kill resume — minus the fan-out-specific answerer×source / Fan-Meta
- * / fan-in machinery, which has no tournament analog.
+ * One [TournamentRunState] per report (keyed by reportId). Structure
+ * mirrors [IconGenerationManager.runFanMetaBatch]: a worker batch over
+ * `ApiCallCaps.workers` in dynamic-host mode, per-match Job map,
+ * in-flight / throttled StateFlow sets on [AppViewModel], disk hydration,
+ * and app-kill resume.
  */
 class TournamentEngine internal constructor(
     private val appViewModel: AppViewModel,
@@ -70,77 +72,73 @@ class TournamentEngine internal constructor(
     private val _runs = MutableStateFlow<Map<TournamentRunKey, TournamentRunState>>(emptyMap())
     val runs: StateFlow<Map<TournamentRunKey, TournamentRunState>> = _runs.asStateFlow()
 
-    /** Per-match coroutines keyed by [MatchState.id] (= on-disk row id).
-     *  Registered before the coroutine starts so concurrent deletes can
-     *  always find the Job to cancel. */
+    /** The L1 "Throttled" stat — match ids parked on a provider throttle. */
+    val throttledMatches: StateFlow<Set<String>> get() = appViewModel.throttledTournamentMatches
+
+    /** Per-match coroutines keyed by [MatchState.id] (= on-disk row id). */
     private val matchJobs = ConcurrentHashMap<String, Job>()
 
-    /** Top-level batch Job per run. */
+    /** Top-level batch Job per report. */
     private val runJobs = ConcurrentHashMap<TournamentRunKey, Job>()
 
-    /** Per-run dedup for the resume scan. */
+    /** Per-report dedup for the resume scan. */
     private val resumeScans = ConcurrentHashMap.newKeySet<TournamentRunKey>()
 
     private companion object {
-        const val JUDGE_PROMPT = "second-tournament"
+        const val WORKERS_CATEGORY = "workers"
+        const val PROMPT_NAME = "tournament"
         const val ROLE_MATCH = "MATCH"
         const val ROLE_AGGREGATE = "AGGREGATE"
-        const val MATCH_TIMEOUT_MS = 60_000L
+        const val AGG_PROVIDER = "*tournament"
+        const val AGG_MODEL = "aggregate"
     }
+
+    private fun tournamentPrompt(aiSettings: Settings): InternalPrompt? =
+        aiSettings.internalPrompts.firstOrNull { it.category == WORKERS_CATEGORY && it.name == PROMPT_NAME }
 
     // -----------------------------------------------------------------
     // Hydration — disk → StateFlow
     // -----------------------------------------------------------------
 
-    /** Walk every TOURNAMENT row on disk for [reportId], group by
-     *  [SecondaryResult.tournamentJudgeRunId] into [TournamentRunState]s,
-     *  and publish them. Preserves a live RUNNING match status the disk
-     *  placeholder can't yet show. */
+    /** Walk every TOURNAMENT row on disk for [reportId], build the single
+     *  [TournamentRunState] (one tournament per report — newest run wins if
+     *  legacy multi-run rows are present), and publish it. Preserves a live
+     *  RUNNING match status the disk placeholder can't yet show. */
     suspend fun hydrate(context: Context, reportId: String) {
         val aiSettings = appViewModel.uiState.value.aiSettings
         val rows = withContext(Dispatchers.IO) {
             SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
         }
-        if (rows.isEmpty()) {
-            _runs.update { it.filterKeys { k -> !k.startsWith("$reportId|") } }
-            return
-        }
         val byRun = rows.filter { !it.tournamentJudgeRunId.isNullOrBlank() }
             .groupBy { it.tournamentJudgeRunId!! }
-        val currentRuns = _runs.value
-        val newRuns = mutableMapOf<TournamentRunKey, TournamentRunState>()
-        for ((rk, group) in byRun) {
-            val any = group.first()
-            val prompt = aiSettings.internalPrompts.firstOrNull { it.id == any.metaPromptId }
-                ?: aiSettings.getInternalPromptByName(JUDGE_PROMPT)
-                ?: continue
-            val aggRow = group.firstOrNull { it.tournamentRole == ROLE_AGGREGATE }
-            val method = decodeTournamentMatrix(aggRow?.tournamentMatrix)?.second ?: TournamentMethod.COPELAND
-            val currentMatches = currentRuns[rk]?.matches
-            val matches = group.mapNotNull { it.toMatchState() }.associateBy { m ->
-                // Preserve a live RUNNING status the disk can't yet show.
-                m.key
-            }.mapValues { (k, diskMatch) ->
+        if (byRun.isEmpty()) {
+            _runs.update { it - reportId }
+            return
+        }
+        // One tournament per report — pick the newest run group.
+        val (runId, group) = byRun.maxByOrNull { (_, g) -> g.maxOf { it.timestamp } }!!
+        val prompt = aiSettings.internalPrompts.firstOrNull { it.id == group.first().metaPromptId }
+            ?: tournamentPrompt(aiSettings) ?: run { _runs.update { it - reportId }; return }
+        val aggRow = group.firstOrNull { it.tournamentRole == ROLE_AGGREGATE }
+        val method = decodeTournamentMatrix(aggRow?.tournamentMatrix)?.second ?: TournamentMethod.COPELAND
+        val currentMatches = _runs.value[reportId]?.matches
+        val matches = group.mapNotNull { it.toMatchState() }
+            .associateBy { it.key }
+            .mapValues { (k, diskMatch) ->
                 if (diskMatch.status == MatchStatus.PENDING &&
-                    currentMatches?.get(k)?.status == MatchStatus.RUNNING) {
-                    diskMatch.copy(status = MatchStatus.RUNNING)
-                } else diskMatch
+                    currentMatches?.get(k)?.status == MatchStatus.RUNNING
+                ) diskMatch.copy(status = MatchStatus.RUNNING) else diskMatch
             }
-            newRuns[rk] = TournamentRunState(
-                key = rk,
-                reportId = reportId,
-                judgeProviderId = any.providerId,
-                judgeModel = any.model,
-                judgePrompt = prompt,
-                matches = matches,
-                aggregateRowId = aggRow?.id,
-                selectedMethod = method
-            )
-        }
-        _runs.update { current ->
-            val keep = current.filterKeys { !it.startsWith("$reportId|") }
-            keep + newRuns
-        }
+        val run = TournamentRunState(
+            key = reportId,
+            reportId = reportId,
+            runId = runId,
+            tournamentPrompt = prompt,
+            matches = matches,
+            aggregateRowId = aggRow?.id,
+            selectedMethod = method
+        )
+        _runs.update { it + (reportId to run) }
     }
 
     fun runByKey(key: TournamentRunKey): TournamentRunState? = _runs.value[key]
@@ -149,50 +147,46 @@ class TournamentEngine internal constructor(
     // State-flow transition helpers
     // -----------------------------------------------------------------
 
-    private fun transitionMatch(runKey: TournamentRunKey, mKey: String, update: (MatchState) -> MatchState) {
+    private fun transitionMatch(reportId: String, mKey: String, update: (MatchState) -> MatchState) {
         _runs.update { runs ->
-            val run = runs[runKey] ?: return@update runs
+            val run = runs[reportId] ?: return@update runs
             val cur = run.matches[mKey] ?: return@update runs
             val next = update(cur)
-            if (next == cur) runs
-            else runs + (runKey to run.copy(matches = run.matches + (mKey to next)))
+            if (next == cur) runs else runs + (reportId to run.copy(matches = run.matches + (mKey to next)))
         }
     }
 
-    private fun dropMatch(runKey: TournamentRunKey, mKey: String) {
+    private fun dropMatch(reportId: String, mKey: String) {
         _runs.update { runs ->
-            val run = runs[runKey] ?: return@update runs
-            if (mKey !in run.matches) runs
-            else runs + (runKey to run.copy(matches = run.matches - mKey))
+            val run = runs[reportId] ?: return@update runs
+            if (mKey !in run.matches) runs else runs + (reportId to run.copy(matches = run.matches - mKey))
         }
     }
 
-    private fun dropRun(runKey: TournamentRunKey) {
-        _runs.update { it - runKey }
+    private fun dropRun(reportId: String) {
+        _runs.update { it - reportId }
     }
 
     // -----------------------------------------------------------------
     // Run launch
     // -----------------------------------------------------------------
 
-    /** One ordered head-to-head to judge. */
     private data class PendingMatch(
         val aAgent: ReportAgent, val bAgent: ReportAgent, val orientation: Int,
         val placeholder: SecondaryResult
     )
 
-    /** Number of ordered judge calls a tournament over [responseCount]
-     *  responses will run — N(N-1). Used by the launch confirmation. */
+    /** N(N-1) — the number of worker calls a tournament over [responseCount]
+     *  responses runs. Used by the launch confirmation. */
     fun matchCountFor(responseCount: Int): Int = responseCount * (responseCount - 1)
 
-    /** Launch a brand-new tournament with [judgeProvider]/[judgeModel] as
-     *  the judge. Dedupes against an active run for the same (report,
-     *  judge). Pre-creates N(N-1) MATCH placeholders + one AGGREGATE
-     *  placeholder, publishes the run with all matches PENDING, runs each
-     *  match through the shared throttled batch, then folds the verdicts
-     *  into the aggregate ranking row. */
-    fun startRun(context: Context, reportId: String, judgeProvider: AppService, judgeModel: String): Job? {
-        val rk = tournamentRunKey(reportId, judgeProvider.id, judgeModel)
+    /** Launch a brand-new tournament on [reportId]. No judge model — every
+     *  match is judged by the worker chain. Pre-creates N(N-1) MATCH
+     *  placeholders (sentinel provider/model) + one AGGREGATE placeholder,
+     *  publishes the run with all matches PENDING, runs each match through
+     *  the worker batch, then folds the verdicts into the aggregate ranking. */
+    fun startRun(context: Context, reportId: String): Job? {
+        val rk = tournamentRunKey(reportId)
         runJobs[rk]?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
         val runId = java.util.UUID.randomUUID().toString()
@@ -201,8 +195,9 @@ class TournamentEngine internal constructor(
             try {
                 withTracerTags(reportId = reportId, category = "after/tournament", runId = runId) {
                     val aiSettings = appViewModel.uiState.value.aiSettings
-                    val prompt = aiSettings.getInternalPromptByName(JUDGE_PROMPT) ?: run {
-                        AppLog.w("Tournament", "no $JUDGE_PROMPT prompt — aborting")
+                    val prompt = tournamentPrompt(aiSettings)
+                    if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) {
+                        AppLog.w("Tournament", "workers/tournament not configured — aborting")
                         return@withTracerTags
                     }
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
@@ -211,47 +206,36 @@ class TournamentEngine internal constructor(
                         it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
                     }
                     if (successful.size < 2) return@withTracerTags
-                    AppLog.i("Tournament", "→ start judge=${judgeProvider.id}/$judgeModel (${successful.size} responses, ${matchCountFor(successful.size)} matches)")
-                    AuditLog.append(reportId, "Start Tournament — judge ${judgeProvider.id}/${shortModelName(judgeModel)}, ${successful.size} responses, ${matchCountFor(successful.size)} matches")
-                    val agentName = "${judgeProvider.id} / ${shortModelName(judgeModel)}"
+                    AppLog.i("Tournament", "→ start report=$reportId (${successful.size} responses, ${matchCountFor(successful.size)} matches)")
+                    AuditLog.append(reportId, "Start Tournament — ${successful.size} responses, ${matchCountFor(successful.size)} matches (worker-judged)")
                     val scopeEncoded = SecondaryScope.AllReports.encode()
 
-                    // Pre-create the AGGREGATE row up-front so its id is known.
                     val aggregate = SecondaryResultStorage.create(
-                        context, reportId, SecondaryKind.TOURNAMENT, judgeProvider.id, judgeModel, agentName
+                        context, reportId, SecondaryKind.TOURNAMENT, AGG_PROVIDER, AGG_MODEL, "Tournament"
                     ) {
                         it.copy(
-                            tournamentRole = ROLE_AGGREGATE,
-                            tournamentJudgeRunId = rk,
-                            metaPromptId = prompt.id,
-                            metaPromptName = prompt.name,
-                            runId = runId,
-                            secondaryScope = scopeEncoded
+                            tournamentRole = ROLE_AGGREGATE, tournamentJudgeRunId = runId,
+                            metaPromptId = prompt.id, metaPromptName = prompt.name,
+                            runId = runId, secondaryScope = scopeEncoded
                         )
                     }
 
-                    // Pre-create every ordered-match placeholder.
                     val pending = mutableListOf<PendingMatch>()
                     val newMatches = LinkedHashMap<String, MatchState>()
                     for (i in successful.indices) {
                         for (j in i + 1 until successful.size) {
                             val a = successful[i]; val b = successful[j]
-                            for ((aa, bb, orient) in listOf(
-                                Triple(a, b, 0), Triple(b, a, 1)
-                            )) {
+                            for ((aa, bb, orient) in listOf(Triple(a, b, 0), Triple(b, a, 1))) {
                                 val placeholder = SecondaryResultStorage.create(
-                                    context, reportId, SecondaryKind.TOURNAMENT, judgeProvider.id, judgeModel, agentName
+                                    context, reportId, SecondaryKind.TOURNAMENT,
+                                    TOURNAMENT_PENDING_PROVIDER, TOURNAMENT_PENDING_MODEL, "Tournament match"
                                 ) {
                                     it.copy(
-                                        tournamentRole = ROLE_MATCH,
-                                        tournamentJudgeRunId = rk,
-                                        matchResponseAId = aa.agentId,
-                                        matchResponseBId = bb.agentId,
+                                        tournamentRole = ROLE_MATCH, tournamentJudgeRunId = runId,
+                                        matchResponseAId = aa.agentId, matchResponseBId = bb.agentId,
                                         matchOrientation = orient,
-                                        metaPromptId = prompt.id,
-                                        metaPromptName = prompt.name,
-                                        runId = runId,
-                                        secondaryScope = scopeEncoded
+                                        metaPromptId = prompt.id, metaPromptName = prompt.name,
+                                        runId = runId, secondaryScope = scopeEncoded
                                     )
                                 }
                                 pending.add(PendingMatch(aa, bb, orient, placeholder))
@@ -262,36 +246,20 @@ class TournamentEngine internal constructor(
 
                     _runs.update { runs ->
                         runs + (rk to TournamentRunState(
-                            key = rk,
-                            reportId = reportId,
-                            judgeProviderId = judgeProvider.id,
-                            judgeModel = judgeModel,
-                            judgePrompt = prompt,
-                            matches = newMatches,
-                            aggregateRowId = aggregate.id,
+                            key = rk, reportId = reportId, runId = runId, tournamentPrompt = prompt,
+                            matches = newMatches, aggregateRowId = aggregate.id,
                             selectedMethod = TournamentMethod.COPELAND
                         ))
                     }
 
-                    runThrottledBatch(
-                        items = pending,
-                        hostOf = { providerHost(judgeProvider) },
-                        subCap = ApiCallCaps.fanOut,
-                        register = { item, d ->
-                            matchJobs[item.placeholder.id] = d
-                            d.invokeOnCompletion { matchJobs.remove(item.placeholder.id, d) }
-                        }
-                    ) { item ->
-                        runOneMatch(context, rk, report.id, judgeProvider, judgeModel, prompt, report.prompt, report.title, item)
-                    }
-                    // All matches settled — fold into the aggregate ranking.
-                    recomputeAndPersistAggregate(context, rk)
-                    AppLog.i("Tournament", "← done judge=${judgeProvider.id}/$judgeModel in ${System.currentTimeMillis() - startMs}ms")
-                    AuditLog.append(reportId, "End Tournament — judge ${judgeProvider.id}/${shortModelName(judgeModel)}")
+                    dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending)
+                    recomputeAndPersistAggregate(context, reportId)
+                    AppLog.i("Tournament", "← done report=$reportId in ${System.currentTimeMillis() - startMs}ms")
+                    AuditLog.append(reportId, "End Tournament")
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
-                finalizeLeftoverMatches(context, reportId, rk)
+                finalizeLeftoverMatches(context, reportId)
             }
         }
         runJobs[rk] = job
@@ -299,54 +267,101 @@ class TournamentEngine internal constructor(
         return job
     }
 
+    /** Worker-batch dispatch shared by [startRun] and the rerun/resume paths
+     *  — dynamic-host (each worker call self-throttles its provider) under
+     *  the shared workers cap. */
+    private suspend fun dispatchMatches(
+        context: Context, reportId: String, prompt: InternalPrompt,
+        question: String, title: String, items: List<PendingMatch>
+    ) {
+        if (items.isEmpty()) return
+        runThrottledBatch(
+            items = items,
+            hostOf = { null },
+            subCap = ApiCallCaps.workers,
+            onThrottled = { appViewModel.updateThrottledTournamentMatches { s -> s + it.placeholder.id } },
+            onCleared = { appViewModel.updateThrottledTournamentMatches { s -> s - it.placeholder.id } },
+            dynamicHost = true,
+            register = { item, d ->
+                matchJobs[item.placeholder.id] = d
+                d.invokeOnCompletion { matchJobs.remove(item.placeholder.id, d) }
+            }
+        ) { item ->
+            if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) return@runThrottledBatch
+            appViewModel.updateRunningTournamentMatches { it + item.placeholder.id }
+            try {
+                runOneMatch(context, reportId, prompt, question, title, item)
+            } finally {
+                appViewModel.updateRunningTournamentMatches { it - item.placeholder.id }
+                appViewModel.updateThrottledTournamentMatches { it - item.placeholder.id }
+            }
+        }
+    }
+
     // -----------------------------------------------------------------
-    // Per-match runner
+    // Per-match worker call (mirrors runFanMetaForPair)
     // -----------------------------------------------------------------
 
     private suspend fun runOneMatch(
-        context: Context, runKey: TournamentRunKey, reportId: String,
-        judgeProvider: AppService, judgeModel: String,
-        prompt: com.ai.model.InternalPrompt,
-        question: String, title: String,
-        item: PendingMatch
+        context: Context, reportId: String, prompt: InternalPrompt,
+        question: String, title: String, item: PendingMatch
     ) {
         val mKey = matchKey(item.aAgent.agentId, item.bAgent.agentId, item.orientation)
-        if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) {
-            dropMatch(runKey, mKey)
-            return
+        val rowId = item.placeholder.id
+        transitionMatch(reportId, mKey) { it.copy(status = MatchStatus.RUNNING) }
+        val started = System.currentTimeMillis()
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val resolvedBase = resolveSecondaryPrompt(prompt.text, question = question, results = "", count = 2, title = title)
+        val resolved = resolvedBase
+            .replace("@RESPONSE_A@", item.aAgent.responseBody.orEmpty())
+            .replace("@RESPONSE_B@", item.bAgent.responseBody.orEmpty())
+        // Surface the per-provider throttle wait to the L1 "Throttled" counter
+        // (a worker call is dynamic-host, so its wait happens inside
+        // ProviderThrottle.acquire, not at the batch layer).
+        val observer: (Boolean) -> Unit = { waiting ->
+            if (waiting) appViewModel.updateThrottledTournamentMatches { it + rowId }
+            else appViewModel.updateThrottledTournamentMatches { it - rowId }
         }
-        transitionMatch(runKey, mKey) { it.copy(status = MatchStatus.RUNNING) }
-        val start = System.currentTimeMillis()
-        try {
-            val resolvedBase = resolveSecondaryPrompt(prompt.text, question = question, results = "", count = 2, title = title)
-            val resolved = resolvedBase
-                .replace("@RESPONSE_A@", item.aAgent.responseBody.orEmpty())
-                .replace("@RESPONSE_B@", item.bAgent.responseBody.orEmpty())
-            try {
-                withTimeout(MATCH_TIMEOUT_MS) {
-                    reportViewModel.secondary.executeSecondaryTask(
-                        context, reportId, SecondaryKind.TOURNAMENT, prompt,
-                        judgeProvider, judgeModel, resolved,
-                        appViewModel.uiState.value.aiSettings, ReportStorage.getReport(context, reportId)!!,
-                        existingPlaceholder = item.placeholder
-                    )
+        val outcome = withContext(ProviderThrottle.throttleWaitObserver.asContextElement(observer)) {
+            reportViewModel.workerRunner.run(prompt, resolved, aiSettings, context) { resp ->
+                parseMatchVerdict(resp.analysis)?.verdict != null
+            }
+        }
+        when (outcome) {
+            is WorkerOutcome.Success -> {
+                val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
+                    it.copy(model = aiSettings.getEffectiveModelForAgent(it))
                 }
-            } catch (e: TimeoutCancellationException) {
-                val timedOut = (SecondaryResultStorage.get(context, reportId, item.placeholder.id) ?: item.placeholder)
-                    .copy(errorMessage = "Tournament match timed out after 60s", durationMs = System.currentTimeMillis() - start)
-                SecondaryResultStorage.save(context, timedOut)
+                val tu = outcome.response.tokenUsage
+                val inT = tu?.inputTokens ?: 0
+                val outT = tu?.outputTokens ?: 0
+                val provId = winAgent?.provider?.id ?: TOURNAMENT_PENDING_PROVIDER
+                val mdl = winAgent?.model ?: TOURNAMENT_PENDING_MODEL
+                var inCost = 0.0; var outCost = 0.0
+                if (winAgent != null && (inT > 0 || outT > 0)) {
+                    val pricing = PricingCache.getPricing(context, winAgent.provider, winAgent.model)
+                    inCost = inT * pricing.promptPrice
+                    outCost = outT * pricing.completionPrice
+                    appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, inT, outT, kind = "tournament")
+                }
+                SecondaryResultStorage.recordTournamentMatch(
+                    context, reportId, rowId, provId, mdl,
+                    outcome.response.analysis.orEmpty(),
+                    inT, outT, inCost, outCost, System.currentTimeMillis() - started
+                )
             }
-            val saved = SecondaryResultStorage.get(context, reportId, item.placeholder.id)
-            if (saved == null) {
-                dropMatch(runKey, mKey)
-                return
+            else -> {
+                val msg = if (outcome is WorkerOutcome.AllRateLimited) "tournament: all workers rate-limited"
+                          else "tournament: no worker produced a verdict"
+                val cur = SecondaryResultStorage.get(context, reportId, rowId) ?: item.placeholder
+                SecondaryResultStorage.save(context, cur.copy(errorMessage = msg, durationMs = System.currentTimeMillis() - started))
             }
-            val refreshed = saved.toMatchState()
-            transitionMatch(runKey, mKey) {
-                if (refreshed != null) refreshed else it.copy(status = MatchStatus.ERROR, errorMessage = "Match row could not be parsed")
-            }
-        } finally {
-            AppLog.d("Tournament", "← match ${item.aAgent.agentId} vs ${item.bAgent.agentId} (o${item.orientation}) ${System.currentTimeMillis() - start}ms")
+        }
+        val saved = SecondaryResultStorage.get(context, reportId, rowId)
+        if (saved == null) { dropMatch(reportId, mKey); return }
+        val refreshed = saved.toMatchState()
+        transitionMatch(reportId, mKey) {
+            refreshed ?: it.copy(status = MatchStatus.ERROR, errorMessage = "Match row could not be parsed")
         }
     }
 
@@ -354,20 +369,17 @@ class TournamentEngine internal constructor(
     // Aggregation
     // -----------------------------------------------------------------
 
-    /** Fold the run's match verdicts into the win matrix and persist the
-     *  AGGREGATE row's rerank-shaped content for the run's selected
-     *  method, plus the matrix sidecar for instant method toggling. */
-    private fun recomputeAndPersistAggregate(context: Context, runKey: TournamentRunKey) {
-        val run = _runs.value[runKey] ?: return
+    private fun recomputeAndPersistAggregate(context: Context, reportId: String) {
+        val run = _runs.value[reportId] ?: return
         val aggId = run.aggregateRowId ?: return
-        val report = ReportStorage.getReport(context, run.reportId) ?: return
+        val report = ReportStorage.getReport(context, reportId) ?: return
         val successful = report.agents.filter {
             it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
         }
         val idByAgent = successful.withIndex().associate { (i, a) -> a.agentId to (i + 1) }
         val matrix = computeWinMatrix(run.matches.values.toList()) { idByAgent[it] }
         val ranks = rankFor(run.selectedMethod, matrix)
-        val row = SecondaryResultStorage.get(context, run.reportId, aggId) ?: return
+        val row = SecondaryResultStorage.get(context, reportId, aggId) ?: return
         SecondaryResultStorage.save(context, row.copy(
             content = ranks.toRerankJson(),
             tournamentMatrix = matrix.encode(run.selectedMethod),
@@ -375,28 +387,25 @@ class TournamentEngine internal constructor(
         ))
     }
 
-    /** Switch the displayed/Top-ranked aggregation method. A pure local
-     *  recompute from the stored win matrix — no API calls. Falls back to
-     *  a full recompute from match rows when the matrix sidecar is
-     *  missing. */
-    fun setMethod(context: Context, runKey: TournamentRunKey, method: TournamentMethod): Job =
+    /** Switch the displayed / Top-ranked aggregation method — a pure local
+     *  recompute from the stored win matrix, no API calls. */
+    fun setMethod(context: Context, reportId: String, method: TournamentMethod): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[runKey] ?: return@launch
+            val run = _runs.value[reportId] ?: return@launch
             val aggId = run.aggregateRowId ?: return@launch
             _runs.update { runs ->
-                val r = runs[runKey] ?: return@update runs
-                runs + (runKey to r.copy(selectedMethod = method))
+                val r = runs[reportId] ?: return@update runs
+                runs + (reportId to r.copy(selectedMethod = method))
             }
-            val row = SecondaryResultStorage.get(context, run.reportId, aggId) ?: return@launch
+            val row = SecondaryResultStorage.get(context, reportId, aggId) ?: return@launch
             val decoded = decodeTournamentMatrix(row.tournamentMatrix)
             if (decoded != null) {
                 val ranks = rankFor(method, decoded.first)
                 SecondaryResultStorage.save(context, row.copy(
-                    content = ranks.toRerankJson(),
-                    tournamentMatrix = decoded.first.encode(method)
+                    content = ranks.toRerankJson(), tournamentMatrix = decoded.first.encode(method)
                 ))
             } else {
-                recomputeAndPersistAggregate(context, runKey)
+                recomputeAndPersistAggregate(context, reportId)
             }
         }
 
@@ -404,153 +413,133 @@ class TournamentEngine internal constructor(
     // Failure / rerun / delete
     // -----------------------------------------------------------------
 
-    /** Re-fire every errored match, then recompute the aggregate. */
-    fun restartFailedMatches(context: Context, runKey: TournamentRunKey): Job =
+    fun restartFailedMatches(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[runKey] ?: return@launch
+            val run = _runs.value[reportId] ?: return@launch
             val keys = run.matches.values.filter { it.status == MatchStatus.ERROR }.map { it.key }
-            rerunMatchesBlocking(context, runKey, keys)
-            recomputeAndPersistAggregate(context, runKey)
+            rerunMatchesBlocking(context, reportId, keys)
+            recomputeAndPersistAggregate(context, reportId)
         }
 
-    /** Re-fire a single match by its [MatchKey]. */
-    fun rerunMatch(context: Context, runKey: TournamentRunKey, mKey: String): Job =
+    fun rerunMatch(context: Context, reportId: String, mKey: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            rerunMatchesBlocking(context, runKey, listOf(mKey))
-            recomputeAndPersistAggregate(context, runKey)
+            rerunMatchesBlocking(context, reportId, listOf(mKey))
+            recomputeAndPersistAggregate(context, reportId)
         }
 
-    private suspend fun rerunMatchesBlocking(context: Context, runKey: TournamentRunKey, mKeys: List<String>) {
+    private suspend fun rerunMatchesBlocking(context: Context, reportId: String, mKeys: List<String>) {
         if (mKeys.isEmpty()) return
-        val run = _runs.value[runKey] ?: return
-        val report = ReportStorage.getReport(context, run.reportId) ?: return
-        val provider = AppService.findById(run.judgeProviderId) ?: return
+        val run = _runs.value[reportId] ?: return
+        val report = ReportStorage.getReport(context, reportId) ?: return
+        val prompt = tournamentPrompt(appViewModel.uiState.value.aiSettings) ?: return
         val agentsById = report.agents.associateBy { it.agentId }
-        data class Reset(val item: PendingMatch)
-        val resets = mutableListOf<Reset>()
+        val resets = mutableListOf<PendingMatch>()
         for (k in mKeys) {
             val m = run.matches[k] ?: continue
             val a = agentsById[m.responseAId] ?: continue
             val b = agentsById[m.responseBId] ?: continue
-            val cleared = SecondaryResultStorage.get(context, run.reportId, m.id)?.copy(
-                content = null, errorMessage = null, inputCost = null, outputCost = null,
-                durationMs = null, tokenUsage = null, timestamp = System.currentTimeMillis()
-            ) ?: continue
-            SecondaryResultStorage.save(context, cleared)
-            transitionMatch(runKey, k) {
-                it.copy(status = MatchStatus.PENDING, content = null, verdict = null, errorMessage = null,
-                    inputCost = null, outputCost = null, durationMs = null, tokenUsage = null)
+            SecondaryResultStorage.resetTournamentMatch(context, reportId, m.id)
+            val cleared = SecondaryResultStorage.get(context, reportId, m.id) ?: continue
+            transitionMatch(reportId, k) {
+                it.copy(
+                    status = MatchStatus.PENDING, judgeModel = null, content = null, verdict = null,
+                    confidence = null, reason = null, errorMessage = null,
+                    inputCost = null, outputCost = null, durationMs = null, tokenUsage = null
+                )
             }
-            resets.add(Reset(PendingMatch(a, b, m.orientation, cleared)))
+            resets.add(PendingMatch(a, b, m.orientation, cleared))
         }
         if (resets.isEmpty()) return
-        withTracerTags(reportId = run.reportId, category = "after/tournament") {
-            runThrottledBatch(
-                items = resets,
-                hostOf = { providerHost(provider) },
-                subCap = ApiCallCaps.fanOut,
-                register = { r, d ->
-                    matchJobs[r.item.placeholder.id] = d
-                    d.invokeOnCompletion { matchJobs.remove(r.item.placeholder.id, d) }
-                }
-            ) { r ->
-                runOneMatch(context, runKey, run.reportId, provider, run.judgeModel, run.judgePrompt,
-                    report.prompt, report.title, r.item)
-            }
+        withTracerTags(reportId = reportId, category = "after/tournament") {
+            dispatchMatches(context, reportId, prompt, report.prompt, report.title, resets)
         }
     }
 
-    /** Cancel + delete the whole run (matches + aggregate), rolling the
-     *  spend into the report's deleted-items tally. */
-    fun deleteRun(context: Context, runKey: TournamentRunKey): Job =
+    /** Cancel + delete the whole run (matches + aggregate), rolling the spend
+     *  into the report's deleted-items tally. */
+    fun deleteRun(context: Context, reportId: String): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            val run = _runs.value[runKey] ?: return@launch
-            runJobs[runKey]?.cancelAndJoin()
+            val run = _runs.value[reportId] ?: return@launch
+            runJobs[reportId]?.cancelAndJoin()
             run.matches.values.forEach { matchJobs[it.id]?.cancelAndJoin() }
             val costDelta = run.matches.values.sumOf { it.totalCost }
-            run.matches.values.forEach { SecondaryResultStorage.delete(context, run.reportId, it.id) }
-            run.aggregateRowId?.let { SecondaryResultStorage.delete(context, run.reportId, it) }
-            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, run.reportId, costDelta)
-            dropRun(runKey)
-            ReportStorage.bumpReportTimestamp(context, run.reportId)
+            run.matches.values.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+            run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+            dropRun(reportId)
+            ReportStorage.bumpReportTimestamp(context, reportId)
         }
 
-    /** Best-effort cancel of every in-flight run + match for [reportId]
-     *  (called from the synchronous report-delete path). */
+    /** Best-effort cancel of every in-flight match for [reportId] (called
+     *  from the synchronous report-delete path). */
     fun cancelAllForReport(reportId: String) {
-        val prefix = "$reportId|"
-        runJobs.filterKeys { it.startsWith(prefix) }.values.forEach { it.cancel() }
-        _runs.value.filterKeys { it.startsWith(prefix) }
-            .values.flatMap { it.matches.values.map { m -> m.id } }
-            .forEach { matchJobs[it]?.cancel() }
-        _runs.update { it.filterKeys { k -> !k.startsWith(prefix) } }
+        runJobs[reportId]?.cancel()
+        _runs.value[reportId]?.matches?.values?.forEach { matchJobs[it.id]?.cancel() }
+        _runs.update { it - reportId }
     }
 
     // -----------------------------------------------------------------
     // Resume on report open / regenerate
     // -----------------------------------------------------------------
 
-    /** Resume every stale match (blank placeholder on disk, no live Job)
-     *  across every tournament run on this report — the app-kill recovery
-     *  path. Bounds re-dispatch via [BatchResume]. */
+    /** Re-dispatch every stale match (blank placeholder on disk, no live Job)
+     *  — the app-kill recovery + RegeneratePhase.TOURNAMENT path. Bounded by
+     *  [BatchResume]. The stale filter is sentinel-independent (content blank
+     *  + no duration), so an interrupted-after-worker row is still found. */
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
             hydrate(context, reportId)
-            val diskStale = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
-                .filter {
-                    it.tournamentRole == ROLE_MATCH && it.content.isNullOrBlank() &&
-                        it.errorMessage == null && it.durationMs == null && !matchJobs.containsKey(it.id)
-                }
-            if (diskStale.isEmpty()) return@launch
-            val diskById = diskStale.associateBy { it.id }
-            val runsForReport = _runs.value.filterKeys { it.startsWith("$reportId|") }
-            val dispatchable = mutableMapOf<TournamentRunKey, MutableList<String>>()
-            for ((rk, run) in runsForReport) {
-                for (m in run.matches.values) {
-                    if (m.status == MatchStatus.PENDING && m.id in diskById) {
-                        dispatchable.getOrPut(rk) { mutableListOf() }.add(m.key)
-                    }
-                }
-            }
-            for ((rk, mKeys) in dispatchable) {
-                if (!resumeScans.add(rk)) continue
-                val run = runsForReport[rk] ?: run { resumeScans.remove(rk); continue }
-                val rows = mKeys.mapNotNull { k -> run.matches[k]?.id?.let { diskById[it] } }
-                if (resetAttempts) BatchResume.resetAttempts(rows.map { it.id })
-                val retryRows = BatchResume.capForRetry(rows) { row ->
-                    markRowInterrupted(context, reportId, row.id,
-                        "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
+            if (!resumeScans.add(reportId)) return@launch
+            try {
+                val run = _runs.value[reportId] ?: return@launch
+                val prompt = run.tournamentPrompt
+                val report = ReportStorage.getReport(context, reportId) ?: return@launch
+                val agentsById = report.agents.associateBy { it.agentId }
+                val diskById = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
+                    .filter {
+                        it.tournamentRole == ROLE_MATCH && it.content.isNullOrBlank() &&
+                            it.errorMessage == null && it.durationMs == null && !matchJobs.containsKey(it.id)
+                    }.associateBy { it.id }
+                if (diskById.isEmpty()) return@launch
+                val staleRows = run.matches.values
+                    .filter { it.status == MatchStatus.PENDING && it.id in diskById }
+                    .mapNotNull { diskById[it.id] }
+                if (resetAttempts) BatchResume.resetAttempts(staleRows.map { it.id })
+                val retryRows = BatchResume.capForRetry(staleRows) { row ->
+                    markRowInterrupted(context, reportId, row.id, "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts")
                     run.matches.values.firstOrNull { it.id == row.id }?.let { m ->
-                        transitionMatch(rk, m.key) {
+                        transitionMatch(reportId, m.key) {
                             it.copy(status = MatchStatus.ERROR, errorMessage = "Interrupted — no result after resume attempts", durationMs = 0)
                         }
                     }
                 }
-                val retryKeys = retryRows.mapNotNull { row -> run.matches.values.firstOrNull { it.id == row.id }?.key }
-                if (retryKeys.isEmpty()) { resumeScans.remove(rk); continue }
-                appViewModel.viewModelScope.launch(Dispatchers.IO) {
-                    try {
-                        rerunMatchesBlocking(context, rk, retryKeys)
-                        recomputeAndPersistAggregate(context, rk)
-                    } finally {
-                        resumeScans.remove(rk)
-                    }
+                val pending = retryRows.mapNotNull { row ->
+                    val m = run.matches.values.firstOrNull { it.id == row.id } ?: return@mapNotNull null
+                    val a = agentsById[m.responseAId] ?: return@mapNotNull null
+                    val b = agentsById[m.responseBId] ?: return@mapNotNull null
+                    PendingMatch(a, b, m.orientation, row)
                 }
+                if (pending.isEmpty()) return@launch
+                withTracerTags(reportId = reportId, category = "after/tournament") {
+                    dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending)
+                }
+                recomputeAndPersistAggregate(context, reportId)
+            } finally {
+                resumeScans.remove(reportId)
             }
         }
 
-    private suspend fun finalizeLeftoverMatches(context: Context, reportId: String, runKey: TournamentRunKey) {
+    private suspend fun finalizeLeftoverMatches(context: Context, reportId: String) {
         withContext(kotlinx.coroutines.NonCancellable) {
             val leftover = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
                 .filter {
-                    it.tournamentJudgeRunId == runKey && it.tournamentRole == ROLE_MATCH &&
-                        it.content.isNullOrBlank() && it.errorMessage == null && it.durationMs == null &&
-                        !matchJobs.containsKey(it.id)
+                    it.tournamentRole == ROLE_MATCH && it.content.isNullOrBlank() &&
+                        it.errorMessage == null && it.durationMs == null && !matchJobs.containsKey(it.id)
                 }
             BatchResume.finalizeLeftover(leftover) { row ->
                 markRowInterrupted(context, reportId, row.id, "Interrupted — run stopped before this match finished")
-                _runs.value[runKey]?.matches?.values?.firstOrNull { it.id == row.id }?.let { m ->
-                    transitionMatch(runKey, m.key) {
+                _runs.value[reportId]?.matches?.values?.firstOrNull { it.id == row.id }?.let { m ->
+                    transitionMatch(reportId, m.key) {
                         if (it.status == MatchStatus.PENDING || it.status == MatchStatus.RUNNING)
                             it.copy(status = MatchStatus.ERROR, errorMessage = "Interrupted", durationMs = 0)
                         else it

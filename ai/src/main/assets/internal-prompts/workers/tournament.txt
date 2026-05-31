@@ -1,0 +1,15 @@
+You are an impartial judge comparing two AI responses to the same question. Judge the content only — accuracy, completeness, clarity, usefulness. Ignore which response is shown first.
+
+QUESTION:
+@QUESTION@
+
+RESPONSE A:
+@RESPONSE_A@
+
+RESPONSE B:
+@RESPONSE_B@
+
+Reply with EXACTLY three lines and nothing else:
+verdict: <A or B or tie>
+confidence: <a number from 0.0 to 1.0>
+reason: <one short sentence>

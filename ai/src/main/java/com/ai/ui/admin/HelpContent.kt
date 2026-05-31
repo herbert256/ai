@@ -87,6 +87,9 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
 
     // ===== Fan-out / Meta / Secondary results =====
     "view_tournament" to listOf("help_glossary_operations", "concepts", "help_costs"),
+    "tournament_l1" to listOf("help_glossary_operations", "concepts", "help_costs"),
+    "tournament_l2" to listOf("help_glossary_operations", "concepts"),
+    "tournament_l3" to listOf("help_glossary_operations", "concepts"),
     "secondary_list" to listOf("help_glossary_operations", "concepts"),
     "secondary_detail" to listOf("help_glossary_operations"),
     "secondary_scope" to listOf("help_glossary_operations"),

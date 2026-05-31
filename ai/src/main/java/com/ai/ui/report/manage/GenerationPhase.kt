@@ -172,16 +172,6 @@ internal fun buildEveryItems(
             sourceRows = listOf(row),
             open = { lang -> onOpenSecondaryRun(row.id, lang) }
         ) }
-    // Tournament: one item per AGGREGATE row (= one per judge model).
-    // The match rows are inspection detail, surfaced inside the
-    // Tournament view; they never get their own tile.
-    val tournament = secondaryRuns
-        .filter { it.kind == SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE" }
-        .map { row -> EveryItem(
-            label = com.ai.ui.shared.shortModelName(row.model),
-            sourceRows = listOf(row),
-            open = { lang -> onOpenSecondaryRun(row.id, lang) }
-        ) }
     val fanIn = secondaryRuns
         .filter { it.kind == SecondaryKind.META && categoryOf(it) == "fan_in" }
         .map { row -> EveryItem(
@@ -225,7 +215,6 @@ internal fun buildEveryItems(
     return mapOf(
         "meta" to meta,
         "rerank" to rerank,
-        "tournament" to tournament,
         "moderation" to moderation,
         "fan_out" to fanOut,
         "fan_in" to fanIn,
@@ -786,6 +775,11 @@ internal fun ColumnScope.GenerationPhase(
         // visually separates from the next row.
         item(key = "regen-batch-row") {
             RegenerateBatchManageRow()
+        }
+        // Tournament batch — single row, only when a tournament exists for
+        // this report (self-hiding). Opens the L1 stats drill-in overlay.
+        item(key = "tournament-batch-row") {
+            TournamentManageRow()
         }
         // Meta runs — one row per individual rerank / summarize /
         // compare / moderation result on this report, sharing the

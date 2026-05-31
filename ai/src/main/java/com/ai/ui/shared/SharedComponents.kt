@@ -577,6 +577,16 @@ val LocalRegenerateBatchEngine = compositionLocalOf<com.ai.viewmodel.RegenerateB
 val LocalRegenerateBatchOpenState =
     compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
 
+/** [LocalRegenerateBatchEngine] analog for the Tournament drill-in — lets
+ *  the Manage row read the engine without threading it through every
+ *  intermediate composable. Null outside a report screen. */
+val LocalTournamentEngine = compositionLocalOf<com.ai.viewmodel.TournamentEngine?> { null }
+
+/** Shared "Tournament L1 is open for reportId X" state slot, shared by the
+ *  Manage row's click handler and the overlay-mount site. */
+val LocalTournamentOpenState =
+    compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
+
 /** Per-row 🔧 / 👁 callbacks surfaced to nested report-list
  *  pickers (the +Report previous-report picker on the report
  *  screen) and the first-composition seed for the View tile-grid

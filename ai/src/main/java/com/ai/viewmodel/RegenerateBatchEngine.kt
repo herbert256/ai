@@ -856,7 +856,7 @@ class RegenerateBatchEngine internal constructor(
             tasks += RegenerateTask(
                 rowId = row.id,
                 phase = RegeneratePhase.TOURNAMENT,
-                label = "tournament: " + shortModelName(row.model),
+                label = "tournament match",
                 state = RegenerateTaskState.WAITING
             )
         }
