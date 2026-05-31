@@ -547,6 +547,7 @@ internal fun NavGraphBuilder.reportRoutes(
             val aid = entry.arguments?.getString("agentId") ?: ""
             val rmContext = LocalContext.current
             val rmScope = rememberCoroutineScope()
+            val temperatureSweepStates by reportViewModel.temperatureSweepStates.collectAsState()
             com.ai.ui.navigation.ViewSubScreenWithTitleNav(
                 navController = navController,
                 currentReportId = rid
@@ -561,6 +562,16 @@ internal fun NavGraphBuilder.reportRoutes(
                     onNavigateToViewReports = { aid -> navController.navigate(NavRoutes.aiReportViewAtAgent(aid)) },
                     onRemoveAgent = { r, a -> reportViewModel.removeAgentFromReport(rmContext, r, a) },
                     onRegenerateAgent = { r, a -> reportViewModel.regenerateAgent(rmContext, r, a) },
+                    temperatureSweepStates = temperatureSweepStates,
+                    onStartTemperatureSweep = { r, a, temps ->
+                        reportViewModel.startTemperatureSweep(rmContext, r, a, temps)
+                    },
+                    onApplyTemperatureCandidate = { r, a, index ->
+                        reportViewModel.applyTemperatureCandidate(rmContext, r, a, index)
+                    },
+                    onClearTemperatureSweep = { r, a ->
+                        reportViewModel.clearTemperatureSweep(r, a)
+                    },
                     onContinueWithCurrent = { r, a ->
                         rmScope.launch {
                             val sessionId = continueReportInChat(rmContext, r, a,
