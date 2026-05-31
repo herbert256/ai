@@ -222,7 +222,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "tournament_l2" to HelpContent(
         title = "Help - Tournament group",
         cards = listOf(
-            HelpCard("What you see", "Every match in the chosen group — either all matches judged by one worker model ('Judge models' grouping) or all matches for one report answer ('Report models'). Judge-model groups omit the repeated judge column; report-model groups omit the repeated first answer from each row. The status glyph is ✅ done / ❌ error / ⏳ running / 🕓 queued. Tap a row for the full match detail.")
+            HelpCard("What you see", "Every match in the chosen group. Judge-model groups show Result / Model 1 / Model 2. Report-model groups show Score / Model / Judge, where Score is from the selected report model's perspective. Long values ellipsize. Tap a row for the full match detail.")
         )
     ),
     "tournament_l3" to HelpContent(

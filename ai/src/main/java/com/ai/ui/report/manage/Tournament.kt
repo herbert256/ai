@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -49,10 +50,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.MatchState
 import com.ai.data.MatchStatus
+import com.ai.data.Report
 import com.ai.data.ReportAgent
 import com.ai.data.ReportStorage
 import com.ai.data.TournamentMethod
 import com.ai.data.TournamentRunState
+import com.ai.data.barTitle
 import com.ai.ui.report.view.TournamentViewScreen
 import com.ai.ui.shared.AnimatedHourglass
 import com.ai.ui.shared.AppColors
@@ -152,11 +155,16 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
         }
     }
 
-    val agents by produceState(initialValue = emptyMap<String, ReportAgent>(), reportId) {
+    val report by produceState<Report?>(initialValue = null, reportId) {
         value = withContext(Dispatchers.IO) {
-            ReportStorage.getReport(context, reportId)?.agents?.associateBy { it.agentId } ?: emptyMap()
+            ReportStorage.getReport(context, reportId)
         }
     }
+    val agents = report?.agents?.associateBy { it.agentId }.orEmpty()
+    val localReportTitle = com.ai.ui.shared.LocalReportTitle.current
+    val reportTitle = report?.barTitle?.takeIf { it.isNotBlank() }
+        ?: localReportTitle?.takeIf { it.isNotBlank() }
+        ?: "Report"
 
     var groupMode by rememberSaveable { mutableStateOf(TournamentGroupMode.TOURNAMENT_MODELS) }
     var level by rememberSaveable { mutableStateOf(1) }       // 1 = L1, 2 = L2, 3 = L3
@@ -175,7 +183,7 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
 
     if (run == null) {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(helpTopic = "tournament_l1", title = "Tournament", subject = null, onBackClick = onBack)
+            TitleBar(helpTopic = "tournament_l1", title = "Tournament", subject = reportTitle, onBackClick = onBack)
             Spacer(Modifier.height(20.dp))
             Text("No tournament on this report.", color = AppColors.TextSecondary, fontSize = 14.sp)
         }
@@ -188,14 +196,14 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     }
 
     when (level) {
-        2 -> TournamentL2(run, agents, groupKey, groupMode,
+        2 -> TournamentL2(run, agents, reportTitle, groupKey, groupMode,
             openMatch = { mk -> matchKey = mk; level = 3 },
             onBack = { level = 1 })
-        3 -> TournamentL3(run, agents, matchKey, groupKey, groupMode,
+        3 -> TournamentL3(run, agents, reportTitle, matchKey, groupKey, groupMode,
             onBack = { level = 2 },
             onRerun = { scope.launch { engine.rerunMatch(context, reportId, matchKey) } },
             onStep = { mk -> matchKey = mk })
-        else -> TournamentL1(run, agents, groupMode, throttled,
+        else -> TournamentL1(run, agents, reportTitle, groupMode, throttled,
             setGroupMode = { groupMode = it },
             openGroup = { gk -> groupKey = gk; level = 2 },
             onViewResults = { showResults = true },
@@ -248,6 +256,7 @@ private fun matchesForGroup(run: TournamentRunState, groupKey: String): List<Mat
 private fun TournamentL1(
     run: TournamentRunState,
     agents: Map<String, ReportAgent>,
+    reportTitle: String,
     groupMode: TournamentGroupMode,
     throttled: Set<String>,
     setGroupMode: (TournamentGroupMode) -> Unit,
@@ -261,7 +270,7 @@ private fun TournamentL1(
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "tournament_l1", title = "Tournament",
-            subject = "${run.doneCount}/${run.totalMatches}",
+            subject = reportTitle,
             onBackClick = onBack,
             onDelete = onDeleteRun
         )
@@ -445,6 +454,7 @@ private fun TournamentReportModelRow(group: GroupRow, allDone: Boolean, onClick:
 private fun TournamentL2(
     run: TournamentRunState,
     agents: Map<String, ReportAgent>,
+    reportTitle: String,
     groupKey: String,
     groupMode: TournamentGroupMode,
     openMatch: (String) -> Unit,
@@ -454,15 +464,98 @@ private fun TournamentL2(
     val title = groupKey.substringAfter(":").let { if (groupKey.startsWith("judge:")) shortModelName(it.substringAfterLast('/')) else agentLabel(agents, it) }
     val activeReportAgentId = groupKey.takeIf { groupMode == TournamentGroupMode.REPORT_MODELS }
         ?.substringAfter("answerer:", "")
+    val screenTitle = when (groupMode) {
+        TournamentGroupMode.TOURNAMENT_MODELS -> "Tournament - judge"
+        TournamentGroupMode.REPORT_MODELS -> "Tournament - model"
+    }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "tournament_l2", title = "Tournament", subject = title, onBackClick = onBack)
+        TitleBar(helpTopic = "tournament_l2", title = screenTitle, subject = reportTitle, onBackClick = onBack)
+        TournamentGreenSubject(title)
         LazyColumn(Modifier.fillMaxSize()) {
+            item(key = "header") {
+                TournamentL2Header(groupMode)
+            }
             items(matches, key = { it.key }) { m ->
                 MatchRowItem(m, agents, groupMode, activeReportAgentId) { openMatch(m.key) }
             }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
+}
+
+@Composable
+private fun TournamentGreenSubject(text: String) {
+    Text(
+        text = text,
+        color = AppColors.Green,
+        fontSize = 20.sp,
+        fontWeight = FontWeight.Bold,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)
+    )
+}
+
+@Composable
+private fun TournamentL2Header(groupMode: TournamentGroupMode) {
+    val labels = when (groupMode) {
+        TournamentGroupMode.REPORT_MODELS -> listOf("Score", "Model", "Judge")
+        TournamentGroupMode.TOURNAMENT_MODELS -> listOf("Result", "Model 1", "Model 2")
+    }
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        labels.forEach { label ->
+            TournamentL2Cell(label, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+        }
+    }
+    HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.45f), thickness = 0.5.dp)
+}
+
+@Composable
+private fun RowScope.TournamentL2Cell(
+    text: String,
+    color: Color = Color.White,
+    fontWeight: FontWeight = FontWeight.Normal
+) {
+    Text(
+        text = text,
+        color = color,
+        fontSize = 13.sp,
+        fontWeight = fontWeight,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+    )
+}
+
+private fun scoreText(m: MatchState, activeReportAgentId: String?): String {
+    if (activeReportAgentId == null) return "..."
+    return when {
+        m.responseAId == activeReportAgentId -> when (m.verdict) {
+            "A" -> "1"
+            "B" -> "0"
+            "tie" -> "1/2"
+            else -> "..."
+        }
+        m.responseBId == activeReportAgentId -> when (m.verdict) {
+            "A" -> "0"
+            "B" -> "1"
+            "tie" -> "1/2"
+            else -> "..."
+        }
+        else -> "..."
+    }
+}
+
+private fun resultText(m: MatchState): String = when (m.verdict) {
+    "A" -> "1 - 0"
+    "B" -> "0 - 1"
+    "tie" -> "1/2 - 1/2"
+    else -> "..."
 }
 
 @Composable
@@ -475,38 +568,25 @@ private fun MatchRowItem(
 ) {
     val labelA = agentLabel(agents, m.responseAId)
     val labelB = agentLabel(agents, m.responseBId)
-    val primaryLabel =
-        if (groupMode == TournamentGroupMode.REPORT_MODELS && m.responseAId == activeReportAgentId) {
-            labelB
-        } else {
-            "$labelA  vs  $labelB"
-        }
-    val glyph = when (m.status) {
-        MatchStatus.DONE -> "✅"
-        MatchStatus.ERROR -> "❌"
-        MatchStatus.RUNNING -> "⏳"
-        MatchStatus.PENDING -> "🕓"
-    }
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { onClick() }
-            .padding(vertical = 8.dp),
+            .padding(vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(glyph, fontSize = 14.sp, modifier = Modifier.width(28.dp))
-        Column(Modifier.weight(1f)) {
-            Text(primaryLabel, color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val sub = when {
-                m.errorMessage != null -> "⚠ ${m.errorMessage.take(48)}"
-                m.verdict == "A" -> "winner: $labelA"
-                m.verdict == "B" -> "winner: $labelB"
-                m.verdict == "tie" -> "tie"
-                else -> "…"
+        when (groupMode) {
+            TournamentGroupMode.REPORT_MODELS -> {
+                val opponent = if (m.responseAId == activeReportAgentId) labelB else labelA
+                val judge = m.judgeModel?.let { shortModelName(it.substringAfterLast('/')) } ?: "..."
+                TournamentL2Cell(scoreText(m, activeReportAgentId), color = AppColors.Green)
+                TournamentL2Cell(opponent)
+                TournamentL2Cell(judge, color = AppColors.TextSecondary)
             }
-            Text(sub, color = AppColors.TextTertiary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-        if (groupMode != TournamentGroupMode.TOURNAMENT_MODELS) m.judgeModel?.let {
-            Text(shortModelName(it.substringAfterLast('/')), color = AppColors.TextTertiary, fontSize = 10.sp, maxLines = 1)
+            TournamentGroupMode.TOURNAMENT_MODELS -> {
+                TournamentL2Cell(resultText(m), color = AppColors.Green)
+                TournamentL2Cell(labelA)
+                TournamentL2Cell(labelB)
+            }
         }
     }
     HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.3f), thickness = 0.5.dp)
@@ -518,6 +598,7 @@ private fun MatchRowItem(
 private fun TournamentL3(
     run: TournamentRunState,
     agents: Map<String, ReportAgent>,
+    reportTitle: String,
     matchKey: String,
     groupKey: String,
     groupMode: TournamentGroupMode,
@@ -529,7 +610,7 @@ private fun TournamentL3(
     val idx = scoped.indexOfFirst { it.key == matchKey }
     val m = scoped.getOrNull(idx) ?: run.matches[matchKey]
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "tournament_l3", title = "Tournament", subject = "match", onBackClick = onBack, onReload = onRerun)
+        TitleBar(helpTopic = "tournament_l3", title = "Tournament - Match", subject = reportTitle, onBackClick = onBack, onReload = onRerun)
         if (m == null) {
             Text("Match not found.", color = AppColors.TextSecondary, fontSize = 14.sp)
             return@Column
