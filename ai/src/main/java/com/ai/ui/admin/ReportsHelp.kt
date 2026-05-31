@@ -207,7 +207,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "view_tournament" to HelpContent(
         title = "Help - Tournament results",
         cards = listOf(
-            HelpCard("The ranking + method switch", "The top table is the 1..N ranking, best first, with a score and one-line reason per answer — the same layout the Rerank view uses. The three buttons (Copeland / Bradley–Terry / Elo) re-aggregate the SAME head-to-head results three different ways, instantly and with no extra API calls. Copeland ranks by how many opponents each answer beat; Bradley–Terry fits a latent strength; Elo replays the pairs as rated games. Whichever method is selected is also the ordering a Top-ranked scope (Meta / Translate) will use."),
+            HelpCard("The ranking + method switch", "The top table is the 1..N ranking, best first, with a score and one-line reason per answer — the same layout the Rerank view uses. The method buttons re-aggregate the SAME head-to-head results instantly and with no extra API calls. Copeland ranks by opponent wins, Bradley–Terry fits latent strength, Elo replays pairs as rated games, Points scores wins/draws directly, Schulze uses strongest paths, and Markov uses a stationary graph ranking. Whichever method is selected is also the ordering a Top-ranked scope (Meta / Translate) will use."),
             HelpCard("Where it comes from", "Reached from the Tournament page's 'View results' button once every match is judged. A tournament is selectable as a Top-ranked source anywhere a rerank is, because its ranking conforms to the same format.")
         )
     ),
@@ -216,7 +216,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("What it is", "A tournament ranks the report's answers by pairwise head-to-head judging. Every unordered pair of responses is judged twice — once each way (A-vs-B and B-vs-A) — to cancel first-position bias, so for N answers there are N(N-1) matches. Each match is judged by the WORKER engine (the round-robin chain of cheap models in your 'workers' swarm), so judging spreads across many models rather than one. Start a tournament from the report's 🆕 Create launcher → Tournament."),
             HelpCard("Statistics + grouping", "The counters show Total / Done / Running / Wait (throttled) / Queue / Errors / Cost. The two chips switch how the matches below are grouped: 'Judge models' groups by the worker model that judged each match; 'Report models' groups by the report answer being compared. The green row fill shows progress for the active grouping. Tap a group to drill into its matches, then a match to see the two responses and the verdict."),
-            HelpCard("View results", "Once every match is judged, a 'View results' button appears — it opens the 1..N ranking with the Copeland / Bradley–Terry / Elo switch. The 🗑 in the title bar deletes the whole tournament; 'Restart failed' re-judges any errored matches.")
+            HelpCard("View results", "Once every match is judged, a 'View results' button appears — it opens the 1..N ranking with the tournament method switch. The 🗑 in the title bar deletes the whole tournament; 'Restart failed' re-judges any errored matches.")
         )
     ),
     "tournament_l2" to HelpContent(

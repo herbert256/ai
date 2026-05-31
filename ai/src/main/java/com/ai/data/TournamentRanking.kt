@@ -6,17 +6,17 @@ import com.google.gson.JsonParser
 
 /**
  * Pure aggregation for the Tournament feature — folds a set of pairwise
- * [MatchState] verdicts into a 1..N ranking, three interchangeable ways.
+ * [MatchState] verdicts into a 1..N ranking, interchangeable ways.
  * No Android / coroutine dependencies, so it's trivially unit-testable
  * and cheap enough to recompute on the result-screen method toggle.
  *
- * All three methods emit the same `[{id, rank, score, reason}]` shape the
+ * All methods emit the same `[{id, rank, score, reason}]` shape the
  * single-shot Rerank uses, so a tournament aggregate row drops straight
  * into the existing rerank renderers and the Top-ranked scope
  * (`extractTopRankedIds`).
  */
 
-enum class TournamentMethod { COPELAND, BRADLEY_TERRY, ELO, POINTS }
+enum class TournamentMethod { COPELAND, BRADLEY_TERRY, ELO, POINTS, SCHULZE, MARKOV }
 
 /** Square win matrix over the tournament's responses. [ids] are the
  *  1-based `[N]` ids (the same the @RESULTS@ block / rerank JSON use);
@@ -93,6 +93,8 @@ fun rankFor(method: TournamentMethod, m: WinMatrix): List<RankRow> = when (metho
     TournamentMethod.BRADLEY_TERRY -> bradleyTerry(m)
     TournamentMethod.ELO -> elo(m)
     TournamentMethod.POINTS -> points(m)
+    TournamentMethod.SCHULZE -> schulze(m)
+    TournamentMethod.MARKOV -> markov(m)
 }
 
 /** Win-count / Copeland: rank by total fractional wins; score = win-rate
@@ -178,6 +180,126 @@ fun points(m: WinMatrix): List<RankRow> {
     return assignRanks(scored)
 }
 
+/** Schulze / beatpath ranking. Each pair's ordered-match points become
+ *  the pairwise preference strength. The Floyd-Warshall pass then finds
+ *  strongest paths, and candidates are ordered by the Schulze pairwise
+ *  relation. The visible score is the percentage of opponents beaten by
+ *  strongest paths. */
+fun schulze(m: WinMatrix): List<RankRow> {
+    val n = m.n
+    if (n == 0) return emptyList()
+    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
+
+    val d = Array(n) { i ->
+        DoubleArray(n) { j ->
+            if (i == j) 0.0 else m.wins[i][j] * (m.games.getOrNull(i)?.getOrNull(j) ?: 0.0)
+        }
+    }
+    val p = Array(n) { DoubleArray(n) }
+    for (i in 0 until n) {
+        for (j in 0 until n) {
+            if (i != j && d[i][j] > d[j][i]) p[i][j] = d[i][j]
+        }
+    }
+    for (i in 0 until n) {
+        for (j in 0 until n) {
+            if (i == j) continue
+            for (k in 0 until n) {
+                if (i == k || j == k) continue
+                p[j][k] = maxOf(p[j][k], minOf(p[j][i], p[i][k]))
+            }
+        }
+    }
+
+    val pathWins = DoubleArray(n) { i ->
+        (0 until n).sumOf { j ->
+            when {
+                i == j -> 0.0
+                p[i][j] > p[j][i] -> 1.0
+                p[i][j] == p[j][i] -> 0.5
+                else -> 0.0
+            }
+        }
+    }
+    val pathMargin = DoubleArray(n) { i -> (0 until n).sumOf { j -> p[i][j] - p[j][i] } }
+    val order = (0 until n).sortedWith { a, b ->
+        when {
+            p[a][b] > p[b][a] -> -1
+            p[a][b] < p[b][a] -> 1
+            pathWins[a] != pathWins[b] -> -pathWins[a].compareTo(pathWins[b])
+            pathMargin[a] != pathMargin[b] -> -pathMargin[a].compareTo(pathMargin[b])
+            else -> m.ids[a].compareTo(m.ids[b])
+        }
+    }
+    val denom = (n - 1).coerceAtLeast(1)
+    return order.mapIndexed { rank, i ->
+        val score = 100.0 * pathWins[i] / denom
+        RankRow(
+            id = m.ids[i],
+            rank = rank + 1,
+            score = Math.round(score * 10.0) / 10.0,
+            reason = "Beatpath wins %.1f of %d".format(pathWins[i], denom)
+        )
+    }
+}
+
+/** Markov-chain ranking over pairwise results. From each response, the
+ *  chain samples an opponent uniformly and moves to that opponent in
+ *  proportion to how strongly the opponent beat it; otherwise it stays.
+ *  A small teleport keeps the chain ergodic, then the stationary
+ *  distribution is rescaled so the strongest response is 100. */
+fun markov(m: WinMatrix): List<RankRow> {
+    val n = m.n
+    if (n == 0) return emptyList()
+    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
+
+    val transition = Array(n) { DoubleArray(n) }
+    val denom = (n - 1).toDouble()
+    for (i in 0 until n) {
+        var stay = 0.0
+        for (j in 0 until n) {
+            if (i == j) continue
+            val games = m.games.getOrNull(i)?.getOrNull(j) ?: 0.0
+            if (games <= 0.0) {
+                stay += 1.0 / denom
+                continue
+            }
+            val moveToJ = m.wins[j][i].coerceIn(0.0, 1.0) / denom
+            transition[i][j] = moveToJ
+            stay += (1.0 / denom) - moveToJ
+        }
+        transition[i][i] = stay.coerceAtLeast(0.0)
+    }
+
+    val damping = 0.92
+    val teleport = (1.0 - damping) / n
+    var dist = DoubleArray(n) { 1.0 / n }
+    repeat(500) {
+        val next = DoubleArray(n)
+        for (i in 0 until n) {
+            for (j in 0 until n) {
+                next[j] += dist[i] * (damping * transition[i][j] + teleport)
+            }
+        }
+        val sum = next.sum()
+        if (sum > 0.0) for (i in 0 until n) next[i] /= sum
+        var delta = 0.0
+        for (i in 0 until n) delta = maxOf(delta, kotlin.math.abs(next[i] - dist[i]))
+        dist = next
+        if (delta < 1e-10) return@repeat
+    }
+    val max = dist.maxOrNull() ?: 1.0
+    val scored = (0 until n).map { i ->
+        val raw = if (max > 0.0) 100.0 * dist[i] / max else 0.0
+        RankScored(
+            id = m.ids[i],
+            score = Math.round(raw * 10.0) / 10.0,
+            reason = "Stationary share %.1f%%".format(dist[i] * 100.0)
+        )
+    }
+    return assignRanks(scored)
+}
+
 /** Elo: replay each contested pair once (in deterministic id order) as a
  *  single game scored by the pair's fractional result, updating ratings
  *  K=32 from a 1500 base. NOTE: Elo is order-sensitive; the fixed id
@@ -233,7 +355,7 @@ fun List<RankRow>.toRerankJson(): String {
 
 /** Encode the win matrix + the method that produced the aggregate's
  *  current `content`, for the [SecondaryResult.tournamentMatrix] sidecar.
- *  Lets the result screen recompute all three rankings locally without
+ *  Lets the result screen recompute every ranking method locally without
  *  re-reading every match row. */
 fun WinMatrix.encode(method: TournamentMethod): String {
     val obj = JsonObject()

@@ -13,8 +13,8 @@ import com.ai.model.InternalPrompt
  * — like the Fan Meta batch — so a match's judging model isn't known
  * until the worker chain returns; the winning worker is then recorded on
  * the row's (providerId, model). The wins fold into a win matrix that
- * three interchangeable aggregation methods (Copeland / Bradley–Terry /
- * Elo, see [TournamentRanking]) turn into a 1..N ranking.
+ * interchangeable aggregation methods (Copeland / Bradley–Terry / Elo /
+ * Points / Schulze / Markov, see [TournamentRanking]) turn into a 1..N ranking.
  *
  * The on-disk [SecondaryResult] rows (kind == TOURNAMENT) stay the
  * canonical persistence layer; this model is hydrated from disk and kept

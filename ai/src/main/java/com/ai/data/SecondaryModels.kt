@@ -223,7 +223,7 @@ data class SecondaryResult(
     /** AGGREGATE rows only: the win matrix + which method produced the
      *  current [content] array, encoded JSON
      *  (`{"ids":[…],"wins":[[…]],"method":"COPELAND"}`). Lets the result
-     *  screen recompute all three rankings locally and re-persist
+     *  screen recompute every ranking method locally and re-persist
      *  [content] on a method toggle without re-reading every match row.
      *  Null until the aggregate is first computed. */
     val tournamentMatrix: String? = null

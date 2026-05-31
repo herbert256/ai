@@ -58,7 +58,7 @@ import kotlinx.coroutines.withContext
  * Content-only "View" screen for a tournament's AGGREGATE ranking row.
  * Renders the head-to-head ranking through the shared [RerankTable]
  * (the aggregate `content` is rerank-shaped JSON), with a 3-way method
- * toggle (Copeland / Bradley–Terry / Elo) that recomputes locally from
+ * toggle (Copeland / Bradley–Terry / Elo / Points / Schulze / Markov) that recomputes locally from
  * the stored win matrix — no API calls — and a per-match list so the
  * user can inspect every judged pair.
  */
@@ -178,7 +178,7 @@ fun TournamentViewScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Spacer(Modifier.height(4.dp))
-            // Aggregation method toggle (scrolls — four methods).
+            // Aggregation method toggle (scrolls — all methods).
             Row(
                 modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -195,6 +195,12 @@ fun TournamentViewScreen(
                 MethodChip("Points", TournamentMethod.POINTS == currentMethod) {
                     if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.POINTS) }
                 }
+                MethodChip("Schulze", TournamentMethod.SCHULZE == currentMethod) {
+                    if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.SCHULZE) }
+                }
+                MethodChip("Markov", TournamentMethod.MARKOV == currentMethod) {
+                    if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.MARKOV) }
+                }
             }
 
             // Ranking — reuse the shared rerank table. Tapping a row opens
@@ -205,7 +211,9 @@ fun TournamentViewScreen(
                 // decimal (even 100.0); Elo keeps natural formatting.
                 val scoreDecimals = if (currentMethod == TournamentMethod.COPELAND ||
                     currentMethod == TournamentMethod.POINTS ||
-                    currentMethod == TournamentMethod.BRADLEY_TERRY) 1 else null
+                    currentMethod == TournamentMethod.BRADLEY_TERRY ||
+                    currentMethod == TournamentMethod.SCHULZE ||
+                    currentMethod == TournamentMethod.MARKOV) 1 else null
                 RerankTable(
                     rankRows, loaded.agentLabels,
                     onRowClick = { r -> h2hModel = loaded.agentLabels[r.id] },
