@@ -202,3 +202,15 @@ fun SecondaryResult.fullCost(): Double =
         iconInputCost + iconOutputCost +
         titleInputCost + titleOutputCost
 
+/** Drop the "## References" legend that `SecondaryRunManager` appends to a
+ *  reference-enabled META result's [SecondaryResult.content]
+ *  (`…\n\n---\n\n## References\n\n[N] = Provider / Model…`). Used only when
+ *  seeding a chat from a meta result — the agent (model-response) chat never
+ *  carries that footer, and it's noise in a follow-up conversation. The
+ *  stored / displayed content keeps the legend; only the chat seed is
+ *  trimmed. Returns the input unchanged when no legend is present. */
+fun stripMetaReferenceLegend(content: String): String {
+    val idx = content.lastIndexOf("\n\n---\n\n## References")
+    return if (idx >= 0) content.substring(0, idx).trimEnd() else content
+}
+

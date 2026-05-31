@@ -732,7 +732,10 @@ internal suspend fun continueMetaInChat(
         provider = provider,
         model = model,
         messages = listOf(
-            com.ai.data.ChatMessage(role = "assistant", content = metaBody, timestamp = now)
+            // Strip the appended "## References" legend — it's a meta-only
+            // footer we add, never part of a model response, and noise in a
+            // follow-up chat.
+            com.ai.data.ChatMessage(role = "assistant", content = com.ai.data.stripMetaReferenceLegend(metaBody), timestamp = now)
         ),
         parameters = com.ai.data.ChatParameters(systemPrompt = systemPrompt),
         createdAt = now,

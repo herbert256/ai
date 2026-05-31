@@ -316,7 +316,11 @@ internal fun SecondaryResultDetailScreen(
     if (showAgentChat && providerService != null) {
         val seed = buildList {
             add(com.ai.data.ChatMessage(role = "user", content = parentReport?.prompt?.takeIf { it.isNotBlank() } ?: "Analyse the model responses."))
-            originalContent?.takeIf { it.isNotBlank() }?.let { add(com.ai.data.ChatMessage(role = "assistant", content = it)) }
+            // Strip the meta-only "## References" footer from the seed (kept
+            // in the displayed result; just noise in a refine chat).
+            originalContent?.takeIf { it.isNotBlank() }
+                ?.let { com.ai.data.stripMetaReferenceLegend(it) }
+                ?.let { add(com.ai.data.ChatMessage(role = "assistant", content = it)) }
         }
         AgentChatScreen(
             titleBarSubject = title,
