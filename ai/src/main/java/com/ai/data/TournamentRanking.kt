@@ -247,7 +247,13 @@ fun schulze(m: WinMatrix): List<RankRow> {
     }
     val denom = (n - 1).coerceAtLeast(1)
     return order.mapIndexed { rank, i ->
-        val score = 100.0 * pathWins[i] / denom
+        // Schulze is an ORDERING method. On a dense / cyclic round-robin the
+        // strongest-path strengths saturate (most pairs end up beatpath-tied,
+        // p[i][j] == p[j][i]), so any beatpath-derived cardinal score — the
+        // win-count OR the margin — collapses to a single value. Score by
+        // rank position instead so the column stays monotonic and distinct;
+        // the beatpath record stays in the reason for context.
+        val score = 100.0 * (n - 1 - rank) / denom
         RankRow(
             id = m.ids[i],
             rank = rank + 1,
