@@ -20,11 +20,23 @@ enum class TournamentMethod { COPELAND, BRADLEY_TERRY, ELO, POINTS }
 
 /** Square win matrix over the tournament's responses. [ids] are the
  *  1-based `[N]` ids (the same the @RESULTS@ block / rerank JSON use);
- *  `wins[i][j]` is the fractional credit response i earned against j,
- *  combining the two swapped orientations of that pair (see
- *  [computeWinMatrix]). `wins[i][j] + wins[j][i] == 1.0` for every
- *  contested pair, and both are 0.0 for an un-contested one. */
-class WinMatrix(val ids: List<Int>, val wins: Array<DoubleArray>) {
+ *  `wins[i][j]` is the average fractional credit response i earned
+ *  against j, combining the swapped orientations of that pair (see
+ *  [computeWinMatrix]). `games[i][j]` is the number of decided ordered
+ *  judgments behind that average, so Points can score the actual ordered
+ *  matches instead of the collapsed opponent result. */
+class WinMatrix(
+    val ids: List<Int>,
+    val wins: Array<DoubleArray>,
+    val games: Array<DoubleArray> = Array(ids.size) { i ->
+        DoubleArray(ids.size) { j ->
+            if (i != j &&
+                (wins.getOrNull(i)?.getOrNull(j) ?: 0.0) +
+                (wins.getOrNull(j)?.getOrNull(i) ?: 0.0) > 0.0
+            ) 2.0 else 0.0
+        }
+    }
+) {
     val n: Int get() = ids.size
 }
 
@@ -45,7 +57,8 @@ fun computeWinMatrix(matches: List<MatchState>, idForAgentId: (String) -> Int?):
     val ids = resolved.map { it.second }
     val n = ids.size
     val wins = Array(n) { DoubleArray(n) }
-    if (n < 2) return WinMatrix(ids, wins)
+    val games = Array(n) { DoubleArray(n) }
+    if (n < 2) return WinMatrix(ids, wins, games)
 
     // Ordered-verdict lookup over decided matches.
     val verdictByOrdered = HashMap<Pair<String, String>, String>()
@@ -67,9 +80,11 @@ fun computeWinMatrix(matches: List<MatchState>, idForAgentId: (String) -> Int?):
             val creditA = votes.average()
             wins[a][b] = creditA
             wins[b][a] = 1.0 - creditA
+            games[a][b] = votes.size.toDouble()
+            games[b][a] = votes.size.toDouble()
         }
     }
-    return WinMatrix(ids, wins)
+    return WinMatrix(ids, wins, games)
 }
 
 /** Dispatch to the chosen aggregation method. */
@@ -140,12 +155,10 @@ fun bradleyTerry(m: WinMatrix): List<RankRow> {
     return assignRanks(scored)
 }
 
-/** Chess-style points: combine the two orientations of each pair into one
- *  result (1 for a clear win, 0 for a clear loss, ½ each for a draw — a
- *  draw being any pair with no clear winner), then rank by total points.
- *  The win matrix already merges A-vs-B and B-vs-A into [WinMatrix.wins],
- *  so `wins[i][j] > 0.5` is a clear win for i, `< 0.5` a clear loss, and
- *  `== 0.5` (split verdicts or an explicit tie) a draw. */
+/** Chess-style points over the actual ordered judgments: 1 for a clear
+ *  win, 0 for a loss, ½ for a draw. The win matrix stores averaged
+ *  pair credit, so multiply by [WinMatrix.games] to recover the total
+ *  ordered-match points. */
 fun points(m: WinMatrix): List<RankRow> {
     val n = m.n
     if (n == 0) return emptyList()
@@ -154,16 +167,13 @@ fun points(m: WinMatrix): List<RankRow> {
         var played = 0
         for (j in 0 until n) {
             if (i == j) continue
-            if (m.wins[i][j] + m.wins[j][i] <= 0.0) continue // uncontested pair
-            played++
-            pts += when {
-                m.wins[i][j] > 0.5 -> 1.0
-                m.wins[i][j] < 0.5 -> 0.0
-                else -> 0.5
-            }
+            val games = m.games.getOrNull(i)?.getOrNull(j) ?: 0.0
+            if (games <= 0.0) continue
+            played += games.toInt()
+            pts += m.wins[i][j] * games
         }
         val ptsText = if (pts == Math.floor(pts)) "%.0f".format(pts) else "%.1f".format(pts)
-        RankScored(m.ids[i], pts, "$ptsText / $played games")
+        RankScored(m.ids[i], pts, "$ptsText / $played points")
     }
     return assignRanks(scored)
 }
@@ -234,6 +244,11 @@ fun WinMatrix.encode(method: TournamentMethod): String {
         val r = JsonArray(); row.forEach { r.add(it) }; winsArr.add(r)
     }
     obj.add("wins", winsArr)
+    val gamesArr = JsonArray()
+    games.forEach { row ->
+        val r = JsonArray(); row.forEach { r.add(it) }; gamesArr.add(r)
+    }
+    obj.add("games", gamesArr)
     obj.addProperty("method", method.name)
     return obj.toString()
 }
@@ -265,9 +280,19 @@ fun decodeTournamentMatrix(json: String?): Pair<WinMatrix, TournamentMethod>? {
             val row = winsArr[i].asJsonArray
             DoubleArray(row.size()) { j -> row[j].asDouble }
         }
+        val games = obj.getAsJsonArray("games")?.let { gamesArr ->
+            Array(gamesArr.size()) { i ->
+                val row = gamesArr[i].asJsonArray
+                DoubleArray(row.size()) { j -> row[j].asDouble }
+            }
+        } ?: Array(wins.size) { i ->
+            DoubleArray(wins.size) { j ->
+                if (i != j && wins[i][j] + wins[j][i] > 0.0) 2.0 else 0.0
+            }
+        }
         val method = try { TournamentMethod.valueOf(obj.get("method").asString) }
             catch (_: Exception) { TournamentMethod.COPELAND }
-        WinMatrix(ids, wins) to method
+        WinMatrix(ids, wins, games) to method
     } catch (_: Exception) {
         null
     }
