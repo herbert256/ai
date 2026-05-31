@@ -696,7 +696,8 @@ object SecondaryResultStorage {
         context: Context, reportId: String, resultId: String,
         providerId: String, model: String, content: String,
         inputTokens: Int, outputTokens: Int,
-        inputCost: Double, outputCost: Double, durationMs: Long
+        inputCost: Double, outputCost: Double, durationMs: Long,
+        traceFile: String? = null
     ) {
         init(context)
         lock.withLock {
@@ -714,7 +715,8 @@ object SecondaryResultStorage {
                 tokenUsage = TokenUsage(inputTokens = inputTokens, outputTokens = outputTokens),
                 inputCost = inputCost,
                 outputCost = outputCost,
-                durationMs = durationMs
+                durationMs = durationMs,
+                traceFile = traceFile ?: current.traceFile
             )
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)

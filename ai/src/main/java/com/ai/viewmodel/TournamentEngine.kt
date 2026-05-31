@@ -322,9 +322,14 @@ class TournamentEngine internal constructor(
             if (waiting) appViewModel.updateThrottledTournamentMatches { it + rowId }
             else appViewModel.updateThrottledTournamentMatches { it - rowId }
         }
+        // Capture the judging call's trace filename (when tracing is on) so
+        // the head-to-heads' 🐞 can deep-link to it. Null otherwise.
+        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
         val outcome = withContext(ProviderThrottle.throttleWaitObserver.asContextElement(observer)) {
-            reportViewModel.workerRunner.run(prompt, resolved, aiSettings, context) { resp ->
-                parseMatchVerdict(resp.analysis)?.verdict != null
+            com.ai.data.withTraceFilenameSink(traceSink) {
+                reportViewModel.workerRunner.run(prompt, resolved, aiSettings, context) { resp ->
+                    parseMatchVerdict(resp.analysis)?.verdict != null
+                }
             }
         }
         when (outcome) {
@@ -347,7 +352,8 @@ class TournamentEngine internal constructor(
                 SecondaryResultStorage.recordTournamentMatch(
                     context, reportId, rowId, provId, mdl,
                     outcome.response.analysis.orEmpty(),
-                    inT, outT, inCost, outCost, System.currentTimeMillis() - started
+                    inT, outT, inCost, outCost, System.currentTimeMillis() - started,
+                    traceFile = traceSink.get()
                 )
             }
             else -> {

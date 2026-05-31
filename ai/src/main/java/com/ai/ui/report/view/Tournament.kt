@@ -62,8 +62,15 @@ import kotlinx.coroutines.withContext
  * the stored win matrix — no API calls — and a per-match list so the
  * user can inspect every judged pair.
  */
-/** One collapsed head-to-head (the two orientations of a pair merged). */
-private data class MatchRow(val labelA: String, val labelB: String, val verdict: String?, val reason: String?, val error: String?)
+/** One collapsed head-to-head (the two orientations of a pair merged).
+ *  [traceAB] / [traceBA] are the judging-call trace filenames for the
+ *  A-vs-B (orientation 0) and B-vs-A (orientation 1) matches, when tracing
+ *  recorded them. */
+private data class MatchRow(
+    val labelA: String, val labelB: String,
+    val verdict: String?, val reason: String?, val error: String?,
+    val traceAB: String? = null, val traceBA: String? = null
+)
 
 @Composable
 fun TournamentViewScreen(
@@ -127,7 +134,9 @@ fun TournamentViewScreen(
                     labelB = agentIdToLabel[canonical.matchResponseBId] ?: "?",
                     verdict = combined,
                     reason = parseMatchVerdict(canonical.content)?.reason,
-                    error = rows.firstNotNullOfOrNull { it.errorMessage }
+                    error = rows.firstNotNullOfOrNull { it.errorMessage },
+                    traceAB = rows.firstOrNull { (it.matchOrientation ?: 0) == 0 }?.traceFile,
+                    traceBA = rows.firstOrNull { (it.matchOrientation ?: 0) == 1 }?.traceFile
                 )
             }
             val done = matchRows.count { !it.content.isNullOrBlank() || it.durationMs != null }
@@ -190,9 +199,16 @@ fun TournamentViewScreen(
             // that model's head-to-heads on its own screen.
             val rankRows = row?.content?.let { parseRerankRows(it) }
             if (rankRows != null && rankRows.isNotEmpty()) {
-                RerankTable(rankRows, loaded.agentLabels, onRowClick = { r ->
-                    h2hModel = loaded.agentLabels[r.id]
-                })
+                // Points / Bradley–Terry always show one decimal (even 100.0);
+                // Copeland / Elo keep their natural formatting. Reason hidden.
+                val scoreDecimals = if (currentMethod == TournamentMethod.POINTS ||
+                    currentMethod == TournamentMethod.BRADLEY_TERRY) 1 else null
+                RerankTable(
+                    rankRows, loaded.agentLabels,
+                    onRowClick = { r -> h2hModel = loaded.agentLabels[r.id] },
+                    showReason = false,
+                    scoreDecimals = scoreDecimals
+                )
             } else if (loaded.totalMatches > 0) {
                 Text(
                     "Judging ${loaded.doneMatches}/${loaded.totalMatches} matches…",
@@ -262,7 +278,7 @@ private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBac
             )
             matches.forEach { m ->
                 val opponent = if (m.labelA == model) m.labelB else m.labelA
-                HeadToHeadRow(opponent, resultFor(model, m), m.reason, m.error)
+                HeadToHeadRow(opponent, resultFor(model, m), m.reason, m.error, m.traceAB, m.traceBA)
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -270,7 +286,7 @@ private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBac
 }
 
 @Composable
-private fun HeadToHeadRow(opponent: String, result: String, reason: String?, error: String?) {
+private fun HeadToHeadRow(opponent: String, result: String, reason: String?, error: String?, traceAB: String?, traceBA: String?) {
     val (label, color) = when (result) {
         "won" -> "won" to AppColors.Green
         "lost" -> "lost" to AppColors.Red
@@ -292,6 +308,31 @@ private fun HeadToHeadRow(opponent: String, result: String, reason: String?, err
                 !reason.isNullOrBlank() -> Text(reason, color = AppColors.TextTertiary, fontSize = 11.sp)
             }
         }
-        Text(label, color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        // Two trace deep-links: 🐞 for the A-vs-B match, 🐞 for B-vs-A.
+        TraceBug("AB", traceAB)
+        TraceBug("BA", traceBA)
+        Text(label, color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(start = 6.dp))
+    }
+}
+
+/** One 🐞 trace deep-link for a match orientation. Opens the judging call's
+ *  API trace when one was recorded; otherwise a toast (tracing was off). */
+@Composable
+private fun TraceBug(orientation: String, traceFile: String?) {
+    val navigateToRoute = com.ai.ui.shared.LocalNavigateToRoute.current
+    val context = LocalContext.current
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .clickable {
+                if (!traceFile.isNullOrBlank()) navigateToRoute(com.ai.ui.navigation.NavRoutes.traceDetail(traceFile))
+                else android.widget.Toast.makeText(context, "No trace for $orientation (enable tracing in Settings)", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+    ) {
+        Text("🐞", fontSize = 14.sp, color = if (traceFile.isNullOrBlank()) AppColors.TextTertiary else Color.White)
+        Text(orientation, fontSize = 8.sp, color = AppColors.TextTertiary)
     }
 }

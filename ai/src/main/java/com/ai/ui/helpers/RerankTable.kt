@@ -86,7 +86,13 @@ internal fun RerankTable(
     /** When non-null, each ranking row becomes clickable and fires this with
      *  the tapped row (used by the Tournament result screen to drill into a
      *  model's head-to-heads). Null → rows are inert (the default). */
-    onRowClick: ((RerankRow) -> Unit)? = null
+    onRowClick: ((RerankRow) -> Unit)? = null,
+    /** Show the Reason column (default true). Tournament hides it. */
+    showReason: Boolean = true,
+    /** When non-null, format every score to exactly this many decimals
+     *  (e.g. Tournament Points / Bradley–Terry always 1dp, even 100.0).
+     *  Null → the default trim-trailing-zeros [formatRerankScore]. */
+    scoreDecimals: Int? = null
 ) {
     val hColor = AppColors.Blue
     val hSize = 12.sp
@@ -99,7 +105,7 @@ internal fun RerankTable(
                     modifier = Modifier.width(220.dp).padding(start = 8.dp))
                 Text("Score", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
                     modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                Text("Reason", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
+                if (showReason) Text("Reason", fontSize = hSize, color = hColor, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(start = 8.dp))
             }
             HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
@@ -114,10 +120,12 @@ internal fun RerankTable(
                     Text(label, fontSize = 12.sp, color = Color.White,
                         modifier = Modifier.width(220.dp).padding(start = 8.dp),
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(r.score?.let { formatRerankScore(it) } ?: "", fontSize = 12.sp, color = AppColors.Green,
+                    Text(
+                        r.score?.let { s -> scoreDecimals?.let { "%.${it}f".format(s) } ?: formatRerankScore(s) } ?: "",
+                        fontSize = 12.sp, color = AppColors.Green,
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    Text(r.reason.orEmpty(), fontSize = 12.sp, color = AppColors.TextTertiary,
+                    if (showReason) Text(r.reason.orEmpty(), fontSize = 12.sp, color = AppColors.TextTertiary,
                         modifier = Modifier.widthIn(min = 200.dp, max = 360.dp).padding(start = 8.dp))
                 }
                 HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
