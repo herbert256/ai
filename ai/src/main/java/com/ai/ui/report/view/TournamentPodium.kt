@@ -326,7 +326,7 @@ private fun MethodSelector(selected: TournamentMethod, onSelect: (TournamentMeth
         listOf(
             TournamentMethod.COPELAND,
             TournamentMethod.ELO,
-            TournamentMethod.POINTS,
+            TournamentMethod.DAVIDSON,
             TournamentMethod.SCHULZE,
             TournamentMethod.MARKOV
         ).forEach { method ->
@@ -529,7 +529,7 @@ private fun EmptyTournamentCard(done: Int, total: Int) {
 private fun methodLabel(method: TournamentMethod): String = when (method) {
     TournamentMethod.COPELAND -> "Copeland"
     TournamentMethod.ELO -> "Elo"
-    TournamentMethod.POINTS -> "Points"
+    TournamentMethod.DAVIDSON -> "Davidson"
     TournamentMethod.SCHULZE -> "Schulze"
     TournamentMethod.MARKOV -> "Markov"
 }
@@ -538,7 +538,7 @@ private fun scoreText(score: Double?, method: TournamentMethod): String {
     if (score == null) return "-"
     return when (method) {
         TournamentMethod.COPELAND,
-        TournamentMethod.POINTS,
+        TournamentMethod.DAVIDSON,
         TournamentMethod.SCHULZE,
         TournamentMethod.MARKOV -> String.format(java.util.Locale.US, "%.1f", score)
         else -> formatRerankScore(score)

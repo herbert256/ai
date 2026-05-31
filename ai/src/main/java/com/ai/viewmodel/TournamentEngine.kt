@@ -405,7 +405,7 @@ class TournamentEngine internal constructor(
             }
             val row = SecondaryResultStorage.get(context, reportId, aggId) ?: return@launch
             val decoded = decodeTournamentMatrix(row.tournamentMatrix)
-            if (decoded != null) {
+            if (decoded != null && (method != TournamentMethod.DAVIDSON || decoded.first.hasTieData)) {
                 val ranks = rankFor(method, decoded.first)
                 SecondaryResultStorage.save(context, row.copy(
                     content = ranks.toRerankJson(), tournamentMatrix = decoded.first.encode(method)

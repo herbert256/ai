@@ -16,15 +16,15 @@ import com.google.gson.JsonParser
  * (`extractTopRankedIds`).
  */
 
-enum class TournamentMethod { COPELAND, ELO, POINTS, SCHULZE, MARKOV }
+enum class TournamentMethod { COPELAND, ELO, DAVIDSON, SCHULZE, MARKOV }
 
 /** Square win matrix over the tournament's responses. [ids] are the
  *  1-based `[N]` ids (the same the @RESULTS@ block / rerank JSON use);
  *  `wins[i][j]` is the average fractional credit response i earned
  *  against j, combining the swapped orientations of that pair (see
  *  [computeWinMatrix]). `games[i][j]` is the number of decided ordered
- *  judgments behind that average, so Points can score the actual ordered
- *  matches instead of the collapsed opponent result. */
+ *  judgments behind that average. `ties[i][j]` is the explicit draw
+ *  count for tie-aware methods such as Davidson. */
 class WinMatrix(
     val ids: List<Int>,
     val wins: Array<DoubleArray>,
@@ -35,7 +35,16 @@ class WinMatrix(
                 (wins.getOrNull(j)?.getOrNull(i) ?: 0.0) > 0.0
             ) 2.0 else 0.0
         }
-    }
+    },
+    val ties: Array<DoubleArray> = Array(ids.size) { i ->
+        DoubleArray(ids.size) { j ->
+            if (i != j &&
+                games.getOrNull(i)?.getOrNull(j)?.let { it > 0.0 } == true &&
+                kotlin.math.abs((wins.getOrNull(i)?.getOrNull(j) ?: 0.0) - 0.5) < 1e-9
+            ) games[i][j] else 0.0
+        }
+    },
+    val hasTieData: Boolean = true
 ) {
     val n: Int get() = ids.size
 }
@@ -58,7 +67,8 @@ fun computeWinMatrix(matches: List<MatchState>, idForAgentId: (String) -> Int?):
     val n = ids.size
     val wins = Array(n) { DoubleArray(n) }
     val games = Array(n) { DoubleArray(n) }
-    if (n < 2) return WinMatrix(ids, wins, games)
+    val ties = Array(n) { DoubleArray(n) }
+    if (n < 2) return WinMatrix(ids, wins, games, ties)
 
     // Ordered-verdict lookup over decided matches.
     val verdictByOrdered = HashMap<Pair<String, String>, String>()
@@ -82,16 +92,19 @@ fun computeWinMatrix(matches: List<MatchState>, idForAgentId: (String) -> Int?):
             wins[b][a] = 1.0 - creditA
             games[a][b] = votes.size.toDouble()
             games[b][a] = votes.size.toDouble()
+            val tieCount = votes.count { it == 0.5 }.toDouble()
+            ties[a][b] = tieCount
+            ties[b][a] = tieCount
         }
     }
-    return WinMatrix(ids, wins, games)
+    return WinMatrix(ids, wins, games, ties)
 }
 
 /** Dispatch to the chosen aggregation method. */
 fun rankFor(method: TournamentMethod, m: WinMatrix): List<RankRow> = when (method) {
     TournamentMethod.COPELAND -> copeland(m)
     TournamentMethod.ELO -> elo(m)
-    TournamentMethod.POINTS -> points(m)
+    TournamentMethod.DAVIDSON -> davidson(m)
     TournamentMethod.SCHULZE -> schulze(m)
     TournamentMethod.MARKOV -> markov(m)
 }
@@ -109,25 +122,74 @@ fun copeland(m: WinMatrix): List<RankRow> {
     return assignRanks(scored.map { RankScored(it.first, it.third, "Won %.1f of %d head-to-heads".format(it.second, games)) })
 }
 
-/** Chess-style points over the actual ordered judgments: 1 for a clear
- *  win, 0 for a loss, ½ for a draw. The win matrix stores averaged
- *  pair credit, so multiply by [WinMatrix.games] to recover the total
- *  ordered-match points. */
-fun points(m: WinMatrix): List<RankRow> {
+/** Davidson tie-aware paired-comparison model. It estimates a latent
+ *  strength per response plus a global tie tendency, using the explicit
+ *  draw counts preserved in [WinMatrix.ties]. The visible score is the
+ *  fitted strength rescaled so the strongest response is 100. */
+fun davidson(m: WinMatrix): List<RankRow> {
     val n = m.n
     if (n == 0) return emptyList()
-    val scored = (0 until n).map { i ->
-        var pts = 0.0
-        var played = 0
-        for (j in 0 until n) {
-            if (i == j) continue
+    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
+
+    val wins = Array(n) { DoubleArray(n) }
+    val ties = Array(n) { DoubleArray(n) }
+    for (i in 0 until n) {
+        for (j in i + 1 until n) {
             val games = m.games.getOrNull(i)?.getOrNull(j) ?: 0.0
             if (games <= 0.0) continue
-            played += games.toInt()
-            pts += m.wins[i][j] * games
+            val tieCount = (m.ties.getOrNull(i)?.getOrNull(j) ?: 0.0).coerceIn(0.0, games)
+            val pointsI = (m.wins[i][j] * games).coerceIn(0.0, games)
+            val winsI = (pointsI - 0.5 * tieCount).coerceIn(0.0, games - tieCount)
+            val winsJ = (games - tieCount - winsI).coerceIn(0.0, games - tieCount)
+            wins[i][j] = winsI
+            wins[j][i] = winsJ
+            ties[i][j] = tieCount
+            ties[j][i] = tieCount
         }
-        val ptsText = if (pts == Math.floor(pts)) "%.0f".format(pts) else "%.1f".format(pts)
-        RankScored(m.ids[i], pts, "$ptsText / $played points")
+    }
+
+    var theta = DoubleArray(n)
+    var gamma = 0.0
+    repeat(700) { iter ->
+        val grad = DoubleArray(n)
+        var gradGamma = 0.0
+        var totalGames = 0.0
+        val alpha = DoubleArray(n) { kotlin.math.exp(theta[it]) }
+        val nu = kotlin.math.exp(gamma)
+        for (i in 0 until n) {
+            for (j in i + 1 until n) {
+                val wij = wins[i][j]
+                val wji = wins[j][i]
+                val tij = ties[i][j]
+                val nij = wij + wji + tij
+                if (nij <= 0.0) continue
+                totalGames += nij
+                val tieTerm = nu * kotlin.math.sqrt(alpha[i] * alpha[j])
+                val denom = alpha[i] + alpha[j] + tieTerm
+                grad[i] += wij + 0.5 * tij - nij * (alpha[i] + 0.5 * tieTerm) / denom
+                grad[j] += wji + 0.5 * tij - nij * (alpha[j] + 0.5 * tieTerm) / denom
+                gradGamma += tij - nij * tieTerm / denom
+            }
+        }
+        if (totalGames <= 0.0) return@repeat
+        val meanGrad = grad.average()
+        val lr = 0.08 / kotlin.math.sqrt(iter + 1.0)
+        for (i in 0 until n) theta[i] += lr * (grad[i] - meanGrad)
+        gamma = (gamma + lr * gradGamma).coerceIn(-6.0, 6.0)
+        val meanTheta = theta.average()
+        theta = DoubleArray(n) { theta[it] - meanTheta }
+    }
+
+    val strengths = DoubleArray(n) { kotlin.math.exp(theta[it]) }
+    val maxStrength = strengths.maxOrNull() ?: 1.0
+    val tieTendency = kotlin.math.exp(gamma)
+    val scored = (0 until n).map { i ->
+        val raw = if (maxStrength > 0.0) 100.0 * strengths[i] / maxStrength else 0.0
+        RankScored(
+            id = m.ids[i],
+            score = Math.round(raw * 10.0) / 10.0,
+            reason = "Davidson strength %.3f · tie %.2f".format(strengths[i], tieTendency)
+        )
     }
     return assignRanks(scored)
 }
@@ -323,6 +385,11 @@ fun WinMatrix.encode(method: TournamentMethod): String {
         val r = JsonArray(); row.forEach { r.add(it) }; gamesArr.add(r)
     }
     obj.add("games", gamesArr)
+    val tiesArr = JsonArray()
+    ties.forEach { row ->
+        val r = JsonArray(); row.forEach { r.add(it) }; tiesArr.add(r)
+    }
+    obj.add("ties", tiesArr)
     obj.addProperty("method", method.name)
     return obj.toString()
 }
@@ -335,11 +402,31 @@ fun WinMatrix.encode(method: TournamentMethod): String {
 fun applyTournamentMethod(context: android.content.Context, reportId: String, rowId: String, method: TournamentMethod) {
     val row = SecondaryResultStorage.get(context, reportId, rowId) ?: return
     val decoded = decodeTournamentMatrix(row.tournamentMatrix) ?: return
-    val ranks = rankFor(method, decoded.first)
+    val matrix = if (method == TournamentMethod.DAVIDSON && !decoded.first.hasTieData) {
+        rebuildTournamentMatrixFromRows(context, reportId, row) ?: decoded.first
+    } else decoded.first
+    val ranks = rankFor(method, matrix)
     SecondaryResultStorage.save(context, row.copy(
         content = ranks.toRerankJson(),
-        tournamentMatrix = decoded.first.encode(method)
+        tournamentMatrix = matrix.encode(method)
     ))
+}
+
+private fun rebuildTournamentMatrixFromRows(
+    context: android.content.Context,
+    reportId: String,
+    aggregateRow: SecondaryResult
+): WinMatrix? {
+    val runId = aggregateRow.tournamentJudgeRunId ?: return null
+    val report = ReportStorage.getReport(context, reportId) ?: return null
+    val successful = report.agents.filter {
+        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+    }
+    val idByAgent = successful.withIndex().associate { (i, a) -> a.agentId to (i + 1) }
+    val matches = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
+        .filter { it.tournamentRole == "MATCH" && it.tournamentJudgeRunId == runId }
+        .mapNotNull { it.toMatchState() }
+    return computeWinMatrix(matches) { idByAgent[it] }
 }
 
 /** Inverse of [WinMatrix.encode] — returns the matrix and the stored
@@ -364,9 +451,21 @@ fun decodeTournamentMatrix(json: String?): Pair<WinMatrix, TournamentMethod>? {
                 if (i != j && wins[i][j] + wins[j][i] > 0.0) 2.0 else 0.0
             }
         }
+        val tiesArr = obj.getAsJsonArray("ties")
+        val ties = tiesArr?.let {
+            Array(it.size()) { i ->
+                val row = it[i].asJsonArray
+                DoubleArray(row.size()) { j -> row[j].asDouble }
+            }
+        } ?: Array(wins.size) { i ->
+            DoubleArray(wins.size) { j ->
+                if (i != j && games[i][j] > 0.0 && kotlin.math.abs(wins[i][j] - 0.5) < 1e-9)
+                    games[i][j] else 0.0
+            }
+        }
         val method = try { TournamentMethod.valueOf(obj.get("method").asString) }
             catch (_: Exception) { TournamentMethod.COPELAND }
-        WinMatrix(ids, wins, games) to method
+        WinMatrix(ids, wins, games, ties, hasTieData = tiesArr != null) to method
     } catch (_: Exception) {
         null
     }

@@ -207,7 +207,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "view_tournament" to HelpContent(
         title = "Help - Tournament results",
         cards = listOf(
-            HelpCard("The ranking + method switch", "The top table is the 1..N ranking, best first, with a score and one-line reason per answer — the same layout the Rerank view uses. The method buttons re-aggregate the SAME head-to-head results instantly and with no extra API calls. Copeland ranks by opponent wins, Elo replays pairs as rated games, Points scores wins/draws directly, Schulze uses strongest paths, and Markov uses a stationary graph ranking. Whichever method is selected is also the ordering a Top-ranked scope (Meta / Translate) will use."),
+            HelpCard("The ranking + method switch", "The top table is the 1..N ranking, best first, with a score and one-line reason per answer — the same layout the Rerank view uses. The method buttons re-aggregate the SAME head-to-head results instantly and with no extra API calls. Copeland ranks by opponent wins, Elo replays pairs as rated games, Davidson fits a tie-aware pairwise strength model, Schulze uses strongest paths, and Markov uses a stationary graph ranking. Whichever method is selected is also the ordering a Top-ranked scope (Meta / Translate) will use."),
             HelpCard("Where it comes from", "Reached from the Tournament page's 'View results' button once every match is judged. A tournament is selectable as a Top-ranked source anywhere a rerank is, because its ranking conforms to the same format.")
         )
     ),

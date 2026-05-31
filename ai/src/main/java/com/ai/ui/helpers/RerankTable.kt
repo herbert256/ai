@@ -90,7 +90,7 @@ internal fun RerankTable(
     /** Show the Reason column (default true). Tournament hides it. */
     showReason: Boolean = true,
     /** When non-null, format every score to exactly this many decimals
-     *  (e.g. Tournament Points always 1dp, even 100.0).
+     *  (e.g. Tournament Davidson always 1dp, even 100.0).
      *  Null → the default trim-trailing-zeros [formatRerankScore]. */
     scoreDecimals: Int? = null
 ) {

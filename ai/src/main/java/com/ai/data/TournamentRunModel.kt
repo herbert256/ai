@@ -14,7 +14,7 @@ import com.ai.model.InternalPrompt
  * until the worker chain returns; the winning worker is then recorded on
  * the row's (providerId, model). The wins fold into a win matrix that
  * interchangeable aggregation methods (Copeland / Elo /
- * Points / Schulze / Markov, see [TournamentRanking]) turn into a 1..N ranking.
+ * Davidson / Schulze / Markov, see [TournamentRanking]) turn into a 1..N ranking.
  *
  * The on-disk [SecondaryResult] rows (kind == TOURNAMENT) stay the
  * canonical persistence layer; this model is hydrated from disk and kept

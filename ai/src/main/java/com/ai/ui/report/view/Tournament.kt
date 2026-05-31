@@ -58,7 +58,7 @@ import kotlinx.coroutines.withContext
  * Content-only "View" screen for a tournament's AGGREGATE ranking row.
  * Renders the head-to-head ranking through the shared [RerankTable]
  * (the aggregate `content` is rerank-shaped JSON), with a 3-way method
- * toggle (Copeland / Elo / Points / Schulze / Markov) that recomputes locally from
+ * toggle (Copeland / Elo / Davidson / Schulze / Markov) that recomputes locally from
  * the stored win matrix — no API calls — and a per-match list so the
  * user can inspect every judged pair.
  */
@@ -189,8 +189,8 @@ fun TournamentViewScreen(
                 MethodChip("Elo", TournamentMethod.ELO == currentMethod) {
                     if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.ELO) }
                 }
-                MethodChip("Points", TournamentMethod.POINTS == currentMethod) {
-                    if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.POINTS) }
+                MethodChip("Davidson", TournamentMethod.DAVIDSON == currentMethod) {
+                    if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.DAVIDSON) }
                 }
                 MethodChip("Schulze", TournamentMethod.SCHULZE == currentMethod) {
                     if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.SCHULZE) }
@@ -204,10 +204,10 @@ fun TournamentViewScreen(
             // that model's head-to-heads on its own screen.
             val rankRows = row?.content?.let { parseRerankRows(it) }
             if (rankRows != null && rankRows.isNotEmpty()) {
-                // Copeland / Points / Schulze / Markov always show one
+                // Copeland / Davidson / Schulze / Markov always show one
                 // decimal (even 100.0); Elo keeps natural formatting.
                 val scoreDecimals = if (currentMethod == TournamentMethod.COPELAND ||
-                    currentMethod == TournamentMethod.POINTS ||
+                    currentMethod == TournamentMethod.DAVIDSON ||
                     currentMethod == TournamentMethod.SCHULZE ||
                     currentMethod == TournamentMethod.MARKOV) 1 else null
                 RerankTable(
