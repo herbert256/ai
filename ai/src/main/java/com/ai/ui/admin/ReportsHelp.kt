@@ -228,7 +228,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "tournament_l3" to HelpContent(
         title = "Help - Tournament match",
         cards = listOf(
-            HelpCard("What you see", "One head-to-head: the verdict (winner + confidence + the judge's one-line reason), which worker model judged it, the orientation (A-vs-B or the swapped B-vs-A pass), and the two full response bodies. Use Prev / Next to step through the other matches in this group; the 🔄 in the title bar re-judges this match through the worker engine.")
+            HelpCard("What you see", "One head-to-head: the coloured A/B model lines, the verdict (winner + confidence + the judge's one-line reason), which worker model judged it, the orientation (A-vs-B or the swapped B-vs-A pass), and the two full response cards. Swipe horizontally to step through the other matches in this group; the 🔄 in the title bar re-judges this match through the worker engine.")
         )
     ),
     // Per-scope Icon-lookup help — one topic for each of the six

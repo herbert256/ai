@@ -3,6 +3,7 @@ package com.ai.ui.report.manage
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +33,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -41,7 +43,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -278,15 +282,40 @@ private fun TournamentL1(
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
-            // Stats row.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                StatCell("Total", run.totalMatches.toString())
-                StatCell("Done", run.doneCount.toString())
-                StatCell("Run", run.runningCount.toString())
-                StatCell("Wait", throttledCount.toString())
-                StatCell("Queue", run.queuedCount.toString())
-                StatCell("Err", run.errorCount.toString(), if (run.errorCount > 0) AppColors.Red else AppColors.TextSecondary)
-                StatCell("Cost", "${formatCents(run.totalCost, 2)} ¢")
+            val stats = listOf(
+                Triple("Total", run.totalMatches.toString(), AppColors.Blue),
+                Triple("Done", run.doneCount.toString(), AppColors.Green),
+                Triple("Run", run.runningCount.toString(), AppColors.Orange),
+                Triple("Wait", throttledCount.toString(), AppColors.Yellow),
+                Triple("Queue", run.queuedCount.toString(), AppColors.Brown),
+                Triple("Err", run.errorCount.toString(), AppColors.Red),
+                Triple("Cost", "${formatCents(run.totalCost, 2)} ¢", AppColors.Blue)
+            )
+            Row(Modifier.fillMaxWidth()) {
+                stats.forEach { (label, _, color) ->
+                    Text(
+                        label,
+                        fontSize = 11.sp,
+                        color = color,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+            Row(Modifier.fillMaxWidth()) {
+                stats.forEach { (_, value, color) ->
+                    Text(
+                        value,
+                        fontSize = 15.sp,
+                        color = color,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
             }
             Spacer(Modifier.height(12.dp))
 
@@ -349,14 +378,6 @@ private fun TournamentL1(
             }
             Spacer(Modifier.height(24.dp))
         }
-    }
-}
-
-@Composable
-private fun StatCell(label: String, value: String, valueColor: Color = Color.White) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, color = valueColor, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-        Text(label, color = AppColors.TextTertiary, fontSize = 10.sp)
     }
 }
 
@@ -506,11 +527,16 @@ private fun TournamentL2Header(groupMode: TournamentGroupMode) {
         TournamentGroupMode.TOURNAMENT_MODELS -> listOf("Result", "Model 1", "Model 2")
     }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        labels.forEach { label ->
-            TournamentL2Cell(label, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+        labels.forEachIndexed { index, label ->
+            TournamentL2Cell(
+                text = label,
+                color = AppColors.Blue,
+                fontWeight = FontWeight.SemiBold,
+                columnIndex = index
+            )
         }
     }
     HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.45f), thickness = 0.5.dp)
@@ -520,8 +546,10 @@ private fun TournamentL2Header(groupMode: TournamentGroupMode) {
 private fun RowScope.TournamentL2Cell(
     text: String,
     color: Color = Color.White,
-    fontWeight: FontWeight = FontWeight.Normal
+    fontWeight: FontWeight = FontWeight.Normal,
+    columnIndex: Int
 ) {
+    val align = if (columnIndex == 0) TextAlign.Center else TextAlign.Start
     Text(
         text = text,
         color = color,
@@ -529,8 +557,11 @@ private fun RowScope.TournamentL2Cell(
         fontWeight = fontWeight,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        textAlign = TextAlign.Center,
-        modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+        textAlign = align,
+        modifier = Modifier.weight(1f).padding(
+            start = if (columnIndex == 0) 0.dp else 2.dp,
+            end = if (columnIndex == 0) 1.dp else 2.dp
+        )
     )
 }
 
@@ -573,21 +604,21 @@ private fun MatchRowItem(
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { onClick() }
-            .padding(vertical = 9.dp),
+            .padding(vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         when (groupMode) {
             TournamentGroupMode.REPORT_MODELS -> {
                 val opponent = if (m.responseAId == activeReportAgentId) labelB else labelA
                 val judge = m.judgeModel?.let { shortModelName(it.substringAfterLast('/')) } ?: "..."
-                TournamentL2Cell(scoreText(m, activeReportAgentId), color = AppColors.Green)
-                TournamentL2Cell(opponent)
-                TournamentL2Cell(judge, color = AppColors.TextSecondary)
+                TournamentL2Cell(scoreText(m, activeReportAgentId), color = AppColors.Green, columnIndex = 0)
+                TournamentL2Cell(opponent, columnIndex = 1)
+                TournamentL2Cell(judge, color = AppColors.TextSecondary, columnIndex = 2)
             }
             TournamentGroupMode.TOURNAMENT_MODELS -> {
-                TournamentL2Cell(resultText(m), color = AppColors.Green)
-                TournamentL2Cell(labelA)
-                TournamentL2Cell(labelB)
+                TournamentL2Cell(resultText(m), color = AppColors.Green, columnIndex = 0)
+                TournamentL2Cell(labelA, columnIndex = 1)
+                TournamentL2Cell(labelB, columnIndex = 2)
             }
         }
     }
@@ -611,6 +642,8 @@ private fun TournamentL3(
     val scoped = matchesForGroup(run, groupKey)
     val idx = scoped.indexOfFirst { it.key == matchKey }
     val m = scoped.getOrNull(idx) ?: run.matches[matchKey]
+    val swipeThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
+    var swipeDragX by remember(matchKey) { mutableStateOf(0f) }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "tournament_l3", title = "Tournament - Match", subject = reportTitle, onBackClick = onBack, onReload = onRerun)
         if (m == null) {
@@ -619,14 +652,45 @@ private fun TournamentL3(
         }
         val labelA = agentLabel(agents, m.responseAId)
         val labelB = agentLabel(agents, m.responseBId)
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        val colorA = sideColor(m.verdict, "A")
+        val colorB = sideColor(m.verdict, "B")
+        Column(
+            Modifier.fillMaxSize()
+                .pointerInput(idx, scoped.size, matchKey) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { swipeDragX = 0f },
+                        onHorizontalDrag = { _, dragAmount -> swipeDragX += dragAmount },
+                        onDragCancel = { swipeDragX = 0f },
+                        onDragEnd = {
+                            when {
+                                swipeDragX > swipeThresholdPx -> scoped.getOrNull(idx - 1)?.let { onStep(it.key) }
+                                swipeDragX < -swipeThresholdPx -> scoped.getOrNull(idx + 1)?.let { onStep(it.key) }
+                            }
+                            swipeDragX = 0f
+                        }
+                    )
+                }
+                .verticalScroll(rememberScrollState())
+        ) {
             Spacer(Modifier.height(6.dp))
             // Verdict block.
             val winnerLabel = when (m.verdict) { "A" -> labelA; "B" -> labelB; "tie" -> "tie"; else -> "—" }
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground).padding(12.dp)
             ) {
-                Text("Winner: $winnerLabel", color = AppColors.Green, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Text("A - $labelA", color = colorA, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("B - $labelB", color = colorB, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Winner: $winnerLabel",
+                    color = when (m.verdict) {
+                        "A", "B" -> AppColors.Green
+                        "tie" -> AppColors.Blue
+                        else -> AppColors.TextSecondary
+                    },
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
                 m.confidence?.let { Text("Confidence: ${"%.0f".format(it * 100)}%", color = AppColors.TextSecondary, fontSize = 12.sp) }
                 if (!m.reason.isNullOrBlank()) Text(m.reason!!, color = AppColors.TextSecondary, fontSize = 12.sp)
                 Text("Orientation: ${if (m.orientation == 0) "A-vs-B" else "B-vs-A (swapped)"}", color = AppColors.TextTertiary, fontSize = 11.sp)
@@ -634,32 +698,38 @@ private fun TournamentL3(
                 m.errorMessage?.let { Text("⚠ $it", color = AppColors.Red, fontSize = 11.sp) }
             }
             Spacer(Modifier.height(12.dp))
-            ResponsePane("A · $labelA", agents[m.responseAId]?.responseBody)
+            ResponsePane("A - $labelA", colorA, agents[m.responseAId]?.responseBody)
             Spacer(Modifier.height(12.dp))
-            ResponsePane("B · $labelB", agents[m.responseBId]?.responseBody)
-            Spacer(Modifier.height(16.dp))
-            // Prev / next within the group.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = { scoped.getOrNull(idx - 1)?.let { onStep(it.key) } },
-                    enabled = idx > 0, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.CardBackground)
-                ) { Text("← Prev", fontSize = 13.sp) }
-                Button(
-                    onClick = { scoped.getOrNull(idx + 1)?.let { onStep(it.key) } },
-                    enabled = idx in 0 until scoped.size - 1, modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.CardBackground)
-                ) { Text("Next →", fontSize = 13.sp) }
-            }
+            ResponsePane("B - $labelB", colorB, agents[m.responseBId]?.responseBody)
             Spacer(Modifier.height(24.dp))
         }
     }
 }
 
+private fun sideColor(verdict: String?, side: String): Color = when (verdict) {
+    "tie" -> AppColors.Blue
+    side -> AppColors.Green
+    "A", "B" -> AppColors.Red
+    else -> AppColors.TextSecondary
+}
+
 @Composable
-private fun ResponsePane(header: String, body: String?) {
-    Column(Modifier.fillMaxWidth()) {
-        Text(header, color = AppColors.Blue, fontSize = 13.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+private fun ResponsePane(header: String, headerColor: Color, body: String?) {
+    Column(
+        Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(AppColors.CardBackground)
+            .padding(12.dp)
+    ) {
+        Text(
+            header,
+            color = headerColor,
+            fontSize = 13.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
         Spacer(Modifier.height(4.dp))
         Text(body?.trim().orEmpty(), color = AppColors.TextSecondary, fontSize = 12.sp)
     }
