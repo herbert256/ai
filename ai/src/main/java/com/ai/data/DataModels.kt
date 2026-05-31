@@ -34,10 +34,12 @@ internal data class TemperatureRange(val min: Float, val max: Float) {
 }
 
 internal fun temperatureRangeForProvider(provider: AppService): TemperatureRange =
-    when (provider.apiFormat) {
-        ApiFormat.ANTHROPIC -> TemperatureRange(0f, 1f)
-        ApiFormat.GOOGLE,
-        ApiFormat.OPENAI_COMPATIBLE -> TemperatureRange.Default
+    when {
+        provider.id.equals("Mistral", ignoreCase = true) ||
+            provider.baseUrl.contains("api.mistral.ai", ignoreCase = true) ->
+            TemperatureRange(0f, 1.5f)
+        provider.apiFormat == ApiFormat.ANTHROPIC -> TemperatureRange(0f, 1f)
+        else -> TemperatureRange.Default
     }
 
 /**
