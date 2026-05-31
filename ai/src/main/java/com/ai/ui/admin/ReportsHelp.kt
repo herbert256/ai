@@ -6,7 +6,9 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("What this is", "Every free-text note you've attached anywhere in this report, grouped by what each note is pinned to (the report itself, a model response, a fan-out run or response, or a meta / rerank / moderation result). Notes are yours only — they're never sent to any model."),
             HelpCard("Adding a note", "Use the ✍️ icon on a report, model response, fan-out or secondary screen to pin a note to that thing. ✍️ here on this screen adds a note to the report as a whole. A thing can hold any number of notes — ✍️ again adds another."),
-            HelpCard("Reading & editing", "Each note shows as a card collapsed to its first line; tap it to expand the full text. When expanded, ✏️ edits the note and 🗑 deletes it (no undo)."),
+            HelpCard("Reading & editing", "Each note shows as a card collapsed to its AI title (or its first line until the title arrives); tap it to expand the full text. When expanded, ✏️ edits the note and 🗑 deletes it (no undo)."),
+            HelpCard("Titles", "Saving a note (add or edit) kicks off a quick background call that gives it a short title — the card's headline. Editing the text regenerates the title. The tiny cost shows in the report's cost table under the 'note' group."),
+            HelpCard("On the View screens", "The same notes also appear, read-only, at the top of the matching View screen (a model response, a secondary result, a fan-out). You can't add or change notes there — use ✍️ on the Manage side."),
             HelpCard("Deleted targets", "If the model response or secondary a note was pinned to is later removed, its notes are grouped under 'Deleted item' here so you can still read or delete them. (Notes on a removed model are pruned automatically.)")
         )
     ),
@@ -14,7 +16,8 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Edit note",
         cards = listOf(
             HelpCard("What this is", "A plain text editor for one user note. Type anything you want to remember about this report or one of its parts."),
-            HelpCard("How to use it", "Enter your text and tap Save note (disabled while the field is empty). Back / cancel discards the edit. Notes are private to you and are not included in any API call; they don't trigger a regenerate.")
+            HelpCard("How to use it", "Enter your text and tap Save note (disabled while the field is empty). Back / cancel discards the edit. Your note text is private and is not included in any report/model API call."),
+            HelpCard("Auto title", "On save, a short title is generated for the note by a quick background call (the bundled workers/user-note prompt) and becomes the card's headline. It refreshes a moment after you save and regenerates whenever you edit the text.")
         )
     ),
     "reports_hub" to HelpContent(

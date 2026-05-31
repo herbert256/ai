@@ -189,6 +189,7 @@ fun FanInViewScreen(
             onSwipePrev = onSwipePrevAction,
             onSwipeNext = onSwipeNextAction
         )
+        com.ai.ui.report.manage.ViewUserNotes(currentReportId, "SECONDARY", currentResultId)
         // Header row: dynamic per-prompt icon + the synthesis
         // model name. Provider name dropped per the user's spec.
         Row(

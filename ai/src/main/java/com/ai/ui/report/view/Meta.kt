@@ -213,6 +213,7 @@ fun MetaViewScreen(
             onSwipePrev = onSwipePrevAction,
             onSwipeNext = onSwipeNextAction
         )
+        com.ai.ui.report.manage.ViewUserNotes(currentReportId, "SECONDARY", currentResultId)
         // Header row: dynamic per-prompt icon + the model name that
         // produced this META row. Matches the Fan-in View screen.
         Row(

@@ -485,6 +485,65 @@ class IconGenerationManager(
         }
     }
 
+    /** Generate a short AI title for one user note via the bundled
+     *  `workers/user-note` prompt and persist it onto the [UserNote].
+     *  Fired whenever a note is saved (add/edit). Best-effort: bails
+     *  silently when the prompt is missing or no worker resolves, so a
+     *  note without configured providers simply keeps no title. The
+     *  worker spend is logged as a `note/title` [IconCallRecord] so it
+     *  surfaces in the cost table (grouped under "note") and the
+     *  lifetime total. No master-switch gate — the user asked for it on
+     *  every save. */
+    internal fun kickOffUserNoteTitle(
+        context: Context,
+        reportId: String,
+        noteId: String,
+        noteText: String,
+        aiSettings: Settings
+    ) {
+        val prompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "workers" && it.name == "user-note"
+        } ?: return
+        if (prompt.workers.none { aiSettings.resolveWorker(it) != null }) return
+        appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+            val res = runTitlePrompt(
+                context, reportId, prompt, noteText, aiSettings,
+                cap = 40, traceCategory = "note/title"
+            ) ?: return@launch
+            ReportStorage.setUserNoteTitle(context, reportId, noteId, res.title)
+            // Record the worker spend so the cost table + total account for it.
+            val parts = res.model?.split("/", limit = 2)
+            val providerId = parts?.firstOrNull().orEmpty()
+            val modelId = parts?.getOrNull(1) ?: res.model.orEmpty()
+            val tier = AppService.findById(providerId)
+                ?.let { PricingCache.getPricing(context, it, modelId)?.source }
+                .orEmpty()
+            if (res.inputCost > 0.0 || res.outputCost > 0.0 || res.inputTokens > 0 || res.outputTokens > 0) {
+                ReportStorage.appendIconCall(
+                    context, reportId,
+                    IconCallRecord(
+                        agentId = noteId,
+                        tier = 0,
+                        provider = providerId,
+                        model = modelId,
+                        pricingTier = tier,
+                        inputTokens = res.inputTokens,
+                        outputTokens = res.outputTokens,
+                        inputCost = res.inputCost,
+                        outputCost = res.outputCost,
+                        durationMs = res.durationMs,
+                        success = true,
+                        type = "note/title"
+                    )
+                )
+            }
+            // Nudge any open card to re-read the note (the storage save
+            // already bumped ReportDataVersion; this also refreshes Manage's
+            // icon-tick-keyed reads).
+            appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+        }
+    }
+
     /** Per-agent variant of [kickOffReportTitleGeneration]: runs the
      *  bundled `internal/model_title` prompt against this agent's own
      *  response (via the prompt's pinned Anthropic agent) and writes the

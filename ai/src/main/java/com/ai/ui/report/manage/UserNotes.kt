@@ -76,16 +76,19 @@ sealed interface NoteEdit {
     data class Edit(val noteId: String, val text: String) : NoteEdit
 }
 
-/** One collapsible note card. Collapsed = a single-line preview + ▸;
- *  expanded = the full note text plus ✏️ edit / 🗑 delete in the header
- *  and an "edited" timestamp. */
+/** One collapsible note card. Collapsed headline = the AI [UserNote.title]
+ *  when present, else the first line of the note text. Expanded = the full
+ *  note text + an "edited" timestamp; when not [readOnly] the header also
+ *  carries ✏️ edit / 🗑 delete. The View family passes [readOnly] = true. */
 @Composable
 internal fun UserNoteCard(
     note: UserNote,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit
+    readOnly: Boolean = false,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {}
 ) {
     var expanded by remember(note.id) { mutableStateOf(false) }
+    val headline = note.title?.takeIf { it.isNotBlank() } ?: note.text
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
         shape = RoundedCornerShape(12.dp),
@@ -98,12 +101,12 @@ internal fun UserNoteCard(
             ) {
                 Text("✍️", fontSize = 13.sp, modifier = Modifier.padding(end = 8.dp))
                 Text(
-                    text = note.text,
-                    color = Color.White, fontSize = 13.sp,
+                    text = headline,
+                    color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
-                if (expanded) {
+                if (expanded && !readOnly) {
                     Text("✏️", fontSize = 16.sp, modifier = Modifier.clickable { onEdit() }.padding(horizontal = 6.dp))
                     Text("🗑", fontSize = 14.sp, modifier = Modifier.clickable { onDelete() }.padding(horizontal = 6.dp))
                 }
@@ -122,18 +125,38 @@ internal fun UserNoteCard(
 
 /** A stack of [UserNoteCard]s (newest first; the list is already sorted
  *  by [Report.notesFor]). Renders nothing when empty — drop it at the top
- *  of a screen's content unconditionally. */
+ *  of a screen's content unconditionally. [readOnly] hides edit/delete. */
 @Composable
 internal fun UserNoteCards(
     notes: List<UserNote>,
-    onEdit: (UserNote) -> Unit,
-    onDelete: (UserNote) -> Unit
+    readOnly: Boolean = false,
+    onEdit: (UserNote) -> Unit = {},
+    onDelete: (UserNote) -> Unit = {}
 ) {
     if (notes.isEmpty()) return
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp)) {
         notes.forEach { note ->
-            UserNoteCard(note, onEdit = { onEdit(note) }, onDelete = { onDelete(note) })
+            UserNoteCard(note, readOnly = readOnly, onEdit = { onEdit(note) }, onDelete = { onDelete(note) })
         }
+    }
+}
+
+/** Read-only note display for the View family: loads this target's notes
+ *  (re-reading on [ReportDataVersion] changes) and renders them as
+ *  collapsible, non-editable cards. Drop right after the screen's
+ *  ViewTitleBar. Renders nothing when the target has no notes. */
+@Composable
+internal fun ViewUserNotes(reportId: String, targetKind: String, targetId: String) {
+    val context = LocalContext.current
+    val dv by ReportDataVersion.version.collectAsState()
+    val notes by produceState(emptyList<UserNote>(), reportId, targetKind, targetId, dv) {
+        value = withContext(Dispatchers.IO) {
+            ReportStorage.getReport(context, reportId)?.notesFor(targetKind, targetId) ?: emptyList()
+        }
+    }
+    if (notes.isEmpty()) return
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        UserNoteCards(notes, readOnly = true)
     }
 }
 
@@ -200,6 +223,8 @@ internal fun UserNoteEditorOverlay(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    // Fire AI title-generation after the note is persisted (add + edit).
+    val generateTitle = com.ai.ui.shared.LocalGenerateNoteTitle.current
     UserNoteEditorScreen(
         titleBarTitle = if (edit is NoteEdit.Edit) "Edit note" else "Add note",
         initialText = (edit as? NoteEdit.Edit)?.text ?: "",
@@ -207,8 +232,10 @@ internal fun UserNoteEditorOverlay(
             scope.launch(Dispatchers.IO) {
                 if (edit is NoteEdit.Edit) {
                     ReportStorage.updateUserNote(context, reportId, edit.noteId, txt)
+                    generateTitle(reportId, edit.noteId, txt)
                 } else {
-                    ReportStorage.addUserNote(context, reportId, targetKind, targetId, txt)
+                    val saved = ReportStorage.addUserNote(context, reportId, targetKind, targetId, txt)
+                    if (saved != null) generateTitle(reportId, saved.id, txt)
                 }
             }
             onClose()

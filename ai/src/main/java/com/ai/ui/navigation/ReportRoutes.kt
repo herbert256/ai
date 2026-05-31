@@ -311,6 +311,9 @@ internal fun NavGraphBuilder.reportRoutes(
                 com.ai.ui.shared.LocalSystemPromptChange provides { id ->
                     appViewModel.setReportSystemPromptId(id)
                 },
+                com.ai.ui.shared.LocalGenerateNoteTitle provides { rid, nid, txt ->
+                    reportViewModel.generateUserNoteTitle(context, rid, nid, txt)
+                },
                 com.ai.ui.shared.LocalActiveTranslationReportIds provides activeTranslationReportIds,
                 com.ai.ui.shared.LocalNavigateToReportInfo provides { rid ->
                     navController.navigate(NavRoutes.aiReportInfo(rid))

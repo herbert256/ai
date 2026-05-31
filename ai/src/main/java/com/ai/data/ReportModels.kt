@@ -152,6 +152,11 @@ data class UserNote(
     val targetKind: String,
     val targetId: String,
     val text: String,
+    /** Short AI-generated headline for the note, produced by the bundled
+     *  `workers/user-note` prompt whenever the note is saved (add/edit).
+     *  Null while generation is in flight, on failure, or when no worker
+     *  could resolve — the card then falls back to the text preview. */
+    val title: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()
 )

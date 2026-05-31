@@ -308,6 +308,12 @@ fun FanOutViewScreen(
             oneOrAll = showAll,
             onToggleOneOrAll = { showAll = !showAll }
         )
+        // Notes pinned to the whole fan-out run. The run key matches the
+        // Manage side: runKey(reportId, metaPromptId) — the metaPromptId is
+        // read off any loaded pair (they all share this run's prompt).
+        pairs.firstOrNull()?.metaPromptId?.let { mid ->
+            com.ai.ui.report.manage.ViewUserNotes(currentReportId, "FANOUT_RUN", com.ai.data.runKey(currentReportId, mid))
+        }
         if (report == null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(top = 32.dp),

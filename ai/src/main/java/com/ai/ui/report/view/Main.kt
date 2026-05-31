@@ -1149,6 +1149,7 @@ internal fun ViewAiReportScreen(
             // 📋 (hub only) → the "pick a report to view" screen.
             onViewList = com.ai.ui.shared.LocalNavigateToReportPicker.current
         )
+        com.ai.ui.report.manage.ViewUserNotes(reportId, "REPORT", reportId)
 
         // One picker for the whole View screen; tile clicks below
         // forward the active language to the opened sub-screen.

@@ -135,6 +135,9 @@ fun FanOutPairViewScreen(
             helpTopic = "fan_out_pair_view",
             onBack = onBack
         )
+        pairs.getOrNull(pagerState.currentPage.wrapTo(pairs.size))?.let {
+            com.ai.ui.report.manage.ViewUserNotes(reportId, "SECONDARY", it.id)
+        }
 
         if (pairs.isEmpty()) {
             Box(

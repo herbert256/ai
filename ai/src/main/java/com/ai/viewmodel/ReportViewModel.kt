@@ -1814,4 +1814,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         }
     }
 
+    /** Generate (or regenerate) the AI title for one user note. Called from
+     *  the note editor on every save (add/edit) via [com.ai.ui.shared.
+     *  LocalGenerateNoteTitle]. Delegates to the worker-title flow. */
+    fun generateUserNoteTitle(context: Context, reportId: String, noteId: String, noteText: String) {
+        iconGen.kickOffUserNoteTitle(context, reportId, noteId, noteText, appViewModel.uiState.value.aiSettings)
+    }
+
 }

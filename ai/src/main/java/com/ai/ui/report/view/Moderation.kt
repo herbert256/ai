@@ -163,6 +163,7 @@ fun ModerationViewScreen(
             onSwipePrev = onSwipePrevAction,
             onSwipeNext = onSwipeNextAction
         )
+        com.ai.ui.report.manage.ViewUserNotes(currentReportId, "SECONDARY", currentResultId)
         if (result == null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(top = 32.dp),

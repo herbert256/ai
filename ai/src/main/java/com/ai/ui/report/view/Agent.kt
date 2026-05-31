@@ -266,6 +266,7 @@ fun ReportsViewScreen(
             oneOrAll = showAll,
             onToggleOneOrAll = { showAll = !showAll }
         )
+        activeAgent?.let { com.ai.ui.report.manage.ViewUserNotes(currentReportId, "AGENT", it.agentId) }
         if (report == null) {
             Box(
                 modifier = Modifier.fillMaxSize().padding(top = 32.dp),

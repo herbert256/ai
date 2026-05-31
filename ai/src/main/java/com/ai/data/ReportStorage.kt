@@ -106,6 +106,13 @@ object ReportStorage {
             // are excluded.
             report.iconCalls
                 .filter { it.attributedToSecondaryId == null && it.type in TITLE_ALT_TYPES }
+                .sumOf { it.inputCost + it.outputCost } +
+            // User-note AI titles (workers/user-note) also have no structured
+            // cost home — their spend lives only in the iconCalls audit
+            // (type "note/title"). Count it here so the lifetime total
+            // includes it; the cost table renders the matching per-call row.
+            report.iconCalls
+                .filter { it.type == "note/title" }
                 .sumOf { it.inputCost + it.outputCost }
 
     fun updateAgentStatus(
@@ -1190,24 +1197,65 @@ object ReportStorage {
             val report = loadReport(reportId) ?: return@withLock false
             if (report.userNotes.none { it.id == noteId }) return@withLock false
             val now = System.currentTimeMillis()
+            // Clear the stale title — the edited text gets a fresh AI title
+            // (the caller re-fires note-title generation on save).
             val newNotes = report.userNotes.map {
-                if (it.id == noteId) it.copy(text = trimmed, updatedAt = now) else it
+                if (it.id == noteId) it.copy(text = trimmed, title = null, updatedAt = now) else it
             }.toMutableList()
             saveReport(report.copy(userNotes = newNotes, timestamp = now))
             true
         }
     }
 
-    /** Remove a note by id. Returns false when nothing was removed. */
+    /** Set the AI-generated title on a note (by id). No-op when the report
+     *  or note is gone (e.g. the note was deleted while the title call was
+     *  in flight). */
+    fun setUserNoteTitle(context: Context, reportId: String, noteId: String, title: String): Boolean {
+        init(context)
+        val trimmed = title.trim()
+        if (trimmed.isBlank()) return false
+        return lock.withLock {
+            val report = loadReport(reportId) ?: return@withLock false
+            if (report.userNotes.none { it.id == noteId }) return@withLock false
+            val newNotes = report.userNotes.map {
+                if (it.id == noteId) it.copy(title = trimmed) else it
+            }.toMutableList()
+            saveReport(report.copy(userNotes = newNotes, timestamp = System.currentTimeMillis()))
+            true
+        }
+    }
+
+    /** Remove a note by id. Returns false when nothing was removed. The
+     *  note's `note/title` iconCalls are pruned and their cost rolled into
+     *  [Report.costsFromDeletedItems] so the lifetime total stays stable
+     *  (same convention as [removeAgent]). */
     fun deleteUserNote(context: Context, reportId: String, noteId: String): Boolean {
         init(context)
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             val newNotes = report.userNotes.filterNot { it.id == noteId }.toMutableList()
             if (newNotes.size == report.userNotes.size) return@withLock false
-            saveReport(report.copy(userNotes = newNotes, timestamp = System.currentTimeMillis()))
+            report.userNotes = newNotes
+            rollNoteTitleCostsToDeleted(report, setOf(noteId))
+            report.totalCost = computeReportTotalCost(report)
+            saveReport(report.copy(timestamp = System.currentTimeMillis()))
             true
         }
+    }
+
+    /** Move the `note/title` iconCall spend for [noteIds] into
+     *  [Report.costsFromDeletedItems] and drop those records, so deleting a
+     *  note doesn't make the lifetime total shrink or leave an orphan cost
+     *  row. Mutates [report] in place. */
+    private fun rollNoteTitleCostsToDeleted(report: Report, noteIds: Set<String>) {
+        if (noteIds.isEmpty()) return
+        val removed = report.iconCalls.filter { it.type == "note/title" && it.agentId in noteIds }
+        if (removed.isEmpty()) return
+        removed.sumOf { it.inputCost + it.outputCost }.takeIf { it > 0.0 }
+            ?.let { report.costsFromDeletedItems += it }
+        report.iconCalls = report.iconCalls
+            .filterNot { it.type == "note/title" && it.agentId in noteIds }
+            .toMutableList()
     }
 
     /** Drop every fan-out icon-chain [IconCallRecord] from the
@@ -1360,10 +1408,15 @@ object ReportStorage {
             }
             // Prune the deleted agent's user notes — same spirit as the
             // iconCalls prune above, so the 📒 all-notes list doesn't show
-            // notes pinned to a model that's gone.
+            // notes pinned to a model that's gone. Their note/title spend
+            // rolls into costsFromDeletedItems (like the agent's own costs).
+            val prunedNoteIds = report.userNotes
+                .filter { it.targetKind == "AGENT" && it.targetId == agentId }
+                .map { it.id }.toSet()
             report.userNotes = report.userNotes
                 .filterNot { it.targetKind == "AGENT" && it.targetId == agentId }
                 .toMutableList()
+            rollNoteTitleCostsToDeleted(report, prunedNoteIds)
             report.totalCost = computeReportTotalCost(report)
             saveReport(report)
             true
