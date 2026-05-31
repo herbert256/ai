@@ -345,6 +345,12 @@ class SecondaryRunManager(
         //    handles every run on the report; idempotent vs in-flight work.
         rvm.fanOutEngine.resumeStaleRunsForReport(context, reportId)
 
+        // 2c. Tournament matches: same contract — TournamentEngine owns the
+        //     lifecycle (hydrate → re-dispatch stale matches). Without this the
+        //     app-start + 30 s background sweep covered every other batch but
+        //     not tournaments, so an interrupted tournament never auto-resumed.
+        rvm.tournamentEngine.resumeStaleRunsForReport(context, reportId)
+
         // 2b. Fan Meta batches: relaunch any fan-meta sweep the user
         //     started (some pair already carries a title/icon / error /
         //     run id) so a batch interrupted by an app kill resumes from
