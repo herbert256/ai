@@ -62,15 +62,15 @@ import kotlinx.coroutines.withContext
  * the stored win matrix — no API calls — and a per-match list so the
  * user can inspect every judged pair.
  */
-/** One collapsed head-to-head (the two orientations of a pair merged).
- *  [traceAB] / [traceBA] are the judging-call trace filenames for the
- *  A-vs-B (orientation 0) and B-vs-A (orientation 1) matches, when tracing
- *  recorded them. */
-private data class MatchRow(
-    val labelA: String, val labelB: String,
-    val verdict: String?, val reason: String?, val error: String?,
-    val traceAB: String? = null, val traceBA: String? = null
-)
+/** One orientation of a head-to-head. [winner] is normalised to the
+ *  canonical pair: "A" = labelA won, "B" = labelB won, "tie", or null
+ *  (pending) — so the active model's result is orientation-independent to
+ *  compute. [trace] is that judging call's trace filename when recorded. */
+private data class H2HSide(val winner: String?, val reason: String?, val error: String?, val trace: String?)
+
+/** One head-to-head pair carrying BOTH orientations: [ab] = A-vs-B
+ *  (orientation 0), [ba] = B-vs-A (orientation 1). */
+private data class MatchRow(val labelA: String, val labelB: String, val ab: H2HSide, val ba: H2HSide)
 
 @Composable
 fun TournamentViewScreen(
@@ -110,33 +110,33 @@ fun TournamentViewScreen(
                 SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
                     .filter { it.tournamentRole == "MATCH" && it.tournamentJudgeRunId == rk }
             }.orEmpty()
-            // Collapse the two orientations into one display row per unordered
-            // pair (keyed by the sorted agent-id pair). The verdict COMBINES
-            // both orientations (same clear-winner / draw rule the win matrix
-            // + Points use) so the head-to-heads agree with the ranking; the
-            // canonical orientation's reason is kept as context.
+            // One display row per unordered pair (keyed by the sorted agent-id
+            // pair), carrying BOTH orientations separately so the screen's
+            // A<>B / B<>A switch can show each one's verdict + reason + trace.
             val byPair = matchRows.groupBy {
                 listOf(it.matchResponseAId, it.matchResponseBId).sortedBy { id -> id ?: "" }
             }
             val display = byPair.values.mapNotNull { rows ->
                 val canonical = rows.minByOrNull { it.matchOrientation ?: 0 } ?: return@mapNotNull null
-                // Credit for agA (canonical A-slot) across both orientations.
-                val votes = rows.mapNotNull { r ->
-                    val v = parseMatchVerdict(r.content)?.verdict ?: return@mapNotNull null
-                    if ((r.matchOrientation ?: 0) == 0) when (v) { "A" -> 1.0; "B" -> 0.0; else -> 0.5 }
-                    else when (v) { "A" -> 0.0; "B" -> 1.0; else -> 0.5 }
-                }
-                val combined = if (votes.isEmpty()) null else votes.average().let {
-                    when { it > 0.5 -> "A"; it < 0.5 -> "B"; else -> "tie" }
+                val agA = canonical.matchResponseAId  // labelA's agentId
+                // Normalise an orientation's verdict to labelA="A" / labelB="B".
+                fun sideFrom(r: SecondaryResult?): H2HSide {
+                    val parsed = r?.let { parseMatchVerdict(it.content) }
+                    val winner = when (val v = parsed?.verdict) {
+                        null -> null
+                        "tie" -> "tie"
+                        else -> {
+                            val winnerAgent = if (v == "A") r!!.matchResponseAId else r!!.matchResponseBId
+                            if (winnerAgent == agA) "A" else "B"
+                        }
+                    }
+                    return H2HSide(winner, parsed?.reason, r?.errorMessage, r?.traceFile)
                 }
                 MatchRow(
-                    labelA = agentIdToLabel[canonical.matchResponseAId] ?: "?",
+                    labelA = agentIdToLabel[agA] ?: "?",
                     labelB = agentIdToLabel[canonical.matchResponseBId] ?: "?",
-                    verdict = combined,
-                    reason = parseMatchVerdict(canonical.content)?.reason,
-                    error = rows.firstNotNullOfOrNull { it.errorMessage },
-                    traceAB = rows.firstOrNull { (it.matchOrientation ?: 0) == 0 }?.traceFile,
-                    traceBA = rows.firstOrNull { (it.matchOrientation ?: 0) == 1 }?.traceFile
+                    ab = sideFrom(rows.firstOrNull { (it.matchOrientation ?: 0) == 0 }),
+                    ba = sideFrom(rows.firstOrNull { (it.matchOrientation ?: 0) == 1 })
                 )
             }
             val done = matchRows.count { !it.content.isNullOrBlank() || it.durationMs != null }
@@ -235,21 +235,24 @@ private fun MethodChip(label: String, selected: Boolean, onClick: () -> Unit) {
     )
 }
 
-/** This model's result in a collapsed head-to-head: won / lost / draw /
- *  error / pending — from [model]'s perspective. */
-private fun resultFor(model: String, m: MatchRow): String = when {
-    m.error != null -> "error"
-    m.verdict == "tie" -> "draw"
-    m.verdict == null -> "pending"
-    (m.verdict == "A" && m.labelA == model) || (m.verdict == "B" && m.labelB == model) -> "won"
+/** The active [model]'s result for one orientation [side]: won / lost /
+ *  draw / error / pending — always from the active model's viewpoint
+ *  (winner is normalised to labelA="A" / labelB="B"). */
+private fun resultFor(model: String, side: H2HSide, labelA: String, labelB: String): String = when {
+    side.error != null -> "error"
+    side.winner == null -> "pending"
+    side.winner == "tie" -> "draw"
+    (side.winner == "A" && model == labelA) || (side.winner == "B" && model == labelB) -> "won"
     else -> "lost"
 }
 
-/** Drill-in opened from a ranking row: every head-to-head [model] played,
- *  from its own perspective (vs opponent → won / lost / draw + reason). */
+/** Drill-in opened from a ranking row: every head-to-head [model] played.
+ *  A top A<>B / B<>A switch picks which orientation each card shows (its
+ *  reason + single 🐞 trace); won/drawn/lost stays from [model]'s viewpoint. */
 @Composable
 private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBack: () -> Unit) {
     BackHandler { onBack() }
+    var showBA by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
@@ -264,21 +267,35 @@ private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBac
             Text("No head-to-heads for this model.", color = AppColors.TextSecondary, fontSize = 14.sp)
             return@Column
         }
-        val won = matches.count { resultFor(model, it) == "won" }
-        val lost = matches.count { resultFor(model, it) == "lost" }
-        val drew = matches.count { resultFor(model, it) == "draw" }
+        val orientationLabel = if (showBA) "BA" else "AB"
+        fun sideOf(m: MatchRow) = if (showBA) m.ba else m.ab
+        val won = matches.count { resultFor(model, sideOf(it), it.labelA, it.labelB) == "won" }
+        val lost = matches.count { resultFor(model, sideOf(it), it.labelA, it.labelB) == "lost" }
+        val drew = matches.count { resultFor(model, sideOf(it), it.labelA, it.labelB) == "draw" }
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Spacer(Modifier.height(4.dp))
+            // Orientation switch — A-vs-B (orientation 0) vs B-vs-A (swapped).
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.FilterChip(
+                    selected = !showBA, onClick = { showBA = false },
+                    label = { Text("A<>B", fontSize = 12.sp) }, modifier = Modifier.weight(1f)
+                )
+                androidx.compose.material3.FilterChip(
+                    selected = showBA, onClick = { showBA = true },
+                    label = { Text("B<>A", fontSize = 12.sp) }, modifier = Modifier.weight(1f)
+                )
+            }
             Text(
                 "$won won · $drew drawn · $lost lost",
                 color = AppColors.TextSecondary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold
             )
             matches.forEach { m ->
                 val opponent = if (m.labelA == model) m.labelB else m.labelA
-                HeadToHeadRow(opponent, resultFor(model, m), m.reason, m.error, m.traceAB, m.traceBA)
+                val side = sideOf(m)
+                HeadToHeadRow(opponent, resultFor(model, side, m.labelA, m.labelB), side.reason, side.error, side.trace, orientationLabel)
             }
             Spacer(Modifier.height(16.dp))
         }
@@ -286,7 +303,7 @@ private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBac
 }
 
 @Composable
-private fun HeadToHeadRow(opponent: String, result: String, reason: String?, error: String?, traceAB: String?, traceBA: String?) {
+private fun HeadToHeadRow(opponent: String, result: String, reason: String?, error: String?, trace: String?, orientation: String) {
     val (label, color) = when (result) {
         "won" -> "won" to AppColors.Green
         "lost" -> "lost" to AppColors.Red
@@ -308,9 +325,8 @@ private fun HeadToHeadRow(opponent: String, result: String, reason: String?, err
                 !reason.isNullOrBlank() -> Text(reason, color = AppColors.TextTertiary, fontSize = 11.sp)
             }
         }
-        // Two trace deep-links: 🐞 for the A-vs-B match, 🐞 for B-vs-A.
-        TraceBug("AB", traceAB)
-        TraceBug("BA", traceBA)
+        // Single 🐞 trace deep-link, for the orientation the card is showing.
+        TraceBug(orientation, trace)
         Text(label, color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(start = 6.dp))
     }
