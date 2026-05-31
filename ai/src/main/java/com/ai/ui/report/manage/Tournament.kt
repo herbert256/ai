@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,6 +70,16 @@ fun TournamentManageRow() {
     val engine = com.ai.ui.shared.LocalTournamentEngine.current ?: return
     val openState = com.ai.ui.shared.LocalTournamentOpenState.current
     val reportId = com.ai.ui.shared.LocalCurrentReportIdForSwipe.current ?: return
+    val context = LocalContext.current
+    // Hydrate from disk so a completed tournament's row reappears after an
+    // app restart — the in-memory run state is lost on relaunch, but the
+    // TOURNAMENT rows are still on disk. (Mirrors the L1 screen's hydrate;
+    // the Fan-Meta row is disk-derived and so never had this gap.)
+    LaunchedEffect(reportId) {
+        if (engine.runByKey(reportId) == null) {
+            withContext(Dispatchers.IO) { engine.hydrate(context, reportId) }
+        }
+    }
     val runs by engine.runs.collectAsState()
     val run = runs[reportId] ?: return // no tournament on this report → no row
 

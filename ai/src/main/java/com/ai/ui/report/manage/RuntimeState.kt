@@ -265,6 +265,11 @@ internal fun rememberReportRuntimeState(
                 val all = SecondaryResultStorage.listForReport(context, rid)
                 secondaryRuns = all
                     .filter { it.kind != SecondaryKind.TRANSLATE }
+                    // Tournament matches + aggregate are collapsed into the
+                    // single TournamentManageRow (→ Fan-Meta-style L1 drill-in),
+                    // so they don't render as per-match rows here — mirrors how
+                    // fan-out pairs are excluded below.
+                    .filter { it.kind != SecondaryKind.TOURNAMENT }
                     .filter { it.fanOutSourceAgentId == null }
                     .sortedByDescending { it.timestamp }
                 translateRows = all.filter { it.kind == SecondaryKind.TRANSLATE }
