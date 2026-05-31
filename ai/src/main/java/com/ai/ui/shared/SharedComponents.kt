@@ -1622,7 +1622,7 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
         icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
     }
     icons.onAgentChat?.let { add(BottomBarIcon("🗣️", Color.Unspecified, it, 28)) }
-    icons.onTemperatureSweep?.let { add(BottomBarIcon("🌡️", Color.Unspecified, it, 28)) }
+    icons.onTemperatureSweep?.let { add(BottomBarIcon("🎲", Color.Unspecified, it, 28)) }
     icons.onReasoningEffortSweep?.let { add(BottomBarIcon("🧠", Color.Unspecified, it, 28)) }
     icons.onWebSearchReplay?.let { add(BottomBarIcon("🧭", Color.Unspecified, it, 28)) }
     // 🗂️ pick another report (same glyph as the View hub's picker) —
