@@ -75,6 +75,11 @@ object ReportStorage {
             parameterPresetIds = parameterPresetIds, advancedParameters = advancedParameters,
             selectionParamsById = selectionParamsById, reportSystemPromptId = reportSystemPromptId)
         lock.withLock { saveReport(report) }
+        AuditLog.start(report.id)
+        AuditLog.append(report.id, buildString {
+            append("Created report '${report.title}' with ${agents.size} model(s)")
+            if (sourceReportId != null) append(" (from report $sourceReportId)")
+        })
         return report
     }
 
@@ -190,6 +195,12 @@ object ReportStorage {
                 report.completedAt = System.currentTimeMillis()
             }
             saveReport(report)
+            // Functional line for the model call (success only — an errored
+            // call already has its central technical line and per spec gets
+            // no functional line).
+            if (status == ReportStatus.SUCCESS) {
+                AuditLog.append(reportId, "Response received for report model ${agent.provider}/${agent.model}")
+            }
             true
         }
     }
@@ -245,6 +256,13 @@ object ReportStorage {
             agent.responseChangeSource = changeSource?.takeIf { it.isNotBlank() }
             agent.responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
             saveReport(report.copy(timestamp = System.currentTimeMillis()))
+            AuditLog.append(reportId, buildString {
+                append("Selected a new response for model ${agent.provider}/${agent.model}")
+                changeSource?.takeIf { it.isNotBlank() }?.let { src ->
+                    append(" from $src")
+                    changeValue?.takeIf { it.isNotBlank() }?.let { append(" with value $it") }
+                }
+            })
             true
         }
     }
@@ -354,6 +372,10 @@ object ReportStorage {
         RegenerateBatchStorage.delete(context, reportId)
         ApiTracer.init(context)
         ApiTracer.deleteTracesForReport(reportId)
+        // Audit retention: the report's JSON is gone, but the audit trail is
+        // kept (a trailing line records the deletion). The Monitor → Audit
+        // list is sourced from these files, so the report still shows there.
+        AuditLog.append(reportId, "Report deleted")
         ReportDataVersion.bump()
     }
     fun deleteAllReports(context: Context): Int {
@@ -519,6 +541,7 @@ object ReportStorage {
         return lock.withLock {
             val report = loadReport(reportId) ?: return@withLock false
             saveReport(report.copy(title = newTitle, titleLong = newTitleLong?.takeIf { it.isNotBlank() }))
+            AuditLog.append(reportId, "Edited report title to '$newTitle'")
             true
         }
     }
@@ -532,6 +555,7 @@ object ReportStorage {
             val report = loadReport(reportId) ?: return
             report.pinned = pinned
             saveReport(report)
+            AuditLog.append(reportId, if (pinned) "Pinned the report" else "Unpinned the report")
         }
     }
 
@@ -566,6 +590,7 @@ object ReportStorage {
             )
             updated.totalCost = computeReportTotalCost(updated)
             saveReport(updated)
+            AuditLog.append(reportId, "Icon '$icon' generated for report")
             true
         }
     }
@@ -625,6 +650,7 @@ object ReportStorage {
             )
             updated.totalCost = computeReportTotalCost(updated)
             saveReport(updated)
+            AuditLog.append(reportId, "Title '$newTitle' found for report")
             true
         }
     }
@@ -757,6 +783,7 @@ object ReportStorage {
             )
             updated.totalCost = computeReportTotalCost(updated)
             saveReport(updated)
+            if (!name.isNullOrBlank()) AuditLog.append(reportId, "Language '$name' detected for report")
             true
         }
     }
@@ -1117,6 +1144,7 @@ object ReportStorage {
             val newReport = report.copy(agents = newAgents, timestamp = System.currentTimeMillis())
             newReport.totalCost = computeReportTotalCost(newReport)
             saveReport(newReport)
+            AuditLog.append(reportId, "Title '$title' found for report model ${prev.provider}/${prev.model}")
             true
         }
     }
@@ -1225,6 +1253,7 @@ object ReportStorage {
             )
             val newNotes = (report.userNotes + note).toMutableList()
             saveReport(report.copy(userNotes = newNotes, timestamp = now))
+            AuditLog.append(reportId, "Added a user note")
             note
         }
     }
@@ -1245,6 +1274,7 @@ object ReportStorage {
                 if (it.id == noteId) it.copy(text = trimmed, title = null, updatedAt = now) else it
             }.toMutableList()
             saveReport(report.copy(userNotes = newNotes, timestamp = now))
+            AuditLog.append(reportId, "Edited a user note")
             true
         }
     }
@@ -1263,6 +1293,7 @@ object ReportStorage {
                 if (it.id == noteId) it.copy(title = trimmed) else it
             }.toMutableList()
             saveReport(report.copy(userNotes = newNotes, timestamp = System.currentTimeMillis()))
+            AuditLog.append(reportId, "AI title '$trimmed' set for user note")
             true
         }
     }
@@ -1281,6 +1312,7 @@ object ReportStorage {
             rollNoteTitleCostsToDeleted(report, setOf(noteId))
             report.totalCost = computeReportTotalCost(report)
             saveReport(report.copy(timestamp = System.currentTimeMillis()))
+            AuditLog.append(reportId, "Deleted a user note")
             true
         }
     }
@@ -1461,6 +1493,7 @@ object ReportStorage {
             rollNoteTitleCostsToDeleted(report, prunedNoteIds)
             report.totalCost = computeReportTotalCost(report)
             saveReport(report)
+            AuditLog.append(reportId, "Deleted report model ${removed.provider}/${removed.model} from the report")
             true
         }
     }
@@ -1685,6 +1718,8 @@ object ReportStorage {
             copy.languageIcon = src.languageIcon
             copy.languageIconErrorMessage = src.languageIconErrorMessage
             saveReport(copy)
+            AuditLog.start(newId)
+            AuditLog.append(newId, "Duplicated from report $reportId")
             newId
         }
     }

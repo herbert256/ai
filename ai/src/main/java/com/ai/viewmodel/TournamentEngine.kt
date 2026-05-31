@@ -4,6 +4,7 @@ import android.content.Context
 import com.ai.data.ApiCallCaps
 import com.ai.data.AppLog
 import com.ai.data.AppService
+import com.ai.data.AuditLog
 import com.ai.data.MatchState
 import com.ai.data.MatchStatus
 import com.ai.data.ReportAgent
@@ -211,6 +212,7 @@ class TournamentEngine internal constructor(
                     }
                     if (successful.size < 2) return@withTracerTags
                     AppLog.i("Tournament", "→ start judge=${judgeProvider.id}/$judgeModel (${successful.size} responses, ${matchCountFor(successful.size)} matches)")
+                    AuditLog.append(reportId, "Start Tournament — judge ${judgeProvider.id}/${shortModelName(judgeModel)}, ${successful.size} responses, ${matchCountFor(successful.size)} matches")
                     val agentName = "${judgeProvider.id} / ${shortModelName(judgeModel)}"
                     val scopeEncoded = SecondaryScope.AllReports.encode()
 
@@ -285,6 +287,7 @@ class TournamentEngine internal constructor(
                     // All matches settled — fold into the aggregate ranking.
                     recomputeAndPersistAggregate(context, rk)
                     AppLog.i("Tournament", "← done judge=${judgeProvider.id}/$judgeModel in ${System.currentTimeMillis() - startMs}ms")
+                    AuditLog.append(reportId, "End Tournament — judge ${judgeProvider.id}/${shortModelName(judgeModel)}")
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }

@@ -131,6 +131,8 @@ object NavRoutes {
     const val AI_STRESS_TEST = "ai_stress_test"
     const val AI_APPLOG_LIST = "ai_applog_list"
     const val AI_APPLOG_DETAIL = "ai_applog_detail/{filename}?search={search}"
+    const val AI_AUDIT_LIST = "ai_audit_list"
+    const val AI_AUDIT_DETAIL = "ai_audit_detail/{reportId}"
     const val AI_CHATS_HUB = "ai_chats_hub"
     const val AI_CHAT_AGENT_SELECT = "ai_chat_agent_select"
     const val AI_CHAT_WITH_AGENT = "ai_chat_with_agent/{agentId}"
@@ -170,6 +172,7 @@ object NavRoutes {
     fun traceDetail(filename: String) = "trace_detail/$filename"
     fun aiAppLogDetail(filename: String, search: String = "") =
         "ai_applog_detail/$filename?search=${encode(search)}"
+    fun aiAuditDetail(reportId: String) = "ai_audit_detail/$reportId"
     fun traceListForReport(reportId: String) = "trace_list/$reportId"
     fun traceListForReportCategory(reportId: String, category: String) =
         "trace_list/$reportId/category/${encode(category)}"

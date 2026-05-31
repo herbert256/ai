@@ -100,12 +100,14 @@ suspend fun AnalysisRepository.analyze(
     imageMime: String? = null
 ): AnalysisResponse = withContext(Dispatchers.IO) {
     AppLog.d("ApiDispatch", "analyze ${service.id}/$model fmt=${service.apiFormat} promptLen=${prompt.length} img=${imageBase64 != null}")
-    withHostGate(baseUrl) {
-        withApiCallTimeout {
-            when (service.apiFormat) {
-                ApiFormat.ANTHROPIC -> analyzeAnthropic(service, apiKey, prompt, model, params, imageBase64, imageMime)
-                ApiFormat.GOOGLE -> analyzeGemini(service, apiKey, prompt, model, params, imageBase64, imageMime)
-                ApiFormat.OPENAI_COMPATIBLE -> analyzeOpenAi(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
+    auditApiCall(service, model, baseUrl) {
+        withHostGate(baseUrl) {
+            withApiCallTimeout {
+                when (service.apiFormat) {
+                    ApiFormat.ANTHROPIC -> analyzeAnthropic(service, apiKey, prompt, model, params, imageBase64, imageMime)
+                    ApiFormat.GOOGLE -> analyzeGemini(service, apiKey, prompt, model, params, imageBase64, imageMime)
+                    ApiFormat.OPENAI_COMPATIBLE -> analyzeOpenAi(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime)
+                }
             }
         }
     }
@@ -606,6 +608,63 @@ private suspend fun AnalysisRepository.chatResponsesApi(
 
 internal fun responsesUrlFor(service: AppService, baseUrl: String): String =
     buildChatUrl(baseUrl, service.responsesPath ?: "v1/responses", service.knownEndpointPaths())
+
+/** Best-effort reconstruction of the request URL for the audit log's
+ *  technical line. Mirrors the per-format dispatchers' URL choice;
+ *  falls back to [baseUrl] if anything is off. Query params (incl.
+ *  Google's `?key=`) are intentionally omitted — [AuditLog] redacts
+ *  secrets, but the bare endpoint is what the audit cares about. */
+internal fun AnalysisRepository.dispatchUrl(service: AppService, model: String, baseUrl: String): String = try {
+    when (service.apiFormat) {
+        ApiFormat.OPENAI_COMPATIBLE ->
+            if (usesResponsesApi(service, model)) responsesUrlFor(service, baseUrl)
+            else buildChatUrl(baseUrl, service.chatPath, service.knownEndpointPaths())
+        // Anthropic / Google baseUrls already encode the endpoint path (and
+        // Google's carries a `{model}` template), so rebuild from the bare
+        // host + the canonical path to avoid a doubled `/v1/messages/v1/messages`.
+        ApiFormat.ANTHROPIC -> hostBaseOf(baseUrl) + "/v1/messages"
+        ApiFormat.GOOGLE -> hostBaseOf(baseUrl) + "/v1beta/models/$model:generateContent"
+    }
+} catch (_: Exception) { baseUrl }
+
+/** `scheme://host` of [url], dropping any path/query. String-based (not
+ *  [java.net.URI]) because Google's baseUrl carries an illegal `{model}`
+ *  template that would make URI parsing throw — and then the caller would
+ *  re-append the path onto the full template, doubling it. */
+private fun hostBaseOf(url: String): String {
+    val schemeEnd = url.indexOf("://")
+    if (schemeEnd < 0) return url.substringBefore("/").substringBefore("?")
+    val firstSlash = url.indexOf('/', schemeEnd + 3)
+    return if (firstSlash < 0) url else url.substring(0, firstSlash)
+}
+
+/** Central audit hook wrapping a single report-generating dispatch.
+ *  Emits the per-call **technical line** (URL, tokens, cost / error)
+ *  to [AuditLog] for the report currently on [ApiTracer.currentReportId]
+ *  — a no-op for non-report calls (chat, embeddings, model tests) whose
+ *  tracer tags carry no reportId. A thrown call (network failure, timeout)
+ *  still writes an error technical line before rethrowing; cancellations
+ *  pass through untouched. */
+internal suspend fun AnalysisRepository.auditApiCall(
+    service: AppService,
+    model: String,
+    baseUrl: String,
+    block: suspend () -> AnalysisResponse
+): AnalysisResponse {
+    val reportId = ApiTracer.currentReportId
+    if (reportId == null) return block()
+    val url = dispatchUrl(service, model, baseUrl)
+    try {
+        val resp = block()
+        AuditLog.appendApiCall(reportId, service, model, url, resp.tokenUsage, resp.httpStatusCode, resp.error)
+        return resp
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Throwable) {
+        AuditLog.appendApiCall(reportId, service, model, url, null, null, e.message ?: e.javaClass.simpleName)
+        throw e
+    }
+}
 
 private suspend fun AnalysisRepository.chatAnthropic(
     service: AppService, apiKey: String, model: String, messages: List<ChatMessage>, params: ChatParameters
@@ -1109,12 +1168,14 @@ internal suspend fun AnalysisRepository.analyzeAgentStreaming(
     imageBase64: String? = null, imageMime: String? = null,
     onDelta: (String) -> Unit
 ): AnalysisResponse = withContext(Dispatchers.IO) {
-    withHostGate(baseUrl) {
-        withApiCallTimeout {
-            when (service.apiFormat) {
-                ApiFormat.ANTHROPIC -> streamAnthropicReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
-                ApiFormat.GOOGLE -> streamGeminiReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
-                ApiFormat.OPENAI_COMPATIBLE -> streamOpenAiReport(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime, onDelta)
+    auditApiCall(service, model, baseUrl) {
+        withHostGate(baseUrl) {
+            withApiCallTimeout {
+                when (service.apiFormat) {
+                    ApiFormat.ANTHROPIC -> streamAnthropicReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
+                    ApiFormat.GOOGLE -> streamGeminiReport(service, apiKey, prompt, model, params, imageBase64, imageMime, onDelta)
+                    ApiFormat.OPENAI_COMPATIBLE -> streamOpenAiReport(service, apiKey, prompt, model, params, baseUrl, imageBase64, imageMime, onDelta)
+                }
             }
         }
     }

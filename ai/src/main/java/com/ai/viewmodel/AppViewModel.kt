@@ -473,6 +473,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.d(tag, "→ Singletons init")
         AppLog.v(tag, "  init AppLog"); AppLog.init(application)
         AppLog.v(tag, "  init ApiTracer"); ApiTracer.init(application)
+        AppLog.v(tag, "  init AuditLog"); AuditLog.init(application)
         AppLog.v(tag, "  init ChatHistoryManager"); ChatHistoryManager.init(application)
         AppLog.v(tag, "  init ReportStorage"); ReportStorage.init(application)
         AppLog.v(tag, "  init SecondaryResultStorage"); SecondaryResultStorage.init(application)

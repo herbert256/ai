@@ -271,6 +271,7 @@ class TranslationRunManager(
                     .map { (p, m) -> "${p.id}|$m" }
             )) }
             AppLog.i("Translation", "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${itemsWithIds.size} items via ${models.size} model${if (models.size == 1) "" else "s"}")
+            AuditLog.append(sourceReportId, "Start Translation to $targetLanguageName ($targetLanguageNative) — ${itemsWithIds.size} item(s) via ${models.size} model(s)")
 
             val template = aiSettings.getInternalPromptByName("translate-text")?.text.orEmpty()
             val titleTemplate = aiSettings.getInternalPromptByName("translate-title")?.text
@@ -612,6 +613,7 @@ class TranslationRunManager(
                 val okCount = finalState.items.count { it.translatedText?.isNotBlank() == true }
                 val failCount = finalState.items.count { it.errorMessage != null }
                 AppLog.i("Translation", "← done $targetLanguageName for report=$sourceReportId — ok=$okCount fail=$failCount")
+                AuditLog.append(sourceReportId, "End Translation to $targetLanguageName — ok=$okCount fail=$failCount")
             }
         }
         translationJobs[runId] = job

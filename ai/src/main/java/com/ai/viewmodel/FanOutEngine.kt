@@ -6,6 +6,7 @@ import com.ai.data.AnalysisResponse
 import com.ai.data.ApiCallCaps
 import com.ai.data.AppLog
 import com.ai.data.AppService
+import com.ai.data.AuditLog
 import com.ai.data.FAN_OUT_PROMPT_EDIT_CALL_KIND
 import com.ai.data.CombinedReportState
 import com.ai.data.FAN_OUT_REASONING_CALL_KIND
@@ -1065,6 +1066,7 @@ class FanOutEngine internal constructor(
                     }
                     if (successful.size < 2) return@withTracerTags
                     AppLog.i("FanOut", "→ start \"${metaPrompt.name}\" (report=$reportId, ${successful.size} successful agents)")
+                    AuditLog.append(reportId, "Start Fan Out '${metaPrompt.name}' — ${successful.size} source model(s)")
                     val sources = when (scopeChoice) {
                         SecondaryScope.AllReports -> successful
                         is SecondaryScope.TopRanked -> {
@@ -1156,6 +1158,7 @@ class FanOutEngine internal constructor(
                         )
                     }
                     AppLog.i("FanOut", "← end \"${metaPrompt.name}\" (${pending.size} pairs in ${System.currentTimeMillis() - fanOutStartMs}ms)")
+                    AuditLog.append(reportId, "End Fan Out '${metaPrompt.name}' — ${pending.size} pair(s)")
                 }
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }

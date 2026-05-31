@@ -1260,6 +1260,16 @@ class SecondaryRunManager(
             responseChangeValue = null
         ))
 
+        if (saved && response.error == null) {
+            val what = when (kind) {
+                SecondaryKind.RERANK -> "Rerank"
+                SecondaryKind.MODERATION -> "Moderation"
+                SecondaryKind.TRANSLATE -> "Translation"
+                SecondaryKind.TOURNAMENT -> "Tournament match"
+                SecondaryKind.META -> "Meta '${metaPrompt.name}'"
+            }
+            AuditLog.append(reportId, "$what result produced by ${provider.id}/$model")
+        }
         if (saved && response.error == null && tu != null) {
             appViewModel.settingsPrefs.updateUsageStatsAsync(
                 provider, model, tu.inputTokens, tu.outputTokens, tu.totalTokens,
@@ -1305,6 +1315,7 @@ class SecondaryRunManager(
         }
         ReportStorage.removeIconCallsForSecondaryIds(context, reportId, deletedSecondaryIds)
         if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+        AuditLog.append(reportId, "Deleted a ${deleted?.kind?.name?.lowercase() ?: "secondary"} result from the report")
         // Bump the parent report's timestamp — removing a meta /
         // translation row is a real change to what the report contains
         // and should sort the report to the top of History, same as an

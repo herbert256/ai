@@ -226,6 +226,13 @@ object SecondaryResultStorage {
             responseChangeSource = changeSource?.takeIf { it.isNotBlank() },
             responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
         ))
+        AuditLog.append(reportId, buildString {
+            append("Selected a new response for a Fan Out pair")
+            changeSource?.takeIf { it.isNotBlank() }?.let { src ->
+                append(" from $src")
+                changeValue?.takeIf { it.isNotBlank() }?.let { append(" with value $it") }
+            }
+        })
         return true
     }
 

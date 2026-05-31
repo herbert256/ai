@@ -269,6 +269,7 @@ fun AiMonitorScreen(
     onNavigateToLiveDashboard: () -> Unit = {},
     onNavigateToTraces: () -> Unit = {},
     onNavigateToAppLog: () -> Unit = {},
+    onNavigateToAudit: () -> Unit = {},
     onNavigateToStatistics: () -> Unit = {},
     onHousekeeping: (() -> Unit)? = null,
 ) {
@@ -295,6 +296,7 @@ fun AiMonitorScreen(
             item { LinkCard("📡", "Live Dashboard", "In-flight calls, caps and throttle state", onNavigateToLiveDashboard) }
             item { LinkCard("🐞", "API Traces", "Per-call request/response records", onNavigateToTraces) }
             item { LinkCard("📜", "Application log", "The in-app application log, line by line", onNavigateToAppLog) }
+            item { LinkCard("🧾", "Audit", "Per-report trail of actions, batches and API calls", onNavigateToAudit) }
             item { LinkCard("📊", "Statistics", "Lifetime totals across reports, providers, models, spend and logs", onNavigateToStatistics) }
             item { Spacer(Modifier.height(24.dp)) }
         }

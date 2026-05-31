@@ -460,12 +460,13 @@ val LocalManagePickReport = compositionLocalOf<(() -> Unit)?> { null }
  *  is dropped from the row (no point linking to where you already are).
  *  Null for the deeper Monitor-subtree screens (Reports, Providers, …),
  *  which aren't one of the four parts and so keep all four icons. */
-enum class MonitorPart { LIVE_DASHBOARD, TRACES, APP_LOG, STATISTICS }
+enum class MonitorPart { LIVE_DASHBOARD, TRACES, APP_LOG, AUDIT, STATISTICS }
 
 data class MonitorNav(
     val onLiveDashboard: () -> Unit,
     val onTraces: () -> Unit,
     val onAppLog: () -> Unit,
+    val onAudit: () -> Unit,
     val onStatistics: () -> Unit,
     /** The part the current screen represents, whose icon is omitted. */
     val active: MonitorPart? = null,
@@ -1608,6 +1609,7 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
         if (mn.active != MonitorPart.LIVE_DASHBOARD) add(BottomBarIcon("📡", Color.Unspecified, mn.onLiveDashboard, 28))
         if (mn.active != MonitorPart.TRACES) add(BottomBarIcon("🐞", Color.Unspecified, mn.onTraces, 22))
         if (mn.active != MonitorPart.APP_LOG) add(BottomBarIcon("📜", Color.Unspecified, mn.onAppLog, 28))
+        if (mn.active != MonitorPart.AUDIT) add(BottomBarIcon("🧾", Color.Unspecified, mn.onAudit, 28))
         if (mn.active != MonitorPart.STATISTICS) add(BottomBarIcon("📊", Color.Unspecified, mn.onStatistics, 28))
     }
     // ----- first-row-ish: creation / nav / share -----

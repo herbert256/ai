@@ -262,6 +262,10 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "applog_list" to listOf("help_privacy", "concepts"),
     "applog_detail" to listOf("help_privacy"),
 
+    // ===== Audit =====
+    "audit_list" to listOf("help_privacy", "concepts"),
+    "audit_detail" to listOf("help_privacy"),
+
     // ===== Icon lookup / content viewers =====
     "icon_lookup_main" to listOf("help_home_icons"),
     "icon_lookup_agent" to listOf("help_home_icons", "help_glossary_blocks"),

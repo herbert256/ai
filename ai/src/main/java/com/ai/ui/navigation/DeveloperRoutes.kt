@@ -85,6 +85,7 @@ internal fun NavGraphBuilder.developerRoutes(
             onLiveDashboard = { jumpToMonitorPart(NavRoutes.AI_LIVE_DASHBOARD) },
             onTraces = { jumpToMonitorPart(NavRoutes.TRACE_LIST) },
             onAppLog = { jumpToMonitorPart(NavRoutes.AI_APPLOG_LIST) },
+            onAudit = { jumpToMonitorPart(NavRoutes.AI_AUDIT_LIST) },
             onStatistics = { jumpToMonitorPart(NavRoutes.AI_STATISTICS) },
         )
         // Open the API-trace list pre-filtered to one dimension value.
@@ -103,6 +104,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToLiveDashboard = { navController.navigate(NavRoutes.AI_LIVE_DASHBOARD) },
                 onNavigateToTraces = { navController.navigate(NavRoutes.TRACE_LIST) },
                 onNavigateToAppLog = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
+                onNavigateToAudit = { navController.navigate(NavRoutes.AI_AUDIT_LIST) },
                 onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
@@ -241,6 +243,16 @@ internal fun NavGraphBuilder.developerRoutes(
                 onSelectLog = { name -> navController.navigate(NavRoutes.aiAppLogDetail(name)) },
                 onStats = { navController.navigate(NavRoutes.AI_LOG_STATS) }
             )
+        }
+        monitorComposable(NavRoutes.AI_AUDIT_LIST, monitorNav, MonitorPart.AUDIT) {
+            com.ai.ui.admin.AuditListScreen(
+                onBack = safePopBack,
+                onSelect = { reportId -> navController.navigate(NavRoutes.aiAuditDetail(reportId)) }
+            )
+        }
+        monitorComposable(NavRoutes.AI_AUDIT_DETAIL, monitorNav, MonitorPart.AUDIT) { entry ->
+            val rid = entry.arguments?.getString("reportId") ?: ""
+            com.ai.ui.admin.AuditDetailScreen(reportId = rid, onBack = safePopBack)
         }
         composable(NavRoutes.AI_BACKUP_RESTORE) {
             val uiState by appViewModel.uiState.collectAsState()

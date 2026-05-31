@@ -2016,6 +2016,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         // bug class fixed in generateGenericReports.
         appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
             val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            AuditLog.append(reportId, "Regenerating the report")
             val state = appViewModel.uiState.value
             val ai = state.aiSettings
             val staged = state.stagedReportModels
@@ -2669,6 +2670,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
             val ra = report.agents.find { it.agentId == agentId } ?: return@withTracerTags
             val provider = AppService.findById(ra.provider) ?: return@withTracerTags
+            AuditLog.append(reportId, "Regenerating report model ${ra.provider}/${ra.model}")
             val state = appViewModel.uiState.value
             val aiSettings = state.aiSettings
 
