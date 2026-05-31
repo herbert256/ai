@@ -314,7 +314,7 @@ internal fun ViewAiReportScreen(
         androidx.compose.runtime.CompositionLocalProvider(
             com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
         ) {
-            TournamentViewScreen(
+            TournamentPodiumViewScreen(
                 reportId = reportId,
                 resultId = activeTournamentViewRowId,
                 onBack = backToMain
