@@ -25,6 +25,21 @@ data class AgentParameters(
     val reasoningEffort: String? = null
 )
 
+internal data class TemperatureRange(val min: Float, val max: Float) {
+    fun contains(value: Float): Boolean = value in min..max
+
+    companion object {
+        val Default = TemperatureRange(0f, 2f)
+    }
+}
+
+internal fun temperatureRangeForProvider(provider: AppService): TemperatureRange =
+    when (provider.apiFormat) {
+        ApiFormat.ANTHROPIC -> TemperatureRange(0f, 1f)
+        ApiFormat.GOOGLE,
+        ApiFormat.OPENAI_COMPATIBLE -> TemperatureRange.Default
+    }
+
 /**
  * A single message in a chat conversation. When [imageBase64] is non-null,
  * the message carries a vision attachment that the dispatch layer turns into

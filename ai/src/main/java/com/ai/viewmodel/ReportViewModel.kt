@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import java.util.Locale
 
 sealed class TemperatureSweepCandidate(open val temperature: Float) {
     data class Pending(override val temperature: Float) : TemperatureSweepCandidate(temperature)
@@ -59,6 +60,10 @@ data class TemperatureSweepState(
         fun key(reportId: String, agentId: String): String = "$reportId|$agentId"
     }
 }
+
+private fun formatSweepTemperature(value: Float): String =
+    if (value % 1f == 0f) value.toInt().toString()
+    else String.format(Locale.US, "%.2f", value).trimEnd('0').trimEnd('.')
 
 /**
  * ViewModel for AI report generation: task building, concurrent execution, cost calculation.
@@ -828,7 +833,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         temperatures: List<Float>
     ): Job {
         val key = TemperatureSweepState.key(reportId, agentId)
-        val temps = temperatures.take(3).map { it.coerceIn(0f, 2f) }
+        val temps = temperatures.take(3)
         temperatureSweepJobs.remove(key)?.cancel()
         _temperatureSweepStates.update {
             it + (key to TemperatureSweepState(
@@ -863,6 +868,22 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val supportedParams = PricingCache.getSupportedParameters(context, task.runtimeAgent.provider, task.runtimeAgent.model)
                 if (supportedParams != null && supportedParams.none { it.equals("temperature", ignoreCase = true) }) {
                     val msg = "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} does not report temperature support."
+                    updateTemperatureSweepState(key) { sweep ->
+                        sweep.copy(
+                            isRunning = false,
+                            unavailableMessage = msg,
+                            candidates = sweep.candidates.map { candidate ->
+                                TemperatureSweepCandidate.Error(candidate.temperature, msg, null, null, null)
+                            }
+                        )
+                    }
+                    return@launch
+                }
+                val temperatureRange = temperatureRangeForProvider(task.runtimeAgent.provider)
+                val invalidTemp = temps.firstOrNull { !temperatureRange.contains(it) }
+                if (temps.size != 3 || invalidTemp != null) {
+                    val msg = "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} allows temperature " +
+                        "${formatSweepTemperature(temperatureRange.min)}..${formatSweepTemperature(temperatureRange.max)}."
                     updateTemperatureSweepState(key) { sweep ->
                         sweep.copy(
                             isRunning = false,

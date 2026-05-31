@@ -41,6 +41,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.TemperatureRange
 import com.ai.ui.helpers.ContentWithThinkSections
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
@@ -54,6 +55,7 @@ internal fun TemperatureSweepScreen(
     reportId: String,
     agentId: String,
     modelLabel: String,
+    temperatureRange: TemperatureRange = TemperatureRange.Default,
     state: TemperatureSweepState?,
     onSubmit: (List<Float>) -> Unit,
     onUseCandidate: (Int) -> Unit,
@@ -61,11 +63,13 @@ internal fun TemperatureSweepScreen(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
-    var tempTexts by rememberSaveable(reportId, agentId) { mutableStateOf(listOf("0", "1", "2")) }
+    var tempTexts by rememberSaveable(reportId, agentId, temperatureRange.min, temperatureRange.max) {
+        mutableStateOf(defaultTemperatureTexts(temperatureRange))
+    }
     var locallySubmittedTemps by remember(reportId, agentId) { mutableStateOf<List<Float>?>(null) }
     val parsedTemps = remember(tempTexts) { tempTexts.map { it.toFloatOrNull() } }
     val validTemps = parsedTemps.filterNotNull()
-    val allValid = validTemps.size == 3 && validTemps.all { it in 0f..2f }
+    val allValid = validTemps.size == 3 && validTemps.all { temperatureRange.contains(it) }
     val displayState = state ?: locallySubmittedTemps?.let { temps ->
         TemperatureSweepState(
             reportId = reportId,
@@ -91,7 +95,11 @@ internal fun TemperatureSweepScreen(
 
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)) {
             Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Run three variants of this model response.", fontSize = 12.sp, color = AppColors.TextTertiary)
+                Text(
+                    "Allowed temperature: ${formatTemperature(temperatureRange.min)}..${formatTemperature(temperatureRange.max)}",
+                    fontSize = 12.sp,
+                    color = AppColors.TextTertiary
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     tempTexts.forEachIndexed { index, text ->
                         OutlinedTextField(
@@ -105,7 +113,7 @@ internal fun TemperatureSweepScreen(
                             singleLine = true,
                             enabled = !running,
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            isError = parsedTemps.getOrNull(index)?.let { it !in 0f..2f } ?: true,
+                            isError = parsedTemps.getOrNull(index)?.let { !temperatureRange.contains(it) } ?: true,
                             colors = AppColors.outlinedFieldColors(),
                             modifier = Modifier.weight(1f)
                         )
@@ -232,3 +240,6 @@ private fun candidateStatus(candidate: TemperatureSweepCandidate): String = when
 private fun formatTemperature(value: Float): String =
     if (value % 1f == 0f) value.toInt().toString()
     else String.format(Locale.US, "%.2f", value).trimEnd('0').trimEnd('.')
+
+private fun defaultTemperatureTexts(range: TemperatureRange): List<String> =
+    listOf(range.min, (range.min + range.max) / 2f, range.max).map(::formatTemperature)

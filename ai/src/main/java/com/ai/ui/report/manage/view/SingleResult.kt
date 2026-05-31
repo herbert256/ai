@@ -27,8 +27,10 @@ import com.ai.data.ReportStorage
 import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
+import com.ai.data.TemperatureRange
 import com.ai.data.UserNote
 import com.ai.data.notesFor
+import com.ai.data.temperatureRangeForProvider
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.horizontalSwipeNavigation
@@ -147,6 +149,7 @@ fun ReportModelScreen(
                 provider?.let { p -> com.ai.ui.shared.modelLabel(p.id, it.model, separator = " — ") }
                     ?: it.model
             } ?: "Model response",
+            temperatureRange = provider?.let(::temperatureRangeForProvider) ?: TemperatureRange.Default,
             state = temperatureSweepStates[TemperatureSweepState.key(reportId, sweepAgentId)],
             onSubmit = { temps -> onStartTemperatureSweep(reportId, sweepAgentId, temps) },
             onUseCandidate = { index ->
