@@ -1,7 +1,6 @@
 package com.ai.ui.report.view
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,7 +13,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,8 +21,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,18 +28,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -64,6 +57,8 @@ import com.ai.ui.report.view.helpers.ViewReportCache
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.LocalOpenManage
+import com.ai.ui.shared.LocalTournamentOpenState
 import com.ai.ui.shared.ManageJump
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
@@ -73,7 +68,7 @@ import kotlinx.coroutines.withContext
 /**
  * View-hub-only tournament page. Manage keeps its existing tournament
  * result screen; this one is the read-oriented View variant with a
- * podium, medals, and a compact leaderboard.
+ * medal leaderboard and model drill-ins.
  */
 @Composable
 fun TournamentPodiumViewScreen(
@@ -101,6 +96,32 @@ fun TournamentPodiumViewScreen(
     }
     val loaded = loadedState.value
     val currentMethod = decodeTournamentMatrix(loaded.row?.tournamentMatrix)?.second ?: TournamentMethod.COPELAND
+    val openManage = LocalOpenManage.current
+    val tournamentOpenState = LocalTournamentOpenState.current
+    val onOpenTournamentManage: (() -> Unit)? = openManage?.let { dispatch ->
+        {
+            tournamentOpenState?.value = currentReportId
+            dispatch(ManageJump.Main)
+        }
+    }
+    var headToHeadAgentId by rememberSaveable(currentReportId, currentResultId) { mutableStateOf<String?>(null) }
+    val selectedHeadToHeadAgentId = headToHeadAgentId
+    if (selectedHeadToHeadAgentId != null) {
+        val selectedAgent = loaded.rankings
+            .firstOrNull { it.agent?.agentId == selectedHeadToHeadAgentId }
+            ?.agent
+        TournamentModelHeadToHeadViewScreen(
+            reportTitle = loaded.reportTitle,
+            modelLabel = selectedAgent?.label ?: "Model",
+            matches = loaded.matches.filter {
+                it.firstAgentId == selectedHeadToHeadAgentId || it.secondAgentId == selectedHeadToHeadAgentId
+            },
+            agentId = selectedHeadToHeadAgentId,
+            onOpenManage = onOpenTournamentManage,
+            onBack = { headToHeadAgentId = null }
+        )
+        return
+    }
 
     val onSwipePrevAction: () -> Boolean = {
         val m = findTournamentAggregateSwipeMatch(context, reportIdsList, currentReportId, SwipeDirection.Prev)
@@ -127,16 +148,12 @@ fun TournamentPodiumViewScreen(
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
             .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction() }, onNext = { onSwipeNextAction() })
     ) {
-        val openManage = com.ai.ui.shared.LocalOpenManage.current
-        val onOpenManageJump: (() -> Unit)? = openManage?.let { dispatch ->
-            { dispatch(ManageJump.Main) }
-        }
         ViewTitleBar(
             reportTitle = loaded.reportTitle,
             screenTitle = "Tournament",
             subject = "${methodLabel(currentMethod)} ranking",
             helpTopic = "view_tournament",
-            onOpenManage = onOpenManageJump,
+            onOpenManage = onOpenTournamentManage,
             onBack = onBack,
             onSwipePrev = onSwipePrevAction,
             onSwipeNext = onSwipeNextAction
@@ -178,7 +195,6 @@ fun TournamentPodiumViewScreen(
             if (loaded.rankings.isEmpty()) {
                 item { EmptyTournamentCard(loaded.doneMatches, loaded.totalMatches) }
             } else {
-                item { PodiumCard(loaded.rankings, currentMethod) }
                 item {
                     Text(
                         "Leaderboard",
@@ -189,7 +205,13 @@ fun TournamentPodiumViewScreen(
                     )
                 }
                 items(loaded.rankings) { ranking ->
-                    TournamentRankCard(ranking, currentMethod)
+                    TournamentRankCard(
+                        ranking = ranking,
+                        method = currentMethod,
+                        onClick = ranking.agent?.agentId?.let { agentId ->
+                            { headToHeadAgentId = agentId }
+                        }
+                    )
                 }
             }
         }
@@ -202,7 +224,8 @@ private data class TournamentPodiumLoaded(
     val rankings: List<TournamentRanking> = emptyList(),
     val doneMatches: Int = 0,
     val totalMatches: Int = 0,
-    val tieCount: Int = 0
+    val tieCount: Int = 0,
+    val matches: List<TournamentViewMatch> = emptyList()
 )
 
 private data class TournamentAgent(
@@ -224,6 +247,23 @@ private data class TournamentRanking(
     val record: TournamentRecord
 )
 
+private data class TournamentViewSide(
+    val winnerAgentId: String? = null,
+    val tie: Boolean = false,
+    val reason: String? = null,
+    val error: String? = null,
+    val judge: String? = null
+)
+
+private data class TournamentViewMatch(
+    val firstAgentId: String,
+    val firstLabel: String,
+    val secondAgentId: String,
+    val secondLabel: String,
+    val firstPass: TournamentViewSide,
+    val swappedPass: TournamentViewSide
+)
+
 private data class TournamentSwipeMatch(val reportId: String, val resultId: String)
 
 private fun loadTournamentPodium(
@@ -243,6 +283,7 @@ private fun loadTournamentPodium(
             label = shortModelName(agent.model)
         )
     }.toMap()
+    val agentIdToLabel = successful.associate { it.agentId to shortModelName(it.model) }
     val matchRows = row?.tournamentJudgeRunId?.let { runId ->
         SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
             .filter { it.tournamentRole == "MATCH" && it.tournamentJudgeRunId == runId }
@@ -263,7 +304,55 @@ private fun loadTournamentPodium(
         rankings = rankings,
         doneMatches = matchRows.count { !it.content.isNullOrBlank() || it.durationMs != null },
         totalMatches = matchRows.size,
-        tieCount = records.values.sumOf { it.draws } / 2
+        tieCount = records.values.sumOf { it.draws } / 2,
+        matches = buildTournamentViewMatches(matchRows, agentIdToLabel)
+    )
+}
+
+private fun buildTournamentViewMatches(
+    rows: List<SecondaryResult>,
+    agentIdToLabel: Map<String, String>
+): List<TournamentViewMatch> {
+    val byPair = rows
+        .filter { !it.matchResponseAId.isNullOrBlank() && !it.matchResponseBId.isNullOrBlank() }
+        .groupBy {
+            listOf(it.matchResponseAId.orEmpty(), it.matchResponseBId.orEmpty())
+                .sorted()
+                .joinToString("\u0000")
+        }
+    return byPair.values.mapNotNull { pairRows ->
+        val firstPassRow = pairRows.firstOrNull { (it.matchOrientation ?: 0) == 0 }
+        val swappedPassRow = pairRows.firstOrNull { (it.matchOrientation ?: 0) == 1 }
+        val canonical = firstPassRow ?: swappedPassRow ?: pairRows.firstOrNull() ?: return@mapNotNull null
+        val firstId = canonical.matchResponseAId ?: return@mapNotNull null
+        val secondId = canonical.matchResponseBId ?: return@mapNotNull null
+        TournamentViewMatch(
+            firstAgentId = firstId,
+            firstLabel = agentIdToLabel[firstId] ?: "?",
+            secondAgentId = secondId,
+            secondLabel = agentIdToLabel[secondId] ?: "?",
+            firstPass = tournamentViewSideFrom(firstPassRow),
+            swappedPass = tournamentViewSideFrom(swappedPassRow)
+        )
+    }.sortedWith(compareBy<TournamentViewMatch> { it.firstLabel }.thenBy { it.secondLabel })
+}
+
+private fun tournamentViewSideFrom(row: SecondaryResult?): TournamentViewSide {
+    val parsed = row?.let { parseMatchVerdict(it.content) }
+    val winnerAgentId = when (parsed?.verdict) {
+        "A" -> row?.matchResponseAId
+        "B" -> row?.matchResponseBId
+        else -> null
+    }
+    val judge = row?.model
+        ?.takeIf { it.isNotBlank() && !it.startsWith("*") }
+        ?.let { shortModelName(it) }
+    return TournamentViewSide(
+        winnerAgentId = winnerAgentId,
+        tie = parsed?.verdict == "tie",
+        reason = parsed?.reason,
+        error = row?.errorMessage,
+        judge = judge
     )
 }
 
@@ -379,81 +468,11 @@ private fun StatTile(label: String, value: String, color: Color, modifier: Modif
 }
 
 @Composable
-private fun PodiumCard(rankings: List<TournamentRanking>, method: TournamentMethod) {
-    val first = rankings.firstOrNull { it.rank == 1 } ?: rankings.getOrNull(0)
-    val second = rankings.firstOrNull { it.rank == 2 } ?: rankings.getOrNull(1)
-    val third = rankings.firstOrNull { it.rank == 3 } ?: rankings.getOrNull(2)
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(1.dp, AppColors.Green.copy(alpha = 0.5f))
-    ) {
-        Column(
-            modifier = Modifier.background(
-                Brush.linearGradient(
-                    listOf(
-                        AppColors.Green.copy(alpha = 0.30f),
-                        AppColors.Orange.copy(alpha = 0.18f),
-                        AppColors.Blue.copy(alpha = 0.14f)
-                    )
-                )
-            ).padding(12.dp)
-        ) {
-            Text("Podium", color = AppColors.Green, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(10.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Bottom
-            ) {
-                PodiumPlace(second, "🥈", Color(0xFFB0BEC5), 0.86f, method, Modifier.weight(1f))
-                PodiumPlace(first, "🥇", Color(0xFFFFD54F), 1.0f, method, Modifier.weight(1.12f))
-                PodiumPlace(third, "🥉", Color(0xFFCD7F32), 0.78f, method, Modifier.weight(1f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun PodiumPlace(
-    ranking: TournamentRanking?,
-    medal: String,
-    color: Color,
-    scale: Float,
+private fun TournamentRankCard(
+    ranking: TournamentRanking,
     method: TournamentMethod,
-    modifier: Modifier = Modifier
+    onClick: (() -> Unit)?
 ) {
-    Column(
-        modifier = modifier.clip(RoundedCornerShape(12.dp))
-            .background(Color.Black.copy(alpha = 0.25f))
-            .border(1.dp, color.copy(alpha = 0.55f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 8.dp, vertical = (8 * scale).dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(medal, fontSize = (30 * scale).sp)
-        Spacer(Modifier.height(4.dp))
-        Text(
-            ranking?.agent?.label ?: "-",
-            color = Color.White,
-            fontSize = (12 * scale).sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            scoreText(ranking?.score, method),
-            color = color,
-            fontSize = (11 * scale).sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1
-        )
-    }
-}
-
-@Composable
-private fun TournamentRankCard(ranking: TournamentRanking, method: TournamentMethod) {
     val medal = medalForRank(ranking.rank)
     val accent = medalColor(ranking.rank)
     Row(
@@ -461,6 +480,7 @@ private fun TournamentRankCard(ranking: TournamentRanking, method: TournamentMet
             .clip(RoundedCornerShape(12.dp))
             .background(AppColors.CardBackground)
             .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(12.dp))
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -504,6 +524,168 @@ private fun TournamentRankCard(ranking: TournamentRanking, method: TournamentMet
             softWrap = false
         )
     }
+}
+
+@Composable
+private fun TournamentModelHeadToHeadViewScreen(
+    reportTitle: String?,
+    modelLabel: String,
+    matches: List<TournamentViewMatch>,
+    agentId: String,
+    onOpenManage: (() -> Unit)?,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+    val sides = matches.flatMap { listOf(it.firstPass, it.swappedPass) }
+    val won = sides.count { tournamentResultFor(agentId, it) == "won" }
+    val drew = sides.count { tournamentResultFor(agentId, it) == "draw" }
+    val lost = sides.count { tournamentResultFor(agentId, it) == "lost" }
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        ViewTitleBar(
+            reportTitle = reportTitle,
+            screenTitle = "Tournament",
+            subject = modelLabel,
+            helpTopic = "view_tournament",
+            onOpenManage = onOpenManage,
+            onBack = onBack
+        )
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
+        ) {
+            item {
+                TournamentHeadToHeadSummary(won = won, drew = drew, lost = lost)
+            }
+            if (matches.isEmpty()) {
+                item {
+                    Text(
+                        "No head-to-heads for this model.",
+                        color = AppColors.TextSecondary,
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(top = 8.dp)
+                    )
+                }
+            } else {
+                items(matches) { match ->
+                    TournamentHeadToHeadCard(match = match, agentId = agentId)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TournamentHeadToHeadSummary(won: Int, drew: Int, lost: Int) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        StatTile("Won", won.toString(), AppColors.Green, Modifier.weight(1f))
+        StatTile("Drawn", drew.toString(), AppColors.Blue, Modifier.weight(1f))
+        StatTile("Lost", lost.toString(), AppColors.Red, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun TournamentHeadToHeadCard(match: TournamentViewMatch, agentId: String) {
+    val opponent = if (match.firstAgentId == agentId) match.secondLabel else match.firstLabel
+    Column(
+        modifier = Modifier.fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(AppColors.CardBackground)
+            .border(1.dp, AppColors.Blue.copy(alpha = 0.28f), RoundedCornerShape(12.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            "vs $opponent",
+            color = Color.White,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        TournamentOrientationLine(
+            label = "A <> B",
+            side = match.firstPass,
+            agentId = agentId
+        )
+        TournamentOrientationLine(
+            label = "B <> A",
+            side = match.swappedPass,
+            agentId = agentId
+        )
+    }
+}
+
+@Composable
+private fun TournamentOrientationLine(label: String, side: TournamentViewSide, agentId: String) {
+    val result = tournamentResultFor(agentId, side)
+    val (resultLabel, resultColor) = tournamentResultStyle(result)
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                label,
+                color = AppColors.TextSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.width(54.dp),
+                maxLines = 1
+            )
+            Text(
+                resultLabel,
+                color = resultColor,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.width(54.dp),
+                maxLines = 1
+            )
+            Text(
+                "Judge: ${side.judge ?: "-"}",
+                color = AppColors.TextTertiary,
+                fontSize = 11.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+        }
+        val detail = side.error ?: side.reason
+        if (!detail.isNullOrBlank()) {
+            Text(
+                detail,
+                color = AppColors.TextTertiary,
+                fontSize = 11.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(start = 62.dp)
+            )
+        }
+    }
+}
+
+private fun tournamentResultFor(agentId: String, side: TournamentViewSide): String = when {
+    !side.error.isNullOrBlank() -> "error"
+    side.tie -> "draw"
+    side.winnerAgentId.isNullOrBlank() -> "pending"
+    side.winnerAgentId == agentId -> "won"
+    else -> "lost"
+}
+
+private fun tournamentResultStyle(result: String): Pair<String, Color> = when (result) {
+    "won" -> "won" to AppColors.Green
+    "lost" -> "lost" to AppColors.Red
+    "draw" -> "draw" to AppColors.Blue
+    "error" -> "error" to AppColors.Red
+    else -> "..." to AppColors.TextTertiary
 }
 
 @Composable
