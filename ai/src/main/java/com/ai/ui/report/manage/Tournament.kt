@@ -212,12 +212,16 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
 
     if (showResults && run.aggregateRowId != null) {
         // Inline over the Manage drill-in: the 🔧 just pops back to the
-        // drill-in (we're already in Manage).
-        TournamentPodiumViewScreen(
-            reportId = reportId, resultId = run.aggregateRowId!!,
-            onBack = { showResults = false },
-            onOpenManageOverride = { showResults = false }
-        )
+        // drill-in (we're already in Manage). Provide the report's icon —
+        // the Manage flow doesn't supply LocalReportIcon, so without this
+        // the podium's title bar falls back to the generic report glyph.
+        CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides reportIcon) {
+            TournamentPodiumViewScreen(
+                reportId = reportId, resultId = run.aggregateRowId!!,
+                onBack = { showResults = false },
+                onOpenManageOverride = { showResults = false }
+            )
+        }
         return
     }
 
