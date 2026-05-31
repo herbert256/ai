@@ -27,7 +27,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +44,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.ui.helpers.ContentWithThinkSections
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
+import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.TemperatureSweepCandidate
 import com.ai.viewmodel.TemperatureSweepState
 import java.util.Locale
@@ -173,46 +173,39 @@ private fun TemperatureCandidatePanel(
     ) {
         Column(
             modifier = Modifier.fillMaxSize()
-                .padding(14.dp)
+                .padding(12.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🌡️ ${formatTemperature(candidate.temperature)}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = AppColors.Orange)
+                Text("🌡️ ${formatTemperature(candidate.temperature)}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AppColors.Orange)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(candidateStatus(candidate), fontSize = 13.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (candidate is TemperatureSweepCandidate.Running) {
+                    CircularProgressIndicator(modifier = Modifier.height(14.dp).width(14.dp), strokeWidth = 2.dp)
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Text(candidateStatus(candidate), fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(modifier = Modifier.weight(1f))
+                (candidate as? TemperatureSweepCandidate.Success)?.cost?.let { cost ->
+                    Text("${formatCents(cost)} ¢", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+                val traceFile = when (candidate) {
+                    is TemperatureSweepCandidate.Success -> candidate.traceFile
+                    is TemperatureSweepCandidate.Error -> candidate.traceFile
+                    else -> null
+                }
+                traceFile?.let { fn ->
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("🐞", fontSize = 16.sp, modifier = Modifier.clickable { onTrace(fn) })
+                }
             }
             when (candidate) {
-                is TemperatureSweepCandidate.Pending -> {
-                    Text("Queued", color = AppColors.TextTertiary, fontSize = 14.sp)
-                }
-                is TemperatureSweepCandidate.Running -> {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.height(18.dp).width(18.dp), strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Calling API…", color = AppColors.TextSecondary, fontSize = 14.sp)
-                    }
-                }
+                is TemperatureSweepCandidate.Pending -> Unit
+                is TemperatureSweepCandidate.Running -> Unit
                 is TemperatureSweepCandidate.Error -> {
                     Text(candidate.message, color = AppColors.Red, fontSize = 14.sp)
-                    CandidateMeta(
-                        durationMs = candidate.durationMs,
-                        cost = null,
-                        tokenText = candidate.httpStatusCode?.let { "HTTP $it" },
-                        traceFile = candidate.traceFile,
-                        onTrace = onTrace
-                    )
                 }
                 is TemperatureSweepCandidate.Success -> {
-                    CandidateMeta(
-                        durationMs = candidate.durationMs,
-                        cost = candidate.cost,
-                        tokenText = candidate.tokenUsage?.let {
-                            "in ${it.inputTokens} / out ${it.outputTokens} / total ${it.totalTokens}"
-                        },
-                        traceFile = candidate.traceFile,
-                        onTrace = onTrace
-                    )
                     Button(
                         onClick = { onUseCandidate(index) },
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green),
@@ -223,31 +216,6 @@ private fun TemperatureCandidatePanel(
                             ContentWithThinkSections(analysis = candidate.response)
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun CandidateMeta(
-    durationMs: Long?,
-    cost: Double?,
-    tokenText: String?,
-    traceFile: String?,
-    onTrace: (String) -> Unit
-) {
-    val pieces = buildList {
-        durationMs?.let { add("${it}ms") }
-        cost?.let { add(String.format(Locale.US, "$%.6f", it)) }
-        tokenText?.let { add(it) }
-    }
-    if (pieces.isNotEmpty() || traceFile != null) {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text(pieces.joinToString(" • "), color = AppColors.TextTertiary, fontSize = 12.sp, modifier = Modifier.weight(1f))
-            traceFile?.let { fn ->
-                TextButton(onClick = { onTrace(fn) }) {
-                    Text("🐞", fontSize = 16.sp)
                 }
             }
         }
