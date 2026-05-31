@@ -51,6 +51,7 @@ import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.IconCandidate
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.ResolvedAltPrompt
+import com.ai.viewmodel.ReasoningEffortSweepState
 import com.ai.viewmodel.TemperatureSweepState
 import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.UiState
@@ -241,6 +242,10 @@ fun ReportsScreen(
     onStartTemperatureSweep: (String, String, List<Float>) -> Unit = { _, _, _ -> },
     onApplyTemperatureCandidate: (String, String, Int) -> Unit = { _, _, _ -> },
     onClearTemperatureSweep: (String, String) -> Unit = { _, _ -> },
+    reasoningEffortSweepStates: Map<String, ReasoningEffortSweepState> = emptyMap(),
+    onStartReasoningEffortSweep: (String, String, List<String?>) -> Unit = { _, _, _ -> },
+    onApplyReasoningEffortCandidate: (String, String, Int) -> Unit = { _, _, _ -> },
+    onClearReasoningEffortSweep: (String, String) -> Unit = { _, _ -> },
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
     onExportAll: suspend (String, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _ -> },
     translationRuns: List<com.ai.viewmodel.TranslationRunState> = emptyList(),
@@ -702,6 +707,10 @@ fun ReportsScreen(
             onStartTemperatureSweep = onStartTemperatureSweep,
             onApplyTemperatureCandidate = onApplyTemperatureCandidate,
             onClearTemperatureSweep = onClearTemperatureSweep,
+            reasoningEffortSweepStates = reasoningEffortSweepStates,
+            onStartReasoningEffortSweep = onStartReasoningEffortSweep,
+            onApplyReasoningEffortCandidate = onApplyReasoningEffortCandidate,
+            onClearReasoningEffortSweep = onClearReasoningEffortSweep,
             onNavigateToModelInfo = onNavigateToModelInfo,
             onOpenAgentIcon = { agentIconDetailFor = it },
             onSecondaryRefresh = onSecondaryRefresh,

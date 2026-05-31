@@ -61,9 +61,44 @@ data class TemperatureSweepState(
     }
 }
 
+sealed class ReasoningEffortCandidate(open val effort: String?) {
+    data class Pending(override val effort: String?) : ReasoningEffortCandidate(effort)
+    data class Running(override val effort: String?) : ReasoningEffortCandidate(effort)
+    data class Success(
+        override val effort: String?,
+        val response: String,
+        val tokenUsage: TokenUsage?,
+        val cost: Double?,
+        val durationMs: Long,
+        val traceFile: String?
+    ) : ReasoningEffortCandidate(effort)
+    data class Error(
+        override val effort: String?,
+        val message: String,
+        val httpStatusCode: Int?,
+        val durationMs: Long?,
+        val traceFile: String?
+    ) : ReasoningEffortCandidate(effort)
+}
+
+data class ReasoningEffortSweepState(
+    val reportId: String,
+    val agentId: String,
+    val candidates: List<ReasoningEffortCandidate>,
+    val isRunning: Boolean = false,
+    val unavailableMessage: String? = null
+) {
+    companion object {
+        fun key(reportId: String, agentId: String): String = "$reportId|$agentId"
+    }
+}
+
 private fun formatSweepTemperature(value: Float): String =
     if (value % 1f == 0f) value.toInt().toString()
     else String.format(Locale.US, "%.2f", value).trimEnd('0').trimEnd('.')
+
+private fun formatSweepReasoningEffort(effort: String?): String =
+    effort?.replaceFirstChar { it.uppercase() } ?: "None"
 
 /**
  * ViewModel for AI report generation: task building, concurrent execution, cost calculation.
@@ -76,6 +111,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private val temperatureSweepJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
     private val _temperatureSweepStates = MutableStateFlow<Map<String, TemperatureSweepState>>(emptyMap())
     val temperatureSweepStates: StateFlow<Map<String, TemperatureSweepState>> = _temperatureSweepStates.asStateFlow()
+    private val reasoningEffortSweepJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private val _reasoningEffortSweepStates = MutableStateFlow<Map<String, ReasoningEffortSweepState>>(emptyMap())
+    val reasoningEffortSweepStates: StateFlow<Map<String, ReasoningEffortSweepState>> = _reasoningEffortSweepStates.asStateFlow()
 
     /** In-flight regenerate jobs (single-agent regenerateAgent +
      *  forceRegenerateAllAgents), keyed by reportId, so deleteReport can
@@ -993,6 +1031,206 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         return job
     }
 
+    private fun updateReasoningEffortSweepState(key: String, transform: (ReasoningEffortSweepState) -> ReasoningEffortSweepState) {
+        _reasoningEffortSweepStates.update { current ->
+            val existing = current[key] ?: return@update current
+            current + (key to transform(existing))
+        }
+    }
+
+    private fun setReasoningEffortCandidate(
+        key: String,
+        index: Int,
+        candidate: ReasoningEffortCandidate
+    ) {
+        updateReasoningEffortSweepState(key) { state ->
+            state.copy(candidates = state.candidates.mapIndexed { i, old -> if (i == index) candidate else old })
+        }
+    }
+
+    fun clearReasoningEffortSweep(reportId: String, agentId: String) {
+        val key = ReasoningEffortSweepState.key(reportId, agentId)
+        reasoningEffortSweepJobs.remove(key)?.cancel()
+        _reasoningEffortSweepStates.update { it - key }
+    }
+
+    fun applyReasoningEffortCandidate(context: Context, reportId: String, agentId: String, candidateIndex: Int) {
+        val key = ReasoningEffortSweepState.key(reportId, agentId)
+        val candidate = _reasoningEffortSweepStates.value[key]?.candidates
+            ?.getOrNull(candidateIndex) as? ReasoningEffortCandidate.Success ?: return
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            ReportStorage.applyAgentChatResponse(context, reportId, agentId, candidate.response)
+            _reasoningEffortSweepStates.update { it - key }
+        }
+    }
+
+    fun startReasoningEffortSweep(
+        context: Context,
+        reportId: String,
+        agentId: String,
+        efforts: List<String?>
+    ): Job {
+        val key = ReasoningEffortSweepState.key(reportId, agentId)
+        val supportedFixedEfforts = setOf("low", "medium", "high")
+        val requestedEfforts = efforts.take(4).map { raw ->
+            raw?.trim()?.lowercase(Locale.US)?.takeIf { it in supportedFixedEfforts }
+        }.ifEmpty { listOf(null, "low", "medium", "high") }
+        reasoningEffortSweepJobs.remove(key)?.cancel()
+        _reasoningEffortSweepStates.update {
+            it + (key to ReasoningEffortSweepState(
+                reportId = reportId,
+                agentId = agentId,
+                candidates = requestedEfforts.map { effort -> ReasoningEffortCandidate.Pending(effort) },
+                isRunning = true
+            ))
+        }
+        val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            try {
+                val report = ReportStorage.getReport(context, reportId) ?: run {
+                    updateReasoningEffortSweepState(key) {
+                        it.copy(isRunning = false, unavailableMessage = "Report not found")
+                    }
+                    return@launch
+                }
+                val state = appViewModel.uiState.value
+                val ai = state.aiSettings
+                val savedAgent = report.agents.firstOrNull { it.agentId == agentId } ?: run {
+                    updateReasoningEffortSweepState(key) {
+                        it.copy(isRunning = false, unavailableMessage = "Model response no longer exists in this report")
+                    }
+                    return@launch
+                }
+                val task = buildTemperatureSweepTask(report, state, savedAgent) ?: run {
+                    updateReasoningEffortSweepState(key) {
+                        it.copy(isRunning = false, unavailableMessage = "Model response no longer matches a runnable report agent")
+                    }
+                    return@launch
+                }
+                if (!ai.acceptsReasoningEffortParam(task.runtimeAgent.provider, task.runtimeAgent.model)) {
+                    val msg = "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} does not accept controllable reasoning effort."
+                    updateReasoningEffortSweepState(key) { sweep ->
+                        sweep.copy(
+                            isRunning = false,
+                            unavailableMessage = msg,
+                            candidates = sweep.candidates.map { candidate ->
+                                ReasoningEffortCandidate.Error(candidate.effort, msg, null, null, null)
+                            }
+                        )
+                    }
+                    return@launch
+                }
+                val supportedLevels = ai.getProvider(task.runtimeAgent.provider)
+                    .modelCapabilities[task.runtimeAgent.model]
+                    ?.reasoningEffortLevels
+                    ?.map { it.lowercase(Locale.US) }
+                    ?.toSet()
+                val canWeb = ai.isWebSearchCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val canVision = ai.isVisionCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val baseOverride = resolveReportOverrideParams(
+                    ai, report.parameterPresetIds, report.advancedParameters,
+                    report.webSearchTool, report.reasoningEffort
+                )
+                val baseNoReasoningOverride = (baseOverride ?: AgentParameters()).copy(
+                    webSearchTool = (baseOverride?.webSearchTool == true || report.webSearchTool) && canWeb,
+                    reasoningEffort = null
+                )
+                val effectiveImage = if (canVision) report.imageBase64 else null
+                val effectiveImageMime = if (canVision) report.imageMime else null
+                val baseUrl = ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
+                val knowledgeBaseIds = report.knowledgeBaseIds
+
+                withTracerTags(reportId = reportId, category = MODEL_REASONING_CALL_KIND) {
+                    requestedEfforts.forEachIndexed { index, effort ->
+                        if (effort != null && supportedLevels != null && effort !in supportedLevels) {
+                            val msg = "${formatSweepReasoningEffort(effort)} reasoning effort is not reported as supported by " +
+                                "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model}."
+                            setReasoningEffortCandidate(
+                                key,
+                                index,
+                                ReasoningEffortCandidate.Error(effort, msg, null, null, null)
+                            )
+                            return@forEachIndexed
+                        }
+                        setReasoningEffortCandidate(key, index, ReasoningEffortCandidate.Running(effort))
+                        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                        val startTime = System.currentTimeMillis()
+                        val response = try {
+                            ApiCallCaps.global.withPermit {
+                                ApiCallCaps.report.withPermit {
+                                    val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                    try {
+                                        withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                            withTraceFilenameSink(traceSink) {
+                                                appViewModel.repository.analyzeWithAgentStreaming(
+                                                    task.runtimeAgent, "", report.prompt,
+                                                    if (effort == null) task.resolvedParams.copy(reasoningEffort = null) else task.resolvedParams,
+                                                    baseNoReasoningOverride.copy(reasoningEffort = effort),
+                                                    context, baseUrl, effectiveImage, effectiveImageMime,
+                                                    knowledgeBaseIds = knowledgeBaseIds,
+                                                    aiSettings = ai
+                                                ) { /* transient comparison; no live preview */ }
+                                            }
+                                        }
+                                    } finally {
+                                        releaser.release()
+                                    }
+                                }
+                            }
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            AnalysisResponse(
+                                service = task.runtimeAgent.provider,
+                                analysis = null,
+                                error = (e.message ?: "Unknown error").take(2000)
+                            )
+                        }
+                        val durationMs = System.currentTimeMillis() - startTime
+                        val cost = calculateResponseCost(context, task.runtimeAgent.provider, task.runtimeAgent.model, response.tokenUsage)
+                        val traceFile = traceSink.get()
+                        if (response.error == null && response.tokenUsage != null) {
+                            val usage = response.tokenUsage
+                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                task.runtimeAgent.provider, task.runtimeAgent.model,
+                                usage.inputTokens, usage.outputTokens, usage.totalTokens,
+                                kind = MODEL_REASONING_CALL_KIND
+                            )
+                        }
+                        val candidate = if (response.isSuccess && !response.analysis.isNullOrBlank()) {
+                            ReasoningEffortCandidate.Success(
+                                effort = effort,
+                                response = response.analysis,
+                                tokenUsage = response.tokenUsage,
+                                cost = cost,
+                                durationMs = durationMs,
+                                traceFile = traceFile
+                            )
+                        } else {
+                            ReasoningEffortCandidate.Error(
+                                effort = effort,
+                                message = response.error ?: "No response body",
+                                httpStatusCode = response.httpStatusCode,
+                                durationMs = durationMs,
+                                traceFile = traceFile
+                            )
+                        }
+                        setReasoningEffortCandidate(key, index, candidate)
+                    }
+                }
+                updateReasoningEffortSweepState(key) { it.copy(isRunning = false) }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                updateReasoningEffortSweepState(key) {
+                    it.copy(isRunning = false, unavailableMessage = (e.message ?: "Reasoning effort sweep failed").take(2000))
+                }
+            }
+        }
+        reasoningEffortSweepJobs[key] = job
+        job.invokeOnCompletion { reasoningEffortSweepJobs.remove(key, job) }
+        return job
+    }
+
 
 
     /** Run [reportTasks]' primary calls for [reportId], interleaved by host
@@ -1692,6 +1930,12 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             .filter { it.key.startsWith(fanOutPrefix) }
             .forEach { it.value.cancel() }
         _temperatureSweepStates.update { states ->
+            states.filterKeys { !it.startsWith(fanOutPrefix) }
+        }
+        reasoningEffortSweepJobs.entries
+            .filter { it.key.startsWith(fanOutPrefix) }
+            .forEach { it.value.cancel() }
+        _reasoningEffortSweepStates.update { states ->
             states.filterKeys { !it.startsWith(fanOutPrefix) }
         }
         // Synchronous: the async cancel() returns before its launch body

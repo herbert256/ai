@@ -548,6 +548,7 @@ internal fun NavGraphBuilder.reportRoutes(
             val rmContext = LocalContext.current
             val rmScope = rememberCoroutineScope()
             val temperatureSweepStates by reportViewModel.temperatureSweepStates.collectAsState()
+            val reasoningEffortSweepStates by reportViewModel.reasoningEffortSweepStates.collectAsState()
             com.ai.ui.navigation.ViewSubScreenWithTitleNav(
                 navController = navController,
                 currentReportId = rid
@@ -571,6 +572,16 @@ internal fun NavGraphBuilder.reportRoutes(
                     },
                     onClearTemperatureSweep = { r, a ->
                         reportViewModel.clearTemperatureSweep(r, a)
+                    },
+                    reasoningEffortSweepStates = reasoningEffortSweepStates,
+                    onStartReasoningEffortSweep = { r, a, efforts ->
+                        reportViewModel.startReasoningEffortSweep(rmContext, r, a, efforts)
+                    },
+                    onApplyReasoningEffortCandidate = { r, a, index ->
+                        reportViewModel.applyReasoningEffortCandidate(rmContext, r, a, index)
+                    },
+                    onClearReasoningEffortSweep = { r, a ->
+                        reportViewModel.clearReasoningEffortSweep(r, a)
                     },
                     onContinueWithCurrent = { r, a ->
                         rmScope.launch {

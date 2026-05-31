@@ -888,6 +888,8 @@ internal fun ColumnScope.GenerationPhase(
                     // for legacy rows that pre-date the Meta-prompt
                     // CRUD.
                     val typeLabel = when {
+                        run.kind == SecondaryKind.TOURNAMENT ->
+                            if (run.tournamentRole == "MATCH") "tournament-match" else "tournament"
                         run.fanInOf != null -> "fan-in"
                         run.metaPromptName?.isNotBlank() == true -> run.metaPromptName.lowercase()
                         else -> when (run.kind) {
@@ -895,6 +897,7 @@ internal fun ColumnScope.GenerationPhase(
                             SecondaryKind.META -> "meta"
                             SecondaryKind.MODERATION -> "moderate"
                             SecondaryKind.TRANSLATE -> "translate"
+                            SecondaryKind.TOURNAMENT -> "tournament"
                         }
                     }
                     RowTypeCell(typeLabel)

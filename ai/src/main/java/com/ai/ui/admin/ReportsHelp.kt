@@ -360,6 +360,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Title bar — ℹ️", "Always wired here. Jumps to Model Info for this agent's (provider, model) pair."),
             HelpCard("Title bar — 🗑", "Always wired. Opens 'Remove from report?' confirm. Confirming drops just this row, recomputes totals, and pops back."),
             HelpCard("Title bar — 🐞", "Wired when tracing is on AND ApiTracer.getTraceFiles() finds a record where reportId == this report and model == this agent's model — opens the most recent matching trace."),
+            HelpCard("Title bar — 🧠", "Opens Reasoning Effort sweep for this model response. It replays the same report call with None / Low / Medium / High on models that expose a controllable reasoning parameter."),
             HelpCard("Translation info", "Shown only when this report has a sourceReportId and the matching agent's responseBody is loaded — opens TranslationCompareScreen with original on top, translation on bottom."),
             HelpCard("Continue in chat", "Disabled when the response is blank or errored. Opens the Continue picker (current history+model / pick agent / configure on the fly)."),
             HelpCard("Pitfalls", "Removing the last successful agent from a report leaves it empty — reopen the parent report and re-run from the Action row.")

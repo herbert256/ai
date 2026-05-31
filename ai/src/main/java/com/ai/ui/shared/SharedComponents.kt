@@ -711,6 +711,8 @@ data class TitleBarIcons(
     val onAgentChat: (() -> Unit)? = null,
     /** Optional 🌡️ temperature sweep hook (Model response). */
     val onTemperatureSweep: (() -> Unit)? = null,
+    /** Optional 🧠 reasoning-effort sweep hook (Model response). */
+    val onReasoningEffortSweep: (() -> Unit)? = null,
     val onInfo: (() -> Unit)?,
     /** Optional 👁 view-report hook. Distinct from [onInfo] (ℹ️
      *  Model Info) — this one opens the View tile grid for the
@@ -963,6 +965,10 @@ fun TitleBar(
      *  three-temperature candidate runner for a model response. Null →
      *  glyph hidden. */
     onTemperatureSweep: (() -> Unit)? = null,
+    /** Optional 🧠 reasoning-effort sweep hook — opens the transient
+     *  None / Low / Medium / High candidate runner for a model response.
+     *  Null → glyph hidden. */
+    onReasoningEffortSweep: (() -> Unit)? = null,
     /** Optional 📋 copy-to-clipboard hook. Wire it from screens that
      *  display substantial copyable text (agent response, raw JSON,
      *  prompt body, translated text, redacted trace bytes, …). Null →
@@ -1103,6 +1109,7 @@ fun TitleBar(
         onChat = onChat,
         onAgentChat = onAgentChat,
         onTemperatureSweep = onTemperatureSweep,
+        onReasoningEffortSweep = onReasoningEffortSweep,
         onInfo = onInfo,
         onOpenView = onOpenView,
         onOpenManage = onOpenManage,
@@ -1583,6 +1590,7 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
     icons.onAgentChat?.let { add(BottomBarIcon("🗣️", Color.Unspecified, it, 28)) }
     icons.onTemperatureSweep?.let { add(BottomBarIcon("🌡️", Color.Unspecified, it, 28)) }
+    icons.onReasoningEffortSweep?.let { add(BottomBarIcon("🧠", Color.Unspecified, it, 28)) }
     // 🗂️ pick another report (same glyph as the View hub's picker) —
     // leads the nav group on the Manage screens that support it.
     icons.onPickReport?.let { add(BottomBarIcon("🗂️", Color.Unspecified, it, 28)) }

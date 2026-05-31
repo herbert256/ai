@@ -908,6 +908,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
                 !s.metaPromptName.isNullOrBlank() -> "meta/${s.metaPromptName}"
                 else -> "meta/meta"
             }
+            SecondaryKind.TOURNAMENT -> "after/tournament"
         }
         CostRow(type, providerDisplay, s.model, pricing?.source ?: "", s.durationMs, inTokens, outTokens, inCents, outCents, s.traceFile)
     }

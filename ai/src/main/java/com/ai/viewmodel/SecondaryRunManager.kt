@@ -1260,6 +1260,7 @@ class SecondaryRunManager(
                     SecondaryKind.META -> "meta"
                     SecondaryKind.MODERATION -> "moderation"
                     SecondaryKind.TRANSLATE -> "translate"
+                    SecondaryKind.TOURNAMENT -> "tournament"
                 }
             )
         }

@@ -35,6 +35,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
+import com.ai.viewmodel.ReasoningEffortSweepState
 import com.ai.viewmodel.TemperatureSweepState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -94,7 +95,11 @@ fun ReportModelScreen(
     temperatureSweepStates: Map<String, TemperatureSweepState> = emptyMap(),
     onStartTemperatureSweep: (String, String, List<Float>) -> Unit = { _, _, _ -> },
     onApplyTemperatureCandidate: (String, String, Int) -> Unit = { _, _, _ -> },
-    onClearTemperatureSweep: (String, String) -> Unit = { _, _ -> }
+    onClearTemperatureSweep: (String, String) -> Unit = { _, _ -> },
+    reasoningEffortSweepStates: Map<String, ReasoningEffortSweepState> = emptyMap(),
+    onStartReasoningEffortSweep: (String, String, List<String?>) -> Unit = { _, _, _ -> },
+    onApplyReasoningEffortCandidate: (String, String, Int) -> Unit = { _, _, _ -> },
+    onClearReasoningEffortSweep: (String, String) -> Unit = { _, _ -> }
 ) {
     // Track which agent is currently shown locally so the Previous /
     // Next buttons at the bottom can step through report.agents
@@ -123,6 +128,7 @@ fun ReportModelScreen(
         return
     }
     var showTemperatureSweep by remember { mutableStateOf(false) }
+    var showReasoningEffortSweep by remember { mutableStateOf(false) }
     BackHandler { onBack() }
     val context = LocalContext.current
     // Re-key on the report data version so an in-place edit (🗣️ refine
@@ -161,6 +167,31 @@ fun ReportModelScreen(
             onBack = {
                 onClearTemperatureSweep(reportId, sweepAgentId)
                 showTemperatureSweep = false
+            }
+        )
+        return
+    }
+
+    if (showReasoningEffortSweep) {
+        val sweepAgentId = currentAgentId
+        ReasoningEffortSweepScreen(
+            reportId = reportId,
+            agentId = sweepAgentId,
+            modelLabel = agent?.let {
+                provider?.let { p -> com.ai.ui.shared.modelLabel(p.id, it.model, separator = " — ") }
+                    ?: it.model
+            } ?: "Model response",
+            state = reasoningEffortSweepStates[ReasoningEffortSweepState.key(reportId, sweepAgentId)],
+            onSubmit = { efforts -> onStartReasoningEffortSweep(reportId, sweepAgentId, efforts) },
+            onUseCandidate = { index ->
+                onApplyReasoningEffortCandidate(reportId, sweepAgentId, index)
+                onClearReasoningEffortSweep(reportId, sweepAgentId)
+                showReasoningEffortSweep = false
+            },
+            onTrace = onNavigateToTraceFile,
+            onBack = {
+                onClearReasoningEffortSweep(reportId, sweepAgentId)
+                showReasoningEffortSweep = false
             }
         )
         return
@@ -393,6 +424,7 @@ fun ReportModelScreen(
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
             onAgentChat = if (canContinueInChat) { { showAgentChat = true } } else null,
             onTemperatureSweep = { showTemperatureSweep = true },
+            onReasoningEffortSweep = { showReasoningEffortSweep = true },
             onTranslationCompare = if (liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }
             } else null,

@@ -42,6 +42,7 @@ import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.IconCandidate
 import com.ai.viewmodel.ReportViewModel
+import com.ai.viewmodel.ReasoningEffortSweepState
 import com.ai.viewmodel.TemperatureSweepState
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
@@ -107,6 +108,10 @@ internal fun ReportPrimaryOverlays(
     onStartTemperatureSweep: (String, String, List<Float>) -> Unit,
     onApplyTemperatureCandidate: (String, String, Int) -> Unit,
     onClearTemperatureSweep: (String, String) -> Unit,
+    reasoningEffortSweepStates: Map<String, ReasoningEffortSweepState>,
+    onStartReasoningEffortSweep: (String, String, List<String?>) -> Unit,
+    onApplyReasoningEffortCandidate: (String, String, Int) -> Unit,
+    onClearReasoningEffortSweep: (String, String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
     onOpenAgentIcon: (String) -> Unit,
     onSecondaryRefresh: () -> Unit,
@@ -509,7 +514,11 @@ internal fun ReportPrimaryOverlays(
                 temperatureSweepStates = temperatureSweepStates,
                 onStartTemperatureSweep = onStartTemperatureSweep,
                 onApplyTemperatureCandidate = onApplyTemperatureCandidate,
-                onClearTemperatureSweep = onClearTemperatureSweep
+                onClearTemperatureSweep = onClearTemperatureSweep,
+                reasoningEffortSweepStates = reasoningEffortSweepStates,
+                onStartReasoningEffortSweep = onStartReasoningEffortSweep,
+                onApplyReasoningEffortCandidate = onApplyReasoningEffortCandidate,
+                onClearReasoningEffortSweep = onClearReasoningEffortSweep
             )
         }
         return true

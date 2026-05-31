@@ -287,7 +287,7 @@ object ApiTracer {
     }
 
     private fun normalizeRawTraceCategory(raw: String): String =
-        if (!raw.contains("\"Temperature sweep\"")) raw
+        if (!raw.contains("\"Temperature sweep\"") && !raw.contains("\"Reasoning Effort\"") && !raw.contains("\"Reasoning effort\"")) raw
         else try {
             val trace = gson.fromJson(raw, ApiTrace::class.java)
             gson.toJson(trace.copy(category = normalizeApiCallCategory(trace.category)))

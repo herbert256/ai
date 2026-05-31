@@ -65,6 +65,7 @@ import com.ai.data.RetryStats
 import com.ai.data.KnowledgeData
 import com.ai.data.LogStatsData
 import com.ai.data.ModelCooldownStore
+import com.ai.data.MODEL_REASONING_CALL_KIND
 import com.ai.data.MODEL_TEMPERATURE_CALL_KIND
 import com.ai.data.ModelTestRunState
 import com.ai.data.NetworkSettings
@@ -1263,6 +1264,7 @@ private fun kindLabel(kind: String): String = when (kind) {
     "translate" -> "Translate"
     "title" -> "Title"
     MODEL_TEMPERATURE_CALL_KIND -> MODEL_TEMPERATURE_CALL_KIND
+    MODEL_REASONING_CALL_KIND -> MODEL_REASONING_CALL_KIND
     // Per-kind translation types (translate/<what>): render as
     // "Translate · <what>" with separators spaced out.
     else -> if (kind.startsWith("translate/"))

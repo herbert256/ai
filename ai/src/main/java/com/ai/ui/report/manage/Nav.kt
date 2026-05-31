@@ -116,6 +116,7 @@ fun ReportsScreenNav(
     val uiState by viewModel.uiState.collectAsState()
     val agentResults by reportViewModel.agentResults.collectAsState()
     val temperatureSweepStates by reportViewModel.temperatureSweepStates.collectAsState()
+    val reasoningEffortSweepStates by reportViewModel.reasoningEffortSweepStates.collectAsState()
     // Running fan-out pair ids derived from the engine's StateFlow (the
     // single source of truth) instead of a separate set — a pair is
     // "running" exactly when its PairStatus is RUNNING. distinctUntilChanged
@@ -329,6 +330,7 @@ fun ReportsScreenNav(
         uiState = uiState,
         reportsAgentResults = agentResults,
         temperatureSweepStates = temperatureSweepStates,
+        reasoningEffortSweepStates = reasoningEffortSweepStates,
         runningFanOutPairs = runningFanOutPairs,
         fanRuntime = FanRuntimeBundle(
             throttledFanOutPairs = throttledFanOutPairs,
@@ -532,6 +534,15 @@ fun ReportsScreenNav(
         },
         onClearTemperatureSweep = { rid, aid ->
             reportViewModel.clearTemperatureSweep(rid, aid)
+        },
+        onStartReasoningEffortSweep = { rid, aid, efforts ->
+            reportViewModel.startReasoningEffortSweep(context, rid, aid, efforts)
+        },
+        onApplyReasoningEffortCandidate = { rid, aid, index ->
+            reportViewModel.applyReasoningEffortCandidate(context, rid, aid, index)
+        },
+        onClearReasoningEffortSweep = { rid, aid ->
+            reportViewModel.clearReasoningEffortSweep(rid, aid)
         },
         onClearExternalInstructions = viewModel::clearExternalInstructions,
         onEditModels = { rid -> scope.launch { reportViewModel.prepareEditModels(context, rid) } },
