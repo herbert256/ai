@@ -45,7 +45,11 @@ data class JudgeStats(
      *  position-bias proxy (every judge sees the same A/B placement). */
     val aLean: Double,
     /** Mean confidence over judged matches, or null when none reported. */
-    val avgConfidence: Double?
+    val avgConfidence: Double?,
+    /** Total USD spend across this judge's cells. */
+    val totalCost: Double,
+    /** Total wall-clock API time (ms) across this judge's cells. */
+    val totalMs: Long
 ) {
     val judgeKey: String get() = "$judgeProviderId/$judgeModel"
 }
@@ -76,7 +80,9 @@ fun analyzeJudges(cells: List<JudgeCellState>): List<JudgeStats> {
             agreement = if (judged > 0) agree.toDouble() / judged else 0.0,
             tieRate = if (judged > 0) ties.toDouble() / judged else 0.0,
             aLean = if (decided.isNotEmpty()) aCount.toDouble() / decided.size else 0.0,
-            avgConfidence = if (confs.isNotEmpty()) confs.average() else null
+            avgConfidence = if (confs.isNotEmpty()) confs.average() else null,
+            totalCost = cs.sumOf { it.totalCost },
+            totalMs = cs.sumOf { it.durationMs ?: 0L }
         )
     }.sortedWith(compareByDescending<JudgeStats> { it.agreement }.thenByDescending { it.matchesJudged })
 }

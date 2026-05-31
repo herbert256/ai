@@ -399,6 +399,26 @@ class JudgeEvalEngine internal constructor(
     }
 
     // -----------------------------------------------------------------
+    // Swarm editing
+    // -----------------------------------------------------------------
+
+    /** Remove a judge (provider/model) from the prompt's worker swarm, so
+     *  future runs (and the Tournament) no longer use it. Persists settings.
+     *  No-op if the swarm or member can't be found. */
+    fun removeJudgeFromSwarm(providerId: String, model: String) {
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val swarmName = judgePrompt(aiSettings)?.workers?.firstOrNull()?.swarm ?: return
+        val updated = aiSettings.copy(swarms = aiSettings.swarms.map { s ->
+            if (s.name.equals(swarmName, ignoreCase = true))
+                s.copy(members = s.members.filter { !(it.provider.id == providerId && it.model == model) })
+            else s
+        })
+        appViewModel.updateUiState { it.copy(aiSettings = updated) }
+        appViewModel.viewModelScope.launch(Dispatchers.IO) { appViewModel.settingsPrefs.saveSettings(updated) }
+        AppLog.i("JudgeEval", "Removed judge $providerId/$model from swarm '$swarmName'")
+    }
+
+    // -----------------------------------------------------------------
     // Failure / rerun / delete
     // -----------------------------------------------------------------
 

@@ -30,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -171,6 +172,16 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
     var byMatch by rememberSaveable { mutableStateOf(false) }
     var judgeKey by rememberSaveable { mutableStateOf("") }
     var matchKey by rememberSaveable { mutableStateOf("") }
+    var confirmDeleteJudge by rememberSaveable { mutableStateOf<String?>(null) }
+    // Debounce navigation: a single tap whose target navigates away can have
+    // its release land on the freshly-composed destination's clickable at the
+    // same spot (the L1 match row → by-match list "tap-through"). Ignore any
+    // second nav within 350 ms of the first.
+    var lastNavMs by remember { mutableStateOf(0L) }
+    val navOk: () -> Boolean = {
+        val now = System.currentTimeMillis()
+        if (now - lastNavMs < 350L) false else { lastNavMs = now; true }
+    }
 
     BackHandler {
         when {
@@ -195,22 +206,46 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
     when (level) {
         2 -> if (byMatch) {
             JudgeEvalMatchScreen(run, agents, reportTitle, reportIcon, matchKey,
-                openJudge = { jk -> judgeKey = jk; level = 3 },
+                openJudge = { jk -> if (navOk()) { judgeKey = jk; level = 3 } },
                 onBack = { level = 1 })
         } else {
             JudgeEvalL2(run, agents, reportTitle, reportIcon, judgeKey,
-                openMatch = { mk -> matchKey = mk; level = 3 },
+                openMatch = { mk -> if (navOk()) { matchKey = mk; level = 3 } },
+                onDelete = { confirmDeleteJudge = judgeKey },
                 onBack = { level = 1 })
         }
         3 -> JudgeEvalL3(run, agents, reportTitle, reportIcon, judgeKey, matchKey,
             onBack = { level = 2 },
             onRerun = { scope.launch { engine.rerunCell(context, reportId, "$judgeKey|$matchKey") } })
         else -> JudgeEvalL1(run, agents, throttled, reportTitle, reportIcon,
-            openJudge = { jk -> judgeKey = jk; byMatch = false; level = 2 },
-            openMatch = { mk -> matchKey = mk; byMatch = true; level = 2 },
+            openJudge = { jk -> if (navOk()) { judgeKey = jk; byMatch = false; level = 2 } },
+            openMatch = { mk -> if (navOk()) { matchKey = mk; byMatch = true; level = 2 } },
             onRestartFailed = { scope.launch { engine.restartFailedCells(context, reportId) } },
             onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
             onBack = onBack)
+    }
+
+    confirmDeleteJudge?.let { jk ->
+        val cell = run.cells.values.firstOrNull { it.judgeKey == jk }
+        val prov = cell?.judgeProviderId ?: jk.substringBeforeLast('/')
+        val mdl = cell?.judgeModel ?: jk.substringAfterLast('/')
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDeleteJudge = null },
+            title = { Text("Remove judge from swarm?") },
+            text = {
+                Text("Remove ${shortModelName(mdl)} from the workers swarm? Future Judge-the-judges runs and Tournaments will no longer use it. This run's data is kept.")
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    engine.removeJudgeFromSwarm(prov, mdl)
+                    confirmDeleteJudge = null
+                    level = 1
+                }) { Text("Remove") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmDeleteJudge = null }) { Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -275,15 +310,22 @@ private fun JudgeEvalL1(
                     color = AppColors.Green, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
                 )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Judges ranked by how often they agree with the others.",
-                    color = AppColors.TextTertiary, fontSize = 11.sp,
-                    modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
-                )
                 Spacer(Modifier.height(8.dp))
-                stats2.forEachIndexed { i, s ->
-                    JudgeLeaderboardRow(rank = i + 1, s = s) { openJudge(s.judgeKey) }
+                // One-line-per-judge table, in a card: # / Model / Cost(¢) /
+                // API time / Agreement-with-consensus.
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground)) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("#", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(22.dp))
+                        Text("Model", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                        Text("¢", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
+                        Text("Time", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(50.dp))
+                        Text("Cons.", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+                    }
+                    HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.35f), thickness = 0.5.dp)
+                    stats2.forEachIndexed { i, s ->
+                        JudgeLeaderRow(rank = i + 1, s = s) { openJudge(s.judgeKey) }
+                        if (i < stats2.lastIndex) HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.2f), thickness = 0.5.dp)
+                    }
                 }
             } else {
                 // Per-judge progress while running — the green bar fills to the
@@ -300,15 +342,17 @@ private fun JudgeEvalL1(
                 }
             }
 
-            // Second table: the matches. Each row → the per-match list of
-            // judges (JudgeEvalMatchScreen → L3).
+            // Second table: the 25 matches, in a card. Each row → the per-match
+            // list of judges (JudgeEvalMatchScreen → L3).
             Spacer(Modifier.height(18.dp))
-            HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.45f), thickness = 0.5.dp)
-            Spacer(Modifier.height(8.dp))
             Text("Matches", color = AppColors.Blue, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(4.dp))
-            buildMatchSummaries(run, agents).forEach { m ->
-                MatchSummaryRow(m) { openMatch(m.matchKey) }
+            Spacer(Modifier.height(6.dp))
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground)) {
+                val matches = buildMatchSummaries(run, agents)
+                matches.forEachIndexed { i, m ->
+                    MatchSummaryRow(m) { openMatch(m.matchKey) }
+                    if (i < matches.lastIndex) HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.2f), thickness = 0.5.dp)
+                }
             }
 
             Spacer(Modifier.height(16.dp))
@@ -343,34 +387,24 @@ private fun JudgeProgressRow(label: String, done: Int, total: Int, barFrac: Floa
     }
 }
 
+/** One-line judge row: # / Model / Cost(¢) / API time / Agreement. */
 @Composable
-private fun JudgeLeaderboardRow(rank: Int, s: JudgeStats, onClick: () -> Unit) {
+private fun JudgeLeaderRow(rank: Int, s: JudgeStats, onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(AppColors.CardBackground)
-            .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 10.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("#$rank", color = AppColors.TextTertiary, fontSize = 13.sp,
-            fontFamily = FontFamily.Monospace, modifier = Modifier.width(34.dp))
-        Column(Modifier.weight(1f).padding(start = 4.dp)) {
-            Text(shortModelName(s.judgeModel), color = Color.White, fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                buildString {
-                    append("ties ${pct(s.tieRate)} · A-lean ${pct(s.aLean)}")
-                    s.avgConfidence?.let { append(" · conf ${"%.2f".format(it)}") }
-                    if (s.errors > 0) append(" · ${s.errors} err")
-                },
-                color = AppColors.TextTertiary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
-            )
-        }
-        Text(pct(s.agreement), color = agreementColor(s.agreement), fontSize = 18.sp,
-            fontWeight = FontWeight.Bold, modifier = Modifier.padding(start = 8.dp))
+        Text("$rank", color = AppColors.TextTertiary, fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace, modifier = Modifier.width(22.dp))
+        Text(shortModelName(s.judgeModel), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 4.dp))
+        Text(formatCents(s.totalCost, 2), color = AppColors.TextSecondary, fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
+        Text(fmtSecs(s.totalMs), color = AppColors.TextSecondary, fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace, textAlign = TextAlign.End, modifier = Modifier.width(50.dp))
+        Text(pct(s.agreement), color = agreementColor(s.agreement), fontSize = 14.sp, fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
     }
-    Spacer(Modifier.height(6.dp))
 }
 
 // ---------- L2: a judge's verdicts vs consensus ----------
@@ -383,6 +417,7 @@ private fun JudgeEvalL2(
     reportIcon: String,
     judgeKey: String,
     openMatch: (String) -> Unit,
+    onDelete: () -> Unit,
     onBack: () -> Unit
 ) {
     val cells = run.cells.values.filter { it.judgeKey == judgeKey }
@@ -392,7 +427,8 @@ private fun JudgeEvalL2(
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "judge_eval_l2", title = "Judge",
-            subject = reportTitle, reportIcon = reportIcon, onBackClick = onBack
+            subject = reportTitle, reportIcon = reportIcon, onBackClick = onBack,
+            onDelete = onDelete
         )
         Text(
             shortModelName(judgeKey.substringAfterLast('/')),
@@ -454,11 +490,18 @@ private fun JudgeEvalL3(
     val cell = run.cells.values.firstOrNull { it.judgeKey == judgeKey && it.matchKey == matchKey }
     val consensus = run.cells.values.filter { it.matchKey == matchKey }.mapNotNull { it.verdict }
         .let { consensusForMatch(it) }
+    val navigateToRoute = com.ai.ui.shared.LocalNavigateToRoute.current
+    val traceCtx = LocalContext.current
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "judge_eval_l3", title = "Match",
             subject = reportTitle, reportIcon = reportIcon,
-            onBackClick = onBack, onReload = onRerun
+            onBackClick = onBack, onReload = onRerun,
+            onTrace = {
+                val tf = cell?.traceFile
+                if (!tf.isNullOrBlank()) navigateToRoute(com.ai.ui.navigation.NavRoutes.traceDetail(tf))
+                else android.widget.Toast.makeText(traceCtx, "No trace (enable tracing in Settings)", android.widget.Toast.LENGTH_SHORT).show()
+            }
         )
         if (cell == null) {
             Spacer(Modifier.height(20.dp))
@@ -525,6 +568,12 @@ private fun ResponsePane(header: String, body: String, highlight: Boolean) {
 
 private fun pct(v: Double): String = "${(v * 100).toInt()}%"
 
+/** Total API time, compact: "12.3s" or "1.5m". */
+private fun fmtSecs(ms: Long): String {
+    val s = ms / 1000.0
+    return if (s >= 60) "%.1fm".format(s / 60.0) else "%.1fs".format(s)
+}
+
 private fun agreementColor(v: Double): Color = when {
     v >= 0.7 -> AppColors.Green
     v >= 0.5 -> AppColors.Yellow
@@ -578,7 +627,7 @@ private fun buildMatchSummaries(run: JudgeEvalRunState, agents: Map<String, Repo
 @Composable
 private fun MatchSummaryRow(m: MatchSummary, onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text("${m.aLabel} vs ${m.bLabel}", color = Color.White, fontSize = 13.sp,
@@ -588,7 +637,6 @@ private fun MatchSummaryRow(m: MatchSummary, onClick: () -> Unit) {
         Text("${m.agreeCount}/${m.votedCount}", color = AppColors.TextTertiary, fontSize = 12.sp,
             fontFamily = FontFamily.Monospace, modifier = Modifier.width(48.dp), textAlign = TextAlign.End)
     }
-    HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.25f), thickness = 0.5.dp)
 }
 
 // ---------- by-match screen: one match → the list of judges → L3 ----------
