@@ -171,6 +171,8 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     val reportTitle = report?.barTitle?.takeIf { it.isNotBlank() }
         ?: localReportTitle?.takeIf { it.isNotBlank() }
         ?: "Report"
+    val reportIcon = report?.icon?.takeIf { it.isNotBlank() }
+        ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon
 
     var groupMode by rememberSaveable { mutableStateOf(TournamentGroupMode.TOURNAMENT_MODELS) }
     var level by rememberSaveable { mutableStateOf(1) }       // 1 = L1, 2 = L2, 3 = L3
@@ -189,7 +191,13 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
 
     if (run == null) {
         Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
-            TitleBar(helpTopic = "tournament_l1", title = "Tournament", subject = reportTitle, onBackClick = onBack)
+            TitleBar(
+                helpTopic = "tournament_l1",
+                title = "Tournament",
+                subject = reportTitle,
+                reportIcon = reportIcon,
+                onBackClick = onBack
+            )
             Spacer(Modifier.height(20.dp))
             Text("No tournament on this report.", color = AppColors.TextSecondary, fontSize = 14.sp)
         }
@@ -202,14 +210,14 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     }
 
     when (level) {
-        2 -> TournamentL2(run, agents, reportTitle, groupKey, groupMode,
+        2 -> TournamentL2(run, agents, reportTitle, reportIcon, groupKey, groupMode,
             openMatch = { mk -> matchKey = mk; level = 3 },
             onBack = { level = 1 })
-        3 -> TournamentL3(run, agents, reportTitle, matchKey, groupKey, groupMode,
+        3 -> TournamentL3(run, agents, reportTitle, reportIcon, matchKey, groupKey, groupMode,
             onBack = { level = 2 },
             onRerun = { scope.launch { engine.rerunMatch(context, reportId, matchKey) } },
             onStep = { mk -> matchKey = mk })
-        else -> TournamentL1(run, agents, reportTitle, groupMode, throttled,
+        else -> TournamentL1(run, agents, reportTitle, reportIcon, groupMode, throttled,
             setGroupMode = { groupMode = it },
             openGroup = { gk -> groupKey = gk; level = 2 },
             onViewResults = { showResults = true },
@@ -263,6 +271,7 @@ private fun TournamentL1(
     run: TournamentRunState,
     agents: Map<String, ReportAgent>,
     reportTitle: String,
+    reportIcon: String,
     groupMode: TournamentGroupMode,
     throttled: Set<String>,
     setGroupMode: (TournamentGroupMode) -> Unit,
@@ -277,6 +286,7 @@ private fun TournamentL1(
         TitleBar(
             helpTopic = "tournament_l1", title = "Tournament",
             subject = reportTitle,
+            reportIcon = reportIcon,
             onBackClick = onBack,
             onDelete = onDeleteRun
         )
@@ -478,6 +488,7 @@ private fun TournamentL2(
     run: TournamentRunState,
     agents: Map<String, ReportAgent>,
     reportTitle: String,
+    reportIcon: String,
     groupKey: String,
     groupMode: TournamentGroupMode,
     openMatch: (String) -> Unit,
@@ -492,7 +503,13 @@ private fun TournamentL2(
         TournamentGroupMode.REPORT_MODELS -> "Tournament - model"
     }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "tournament_l2", title = screenTitle, subject = reportTitle, onBackClick = onBack)
+        TitleBar(
+            helpTopic = "tournament_l2",
+            title = screenTitle,
+            subject = reportTitle,
+            reportIcon = reportIcon,
+            onBackClick = onBack
+        )
         TournamentGreenSubject(title)
         LazyColumn(Modifier.fillMaxSize()) {
             item(key = "header") {
@@ -632,6 +649,7 @@ private fun TournamentL3(
     run: TournamentRunState,
     agents: Map<String, ReportAgent>,
     reportTitle: String,
+    reportIcon: String,
     matchKey: String,
     groupKey: String,
     groupMode: TournamentGroupMode,
@@ -645,7 +663,14 @@ private fun TournamentL3(
     val swipeThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
     var swipeDragX by remember(matchKey) { mutableStateOf(0f) }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "tournament_l3", title = "Tournament - Match", subject = reportTitle, onBackClick = onBack, onReload = onRerun)
+        TitleBar(
+            helpTopic = "tournament_l3",
+            title = "Tournament - Match",
+            subject = reportTitle,
+            reportIcon = reportIcon,
+            onBackClick = onBack,
+            onReload = onRerun
+        )
         if (m == null) {
             Text("Match not found.", color = AppColors.TextSecondary, fontSize = 14.sp)
             return@Column
