@@ -190,8 +190,16 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "view_ai_report" to HelpContent(
         title = "Help - View report",
         cards = listOf(
-            HelpCard("What you see", "The View home for a report — a grid of tiles, one per thing this report has to look at: the original prompt, the per-model responses, the cost breakdown, the in-app HTML preview, plus one tile for each kind of post-run result the report carries (Meta, Rerank, Moderation, Fan-out, Fan-in, Translate). The title bar carries the AI logo (taps go to the app home), the report's own title centred in white, and the help icon."),
+            HelpCard("What you see", "The View home for a report — a grid of tiles, one per thing this report has to look at: the original prompt, the per-model responses, the cost breakdown, the in-app HTML preview, plus one tile for each kind of post-run result the report carries (Meta, Rerank, Tournament, Moderation, Fan-out, Fan-in, Translate). The title bar carries the AI logo (taps go to the app home), the report's own title centred in white, and the help icon."),
             HelpCard("How to read it", "Each tile shows an emoji, a label, and — when a kind has more than one item — a small count badge in the top-right. Tiles you can tap are at full colour; tiles for kinds this report doesn't have yet aren't shown at all. Tap a tile to open the matching View screen. Long-press a tile and drag it onto another to swap their positions — your order persists across reports, so once you've arranged the grid the way you like it, it stays that way. When the report has translations, a row of large flag-style icons at the top picks the active language; that language is carried into every tile you open.")
+        )
+    ),
+    "view_tournament" to HelpContent(
+        title = "Help - Tournament",
+        cards = listOf(
+            HelpCard("What it is", "A tournament ranks the report's answers by pairwise head-to-head judging. Every unordered pair of responses is judged twice — once each way (A-vs-B and B-vs-A) — by your chosen judge model, so first-position bias cancels out. For N answers that's N(N-1) judge calls. Launch one from the report's 🆕 Create launcher → Tournament; you pick the judge model and confirm the call count first."),
+            HelpCard("The ranking + method switch", "The top table is the 1..N ranking, best first, with a score and one-line reason per answer — the same layout the Rerank view uses. The three buttons (Copeland / Bradley–Terry / Elo) re-aggregate the SAME head-to-head results three different ways, instantly and with no extra API calls. Copeland ranks by how many opponents each answer beat; Bradley–Terry fits a latent strength; Elo replays the pairs as rated games. Whichever method is selected is also the ordering a Top-ranked scope (Meta / Translate) will use."),
+            HelpCard("Head-to-heads", "Below the ranking, every judged pair is listed with its winner and the judge's reason, so you can see exactly where the ranking came from. A tournament is selectable as a Top-ranked source anywhere a rerank is, because its ranking conforms to the same format.")
         )
     ),
     // Per-scope Icon-lookup help — one topic for each of the six

@@ -292,6 +292,22 @@ internal fun ViewAiReportScreen(
         }
         return
     }
+    // Tournament "View" overlay — keyed by the AGGREGATE row id.
+    var tournamentViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    val activeTournamentViewRowId = tournamentViewRowId
+    if (activeTournamentViewRowId != null) {
+        val backToMain: () -> Unit = { tournamentViewRowId = null }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            TournamentViewScreen(
+                reportId = reportId,
+                resultId = activeTournamentViewRowId,
+                onBack = backToMain
+            )
+        }
+        return
+    }
     // Moderation "View" overlay — keyed by the MODERATION row id.
     var moderationViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     val activeModerationViewRowId = moderationViewRowId
@@ -1051,6 +1067,7 @@ internal fun ViewAiReportScreen(
         val moderationEmoji = if (moderationFlagged) "🚩" else "✅"
         val specs = listOf(
             ComputedSpec("rerank", "Rerank", "🏆", AppColors.Yellow),
+            ComputedSpec("tournament", "Tournament", "🥊", AppColors.Purple),
             ComputedSpec("moderation", "Moderation", moderationEmoji, moderationColor),
             // fan_in is no longer in computedTiles — it has its own
             // per-run tile set ([fanInTiles]) with dynamic icons,
@@ -1075,6 +1092,7 @@ internal fun ViewAiReportScreen(
                             1 -> openComputedItem(s.key, items[0], currentLanguageState.value,
                                 openRerank = { id -> rerankViewRowId = id },
                                 openModeration = { id -> moderationViewRowId = id },
+                                openTournament = { id -> tournamentViewRowId = id },
                                 openFanIn = { id ->
                                     fanInViewLanguage = currentLanguageState.value
                                     fanInViewRowId = id
@@ -1261,6 +1279,7 @@ internal fun ViewAiReportScreen(
                             openComputedItem(active.key, item, currentLanguageState.value,
                                 openRerank = { id -> rerankViewRowId = id },
                                 openModeration = { id -> moderationViewRowId = id },
+                                openTournament = { id -> tournamentViewRowId = id },
                                 openFanIn = { id ->
                                     fanInViewLanguage = currentLanguageState.value
                                     fanInViewRowId = id
@@ -1632,6 +1651,7 @@ private fun openComputedItem(
     language: String?,
     openRerank: (String) -> Unit,
     openModeration: (String) -> Unit,
+    openTournament: (String) -> Unit,
     openFanIn: (String) -> Unit,
     openTranslate: (String) -> Unit
 ) {
@@ -1639,6 +1659,7 @@ private fun openComputedItem(
     val rowId = seed?.id
     when (key) {
         "rerank" -> if (rowId != null) openRerank(rowId) else item.open(language)
+        "tournament" -> if (rowId != null) openTournament(rowId) else item.open(language)
         "moderation" -> if (rowId != null) openModeration(rowId) else item.open(language)
         "fan_in" -> if (rowId != null) openFanIn(rowId) else item.open(language)
         "translate" -> {

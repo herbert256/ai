@@ -697,7 +697,7 @@ object SecondaryResultStorage {
     /** Counts persisted across all kinds for a report. Used by the Report
      *  result screen for the Translate / legacy buckets. The redesigned
      *  Meta card uses [countByMetaName] instead. */
-    data class Counts(val rerank: Int, val meta: Int, val moderation: Int, val translate: Int)
+    data class Counts(val rerank: Int, val meta: Int, val moderation: Int, val translate: Int, val tournament: Int = 0)
     fun countForReport(context: Context, reportId: String): Counts {
         // Delegate to listForReport so we share its fingerprint cache —
         // the previous implementation re-parsed every JSON file on
@@ -706,16 +706,20 @@ object SecondaryResultStorage {
         // 500 ms while batching, so the redundant parses scaled with
         // (file count × poll rate) for no benefit.
         val rows = listForReport(context, reportId)
-        var rerank = 0; var meta = 0; var moderation = 0; var translate = 0
+        var rerank = 0; var meta = 0; var moderation = 0; var translate = 0; var tournament = 0
         for (r in rows) {
             when (r.kind) {
                 SecondaryKind.RERANK -> rerank++
                 SecondaryKind.META -> meta++
                 SecondaryKind.MODERATION -> moderation++
                 SecondaryKind.TRANSLATE -> translate++
+                // Count only the aggregate ranking rows — the N(N-1)
+                // per-match rows are inspection detail, not standalone
+                // results the result-screen buckets care about.
+                SecondaryKind.TOURNAMENT -> if (r.tournamentRole == "AGGREGATE") tournament++
             }
         }
-        return Counts(rerank, meta, moderation, translate)
+        return Counts(rerank, meta, moderation, translate, tournament)
     }
 
     /** Group non-translate Meta results on a report by the user-given
@@ -728,7 +732,10 @@ object SecondaryResultStorage {
         // on each call — fan-out drill-in polls this frequently.
         val tally = LinkedHashMap<String, Int>()
         for (r in listForReport(context, reportId)) {
-            if (r.kind == SecondaryKind.TRANSLATE) continue
+            // Tournament rows carry their own View tab; keep them out of
+            // the Meta-name grouping (they'd otherwise bucket under
+            // "tournament" via the shared prompt name).
+            if (r.kind == SecondaryKind.TRANSLATE || r.kind == SecondaryKind.TOURNAMENT) continue
             val name = r.metaPromptName?.takeIf { it.isNotBlank() } ?: legacyKindDisplayName(r.kind)
             tally[name] = (tally[name] ?: 0) + 1
         }
@@ -744,6 +751,7 @@ fun legacyKindDisplayName(kind: SecondaryKind): String = when (kind) {
     SecondaryKind.META -> "Meta"
     SecondaryKind.MODERATION -> "Moderation"
     SecondaryKind.TRANSLATE -> "Translate"
+    SecondaryKind.TOURNAMENT -> "Tournament"
 }
 
 /** Display label for a secondary's prompt name. The built-in rerank /
@@ -753,6 +761,7 @@ fun legacyKindDisplayName(kind: SecondaryKind): String = when (kind) {
 fun secondaryPromptDisplayName(metaPromptName: String): String = when (metaPromptName) {
     "second-rerank" -> "rerank"
     "second-moderation" -> "moderation"
+    "second-tournament" -> "tournament"
     else -> metaPromptName
 }
 

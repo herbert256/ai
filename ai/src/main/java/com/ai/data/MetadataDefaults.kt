@@ -21,6 +21,7 @@ object MetadataDefaults {
     const val META = "🔗"
     const val FAN_OUT = "🔱"
     const val FAN_IN = "🎯"
+    const val TOURNAMENT = "🥊"
 }
 
 // User-editable set of the default fallback emoji. Each field defaults to its
@@ -36,6 +37,7 @@ data class MetadataIcons(
     val meta: String = MetadataDefaults.META,
     val fanOutRow: String = MetadataDefaults.FAN_OUT,
     val fanInRow: String = MetadataDefaults.FAN_IN,
+    val tournament: String = MetadataDefaults.TOURNAMENT,
 ) {
     // Configured glyph for a secondary-result row when its cached internal-prompt
     // icon is missing, keyed off the result's kind.
@@ -44,5 +46,6 @@ data class MetadataIcons(
         SecondaryKind.MODERATION -> moderate
         SecondaryKind.TRANSLATE -> translationRow
         SecondaryKind.META -> meta
+        SecondaryKind.TOURNAMENT -> tournament
     }
 }

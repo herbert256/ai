@@ -493,6 +493,9 @@ fun ReportsScreenNav(
         onRunModeration = { reportId, pick, languageScope ->
             reportViewModel.secondary.runModeration(context, reportId, pick, languageScope)
         },
+        onRunTournament = { reportId, judgeProvider, judgeModel ->
+            reportViewModel.tournamentEngine.startRun(context, reportId, judgeProvider, judgeModel)
+        },
         onDeleteSecondary = { reportId, resultId ->
             reportViewModel.secondary.deleteSecondaryResult(context, reportId, resultId)
         },
@@ -618,6 +621,8 @@ fun ReportsScreenNav(
         onResumeStaleFanOut = { rid, _ ->
             // The engine resumes every stale run on the report in one pass.
             reportViewModel.fanOutEngine.resumeStaleRunsForReport(context, rid)
+            // Tournament runs share the same app-kill recovery contract.
+            reportViewModel.tournamentEngine.resumeStaleRunsForReport(context, rid)
         },
         onResumeStaleRuns = { rid ->
             reportViewModel.secondary.resumeStaleRunsForReport(context, rid)

@@ -339,6 +339,8 @@ private fun secondaryShortLabel(sr: SecondaryResult): String = when (sr.kind) {
     SecondaryKind.RERANK -> "Rerank"
     SecondaryKind.MODERATION -> "Moderation"
     SecondaryKind.TRANSLATE -> "Translation"
+    SecondaryKind.TOURNAMENT ->
+        if (sr.tournamentRole == "MATCH") "Tournament match · ${shortModelName(sr.model)}" else "Tournament"
     SecondaryKind.META -> {
         val name = sr.metaPromptName?.takeIf { it.isNotBlank() } ?: "Meta"
         if (sr.fanOutSourceAgentId != null) "$name · ${shortModelName(sr.model)}" else name
