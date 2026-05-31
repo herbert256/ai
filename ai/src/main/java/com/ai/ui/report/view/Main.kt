@@ -6,6 +6,7 @@ import com.ai.ui.report.manage.*
 import com.ai.ui.helpers.*
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -305,6 +306,22 @@ internal fun ViewAiReportScreen(
         }
         return
     }
+    // Tournament "View" overlay — keyed by the aggregate TOURNAMENT row.
+    var tournamentViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    val activeTournamentViewRowId = tournamentViewRowId
+    if (activeTournamentViewRowId != null) {
+        val backToMain: () -> Unit = { tournamentViewRowId = null }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            TournamentViewScreen(
+                reportId = reportId,
+                resultId = activeTournamentViewRowId,
+                onBack = backToMain
+            )
+        }
+        return
+    }
     // Moderation "View" overlay — keyed by the MODERATION row id.
     var moderationViewRowId by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     val activeModerationViewRowId = moderationViewRowId
@@ -403,23 +420,27 @@ internal fun ViewAiReportScreen(
     // round-trip.
     data class TranslatesLoad(
         val list: List<com.ai.data.SecondaryResult>,
-        val report: com.ai.data.Report?
+        val report: com.ai.data.Report?,
+        val tournaments: List<com.ai.data.SecondaryResult>
     )
     val reportDataVersion by ReportDataVersion.version.collectAsState()
     val secondaryDataVersion by SecondaryDataVersion.version.collectAsState()
     val translatesState = androidx.compose.runtime.produceState(
-        initialValue = TranslatesLoad(emptyList(), null), reportId, reportDataVersion, secondaryDataVersion
+        initialValue = TranslatesLoad(emptyList(), null, emptyList()), reportId, reportDataVersion, secondaryDataVersion
     ) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            val list = com.ai.data.SecondaryResultStorage
-                .listForReport(viewPrefsCtx, reportId, SecondaryKind.TRANSLATE)
-                .filter { !it.content.isNullOrBlank() }
+            val rows = com.ai.data.SecondaryResultStorage.listForReport(viewPrefsCtx, reportId)
+            val list = rows.filter { it.kind == SecondaryKind.TRANSLATE && !it.content.isNullOrBlank() }
+            val tournaments = rows
+                .filter { it.kind == SecondaryKind.TOURNAMENT && it.tournamentRole == "AGGREGATE" }
+                .sortedByDescending { it.timestamp }
             val rep = com.ai.ui.report.view.helpers.ViewReportCache.get(viewPrefsCtx, reportId)
-            TranslatesLoad(list, rep)
+            TranslatesLoad(list, rep, tournaments)
         }
     }
     val translates = translatesState.value.list
     val loadedReport = translatesState.value.report
+    val tournamentRows = translatesState.value.tournaments
     val originalLanguageIcon = loadedReport?.languageIcon
 
     // The View screen is read-only: it loads once and renders. No 5 s
@@ -1059,7 +1080,17 @@ internal fun ViewAiReportScreen(
     // an inline list below the tiles. Meta + Fan-out are excluded;
     // they get one tile per run via [metaTiles] / [fanOutTiles].
     data class ComputedTile(val key: String, val tile: ViewTile, val items: List<EveryItem>)
-    val computedTiles = remember(everyItems, moderationFlagged, currentLang) {
+    val tournamentIcon = com.ai.ui.shared.LocalMetadataIcons.current.tournament
+    val tournamentItems = remember(tournamentRows) {
+        tournamentRows.mapIndexed { index, row ->
+            EveryItem(
+                label = if (tournamentRows.size == 1) "Tournament" else "Tournament ${index + 1}",
+                sourceRows = listOf(row),
+                open = { _ -> tournamentViewRowId = row.id }
+            )
+        }
+    }
+    val computedTiles = remember(everyItems, moderationFlagged, tournamentItems, tournamentIcon, currentLang) {
         // Moderation tile reflects the run's verdict in BOTH glyph and
         // accent: a red 🚩 when any moderation row on this report flagged
         // at least one category, a green ✅ when every run came back clean.
@@ -1069,6 +1100,10 @@ internal fun ViewAiReportScreen(
         val moderationEmoji = if (moderationFlagged) "🚩" else "✅"
         val specs = listOf(
             ComputedSpec("rerank", "Rerank", "🏆", AppColors.Yellow),
+            ComputedSpec(
+                "tournament", "Tournament", tournamentIcon, AppColors.Green,
+                sublabel = "head-to-head", style = ViewTileStyle.Tournament
+            ),
             ComputedSpec("moderation", "Moderation", moderationEmoji, moderationColor),
             // fan_in is no longer in computedTiles — it has its own
             // per-run tile set ([fanInTiles]) with dynamic icons,
@@ -1076,7 +1111,7 @@ internal fun ViewAiReportScreen(
             ComputedSpec("translate", "Translate", "🌍", AppColors.Orange)
         )
         specs.mapNotNull { s ->
-            val items = everyItems[s.key].orEmpty()
+            val items = if (s.key == "tournament") tournamentItems else everyItems[s.key].orEmpty()
             if (items.isEmpty()) null
             else {
                 // Tile is enabled iff at least one of its items is
@@ -1088,10 +1123,17 @@ internal fun ViewAiReportScreen(
                 ComputedTile(
                     key = s.key,
                     items = items,
-                    tile = ViewTile(s.label, s.emoji, s.color, count = items.size, enabled = tileEnabled) {
+                    tile = ViewTile(
+                        s.label, s.emoji, s.color,
+                        count = items.size,
+                        sublabel = s.sublabel,
+                        enabled = tileEnabled,
+                        style = s.style
+                    ) {
                         when (items.size) {
                             1 -> openComputedItem(s.key, items[0], currentLanguageState.value,
                                 openRerank = { id -> rerankViewRowId = id },
+                                openTournament = { id -> tournamentViewRowId = id },
                                 openModeration = { id -> moderationViewRowId = id },
                                 openFanIn = { id ->
                                     fanInViewLanguage = currentLanguageState.value
@@ -1263,9 +1305,9 @@ internal fun ViewAiReportScreen(
 
             // Inline expansion — full-width card listing each
             // item for the active non-meta computed kind (rerank /
-            // fan_out / fan_in / translate with
-            // N≥2 items). Anchored under the grid so the user
-            // keeps the rest of the layout in view.
+            // tournament / fan_out / fan_in / translate with N≥2
+            // items). Anchored under the grid so the user keeps the
+            // rest of the layout in view.
             val open = expandedKind
             if (open != null) {
                 val active = computedTiles.firstOrNull { it.key == open }
@@ -1276,14 +1318,17 @@ internal fun ViewAiReportScreen(
                         currentLanguage = currentLang,
                         onItemClick = { item ->
                             expandedKind = null
-                            openComputedItem(active.key, item, currentLanguageState.value,
+                            openComputedItem(
+                                active.key, item, currentLanguageState.value,
                                 openRerank = { id -> rerankViewRowId = id },
+                                openTournament = { id -> tournamentViewRowId = id },
                                 openModeration = { id -> moderationViewRowId = id },
                                 openFanIn = { id ->
                                     fanInViewLanguage = currentLanguageState.value
                                     fanInViewRowId = id
                                 },
-                                openTranslate = { runId -> translateViewRunId = runId })
+                                openTranslate = { runId -> translateViewRunId = runId }
+                            )
                         }
                     )
                 }
@@ -1369,6 +1414,8 @@ internal fun ViewAiReportScreen(
 private data class IdentifiedTile(val id: String, val tile: ViewTile)
 
 /** Visual descriptor for one launcher tile. */
+private enum class ViewTileStyle { Standard, Tournament }
+
 private data class ViewTile(
     val label: String,
     val emoji: String,
@@ -1388,17 +1435,20 @@ private data class ViewTile(
      *  the tile stays tappable (still dimmed); the tap opens the
      *  "Language missing" popup instead of firing [onClick]. */
     val onMissingClick: (() -> Unit)? = null,
+    val style: ViewTileStyle = ViewTileStyle.Standard,
     val onClick: () -> Unit
 )
 
-/** Constructor descriptor for the Computed section's six possible
+/** Constructor descriptor for the Computed section's possible
  *  kinds. Kept separate from [ViewTile] so the binding step can
  *  attach the `items` list + the lambda once. */
 private data class ComputedSpec(
     val key: String,
     val label: String,
     val emoji: String,
-    val color: Color
+    val color: Color,
+    val sublabel: String? = null,
+    val style: ViewTileStyle = ViewTileStyle.Standard
 )
 
 /** A picker row in the "Language missing" popup — one language the
@@ -1547,14 +1597,25 @@ private fun TileCard(tile: ViewTile) {
         colors = CardDefaults.cardColors(containerColor = Color.Transparent),
         border = BorderStroke(1.dp, accent.copy(alpha = 0.55f))
     ) {
-        Box(modifier = Modifier.fillMaxSize().background(
-            Brush.verticalGradient(
+        val backgroundBrush = when (tile.style) {
+            ViewTileStyle.Tournament -> Brush.linearGradient(
+                colors = listOf(
+                    AppColors.Orange.copy(alpha = 0.62f),
+                    AppColors.Green.copy(alpha = 0.36f),
+                    AppColors.Blue.copy(alpha = 0.22f)
+                )
+            )
+            ViewTileStyle.Standard -> Brush.verticalGradient(
                 colors = listOf(
                     accent.copy(alpha = 0.55f),
                     accent.copy(alpha = 0.18f)
                 )
             )
-        )) {
+        }
+        Box(modifier = Modifier.fillMaxSize().background(backgroundBrush)) {
+            if (tile.style == ViewTileStyle.Tournament) {
+                TournamentTileLines()
+            }
             // Count badge — top-right, only when N ≥ 2. A single-item
             // kind opens that item directly on tap (no chooser
             // expansion), so a "1" badge would tell the user nothing
@@ -1571,27 +1632,98 @@ private fun TileCard(tile: ViewTile) {
                     )
                 }
             }
-            Column(
-                modifier = Modifier.fillMaxSize().padding(8.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(tile.emoji, fontSize = 36.sp)
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    tile.label, color = Color.White, fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis
-                )
-                tile.sublabel?.takeIf { it.isNotBlank() }?.let { sub ->
-                    Text(
-                        sub, color = AppColors.TextTertiary, fontSize = 11.sp,
-                        fontWeight = FontWeight.Normal, textAlign = TextAlign.Center,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
-                }
+            if (tile.style == ViewTileStyle.Tournament) {
+                TournamentTileBody(tile)
+            } else {
+                StandardTileBody(tile)
             }
         }
+    }
+}
+
+@Composable
+private fun StandardTileBody(tile: ViewTile) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(8.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(tile.emoji, fontSize = 36.sp)
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            tile.label, color = Color.White, fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+            maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
+        tile.sublabel?.takeIf { it.isNotBlank() }?.let { sub ->
+            Text(
+                sub, color = AppColors.TextTertiary, fontSize = 11.sp,
+                fontWeight = FontWeight.Normal, textAlign = TextAlign.Center,
+                maxLines = 1, overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun TournamentTileBody(tile: ViewTile) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 7.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            TournamentBadge("A", AppColors.Green)
+            Text("vs", color = Color.White.copy(alpha = 0.82f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            TournamentBadge("B", AppColors.Red)
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(tile.emoji, fontSize = 31.sp)
+        Spacer(modifier = Modifier.height(3.dp))
+        Text(
+            tile.label, color = Color.White, fontSize = 14.sp,
+            fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
+            maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            tile.sublabel ?: "head-to-head",
+            color = Color.White.copy(alpha = 0.78f), fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+            maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+@Composable
+private fun TournamentBadge(text: String, color: Color) {
+    Box(
+        modifier = Modifier.size(18.dp).clip(CircleShape)
+            .background(Color.Black.copy(alpha = 0.42f))
+            .border(BorderStroke(1.dp, color.copy(alpha = 0.85f)), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(text, color = color, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+private fun TournamentTileLines() {
+    Canvas(modifier = Modifier.fillMaxSize().padding(13.dp)) {
+        val line = Color.White.copy(alpha = 0.22f)
+        val stroke = 1.4.dp.toPx()
+        val left = size.width * 0.08f
+        val mid = size.width * 0.46f
+        val right = size.width * 0.86f
+        val top = size.height * 0.22f
+        val bottom = size.height * 0.78f
+        val center = size.height * 0.50f
+        drawLine(line, Offset(left, top), Offset(mid, top), strokeWidth = stroke)
+        drawLine(line, Offset(left, bottom), Offset(mid, bottom), strokeWidth = stroke)
+        drawLine(line, Offset(mid, top), Offset(mid, bottom), strokeWidth = stroke)
+        drawLine(line, Offset(mid, center), Offset(right, center), strokeWidth = stroke)
     }
 }
 
@@ -1649,6 +1781,7 @@ private fun openComputedItem(
     item: EveryItem,
     language: String?,
     openRerank: (String) -> Unit,
+    openTournament: (String) -> Unit,
     openModeration: (String) -> Unit,
     openFanIn: (String) -> Unit,
     openTranslate: (String) -> Unit
@@ -1657,6 +1790,7 @@ private fun openComputedItem(
     val rowId = seed?.id
     when (key) {
         "rerank" -> if (rowId != null) openRerank(rowId) else item.open(language)
+        "tournament" -> if (rowId != null) openTournament(rowId) else item.open(language)
         "moderation" -> if (rowId != null) openModeration(rowId) else item.open(language)
         "fan_in" -> if (rowId != null) openFanIn(rowId) else item.open(language)
         "translate" -> {
