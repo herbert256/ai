@@ -367,6 +367,11 @@ class SecondaryRunManager(
         //    inputs aren't derivable from the placeholder alone.
         val staleSingleMeta = rows.filter {
             it.kind != SecondaryKind.TRANSLATE &&
+                // Tournament MATCH/AGGREGATE rows are owned by TournamentEngine
+                // (resumed via its own resumeStaleRunsForReport) — never drive
+                // them through the single-Meta path or terminalize them here, or
+                // the engine's in-flight pending matches get clobbered ❌.
+                it.kind != SecondaryKind.TOURNAMENT &&
                 it.content.isNullOrBlank() &&
                 it.errorMessage == null &&
                 it.durationMs == null &&
@@ -406,6 +411,10 @@ class SecondaryRunManager(
             // never terminalize them here or we'd clobber a row the engine
             // is about to re-dispatch.
             if (row.kind == SecondaryKind.META && row.fanOutSourceAgentId != null && row.fanInOf == null) return@forEach
+            // Tournament rows are owned by TournamentEngine — same contract as
+            // fan-out pairs; terminalizing its pending matches here is what made
+            // a big tournament show a flood of "No data yet" ❌ mid-run.
+            if (row.kind == SecondaryKind.TOURNAMENT) return@forEach
             // Translation rows in an active or newly-resumed run are
             // covered by startMissingTranslations; skip them here.
             if (row.kind == SecondaryKind.TRANSLATE &&
