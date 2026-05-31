@@ -215,14 +215,14 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Tournament",
         cards = listOf(
             HelpCard("What it is", "A tournament ranks the report's answers by pairwise head-to-head judging. Every unordered pair of responses is judged twice — once each way (A-vs-B and B-vs-A) — to cancel first-position bias, so for N answers there are N(N-1) matches. Each match is judged by the WORKER engine (the round-robin chain of cheap models in your 'workers' swarm), so judging spreads across many models rather than one. Start a tournament from the report's 🆕 Create launcher → Tournament."),
-            HelpCard("Statistics + grouping", "The counters show Total / Done / Running / Wait (throttled) / Queue / Errors / Judges (distinct worker models that judged). The two chips switch how the matches below are grouped: 'Tournament models' groups by the worker model that judged each match; 'Report models' groups by the report answer being compared. Tap a group to drill into its matches, then a match to see the two responses and the verdict."),
+            HelpCard("Statistics + grouping", "The counters show Total / Done / Running / Wait (throttled) / Queue / Errors / Cost. The two chips switch how the matches below are grouped: 'Judge models' groups by the worker model that judged each match; 'Report models' groups by the report answer being compared. The green row fill shows progress for the active grouping. Tap a group to drill into its matches, then a match to see the two responses and the verdict."),
             HelpCard("View results", "Once every match is judged, a 'View results' button appears — it opens the 1..N ranking with the Copeland / Bradley–Terry / Elo switch. The 🗑 in the title bar deletes the whole tournament; 'Restart failed' re-judges any errored matches.")
         )
     ),
     "tournament_l2" to HelpContent(
         title = "Help - Tournament group",
         cards = listOf(
-            HelpCard("What you see", "Every match in the chosen group — either all matches judged by one worker model ('Tournament models' grouping) or all matches for one report answer ('Report models'). Each row shows the two answers compared (A vs B), the winner, and the worker that judged. The status glyph is ✅ done / ❌ error / ⏳ running / 🕓 queued. Tap a row for the full match detail.")
+            HelpCard("What you see", "Every match in the chosen group — either all matches judged by one worker model ('Judge models' grouping) or all matches for one report answer ('Report models'). Judge-model groups omit the repeated judge column; report-model groups omit the repeated first answer from each row. The status glyph is ✅ done / ❌ error / ⏳ running / 🕓 queued. Tap a row for the full match detail.")
         )
     ),
     "tournament_l3" to HelpContent(

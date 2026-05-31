@@ -37,10 +37,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -210,6 +213,8 @@ private fun agentLabel(agents: Map<String, ReportAgent>, agentId: String?): Stri
 /** L1 group rows for the active mode. groupKey encodes the mode. */
 private data class GroupRow(val key: String, val label: String, val matches: List<MatchState>) {
     val done get() = matches.count { it.status == MatchStatus.DONE }
+    val errored get() = matches.count { it.status == MatchStatus.ERROR }
+    val running get() = matches.count { it.status == MatchStatus.RUNNING }
     val total get() = matches.size
     val cost get() = matches.sumOf { it.totalCost }
 }
@@ -298,11 +303,22 @@ private fun TournamentL1(
                     color = AppColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp)
                 )
             }
+            val maxJudged = groups.maxOfOrNull { it.total }?.coerceAtLeast(1) ?: 1
+            val allSuccessful = run.totalMatches > 0 && run.doneCount == run.totalMatches
             groups.forEach { g ->
-                // Judge models: lead with the number of calls this judge made
-                // (= matches it judged). Report models: no count cell at all.
-                val leading = if (groupMode == TournamentGroupMode.TOURNAMENT_MODELS) g.total.toString() else null
-                GroupRowItem(g, leading) { openGroup(g.key) }
+                if (groupMode == TournamentGroupMode.TOURNAMENT_MODELS) {
+                    // Same shape as Fan Meta's "Meta models": one count column
+                    // and a green row fill normalized to the busiest judge.
+                    TournamentJudgeModelRow(
+                        group = g,
+                        barFrac = g.total.toFloat() / maxJudged,
+                        showBar = !run.allTerminal
+                    ) { openGroup(g.key) }
+                } else {
+                    // Same shape as Fan Meta's "Report models": per-row fill
+                    // shows this report model's completed-or-failed matches.
+                    TournamentReportModelRow(g, allDone = allSuccessful) { openGroup(g.key) }
+                }
             }
 
             Spacer(Modifier.height(16.dp))
@@ -334,23 +350,93 @@ private fun StatCell(label: String, value: String, valueColor: Color = Color.Whi
 }
 
 @Composable
-private fun GroupRowItem(g: GroupRow, leadingText: String?, onClick: () -> Unit) {
+private fun TournamentJudgeModelRow(
+    group: GroupRow,
+    barFrac: Float,
+    showBar: Boolean,
+    onClick: () -> Unit
+) {
+    val barColor = AppColors.Green.copy(alpha = 0.30f)
     Row(
         modifier = Modifier.fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .background(AppColors.CardBackground)
+            .drawBehind {
+                if (showBar && barFrac > 0f) {
+                    drawRect(color = barColor, size = Size(size.width * barFrac, size.height))
+                }
+            }
             .clickable { onClick() }
-            .padding(horizontal = 12.dp, vertical = 10.dp)
-            .padding(bottom = 0.dp),
+            .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (leadingText != null) {
-            Text(leadingText, color = AppColors.TextSecondary, fontSize = 12.sp, modifier = Modifier.width(48.dp))
+        Text(
+            group.total.toString(),
+            color = AppColors.TextSecondary,
+            fontSize = 13.sp,
+            fontFamily = FontFamily.Monospace,
+            textAlign = TextAlign.End,
+            modifier = Modifier.padding(start = 8.dp).width(32.dp)
+        )
+        Text(
+            group.label,
+            color = Color.White,
+            fontSize = 14.sp,
+            modifier = Modifier.weight(1f).padding(start = 8.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (group.cost > 0) {
+            Text("${formatCents(group.cost)} ¢", color = AppColors.TextTertiary, fontSize = 11.sp)
         }
-        Text(g.label, color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (g.cost > 0) Text("${formatCents(g.cost)} ¢", color = AppColors.TextTertiary, fontSize = 11.sp)
     }
-    Spacer(Modifier.height(6.dp))
+    HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.3f), thickness = 0.5.dp)
+}
+
+@Composable
+private fun TournamentReportModelRow(group: GroupRow, allDone: Boolean, onClick: () -> Unit) {
+    val finished = group.done + group.errored
+    val progressFraction = if (group.total > 0) finished.toFloat() / group.total else 0f
+    val barColor = AppColors.Green.copy(alpha = 0.30f)
+    Row(
+        modifier = Modifier.fillMaxWidth()
+            .drawBehind {
+                if (!allDone && progressFraction > 0f) {
+                    drawRect(color = barColor, size = Size(size.width * progressFraction, size.height))
+                }
+            }
+            .clickable { onClick() }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (!allDone) {
+            val icon = when {
+                group.running > 0 -> "⏳"
+                group.total == 0 -> "🆕"
+                group.errored > 0 && group.errored == group.total -> "❌"
+                group.done == group.total -> "✅"
+                group.errored > 0 -> "❌"
+                else -> "🕓"
+            }
+            if (icon == "⏳") {
+                Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {
+                    AnimatedHourglass(fontSize = 16.sp)
+                }
+            } else {
+                Text(icon, fontSize = 16.sp, modifier = Modifier.width(20.dp))
+            }
+        }
+        Text(
+            group.label,
+            color = Color.White,
+            fontSize = 14.sp,
+            modifier = Modifier.weight(1f).padding(start = 4.dp),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        if (group.cost > 0) {
+            Text("${formatCents(group.cost)} ¢", color = AppColors.TextTertiary, fontSize = 11.sp)
+        }
+    }
+    HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.3f), thickness = 0.5.dp)
 }
 
 // ---------- L2 ----------
@@ -366,19 +452,35 @@ private fun TournamentL2(
 ) {
     val matches = matchesForGroup(run, groupKey)
     val title = groupKey.substringAfter(":").let { if (groupKey.startsWith("judge:")) shortModelName(it.substringAfterLast('/')) else agentLabel(agents, it) }
+    val activeReportAgentId = groupKey.takeIf { groupMode == TournamentGroupMode.REPORT_MODELS }
+        ?.substringAfter("answerer:", "")
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "tournament_l2", title = "Tournament", subject = title, onBackClick = onBack)
         LazyColumn(Modifier.fillMaxSize()) {
-            items(matches, key = { it.key }) { m -> MatchRowItem(m, agents) { openMatch(m.key) } }
+            items(matches, key = { it.key }) { m ->
+                MatchRowItem(m, agents, groupMode, activeReportAgentId) { openMatch(m.key) }
+            }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
 
 @Composable
-private fun MatchRowItem(m: MatchState, agents: Map<String, ReportAgent>, onClick: () -> Unit) {
+private fun MatchRowItem(
+    m: MatchState,
+    agents: Map<String, ReportAgent>,
+    groupMode: TournamentGroupMode,
+    activeReportAgentId: String?,
+    onClick: () -> Unit
+) {
     val labelA = agentLabel(agents, m.responseAId)
     val labelB = agentLabel(agents, m.responseBId)
+    val primaryLabel =
+        if (groupMode == TournamentGroupMode.REPORT_MODELS && m.responseAId == activeReportAgentId) {
+            labelB
+        } else {
+            "$labelA  vs  $labelB"
+        }
     val glyph = when (m.status) {
         MatchStatus.DONE -> "✅"
         MatchStatus.ERROR -> "❌"
@@ -393,7 +495,7 @@ private fun MatchRowItem(m: MatchState, agents: Map<String, ReportAgent>, onClic
     ) {
         Text(glyph, fontSize = 14.sp, modifier = Modifier.width(28.dp))
         Column(Modifier.weight(1f)) {
-            Text("$labelA  vs  $labelB", color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(primaryLabel, color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val sub = when {
                 m.errorMessage != null -> "⚠ ${m.errorMessage.take(48)}"
                 m.verdict == "A" -> "winner: $labelA"
@@ -403,7 +505,7 @@ private fun MatchRowItem(m: MatchState, agents: Map<String, ReportAgent>, onClic
             }
             Text(sub, color = AppColors.TextTertiary, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
-        m.judgeModel?.let {
+        if (groupMode != TournamentGroupMode.TOURNAMENT_MODELS) m.judgeModel?.let {
             Text(shortModelName(it.substringAfterLast('/')), color = AppColors.TextTertiary, fontSize = 10.sp, maxLines = 1)
         }
     }
