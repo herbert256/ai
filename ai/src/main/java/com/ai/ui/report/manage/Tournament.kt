@@ -211,7 +211,13 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     }
 
     if (showResults && run.aggregateRowId != null) {
-        TournamentPodiumViewScreen(reportId = reportId, resultId = run.aggregateRowId!!, onBack = { showResults = false })
+        // Inline over the Manage drill-in — suppress the podium's 🔧 manage
+        // icon (it would be a no-op here; back returns to the drill-in).
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalTournamentOpenState provides null
+        ) {
+            TournamentPodiumViewScreen(reportId = reportId, resultId = run.aggregateRowId!!, onBack = { showResults = false })
+        }
         return
     }
 

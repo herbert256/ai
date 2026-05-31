@@ -64,9 +64,7 @@ import com.ai.ui.report.view.helpers.ViewReportCache
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.LocalOpenManage
 import com.ai.ui.shared.LocalTournamentOpenState
-import com.ai.ui.shared.ManageJump
 import com.ai.ui.shared.shortModelName
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -103,13 +101,15 @@ fun TournamentPodiumViewScreen(
     }
     val loaded = loadedState.value
     val currentMethod = decodeTournamentMatrix(loaded.row?.tournamentMatrix)?.second ?: TournamentMethod.COPELAND
-    val openManage = LocalOpenManage.current
+    // The 🔧 manage icon opens the Tournament page in Manage. Setting the
+    // shared tournament-open holder is sufficient on its own: ReportsScreenNav
+    // early-returns the Manage tournament drill-in whenever it's non-null, so
+    // the View overlay is replaced by it. Basing this on the (always-inherited)
+    // open-state holder — rather than LocalOpenManage, which isn't provided on
+    // every View render path — makes the icon appear and work on all of them.
     val tournamentOpenState = LocalTournamentOpenState.current
-    val onOpenTournamentManage: (() -> Unit)? = openManage?.let { dispatch ->
-        {
-            tournamentOpenState?.value = currentReportId
-            dispatch(ManageJump.Main)
-        }
+    val onOpenTournamentManage: (() -> Unit)? = tournamentOpenState?.let { holder ->
+        { holder.value = currentReportId }
     }
     var headToHeadAgentId by rememberSaveable(currentReportId, currentResultId) { mutableStateOf<String?>(null) }
     val selectedHeadToHeadAgentId = headToHeadAgentId
