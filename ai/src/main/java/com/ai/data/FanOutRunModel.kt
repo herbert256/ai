@@ -70,6 +70,8 @@ data class PairState(
     val durationMs: Long? = null,
     val tokenUsage: TokenUsage? = null,
     val timestamp: Long = System.currentTimeMillis(),
+    val responseChangeSource: String? = null,
+    val responseChangeValue: String? = null,
     /** Emoji produced by the fan-out pair icon chain. Null until
      *  the chain finishes for this pair (or the feature is off). */
     val icon: String? = null,
@@ -250,6 +252,8 @@ fun SecondaryResult.toPairState(answererAgentId: String): PairState? {
         durationMs = durationMs,
         tokenUsage = tokenUsage,
         timestamp = timestamp,
+        responseChangeSource = responseChangeSource,
+        responseChangeValue = responseChangeValue,
         icon = icon,
         iconWinningTier = iconWinningTier,
         iconInputCost = iconInputCost,

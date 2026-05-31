@@ -737,6 +737,10 @@ data class TitleBarIcons(
     val onCopy: (() -> Unit)?,
     val onShare: (() -> Unit)?,
     val onReload: (() -> Unit)?,
+    /** When true, the 💬 chat and 🔄 reload glyphs swap bottom-bar
+     *  positions (🔄 takes the early chat slot, 💬 the late reload slot).
+     *  Set only by the Model-response screen. */
+    val swapChatAndReload: Boolean = false,
     val onDelete: (() -> Unit)?,
     val onTrace: (() -> Unit)?,
     /** Open the source / translation split-view compare overlay.
@@ -962,6 +966,9 @@ fun TitleBar(
      *  [ManageJump] target. Null → glyph hidden. */
     onOpenManage: (() -> Unit)? = null,
     onReload: (() -> Unit)? = null,
+    /** Swap the 💬 chat and 🔄 reload glyph positions in the bottom bar.
+     *  Set only by the Model-response screen. */
+    swapChatAndReload: Boolean = false,
     onChat: (() -> Unit)? = null,
     /** Optional 🗣️ refine-in-chat hook — opens the in-report agent chat
      *  that lets the user iterate on this answer ("be more verbose") and
@@ -1137,6 +1144,7 @@ fun TitleBar(
         onCopy = onCopy,
         onShare = onShare,
         onReload = onReload,
+        swapChatAndReload = swapChatAndReload,
         onDelete = onDelete,
         onTrace = onTrace,
         onTranslationCompare = onTranslationCompare,
@@ -1606,7 +1614,13 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // 🆕 leads when the screen opts in (Manage report); otherwise it
     // stays in the trailing copy/edit/delete/new group below.
     if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
-    icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
+    // Chat slot — normally 💬 chat; when swapped (Model response) the 🔄
+    // reload glyph takes this early position instead.
+    if (icons.swapChatAndReload) {
+        icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
+    } else {
+        icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
+    }
     icons.onAgentChat?.let { add(BottomBarIcon("🗣️", Color.Unspecified, it, 28)) }
     icons.onTemperatureSweep?.let { add(BottomBarIcon("🌡️", Color.Unspecified, it, 28)) }
     icons.onReasoningEffortSweep?.let { add(BottomBarIcon("🧠", Color.Unspecified, it, 28)) }
@@ -1649,7 +1663,13 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onAddNote?.let { add(BottomBarIcon("✍️", Color.Unspecified, it, 28)) }
     icons.onListNotes?.let { add(BottomBarIcon("📒", Color.Unspecified, it, 28)) }
     icons.onEdit?.let { add(BottomBarIcon("✏️", Color.Unspecified, it, 28)) }
-    icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
+    // Reload slot — normally 🔄 reload; when swapped (Model response) the
+    // 💬 chat glyph takes this late position instead.
+    if (icons.swapChatAndReload) {
+        icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
+    } else {
+        icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
+    }
     icons.onDelete?.let { add(BottomBarIcon("🗑", AppColors.Red, it, 22)) }
     // 📈 statistics trailing the 🗑 delete, when the screen opted in
     // (Application log — its App-log-statistics jump sits after clear-all).

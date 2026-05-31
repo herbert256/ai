@@ -126,11 +126,11 @@ data class WebSearchReplayState(
 private const val WEB_SEARCH_REPLAY_PROMPT_SUFFIX =
     "Give the most actual information, do a websearch for this."
 
-private fun formatSweepTemperature(value: Float): String =
+internal fun formatSweepTemperature(value: Float): String =
     if (value % 1f == 0f) value.toInt().toString()
     else String.format(Locale.US, "%.2f", value).trimEnd('0').trimEnd('.')
 
-private fun formatSweepReasoningEffort(effort: String?): String =
+internal fun formatSweepReasoningEffort(effort: String?): String =
     effort?.replaceFirstChar { it.uppercase() } ?: "None"
 
 private fun webSearchReplayPrompt(prompt: String): String =

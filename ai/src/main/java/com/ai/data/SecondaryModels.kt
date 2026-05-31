@@ -114,6 +114,16 @@ data class SecondaryResult(
      *  before this field existed; cascade defaults to AllReports
      *  there, matching prior behaviour. */
     val secondaryScope: String? = null,
+    /** Secondary-call parameter/system-prompt selections captured when
+     *  this row was launched. Fan-out pair variation replays use them
+     *  to preserve the original call shape; legacy rows fall back to
+     *  secondary defaults when these are null. */
+    val secondaryParameterPresetIds: List<String>? = null,
+    val secondarySystemPromptId: String? = null,
+    /** User-selected replacement marker for [content]. Null for the
+     *  original fan-out response or after a normal pair rerun. */
+    val responseChangeSource: String? = null,
+    val responseChangeValue: String? = null,
     /** Per-fan-out-pair emoji produced by the
      *  [com.ai.viewmodel.ReportViewModel.runFanOutIconChain] 3-tier
      *  chain (chat continuation → one-shot fan_out_icon →
@@ -240,4 +250,3 @@ fun stripMetaReferenceLegend(content: String): String {
     val idx = content.lastIndexOf("\n\n---\n\n## References")
     return if (idx >= 0) content.substring(0, idx).trimEnd() else content
 }
-

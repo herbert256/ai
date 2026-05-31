@@ -468,6 +468,8 @@ fun ReportModelScreen(
             onInfo = { onNavigateToModelInfo(provider, agent.model) },
             onReload = { confirmReload = true },
             onChat = if (canContinueInChat) { { showContinuePicker = true } } else null,
+            // Swap the 💬 chat and 🔄 reload positions on this screen.
+            swapChatAndReload = true,
             onAgentChat = if (canContinueInChat) { { showAgentChat = true } } else null,
             onTemperatureSweep = { showTemperatureSweep = true },
             onReasoningEffortSweep = { showReasoningEffortSweep = true },

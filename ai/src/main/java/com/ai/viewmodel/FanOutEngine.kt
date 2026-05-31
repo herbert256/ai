@@ -1,17 +1,27 @@
 package com.ai.viewmodel
 
 import android.content.Context
+import com.ai.data.AgentParameters
+import com.ai.data.AnalysisResponse
 import com.ai.data.ApiCallCaps
 import com.ai.data.AppLog
 import com.ai.data.AppService
 import com.ai.data.CombinedReportState
+import com.ai.data.FAN_OUT_REASONING_CALL_KIND
+import com.ai.data.FAN_OUT_TEMPERATURE_CALL_KIND
+import com.ai.data.FAN_OUT_WEB_SEARCH_CALL_KIND
 import com.ai.data.FanOutRunKey
 import com.ai.data.FanOutRunState
 import com.ai.data.PairKey
 import com.ai.data.PairState
 import com.ai.data.PairStatus
+import com.ai.data.PricingCache
 import com.ai.data.ProviderThrottle
 import com.ai.data.ModelCooldownStore
+import com.ai.data.RESPONSE_CHANGE_SOURCE_CHAT
+import com.ai.data.RESPONSE_CHANGE_SOURCE_REASONING_EFFORT
+import com.ai.data.RESPONSE_CHANGE_SOURCE_TEMPERATURE
+import com.ai.data.RESPONSE_CHANGE_SOURCE_WEB_SEARCH
 import com.ai.data.Report
 import com.ai.data.ReportAgent
 import com.ai.data.ReportStatus
@@ -20,12 +30,16 @@ import com.ai.data.SecondaryKind
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.SecondaryScope
+import com.ai.data.extractTopRankedIds
 import com.ai.data.pairKey
 import com.ai.data.resolveSecondaryPrompt
 import com.ai.data.runKey
+import com.ai.data.temperatureRangeForProvider
 import com.ai.data.toCombinedReportState
 import com.ai.data.toPairState
+import com.ai.data.withTraceFilenameSink
 import com.ai.data.withTracerTags
+import com.ai.model.Agent
 import com.ai.model.InternalPrompt
 import com.ai.ui.shared.shortModelName
 import androidx.lifecycle.viewModelScope
@@ -49,6 +63,11 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicReference
+import java.util.Locale
+
+private const val FAN_OUT_WEB_SEARCH_PROMPT_SUFFIX =
+    "Give the most actual information, do a websearch for this."
 
 /**
  * Authoritative runtime owner for every Fan Out run on every
@@ -83,11 +102,23 @@ class FanOutEngine internal constructor(
     private val _runs = MutableStateFlow<Map<FanOutRunKey, FanOutRunState>>(emptyMap())
     val runs: StateFlow<Map<FanOutRunKey, FanOutRunState>> = _runs.asStateFlow()
 
+    private val _temperatureSweepStates = MutableStateFlow<Map<String, TemperatureSweepState>>(emptyMap())
+    val temperatureSweepStates: StateFlow<Map<String, TemperatureSweepState>> = _temperatureSweepStates.asStateFlow()
+
+    private val _reasoningEffortSweepStates = MutableStateFlow<Map<String, ReasoningEffortSweepState>>(emptyMap())
+    val reasoningEffortSweepStates: StateFlow<Map<String, ReasoningEffortSweepState>> = _reasoningEffortSweepStates.asStateFlow()
+
+    private val _webSearchReplayStates = MutableStateFlow<Map<String, WebSearchReplayState>>(emptyMap())
+    val webSearchReplayStates: StateFlow<Map<String, WebSearchReplayState>> = _webSearchReplayStates.asStateFlow()
+
     /** Per-pair coroutines, keyed by [PairState.id] (= on-disk
      *  SecondaryResult id). Registered before the coroutine starts
      *  via [CoroutineStart.LAZY] so concurrent deletes can always
      *  find the Job to cancel. */
     private val pairJobs = ConcurrentHashMap<String, Job>()
+    private val temperatureSweepJobs = ConcurrentHashMap<String, Job>()
+    private val reasoningEffortSweepJobs = ConcurrentHashMap<String, Job>()
+    private val webSearchReplayJobs = ConcurrentHashMap<String, Job>()
 
     /** Top-level batch Job per [FanOutRunKey]. Used by
      *  [rerunComplete] / [deleteRun] to cancelAndJoin a whole
@@ -249,6 +280,52 @@ class FanOutEngine internal constructor(
         _runs.update { it - runKey }
     }
 
+    private fun transitionPairById(
+        runKey: FanOutRunKey,
+        pairId: String,
+        update: (PairState) -> PairState
+    ) {
+        _runs.update { runs ->
+            val run = runs[runKey] ?: return@update runs
+            val cur = run.pairs.values.firstOrNull { it.id == pairId } ?: return@update runs
+            val next = update(cur)
+            if (next == cur) runs
+            else runs + (runKey to run.copy(pairs = run.pairs + (cur.key to next)))
+        }
+    }
+
+    suspend fun applyFanOutPairContent(
+        context: Context,
+        runKey: FanOutRunKey,
+        pairId: String,
+        content: String,
+        changeSource: String,
+        changeValue: String? = null
+    ) {
+        withContext(Dispatchers.IO) {
+            val run = _runs.value[runKey] ?: return@withContext
+            val source = changeSource.takeIf { it.isNotBlank() } ?: return@withContext
+            SecondaryResultStorage.updateContent(
+                context = context,
+                reportId = run.reportId,
+                resultId = pairId,
+                content = content,
+                changeSource = source,
+                changeValue = changeValue
+            )
+            ReportStorage.bumpReportTimestamp(context, run.reportId)
+            transitionPairById(runKey, pairId) {
+                it.copy(
+                    status = PairStatus.DONE,
+                    content = content,
+                    errorMessage = null,
+                    responseChangeSource = source,
+                    responseChangeValue = changeValue?.takeIf { value -> value.isNotBlank() }
+                )
+            }
+        }
+    }
+
     // -----------------------------------------------------------------
     // Run launch
     // -----------------------------------------------------------------
@@ -359,7 +436,9 @@ class FanOutEngine internal constructor(
                                     runId = runId,
                                     targetLanguage = sourceLanguage,
                                     targetLanguageNative = langCtx?.native,
-                                    secondaryScope = scopeEncoded
+                                    secondaryScope = scopeEncoded,
+                                    secondaryParameterPresetIds = paramsIds,
+                                    secondarySystemPromptId = systemPromptId
                                 )
                             }
                             pending.add(PendingPair(answerer, source, placeholder))
@@ -592,7 +671,9 @@ class FanOutEngine internal constructor(
                                     inputCost = saved.inputCost,
                                     outputCost = saved.outputCost,
                                     durationMs = saved.durationMs,
-                                    tokenUsage = saved.tokenUsage
+                                    tokenUsage = saved.tokenUsage,
+                                    responseChangeSource = saved.responseChangeSource,
+                                    responseChangeValue = saved.responseChangeValue
                                 )
                             }
                         } else {
@@ -773,14 +854,18 @@ class FanOutEngine internal constructor(
             val source = report.agents.firstOrNull { it.agentId == pair.sourceAgentId } ?: continue
             val cleared = SecondaryResultStorage.get(context, run.reportId, pair.id)?.copy(
                 content = null, errorMessage = null, inputCost = null, outputCost = null,
-                durationMs = null, tokenUsage = null, timestamp = System.currentTimeMillis()
+                durationMs = null, tokenUsage = null, timestamp = System.currentTimeMillis(),
+                responseChangeSource = null,
+                responseChangeValue = null
             ) ?: continue
             SecondaryResultStorage.save(context, cleared)
             transitionPair(runKey, pk) {
                 it.copy(
                     status = PairStatus.PENDING, content = null, errorMessage = null,
                     inputCost = null, outputCost = null, durationMs = null,
-                    tokenUsage = null, timestamp = cleared.timestamp
+                    tokenUsage = null, timestamp = cleared.timestamp,
+                    responseChangeSource = null,
+                    responseChangeValue = null
                 )
             }
             val body = langCtx?.bodies?.get(pair.sourceAgentId) ?: source.responseBody.orEmpty()
@@ -804,7 +889,8 @@ class FanOutEngine internal constructor(
                     question = question, sourceBody = r.body,
                     targetLanguage = run.sourceLanguage,
                     targetLanguageNative = langCtx?.native,
-                    paramsIds = emptyList(), systemPromptId = null,
+                    paramsIds = r.cleared.secondaryParameterPresetIds.orEmpty(),
+                    systemPromptId = r.cleared.secondarySystemPromptId,
                     placeholder = r.cleared
                 )
             }

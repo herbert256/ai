@@ -1074,7 +1074,9 @@ class SecondaryRunManager(
                 metaPromptName = metaPrompt.name,
                 fanOutSourceAgentId = fanOutSourceAgentId,
                 fanInOf = fanInOf,
-                secondaryScope = scopeEncoded
+                secondaryScope = scopeEncoded,
+                secondaryParameterPresetIds = paramsIds,
+                secondarySystemPromptId = systemPromptId
             )
         }
 
@@ -1132,7 +1134,9 @@ class SecondaryRunManager(
                 tokenUsage = tu,
                 inputCost = inCost,
                 outputCost = outCost,
-                durationMs = r.durationMs
+                durationMs = r.durationMs,
+                responseChangeSource = null,
+                responseChangeValue = null
             ))
             // Skip usage-stats too if the row was deleted while in
             // flight — the user dropped this run, so we shouldn't bill
@@ -1249,7 +1253,9 @@ class SecondaryRunManager(
             tokenUsage = tu,
             inputCost = inCost,
             outputCost = outCost,
-            durationMs = duration
+            durationMs = duration,
+            responseChangeSource = null,
+            responseChangeValue = null
         ))
 
         if (saved && response.error == null && tu != null) {

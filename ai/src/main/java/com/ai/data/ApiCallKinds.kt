@@ -3,6 +3,9 @@ package com.ai.data
 internal const val MODEL_TEMPERATURE_CALL_KIND = "model/temperature"
 internal const val MODEL_REASONING_CALL_KIND = "model/reasoning"
 internal const val MODEL_WEB_SEARCH_CALL_KIND = "model/web-search"
+internal const val FAN_OUT_TEMPERATURE_CALL_KIND = "fan/out/temperature"
+internal const val FAN_OUT_REASONING_CALL_KIND = "fan/out/reasoning"
+internal const val FAN_OUT_WEB_SEARCH_CALL_KIND = "fan/out/web-search"
 
 internal fun normalizeApiCallCategory(category: String?): String? =
     when {

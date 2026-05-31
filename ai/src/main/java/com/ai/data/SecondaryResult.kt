@@ -211,10 +211,21 @@ object SecondaryResultStorage {
     }
 
     /** Overwrite a fan-out pair's [SecondaryResult.content] with a chosen
-     *  refine-chat reply (the 🗣️ "Apply" action). */
-    fun updateContent(context: Context, reportId: String, resultId: String, content: String): Boolean {
+     *  replacement. Leaves cost/tokens and metadata untouched. */
+    fun updateContent(
+        context: Context,
+        reportId: String,
+        resultId: String,
+        content: String,
+        changeSource: String? = null,
+        changeValue: String? = null
+    ): Boolean {
         val existing = get(context, reportId, resultId) ?: return false
-        save(context, existing.copy(content = content))
+        save(context, existing.copy(
+            content = content,
+            responseChangeSource = changeSource?.takeIf { it.isNotBlank() },
+            responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
+        ))
         return true
     }
 
