@@ -167,6 +167,8 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
         ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon
 
     var level by rememberSaveable { mutableStateOf(1) }       // 1 = L1, 2 = L2, 3 = L3
+    // false = L2 is a judge's matches; true = L2 is a match's judges.
+    var byMatch by rememberSaveable { mutableStateOf(false) }
     var judgeKey by rememberSaveable { mutableStateOf("") }
     var matchKey by rememberSaveable { mutableStateOf("") }
 
@@ -191,14 +193,21 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
     }
 
     when (level) {
-        2 -> JudgeEvalL2(run, agents, reportTitle, reportIcon, judgeKey,
-            openMatch = { mk -> matchKey = mk; level = 3 },
-            onBack = { level = 1 })
+        2 -> if (byMatch) {
+            JudgeEvalMatchScreen(run, agents, reportTitle, reportIcon, matchKey,
+                openJudge = { jk -> judgeKey = jk; level = 3 },
+                onBack = { level = 1 })
+        } else {
+            JudgeEvalL2(run, agents, reportTitle, reportIcon, judgeKey,
+                openMatch = { mk -> matchKey = mk; level = 3 },
+                onBack = { level = 1 })
+        }
         3 -> JudgeEvalL3(run, agents, reportTitle, reportIcon, judgeKey, matchKey,
             onBack = { level = 2 },
             onRerun = { scope.launch { engine.rerunCell(context, reportId, "$judgeKey|$matchKey") } })
-        else -> JudgeEvalL1(run, throttled, reportTitle, reportIcon,
-            openJudge = { jk -> judgeKey = jk; level = 2 },
+        else -> JudgeEvalL1(run, agents, throttled, reportTitle, reportIcon,
+            openJudge = { jk -> judgeKey = jk; byMatch = false; level = 2 },
+            openMatch = { mk -> matchKey = mk; byMatch = true; level = 2 },
             onRestartFailed = { scope.launch { engine.restartFailedCells(context, reportId) } },
             onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
             onBack = onBack)
@@ -210,10 +219,12 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
 @Composable
 private fun JudgeEvalL1(
     run: JudgeEvalRunState,
+    agents: Map<String, ReportAgent>,
     throttled: Set<String>,
     reportTitle: String,
     reportIcon: String,
     openJudge: (String) -> Unit,
+    openMatch: (String) -> Unit,
     onRestartFailed: () -> Unit,
     onDeleteRun: () -> Unit,
     onBack: () -> Unit
@@ -275,18 +286,29 @@ private fun JudgeEvalL1(
                     JudgeLeaderboardRow(rank = i + 1, s = s) { openJudge(s.judgeKey) }
                 }
             } else {
-                // Per-judge progress while running.
+                // Per-judge progress while running — the green bar fills to the
+                // judge's own percentage done (DONE + ERROR) / total, like Fan Out.
                 val byJudge = run.cells.values.groupBy { it.judgeKey }
                     .toList().sortedBy { it.first }
-                val maxTotal = byJudge.maxOfOrNull { it.second.size }?.coerceAtLeast(1) ?: 1
                 byJudge.forEach { (jk, cells) ->
                     val done = cells.count { it.status == JudgeCellStatus.DONE || it.status == JudgeCellStatus.ERROR }
                     JudgeProgressRow(
                         label = shortModelName(jk.substringAfterLast('/')),
                         done = done, total = cells.size,
-                        barFrac = cells.size.toFloat() / maxTotal
+                        barFrac = if (cells.isNotEmpty()) done.toFloat() / cells.size else 0f
                     ) { openJudge(jk) }
                 }
+            }
+
+            // Second table: the matches. Each row → the per-match list of
+            // judges (JudgeEvalMatchScreen → L3).
+            Spacer(Modifier.height(18.dp))
+            HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.45f), thickness = 0.5.dp)
+            Spacer(Modifier.height(8.dp))
+            Text("Matches", color = AppColors.Blue, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(4.dp))
+            buildMatchSummaries(run, agents).forEach { m ->
+                MatchSummaryRow(m) { openMatch(m.matchKey) }
             }
 
             Spacer(Modifier.height(16.dp))
@@ -384,6 +406,7 @@ private fun JudgeEvalL2(
                     Text("Match", color = AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     Text("Verdict", color = AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp), textAlign = TextAlign.Center)
                     Text("Cons.", color = AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                    Spacer(Modifier.width(30.dp))
                 }
                 HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.45f), thickness = 0.5.dp)
             }
@@ -406,6 +429,7 @@ private fun JudgeEvalL2(
                         color = if (c.verdict == null) AppColors.TextTertiary else if (agree) AppColors.Green else AppColors.Red,
                         fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.width(56.dp)
                     )
+                    JudgeTraceBug(c.traceFile)
                 }
                 HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.25f), thickness = 0.5.dp)
             }
@@ -521,4 +545,130 @@ private fun verdictLabel(verdict: String?): String = when (verdict) {
     "B" -> "B wins"
     "tie" -> "Tie"
     else -> "—"
+}
+
+// ---------- matches table (L1, second table) ----------
+
+private data class MatchSummary(
+    val matchKey: String,
+    val aLabel: String,
+    val bLabel: String,
+    val consensus: String?,
+    val agreeCount: Int,
+    val votedCount: Int
+)
+
+private fun buildMatchSummaries(run: JudgeEvalRunState, agents: Map<String, ReportAgent>): List<MatchSummary> =
+    run.cells.values.groupBy { it.matchKey }
+        .map { (mk, cs) ->
+            val first = cs.first()
+            val verdicts = cs.mapNotNull { it.verdict }
+            val cons = consensusForMatch(verdicts)
+            MatchSummary(
+                matchKey = mk,
+                aLabel = shortModelName(agents[first.responseAId]?.model ?: "?"),
+                bLabel = shortModelName(agents[first.responseBId]?.model ?: "?"),
+                consensus = cons,
+                agreeCount = cs.count { it.verdict != null && cons != null && it.verdict == cons },
+                votedCount = verdicts.size
+            )
+        }
+        .sortedWith(compareBy({ it.aLabel }, { it.bLabel }))
+
+@Composable
+private fun MatchSummaryRow(m: MatchSummary, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text("${m.aLabel} vs ${m.bLabel}", color = Color.White, fontSize = 13.sp,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text(verdictLabel(m.consensus), color = AppColors.TextSecondary, fontSize = 12.sp,
+            modifier = Modifier.width(64.dp), textAlign = TextAlign.Center)
+        Text("${m.agreeCount}/${m.votedCount}", color = AppColors.TextTertiary, fontSize = 12.sp,
+            fontFamily = FontFamily.Monospace, modifier = Modifier.width(48.dp), textAlign = TextAlign.End)
+    }
+    HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.25f), thickness = 0.5.dp)
+}
+
+// ---------- by-match screen: one match → the list of judges → L3 ----------
+
+@Composable
+private fun JudgeEvalMatchScreen(
+    run: JudgeEvalRunState,
+    agents: Map<String, ReportAgent>,
+    reportTitle: String,
+    reportIcon: String,
+    matchKey: String,
+    openJudge: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    val cells = run.cells.values.filter { it.matchKey == matchKey }.sortedBy { it.judgeKey }
+    val cons = consensusForMatch(cells.mapNotNull { it.verdict })
+    val first = cells.firstOrNull()
+    val pairLabel = if (first != null)
+        "${shortModelName(agents[first.responseAId]?.model ?: "?")} vs ${shortModelName(agents[first.responseBId]?.model ?: "?")}"
+    else "Match"
+    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(
+            helpTopic = "judge_eval_match", title = "Match",
+            subject = reportTitle, reportIcon = reportIcon, onBackClick = onBack
+        )
+        Text(pairLabel, color = AppColors.Green, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+        Text("Consensus: ${verdictLabel(cons)}", color = AppColors.TextTertiary, fontSize = 12.sp,
+            textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp))
+        LazyColumn(Modifier.fillMaxSize()) {
+            item(key = "header") {
+                Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
+                    Text("Judge", color = AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text("Verdict", color = AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp), textAlign = TextAlign.Center)
+                    Text("Cons.", color = AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                    Spacer(Modifier.width(30.dp))
+                }
+                HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.45f), thickness = 0.5.dp)
+            }
+            items(cells, key = { it.key }) { c ->
+                val agree = c.verdict != null && cons != null && c.verdict == cons
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable { openJudge(c.judgeKey) }.padding(vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(shortModelName(c.judgeModel), color = Color.White, fontSize = 13.sp,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(verdictGlyph(c.verdict, c.status), color = Color.White, fontSize = 13.sp,
+                        textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
+                    Text(
+                        if (c.verdict == null) "—" else if (agree) "✓" else "✗",
+                        color = if (c.verdict == null) AppColors.TextTertiary else if (agree) AppColors.Green else AppColors.Red,
+                        fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.width(56.dp)
+                    )
+                    JudgeTraceBug(c.traceFile)
+                }
+                HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.25f), thickness = 0.5.dp)
+            }
+            item { Spacer(Modifier.height(24.dp)) }
+        }
+    }
+}
+
+/** Per-row 🐞 trace deep-link — opens the judging call's API trace when one
+ *  was recorded (tracing on), else a toast. Mirrors the View Tournament's. */
+@Composable
+private fun JudgeTraceBug(traceFile: String?) {
+    val navigateToRoute = com.ai.ui.shared.LocalNavigateToRoute.current
+    val context = LocalContext.current
+    Text(
+        "🐞", fontSize = 13.sp,
+        color = if (traceFile.isNullOrBlank()) AppColors.TextDisabled else Color.White,
+        textAlign = TextAlign.Center,
+        modifier = Modifier
+            .width(30.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .clickable {
+                if (!traceFile.isNullOrBlank()) navigateToRoute(com.ai.ui.navigation.NavRoutes.traceDetail(traceFile))
+                else android.widget.Toast.makeText(context, "No trace (enable tracing in Settings)", android.widget.Toast.LENGTH_SHORT).show()
+            }
+    )
 }

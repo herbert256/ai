@@ -251,6 +251,12 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("What you see", "One head-to-head as this judge saw it: its verdict + confidence + one-line reason, the consensus verdict for comparison, and the two full response cards (the chosen side highlighted). The 🔄 in the title bar re-judges this single cell.")
         )
     ),
+    "judge_eval_match" to HelpContent(
+        title = "Help - Match",
+        cards = listOf(
+            HelpCard("What you see", "One of the 25 matches and how EVERY judge scored it: each judge's verdict (A / B / tie), whether it agreed (✓) or disagreed (✗) with the consensus, and a 🐞 to open that judging call's API trace. Tap a judge to see the full match detail from that judge's perspective.")
+        )
+    ),
     // Per-scope Icon-lookup help — one topic for each of the six
     // adapters (main / agent / meta / translation / language /
     // fan-out pair). IconLookupContext.helpTopic carries the right

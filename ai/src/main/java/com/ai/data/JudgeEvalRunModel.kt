@@ -59,6 +59,9 @@ data class JudgeCellState(
     val outputCost: Double? = null,
     val durationMs: Long? = null,
     val tokenUsage: TokenUsage? = null,
+    /** Trace filename of this judging call (when tracing was on) — drives
+     *  the per-row 🐞 deep-link. */
+    val traceFile: String? = null,
     val timestamp: Long = System.currentTimeMillis()
 ) {
     val matchKey: MatchKey get() = matchKey(responseAId, responseBId, orientation)
@@ -127,6 +130,7 @@ fun SecondaryResult.toJudgeCellState(): JudgeCellState? {
         outputCost = outputCost,
         durationMs = durationMs,
         tokenUsage = tokenUsage,
+        traceFile = traceFile,
         timestamp = timestamp
     )
 }
