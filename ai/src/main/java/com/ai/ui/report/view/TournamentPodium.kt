@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,6 +43,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -580,6 +582,9 @@ private fun TournamentModelHeadToHeadViewScreen(
     } else {
         Modifier
     }
+    val activeMatch = matches.getOrNull(safeMatchIndex)
+    val activeModelRole = activeMatch?.let { tournamentRoleFor(it, agentId) }
+    val subjectLabel = activeModelRole?.let { "$it - $modelLabel" } ?: modelLabel
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -588,15 +593,16 @@ private fun TournamentModelHeadToHeadViewScreen(
         ViewTitleBar(
             reportTitle = reportTitle,
             screenTitle = "Tournament",
-            subject = modelLabel,
+            subject = subjectLabel,
             helpTopic = "view_tournament",
             onOpenManage = onOpenManage,
             onBack = onBack
         )
+        Spacer(Modifier.height(8.dp))
         LazyColumn(
             modifier = Modifier.fillMaxSize().then(swipeModifier),
             verticalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
+            contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
         ) {
             item {
                 TournamentHeadToHeadSummary(won = won, drew = drew, lost = lost)
@@ -611,7 +617,7 @@ private fun TournamentModelHeadToHeadViewScreen(
                     )
                 }
             } else {
-                val match = matches[safeMatchIndex]
+                val match = activeMatch ?: matches[safeMatchIndex]
                 item {
                     TournamentHeadToHeadCounter(current = safeMatchIndex + 1, total = matches.size)
                 }
@@ -656,13 +662,18 @@ private fun TournamentHeadToHeadCounter(current: Int, total: Int) {
         color = AppColors.TextTertiary,
         fontSize = 12.sp,
         fontWeight = FontWeight.SemiBold,
+        textAlign = TextAlign.End,
         modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
     )
 }
 
 @Composable
 private fun TournamentHeadToHeadCard(match: TournamentViewMatch, agentId: String) {
-    val opponent = if (match.firstAgentId == agentId) match.secondLabel else match.firstLabel
+    val opponent = if (match.firstAgentId == agentId) {
+        "B - ${match.secondLabel}"
+    } else {
+        "A - ${match.firstLabel}"
+    }
     Column(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
@@ -791,6 +802,12 @@ private fun tournamentResponseColor(match: TournamentViewMatch, agentId: String)
         wins > 0 || draws > 0 -> AppColors.Blue
         else -> AppColors.TextSecondary
     }
+}
+
+private fun tournamentRoleFor(match: TournamentViewMatch, agentId: String): String? = when (agentId) {
+    match.firstAgentId -> "A"
+    match.secondAgentId -> "B"
+    else -> null
 }
 
 private fun steppedMatchIndex(current: Int, size: Int, delta: Int): Int {
