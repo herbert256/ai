@@ -586,6 +586,7 @@ private fun HelpIconTable() {
     val rows = listOf(
         Triple("◀", "Back", "Previous screen."),
         Triple("🏠", "Home", "Returns here from anywhere."),
+        Triple("❔", "Icons help", "Lists every icon on the current screen (the legend). Shown when the bar carries more than a few icons."),
         Triple("❓", "Help", "Opens topic-specific help for the current screen."),
         Triple("ℹ️", "Info", "Drills into model info or another details target."),
         Triple("📋", "Copy", "Copies the screen's main payload to the system clipboard (report text, trace JSON, chat transcript, …)."),

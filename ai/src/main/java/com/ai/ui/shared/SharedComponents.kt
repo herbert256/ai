@@ -1986,6 +1986,28 @@ private fun IconLegendOverlay(
                         }
                         HorizontalDivider(color = AppColors.DividerDark)
                     }
+                    // The ❔ icons-help itself — the white question mark in the
+                    // bottom bar that opens this very list.
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable { onClose() }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
+                            Text("❔", fontSize = 30.sp, color = Color.White)
+                        }
+                        Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+                            Text(
+                                "Icons help", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Opens this list of every icon on the screen. The red ❓ below opens the full help page.",
+                                color = AppColors.TextTertiary, fontSize = 13.sp, lineHeight = 16.sp
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = AppColors.DividerDark)
                 }
                 // The overlay's own icons bar: just a red ❓ → the full icon table.
                 Row(
