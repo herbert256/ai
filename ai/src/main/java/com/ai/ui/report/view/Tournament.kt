@@ -58,7 +58,7 @@ import kotlinx.coroutines.withContext
  * Content-only "View" screen for a tournament's AGGREGATE ranking row.
  * Renders the head-to-head ranking through the shared [RerankTable]
  * (the aggregate `content` is rerank-shaped JSON), with a 3-way method
- * toggle (Copeland / Bradley–Terry / Elo / Points / Schulze / Markov) that recomputes locally from
+ * toggle (Copeland / Elo / Points / Schulze / Markov) that recomputes locally from
  * the stored win matrix — no API calls — and a per-match list so the
  * user can inspect every judged pair.
  */
@@ -186,9 +186,6 @@ fun TournamentViewScreen(
                 MethodChip("Copeland", TournamentMethod.COPELAND == currentMethod) {
                     if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.COPELAND) }
                 }
-                MethodChip("Bradley–Terry", TournamentMethod.BRADLEY_TERRY == currentMethod) {
-                    if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.BRADLEY_TERRY) }
-                }
                 MethodChip("Elo", TournamentMethod.ELO == currentMethod) {
                     if (row != null) scope.launch(Dispatchers.IO) { applyTournamentMethod(context, reportId, resultId, TournamentMethod.ELO) }
                 }
@@ -207,11 +204,10 @@ fun TournamentViewScreen(
             // that model's head-to-heads on its own screen.
             val rankRows = row?.content?.let { parseRerankRows(it) }
             if (rankRows != null && rankRows.isNotEmpty()) {
-                // Copeland / Points / Bradley-Terry always show one
+                // Copeland / Points / Schulze / Markov always show one
                 // decimal (even 100.0); Elo keeps natural formatting.
                 val scoreDecimals = if (currentMethod == TournamentMethod.COPELAND ||
                     currentMethod == TournamentMethod.POINTS ||
-                    currentMethod == TournamentMethod.BRADLEY_TERRY ||
                     currentMethod == TournamentMethod.SCHULZE ||
                     currentMethod == TournamentMethod.MARKOV) 1 else null
                 RerankTable(

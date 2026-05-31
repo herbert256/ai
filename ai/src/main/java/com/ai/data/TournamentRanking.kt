@@ -16,7 +16,7 @@ import com.google.gson.JsonParser
  * (`extractTopRankedIds`).
  */
 
-enum class TournamentMethod { COPELAND, BRADLEY_TERRY, ELO, POINTS, SCHULZE, MARKOV }
+enum class TournamentMethod { COPELAND, ELO, POINTS, SCHULZE, MARKOV }
 
 /** Square win matrix over the tournament's responses. [ids] are the
  *  1-based `[N]` ids (the same the @RESULTS@ block / rerank JSON use);
@@ -90,7 +90,6 @@ fun computeWinMatrix(matches: List<MatchState>, idForAgentId: (String) -> Int?):
 /** Dispatch to the chosen aggregation method. */
 fun rankFor(method: TournamentMethod, m: WinMatrix): List<RankRow> = when (method) {
     TournamentMethod.COPELAND -> copeland(m)
-    TournamentMethod.BRADLEY_TERRY -> bradleyTerry(m)
     TournamentMethod.ELO -> elo(m)
     TournamentMethod.POINTS -> points(m)
     TournamentMethod.SCHULZE -> schulze(m)
@@ -108,53 +107,6 @@ fun copeland(m: WinMatrix): List<RankRow> {
         Triple(m.ids[i], w, 100.0 * w / games)
     }
     return assignRanks(scored.map { RankScored(it.first, it.third, "Won %.1f of %d head-to-heads".format(it.second, games)) })
-}
-
-/** Bradley–Terry: estimate a latent strength p_i per response via the
- *  standard MM iteration `p_i ← W_i / Σ_{j≠i} n_ij/(p_i+p_j)`, then rank
- *  by strength. score = strength rescaled so the strongest is 100. A
- *  small prior pseudo-count keeps an all-win / all-loss response from
- *  diverging. */
-fun bradleyTerry(m: WinMatrix): List<RankRow> {
-    val n = m.n
-    if (n == 0) return emptyList()
-    if (n == 1) return listOf(RankRow(m.ids[0], 1, 100.0, "Only response"))
-    // Add a tiny symmetric prior (0.5 win each way vs a virtual opponent
-    // pool) so totals can't be 0 and strengths stay finite.
-    val prior = 0.25
-    val wins = Array(n) { i -> DoubleArray(n) { j -> m.wins[i][j] } }
-    val totalWins = DoubleArray(n) { i -> (0 until n).sumOf { j -> wins[i][j] } + prior }
-    // games between i and j: 1.0 for every contested pair, else 0.
-    val games = Array(n) { i ->
-        DoubleArray(n) { j -> if (i == j) 0.0 else if (wins[i][j] + wins[j][i] > 0.0) 1.0 else 0.0 }
-    }
-    var p = DoubleArray(n) { 1.0 }
-    repeat(200) {
-        val next = DoubleArray(n)
-        for (i in 0 until n) {
-            var denom = prior / (p[i] + 1.0) // virtual prior opponent at strength 1
-            for (j in 0 until n) {
-                if (i == j) continue
-                val nij = games[i][j]
-                if (nij > 0.0) denom += nij / (p[i] + p[j])
-            }
-            next[i] = if (denom > 0.0) totalWins[i] / denom else p[i]
-        }
-        // Renormalize to Σp = n to stop drift.
-        val sum = next.sum()
-        if (sum > 0.0) for (i in 0 until n) next[i] = next[i] * n / sum
-        var maxDelta = 0.0
-        for (i in 0 until n) maxDelta = maxOf(maxDelta, kotlin.math.abs(next[i] - p[i]) / (p[i] + 1e-9))
-        p = next
-        if (maxDelta < 1e-6) return@repeat
-    }
-    val maxP = p.maxOrNull() ?: 1.0
-    val scored = (0 until n).map { i ->
-        // Score rescaled so the strongest is 100, kept to ONE decimal.
-        val raw = if (maxP > 0.0) 100.0 * p[i] / maxP else 0.0
-        RankScored(m.ids[i], Math.round(raw * 10.0) / 10.0, "Strength %.3f".format(p[i]))
-    }
-    return assignRanks(scored)
 }
 
 /** Chess-style points over the actual ordered judgments: 1 for a clear
@@ -304,7 +256,7 @@ fun markov(m: WinMatrix): List<RankRow> {
  *  single game scored by the pair's fractional result, updating ratings
  *  K=32 from a 1500 base. NOTE: Elo is order-sensitive; the fixed id
  *  ordering makes the result reproducible but is a weaker fit for a
- *  static round-robin than Copeland / Bradley–Terry. */
+ *  static round-robin than Copeland / Schulze / Markov. */
 fun elo(m: WinMatrix): List<RankRow> {
     val n = m.n
     if (n == 0) return emptyList()
