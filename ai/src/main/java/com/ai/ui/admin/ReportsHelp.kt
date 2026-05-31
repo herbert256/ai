@@ -1,6 +1,15 @@
 package com.ai.ui.admin
 
 internal val reportsHelp: Map<String, HelpContent> = mapOf(
+    "value_view" to HelpContent(
+        title = "Help - Value view",
+        cards = listOf(
+            HelpCard("What this is", "A cost × quality map of the models in this report. The horizontal axis is each model's cost; the vertical axis is its rerank score (quality). It answers \"which model gives most of the quality for the least cost?\". It only appears once the report has a Rerank — that's where the quality scores come from."),
+            HelpCard("How to read it", "Top-left is the sweet spot: cheap and high-scoring. 💎 marks the best-value model (the most quality per cost on the frontier). The blue line is the Pareto frontier — the models that aren't beaten on both cost and quality. Dimmed points are 'dominated': another model is at least as good for the same or less money."),
+            HelpCard("Where it comes from", "Pure derivation — no new API calls. It reuses the per-agent cost already stored on the report and the scores from the most recent Rerank. Scores are model-scaled (e.g. 0–1 vs 0–100), so the quality axis auto-scales to this report's range."),
+            HelpCard("List below the chart", "Each model with its cost and score, sorted best-value first, badged 💎 Best value / Pareto / dominated.")
+        )
+    ),
     "report_notes" to HelpContent(
         title = "Help - User notes",
         cards = listOf(

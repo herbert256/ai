@@ -194,6 +194,19 @@ internal fun ViewAiReportScreen(
         }
         return
     }
+    // Value view — cost × quality (Pareto) frontier, shown only when a
+    // rerank exists (see the conditional tile below). Same overlay
+    // pattern as Costs.
+    var showValueView by rememberSaveable(resetTick) { mutableStateOf(false) }
+    if (showValueView) {
+        val backToMain: () -> Unit = { showValueView = false }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            ValueViewScreen(reportId = reportId, onBack = backToMain)
+        }
+        return
+    }
     // Side-channel populated by sub-View overlays whose own back
     // callback bubbles a freshly-picked language (Meta / Fan-in /
     // PromptViewScreen / etc.). [selectedViewLangKey] lives much
@@ -842,7 +855,7 @@ internal fun ViewAiReportScreen(
     // Re-keyed on currentLanguageState.value so the per-tile
     // `enabled` flag re-evaluates when the View picker changes.
     val currentLang = currentLanguageState.value
-    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, onOpenHtmlPreview, onViewIcons) {
+    val docTiles = remember(perModelIconGenEnabled, currentLang, promptAvailableLangs, reportsAvailableLangs, loadedReport, reportLanguageName, reportIcon, onOpenHtmlPreview, onViewIcons, everyItems) {
         val promptEnabled = currentLang in promptAvailableLangs
         val reportsEnabled = currentLang in reportsAvailableLangs
         buildList {
@@ -880,6 +893,11 @@ internal fun ViewAiReportScreen(
             // result page's bottom-bar icons (📜 App Log, 🐞 Trace
             // list).
             add(IdentifiedTile("doc:Icons", ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons() }))
+            // Value view — cost × quality frontier. Only meaningful with a
+            // rerank to supply per-model quality scores.
+            if (everyItems["rerank"].orEmpty().isNotEmpty()) {
+                add(IdentifiedTile("doc:Value", ViewTile("Value view", "💎", AppColors.Green) { showValueView = true }))
+            }
         }
     }
 
