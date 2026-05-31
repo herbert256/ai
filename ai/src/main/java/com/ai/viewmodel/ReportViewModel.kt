@@ -93,12 +93,49 @@ data class ReasoningEffortSweepState(
     }
 }
 
+sealed class WebSearchReplayResult {
+    data object Pending : WebSearchReplayResult()
+    data object Running : WebSearchReplayResult()
+    data class Success(
+        val response: String,
+        val tokenUsage: TokenUsage?,
+        val cost: Double?,
+        val durationMs: Long,
+        val traceFile: String?
+    ) : WebSearchReplayResult()
+    data class Error(
+        val message: String,
+        val httpStatusCode: Int?,
+        val durationMs: Long?,
+        val traceFile: String?
+    ) : WebSearchReplayResult()
+}
+
+data class WebSearchReplayState(
+    val reportId: String,
+    val agentId: String,
+    val result: WebSearchReplayResult = WebSearchReplayResult.Pending,
+    val isRunning: Boolean = false,
+    val unavailableMessage: String? = null
+) {
+    companion object {
+        fun key(reportId: String, agentId: String): String = "$reportId|$agentId"
+    }
+}
+
+private const val WEB_SEARCH_REPLAY_PROMPT_SUFFIX =
+    "Give the most actual information, do a websearch for this."
+
 private fun formatSweepTemperature(value: Float): String =
     if (value % 1f == 0f) value.toInt().toString()
     else String.format(Locale.US, "%.2f", value).trimEnd('0').trimEnd('.')
 
 private fun formatSweepReasoningEffort(effort: String?): String =
     effort?.replaceFirstChar { it.uppercase() } ?: "None"
+
+private fun webSearchReplayPrompt(prompt: String): String =
+    if (prompt.isBlank()) WEB_SEARCH_REPLAY_PROMPT_SUFFIX
+    else prompt.trimEnd() + "\n\n" + WEB_SEARCH_REPLAY_PROMPT_SUFFIX
 
 /**
  * ViewModel for AI report generation: task building, concurrent execution, cost calculation.
@@ -114,6 +151,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private val reasoningEffortSweepJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
     private val _reasoningEffortSweepStates = MutableStateFlow<Map<String, ReasoningEffortSweepState>>(emptyMap())
     val reasoningEffortSweepStates: StateFlow<Map<String, ReasoningEffortSweepState>> = _reasoningEffortSweepStates.asStateFlow()
+    private val webSearchReplayJobs = java.util.concurrent.ConcurrentHashMap<String, Job>()
+    private val _webSearchReplayStates = MutableStateFlow<Map<String, WebSearchReplayState>>(emptyMap())
+    val webSearchReplayStates: StateFlow<Map<String, WebSearchReplayState>> = _webSearchReplayStates.asStateFlow()
 
     /** In-flight regenerate jobs (single-agent regenerateAgent +
      *  forceRegenerateAllAgents), keyed by reportId, so deleteReport can
@@ -1236,7 +1276,186 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         return job
     }
 
+    private fun updateWebSearchReplayState(key: String, transform: (WebSearchReplayState) -> WebSearchReplayState) {
+        _webSearchReplayStates.update { current ->
+            val existing = current[key] ?: return@update current
+            current + (key to transform(existing))
+        }
+    }
 
+    fun clearWebSearchReplay(reportId: String, agentId: String) {
+        val key = WebSearchReplayState.key(reportId, agentId)
+        webSearchReplayJobs.remove(key)?.cancel()
+        _webSearchReplayStates.update { it - key }
+    }
+
+    fun applyWebSearchReplay(context: Context, reportId: String, agentId: String) {
+        val key = WebSearchReplayState.key(reportId, agentId)
+        val result = _webSearchReplayStates.value[key]?.result as? WebSearchReplayResult.Success ?: return
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            ReportStorage.applyAgentChatResponse(context, reportId, agentId, result.response)
+            _webSearchReplayStates.update { it - key }
+        }
+    }
+
+    fun startWebSearchReplay(
+        context: Context,
+        reportId: String,
+        agentId: String
+    ): Job {
+        val key = WebSearchReplayState.key(reportId, agentId)
+        webSearchReplayJobs.remove(key)?.cancel()
+        _webSearchReplayStates.update {
+            it + (key to WebSearchReplayState(
+                reportId = reportId,
+                agentId = agentId,
+                result = WebSearchReplayResult.Running,
+                isRunning = true
+            ))
+        }
+        val job = appViewModel.viewModelScope.launch(reportLogContext(reportId)) {
+            try {
+                val report = ReportStorage.getReport(context, reportId) ?: run {
+                    updateWebSearchReplayState(key) {
+                        it.copy(
+                            isRunning = false,
+                            result = WebSearchReplayResult.Error("Report not found", null, null, null),
+                            unavailableMessage = "Report not found"
+                        )
+                    }
+                    return@launch
+                }
+                val state = appViewModel.uiState.value
+                val ai = state.aiSettings
+                val savedAgent = report.agents.firstOrNull { it.agentId == agentId } ?: run {
+                    val msg = "Model response no longer exists in this report"
+                    updateWebSearchReplayState(key) {
+                        it.copy(
+                            isRunning = false,
+                            result = WebSearchReplayResult.Error(msg, null, null, null),
+                            unavailableMessage = msg
+                        )
+                    }
+                    return@launch
+                }
+                val task = buildTemperatureSweepTask(report, state, savedAgent) ?: run {
+                    val msg = "Model response no longer matches a runnable report agent"
+                    updateWebSearchReplayState(key) {
+                        it.copy(
+                            isRunning = false,
+                            result = WebSearchReplayResult.Error(msg, null, null, null),
+                            unavailableMessage = msg
+                        )
+                    }
+                    return@launch
+                }
+                if (!ai.isWebSearchCapable(task.runtimeAgent.provider, task.runtimeAgent.model)) {
+                    val msg = "${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} does not report web-search support."
+                    updateWebSearchReplayState(key) {
+                        it.copy(
+                            isRunning = false,
+                            result = WebSearchReplayResult.Error(msg, null, null, null),
+                            unavailableMessage = msg
+                        )
+                    }
+                    return@launch
+                }
+                val canReason = ai.acceptsReasoningEffortParam(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val canVision = ai.isVisionCapable(task.runtimeAgent.provider, task.runtimeAgent.model)
+                val baseOverride = resolveReportOverrideParams(
+                    ai, report.parameterPresetIds, report.advancedParameters,
+                    report.webSearchTool, report.reasoningEffort
+                )
+                val webOverride = (baseOverride ?: AgentParameters()).copy(
+                    webSearchTool = true,
+                    reasoningEffort = if (canReason) baseOverride?.reasoningEffort else null
+                )
+                val resolvedParams = if (canReason) task.resolvedParams else task.resolvedParams.copy(reasoningEffort = null)
+                val effectiveImage = if (canVision) report.imageBase64 else null
+                val effectiveImageMime = if (canVision) report.imageMime else null
+                val baseUrl = ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
+                val knowledgeBaseIds = report.knowledgeBaseIds
+                val replayPrompt = webSearchReplayPrompt(report.prompt)
+
+                withTracerTags(reportId = reportId, category = MODEL_WEB_SEARCH_CALL_KIND) {
+                    val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                    val startTime = System.currentTimeMillis()
+                    val response = try {
+                        ApiCallCaps.global.withPermit {
+                            ApiCallCaps.report.withPermit {
+                                val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                try {
+                                    withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
+                                        withTraceFilenameSink(traceSink) {
+                                            appViewModel.repository.analyzeWithAgentStreaming(
+                                                task.runtimeAgent, "", replayPrompt,
+                                                resolvedParams, webOverride,
+                                                context, baseUrl, effectiveImage, effectiveImageMime,
+                                                knowledgeBaseIds = knowledgeBaseIds,
+                                                aiSettings = ai
+                                            ) { /* transient comparison; no live preview */ }
+                                        }
+                                    }
+                                } finally {
+                                    releaser.release()
+                                }
+                            }
+                        }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        AnalysisResponse(
+                            service = task.runtimeAgent.provider,
+                            analysis = null,
+                            error = (e.message ?: "Unknown error").take(2000)
+                        )
+                    }
+                    val durationMs = System.currentTimeMillis() - startTime
+                    val cost = calculateResponseCost(context, task.runtimeAgent.provider, task.runtimeAgent.model, response.tokenUsage)
+                    val traceFile = traceSink.get()
+                    if (response.error == null && response.tokenUsage != null) {
+                        val usage = response.tokenUsage
+                        appViewModel.settingsPrefs.updateUsageStatsAsync(
+                            task.runtimeAgent.provider, task.runtimeAgent.model,
+                            usage.inputTokens, usage.outputTokens, usage.totalTokens,
+                            kind = MODEL_WEB_SEARCH_CALL_KIND
+                        )
+                    }
+                    val result = if (response.isSuccess && !response.analysis.isNullOrBlank()) {
+                        WebSearchReplayResult.Success(
+                            response = response.analysis,
+                            tokenUsage = response.tokenUsage,
+                            cost = cost,
+                            durationMs = durationMs,
+                            traceFile = traceFile
+                        )
+                    } else {
+                        WebSearchReplayResult.Error(
+                            message = response.error ?: "No response body",
+                            httpStatusCode = response.httpStatusCode,
+                            durationMs = durationMs,
+                            traceFile = traceFile
+                        )
+                    }
+                    updateWebSearchReplayState(key) { it.copy(isRunning = false, result = result) }
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                val msg = (e.message ?: "Web search replay failed").take(2000)
+                updateWebSearchReplayState(key) {
+                    it.copy(
+                        isRunning = false,
+                        result = WebSearchReplayResult.Error(msg, null, null, null),
+                        unavailableMessage = msg
+                    )
+                }
+            }
+        }
+        webSearchReplayJobs[key] = job
+        job.invokeOnCompletion { webSearchReplayJobs.remove(key, job) }
+        return job
+    }
 
     /** Run [reportTasks]' primary calls for [reportId], interleaved by host
      *  and throttled (global → report → per-host), each firing its own

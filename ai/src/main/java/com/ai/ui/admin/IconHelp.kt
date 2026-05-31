@@ -308,6 +308,7 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
         Triple("🗣️", "Refine", "Chat with this model to refine its answer; Apply folds a reply back into the report."),
         Triple("🌡️", "Temperature sweep", "Run three replay calls at different temperatures and choose one response."),
         Triple("🧠", "Reasoning Effort", "Run replay calls with None, Low, Medium and High reasoning effort and choose one response."),
+        Triple("🧭", "Web search replay", "Replay this model response with web search enabled and choose the fresh response."),
         Triple("✍️", "Add note", "Attach a free-text note to this model response."),
         Triple("🌐", "Compare", "Show the original and its translation side by side."),
         Triple("🔄", "Regenerate", "Re-run this single model."),

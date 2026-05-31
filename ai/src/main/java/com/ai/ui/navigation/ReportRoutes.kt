@@ -549,6 +549,7 @@ internal fun NavGraphBuilder.reportRoutes(
             val rmScope = rememberCoroutineScope()
             val temperatureSweepStates by reportViewModel.temperatureSweepStates.collectAsState()
             val reasoningEffortSweepStates by reportViewModel.reasoningEffortSweepStates.collectAsState()
+            val webSearchReplayStates by reportViewModel.webSearchReplayStates.collectAsState()
             com.ai.ui.navigation.ViewSubScreenWithTitleNav(
                 navController = navController,
                 currentReportId = rid
@@ -582,6 +583,16 @@ internal fun NavGraphBuilder.reportRoutes(
                     },
                     onClearReasoningEffortSweep = { r, a ->
                         reportViewModel.clearReasoningEffortSweep(r, a)
+                    },
+                    webSearchReplayStates = webSearchReplayStates,
+                    onStartWebSearchReplay = { r, a ->
+                        reportViewModel.startWebSearchReplay(rmContext, r, a)
+                    },
+                    onApplyWebSearchReplay = { r, a ->
+                        reportViewModel.applyWebSearchReplay(rmContext, r, a)
+                    },
+                    onClearWebSearchReplay = { r, a ->
+                        reportViewModel.clearWebSearchReplay(r, a)
                     },
                     onContinueWithCurrent = { r, a ->
                         rmScope.launch {

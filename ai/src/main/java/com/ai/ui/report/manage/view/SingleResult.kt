@@ -37,6 +37,7 @@ import com.ai.ui.shared.horizontalSwipeNavigation
 import com.ai.ui.shared.modelInfoClickable
 import com.ai.viewmodel.ReasoningEffortSweepState
 import com.ai.viewmodel.TemperatureSweepState
+import com.ai.viewmodel.WebSearchReplayState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -99,7 +100,11 @@ fun ReportModelScreen(
     reasoningEffortSweepStates: Map<String, ReasoningEffortSweepState> = emptyMap(),
     onStartReasoningEffortSweep: (String, String, List<String?>) -> Unit = { _, _, _ -> },
     onApplyReasoningEffortCandidate: (String, String, Int) -> Unit = { _, _, _ -> },
-    onClearReasoningEffortSweep: (String, String) -> Unit = { _, _ -> }
+    onClearReasoningEffortSweep: (String, String) -> Unit = { _, _ -> },
+    webSearchReplayStates: Map<String, WebSearchReplayState> = emptyMap(),
+    onStartWebSearchReplay: (String, String) -> Unit = { _, _ -> },
+    onApplyWebSearchReplay: (String, String) -> Unit = { _, _ -> },
+    onClearWebSearchReplay: (String, String) -> Unit = { _, _ -> }
 ) {
     // Track which agent is currently shown locally so the Previous /
     // Next buttons at the bottom can step through report.agents
@@ -129,6 +134,7 @@ fun ReportModelScreen(
     }
     var showTemperatureSweep by remember { mutableStateOf(false) }
     var showReasoningEffortSweep by remember { mutableStateOf(false) }
+    var showWebSearchReplay by remember { mutableStateOf(false) }
     BackHandler { onBack() }
     val context = LocalContext.current
     // Re-key on the report data version so an in-place edit (🗣️ refine
@@ -192,6 +198,32 @@ fun ReportModelScreen(
             onBack = {
                 onClearReasoningEffortSweep(reportId, sweepAgentId)
                 showReasoningEffortSweep = false
+            }
+        )
+        return
+    }
+
+    if (showWebSearchReplay) {
+        val replayAgentId = currentAgentId
+        WebSearchReplayScreen(
+            reportId = reportId,
+            agentId = replayAgentId,
+            modelLabel = agent?.let {
+                provider?.let { p -> com.ai.ui.shared.modelLabel(p.id, it.model, separator = " — ") }
+                    ?: it.model
+            } ?: "Model response",
+            originalResponse = agent?.responseBody,
+            state = webSearchReplayStates[WebSearchReplayState.key(reportId, replayAgentId)],
+            onStart = { onStartWebSearchReplay(reportId, replayAgentId) },
+            onUseResponse = {
+                onApplyWebSearchReplay(reportId, replayAgentId)
+                onClearWebSearchReplay(reportId, replayAgentId)
+                showWebSearchReplay = false
+            },
+            onTrace = onNavigateToTraceFile,
+            onBack = {
+                onClearWebSearchReplay(reportId, replayAgentId)
+                showWebSearchReplay = false
             }
         )
         return
@@ -425,6 +457,7 @@ fun ReportModelScreen(
             onAgentChat = if (canContinueInChat) { { showAgentChat = true } } else null,
             onTemperatureSweep = { showTemperatureSweep = true },
             onReasoningEffortSweep = { showReasoningEffortSweep = true },
+            onWebSearchReplay = { showWebSearchReplay = true },
             onTranslationCompare = if (liveAgentTranslate != null && !agent.responseBody.isNullOrBlank() && !liveAgentTranslate.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }
             } else null,

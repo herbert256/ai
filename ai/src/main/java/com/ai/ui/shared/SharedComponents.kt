@@ -713,6 +713,8 @@ data class TitleBarIcons(
     val onTemperatureSweep: (() -> Unit)? = null,
     /** Optional 🧠 reasoning-effort sweep hook (Model response). */
     val onReasoningEffortSweep: (() -> Unit)? = null,
+    /** Optional 🧭 web-search replay hook (Model response). */
+    val onWebSearchReplay: (() -> Unit)? = null,
     val onInfo: (() -> Unit)?,
     /** Optional 👁 view-report hook. Distinct from [onInfo] (ℹ️
      *  Model Info) — this one opens the View tile grid for the
@@ -969,6 +971,10 @@ fun TitleBar(
      *  None / Low / Medium / High candidate runner for a model response.
      *  Null → glyph hidden. */
     onReasoningEffortSweep: (() -> Unit)? = null,
+    /** Optional 🧭 web-search replay hook — replays this model response
+     *  with the native web-search tool enabled and lets the user apply
+     *  that body back into the report. Null → glyph hidden. */
+    onWebSearchReplay: (() -> Unit)? = null,
     /** Optional 📋 copy-to-clipboard hook. Wire it from screens that
      *  display substantial copyable text (agent response, raw JSON,
      *  prompt body, translated text, redacted trace bytes, …). Null →
@@ -1110,6 +1116,7 @@ fun TitleBar(
         onAgentChat = onAgentChat,
         onTemperatureSweep = onTemperatureSweep,
         onReasoningEffortSweep = onReasoningEffortSweep,
+        onWebSearchReplay = onWebSearchReplay,
         onInfo = onInfo,
         onOpenView = onOpenView,
         onOpenManage = onOpenManage,
@@ -1591,6 +1598,7 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     icons.onAgentChat?.let { add(BottomBarIcon("🗣️", Color.Unspecified, it, 28)) }
     icons.onTemperatureSweep?.let { add(BottomBarIcon("🌡️", Color.Unspecified, it, 28)) }
     icons.onReasoningEffortSweep?.let { add(BottomBarIcon("🧠", Color.Unspecified, it, 28)) }
+    icons.onWebSearchReplay?.let { add(BottomBarIcon("🧭", Color.Unspecified, it, 28)) }
     // 🗂️ pick another report (same glyph as the View hub's picker) —
     // leads the nav group on the Manage screens that support it.
     icons.onPickReport?.let { add(BottomBarIcon("🗂️", Color.Unspecified, it, 28)) }

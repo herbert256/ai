@@ -44,6 +44,7 @@ import com.ai.viewmodel.IconCandidate
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.ReasoningEffortSweepState
 import com.ai.viewmodel.TemperatureSweepState
+import com.ai.viewmodel.WebSearchReplayState
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -112,6 +113,10 @@ internal fun ReportPrimaryOverlays(
     onStartReasoningEffortSweep: (String, String, List<String?>) -> Unit,
     onApplyReasoningEffortCandidate: (String, String, Int) -> Unit,
     onClearReasoningEffortSweep: (String, String) -> Unit,
+    webSearchReplayStates: Map<String, WebSearchReplayState>,
+    onStartWebSearchReplay: (String, String) -> Unit,
+    onApplyWebSearchReplay: (String, String) -> Unit,
+    onClearWebSearchReplay: (String, String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
     onOpenAgentIcon: (String) -> Unit,
     onSecondaryRefresh: () -> Unit,
@@ -518,7 +523,11 @@ internal fun ReportPrimaryOverlays(
                 reasoningEffortSweepStates = reasoningEffortSweepStates,
                 onStartReasoningEffortSweep = onStartReasoningEffortSweep,
                 onApplyReasoningEffortCandidate = onApplyReasoningEffortCandidate,
-                onClearReasoningEffortSweep = onClearReasoningEffortSweep
+                onClearReasoningEffortSweep = onClearReasoningEffortSweep,
+                webSearchReplayStates = webSearchReplayStates,
+                onStartWebSearchReplay = onStartWebSearchReplay,
+                onApplyWebSearchReplay = onApplyWebSearchReplay,
+                onClearWebSearchReplay = onClearWebSearchReplay
             )
         }
         return true

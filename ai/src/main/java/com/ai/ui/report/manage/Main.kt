@@ -55,6 +55,7 @@ import com.ai.viewmodel.ReasoningEffortSweepState
 import com.ai.viewmodel.TemperatureSweepState
 import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.UiState
+import com.ai.viewmodel.WebSearchReplayState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -247,6 +248,10 @@ fun ReportsScreen(
     onStartReasoningEffortSweep: (String, String, List<String?>) -> Unit = { _, _, _ -> },
     onApplyReasoningEffortCandidate: (String, String, Int) -> Unit = { _, _, _ -> },
     onClearReasoningEffortSweep: (String, String) -> Unit = { _, _ -> },
+    webSearchReplayStates: Map<String, WebSearchReplayState> = emptyMap(),
+    onStartWebSearchReplay: (String, String) -> Unit = { _, _ -> },
+    onApplyWebSearchReplay: (String, String) -> Unit = { _, _ -> },
+    onClearWebSearchReplay: (String, String) -> Unit = { _, _ -> },
     onExport: suspend (String, ReportExportFormat, ReportExportDetail, ReportExportAction, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _, _, _, _ -> },
     onExportAll: suspend (String, ExportLanguage, (Int, Int) -> Unit) -> Unit = { _, _, _ -> },
     translationRuns: List<com.ai.viewmodel.TranslationRunState> = emptyList(),
@@ -712,6 +717,10 @@ fun ReportsScreen(
             onStartReasoningEffortSweep = onStartReasoningEffortSweep,
             onApplyReasoningEffortCandidate = onApplyReasoningEffortCandidate,
             onClearReasoningEffortSweep = onClearReasoningEffortSweep,
+            webSearchReplayStates = webSearchReplayStates,
+            onStartWebSearchReplay = onStartWebSearchReplay,
+            onApplyWebSearchReplay = onApplyWebSearchReplay,
+            onClearWebSearchReplay = onClearWebSearchReplay,
             onNavigateToModelInfo = onNavigateToModelInfo,
             onOpenAgentIcon = { agentIconDetailFor = it },
             onSecondaryRefresh = onSecondaryRefresh,
