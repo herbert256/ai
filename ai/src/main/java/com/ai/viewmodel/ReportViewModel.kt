@@ -911,7 +911,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                 val baseUrl = ai.getEffectiveEndpointUrlForAgent(task.runtimeAgent)
                 val knowledgeBaseIds = report.knowledgeBaseIds
 
-                withTracerTags(reportId = reportId, category = "model/temperature") {
+                withTracerTags(reportId = reportId, category = MODEL_TEMPERATURE_CALL_KIND) {
                     temps.forEachIndexed { index, temp ->
                         setTemperatureSweepCandidate(key, index, TemperatureSweepCandidate.Running(temp))
                         val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
@@ -955,7 +955,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             appViewModel.settingsPrefs.updateUsageStatsAsync(
                                 task.runtimeAgent.provider, task.runtimeAgent.model,
                                 usage.inputTokens, usage.outputTokens, usage.totalTokens,
-                                kind = "model/temperature"
+                                kind = MODEL_TEMPERATURE_CALL_KIND
                             )
                         }
                         val candidate = if (response.isSuccess && !response.analysis.isNullOrBlank()) {

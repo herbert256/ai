@@ -4,6 +4,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.ai.data.AppService
 import com.ai.data.createAppGson
+import com.ai.data.normalizeUsageKind
 import com.ai.data.writeTextAtomic
 import com.ai.model.*
 import com.ai.viewmodel.GeneralSettings
@@ -428,8 +429,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                     // would NPE on the missing rows when the provider is
                     // expanded.
                     @Suppress("USELESS_CAST")
-                    val stat = if ((raw.kind as String?) == null) raw.copy(kind = "report") else raw
-                    cache[stat.key] = stat
+                    val stat = raw.copy(kind = normalizeUsageKind(raw.kind as String?))
+                    cache.compute(stat.key) { _, existing -> mergeUsageStats(existing, stat) }
                 } catch (_: Exception) { /* skip rows that reference an unknown provider id */ }
             }
             // If the file had rows but every single one failed to deserialise — most likely
@@ -456,10 +457,11 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         // Feed the Live Dashboard's rolling spend/token rate (in-memory, 5-min
         // window) — this is the single chokepoint every token site funnels through.
         com.ai.data.ApiUsageRates.record(provider, model, inputTokens, outputTokens)
+        val normalizedKind = normalizeUsageKind(kind)
         val stats = ensureUsageStatsCache()
-        val key = "${provider.id}::$model::$kind"
+        val key = "${provider.id}::$model::$normalizedKind"
         stats.compute(key) { _, existing ->
-            val base = existing ?: UsageStats(provider, model, kind = kind)
+            val base = existing ?: UsageStats(provider, model, kind = normalizedKind)
             base.copy(
                 callCount = base.callCount + 1,
                 inputTokens = base.inputTokens + inputTokens,
@@ -469,6 +471,14 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         }
         scheduleUsageStatsFlush()
     }
+
+    private fun mergeUsageStats(existing: UsageStats?, incoming: UsageStats): UsageStats =
+        existing?.copy(
+            callCount = existing.callCount + incoming.callCount,
+            inputTokens = existing.inputTokens + incoming.inputTokens,
+            outputTokens = existing.outputTokens + incoming.outputTokens,
+            searchUnits = existing.searchUnits + incoming.searchUnits
+        ) ?: incoming
 
     private fun scheduleUsageStatsFlush() {
         val now = System.currentTimeMillis()
