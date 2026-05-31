@@ -948,7 +948,28 @@ internal fun ColumnScope.GenerationPhase(
                             "$label$langSuffix"
                         } else {
                             val runProv = AppService.findById(run.providerId)?.id ?: run.providerId
-                            "${com.ai.ui.shared.modelLabel(runProv, run.model)}$langSuffix"
+                            // 🔤 toggle (mirrors the agent 'report' rows): meta /
+                            // rerank / moderation rows default to the internal-
+                            // prompt title and switch to the (short) model name
+                            // when the toggle is on. Translate / tournament rows
+                            // always keep the model name.
+                            val togglable = run.kind == SecondaryKind.META ||
+                                run.kind == SecondaryKind.RERANK || run.kind == SecondaryKind.MODERATION
+                            if (togglable && !showModelNamesInReportRows) {
+                                val prompt = aiSettings.internalPrompts.firstOrNull {
+                                    it.id == run.metaPromptId || it.name == run.metaPromptName
+                                }
+                                val title = prompt?.title?.takeIf { it.isNotBlank() }
+                                    ?: run.metaPromptName?.takeIf { it.isNotBlank() }?.let { secondaryPromptDisplayName(it) }
+                                    ?: when (run.kind) {
+                                        SecondaryKind.RERANK -> "Rerank"
+                                        SecondaryKind.MODERATION -> "Moderation"
+                                        else -> "Meta"
+                                    }
+                                "$title$langSuffix"
+                            } else {
+                                "${com.ai.ui.shared.modelLabel(runProv, run.model)}$langSuffix"
+                            }
                         }
                         Text(
                             text,
