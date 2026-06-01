@@ -294,7 +294,12 @@ internal fun rememberReportRuntimeState(
                     outputTokens = all.sumOf { it.tokenUsage?.outputTokens ?: 0 },
                     inputCost = all.sumOf { it.inputCost ?: 0.0 },
                     outputCost = all.sumOf { it.outputCost ?: 0.0 },
-                    fanOutIconCost = all.sumOf { it.iconInputCost + it.iconOutputCost }
+                    // Fan-meta bills title + icon to each pair's row; include
+                    // both so the bar total matches the Report-costs screen
+                    // (which counts the title half as its fan/meta rows).
+                    fanOutMetaCost = all.sumOf {
+                        it.iconInputCost + it.iconOutputCost + it.titleInputCost + it.titleOutputCost
+                    }
                 )
             }
         }

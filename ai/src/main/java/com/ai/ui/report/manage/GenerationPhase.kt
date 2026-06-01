@@ -588,7 +588,7 @@ internal fun ColumnScope.GenerationPhase(
     // value the info row + Get-info screen show), folded into the grand
     // total here so the bottom-bar total stays the true full total.
     val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost +
-        liveTranslationCost + costsFromDeletedItems + secondaryTotals.fanOutIconCost + infoMetaTotal
+        liveTranslationCost + costsFromDeletedItems + secondaryTotals.fanOutMetaCost + infoMetaTotal
     val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
 
     // Report the running total up to the host (ReportRunScreen) so it can
@@ -1526,11 +1526,14 @@ internal data class SecondaryTotals(
     val outputTokens: Int,
     val inputCost: Double,
     val outputCost: Double,
-    /** Sum of `SecondaryResult.iconInputCost + iconOutputCost`
-     *  across every fan-out pair. Folded into the Report-Manage
-     *  grand-total so the per-pair Fan Meta chain spend doesn't
-     *  silently vanish from the headline number. */
-    val fanOutIconCost: Double = 0.0
+    /** The per-fan-out-pair Fan Meta chain spend: `iconInputCost +
+     *  iconOutputCost + titleInputCost + titleOutputCost` across every
+     *  fan-out pair. The fan-meta worker call bills BOTH the title and the
+     *  icon to the pair's SecondaryResult, so summing the icon half alone
+     *  (the old behaviour) under-counted by the title cost — which the
+     *  Report-costs screen counts as its `fan/meta` rows. Folded into the
+     *  Report-Manage grand-total so the two figures agree. */
+    val fanOutMetaCost: Double = 0.0
 ) {
     companion object { val ZERO = SecondaryTotals(0, 0, 0.0, 0.0, 0.0) }
 }
