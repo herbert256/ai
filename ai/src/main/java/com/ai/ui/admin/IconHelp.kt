@@ -14,8 +14,9 @@ package com.ai.ui.admin
  * Where one topic is shared by several screens (CRUD list/view/edit, or
  * manage vs view drill-ins) the row list is the UNION of the icons those
  * screens show. Descriptions are hand-written per screen — trace the
- * TitleBar handler, never guess (e.g. 🆕 on Manage adds an operation, it
- * does NOT start a new report).
+ * TitleBar handler, never guess (e.g. the 🔗 launcher on Manage adds a Meta
+ * analysis, it does NOT start a new report; 🌐 / 🏆 / 🚦 on Manage launch
+ * Translate / Rerank / Moderation, not their content-screen meanings).
  */
 /** Shared by the six icon-lookup screens (main / agent / meta /
  *  translation / language / pair) — same screen, same icons. */
@@ -31,22 +32,24 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
 
     // ===== Report flow (top level) =====
     "report_run" to listOf(
-        Triple("🆕", "Create", "Add an operation to this report: Meta, Rerank, Moderation, Compare or Translate."),
-        Triple("🔱", "Fan Out", "Open this report's Fan Out, or start a new Fan Out when none exists yet."),
+        Triple("🔗", "Meta", "Add a meta analysis to this report: a Meta prompt over the answers, or Compare with meta."),
+        Triple("🔱", "Fan Out", "Open this report's Fan Out, or start a new one when none exists yet."),
+        Triple("🥊", "Tournament", "Head-to-head tools: run a Tournament over the answers, or Judge the judges."),
+        Triple("🌐", "Translate", "Translate the report into one or more other languages."),
+        Triple("🏆", "Rerank", "Rank the answers best-first — opens the report's rerank, or picks a model to run one."),
+        Triple("🚦", "Moderation", "Safety-check the answers — opens the report's moderation, or picks a model to run one."),
         Triple("💬", "Chat", "Start a chat seeded with this report's prompt."),
         Triple("🗂️", "Switch report", "Pick another report to manage."),
-        Triple("ℹ️", "Information", "The per-report info screen."),
-        Triple("🌡️", "Parameters", "Pick the preset(s) used as this report's parameters on the next Regenerate."),
-        Triple("🎭", "System prompt", "Pick the system prompt used for this report."),
+        Triple("ℹ️", "Information", "Open the per-report info screen."),
         Triple("📌", "Pin / unpin", "Keep this report at the top of the lists (orange when pinned)."),
-        Triple("🔤", "Row labels", "Switch report, meta, rerank and moderation rows between their titles (generated / internal-prompt) and the model name."),
+        Triple("🔤", "Row labels", "Toggle the report / meta / rerank / moderation rows between their titles and the model name."),
         Triple("📤", "Export", "Export / share the report (once the run has completed)."),
         Triple("👯", "Duplicate", "Make a copy of this report."),
         Triple("👁", "View", "Open the per-agent results / View hub for this report."),
         Triple("✍️", "Add note", "Attach a free-text note to this report."),
         Triple("📒", "Notes", "Show every user note in this report."),
-        Triple("✏️", "Edit", "Change the prompt, title, or models."),
-        Triple("🔄", "Regenerate", "Re-run every agent (once the run has completed)."),
+        Triple("✏️", "Edit", "Change the prompt, title, models, parameters or system prompt."),
+        Triple("🔄", "Regenerate", "Re-run every agent and existing operation (once the run has completed)."),
         Triple("🗑", "Delete", "Delete this report (asks to confirm)."),
         Triple("🐞", "Trace", "API traces for this report (each agent row has its own 🐞)."),
     ),
@@ -409,6 +412,11 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
  *  shows an icon + name + description. Per-screen entries take precedence. */
 internal val DEFAULT_BAR_ICON_HELP: Map<String, Pair<String, String>> = mapOf(
     "🆕" to ("Create" to "Add a new item or operation."),
+    "🔗" to ("Meta" to "Add a meta analysis (Meta / Compare with meta)."),
+    "🔱" to ("Fan Out" to "Open or start a Fan Out."),
+    "🥊" to ("Tournament" to "Head-to-head Tournament / Judge the judges."),
+    "🏆" to ("Rerank" to "Rank the answers best-first."),
+    "🚦" to ("Moderation" to "Safety-check the answers."),
     "💬" to ("Chat" to "Start a chat from here."),
     "🗂️" to ("Switch" to "Pick another report to work on."),
     "🔧" to ("Manage" to "Open the manage screen."),
