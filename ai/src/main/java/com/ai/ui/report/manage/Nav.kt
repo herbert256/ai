@@ -791,6 +791,11 @@ internal fun SeedInitialManageOverlay(st: ReportsScreenState) {
             com.ai.ui.navigation.ManagePickKind.META -> st.showMetaScreen.value = true
             com.ai.ui.navigation.ManagePickKind.EDIT_PROMPT -> st.showEditPrompt.value = true
             com.ai.ui.navigation.ManagePickKind.EDIT_TITLE -> st.showEditShortTitle.value = true
+            com.ai.ui.navigation.ManagePickKind.COSTS -> {
+                st.selectedAgentForViewer.value = null
+                st.viewerSection.value = "costs"
+                st.showViewer.value = true
+            }
             else -> { /* MANAGE / FAN_OUT / null — nothing to seed */ }
         }
     }

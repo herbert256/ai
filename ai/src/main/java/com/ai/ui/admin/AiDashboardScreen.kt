@@ -357,7 +357,7 @@ fun AiStatisticsScreen(
             item { LinkCard(com.ai.data.MetadataDefaults.COPY, "Reports", "Reports + secondary results totals", onNavigateToReports) }
             item { LinkCard(com.ai.data.MetadataDefaults.PLUG, "Providers", "Per-provider keys, formats, caches, test runs", onNavigateToProviders) }
             item { LinkCard(com.ai.data.MetadataDefaults.MODEL_ICON, "Models", "Capabilities, types, context, states", onNavigateToModels) }
-            item { LinkCard(com.ai.data.MetadataDefaults.COST, "Spend & usage", "Calls, tokens and cost per provider", onNavigateToSpendUsage) }
+            item { LinkCard(com.ai.data.MetadataDefaults.COST, "Spend & usage", "Calls, tokens and cost by provider, type and report", onNavigateToSpendUsage) }
             item { LinkCard(com.ai.data.MetadataDefaults.COMPARE, "Costs tiers", "Pricing tier per model + catalog freshness", onNavigateToCostsTier) }
             item { LinkCard(com.ai.data.MetadataDefaults.TRACES, "Trace statistics", "Aggregate stats over the API traces", onNavigateToTraceStats) }
             item { LinkCard(com.ai.data.MetadataDefaults.APP_LOG, "App log statistics", "Aggregate stats over the application log", onNavigateToLogStats) }
@@ -1057,7 +1057,7 @@ fun AiSpendUsageScreen(
         TitleBar(
             helpTopic = "ai_spend_usage",
             title = "Spend & usage",
-            subject = "Calls, tokens and cost per provider",
+            subject = "Calls, tokens and cost by provider, type and report",
             onBackClick = onBack,
             reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics,
@@ -1066,83 +1066,45 @@ fun AiSpendUsageScreen(
             onHousekeeping = onHousekeeping
         )
 
+        Spacer(Modifier.height(8.dp))
+        SpendUsageModeSelector(mode = mode, onPick = { mode = it })
+
         val d = data
         when {
             d == null -> Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
-            d.groups.isEmpty() -> Text(
-                "No usage data yet. Generate reports or chat to see spend.",
-                color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)
-            )
             else -> {
                 Spacer(Modifier.height(8.dp))
-                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp)) {
-                        Text("Total: ${d.totalCalls} calls, ${formatCompactNumber(d.totalTokens)} tokens", fontSize = 13.sp, color = Color.White)
-                        Text("Cost: ${money4(d.totalCost)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = AppColors.SuccessAccent)
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
-                // Content-width table, centered (not stretched edge-to-edge).
-                // cGap widens the space between Tokens and Cost; cBugGap
-                // separates Cost from the trailing 🐞 column (cBug).
-                val cProv = 150.dp; val cCalls = 56.dp; val cTok = 78.dp
-                val cGap = 24.dp; val cCost = 92.dp; val cBugGap = 12.dp; val cBug = 28.dp
-                val tableWidth = cProv + cCalls + cTok + cGap + cCost + cBugGap + cBug
-                // Sorted view: provider by id, others numeric; direction from sortAsc.
-                val rows = remember(d.groups, sortCol, sortAsc) {
-                    val withTokens = d.groups.map { it to it.models.sumOf { m -> m.stat.totalTokens } }
-                    val cmp: Comparator<Pair<ProviderCostGroup, Long>> = when (sortCol) {
-                        UsageSort.PROVIDER -> compareBy { it.first.provider.id.lowercase() }
-                        UsageSort.CALLS -> compareBy { it.first.totalCalls }
-                        UsageSort.TOKENS -> compareBy { it.second }
-                        UsageSort.COST -> compareBy { it.first.totalCost }
-                    }
-                    withTokens.sortedWith(if (sortAsc) cmp else cmp.reversed())
-                }
-                Column(
-                    modifier = Modifier.align(Alignment.CenterHorizontally).weight(1f).verticalScroll(rememberScrollState())
-                ) {
-                    @Composable
-                    fun HeaderCell(label: String, col: UsageSort, width: Dp, alignEnd: Boolean) {
-                        val arrow = if (sortCol == col) (if (sortAsc) " ▲" else " ▼") else ""
-                        Text(
-                            label + arrow, fontSize = 10.sp,
-                            color = if (sortCol == col) AppColors.TextSecondary else AppColors.TextTertiary,
-                            textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
-                            maxLines = 1,
-                            modifier = Modifier.width(width).clickable {
-                                if (sortCol == col) sortAsc = !sortAsc else { sortCol = col; sortAsc = false }
-                            }
-                        )
-                    }
-                    Row(Modifier.padding(vertical = 4.dp)) {
-                        HeaderCell("Provider", UsageSort.PROVIDER, cProv, alignEnd = false)
-                        HeaderCell("Calls", UsageSort.CALLS, cCalls, alignEnd = true)
-                        HeaderCell("Tokens", UsageSort.TOKENS, cTok, alignEnd = true)
-                        Spacer(Modifier.width(cGap))
-                        HeaderCell("Cost", UsageSort.COST, cCost, alignEnd = true)
-                        Spacer(Modifier.width(cBugGap))
-                        Spacer(Modifier.width(cBug))
-                    }
-                    rows.forEach { (group, tokens) ->
-                        val hasTrace = group.provider.id in tracedProviders
-                        Row(
-                            modifier = Modifier.clickable { onOpenProvider(group.provider.id) }.padding(vertical = 9.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(group.provider.id, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cProv))
-                            Text("${group.totalCalls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
-                            Text(formatCompactNumber(tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
-                            Spacer(Modifier.width(cGap))
-                            Text(money4(group.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
-                            Spacer(Modifier.width(cBugGap))
-                            Box(Modifier.width(cBug), contentAlignment = Alignment.Center) {
-                                if (hasTrace) Text(com.ai.ui.shared.LocalMetadataIcons.current.traces, fontSize = 13.sp, modifier = Modifier.clickable { onNavigateToTraceProvider(group.provider.id) })
-                            }
-                        }
-                        HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.width(tableWidth))
-                    }
-                    Spacer(Modifier.height(24.dp))
+                when (mode) {
+                    SpendUsageMode.PROVIDERS -> SpendUsageProvidersTab(
+                        data = d,
+                        sortCol = sortCol,
+                        sortAsc = sortAsc,
+                        onSort = { col ->
+                            if (sortCol == col) sortAsc = !sortAsc else { sortCol = col; sortAsc = false }
+                        },
+                        tracedProviders = tracedProviders,
+                        onOpenProvider = onOpenProvider,
+                        onNavigateToTraceProvider = onNavigateToTraceProvider,
+                    )
+                    SpendUsageMode.TYPES -> SpendUsageTypesTab(
+                        data = d,
+                        sortCol = sortCol,
+                        sortAsc = sortAsc,
+                        onSort = { col ->
+                            if (sortCol == col) sortAsc = !sortAsc else { sortCol = col; sortAsc = false }
+                        },
+                        tracedCategories = tracedCategories,
+                        onNavigateToTraceCategory = onNavigateToTraceCategory,
+                    )
+                    SpendUsageMode.REPORTS -> SpendUsageReportsTab(
+                        data = d,
+                        sortCol = sortCol,
+                        sortAsc = sortAsc,
+                        onSort = { col ->
+                            if (sortCol == col) sortAsc = !sortAsc else { sortCol = col; sortAsc = false }
+                        },
+                        onOpenReportCosts = onOpenReportCosts,
+                    )
                 }
             }
         }
@@ -1167,6 +1129,247 @@ fun AiSpendUsageScreen(
         )
     }
 }
+
+@Composable
+private fun SpendUsageModeSelector(
+    mode: SpendUsageMode,
+    onPick: (SpendUsageMode) -> Unit,
+) {
+    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+        SpendUsageMode.entries.forEachIndexed { index, entry ->
+            SegmentedButton(
+                selected = mode == entry,
+                onClick = { onPick(entry) },
+                shape = SegmentedButtonDefaults.itemShape(index = index, count = SpendUsageMode.entries.size)
+            ) { Text(entry.label, fontSize = 13.sp) }
+        }
+    }
+}
+
+@Composable
+private fun SpendUsageSummary(calls: Int, tokens: Long, cost: Double) {
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp)) {
+            Text("Total: $calls calls, ${formatCompactNumber(tokens)} tokens", fontSize = 13.sp, color = Color.White)
+            Text("Cost: ${cents(cost)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = AppColors.SuccessAccent)
+        }
+    }
+}
+
+@Composable
+private fun SpendUsageHeaderCell(
+    label: String,
+    col: UsageSort,
+    width: Dp,
+    alignEnd: Boolean,
+    sortCol: UsageSort,
+    sortAsc: Boolean,
+    onSort: (UsageSort) -> Unit,
+) {
+    val arrow = if (sortCol == col) (if (sortAsc) " ▲" else " ▼") else ""
+    Text(
+        label + arrow,
+        fontSize = 10.sp,
+        color = if (sortCol == col) AppColors.TextSecondary else AppColors.TextTertiary,
+        textAlign = if (alignEnd) TextAlign.End else TextAlign.Start,
+        maxLines = 1,
+        modifier = Modifier.width(width).clickable { onSort(col) }
+    )
+}
+
+@Composable
+private fun ColumnScope.SpendUsageProvidersTab(
+    data: UsageGroupsResult,
+    sortCol: UsageSort,
+    sortAsc: Boolean,
+    onSort: (UsageSort) -> Unit,
+    tracedProviders: Set<String>,
+    onOpenProvider: (String) -> Unit,
+    onNavigateToTraceProvider: (String) -> Unit,
+) {
+    if (data.groups.isEmpty()) {
+        Text(
+            "No usage data yet. Generate reports or chat to see spend.",
+            color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)
+        )
+        return
+    }
+    SpendUsageSummary(data.totalCalls, data.totalTokens, data.totalCost)
+    Spacer(Modifier.height(8.dp))
+
+    val cName = 150.dp; val cCalls = 56.dp; val cTok = 78.dp
+    val cGap = 24.dp; val cCost = 92.dp; val cBugGap = 12.dp; val cBug = 28.dp
+    val tableWidth = cName + cCalls + cTok + cGap + cCost + cBugGap + cBug
+    val rows = remember(data.groups, sortCol, sortAsc) {
+        val withTokens = data.groups.map { it to it.models.sumOf { m -> m.stat.totalTokens } }
+        val cmp: Comparator<Pair<ProviderCostGroup, Long>> = when (sortCol) {
+            UsageSort.PROVIDER -> compareBy { it.first.provider.id.lowercase() }
+            UsageSort.CALLS -> compareBy { it.first.totalCalls }
+            UsageSort.TOKENS -> compareBy { it.second }
+            UsageSort.COST -> compareBy { it.first.totalCost }
+        }
+        withTokens.sortedWith(if (sortAsc) cmp else cmp.reversed())
+    }
+
+    Column(modifier = Modifier.align(Alignment.CenterHorizontally).weight(1f).verticalScroll(rememberScrollState())) {
+        SpendUsageTableHeader("Provider", cName, cCalls, cTok, cGap, cCost, cBugGap, cBug, sortCol, sortAsc, onSort)
+        rows.forEach { (group, tokens) ->
+            val hasTrace = group.provider.id in tracedProviders
+            Row(
+                modifier = Modifier.clickable { onOpenProvider(group.provider.id) }.padding(vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(group.provider.id, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
+                Text("${group.totalCalls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
+                Text(formatCompactNumber(tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
+                Spacer(Modifier.width(cGap))
+                Text(cents(group.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
+                Spacer(Modifier.width(cBugGap))
+                Box(Modifier.width(cBug), contentAlignment = Alignment.Center) {
+                    if (hasTrace) Text(com.ai.ui.shared.LocalMetadataIcons.current.traces, fontSize = 13.sp, modifier = Modifier.clickable { onNavigateToTraceProvider(group.provider.id) })
+                }
+            }
+            HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.width(tableWidth))
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun ColumnScope.SpendUsageTypesTab(
+    data: UsageGroupsResult,
+    sortCol: UsageSort,
+    sortAsc: Boolean,
+    onSort: (UsageSort) -> Unit,
+    tracedCategories: Set<String>,
+    onNavigateToTraceCategory: (String) -> Unit,
+) {
+    if (data.typeGroups.isEmpty()) {
+        Text(
+            "No usage types yet. Generate reports or chat to see spend.",
+            color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)
+        )
+        return
+    }
+    SpendUsageSummary(data.totalCalls, data.totalTokens, data.totalCost)
+    Spacer(Modifier.height(8.dp))
+
+    val cName = 184.dp; val cCalls = 56.dp; val cTok = 78.dp
+    val cGap = 18.dp; val cCost = 92.dp; val cBugGap = 12.dp; val cBug = 28.dp
+    val tableWidth = cName + cCalls + cTok + cGap + cCost + cBugGap + cBug
+    val rows = remember(data.typeGroups, sortCol, sortAsc) {
+        val cmp: Comparator<UsageTypeGroup> = when (sortCol) {
+            UsageSort.PROVIDER -> compareBy { it.category.lowercase() }
+            UsageSort.CALLS -> compareBy { it.calls }
+            UsageSort.TOKENS -> compareBy { it.tokens + it.searchUnits }
+            UsageSort.COST -> compareBy { it.totalCost }
+        }
+        data.typeGroups.sortedWith(if (sortAsc) cmp else cmp.reversed())
+    }
+
+    Column(modifier = Modifier.align(Alignment.CenterHorizontally).weight(1f).verticalScroll(rememberScrollState())) {
+        SpendUsageTableHeader("Type", cName, cCalls, cTok, cGap, cCost, cBugGap, cBug, sortCol, sortAsc, onSort)
+        rows.forEach { group ->
+            val hasTrace = group.category in tracedCategories
+            Row(modifier = Modifier.padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(group.category, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
+                Text("${group.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
+                Text(usageTypeUnits(group), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
+                Spacer(Modifier.width(cGap))
+                Text(cents(group.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
+                Spacer(Modifier.width(cBugGap))
+                Box(Modifier.width(cBug), contentAlignment = Alignment.Center) {
+                    if (hasTrace) Text(com.ai.ui.shared.LocalMetadataIcons.current.traces, fontSize = 13.sp, modifier = Modifier.clickable { onNavigateToTraceCategory(group.category) })
+                }
+            }
+            HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.width(tableWidth))
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun ColumnScope.SpendUsageReportsTab(
+    data: UsageGroupsResult,
+    sortCol: UsageSort,
+    sortAsc: Boolean,
+    onSort: (UsageSort) -> Unit,
+    onOpenReportCosts: (String) -> Unit,
+) {
+    if (data.reportRows.isEmpty()) {
+        Text(
+            "No saved reports yet.",
+            color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)
+        )
+        return
+    }
+    val totalCalls = data.reportRows.sumOf { it.calls }
+    val totalTokens = data.reportRows.sumOf { it.tokens }
+    val totalCost = data.reportRows.sumOf { it.totalCost }
+    SpendUsageSummary(totalCalls, totalTokens, totalCost)
+    Spacer(Modifier.height(8.dp))
+
+    val cName = 184.dp; val cCalls = 56.dp; val cTok = 78.dp
+    val cGap = 18.dp; val cCost = 92.dp; val cBugGap = 12.dp; val cBug = 28.dp
+    val tableWidth = cName + cCalls + cTok + cGap + cCost + cBugGap + cBug
+    val rows = remember(data.reportRows, sortCol, sortAsc) {
+        val cmp: Comparator<UsageReportRow> = when (sortCol) {
+            UsageSort.PROVIDER -> compareBy { it.title.lowercase() }
+            UsageSort.CALLS -> compareBy { it.calls }
+            UsageSort.TOKENS -> compareBy { it.tokens }
+            UsageSort.COST -> compareBy { it.totalCost }
+        }
+        data.reportRows.sortedWith(if (sortAsc) cmp else cmp.reversed())
+    }
+
+    Column(modifier = Modifier.align(Alignment.CenterHorizontally).weight(1f).verticalScroll(rememberScrollState())) {
+        SpendUsageTableHeader("Report", cName, cCalls, cTok, cGap, cCost, cBugGap, cBug, sortCol, sortAsc, onSort)
+        rows.forEach { row ->
+            Row(
+                modifier = Modifier.clickable { onOpenReportCosts(row.reportId) }.padding(vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(row.title, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
+                Text("${row.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
+                Text(formatCompactNumber(row.tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
+                Spacer(Modifier.width(cGap))
+                Text(cents(row.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
+                Spacer(Modifier.width(cBugGap + cBug))
+            }
+            HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.width(tableWidth))
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun SpendUsageTableHeader(
+    nameLabel: String,
+    cName: Dp,
+    cCalls: Dp,
+    cTok: Dp,
+    cGap: Dp,
+    cCost: Dp,
+    cBugGap: Dp,
+    cBug: Dp,
+    sortCol: UsageSort,
+    sortAsc: Boolean,
+    onSort: (UsageSort) -> Unit,
+) {
+    Row(Modifier.padding(vertical = 4.dp)) {
+        SpendUsageHeaderCell(nameLabel, UsageSort.PROVIDER, cName, alignEnd = false, sortCol, sortAsc, onSort)
+        SpendUsageHeaderCell("Calls", UsageSort.CALLS, cCalls, alignEnd = true, sortCol, sortAsc, onSort)
+        SpendUsageHeaderCell("Tokens", UsageSort.TOKENS, cTok, alignEnd = true, sortCol, sortAsc, onSort)
+        Spacer(Modifier.width(cGap))
+        SpendUsageHeaderCell("Cost", UsageSort.COST, cCost, alignEnd = true, sortCol, sortAsc, onSort)
+        Spacer(Modifier.width(cBugGap))
+        Spacer(Modifier.width(cBug))
+    }
+}
+
+private fun usageTypeUnits(group: UsageTypeGroup): String =
+    if (group.searchUnits > 0 && group.tokens == 0L) "${formatCompactNumber(group.searchUnits)} su"
+    else formatCompactNumber(group.tokens)
 
 /** Per-provider usage detail — opened by tapping a row on Spend & usage.
  *  By type / by pricing source / by model, all for one provider. */
@@ -1217,9 +1420,9 @@ fun AiSpendUsageProviderScreen(
                     SectionCard("💰", "Totals", AppColors.SuccessAccent) {
                         KeyVal("Calls", "${g.totalCalls}")
                         KeyVal("Tokens", formatCompactNumber(tokens))
-                        KeyVal("Cost", money(g.totalCost), AppColors.SuccessAccent)
+                        KeyVal("Cost", cents(g.totalCost), AppColors.SuccessAccent)
                         val avg = if (g.totalCalls > 0) g.totalCost / g.totalCalls else 0.0
-                        KeyVal("Avg / call", money(avg), AppColors.TextSecondary)
+                        KeyVal("Avg / call", cents(avg), AppColors.TextSecondary)
                         KeyVal("Distinct models", "${g.models.size}")
                     }
                 }
@@ -1228,7 +1431,7 @@ fun AiSpendUsageProviderScreen(
                         byKind.entries.sortedByDescending { e -> e.value.sumOf { it.totalCost } }.forEach { (kind, rows) ->
                             val calls = rows.sumOf { it.stat.callCount }
                             val cost = rows.sumOf { it.totalCost }
-                            KeyVal(kindLabel(kind), "$calls calls · ${money(cost)}")
+                            KeyVal(kindLabel(kind), "$calls calls · ${cents(cost)}")
                         }
                     }
                 }
@@ -1256,7 +1459,7 @@ fun AiSpendUsageProviderScreen(
                                 Text(swc.stat.kind, fontSize = 9.sp, color = AppColors.TextSecondary,
                                     modifier = Modifier.padding(end = 6.dp).clip(RoundedCornerShape(4.dp)).background(AppColors.SurfaceDark).padding(horizontal = 4.dp, vertical = 1.dp))
                             }
-                            Text(money(swc.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent)
+                            Text(cents(swc.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent)
                         }
                         Text(
                             "${swc.stat.callCount} calls · ${formatCompactNumber(swc.stat.totalTokens)} tokens · ${tierLabel(swc.pricingSource)}",
@@ -2252,9 +2455,13 @@ private fun money(v: Double): String =
 /** Sortable columns of the Spend & usage table. */
 private enum class UsageSort { PROVIDER, CALLS, TOKENS, COST }
 
-/** Always-4-decimal money for the Spend & usage table (per the screen's
- *  fixed-precision requirement), regardless of magnitude. */
-private fun money4(v: Double): String = String.format(Locale.US, "$%.4f", v)
+private enum class SpendUsageMode(val label: String) {
+    PROVIDERS("Providers"),
+    TYPES("Types"),
+    REPORTS("Reports")
+}
+
+private fun cents(v: Double, decimals: Int = 4): String = "${formatCents(v, decimals)} ¢"
 
 /** "1:05", "12m", "3h 20m" — compact remaining/elapsed. */
 private fun fmtDuration(ms: Long): String {

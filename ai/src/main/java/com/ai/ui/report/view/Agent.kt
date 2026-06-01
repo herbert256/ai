@@ -103,7 +103,10 @@ fun ReportsViewScreen(
     fanOutIcon: String? = null,
     /** Opens the fan-out View for the given (currently-displayed) model
      *  as the initiator. Null → the fan-out icon is not interactive. */
-    onOpenFanOut: ((agentId: String) -> Unit)? = null,
+    /** agentId + the language active on THIS page (null/"" = Original) so the
+     *  fan-out View opens on the same language the user was reading, not the
+     *  report's original. */
+    onOpenFanOut: ((agentId: String, activeLanguage: String?) -> Unit)? = null,
     /** Bubbled the currently-active language (null = Original) so
      *  the parent's picker can adopt it. Mirrors PromptViewScreen. */
     onBack: (activeLanguage: String?) -> Unit
@@ -433,7 +436,7 @@ fun ReportsViewScreen(
                                 onIconClick = advanceModel,
                                 fanOutIcon = fanOutFlag,
                                 onFanOutClick = if (fanOutFlag != null && onOpenFanOut != null)
-                                    ({ onOpenFanOut(agent.agentId) }) else null
+                                    ({ onOpenFanOut(agent.agentId, activeLangState.value) }) else null
                             )
                         }
                     }

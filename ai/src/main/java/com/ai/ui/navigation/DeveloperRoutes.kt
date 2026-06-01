@@ -161,6 +161,8 @@ internal fun NavGraphBuilder.developerRoutes(
         }
         monitorComposable(NavRoutes.AI_SPEND_USAGE, monitorNav) {
             val uiState by appViewModel.uiState.collectAsState()
+            val context = LocalContext.current
+            val scope = rememberCoroutineScope()
             AiSpendUsageScreen(
                 openRouterApiKey = uiState.generalSettings.openRouterApiKey.ifBlank {
                     AppService.entries.firstOrNull { it.crossProviderModelList }?.let { uiState.aiSettings.getApiKey(it) } ?: ""
@@ -169,6 +171,14 @@ internal fun NavGraphBuilder.developerRoutes(
                 onOpenProvider = { pid -> navController.navigate(NavRoutes.aiUsageProvider(pid)) },
                 onNavigateToStatistics = toStatistics,
                 onNavigateToTraceProvider = { pid -> navController.navigate(NavRoutes.traceListFiltered(provider = pid)) },
+                onNavigateToTraceCategory = { category -> navController.navigate(NavRoutes.traceListFiltered(category = category)) },
+                onOpenReportCosts = { reportId ->
+                    LastReportTracker.record(reportId, view = false)
+                    scope.launch {
+                        reportViewModel.restoreCompletedReport(context, reportId)
+                        navController.navigate(NavRoutes.aiReportManage(ManagePickKind.COSTS.arg))
+                    }
+                },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
         monitorComposable(NavRoutes.AI_USAGE_PROVIDER, monitorNav) { entry ->

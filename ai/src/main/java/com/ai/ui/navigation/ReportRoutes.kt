@@ -55,7 +55,8 @@ enum class ManagePickKind(
     FAN_OUT("fan_out", "Pick a report with a fan-out", "Only reports that have a fan-out"),
     META("meta", "Pick a report with meta results", "Only reports with meta results"),
     EDIT_PROMPT("edit_prompt", "Pick a report to edit", "Switch to another report's prompt"),
-    EDIT_TITLE("edit_title", "Pick a report to edit", "Switch to another report's title");
+    EDIT_TITLE("edit_title", "Pick a report to edit", "Switch to another report's title"),
+    COSTS("costs", "Pick a report", "Open the report costs");
 
     companion object {
         fun fromArg(s: String?): ManagePickKind? = entries.firstOrNull { it.arg == s }

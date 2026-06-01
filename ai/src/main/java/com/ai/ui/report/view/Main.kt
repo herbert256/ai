@@ -661,15 +661,17 @@ internal fun ViewAiReportScreen(
                 fanOutMetaPromptName = firstFanOutName,
                 fanOutIcon = firstFanOutIcon,
                 onOpenFanOut = firstFanOutName?.let { fname ->
-                    { agentId ->
-                        // Remember which model so Back lands here again,
-                        // capture the active language, then open fan-out
-                        // on that model as the initiator.
+                    val openFanOut: (String, String?) -> Unit = { agentId, activeLang ->
+                        // Remember which model so Back lands here again, carry
+                        // the language ACTIVE ON THIS PAGE (not the outer View
+                        // flow's), then open fan-out on that model as the
+                        // initiator so it lands on the same language.
                         reportsViewInitialAgentId = agentId
-                        fanOutViewLanguage = currentLanguageState.value
+                        fanOutViewLanguage = activeLang
                         fanOutViewInitiatorAgentId = agentId
                         fanOutViewName = fname
                     }
+                    openFanOut
                 },
                 onBack = { activeLang ->
                     val target = activeLang ?: ""
