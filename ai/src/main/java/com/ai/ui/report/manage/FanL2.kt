@@ -760,7 +760,9 @@ internal fun FanOutL2OnePageScreen(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            p.content ?: p.errorMessage?.let { "❌ $it" } ?: "⏳ pending",
+                            p.content
+                                ?: p.errorMessage?.let { "${com.ai.data.MetadataIconsHolder.current.statusFailed} $it" }
+                                ?: "${com.ai.data.MetadataIconsHolder.current.statusPending} pending",
                             fontSize = 13.sp, color = Color.White
                         )
                         HorizontalDivider(
@@ -791,7 +793,9 @@ internal fun FanOutL2OnePageScreen(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            p.content ?: p.errorMessage?.let { "❌ $it" } ?: "⏳ pending",
+                            p.content
+                                ?: p.errorMessage?.let { "${com.ai.data.MetadataIconsHolder.current.statusFailed} $it" }
+                                ?: "${com.ai.data.MetadataIconsHolder.current.statusPending} pending",
                             fontSize = 13.sp, color = Color.White
                         )
                         HorizontalDivider(

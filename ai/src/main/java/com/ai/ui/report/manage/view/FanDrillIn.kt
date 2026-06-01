@@ -536,7 +536,7 @@ internal fun ColumnScope.FanOutDrillInView(
                     when {
                         pairResult == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
                         pairResult.errorMessage != null -> {
-                            Text("❌ ${pairResult.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
+                            Text("${com.ai.data.MetadataIconsHolder.current.statusFailed} ${pairResult.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
                         }
                         !pairResult.content.isNullOrBlank() -> ContentWithThinkSections(analysis = pairResult.content)
                         // durationMs is stamped on every successful and errored
@@ -1174,7 +1174,7 @@ internal fun ColumnScope.FanOutDrillInView(
                             trackColor = AppColors.DividerDark
                         )
                     } else if (rs.err > 0) {
-                        Text("${rs.ok} / ${rs.totalSources} · ❌ ${rs.err}",
+                        Text("${rs.ok} / ${rs.totalSources} · ${com.ai.data.MetadataIconsHolder.current.statusFailed} ${rs.err}",
                             fontSize = 11.sp, color = AppColors.TextTertiary,
                             fontFamily = FontFamily.Monospace)
                     }
@@ -1525,7 +1525,7 @@ private fun OnePageView(
                         when {
                             pair == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
                             pair.errorMessage != null ->
-                                Text("❌ ${pair.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
+                                Text("${com.ai.data.MetadataIconsHolder.current.statusFailed} ${pair.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
                             !pair.content.isNullOrBlank() -> ContentWithThinkSections(analysis = pair.content)
                             pair.durationMs != null ->
                                 Text("(empty response)", fontSize = 13.sp, color = AppColors.TextTertiary)
@@ -1540,4 +1540,3 @@ private fun OnePageView(
         }
     }
 }
-

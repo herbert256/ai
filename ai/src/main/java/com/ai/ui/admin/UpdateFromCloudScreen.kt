@@ -180,7 +180,7 @@ fun UpdateFromCloudScreen(
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Google Drive app", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Text(
-                            "✗ not installed",
+                            "${com.ai.data.MetadataIconsHolder.current.crossMark} not installed",
                             color = AppColors.Orange, fontSize = 13.sp
                         )
                         Text(

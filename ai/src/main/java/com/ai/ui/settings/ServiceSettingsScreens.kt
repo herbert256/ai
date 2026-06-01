@@ -1396,7 +1396,7 @@ fun ProviderSettingsScreen(
 
                 Text("Reasoning model patterns", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Models that gate the 🧠 reasoning badge + thinking dispatch path. Example: [{\"contains\":\"opus-4\"},{\"contains\":\"sonnet-4\"}]",
+                    "Models that gate the ${com.ai.data.MetadataIconsHolder.current.reportModelIcon} reasoning badge + thinking dispatch path. Example: [{\"contains\":\"opus-4\"},{\"contains\":\"sonnet-4\"}]",
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
                 OutlinedTextField(
@@ -1420,7 +1420,7 @@ fun ProviderSettingsScreen(
 
                 Text("Web-search model patterns", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Models that gate the 🌐 web-search tool descriptor in the request body. Example: [{\"contains\":\"claude-3-5\"},{\"contains\":\"opus-4\"}]",
+                    "Models that gate the ${com.ai.data.MetadataIconsHolder.current.web} web-search tool descriptor in the request body. Example: [{\"contains\":\"claude-3-5\"},{\"contains\":\"opus-4\"}]",
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
                 OutlinedTextField(

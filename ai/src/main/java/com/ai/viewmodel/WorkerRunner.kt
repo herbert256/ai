@@ -125,7 +125,7 @@ class WorkerRunner(private val appViewModel: AppViewModel) {
             )
             when {
                 resp.isSuccess && accept(resp) -> {
-                    AppLog.i("Workers", "✓ '${prompt.name}' via ${agent.name} (worker ${idx + 1}/$n)")
+                    AppLog.i("Workers", "${com.ai.data.MetadataIconsHolder.current.checkMark} '${prompt.name}' via ${agent.name} (worker ${idx + 1}/$n)")
                     return WorkerOutcome.Success(resp, w)
                 }
                 resp.httpStatusCode == 429 || resp.error?.contains("API error: 429") == true -> {

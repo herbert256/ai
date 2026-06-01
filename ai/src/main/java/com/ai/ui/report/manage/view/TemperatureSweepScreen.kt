@@ -212,7 +212,7 @@ private fun TemperatureCandidatePanel(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🌡️ ${formatTemperature(candidate.temperature)}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AppColors.Orange)
+                Text("${com.ai.ui.shared.LocalMetadataIcons.current.parameters} ${formatTemperature(candidate.temperature)}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AppColors.Orange)
                 Spacer(modifier = Modifier.width(8.dp))
                 if (candidate is TemperatureSweepCandidate.Running) {
                     CircularProgressIndicator(modifier = Modifier.height(14.dp).width(14.dp), strokeWidth = 2.dp)

@@ -128,7 +128,7 @@ fun HelpScreen(
                     topicId !in com.ai.ui.shared.LEGEND_OVERLAY_TOPICS &&
                     HELP_TOPICS.containsKey("${topicId}_icons")) {
                     HomeSubpageLink(
-                        "❔", "Icons on this screen",
+                        mi.helpLegend, "Icons on this screen",
                         "What each bottom-bar icon does here.",
                         onClick = { onNavigateToTopic("${topicId}_icons") }
                     )
@@ -164,17 +164,17 @@ fun HelpScreen(
                     "help_home_ai_providers" -> CloudProviderTable(onNavigateToTopic)
                     "help_glossary" -> {
                         HomeSubpageLink(
-                            "🧱", "Building blocks",
+                            mi.buildingBlocks, "Building blocks",
                             "Provider · Model · Agent — the atomic units the rest of the app composes.",
                             onClick = { onNavigateToTopic("help_glossary_blocks") }
                         )
                         HomeSubpageLink(
-                            "🪺", "Groupings",
+                            mi.groupings, "Groupings",
                             "Flock · Swarm — how the app bundles agents for a single launch.",
                             onClick = { onNavigateToTopic("help_glossary_groupings") }
                         )
                         HomeSubpageLink(
-                            "⚙️", "Operations",
+                            mi.settings, "Operations",
                             "Report · Chat · Meta prompt · Fan-out · Rerank · Moderation · Translation — the things you actually run.",
                             onClick = { onNavigateToTopic("help_glossary_operations") }
                         )
@@ -186,7 +186,7 @@ fun HelpScreen(
                     val base = topicId.removeSuffix("_icons")
                     if (HELP_TOPICS.containsKey(base)) {
                         HomeSubpageLink(
-                            "📖", "Full help for this screen",
+                            mi.book, "Full help for this screen",
                             "Everything else about this screen.",
                             onClick = { onNavigateToTopic(base) }
                         )
@@ -288,7 +288,7 @@ private fun HomeSubpageLink(icon: String, title: String, blurb: String, onClick:
             modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(mi.forFactoryGlyph(icon), fontSize = 14.sp, modifier = Modifier.width(24.dp))
+            Text(icon, fontSize = 14.sp, modifier = Modifier.width(24.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(mi.iconizedText(title), fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
                 Text(mi.iconizedText(blurb), fontSize = 12.sp, color = AppColors.TextSecondary)
@@ -332,7 +332,7 @@ private fun CompactOverview(
     )
     HelpSection(
         "Per-screen help",
-        "Every screen has its own help page. Tap ❓ in the icon bar of the screen you're on for guidance specific to that screen. This page is the general overview only."
+        "Every screen has its own help page. Tap ${mi.help} in the icon bar of the screen you're on for guidance specific to that screen. This page is the general overview only."
     )
     // Tap-through subpage links — each opens its own help topic
     // prefixed "Help - …". Order is curated: About + Getting
@@ -342,57 +342,57 @@ private fun CompactOverview(
     // subpages (Icons / Info providers / AI providers).
     // Each subpage's ❓ icon routes back to Help home.
     HomeSubpageLink(
-        "🧭", "About the app",
+        mi.webSearchReplay, "About the app",
         "What this app does, who it's for, headline features, where to start. The orientation page.",
         onClick = { onNavigateToTopic("help_about") }
     )
     HomeSubpageLink(
-        "🚀", "Getting started",
+        mi.rocket, "Getting started",
         "Step-by-step: add an API key → refresh model lists → first Agent → first Report. Plus common first-week pitfalls.",
         onClick = { onNavigateToTopic("help_getting_started") }
     )
     HomeSubpageLink(
-        "🔧", "How it works",
+        mi.openManage, "How it works",
         "Cross-screen behaviours — background sweeps, auto-reconcile, 429 / 529 retry policy, cost-aware hesitation. Anything the app does that isn't tied to one screen.",
         onClick = { onNavigateToTopic("concepts") }
     )
     HomeSubpageLink(
-        "📖", "Concepts & glossary",
+        mi.book, "Concepts & glossary",
         "Provider · Agent · Report · Meta · Fan-out · … — the app's vocabulary, grouped into three categories with a one-paragraph explainer each.",
         onClick = { onNavigateToTopic("help_glossary") }
     )
     HomeSubpageLink(
-        "💰", "Costs & pricing",
+        mi.cost, "Costs & pricing",
         "How the app attributes a USD cost to every call — pricing-tier chain, manual overrides, where costs surface in the UI.",
         onClick = { onNavigateToTopic("help_costs") }
     )
     HomeSubpageLink(
-        "🔒", "Privacy & data",
+        mi.statusLocked, "Privacy & data",
         "Local-first principle, what leaves the device, what never does. Telemetry: none. Data ownership: yours.",
         onClick = { onNavigateToTopic("help_privacy") }
     )
     HomeSubpageLink(
-        "💾", "Backup & restore",
+        mi.save, "Backup & restore",
         "What a backup zip contains, how to make one, restore semantics, version compatibility.",
         onClick = { onNavigateToTopic("help_backup") }
     )
     HomeSubpageLink(
-        "🌐", "Translations & multi-language",
+        mi.translationRow, "Translations & multi-language",
         "How translation runs work — what gets translated, single- vs multi-model, the Speed / Mixed / Cost mode toggle, Restart-failed semantics, the self-healing background paths.",
         onClick = { onNavigateToTopic("help_translations") }
     )
     HomeSubpageLink(
-        "🎨", "Icons",
+        mi.palette, "Icons",
         "Legend for every title-bar / action-row / list icon in the app — what each glyph means and where it shows up.",
         onClick = { onNavigateToTopic("help_home_icons") }
     )
     HomeSubpageLink(
-        "🛰", "Info providers",
+        mi.satellite, "Info providers",
         "External services the app fetches metadata from — model lists, pricing tiers, capability flags. Drill in to see each one's freshness rules + fallback chain.",
         onClick = { onNavigateToTopic("help_home_info_providers") }
     )
     HomeSubpageLink(
-        "☁️", "AI providers (cloud)",
+        mi.cloud, "AI providers (cloud)",
         "Every cloud LLM / embedder / reranker the app can talk to. Drill in for endpoint, auth, model-list freshness.",
         onClick = { onNavigateToTopic("help_home_ai_providers") }
     )
@@ -545,7 +545,7 @@ private fun RelevantHelpPagesCard(
                         .padding(vertical = 5.dp)
                 ) {
                     Text(mi.arrowRight, fontSize = 13.sp, color = AppColors.Blue, modifier = Modifier.width(24.dp))
-                    Text(title, fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(mi.iconizedText(title), fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -593,17 +593,17 @@ private fun IconHelpTable(rows: List<Triple<String, String, String>>, title: Str
 private fun HelpIconTable() {
     val mi = LocalMetadataIcons.current
     val rows = listOf(
-        Triple("◀", "Back", "Previous screen."),
-        Triple("🏠", "Home", "Returns here from anywhere."),
-        Triple("❔", "Icons help", "Lists every icon on the current screen (the legend). Shown when the bar carries more than a few icons."),
-        Triple("❓", "Help", "Opens topic-specific help for the current screen."),
-        Triple("ℹ️", "Info", "Drills into model info or another details target."),
-        Triple("📋", "Copy", "Copies the screen's main payload to the system clipboard (report text, trace JSON, chat transcript, …)."),
-        Triple("📤", "Share", "Fires the Android share sheet (ACTION_SEND) with the screen's main payload as plain text."),
-        Triple("🗑", "Trash", "Destructive scope-specific delete (clear stats, drop trace list, delete report). Only shown when the destructive scope is non-empty."),
-        Triple("🐞", "Trace", "Opens API Traces filtered to the current scope (report / model / session). Only shown when tracing is on AND traces exist."),
-        Triple("🔄", "Reload", "Re-runs the screen's fetch."),
-        Triple("💬", "Chat", "Opens a chat against the current context.")
+        Triple(mi.arrowBack, "Back", "Previous screen."),
+        Triple(mi.home, "Home", "Returns here from anywhere."),
+        Triple(mi.helpLegend, "Icons help", "Lists every icon on the current screen (the legend). Shown when the bar carries more than a few icons."),
+        Triple(mi.help, "Help", "Opens topic-specific help for the current screen."),
+        Triple(mi.info, "Info", "Drills into model info or another details target."),
+        Triple(mi.copy, "Copy", "Copies the screen's main payload to the system clipboard (report text, trace JSON, chat transcript, …)."),
+        Triple(mi.share, "Share", "Fires the Android share sheet (ACTION_SEND) with the screen's main payload as plain text."),
+        Triple(mi.delete, "Trash", "Destructive scope-specific delete (clear stats, drop trace list, delete report). Only shown when the destructive scope is non-empty."),
+        Triple(mi.traces, "Trace", "Opens API Traces filtered to the current scope (report / model / session). Only shown when tracing is on AND traces exist."),
+        Triple(mi.reload, "Reload", "Re-runs the screen's fetch."),
+        Triple(mi.chat, "Chat", "Opens a chat against the current context.")
     )
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -611,7 +611,7 @@ private fun HelpIconTable() {
             Spacer(modifier = Modifier.height(8.dp))
             rows.forEach { (icon, name, desc) ->
                 Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 3.dp)) {
-                    Text(mi.forFactoryGlyph(icon), fontSize = 16.sp, modifier = Modifier.width(28.dp))
+                    Text(icon, fontSize = 16.sp, modifier = Modifier.width(28.dp))
                     Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.width(72.dp))
                     Text(mi.iconizedText(desc), fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp, modifier = Modifier.weight(1f))
                 }

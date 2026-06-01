@@ -296,7 +296,7 @@ internal fun TranslationL3Screen(
                                 Text("  Running…", color = AppColors.Orange, fontSize = 13.sp)
                             }
                         TranslationStatus.PENDING ->
-                            Text("🕓 Queued", color = AppColors.TextTertiary, fontSize = 13.sp)
+                            Text("${com.ai.data.MetadataIconsHolder.current.clockQueued} Queued", color = AppColors.TextTertiary, fontSize = 13.sp)
                         TranslationStatus.DONE -> {
                             val tx = item.translatedText
                             if (tx.isNullOrBlank()) {

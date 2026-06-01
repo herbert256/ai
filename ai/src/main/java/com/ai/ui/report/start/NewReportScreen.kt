@@ -505,7 +505,7 @@ private fun SharedKbBanner(
             when (state) {
                 is SharedKbBannerState.Working -> Text(state.message, fontSize = 12.sp, color = AppColors.TextSecondary)
                 is SharedKbBannerState.Done -> Text(
-                    "Indexed ${state.sources} source(s), ${state.chunks} chunk(s). Attached as 📚.",
+                    "Indexed ${state.sources} source(s), ${state.chunks} chunk(s). Attached as ${com.ai.data.MetadataIconsHolder.current.library}.",
                     fontSize = 12.sp, color = AppColors.Green
                 )
                 is SharedKbBannerState.Failed -> Text("Failed: ${state.message}", fontSize = 12.sp, color = AppColors.Red)

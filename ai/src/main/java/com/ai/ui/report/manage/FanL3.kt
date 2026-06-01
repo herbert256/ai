@@ -640,7 +640,7 @@ internal fun FanOutL3Screen(
                 Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
                     when (pair.status) {
                         PairStatus.ERROR -> Text(
-                            "❌ ${pair.errorMessage}",
+                            "${com.ai.data.MetadataIconsHolder.current.statusFailed} ${pair.errorMessage}",
                             color = AppColors.Red, fontSize = 13.sp
                         )
                         PairStatus.RUNNING -> Row(verticalAlignment = Alignment.CenterVertically) {
@@ -648,7 +648,7 @@ internal fun FanOutL3Screen(
                             Text("  Running…", color = AppColors.Orange, fontSize = 13.sp)
                         }
                         PairStatus.PENDING -> Text(
-                            "🕓 Queued",
+                            "${com.ai.data.MetadataIconsHolder.current.clockQueued} Queued",
                             color = AppColors.TextTertiary, fontSize = 13.sp
                         )
                         PairStatus.DONE -> {

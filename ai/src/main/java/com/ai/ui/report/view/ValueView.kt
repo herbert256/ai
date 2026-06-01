@@ -147,14 +147,14 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
 
         Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Text(
-                "Cost × quality. Top-left = cheap & good. 💎 = best value; dimmed = dominated (another model is at least as good for less).",
+                "Cost × quality. Top-left = cheap & good. ${com.ai.data.MetadataIconsHolder.current.gem} = best value; dimmed = dominated (another model is at least as good for less).",
                 color = AppColors.TextTertiary, fontSize = 11.sp,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
             ValueScatter(points, modifier = Modifier.fillMaxWidth().height(240.dp).padding(bottom = 12.dp))
             best?.let {
                 Text(
-                    "💎 Best value: ${it.provider} · ${it.modelShort} — score ${formatScore(it.quality)} at ${formatCents(it.costCents)}",
+                    "${com.ai.data.MetadataIconsHolder.current.gem} Best value: ${it.provider} · ${it.modelShort} — score ${formatScore(it.quality)} at ${formatCents(it.costCents)}",
                     color = AppColors.Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
@@ -266,7 +266,7 @@ private fun ValueRow(p: ValuePoint) {
                 )
             }
             val (badge, color) = when {
-                p.bestValue -> "💎 Best value" to AppColors.Green
+                p.bestValue -> "${com.ai.data.MetadataIconsHolder.current.gem} Best value" to AppColors.Green
                 !p.dominated -> "Pareto" to AppColors.Blue
                 else -> "dominated" to AppColors.TextDim
             }

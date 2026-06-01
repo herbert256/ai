@@ -747,7 +747,7 @@ internal suspend fun continueMetaInChat(
         parameters = com.ai.data.ChatParameters(systemPrompt = systemPrompt),
         createdAt = now,
         updatedAt = now,
-        title = "💬 $metaName"
+        title = "${com.ai.data.MetadataIconsHolder.current.chat} $metaName"
     )
     if (com.ai.data.ChatHistoryManager.saveSession(session)) session.id else null
 }

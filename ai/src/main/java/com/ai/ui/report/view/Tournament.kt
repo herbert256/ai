@@ -328,7 +328,7 @@ private fun HeadToHeadRow(opponent: String, result: String, reason: String?, err
         Column(modifier = Modifier.weight(1f)) {
             Text("vs  $opponent", color = Color.White, fontSize = 13.sp)
             when {
-                error != null -> Text("⚠ ${error.take(60)}", color = AppColors.TextTertiary, fontSize = 11.sp)
+                error != null -> Text("${com.ai.data.MetadataIconsHolder.current.warningPlain} ${error.take(60)}", color = AppColors.TextTertiary, fontSize = 11.sp)
                 !reason.isNullOrBlank() -> Text(reason, color = AppColors.TextTertiary, fontSize = 11.sp)
             }
             // Last line: the judging worker model, with the 🐞 trace link

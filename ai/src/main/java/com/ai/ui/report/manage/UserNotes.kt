@@ -287,7 +287,7 @@ internal fun ReportNotesListScreen(
         )
         if (groups.isEmpty()) {
             Text(
-                "No notes yet. Use ✍️ on a report, model response, fan-out or secondary screen to add one.",
+                "No notes yet. Use ${com.ai.data.MetadataIconsHolder.current.addNote} on a report, model response, fan-out or secondary screen to add one.",
                 color = AppColors.TextSecondary, fontSize = 13.sp,
                 modifier = Modifier.padding(top = 16.dp)
             )

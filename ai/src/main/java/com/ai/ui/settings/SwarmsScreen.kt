@@ -27,7 +27,9 @@ fun SwarmEditScreen(
     onSave: (Swarm) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onOpenView: (() -> Unit)? = null
+    onOpenView: (() -> Unit)? = null,
+    /** 🗑 delete this swarm (Setup → Workers → Swarms edit). Null hides it. */
+    onDelete: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val isEditing = swarm != null
@@ -119,7 +121,11 @@ fun SwarmEditScreen(
             subject = name,
             onBackClick = onBack,
             onOpenView = if (!isAddMode) onOpenView else null,
-            onCopyReport = null,
+            // 👯 duplicate this swarm into a new one (standard copy-on-edit
+            // flow), 🗑 delete it — both hidden once the screen flips into
+            // copy/add mode, where there is no original to act on.
+            onCopyReport = dup.copyTrigger,
+            onDelete = if (isAddMode) null else onDelete,
             onClear = { resetTick++ },
             onParameters = { showParamsDialog = true },
             onSystemPrompt = { showSystemPromptDialog = true }

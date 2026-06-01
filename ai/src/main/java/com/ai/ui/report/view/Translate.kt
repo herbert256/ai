@@ -226,20 +226,21 @@ private fun TranslatePair(
     metaSources: Map<String, SecondaryResult>,
     expanded: TranslateExpansionMap
 ) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     val sourceKind = row.translateSourceKind.orEmpty()
     val sourceTargetId = row.translateSourceTargetId.orEmpty()
     val sourceLabel: String
     val sourceBody: String
     when (sourceKind) {
         "PROMPT" -> {
-            sourceLabel = "📝 Report prompt"
+            sourceLabel = "${mi.reportIcon} Report prompt"
             sourceBody = report?.prompt.orEmpty()
         }
         "AGENT" -> {
             val agent = report?.agents?.firstOrNull { it.agentId == sourceTargetId }
             val prov = agent?.let { AppService.findById(it.provider)?.id ?: it.provider } ?: "?"
             val mdl = agent?.model?.let { shortModelName(it) } ?: sourceTargetId.take(8)
-            sourceLabel = "🤖 $prov / $mdl"
+            sourceLabel = "${mi.agent} $prov / $mdl"
             sourceBody = agent?.responseBody.orEmpty()
         }
         "META" -> {
@@ -247,12 +248,12 @@ private fun TranslatePair(
             if (meta == null) {
                 // Source META row was deleted after the translation was made
                 // — say so rather than showing a generic empty "🧠 Meta".
-                sourceLabel = "🧠 Meta (source deleted)"
+                sourceLabel = "${mi.reportModelIcon} Meta (source deleted)"
                 sourceBody = ""
             } else {
                 val name = meta.metaPromptName?.takeIf { it.isNotBlank() }
                     ?: com.ai.data.legacyKindDisplayName(meta.kind)
-                sourceLabel = "🧠 $name"
+                sourceLabel = "${mi.reportModelIcon} $name"
                 sourceBody = meta.content.orEmpty()
             }
         }
@@ -284,7 +285,7 @@ private fun TranslatePair(
         SidePanel(
             tint = AppColors.Orange.copy(alpha = 0.18f),
             borderColor = AppColors.Orange.copy(alpha = 0.55f),
-            badge = "🌍 ${row.targetLanguageNative ?: row.targetLanguage ?: ""}",
+            badge = "${mi.world} ${row.targetLanguageNative ?: row.targetLanguage ?: ""}",
             badgeColor = AppColors.Orange,
             body = translatedBody,
             expansionKey = "tr:${row.id}",

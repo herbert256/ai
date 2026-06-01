@@ -182,7 +182,7 @@ private fun PromptEditResultCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("✏️ Edit", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AppColors.Indigo)
+                Text("${com.ai.ui.shared.LocalMetadataIcons.current.edit} Edit", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AppColors.Indigo)
                 Spacer(modifier = Modifier.width(8.dp))
                 if (result is PromptEditReplayResult.Running) {
                     CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)

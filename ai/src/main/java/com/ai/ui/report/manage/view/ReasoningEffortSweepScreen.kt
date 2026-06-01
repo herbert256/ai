@@ -175,7 +175,7 @@ private fun ReasoningEffortOptionPill(
         modifier = modifier.clickable(enabled = enabled, onClick = onClick)
     ) {
         Text(
-            if (selected) "✓ ${reasoningEffortLabel(effort)}" else reasoningEffortLabel(effort),
+            if (selected) "${com.ai.ui.shared.LocalMetadataIcons.current.checkMark} ${reasoningEffortLabel(effort)}" else reasoningEffortLabel(effort),
             color = textColor,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
@@ -205,7 +205,7 @@ private fun ReasoningEffortCandidatePanel(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🧠 ${reasoningEffortLabel(candidate.effort)}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AppColors.Indigo)
+                Text("${com.ai.ui.shared.LocalMetadataIcons.current.reasoningSweep} ${reasoningEffortLabel(candidate.effort)}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AppColors.Indigo)
                 Spacer(modifier = Modifier.width(8.dp))
                 if (candidate is ReasoningEffortCandidate.Running) {
                     CircularProgressIndicator(modifier = Modifier.height(14.dp).width(14.dp), strokeWidth = 2.dp)

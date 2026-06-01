@@ -667,7 +667,7 @@ private fun CompareL3(
                     Text(c.reason!!, color = AppColors.TextSecondary, fontSize = 12.sp)
                 }
                 c.judgeModel?.let { Text("Scored by: $it", color = AppColors.TextTertiary, fontSize = 11.sp) }
-                c.errorMessage?.let { Text("⚠ $it", color = AppColors.Red, fontSize = 11.sp) }
+                c.errorMessage?.let { Text("${com.ai.data.MetadataIconsHolder.current.warningPlain} $it", color = AppColors.Red, fontSize = 11.sp) }
             }
             Spacer(Modifier.height(12.dp))
             ComparePane("Answer — $answerLabel", AppColors.Green, agents[c.agentId]?.responseBody)

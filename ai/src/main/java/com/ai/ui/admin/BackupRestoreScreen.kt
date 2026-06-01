@@ -155,7 +155,7 @@ fun BackupRestoreScreen(
                     // Anyone with the zip can call your APIs at your
                     // expense.
                     Text(
-                        text = "⚠️ The backup contains every API key in plain text. Don't share it — anyone with the file can call the APIs on your accounts. Store the file like a password.",
+                        text = "${com.ai.data.MetadataIconsHolder.current.statusWarning} The backup contains every API key in plain text. Don't share it — anyone with the file can call the APIs on your accounts. Store the file like a password.",
                         fontSize = 12.sp,
                         color = AppColors.Red,
                         fontWeight = FontWeight.SemiBold

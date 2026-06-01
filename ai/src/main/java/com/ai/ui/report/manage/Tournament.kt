@@ -744,7 +744,7 @@ private fun TournamentL3(
                 if (!m.reason.isNullOrBlank()) Text(m.reason!!, color = AppColors.TextSecondary, fontSize = 12.sp)
                 Text("Orientation: ${if (m.orientation == 0) "A-vs-B" else "B-vs-A (swapped)"}", color = AppColors.TextTertiary, fontSize = 11.sp)
                 m.judgeModel?.let { Text("Judged by: ${it}", color = AppColors.TextTertiary, fontSize = 11.sp) }
-                m.errorMessage?.let { Text("⚠ $it", color = AppColors.Red, fontSize = 11.sp) }
+                m.errorMessage?.let { Text("${com.ai.data.MetadataIconsHolder.current.warningPlain} $it", color = AppColors.Red, fontSize = 11.sp) }
             }
             Spacer(Modifier.height(12.dp))
             ResponsePane("A - $labelA", colorA, agents[m.responseAId]?.responseBody)

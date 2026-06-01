@@ -113,7 +113,7 @@ fun LocalLiteRtModelsScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
                     ) {
                         Text(
-                            if (isInstalled) "${spec.displayName} ✓"
+                            if (isInstalled) "${spec.displayName} ${com.ai.data.MetadataIconsHolder.current.checkMark}"
                             else "Download ${spec.displayName} (~${spec.sizeMbHint} MB)",
                             maxLines = 1, softWrap = false
                         )
@@ -244,7 +244,7 @@ fun LocalLlmsScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
             ) {
                 Text(
-                    if (runtimeInstalled) "LLM runtime ✓"
+                    if (runtimeInstalled) "LLM runtime ${com.ai.data.MetadataIconsHolder.current.checkMark}"
                     else "Download LLM runtime (~${LlmRuntime.DOWNLOAD_SIZE_MB_HINT} MB)",
                     maxLines = 1, softWrap = false
                 )

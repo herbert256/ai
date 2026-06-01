@@ -1464,7 +1464,7 @@ private fun MetadataSettingsSubScreen(
                 )
                 ToggleSettingCard(
                     title = "Generate per model icons",
-                    description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ✅ flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
+                    description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ${com.ai.data.MetadataIconsHolder.current.statusDone} flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
                     checked = perModelIconGenEnabled,
                     onCheckedChange = { perModelIconGenEnabled = it }
                 )
@@ -1784,7 +1784,7 @@ private fun DefaultIconsSubScreen(
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text(
-                "Every emoji the app draws — report/result fallbacks on the view screens and every action icon in the bottom bars. Editing one updates it everywhere; a blank field falls back to the factory default, and 🧽 resets them all. Tap a category to expand it.",
+                "Every emoji the app draws — report/result fallbacks on the view screens and every action icon in the bottom bars. Editing one updates it everywhere; a blank field falls back to the factory default, and ${com.ai.data.MetadataIconsHolder.current.clear} resets them all. Tap a category to expand it.",
                 fontSize = 11.sp, color = AppColors.TextTertiary,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
             )
@@ -2128,7 +2128,7 @@ private fun LoggingAndTracingSubScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ToggleSettingCard(
                 title = "API tracing",
-                description = "Record every API request and response. Turn off to hide the AI API Traces card and the 🐞 trace icons.",
+                description = "Record every API request and response. Turn off to hide the AI API Traces card and the ${com.ai.data.MetadataIconsHolder.current.traces} trace icons.",
                 checked = tracingEnabled,
                 onCheckedChange = { tracingEnabled = it }
             )

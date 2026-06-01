@@ -241,22 +241,23 @@ fun WorkersSetupScreen(
  *  hierarchy); Swarm sits apart since it's built straight from models. */
 @Composable
 private fun WorkersDiagram() {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Column(modifier = Modifier.fillMaxWidth()) {
-        DiagramEntity(com.ai.data.MetadataIconsHolder.current.settings, "Provider", AppColors.Blue, "has many models") {
-            DiagramChipRow(listOf("🧠 Model", "🧠 Model", "🧠 Model", "🧠 Model"))
+        DiagramEntity(mi.settings, "Provider", AppColors.Blue, "has many models") {
+            DiagramChipRow(listOf("${mi.reportModelIcon} Model", "${mi.reportModelIcon} Model", "${mi.reportModelIcon} Model", "${mi.reportModelIcon} Model"))
         }
         DiagramArrow("one model becomes an…")
-        DiagramEntity(com.ai.data.MetadataIconsHolder.current.agent, "Agent", AppColors.Green, "a model with a system prompt and parameters") {
-            DiagramChipRow(listOf("🧠 Model", "📝 System prompt", "🎛️ Parameters"), separator = "+")
+        DiagramEntity(mi.agent, "Agent", AppColors.Green, "a model with a system prompt and parameters") {
+            DiagramChipRow(listOf("${mi.reportModelIcon} Model", "${mi.systemPrompt} System prompt", "${mi.sliders} Parameters"), separator = "+")
         }
         DiagramArrow("agents grouped into a…")
-        DiagramEntity(com.ai.data.MetadataIconsHolder.current.flock, "Flock", AppColors.Orange, "a collection of agents") {
-            DiagramChipRow(listOf("🤖 Agent", "🤖 Agent", "🤖 Agent"))
+        DiagramEntity(mi.flock, "Flock", AppColors.Orange, "a collection of agents") {
+            DiagramChipRow(listOf("${mi.agent} Agent", "${mi.agent} Agent", "${mi.agent} Agent"))
         }
 
         Spacer(modifier = Modifier.height(14.dp))
-        DiagramEntity(com.ai.data.MetadataIconsHolder.current.swarm, "Swarm", AppColors.Purple, "a collection of models") {
-            DiagramChipRow(listOf("🧠 Model", "🧠 Model", "🧠 Model"))
+        DiagramEntity(mi.swarm, "Swarm", AppColors.Purple, "a collection of models") {
+            DiagramChipRow(listOf("${mi.reportModelIcon} Model", "${mi.reportModelIcon} Model", "${mi.reportModelIcon} Model"))
         }
     }
 }

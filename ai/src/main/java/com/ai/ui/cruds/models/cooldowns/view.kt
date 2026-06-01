@@ -37,7 +37,7 @@ internal fun CooldownView(
         val tf = item.traceFile
         if (ApiTracer.isTracingEnabled && tf != null) {
             Text(
-                "🐞 View the 429 trace",
+                "${com.ai.data.MetadataIconsHolder.current.traces} View the 429 trace",
                 color = AppColors.Blue, fontSize = 14.sp,
                 modifier = Modifier.clickable { onNavigateToTrace(tf) }
             )

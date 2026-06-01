@@ -92,17 +92,16 @@ fun ModelAdvisoryCaptions(
     }
     if (state.blockReason != null) {
         Text(
-            if (state.blockReason.isBlank()) "🚫 Blocked" else "🚫 Blocked: ${state.blockReason}",
+            if (state.blockReason.isBlank()) "${com.ai.data.MetadataIconsHolder.current.statusBlocked} Blocked" else "${com.ai.data.MetadataIconsHolder.current.statusBlocked} Blocked: ${state.blockReason}",
             fontSize = fontSize, color = AppColors.Red,
             maxLines = 1, overflow = TextOverflow.Ellipsis
         )
     }
     if (state.inaccessibleReason != null) {
         Text(
-            if (state.inaccessibleReason.isBlank()) "🔒 Inaccessible" else "🔒 Inaccessible: ${state.inaccessibleReason}",
+            if (state.inaccessibleReason.isBlank()) "${com.ai.data.MetadataIconsHolder.current.statusLocked} Inaccessible" else "${com.ai.data.MetadataIconsHolder.current.statusLocked} Inaccessible: ${state.inaccessibleReason}",
             fontSize = fontSize, color = AppColors.TextTertiary,
             maxLines = 1, overflow = TextOverflow.Ellipsis
         )
     }
 }
-

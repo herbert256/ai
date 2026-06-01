@@ -12,8 +12,9 @@ internal fun SwarmEdit(
     aiSettings: Settings,
     onSaved: (Swarm) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
-) = SwarmEditForm(swarm, aiSettings, onSaved, onBack, onNavigateHome)
+    onNavigateHome: () -> Unit,
+    onDelete: (() -> Unit)? = null
+) = SwarmEditForm(swarm, aiSettings, onSaved, onBack, onNavigateHome, onDelete)
 
 @Composable
 internal fun SwarmEditForm(
@@ -21,7 +22,8 @@ internal fun SwarmEditForm(
     aiSettings: Settings,
     onSaved: (Swarm) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     SwarmEditScreen(
         swarm = swarm,
@@ -32,6 +34,7 @@ internal fun SwarmEditForm(
         onSave = onSaved,
         onBack = onBack,
         onNavigateHome = onNavigateHome,
-        onOpenView = null
+        onOpenView = null,
+        onDelete = onDelete
     )
 }

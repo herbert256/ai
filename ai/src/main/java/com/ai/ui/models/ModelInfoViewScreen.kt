@@ -419,7 +419,7 @@ fun ModelInfoViewScreen(
                         or.architecture?.instruct_type?.let { KeyValueRow("Instruct Type", it) }
                         or.top_provider?.is_moderated?.let { KeyValueRow("Moderated", if (it) "Yes" else "No") }
                         or.knowledge_cutoff?.let { KeyValueRow("Knowledge Cutoff", it) }
-                        or.expiration_date?.let { KeyValueRow("⚠ Expires", it) }
+                        or.expiration_date?.let { KeyValueRow("${com.ai.data.MetadataIconsHolder.current.warningPlain} Expires", it) }
                     }
                 }
             }

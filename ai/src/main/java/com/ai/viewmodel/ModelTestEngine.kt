@@ -423,7 +423,7 @@ class ModelTestEngine internal constructor(
         // (they don't go through transition()), so they don't pollute
         // either list.
         appViewModel.flushAiSettingsToDisk()
-        AppLog.i("ModelTest", "✕ run cancelled")
+        AppLog.i("ModelTest", "${com.ai.data.MetadataIconsHolder.current.closeMark} run cancelled")
     }
 
     /** Drop the in-memory run + cancel any in-flight work. Paired with

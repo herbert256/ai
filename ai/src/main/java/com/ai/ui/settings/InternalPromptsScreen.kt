@@ -470,7 +470,7 @@ fun InternalPromptEditScreen(
                     }
                 }
                 Text(
-                    com.ai.data.MetadataIconsHolder.current.iconizedText("Use 🌡️ / 🎭 in the bottom bar to set these. When set they override agent / provider / app-wide for this prompt — unless picked at run time."),
+                    "Use ${com.ai.data.MetadataIconsHolder.current.parameters} / ${com.ai.data.MetadataIconsHolder.current.systemPrompt} in the bottom bar to set these. When set they override agent / provider / app-wide for this prompt — unless picked at run time.",
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
             }

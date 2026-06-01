@@ -208,7 +208,8 @@ internal fun ColumnScope.SelectionPhase(
             colors = AppColors.outlinedButtonColors()
         ) {
             val n = attachedKnowledgeBaseIds.size
-            val label = if (n == 0) "📚 Attach knowledge" else "📚 Attached: $n"
+            val icon = com.ai.data.MetadataIconsHolder.current.library
+            val label = if (n == 0) "$icon Attach knowledge" else "$icon Attached: $n"
             Text(label, fontSize = 13.sp, maxLines = 1, softWrap = false)
         }
         Spacer(modifier = Modifier.height(8.dp))

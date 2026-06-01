@@ -283,7 +283,7 @@ fun AgentEditScreen(
                 else null
                 if (supportsSystem == false) {
                     Text(
-                        "⚠ ${selectedProvider.id} / $effectiveModel does not accept system messages — the system prompt may be ignored or folded into the user message at dispatch time.",
+                        "${com.ai.data.MetadataIconsHolder.current.warningPlain} ${selectedProvider.id} / $effectiveModel does not accept system messages — the system prompt may be ignored or folded into the user message at dispatch time.",
                         fontSize = 11.sp, color = AppColors.Red
                     )
                 }

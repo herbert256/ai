@@ -356,7 +356,7 @@ private fun AgentModerationCard(
         }
         if (row.flagged && row.firedCategories.isNotEmpty()) {
             Text(
-                text = "🚩 Fired: ${row.firedCategories.joinToString(", ")}",
+                text = "${com.ai.data.MetadataIconsHolder.current.validatePrompt} Fired: ${row.firedCategories.joinToString(", ")}",
                 color = AppColors.Red, fontSize = 12.sp, fontWeight = FontWeight.Medium
             )
         }

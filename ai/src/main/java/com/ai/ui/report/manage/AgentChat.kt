@@ -173,7 +173,7 @@ internal fun AgentChatScreen(
                     )
                 }
             } catch (_: Exception) {
-                messages.add(ChatMessage(role = "assistant", content = "⚠️ The model call failed. Try again."))
+                messages.add(ChatMessage(role = "assistant", content = "${com.ai.data.MetadataIconsHolder.current.statusWarning} The model call failed. Try again."))
             } finally {
                 isStreaming = false; streamingText = ""; streamJob = null
             }
@@ -224,7 +224,7 @@ internal fun AgentChatScreen(
 
         if (appliedTick > 0) {
             Text(
-                "✓ Report response updated.",
+                "${com.ai.data.MetadataIconsHolder.current.checkMark} Report response updated.",
                 fontSize = 11.sp, color = AppColors.Green,
                 modifier = Modifier.padding(vertical = 4.dp)
             )

@@ -94,7 +94,7 @@ class TracingInterceptor : Interceptor {
         val response = try {
             chain.proceed(request)
         } catch (e: Exception) {
-            AppLog.w(tag, "✗ $callLabel — ${e.javaClass.simpleName}: ${e.message ?: ""} (${System.currentTimeMillis() - callStart}ms)")
+            AppLog.w(tag, "${MetadataIconsHolder.current.crossMark} $callLabel — ${e.javaClass.simpleName}: ${e.message ?: ""} (${System.currentTimeMillis() - callStart}ms)")
             ApiTracer.saveTrace(ApiTrace(
                 timestamp, hostname, capturedReportId, model, capturedCategory,
                 runId = capturedRunId,
@@ -334,4 +334,3 @@ internal fun extractApiErrorMessage(body: String?): String {
     val raw = candidate ?: body
     return raw.replace(Regex("\\s+"), " ").trim().take(400)
 }
-

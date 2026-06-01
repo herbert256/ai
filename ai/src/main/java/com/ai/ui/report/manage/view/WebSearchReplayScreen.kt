@@ -161,7 +161,7 @@ private fun WebSearchResultPane(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🧭 Web", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AppColors.Blue)
+                Text("${com.ai.ui.shared.LocalMetadataIcons.current.webSearchReplay} Web", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AppColors.Blue)
                 Spacer(modifier = Modifier.width(8.dp))
                 if (result is WebSearchReplayResult.Running) {
                     CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
