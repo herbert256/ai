@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
@@ -81,8 +82,17 @@ class MainActivity : ComponentActivity() {
                     // hidden the inset shrinks to 0 so there's no slot
                     // to reserve. Both system bars share AppBackground
                     // so drawing under the gesture pill stays consistent.
-                    modifier = if (hideStatusBar) Modifier.fillMaxSize()
-                               else Modifier.fillMaxSize().statusBarsPadding()
+                    //
+                    // imePadding() is the app-wide keyboard fix: under
+                    // enableEdgeToEdge() the window never resizes for the
+                    // IME, so the whole content shrinks above the keyboard
+                    // here instead. Combined with the foundation text
+                    // field's built-in bring-into-view, a focused field
+                    // (report prompt, chat composer, edit screens, …)
+                    // scrolls up above the keyboard rather than sitting
+                    // hidden behind it.
+                    modifier = if (hideStatusBar) Modifier.fillMaxSize().imePadding()
+                               else Modifier.fillMaxSize().statusBarsPadding().imePadding()
                 ) { innerPadding ->
                     AppNavHost(
                         modifier = Modifier.padding(innerPadding),
