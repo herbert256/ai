@@ -21,9 +21,8 @@ tier blobs).
 │       ├── SearchScreens (Quick / Extended local + Remote semantic)  │
 │       ├── ShareChooserScreen   (overlay before NavHost)             │
 │       ├── SettingsScreen (two-tier: enum-driven sub-screens)        │
-│       ├── HousekeepingScreen   (six NavCard rows, each its own      │
-│       │                         full screen with help topic)        │
-│       ├── SecondaryResultsScreen / TranslationCompareScreen / …     │
+│       ├── Monitor / Housekeeping hubs (icon cards + drill-ins)      │
+│       ├── Secondary results: Meta / Fan-out / Tournament / Compare  │
 │       └── HelpScreen / TraceScreen                                  │
 └─────────────────────────────────────────────────────────────────────┘
                               │
@@ -34,7 +33,7 @@ tier blobs).
 │  ├── ChatViewModel      — chat state and streaming                  │
 │  └── ReportViewModel    — report + secondary-result generation,     │
 │                           multi-language fan-out, translation runs, │
-│                           Fan-out (per-pair) + Fan-in (combine)     │
+│                           Fan-out/Fan-in + worker-judged batches    │
 └─────────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -58,7 +57,8 @@ tier blobs).
 │  │                         (tier blobs in filesDir/pricing/)        │
 │  ├── ReportStorage       — per-report JSON file persistence         │
 │  ├── SecondaryResultStorage — RERANK / META / MODERATION /          │
-│  │                            TRANSLATE persistence                 │
+│  │                            TRANSLATE / TOURNAMENT / JUDGES /     │
+│  │                            COMPARE persistence                   │
 │  ├── ChatHistoryManager  — chat session persistence                 │
 │  ├── HuggingFaceCache    — HF model-info cache                      │
 │  ├── BackupManager       — zip-based backup/restore                 │
@@ -82,19 +82,21 @@ tier blobs).
 
 ## Codebase shape
 
-~112,000 LOC across 323 Kotlin files:
-- `data/` — 64 files (HTTP, dispatch, streaming, tracer, rate
+~133,000 LOC across 355 Kotlin files:
+- `data/` — 78 files (HTTP, dispatch, streaming, tracer, rate
   limit / throttle, registry, pricing, storage, in-app file
   logger, atomic-write helpers, bundled-asset seeds, RAG /
-  Knowledge, on-device `local/` runtime, regenerate-batch).
+  Knowledge, on-device `local/` runtime, regenerate-batch,
+  Tournament / Judge-the-judges / Compare run models).
 - `model/` — 2 files (`SettingsModels.kt`, `SettingsHolder.kt`)
-- `viewmodel/` — 15 files (`AppViewModel` + its extracted
+- `viewmodel/` — 19 files (`AppViewModel` + its extracted
   top-level types in `AppViewModelTypes.kt`, `ChatViewModel`,
   `ReportViewModel` + extracted engines/managers such as
   `RegenerateBatchEngine`, `SecondaryRunManager`,
-  `IconGenerationManager`)
-- `ui/` — 241 files across sub-domains (`report` × 69,
-  `cruds` × 53, `admin` × 30, `settings` × 22, `shared` × 16,
+  `IconGenerationManager`, `TournamentEngine`, `JudgeEvalEngine`,
+  `CompareEngine`)
+- `ui/` — 255 files across sub-domains (`report` × 87,
+  `cruds` × 48, `admin` × 30, `settings` × 22, `shared` × 17,
   `helpers` × 16, `navigation` × 7, `other` × 6, `chat` × 5,
   `search` × 4, `hub` × 4, `history` × 3, `models` × 2,
   `share` × 2, `knowledge` × 1, `theme` × 1)

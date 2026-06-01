@@ -913,7 +913,7 @@ fun ProviderSettingsScreen(
             // 🐞 appears once the user has run the in-page Test
             // button and a trace was captured. Hidden until then so
             // the bar isn't claiming a trace exists when one doesn't.
-            onTrace = testTraceFile?.takeIf { com.ai.data.ApiTracer.isTracingEnabled && onNavigateToTrace != null }
+            onTrace = testTraceFile?.takeIf { com.ai.data.ApiTracer.ladybugLinksEnabled && onNavigateToTrace != null }
                 ?.let { tf -> { onNavigateToTrace!!(tf) } },
             onParameters = { showParamsDialog = true },
             onSystemPrompt = { showSystemPromptDialog = true }
@@ -1082,7 +1082,7 @@ fun ProviderSettingsScreen(
                                 fontSize = 12.sp, modifier = Modifier.weight(1f))
                         } ?: Spacer(modifier = Modifier.weight(1f))
                         val tf = testTraceFile
-                        if (!testSuccess && tf != null && onNavigateToTrace != null && com.ai.data.ApiTracer.isTracingEnabled) {
+                        if (!testSuccess && tf != null && onNavigateToTrace != null && com.ai.data.ApiTracer.ladybugLinksEnabled) {
                             Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 18.sp,
                                 modifier = Modifier
                                     .padding(start = 8.dp)

@@ -1495,7 +1495,7 @@ private fun CostDetailDialog(
     // records, fan-meta) fall back to the best-effort scan for the trace
     // matching this call's (reportId, model), newest-wins — which can pick
     // the wrong file when several calls share a (report, model).
-    val traceFile: String? = if (popup is CostPopup.Call && reportId != null && ApiTracer.isTracingEnabled) {
+    val traceFile: String? = if (popup is CostPopup.Call && reportId != null && ApiTracer.ladybugLinksEnabled) {
         remember(popup.r.model, reportId, popup.r.traceFile) {
             popup.r.traceFile ?: ApiTracer.getTraceFiles()
                 .asSequence()

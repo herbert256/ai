@@ -108,7 +108,7 @@ fun ChatHistoryScreen(
                                     }
                                     Text(dateFormat.format(session.updatedAt), fontSize = 11.sp, color = AppColors.TextDim)
                                 }
-                                if (com.ai.data.ApiTracer.isTracingEnabled && hasTraces) {
+                                if (com.ai.data.ApiTracer.ladybugLinksEnabled && hasTraces) {
                                     Text("\uD83D\uDC1E", fontSize = 16.sp,
                                         modifier = Modifier
                                             .padding(start = 6.dp)

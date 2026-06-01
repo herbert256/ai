@@ -338,7 +338,7 @@ internal fun SecondaryResultDetailScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
+        val traceEnabled = ApiTracer.ladybugLinksEnabled && traceFilename != null
         // 👁 → matching View sub-screen, per-kind dispatch.
         // RERANK → Rerank, MODERATION → Moderation, META → Meta /
         // FanIn by flavour. State lives in

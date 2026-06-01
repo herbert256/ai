@@ -187,7 +187,7 @@ internal fun FanOutL1Screen(
             subject = subject,
             onBackClick = onBack,
             onReload = { confirmRerunComplete = true },
-            onTrace = if (l1RunId != null && com.ai.data.ApiTracer.isTracingEnabled)
+            onTrace = if (l1RunId != null && com.ai.data.ApiTracer.ladybugLinksEnabled)
                 { { actions.onNavigateToTraceRunList(l1RunId) } } else null,
             onDelete = { confirmDelete = true },
             onAdd = if (isMainMode) actions.onCreateNewFanOut else null,

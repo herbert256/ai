@@ -511,7 +511,7 @@ internal fun SecondaryResultsScreen(
                 reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
                 subject = baseTitle,
                 onBackClick = onBack,
-                onTrace = if (isMetaPickerMode && ApiTracer.isTracingEnabled && tfTop != null) {
+                onTrace = if (isMetaPickerMode && ApiTracer.ladybugLinksEnabled && tfTop != null) {
                     { onNavigateToTraceFile(tfTop) }
                 } else null,
                 onOpenView = onOpenViewListJump,

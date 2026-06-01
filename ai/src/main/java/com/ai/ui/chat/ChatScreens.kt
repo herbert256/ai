@@ -948,7 +948,7 @@ fun ChatSessionScreen(
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Input flagged by moderation", modifier = Modifier.weight(1f))
-                    if (ApiTracer.isTracingEnabled && flagged.traceFilename != null) {
+                    if (ApiTracer.ladybugLinksEnabled && flagged.traceFilename != null) {
                         Text(
                             com.ai.data.MetadataIconsHolder.current.traces, fontSize = 18.sp,
                             modifier = Modifier
@@ -1045,7 +1045,7 @@ private fun ChatMessageBubble(
                 // Settings — old recordings stay on disk but the icons
                 // disappear.
                 val traceFilename = traceFilenameState?.value
-                if (ApiTracer.isTracingEnabled && traceFilename != null) {
+                if (ApiTracer.ladybugLinksEnabled && traceFilename != null) {
                     Text(
                         com.ai.data.MetadataIconsHolder.current.traces, fontSize = 14.sp,
                         modifier = Modifier

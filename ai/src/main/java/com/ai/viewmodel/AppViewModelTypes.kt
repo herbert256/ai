@@ -62,6 +62,11 @@ data class GeneralSettings(
      *  to [com.ai.data.ApiTracer.isTracingEnabled] so non-UI call
      *  sites consult a single global. */
     val tracingEnabled: Boolean = true,
+    /** When true (default) the 🐞 trace hot-links show throughout the app
+     *  while tracing is on. Turn off to hide every 🐞 link and view traces
+     *  only from the API Traces screen — tracing itself stays on. Mirrors to
+     *  [com.ai.data.ApiTracer.showLadybugIcons]. */
+    val showLadybugIcons: Boolean = true,
     /** When true hides the Android status bar — clock, signal,
      *  battery — so the app gets the full screen height. Reads via
      *  WindowInsetsControllerCompat in MainActivity on every settings

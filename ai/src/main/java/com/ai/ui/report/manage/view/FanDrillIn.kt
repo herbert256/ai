@@ -406,7 +406,7 @@ internal fun ColumnScope.FanOutDrillInView(
             reportIcon = report?.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportIcon,
             onBackClick = { l3AnswererKey = null; l3SourceAgentId = null },
             onOpenView = onOpenViewPairJump,
-            onTrace = if (ApiTracer.isTracingEnabled && srcTrace != null) {
+            onTrace = if (ApiTracer.ladybugLinksEnabled && srcTrace != null) {
                 { onNavigateToTraceFile(srcTrace) }
             } else null,
             // Reload re-runs only THIS pair (reset + relaunch the
@@ -525,7 +525,7 @@ internal fun ColumnScope.FanOutDrillInView(
                             }
                         }
                         val tfNonNull = tf
-                        if (ApiTracer.isTracingEnabled && tfNonNull != null) {
+                        if (ApiTracer.ladybugLinksEnabled && tfNonNull != null) {
                             Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                                 modifier = Modifier
                                     .padding(start = 6.dp)
@@ -636,7 +636,7 @@ internal fun ColumnScope.FanOutDrillInView(
                 { onNavigateToModelInfo(activeProviderService, activeMdl) }
             } else null,
             onDelete = { confirmModelDelete = true },
-            onTrace = if (selectedRole == "Initiator" && ApiTracer.isTracingEnabled && l2Trace != null) {
+            onTrace = if (selectedRole == "Initiator" && ApiTracer.ladybugLinksEnabled && l2Trace != null) {
                 { onNavigateToTraceFile(l2Trace) }
             } else null
         )

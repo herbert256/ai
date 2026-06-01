@@ -451,7 +451,7 @@ fun ModelInfoScreen(
             subject = modelName,
             onBackClick = onNavigateBack,
             onOpenView = onOpenView,
-            onTrace = if (ApiTracer.isTracingEnabled && traceCount > 0) {
+            onTrace = if (ApiTracer.ladybugLinksEnabled && traceCount > 0) {
                 { onNavigateToTracesForModel(provider, modelName) }
             } else null
         )

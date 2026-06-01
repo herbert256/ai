@@ -676,7 +676,7 @@ private fun DualMessageBubble(
                             .modelInfoClickable(msgProviderService, msg.modelName)
                     )
                     val tf = traceFilename
-                    if (com.ai.data.ApiTracer.isTracingEnabled && tf != null) {
+                    if (com.ai.data.ApiTracer.ladybugLinksEnabled && tf != null) {
                         Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 14.sp,
                             modifier = Modifier
                                 .clickable { onNavigateToTraceFile(tf) }

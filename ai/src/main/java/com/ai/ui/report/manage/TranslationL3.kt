@@ -198,7 +198,7 @@ internal fun TranslationL3Screen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
+        val traceEnabled = ApiTracer.ladybugLinksEnabled && traceFilename != null
         // 👁 → matching View Translate screen for this run.
         val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
         val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->

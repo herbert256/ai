@@ -97,7 +97,7 @@ internal fun ModelTestL3Screen(
             subjectModel = model,
             onBackClick = onBack,
             onInfo = service?.let { svc -> { actions.onNavigateToModelInfo(svc, model) } },
-            onTrace = if (ApiTracer.isTracingEnabled && item.traceFilename != null) {
+            onTrace = if (ApiTracer.ladybugLinksEnabled && item.traceFilename != null) {
                 { actions.onNavigateToTraceFile(item.traceFilename!!) }
             } else null
         )

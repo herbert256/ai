@@ -2495,14 +2495,16 @@ private fun LoggingAndTracingSubScreen(
     onNavigateHome: () -> Unit
 ) {
     var tracingEnabled by remember { mutableStateOf(generalSettings.tracingEnabled) }
+    var showLadybugIcons by remember { mutableStateOf(generalSettings.showLadybugIcons) }
     var logLevel by remember { mutableStateOf(generalSettings.logLevel) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         tracingEnabled = tracingEnabled,
+        showLadybugIcons = showLadybugIcons,
         logLevel = logLevel
     )
 
-    LaunchedEffect(tracingEnabled, logLevel) {
+    LaunchedEffect(tracingEnabled, showLadybugIcons, logLevel) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -2527,6 +2529,13 @@ private fun LoggingAndTracingSubScreen(
                 icon = MetadataDefaults.TRACES,
                 checked = tracingEnabled,
                 onCheckedChange = { tracingEnabled = it }
+            )
+            ToggleSettingCard(
+                title = "Show Ladybug icons",
+                description = "Show the ${com.ai.data.MetadataIconsHolder.current.traces} trace hot-links throughout the app. Turn off to hide every 🐞 link while keeping tracing on — view captured traces from the API Traces screen instead. No effect when API tracing is off.",
+                icon = MetadataDefaults.TRACES,
+                checked = showLadybugIcons,
+                onCheckedChange = { showLadybugIcons = it }
             )
             SettingCard(
                 "Application log level",

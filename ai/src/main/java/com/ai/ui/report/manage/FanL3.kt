@@ -492,7 +492,7 @@ internal fun FanOutL3Screen(
                 onInfo = answererProviderService?.let { svc ->
                     { actions.onNavigateToModelInfo(svc, pair.model) }
                 },
-                onTrace = if (ApiTracer.isTracingEnabled && answererTrace != null) {
+                onTrace = if (ApiTracer.ladybugLinksEnabled && answererTrace != null) {
                     { actions.onNavigateToTraceFile(answererTrace!!) }
                 } else null,
                 onDelete = { confirmDelete = true },
@@ -549,7 +549,7 @@ internal fun FanOutL3Screen(
                                 .clickable { actions.onNavigateToModelInfo(sourceProviderService, sourceAgent.model) }
                         )
                     }
-                    if (sourcePaneIsOther && ApiTracer.isTracingEnabled && sourceTrace != null) {
+                    if (sourcePaneIsOther && ApiTracer.ladybugLinksEnabled && sourceTrace != null) {
                         Text(
                             com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                             modifier = Modifier.padding(start = 6.dp)
@@ -609,7 +609,7 @@ internal fun FanOutL3Screen(
                                 .clickable { actions.onNavigateToModelInfo(answererProviderService, pair.model) }
                         )
                     }
-                    if (responsePaneIsOther && ApiTracer.isTracingEnabled && answererTrace != null) {
+                    if (responsePaneIsOther && ApiTracer.ladybugLinksEnabled && answererTrace != null) {
                         Text(
                             com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                             modifier = Modifier.padding(start = 6.dp)

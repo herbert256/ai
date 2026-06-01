@@ -6,8 +6,8 @@ models in parallel, fanning one model's response into another's
 prompt, and chatting with them.
 
 The project is a single Activity, Kotlin 2.2.10 + Jetpack Compose,
-~112,000 LOC across 323 Kotlin files, MVVM with three primary view
-models plus extracted engines/managers (15 files under `viewmodel/`),
+~133,000 LOC across 355 Kotlin files, MVVM with three primary view
+models plus extracted engines/managers (19 files under `viewmodel/`),
 42 cloud providers across three API formats, and seven external
 metadata repositories layered into one resolved view per
 `(provider, model)` pair.
@@ -39,10 +39,15 @@ metadata repositories layered into one resolved view per
 - **[system-prompts.md](system-prompts.md)** — How the system prompt is
   chosen for each kind of API call, and the precedence at each site.
 - **[secondary-results.md](secondary-results.md)** — Deep dive on the
-  meta-result flow: RERANK, the user-driven META kind (every chat-
-  type Meta prompt — Compare, Critique, Synthesize, …), MODERATION,
-  TRANSLATE, and the Fan-out / Fan-in flow with its three-level
-  drill-in.
+  meta-result flow: RERANK, user-driven META prompts, MODERATION,
+  TRANSLATE, Fan-out / Fan-in, and the worker-judged secondary kinds
+  TOURNAMENT / JUDGES / COMPARE.
+- **[tournament-judges-compare.md](tournament-judges-compare.md)** —
+  Worker-judged report analysis: Tournament rankings, Judge-the-judges
+  agreement, and Compare-with-meta similarity grids.
+- **[ui-customization.md](ui-customization.md)** — Settings → UI Colors
+  and Default icons: `AppColors`, `MetadataIcons`, persistence, aliases,
+  and which UI roles each setting controls.
 - **[help.md](help.md)** — The in-app Help system: the white ❔ live
   "&lt;screen&gt; - icons" overlay (report-Manage screens) vs the red ❓
   help page, per-screen topics, per-provider / per-repository pages,
@@ -156,7 +161,14 @@ truth. When in doubt, the relevant files are:
   (OpenRouter / Together) and `DEFAULT_PRICING`. Tier blobs live
   under `<filesDir>/pricing/`; `pricing_cache.xml` keeps only
   timestamps and the manual-override map
-- `data/SecondaryResult.kt` — `SecondaryKind` (RERANK, META, MODERATION, TRANSLATE) + storage + scope / language-scope sealed types + prompt-template helpers + Fan-out / Fan-in scope encoding
+- `data/SecondaryModels.kt` / `data/SecondaryResult.kt` —
+  `SecondaryKind` (RERANK, META, MODERATION, TRANSLATE, TOURNAMENT,
+  JUDGES, COMPARE) + storage + scope / language-scope sealed types +
+  prompt-template helpers + Fan-out / Fan-in scope encoding
+- `data/TournamentRunModel.kt`, `data/JudgeEvalRunModel.kt`,
+  `data/CompareRunModel.kt` — worker-judged analysis run state
+- `ui/shared/AppColors.kt` + `data/MetadataDefaults.kt` — configurable
+  UI colors and Default-icons-backed glyphs
 - `data/SharedContent.kt` — share-target snapshot
 - `data/InternalPromptSeed.kt` + `data/ExamplePromptSeed.kt` — bundled-asset loaders
 - `model/SettingsModels.kt` — every settings data class

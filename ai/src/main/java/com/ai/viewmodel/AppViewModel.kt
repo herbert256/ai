@@ -1095,6 +1095,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val previous = _uiState.value.generalSettings
         ModelType.userDefaults = settings.defaultTypePaths
         ApiTracer.isTracingEnabled = settings.tracingEnabled
+        ApiTracer.showLadybugIcons = settings.showLadybugIcons
         NetworkSettings.streamingReadTimeoutSec = settings.streamingReadTimeoutSec
         NetworkSettings.nonStreamingReadTimeoutSec = settings.nonStreamingReadTimeoutSec
         NetworkSettings.maxCallsPerProviderPerMinute = settings.maxCallsPerProviderPerMinute

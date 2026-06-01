@@ -72,7 +72,7 @@ internal fun ModelTestL1Screen(
         (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
 
     val runScopedTraceClick: (() -> Unit)? = run?.runId
-        ?.takeIf { it.isNotBlank() && com.ai.data.ApiTracer.isTracingEnabled }
+        ?.takeIf { it.isNotBlank() && com.ai.data.ApiTracer.ladybugLinksEnabled }
         ?.let { rid -> { actions.onNavigateToTraceRunList(rid) } }
 
     val navRoute = com.ai.ui.shared.LocalNavigateToRoute.current

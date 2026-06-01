@@ -38,6 +38,17 @@ object ApiTracer {
     private val fileSequence = AtomicLong(java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 1_000_000))
     @Volatile var isTracingEnabled: Boolean = false
 
+    /** User toggle (Settings → Logging → API Tracing → "Show Ladybug icons",
+     *  default true). When false the 🐞 trace hot-links are hidden everywhere
+     *  even though tracing keeps running — traces are then viewed from the API
+     *  Traces screen instead. Tracing capture itself is gated by
+     *  [isTracingEnabled], never by this. */
+    @Volatile var showLadybugIcons: Boolean = true
+
+    /** A 🐞 trace hot-link shows only when tracing is on AND the user hasn't
+     *  hidden the ladybug icons. */
+    val ladybugLinksEnabled: Boolean get() = isTracingEnabled && showLadybugIcons
+
     /** Per-thread tag pair carried across the OkHttp dispatcher
      *  boundary by [TagPropagatingExecutor]. Each top-level flow
      *  (chat send, report meta call, agent test, …) brackets its

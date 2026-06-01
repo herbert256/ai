@@ -143,7 +143,7 @@ internal fun ModerationDetailScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
+        val traceEnabled = ApiTracer.ladybugLinksEnabled && traceFilename != null
         // 👁 → View Moderation sub-screen. State lives in ReportsScreenNav via
         // LocalPendingViewOverManage; ReportPrimaryOverlays consumes it.
         val pendingViewHolder = com.ai.ui.shared.LocalPendingViewOverManage.current

@@ -87,7 +87,7 @@ fun LocalSemanticSearchScreen(
         val tfTop = latestTrace
         TitleBar(
             helpTopic = "search_local_semantic", title = "Local semantic search", subject = "On-device meaning search, no cloud", onBackClick = onBack,
-            onTrace = if (com.ai.data.ApiTracer.isTracingEnabled && tfTop != null) {
+            onTrace = if (com.ai.data.ApiTracer.ladybugLinksEnabled && tfTop != null) {
                 { onNavigateToTraceFile(tfTop) }
             } else null
         )

@@ -408,7 +408,7 @@ fun NewReportScreen(
             title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Prompt flagged by moderation", modifier = Modifier.weight(1f))
-                    if (ApiTracer.isTracingEnabled && traceFn != null) {
+                    if (ApiTracer.ladybugLinksEnabled && traceFn != null) {
                         Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 18.sp,
                             modifier = Modifier
                                 .clickable { onNavigateToTraceFile(traceFn) }

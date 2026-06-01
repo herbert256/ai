@@ -427,7 +427,7 @@ fun FetchModelsErrorRow(
             modifier = Modifier.weight(1f)
         )
         val tf = error.traceFile
-        if (tf != null && onNavigateToTrace != null && ApiTracer.isTracingEnabled) {
+        if (tf != null && onNavigateToTrace != null && ApiTracer.ladybugLinksEnabled) {
             Text(
                 "\uD83D\uDC1E", fontSize = 18.sp,
                 modifier = Modifier

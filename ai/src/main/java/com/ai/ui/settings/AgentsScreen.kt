@@ -339,7 +339,7 @@ fun AgentEditScreen(
                     ) { Text(if (isTesting) "Testing..." else "Test Agent", maxLines = 1, softWrap = false) }
 
                     val traceFile = lastTraceFile
-                    if (traceFile != null && onNavigateToTrace != null && com.ai.data.ApiTracer.isTracingEnabled) {
+                    if (traceFile != null && onNavigateToTrace != null && com.ai.data.ApiTracer.ladybugLinksEnabled) {
                         Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 22.sp,
                             modifier = Modifier
                                 .padding(start = 4.dp)

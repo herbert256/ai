@@ -434,7 +434,7 @@ internal fun MetaDetailScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        val traceEnabled = ApiTracer.isTracingEnabled && traceFilename != null
+        val traceEnabled = ApiTracer.ladybugLinksEnabled && traceFilename != null
         // 👁 → Meta / FanIn View sub-screen.
         val pendingViewHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
         val onOpenViewJump: (() -> Unit)? = pendingViewHolder?.let { holder ->

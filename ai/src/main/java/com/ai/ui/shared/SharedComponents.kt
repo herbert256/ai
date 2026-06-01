@@ -1806,8 +1806,13 @@ private fun buildBottomBarIcons(icons: TitleBarIcons, mi: com.ai.data.MetadataIc
     // (Application log — its App-log-statistics jump sits after clear-all).
     if (icons.statsAfterDelete) icons.onStats?.let { add(BottomBarIcon(mi.statistics, Color.Unspecified, it, 28, legendKey = D.STATISTICS)) }
     if (!icons.addFirst) icons.onAdd?.let { add(BottomBarIcon(addGlyph, Color.Unspecified, it, 28, legendKey = addGlyph)) }
-    // 🐞 trace always sits last in the strip.
-    icons.onTrace?.let { add(BottomBarIcon(mi.traces, Color.Unspecified, it, 22, legendKey = D.TRACES)) }
+    // 🐞 trace hot-link sits last in the strip — hidden when the user turned
+    // off "Show Ladybug icons" (traces are then reached from the API Traces
+    // screen instead, via the Monitor-nav 🐞 which stays). The Monitor-section
+    // jump group's 🐞 is separate and unaffected.
+    if (com.ai.data.ApiTracer.showLadybugIcons) {
+        icons.onTrace?.let { add(BottomBarIcon(mi.traces, Color.Unspecified, it, 22, legendKey = D.TRACES)) }
+    }
 }
 
 /** Renders one row of bottom-bar action icons via [TitleBarIcon]. When

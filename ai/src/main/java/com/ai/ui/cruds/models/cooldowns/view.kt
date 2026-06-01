@@ -35,7 +35,7 @@ internal fun CooldownView(
             else "expired"
         )
         val tf = item.traceFile
-        if (ApiTracer.isTracingEnabled && tf != null) {
+        if (ApiTracer.ladybugLinksEnabled && tf != null) {
             Text(
                 "${com.ai.data.MetadataIconsHolder.current.traces} View the 429 trace",
                 color = AppColors.InfoAccent, fontSize = 14.sp,
