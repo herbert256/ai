@@ -167,6 +167,17 @@ fun FanOutViewScreen(
         availableLanguages.indexOf(language ?: "").coerceAtLeast(0)
     }
     var langIdx by rememberSaveable(currentReportId, currentPromptName) { mutableStateOf(initialLangIdx) }
+    // langIdx is initialised before `translates` has loaded, so its seed sees
+    // only Original ("") and locks to 0 even when a launch language was asked
+    // for. Re-seek once the real language set arrives (once per report/prompt);
+    // manual flag taps afterwards stand.
+    var seededLang by rememberSaveable(currentReportId, currentPromptName) { mutableStateOf(false) }
+    LaunchedEffect(availableLanguages) {
+        if (!seededLang && availableLanguages.size > 1) {
+            langIdx = availableLanguages.indexOf(language ?: "").coerceAtLeast(0)
+            seededLang = true
+        }
+    }
     val activeLanguage = availableLanguages.getOrNull(langIdx.coerceIn(0, (availableLanguages.size - 1).coerceAtLeast(0))) ?: ""
     val advanceLanguage: () -> Unit = {
         if (availableLanguages.size > 1) langIdx = (langIdx + 1) % availableLanguages.size
