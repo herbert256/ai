@@ -102,9 +102,9 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "report_create_overview" to HelpContent(
         title = "Help - Create",
         cards = listOf(
-            HelpCard("What you see", "A full-screen launcher (the 🆕 icon on Manage report) for adding a secondary result to the report: Meta, Rerank, Moderation, Compare, Translate — each a big icon with a one-line explanation."),
-            HelpCard("The options", "Meta runs a Compare / Critique / Synthesize prompt over the answers. Rerank ranks the answers best-first. Moderation safety-checks them. Compare scores each answer against a meta result. Translate renders the report into other languages."),
-            HelpCard("How it works", "Tapping a row opens that kind's model/prompt picker — exactly what the old pop-up did. Meta is disabled when no Meta prompts are configured; Rerank and Moderation are single-shot and grey out once one exists on the report. Fan Out has its own 🔱 icon on Manage report.")
+            HelpCard("What you see", "A full-screen launcher (the 🆕 icon on Manage report) for adding a secondary result: Meta and Compare with meta — each a big icon with a one-line explanation."),
+            HelpCard("The options", "Meta runs a Compare / Critique / Synthesize prompt over the answers. Compare with meta scores each answer's similarity to a meta result. Tapping a row opens that kind's prompt / meta picker."),
+            HelpCard("Moved to the bottom bar", "Rerank (🏆), Moderation (🚦), Translate (🌐), Fan out (🔱) and the head-to-head tools (🥊) now each have their own icon on the Manage report bottom bar. Rerank / Moderation jump straight to an existing result if there is one, else open the model picker.")
         )
     ),
     "report_edit_icons" to HelpContent(

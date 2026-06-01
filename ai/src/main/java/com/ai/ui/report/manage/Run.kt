@@ -144,6 +144,29 @@ internal fun ReportRunScreen(
     val compareEnabled = compareMetaItems.isNotEmpty() && tournamentResponseCount >= 1
     var compareStep by rememberSaveable { mutableStateOf(0) }
     var compareSelectedMeta by remember { mutableStateOf<List<String>>(emptyList()) }
+    // Armed by the 🏆 / 🚦 bottom-bar icons when no rerank / moderation exists
+    // yet: the icon opens the picker, and once the run's placeholder row lands
+    // in secondaryRuns the LaunchedEffect below jumps to its detail screen.
+    // rememberSaveable so it survives the picker overlay (which unmounts this
+    // screen); cleared on navigation and on report switch.
+    var pendingOpenRerank by rememberSaveable(currentReportId) { mutableStateOf(false) }
+    var pendingOpenModeration by rememberSaveable(currentReportId) { mutableStateOf(false) }
+    LaunchedEffect(secondaryRuns, pendingOpenRerank) {
+        if (pendingOpenRerank) {
+            secondaryRuns.firstOrNull { it.kind == com.ai.data.SecondaryKind.RERANK }?.let {
+                st.openMetaResultId.value = it.id
+                pendingOpenRerank = false
+            }
+        }
+    }
+    LaunchedEffect(secondaryRuns, pendingOpenModeration) {
+        if (pendingOpenModeration) {
+            secondaryRuns.firstOrNull { it.kind == com.ai.data.SecondaryKind.MODERATION }?.let {
+                st.openMetaResultId.value = it.id
+                pendingOpenModeration = false
+            }
+        }
+    }
     val navigateToReportInfo = com.ai.ui.shared.LocalNavigateToReportInfo.current
     // Bumped every time the user taps the bottom-bar 📌 icon so the
     // isPinned produceState re-reads from disk and the 📌 tint flips
@@ -395,6 +418,46 @@ internal fun ReportRunScreen(
             tournamentIcon = com.ai.ui.shared.LocalMetadataIcons.current.tournament
                 .takeIf { it.isNotBlank() }
                 ?: com.ai.data.MetadataDefaults.TOURNAMENT,
+            // 🌐 Translate — opens the existing language→model picker flow
+            // (which auto-opens its own Translation run screen).
+            onTranslate = if (currentReportId != null) {
+                { generationHandlers.onTranslate() }
+            } else null,
+            translateIcon = com.ai.ui.shared.LocalMetadataIcons.current.translationRow
+                .takeIf { it.isNotBlank() }
+                ?: com.ai.data.MetadataDefaults.TRANSLATE,
+            // 🏆 Rerank — single-shot: if one exists, jump straight to its
+            // detail; otherwise open the picker and arm pendingOpenRerank so
+            // the LaunchedEffect lands on the detail once the row appears.
+            onRerank = if (currentReportId != null) {
+                {
+                    val existing = secondaryRuns.firstOrNull { it.kind == com.ai.data.SecondaryKind.RERANK }
+                    if (existing != null) {
+                        st.openMetaResultId.value = existing.id
+                    } else {
+                        pendingOpenRerank = true
+                        generationHandlers.onOpenRerankPicker()
+                    }
+                }
+            } else null,
+            rerankIcon = com.ai.ui.shared.LocalMetadataIcons.current.rerank
+                .takeIf { it.isNotBlank() }
+                ?: com.ai.data.MetadataDefaults.RERANK,
+            // 🚦 Moderation — same single-shot behaviour as rerank.
+            onModeration = if (currentReportId != null) {
+                {
+                    val existing = secondaryRuns.firstOrNull { it.kind == com.ai.data.SecondaryKind.MODERATION }
+                    if (existing != null) {
+                        st.openMetaResultId.value = existing.id
+                    } else {
+                        pendingOpenModeration = true
+                        generationHandlers.onOpenModerationPicker()
+                    }
+                }
+            } else null,
+            moderationIcon = com.ai.ui.shared.LocalMetadataIcons.current.moderate
+                .takeIf { it.isNotBlank() }
+                ?: com.ai.data.MetadataDefaults.MODERATE,
             // ✏️ opens the full-screen "Edit report" overview (layer on top
             // of this hub) instead of the old 3-button pop-up.
             onEdit = { st.showEditReportOverview.value = true },
@@ -623,26 +686,10 @@ internal fun ReportRunScreen(
             ) {
                 ReportCreateOverviewScreen(
                     metaEnabled = aiSettings.internalPrompts.any { it.category.equals("meta", ignoreCase = true) },
-                    rerankEnabled = secondaryCounts.rerank == 0,
-                    moderationEnabled = secondaryCounts.moderation == 0,
                     compareEnabled = compareEnabled,
                     onMeta = {
                         st.showCreateOverview.value = false
                         generationHandlers.onOpenMetaPicker()
-                    },
-                    onRerank = {
-                        st.showCreateOverview.value = false
-                        android.widget.Toast.makeText(context, "Loading rerank models…", android.widget.Toast.LENGTH_SHORT).show()
-                        generationHandlers.onOpenRerankPicker()
-                    },
-                    onModeration = {
-                        st.showCreateOverview.value = false
-                        android.widget.Toast.makeText(context, "Loading moderation models…", android.widget.Toast.LENGTH_SHORT).show()
-                        generationHandlers.onOpenModerationPicker()
-                    },
-                    onTranslate = {
-                        st.showCreateOverview.value = false
-                        generationHandlers.onTranslate()
                     },
                     onCompare = {
                         st.showCreateOverview.value = false

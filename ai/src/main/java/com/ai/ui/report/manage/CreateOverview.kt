@@ -32,12 +32,13 @@ import com.ai.ui.shared.TitleBar
 /**
  * "Create" — the full-screen launcher opened by the bottom-bar 🆕 icon on the
  * Manage hub. The big-icon + explanatory-text sibling of the old Create pop-up:
- * one row per general secondary-result kind (Meta / Rerank / Moderation /
- * Compare / Translate). Fan Out has its own Manage title-bar icon because
- * reusing an existing Fan Out is the common path. Tapping a row does exactly
+ * one row per secondary-result kind that doesn't have its own Manage title-bar
+ * icon (Meta / Compare with meta). Fan Out, Rerank, Moderation, Translate and
+ * the head-to-head tools each have their own bottom-bar icon because reusing /
+ * jumping to an existing one is the common path. Tapping a row does exactly
  * what the pop-up button did — the close-then-open is baked into each callback
- * at the [ReportRunScreen] call site. Disabled rows (no prompt configured, or
- * a single-shot kind already present) render dimmed and non-clickable.
+ * at the [ReportRunScreen] call site. Disabled rows (no prompt configured)
+ * render dimmed and non-clickable.
  *
  * Drawn as a layer-on-top overlay in [ReportRunScreen] (mirrors
  * [ReportEditOverviewScreen]); [publishBottomBar] is false so the hub keeps its
@@ -46,13 +47,8 @@ import com.ai.ui.shared.TitleBar
 @Composable
 internal fun ReportCreateOverviewScreen(
     metaEnabled: Boolean,
-    rerankEnabled: Boolean,
-    moderationEnabled: Boolean,
     compareEnabled: Boolean,
     onMeta: () -> Unit,
-    onRerank: () -> Unit,
-    onModeration: () -> Unit,
-    onTranslate: () -> Unit,
     onCompare: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -74,10 +70,7 @@ internal fun ReportCreateOverviewScreen(
         ) {
             Spacer(modifier = Modifier.height(4.dp))
             CreateRow("🔗", "Meta", "Compare, critique or synthesize the answers", metaEnabled, onMeta)
-            CreateRow("🏆", "Rerank", "Rank the model answers best-first", rerankEnabled, onRerank)
-            CreateRow("🚦", "Moderation", "Safety-check the answers", moderationEnabled, onModeration)
             CreateRow("🧮", "Compare with meta", "Score each answer's similarity to a meta result", compareEnabled, onCompare)
-            CreateRow("🌐", "Translate", "Translate the report into other languages", true, onTranslate)
             Spacer(modifier = Modifier.height(16.dp))
         }
     }

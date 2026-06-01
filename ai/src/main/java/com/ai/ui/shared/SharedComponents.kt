@@ -826,6 +826,14 @@ data class TitleBarIcons(
      *  the dedicated Tournament creation screen. Null → glyph hidden. */
     val onTournament: (() -> Unit)? = null,
     val tournamentIcon: String = "🥊",
+    /** Optional Translate / Rerank / Moderation launcher hooks. Wired from
+     *  Manage report (replacing the old Create-launcher rows). Null → hidden. */
+    val onTranslate: (() -> Unit)? = null,
+    val translateIcon: String = "🌐",
+    val onRerank: (() -> Unit)? = null,
+    val rerankIcon: String = "🏆",
+    val onModeration: (() -> Unit)? = null,
+    val moderationIcon: String = "🚦",
     /** Optional ✏️ edit hook. CRUD view pages publish it so the bottom
      *  bar carries the "edit this entry" action. Null → glyph hidden. */
     val onEdit: (() -> Unit)? = null,
@@ -1110,6 +1118,14 @@ fun TitleBar(
     /** Optional tournament launcher hook. Null → glyph hidden. */
     onTournament: (() -> Unit)? = null,
     tournamentIcon: String = "🥊",
+    /** Optional Translate / Rerank / Moderation launcher hooks (Manage report
+     *  bottom bar). Null → glyph hidden. */
+    onTranslate: (() -> Unit)? = null,
+    translateIcon: String = "🌐",
+    onRerank: (() -> Unit)? = null,
+    rerankIcon: String = "🏆",
+    onModeration: (() -> Unit)? = null,
+    moderationIcon: String = "🚦",
     /** When true, 🆕 leads the bar instead of sitting in the trailing
      *  group. Used by the Manage report screen. */
     addFirst: Boolean = false,
@@ -1215,6 +1231,12 @@ fun TitleBar(
         fanOutIcon = fanOutIcon,
         onTournament = onTournament,
         tournamentIcon = tournamentIcon,
+        onTranslate = onTranslate,
+        translateIcon = translateIcon,
+        onRerank = onRerank,
+        rerankIcon = rerankIcon,
+        onModeration = onModeration,
+        moderationIcon = moderationIcon,
         addFirst = addFirst,
         costText = costText,
         onCostClick = onCostClick,
@@ -1682,6 +1704,15 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     }
     icons.onTournament?.let {
         add(BottomBarIcon(icons.tournamentIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🥊", Color.Unspecified, it, 28))
+    }
+    icons.onTranslate?.let {
+        add(BottomBarIcon(icons.translateIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🌐", Color.Unspecified, it, 28))
+    }
+    icons.onRerank?.let {
+        add(BottomBarIcon(icons.rerankIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🏆", Color.Unspecified, it, 28))
+    }
+    icons.onModeration?.let {
+        add(BottomBarIcon(icons.moderationIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🚦", Color.Unspecified, it, 28))
     }
     // Chat slot — normally 💬 chat; when swapped (Model response) the 🔄
     // reload glyph takes this early position instead.
