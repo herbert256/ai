@@ -1837,12 +1837,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Ask one model a free-form [prompt] and return its response text (null
-     *  on error / empty). Reuses the same prompt-test path as
-     *  [testModelWithPrompt] but hands back the text the caller needs — used by
-     *  the Default-icons "AI" icon finder to extract an emoji per model. */
+     *  on error / empty) — used by the Default-icons "AI" icon finder to
+     *  extract an emoji per model. Tagged with the "settings/icons" category so
+     *  the calls land under that bucket in both the API Traces and AI Usage /
+     *  Costs (trace category + recorded usage kind), rather than the generic
+     *  "Provider test" bucket the plain prompt-test path uses. */
     suspend fun askModelText(service: AppService, model: String, prompt: String): String? = try {
         val apiKey = uiState.value.aiSettings.getApiKey(service)
-        repository.testModelWithPrompt(service, apiKey, model, prompt).first
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            com.ai.data.withTraceCategory(SETTINGS_ICONS_CALL_KIND) {
+                val response = repository.analyze(service, apiKey, prompt, model)
+                if (response.isSuccess) {
+                    response.tokenUsage?.let { u ->
+                        settingsPrefs.updateUsageStatsAsync(
+                            service, model, u.inputTokens, u.outputTokens, u.totalTokens,
+                            kind = SETTINGS_ICONS_CALL_KIND
+                        )
+                    }
+                    response.analysis
+                } else null
+            }
+        }
     } catch (_: Exception) { null }
 
     suspend fun testModelWithPrompt(service: AppService, apiKey: String, model: String, prompt: String): Pair<Boolean, String?> {

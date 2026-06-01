@@ -9,6 +9,11 @@ internal const val FAN_OUT_REASONING_CALL_KIND = "fan/out/reasoning"
 internal const val FAN_OUT_WEB_SEARCH_CALL_KIND = "fan/out/web-search"
 internal const val FAN_OUT_PROMPT_EDIT_CALL_KIND = "fan/out/prompt-edit"
 
+/** The Default-icons "AI" icon finder (Settings → Default icons → 🤖). Its
+ *  per-model emoji probes are tagged with this so they group under their own
+ *  bucket in the API Traces and AI Usage / Costs. */
+internal const val SETTINGS_ICONS_CALL_KIND = "settings/icons"
+
 internal fun normalizeApiCallCategory(category: String?): String? =
     when {
         category == null -> null

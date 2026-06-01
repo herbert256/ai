@@ -67,6 +67,7 @@ import com.ai.data.LogStatsData
 import com.ai.data.ModelCooldownStore
 import com.ai.data.MODEL_REASONING_CALL_KIND
 import com.ai.data.MODEL_TEMPERATURE_CALL_KIND
+import com.ai.data.SETTINGS_ICONS_CALL_KIND
 import com.ai.data.MODEL_WEB_SEARCH_CALL_KIND
 import com.ai.data.ModelTestRunState
 import com.ai.data.NetworkSettings
@@ -1266,6 +1267,7 @@ private fun kindLabel(kind: String): String = when (kind) {
     "moderation" -> "Moderation"
     "translate" -> "Translate"
     "title" -> "Title"
+    SETTINGS_ICONS_CALL_KIND -> "Settings · Icons"
     MODEL_TEMPERATURE_CALL_KIND -> MODEL_TEMPERATURE_CALL_KIND
     MODEL_REASONING_CALL_KIND -> MODEL_REASONING_CALL_KIND
     MODEL_WEB_SEARCH_CALL_KIND -> MODEL_WEB_SEARCH_CALL_KIND
