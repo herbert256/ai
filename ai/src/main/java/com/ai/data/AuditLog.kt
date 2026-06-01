@@ -51,6 +51,12 @@ object AuditLog {
     @Volatile private var appContext: Context? = null
     private val lock = ReentrantLock()
 
+    /** User toggle (Settings → Logging → "Audit log", default true). When
+     *  false every audit write is dropped — [append] is the single sink all
+     *  the start / technical / functional / action lines funnel through, so
+     *  gating it here turns the whole audit log off. */
+    @Volatile var enabled: Boolean = true
+
     fun init(context: Context) = lock.withLock {
         appContext = context.applicationContext
         auditDir = File(context.filesDir, DIR_NAME).also { if (!it.exists()) it.mkdirs() }
@@ -65,6 +71,7 @@ object AuditLog {
 
     /** Append one functional / action / batch line for [reportId]. */
     fun append(reportId: String, message: String) {
+        if (!enabled) return
         if (reportId.isBlank()) return
         val dir = auditDir ?: return  // pre-init() callers are dropped (logcat-free)
         lock.withLock {

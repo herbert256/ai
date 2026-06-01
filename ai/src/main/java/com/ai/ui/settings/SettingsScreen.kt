@@ -2496,15 +2496,17 @@ private fun LoggingAndTracingSubScreen(
 ) {
     var tracingEnabled by remember { mutableStateOf(generalSettings.tracingEnabled) }
     var showLadybugIcons by remember { mutableStateOf(generalSettings.showLadybugIcons) }
+    var auditLogEnabled by remember { mutableStateOf(generalSettings.auditLogEnabled) }
     var logLevel by remember { mutableStateOf(generalSettings.logLevel) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         tracingEnabled = tracingEnabled,
         showLadybugIcons = showLadybugIcons,
+        auditLogEnabled = auditLogEnabled,
         logLevel = logLevel
     )
 
-    LaunchedEffect(tracingEnabled, showLadybugIcons, logLevel) {
+    LaunchedEffect(tracingEnabled, showLadybugIcons, auditLogEnabled, logLevel) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -2536,6 +2538,13 @@ private fun LoggingAndTracingSubScreen(
                 icon = MetadataDefaults.TRACES,
                 checked = showLadybugIcons,
                 onCheckedChange = { showLadybugIcons = it }
+            )
+            ToggleSettingCard(
+                title = "Audit log",
+                description = "Record the per-report audit trail — every mutating action, batch start/end and API call, viewable under Monitor → Audit. Turn off to stop all audit writes.",
+                icon = "🧾",
+                checked = auditLogEnabled,
+                onCheckedChange = { auditLogEnabled = it }
             )
             SettingCard(
                 "Application log level",

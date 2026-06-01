@@ -198,25 +198,20 @@ than a wall of cards.
 ### TitleBar action strip
 
 Every screen's `TitleBar` is a standardised action strip — `< Back`
-plus a context-specific subset from {💬 Chat, ℹ️ Info, 📋 Copy,
-📤 Share, 🔄 Refresh, 🗑 Delete, 🐞 Trace, 📝 Memo, 🏠 Home,
-❓ Help}. Inactive icons hide; Home and Help are always last. The
-`< Back` button can be hidden via Settings (the system back /
-gesture back still works). `subjectToTitleBarMode` (tri-state:
-HARDCODED / SUBJECT / BOTH; default BOTH) folds the dynamic
-subject into the title bar in two flavours — SUBJECT replaces
-the static label, BOTH joins them with `/` — and drops the
-green sub-header line in both cases. When BOTH is selected and
-the subject is empty (e.g. a report whose title is still being
-generated), the title bar gracefully falls back to the report's
-title rather than rendering a trailing `/`. The action icons +
-back arrow are always rendered in a bar pinned at the bottom of
-the screen; the top title bar shows only the per-report icon
-(when set) and the title. The bar lives at AppNavHost scope so
-it survives nav transitions. Report-scoped screens get the
-per-report icon as
-the leftmost glyph in the top title bar (propagated via
-`LocalReportIcon` so picker overlays inherit it).
+plus a context-specific subset from {Chat, Info, Copy, Share,
+Refresh, Delete, Trace, Memo, Home, Help, …}. The glyphs are read
+from `MetadataIcons` / `LocalMetadataIcons`, not hard-coded at the
+call site, so Settings → Default icons can override them globally.
+Inactive icons hide; Home and Help are always last. The `< Back`
+button can be hidden via Settings (the system back / gesture back
+still works).
+
+The top title and subtitle colors are `AppColors.MainTitle` and
+`AppColors.SubTitle`, both editable in Settings → UI Colors. The
+overall app background is `AppColors.AppBackground`, which also
+drives the Android system bars in `MainActivity`. See
+[ui-customization.md](ui-customization.md) for the full color/icon
+contract.
 
 Two master switches drive icon generation:
 
@@ -233,6 +228,24 @@ Two master switches drive icon generation:
   off skips that step but leaves any persisted per-model icons in place.
 
 See [report-icons.md](report-icons.md) for the full flow.
+
+### Worker-judged analysis batches
+
+`TournamentEngine`, `JudgeEvalEngine`, and `CompareEngine` are
+siblings of the secondary/fan-out engines. They use persisted
+`SecondaryResult` rows as their source of truth but keep hot
+running/waiting cell ids in dedicated `StateFlow`s so the whole
+`UiState` tree does not recompose at batch speed.
+
+- **Tournament** creates ordered head-to-head match rows and an
+  aggregate ranking row. Ranking can be recomputed locally with
+  Copeland / Elo / Davidson / Tideman / Markov.
+- **Judge the judges** gives every judge in the Tournament swarm the
+  same random answer pairs and computes agreement with consensus.
+- **Compare with meta** scores each report answer against selected
+  Meta rows using `meta_compare` worker prompts.
+
+See [tournament-judges-compare.md](tournament-judges-compare.md).
 
 ### Layered lookups
 
@@ -362,11 +375,10 @@ The drill-in is three levels deep:
 - **Level 3** — single response detail with a 🐞 link to the
   original report-model trace.
 
-Concurrency on Fan-out is capped at `FAN_OUT_PER_PROVIDER_LIMIT
-= 3` per provider (so 6 reports against a single provider runs
-3 in flight, against 6 different providers all 18 run
-concurrently). The hot per-pair `runningFanOutPairs` flow is
-separate from `UiState`.
+Concurrency on Fan-out is capped by `ApiCallCaps.fanOut` plus the
+shared per-provider throttle, so overlapping report / chat / meta /
+fan-out traffic all respect the same host budgets. The hot per-pair
+`runningFanOutPairs` flow is separate from `UiState`.
 
 ## Concurrency
 
@@ -439,13 +451,16 @@ Recovery mechanisms keep the app robust to process death:
    "Interrupted" so a cold-launch in the middle of a Fan-out
    doesn't lose progress — the placeholder is recovered and only
    genuinely-stuck pairs are flagged.
-3. `rememberSaveable` on key UI state (e.g. AI Usage's expanded
+3. Tournament, Judge-the-judges, and Compare hydrate their newest
+   run from `SecondaryResult` rows and mark only genuinely stale
+   placeholders as interrupted after resume attempts.
+4. `rememberSaveable` on key UI state (e.g. AI Usage's expanded
    provider list, Cross drill-in scope buckets per
    `(report, prompt)`) survives navigation away and back. Chat's
    staged `userInput` and `attachedImage` are preserved across
    process recreation; Dual Chat conversations persist across
    rotation / process recreation.
-4. The Report Result screen recovers stale placeholders on entry,
+5. The Report Result screen recovers stale placeholders on entry,
    so the user never lands on a forever-spinning hourglass.
 
 ## In-app logging

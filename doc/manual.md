@@ -152,9 +152,10 @@ two-tier toggle action bar:
 - **🆕 Create** — opens a full-screen **Create** launcher (layer
   on top): one big-icon + description row per secondary kind —
   **Meta** / **Rerank** / **Moderation** / **Fan out** /
-  **Translate** — tapping a row opens that kind's existing picker /
-  flow. Disabled rows (no prompt configured, or a single-shot kind
-  already present) render dimmed.
+  **Translate** / **Tournament** / **Judge the judges** /
+  **Compare with meta** — tapping a row opens that kind's picker or
+  drill-in. Disabled rows (no prompt configured, not enough source
+  rows, or a single-shot kind already present) render dimmed.
 
 The TitleBar above the result screen carries a 💬 Chat icon that
 starts a new chat session pre-populated with the report's
@@ -217,6 +218,29 @@ name that has at least one row on this report (e.g.
 **Compare (k)**, **Critique (n)**), plus **Reranks / Moderations /
 Translations** buttons for those structured kinds.
 
+#### Tournament, Judge the judges, Compare with meta
+
+These are worker-judged analysis batches rather than one-call Meta
+rows:
+
+- **Tournament** judges every pair of successful model responses
+  twice, A-vs-B and B-vs-A, using the `workers/tournament` prompt and
+  the `tournament` swarm. It stores match rows plus a leaderboard. The
+  View side can switch Copeland / Elo / Davidson / Tideman / Markov
+  ranking and drill into model head-to-heads.
+- **Judge the judges** gives every judge model in that same swarm the
+  same random answer pairs, then reports agreement with consensus and
+  per-judge cost/time. You can add/remove judges from the run; the
+  underlying swarm is updated too.
+- **Compare with meta** first asks you to select existing Meta results,
+  then a `meta_compare` prompt. It scores every answer against every
+  selected Meta row as a 0..100 similarity grid.
+
+All three have L1/L2/L3 drill-ins, running/waiting/error counters,
+restart-failed and redo actions, per-cell cost, and trace links when
+tracing was enabled. See
+[tournament-judges-compare.md](tournament-judges-compare.md).
+
 #### Scope step
 
 For chat-type Meta prompts and Translate, a **scope** screen shows
@@ -251,10 +275,10 @@ in** action once fan-out rows exist).
    "N reports × M responses = pairs".
 2. The runtime fans out one API call per (answerer, source) pair
    — each `@RESPONSE@` placeholder in the template is replaced
-   by the source response text. Concurrency is capped at 3 per
-   provider so even 6 reports against one provider keeps three
-   in flight; against 6 different providers all 18 run
-   concurrently.
+   by the source response text. Concurrency is controlled by
+   Settings → Network → Maximal API calls plus the per-provider
+   throttle, so overlapping report / chat / fan-out work shares the
+   same host budgets.
 3. **Drill in** — three levels deep:
    - **Level 1** lists one row per answerer with progress bars,
      ✅/❌ status, per-row cost, and a Total banner. Empty-body

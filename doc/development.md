@@ -79,7 +79,7 @@ Complete** options. See [applog.md](applog.md).
 ```
 ai/src/main/java/com/ai/
 ├── MainActivity.kt
-├── data/                              # core data layer
+├── data/                              # 78 files, core data layer
 │   ├── (HTTP, dispatch, streaming, tracer, throttle, registry, …)
 │   ├── AnalysisRepository.kt   ApiClient.kt     ApiDispatch.kt
 │   ├── ApiFormat.kt            ApiModels.kt     ApiStreaming.kt
@@ -92,22 +92,25 @@ ai/src/main/java/com/ai/
 │   ├── ModelListCache.kt       ModelType.kt     PricingCache.kt
 │   ├── PricingParsers.kt       PromptCache.kt
 │   ├── ProviderFieldTimestamps.kt    ProviderRegistry.kt
-│   ├── ReportStorage.kt        SecondaryResult.kt   SharedContent.kt
+│   ├── ReportStorage.kt        SecondaryResult.kt   SecondaryModels.kt
+│   ├── TournamentRunModel.kt   JudgeEvalRunModel.kt CompareRunModel.kt
+│   ├── TournamentRanking.kt    JudgeAgreement.kt    SharedContent.kt
 ├── model/                             # 2 files
 │   ├── SettingsModels.kt + SettingsHolder.kt
-├── viewmodel/                         # 15 files
+├── viewmodel/                         # 19 files
 │   ├── AppViewModel.kt (+ AppViewModelTypes.kt, the extracted
 │   │   top-level types) + ChatViewModel.kt + ReportViewModel.kt
 │   └── extracted engines/managers (RegenerateBatchEngine,
-│       SecondaryRunManager, IconGenerationManager, …)
-└── ui/                                # 241 files
-    ├── report/      (69)              # report flows, secondary results,
+│       SecondaryRunManager, IconGenerationManager, TournamentEngine,
+│       JudgeEvalEngine, CompareEngine, …)
+└── ui/                                # 255 files
+    ├── report/      (87)              # report flows, secondary results,
     │                                  # Fan-out / Fan-in screens, exports
     │                                  # (PDF, DOCX/ODT, RTF, zipped HTML),
     │                                  # translation screens, icon screens,
     │                                  # manage/ overview + edit screens,
     │                                  # Get-info / regenerate
-    ├── cruds/       (53)              # generic CRUD framework + per-entity
+    ├── cruds/       (48)              # generic CRUD framework + per-entity
     │                                  # CRUDs: workers (agents/flocks/
     │                                  # swarms), model-states (blocked/
     │                                  # cooldowns/testexcluded/inaccessible/
@@ -120,7 +123,7 @@ ai/src/main/java/com/ai/
     │                                  # AppLogScreen
     ├── settings/    (22)              # AI Setup sub-screens + Workers/
     │                                  # Local-runtime setup
-    ├── shared/      (16)              # CrudListScreen, TitleBar +
+    ├── shared/      (17)              # CrudListScreen, TitleBar +
     │                                  # BottomIconBar, AppColors, Badges,
     │                                  # Dialogs, Cards, …
     ├── helpers/     (16)              # report export + shared helpers
@@ -137,7 +140,7 @@ ai/src/main/java/com/ai/
     └── theme/       (1)               # Material3 dark theme
 ```
 
-Roughly **323 Kotlin files, ~112,000 LOC** total.
+Roughly **355 Kotlin files, ~133,000 LOC** total.
 
 ## Adding things
 
@@ -217,7 +220,7 @@ insensitively dedups when merging.
 7. Add a per-provider help page entry under `HelpScreen.kt` with an
    ℹ deep link from the Source button.
 
-### A new SecondaryKind (after RERANK / META / MODERATION / TRANSLATE)
+### A new SecondaryKind (after RERANK / META / MODERATION / TRANSLATE / TOURNAMENT / JUDGES / COMPARE)
 
 Most "I want a new analysis on report outputs" cases are covered
 by adding a Meta-prompt entry under Settings → AI Setup → Prompt
@@ -235,6 +238,9 @@ title / prompt template. Walk the resulting compile errors:
 - `SecondaryResultStorage.Counts` + `countForReport`
 - `ReportViewModel.metaTypeToKind` (logs unknown meta prompt types
   rather than throwing) and `executeSecondaryTask`
+- Any dedicated runtime model/engine if the kind is grid-shaped
+  rather than a single call (see `TournamentEngine`, `JudgeEvalEngine`,
+  `CompareEngine`)
 - `ReportScreen` running-row "type" cell
 - `SecondaryResultsScreen` routing (which view to render —
   picker, table, drill-in list)

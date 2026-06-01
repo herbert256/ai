@@ -1096,6 +1096,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ModelType.userDefaults = settings.defaultTypePaths
         ApiTracer.isTracingEnabled = settings.tracingEnabled
         ApiTracer.showLadybugIcons = settings.showLadybugIcons
+        com.ai.data.AuditLog.enabled = settings.auditLogEnabled
         NetworkSettings.streamingReadTimeoutSec = settings.streamingReadTimeoutSec
         NetworkSettings.nonStreamingReadTimeoutSec = settings.nonStreamingReadTimeoutSec
         NetworkSettings.maxCallsPerProviderPerMinute = settings.maxCallsPerProviderPerMinute

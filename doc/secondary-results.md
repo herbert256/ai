@@ -1,7 +1,7 @@
-# Secondary Results: Meta prompts, Rerank, Moderate, Translate, Fan-out / Fan-in
+# Secondary Results: Meta prompts, Rerank, Moderate, Translate, Fan-out / Fan-in, Tournament, Judges, Compare
 
-A "secondary result" is a meta-result that operates on a finished
-report's per-agent outputs. Four kinds exist (`SecondaryKind`):
+A "secondary result" operates on a finished report's per-agent
+outputs. Seven kinds exist (`SecondaryKind`):
 
 | Kind | Purpose | Default prompt asks for |
 |---|---|---|
@@ -9,6 +9,9 @@ report's per-agent outputs. Four kinds exist (`SecondaryKind`):
 | `META` | Any user-defined chat-type Meta prompt — "Compare", "Critique", "Synthesize", anything the user names in the Meta-prompt CRUD. Also covers Fan-out per-pair rows and Fan-in combined-report rows | Free-form prose; the prompt body is whatever the user wrote |
 | `MODERATION` | Per-response policy classification | Structured JSON from a provider's `/moderations` endpoint (no chat prompt) |
 | `TRANSLATE` | Translate prompt + responses to one or more languages | Free-form prose, one row per (source × language) — see [translation.md](translation.md) |
+| `TOURNAMENT` | Worker-judged head-to-head answer tournament | Match verdict rows plus one aggregate ranking row |
+| `JUDGES` | Judge-the-judges agreement analysis | Every judge scores the same random answer-pairs; aggregate stores agreement |
+| `COMPARE` | Compare-with-meta similarity grid | 0..100 similarity score for each answer × selected Meta row |
 
 Every chat-type prompt routes through the single `META` kind; the
 user-given prompt name carried on the row (`metaPromptName`) is what
@@ -18,6 +21,9 @@ name decides how the result is grouped, labelled, and exported. The
 Fan-out per-pair rows and Fan-in combined-report row also carry
 `kind = META` but are distinguished by `fanOutSourceAgentId != null`
 (Fan-out) and `fanInOf != null` (Fan-in).
+Tournament, Judge-the-judges, and Compare are grid-shaped
+worker-judged batches; see
+[tournament-judges-compare.md](tournament-judges-compare.md).
 
 Each result is the work of a single chosen model and is persisted
 independently — a report can accumulate any combination, and each
@@ -36,6 +42,17 @@ broken into category buckets:
   every (answerer × source) pair.
 - **Fan-in prompts** (`category = "fan_in"`) — combines fan-out
   responses back into a single combined-report row.
+- **Compare prompts** (`category = "meta_compare"`) — worker-judged
+  prompts used by Compare with meta. The bundled `equivalent` prompt
+  asks for a 0..100 similarity percentage plus a reason.
+- **Worker prompts** (`category = "workers"`) — prompt + fallback-worker
+  chains for generated metadata and worker-judged batches, including
+  `tournament`, `fan-meta`, `model-icons`, `model-titles`,
+  `report-icon`, `report-language`, `report-title-short`,
+  `report-title-long`, `second-meta`, `translation-icon`, and
+  `user-note`.
+- **Alternative prompts** (`category = "alt"`) — prompts used by
+  Find-alternative icon/title/language flows.
 - **Other internal** (`category = "internal"`) — fixed list of
   eight fixed-name templates: `chat-title`, `model-info`, `model-intro`,
   `translate-text`, `translate-title`, `second-rerank`, `second-moderation`, `test-model`. No Add / Delete in this bucket.
@@ -105,6 +122,8 @@ Each entry has:
      appended at storage time
    • Fan-out rows carry fanOutSourceAgentId
    • Fan-in rows carry fanInOf = <metaPromptId>
+   • Tournament/Judges/Compare rows carry run and cell metadata
+     described in tournament-judges-compare.md
 ```
 
 ## Prompt resolution
@@ -207,6 +226,22 @@ The cascade-on-prompt-change path reads this and re-runs at the
 same scope rather than silently widening to `AllReports`. Legacy
 rows (no `secondaryScope` set) fall back to `AllReports`.
 
+## Tournament / Judges / Compare
+
+The grid-shaped secondary kinds are not launched through the normal
+single-call Meta picker:
+
+- **Tournament** uses `workers/tournament` to judge every ordered
+  answer pair, then stores one aggregate ranking row.
+- **Judge the judges** reuses the same judging prompt but fixes every
+  judge from the `tournament` swarm against the same random pair set.
+- **Compare with meta** lets the user select existing Meta rows and a
+  `meta_compare` prompt, then scores answer × meta similarity cells.
+
+Each has a dedicated engine, L1/L2/L3 manage drill-in, restart-failed
+actions, trace links, and disk hydration. See
+[tournament-judges-compare.md](tournament-judges-compare.md).
+
 ## Storage
 
 ```
@@ -223,20 +258,23 @@ file, so an in-place edit to one file invalidates the cache.
 `<resultId>.json` file stays inside the configured directory — a
 defence against `..`-traversal in a corrupted id.
 
+Tournament/Judges/Compare runs are stored in the same directory; their
+runtime maps are disposable and hydrate from rows grouped by run id.
+
 ## Cost tracking
 
 Every secondary call is tagged in `usage-stats.json` with the
-`kind` it ran under: `"rerank"`, `"meta"`, `"moderation"`, or
-`"translate"`. The AI Usage screen shows the kind as a small pill
-on the per-model row.
+`kind` it ran under: `"rerank"`, `"meta"`, `"moderation"`,
+`"translate"`, `"tournament"`, `"judges"`, or `"compare"`. The AI
+Usage screen shows the kind as a small pill on the per-model row.
 
 In the Report cost summary and HTML export the **Type** column
 prefers the `metaPromptName` (lowercased) over the kind, so a
 "Compare" row reads `compare`, a "Critique" row reads `critique`,
 etc. Rerank / Moderation / Translate keep their fixed labels.
-Fan-out per-pair rows surface as `cross-out` or the
-prompt's lowercased name; Fan-in combined-report rows as
-`cross-in`.
+Fan-out per-pair rows surface as `cross-out` or the prompt's
+lowercased name; Fan-in combined-report rows as `cross-in`.
+Tournament, judges, and compare rows use their fixed flow labels.
 
 ## Per-row icons (every kind)
 
@@ -429,6 +467,10 @@ points at the right captured API trace.
   `REPORT_CONCURRENCY_LIMIT` global semaphore is gone — limits
   now hold across every overlapping flow on the same provider.
   See [throttle.md](throttle.md).
+- Tournament, Judge-the-judges, Compare, Fan-out, Fan Meta,
+  translation, and primary report generation also pass through
+  `ApiCallCaps` sub-caps so the user can tune global and per-flow
+  concurrency under Settings → Network → Maximal API calls.
 - Fan-out pre-acquires the per-provider permit on the coroutine
   side so the UI can distinguish queued vs running rows; the
   inline interceptor skips its own acquire via the
@@ -467,7 +509,7 @@ Both fall through with an explanatory error when the provider
 doesn't declare the URL — the user is told which provider to pick
 instead.
 
-## Adding a fifth kind
+## Adding another kind
 
 The `when (kind)` blocks throughout the codebase are exhaustive, so
 the Kotlin compiler will list every site you need to touch. See
