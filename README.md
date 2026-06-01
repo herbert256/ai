@@ -3,8 +3,8 @@
 Android app for AI-powered reports and conversations using 42 cloud
 AI services. Run the same prompt against many models at once,
 compare responses side-by-side, rerank / chat-meta / moderate /
-translate them, fan out one model's response into another's
-prompt, and chat with real-time streaming.
+translate them, run worker-judged tournaments, fan out one model's
+response into another's prompt, and chat with real-time streaming.
 
 ## Features
 
@@ -25,11 +25,19 @@ prompt, and chat with real-time streaming.
   N model outputs into a ranked list, a content-policy verdict, or
   a multi-language translation; rerank routes through a provider's
   dedicated `/rerank` endpoint when the picked model supports it
+- **Tournament / Judge the judges / Compare with meta** — worker-judged
+  report analysis batches: head-to-head rankings, judge-agreement
+  checks, and answer × Meta-row similarity scoring
 - **AI Chat** with multi-turn conversations, streaming, vision,
   reasoning-effort selection, and auto-saved history
 - **AI Dual Chat** — two models in conversation with each other
 - **Reports Search** — Quick local search, Extended local search,
-  and Remote semantic search across your saved reports
+  Remote semantic search, and gated local semantic search across
+  your saved reports
+- **AI Knowledge / RAG** — optional knowledge bases with document
+  extractors, embeddings, retrieval, and prompt-context injection
+- **Local runtime** — optional on-device LLM and LiteRT embedder support
+  through the synthetic `Local` provider
 - **Share-Target** — receive `ACTION_SEND` from any app to start a
   Report or Chat from the shared payload
 - **AI Flocks** (agent groups) and **AI Swarms** (provider/model
@@ -44,9 +52,12 @@ prompt, and chat with real-time streaming.
   Artificial Analysis, HuggingFace), each with its own per-provider
   help page deep-linked from every entry point
 - **Per-(provider, model, kind) Cost Tracking** with breakdown for
-  rerank / chat-meta / moderate / translate / fan-out API spend
-- **API Trace Viewer** — every request and response saved as
-  inspectable JSON
+  report, rerank, chat-meta, moderate, translate, tournament,
+  judges, compare, fan-out, metadata, icon, title, and language spend
+- **Monitor / traces / logs** — live observability cards, API Trace
+  Viewer, per-report audit log, and daily in-app application logs
+- **UI customization** — Settings → UI Colors for `AppColors` roles
+  and Default icons for `MetadataIcons`-backed action/fallback glyphs
 - **Backup / Restore** the entire app to a single zip
 - **Granular Export / Import** — split bundles for Settings, Model
   lists, Parameters, System prompts, Workers (agents + flocks +
@@ -83,11 +94,14 @@ order:
 | [doc/manual.md](doc/manual.md) | End-user walkthrough — every screen and feature |
 | [doc/architecture.md](doc/architecture.md) | High-level code map for new contributors |
 | [doc/development.md](doc/development.md) | Build, deploy, test, and how to add things |
+| [doc/screens.md](doc/screens.md) | Quick reference of screen titles and subtitles |
 | [doc/api-formats.md](doc/api-formats.md) | The three API dispatch paths and their quirks |
 | [doc/datastructures.md](doc/datastructures.md) | Every data class with every field |
 | [doc/parameters.md](doc/parameters.md) | How generation parameters resolve (precedence per call site) |
 | [doc/system-prompts.md](doc/system-prompts.md) | How the system prompt resolves per call site |
-| [doc/secondary-results.md](doc/secondary-results.md) | Rerank / Meta prompts / Moderate / Translate / Fan-out / Fan-in deep dive |
+| [doc/secondary-results.md](doc/secondary-results.md) | Rerank / Meta prompts / Moderate / Translate / Fan-out / Fan-in / Tournament / Judges / Compare deep dive |
+| [doc/tournament-judges-compare.md](doc/tournament-judges-compare.md) | Tournament rankings, Judge-the-judges agreement, Compare-with-meta grids |
+| [doc/ui-customization.md](doc/ui-customization.md) | UI Colors, Default icons, `AppColors`, `MetadataIcons`, aliases and persistence |
 | [doc/workers.md](doc/workers.md) | AI Workers: Agents, Flocks, Swarms |
 | [doc/knowledge.md](doc/knowledge.md) | RAG: knowledge bases, nine extractors, embedding, retrieval |
 | [doc/local-runtime.md](doc/local-runtime.md) | On-device `LocalLlm` + `LocalEmbedder`, synthetic `AppService.LOCAL` |
