@@ -306,22 +306,33 @@ fun reportIsRunning(
         it.reportStatus == ReportStatus.RUNNING
 }) || report.id in activeTranslationReportIds
 
+/** A blank placeholder secondary (no content, no error, no duration)
+ *  younger than this is treated as mid-flight, not stuck. Single-call
+ *  secondaries (RERANK / MODERATION / COMPARE / single META) aren't
+ *  tracked by [activeSecondaryReportIds] (which only covers fan-out /
+ *  meta batches via fanOutEngine), so without this grace window their
+ *  fresh placeholders would surface as false "problems" the instant
+ *  they start. 60 s comfortably covers a normal single API call. */
+private const val STUCK_PLACEHOLDER_GRACE_MS = 60_000L
+
 /** True when [report] has at least one persisted problem — an
  *  ERROR agent, an errored secondary (excluding TRANSLATE rows
  *  whose model is cooled down), or a stuck-placeholder secondary
- *  (no content, no error, no duration). Mirrors the predicate the
- *  AI Reports hub's "Problems" card uses. */
+ *  (no content, no error, no duration) older than the grace window.
+ *  Mirrors the predicate the AI Reports hub's "Problems" card uses. */
 fun reportHasProblems(
     report: Report,
     secondaries: List<com.ai.data.SecondaryResult>
 ): Boolean {
     if (report.agents.any { it.reportStatus == ReportStatus.ERROR }) return true
+    val now = System.currentTimeMillis()
     return secondaries.any { sec ->
         val hasError = sec.errorMessage != null &&
             !(sec.kind == SecondaryKind.TRANSLATE &&
                 ModelCooldownStore.isUnavailable(sec.providerId, sec.model))
         val stuckPlaceholder = sec.content.isNullOrBlank() &&
-            sec.errorMessage == null && sec.durationMs == null
+            sec.errorMessage == null && sec.durationMs == null &&
+            (now - sec.timestamp) > STUCK_PLACEHOLDER_GRACE_MS
         hasError || stuckPlaceholder
     }
 }
