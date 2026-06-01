@@ -158,6 +158,15 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
         }
     val secIdMap: Map<String, String> =
         parsedSecondaries.associate { it.id to UUID.randomUUID().toString() }
+    // Fresh translationRunId per imported run group. _translationRuns and
+    // TranslationModeStore are keyed GLOBALLY by runId, so reusing the
+    // bundle's ids would collide with an existing run on this install (or a
+    // second import of the same bundle). One new id per distinct old runId
+    // keeps each run's rows grouped together.
+    val translateRunIdMap: Map<String, String> =
+        parsedSecondaries.mapNotNull { it.translationRunId?.takeIf { id -> id.isNotBlank() } }
+            .distinct()
+            .associateWith { UUID.randomUUID().toString() }
 
     // Pass 2 — import every trace under a freshly-minted filename and
     // record old→new so the rows' traceFile pointers can be rewritten
@@ -237,6 +246,7 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
                 "AGENT", "AGENT_TITLE", "PROMPT", "TITLE", "TITLE_LONG" -> parsed.translateSourceTargetId
                 else -> parsed.translateSourceTargetId?.let { secIdMap[it] }
             },
+            translationRunId = parsed.translationRunId?.let { translateRunIdMap[it] ?: it },
             traceFile = remapTrace(parsed.traceFile)
         )
         SecondaryResultStorage.save(context, rekeyed)
