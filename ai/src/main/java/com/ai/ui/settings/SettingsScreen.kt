@@ -1736,17 +1736,62 @@ private fun DefaultIconsSubScreen(
                 fontSize = 11.sp, color = AppColors.TextTertiary,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
             )
-            // One collapsible card per category, all collapsed at start (reuses
-            // the Settings [SettingCard] pattern so this screen matches the rest
-            // of Settings). The header shows the category name + its icon count;
-            // tap it to reveal the editable rows. "Reset all" lives on 🧽.
+            // One collapsible card per category, all collapsed at start. While
+            // collapsed the header previews every glyph in the category (just the
+            // emoji, no labels — wrapping to new lines); tap to expand the
+            // editable rows. "Reset all" lives on the 🧽 bottom-bar icon.
             DEFAULT_ICON_SECTIONS.forEach { (section, rows) ->
-                SettingCard(title = "$section  ·  ${rows.size}") {
+                IconCategoryCard(
+                    title = section,
+                    glyphs = rows.map { row -> row.get(icons).ifBlank { row.factory } }
+                ) {
                     rows.forEach { row ->
                         IconDefaultRow(row.label, row.get(icons), { icons = row.set(icons, it) }) {
                             aiFindFor = IconAiTarget(row.label) { picked -> icons = row.set(icons, picked) }
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/** A collapsible category card on the Default icons screen. Collapsed at
+ *  start: shows the category [title] and, on the line(s) below, every glyph in
+ *  the category ([glyphs]) — just the emoji, no labels, wrapping across lines.
+ *  Tap the header (or the glyph preview) to expand the editable rows; tap the
+ *  header again to collapse. Mirrors the Settings [SettingCard] chrome (▾/▸). */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun IconCategoryCard(
+    title: String,
+    glyphs: List<String>,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
+            }
+            if (expanded) {
+                content()
+            } else {
+                // Collapsed preview — every glyph in the category, no labels,
+                // wrapping to new lines. Tapping it also expands the card.
+                androidx.compose.foundation.layout.FlowRow(
+                    modifier = Modifier.fillMaxWidth().clickable { expanded = true },
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    glyphs.forEach { g -> Text(g, fontSize = 20.sp) }
                 }
             }
         }
