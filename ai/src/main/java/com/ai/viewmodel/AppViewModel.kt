@@ -1836,6 +1836,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         } catch (e: Exception) { e.message ?: "Test failed" }
     }
 
+    /** Ask one model a free-form [prompt] and return its response text (null
+     *  on error / empty). Reuses the same prompt-test path as
+     *  [testModelWithPrompt] but hands back the text the caller needs — used by
+     *  the Default-icons "AI" icon finder to extract an emoji per model. */
+    suspend fun askModelText(service: AppService, model: String, prompt: String): String? = try {
+        val apiKey = uiState.value.aiSettings.getApiKey(service)
+        repository.testModelWithPrompt(service, apiKey, model, prompt).first
+    } catch (_: Exception) { null }
+
     suspend fun testModelWithPrompt(service: AppService, apiKey: String, model: String, prompt: String): Pair<Boolean, String?> {
         return try {
             val traceCountBefore = ApiTracer.getTraceCount()

@@ -477,6 +477,7 @@ fun SettingsScreenNav(
         onBack = onNavigateBack, onNavigateHome = onNavigateHome,
         onSaveGeneral = { viewModel.updateGeneralSettings(it) }, onSaveAi = { viewModel.updateSettings(it) },
         onTestAiModel = { s, k, m -> viewModel.testAiModel(s, k, m) },
+        onAskModelText = { s, m, p -> viewModel.askModelText(s, m, p) },
         onProviderStateChange = { s, st -> viewModel.updateProviderState(s, st) },
         onProviderTestedOk = { s, m -> viewModel.markProviderTestedOk(s, m) },
         onProviderTestedOkNoFetch = { s, m -> viewModel.markProviderTestedOk(s, m, fetchAfter = false) },

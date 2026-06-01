@@ -77,10 +77,12 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "settings_default_icons" to HelpContent(
         title = "Help - Default icons",
         cards = listOf(
-            HelpCard("Overview", "Edit the fallback emoji the app shows when a report (or one of its results) has no generated icon of its own. There are 11 entries; tap an entry's emoji box to open the system emoji picker (search, categories, recents) and pick a replacement. Edits autosave with a 400 ms debounce."),
+            HelpCard("Overview", "Edit the fallback emoji the app shows when a report (or one of its results) has no generated icon of its own. Each entry is an editable field — type or paste any emoji directly. Edits autosave with a 400 ms debounce; a blank field falls back to the factory default."),
+            HelpCard("🔎 Lookup", "The 🔎 beside each field opens the system emoji picker (search, categories, recents); the pick is written straight into the field."),
+            HelpCard("🤖 AI", "The 🤖 beside each field opens Find icon — an editable prompt (pre-seeded for that entry) and a Find button that asks every icon-worker model for a fitting emoji. Tap any returned candidate to drop it into the field. Works like the report \"Find alternative icons\" flow."),
             HelpCard("When defaults show", "View screens always render whatever a report actually holds; these defaults fill in only when that value is missing. So changing a default updates every report that never had its own icon, and never overrides one that does. The defaults are independent of the Metadata & icons master switch — they apply even when metadata generation is off."),
             HelpCard("The 9 entries", "Report (📝) and Report model (🧠) are the title-bar / per-model fallbacks. Rerank (🏆), Moderate (🚦), Translation row (🌐) and Meta (🔗) are the leading glyphs on secondary-result rows. Language icon (🌐) is the report's detected-language flag. Fan Out row (🔱) and Fan In row (🎯) are the leading glyphs of those rows on the Manage report screen."),
-            HelpCard("Reset", "Reset all to defaults returns every entry to its factory emoji. The picker always yields exactly one glyph, so an icon can never become blank or invalid."),
+            HelpCard("Reset", "The 🧽 in the title bar returns every entry to its factory emoji."),
         )
     ),
     "settings_app_settings" to HelpContent(

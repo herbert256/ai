@@ -17,6 +17,9 @@ import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.GeneralSettings
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
 
 enum class SettingsSubScreen {
     MAIN, AI_PROVIDER_EDIT, AI_SETUP,
@@ -73,6 +76,9 @@ fun SettingsScreen(
     onFetchModels: (AppService, String) -> Unit = { _, _ -> },
     onFetchModelsAwait: suspend (AppService, String) -> String? = { _, _ -> null },
     onTestAiModel: suspend (AppService, String, String) -> String? = { _, _, _ -> null },
+    /** Ask one model a free-form prompt → its response text (Default-icons
+     *  "AI" icon finder). (service, model, prompt) → text or null. */
+    onAskModelText: suspend (AppService, String, String) -> String? = { _, _, _ -> null },
     onProviderStateChange: (AppService, String) -> Unit = { _, _ -> },
     onProviderTestedOk: (AppService, String) -> Unit = { _, _ -> },
     onProviderTestedOkNoFetch: (AppService, String) -> Unit = onProviderTestedOk,
@@ -798,7 +804,8 @@ fun SettingsScreen(
         }
         SettingsSubScreen.SETTINGS_DEFAULT_ICONS -> {
             DefaultIconsSubScreen(
-                generalSettings = generalSettings, onSave = onSaveGeneral,
+                generalSettings = generalSettings, aiSettings = aiSettings,
+                onAskModelText = onAskModelText, onSave = onSaveGeneral,
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
@@ -1491,6 +1498,8 @@ private fun MetadataSettingsSubScreen(
 @Composable
 private fun DefaultIconsSubScreen(
     generalSettings: GeneralSettings,
+    aiSettings: com.ai.model.Settings,
+    onAskModelText: suspend (AppService, String, String) -> String?,
     onSave: (GeneralSettings) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
@@ -1535,6 +1544,23 @@ private fun DefaultIconsSubScreen(
         }
     }
 
+    // 🤖 AI icon finder — opened by the per-row AI link. Holds the row's label
+    // + a writeback that drops the picked emoji into that row's field. Layered
+    // as a full-screen early-return (the save effects above stay composed, so
+    // the pick persists once it lands back in a field). [label] is also the
+    // empty key, so a non-null target means the finder is open.
+    var aiFindFor by remember { mutableStateOf<IconAiTarget?>(null) }
+    aiFindFor?.let { target ->
+        DefaultIconAiFinderScreen(
+            label = target.label,
+            aiSettings = aiSettings,
+            onAskModelText = onAskModelText,
+            onPick = { emoji -> target.onPicked(emoji); aiFindFor = null },
+            onBack = { aiFindFor = null }
+        )
+        return
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -1557,15 +1583,15 @@ private fun DefaultIconsSubScreen(
                         "Shown on view screens when a report or result carries no generated icon. Editing one updates every report that lacks its own.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
-                    IconDefaultRow("Report", reportIcon) { reportIcon = it }
-                    IconDefaultRow("Report model", reportModelIcon) { reportModelIcon = it }
-                    IconDefaultRow("Rerank", rerank) { rerank = it }
-                    IconDefaultRow("Moderate", moderate) { moderate = it }
-                    IconDefaultRow("Language icon", languageIcon) { languageIcon = it }
-                    IconDefaultRow("Translation row", translationRow) { translationRow = it }
-                    IconDefaultRow("Meta", meta) { meta = it }
-                    IconDefaultRow("Fan Out row", fanOutRow) { fanOutRow = it }
-                    IconDefaultRow("Fan In row", fanInRow) { fanInRow = it }
+                    IconDefaultRow("Report", reportIcon, { reportIcon = it }) { aiFindFor = IconAiTarget("Report") { reportIcon = it } }
+                    IconDefaultRow("Report model", reportModelIcon, { reportModelIcon = it }) { aiFindFor = IconAiTarget("Report model") { reportModelIcon = it } }
+                    IconDefaultRow("Rerank", rerank, { rerank = it }) { aiFindFor = IconAiTarget("Rerank") { rerank = it } }
+                    IconDefaultRow("Moderate", moderate, { moderate = it }) { aiFindFor = IconAiTarget("Moderate") { moderate = it } }
+                    IconDefaultRow("Language icon", languageIcon, { languageIcon = it }) { aiFindFor = IconAiTarget("Language") { languageIcon = it } }
+                    IconDefaultRow("Translation row", translationRow, { translationRow = it }) { aiFindFor = IconAiTarget("Translation") { translationRow = it } }
+                    IconDefaultRow("Meta", meta, { meta = it }) { aiFindFor = IconAiTarget("Meta") { meta = it } }
+                    IconDefaultRow("Fan Out row", fanOutRow, { fanOutRow = it }) { aiFindFor = IconAiTarget("Fan out") { fanOutRow = it } }
+                    IconDefaultRow("Fan In row", fanInRow, { fanInRow = it }) { aiFindFor = IconAiTarget("Fan in") { fanInRow = it } }
                     // "Reset all to defaults" moved to the 🧽 bottom-bar icon.
                 }
             }
@@ -1580,7 +1606,7 @@ private fun DefaultIconsSubScreen(
  *  field. Blank on save falls back to the factory default (see `build()`). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun IconDefaultRow(label: String, value: String, onChange: (String) -> Unit) {
+private fun IconDefaultRow(label: String, value: String, onChange: (String) -> Unit, onAiFind: () -> Unit) {
     var showPicker by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
@@ -1592,14 +1618,17 @@ private fun IconDefaultRow(label: String, value: String, onChange: (String) -> U
                 fontSize = 20.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             ),
-            modifier = Modifier.width(104.dp)
+            modifier = Modifier.width(88.dp)
         )
         // 🔎 lookup — opens the emoji picker; the pick is written into the field.
         Text(
             "🔎", fontSize = 20.sp,
-            modifier = Modifier
-                .clickable { showPicker = true }
-                .padding(start = 10.dp, end = 2.dp)
+            modifier = Modifier.clickable { showPicker = true }.padding(start = 8.dp, end = 2.dp)
+        )
+        // 🤖 AI — ask models for a fitting emoji (editable prompt), pick one.
+        Text(
+            "🤖", fontSize = 20.sp,
+            modifier = Modifier.clickable { onAiFind() }.padding(start = 6.dp, end = 2.dp)
         )
     }
     if (showPicker) {
@@ -1615,6 +1644,113 @@ private fun IconDefaultRow(label: String, value: String, onChange: (String) -> U
                 },
                 modifier = Modifier.fillMaxWidth().height(360.dp)
             )
+        }
+    }
+}
+
+/** Target of the Default-icons 🤖 AI finder: the row's [label] (used in the
+ *  seeded prompt + title) and a writeback that drops the picked emoji into
+ *  that row's field. */
+private data class IconAiTarget(val label: String, val onPicked: (String) -> Unit)
+
+/** "Find icon" — the 🤖 AI flow on a Default-icons row. Works like the report
+ *  "Find alternative icons" flow: an editable prompt (pre-seeded for the row's
+ *  concept), a Find button that asks every icon-worker model in parallel, and a
+ *  list of candidate emoji — tap one to drop it into the field. No report
+ *  context; each model is called through [onAskModelText]. */
+@Composable
+private fun DefaultIconAiFinderScreen(
+    label: String,
+    aiSettings: com.ai.model.Settings,
+    onAskModelText: suspend (AppService, String, String) -> String?,
+    onPick: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    BackHandler { onBack() }
+    val scope = rememberCoroutineScope()
+    // Icon-worker models = the same set the app uses for every generated icon
+    // (the "second-meta" worker prompt's swarm), de-duplicated.
+    val models = remember(aiSettings) {
+        (aiSettings.getInternalPromptByName("second-meta")?.workers ?: emptyList())
+            .flatMap { aiSettings.expandWorker(it) }
+            .mapNotNull { aiSettings.resolveWorker(it) }
+            .map { it.provider to aiSettings.getEffectiveModelForAgent(it) }
+            .filter { it.second.isNotBlank() }
+            .distinctBy { "${it.first.id}/${it.second}" }
+    }
+    var prompt by rememberSaveable(label) {
+        mutableStateOf("Please give a single fitting emoji for: \"$label\".\nReply with only the emoji, nothing more.")
+    }
+    val candidates = remember { mutableStateMapOf<String, com.ai.viewmodel.IconCandidate>() }
+    var running by remember { mutableStateOf(false) }
+
+    fun run() {
+        if (models.isEmpty() || running) return
+        candidates.clear()
+        running = true
+        models.forEach { (p, m) -> candidates["${p.id}/$m"] = com.ai.viewmodel.IconCandidate.Running(p, m) }
+        scope.launch {
+            models.map { (p, m) ->
+                async {
+                    val text = onAskModelText(p, m, prompt)
+                    val emoji = com.ai.data.extractFirstEmoji(text)
+                    candidates["${p.id}/$m"] = if (emoji != null) com.ai.viewmodel.IconCandidate.Done(p, m, emoji)
+                        else com.ai.viewmodel.IconCandidate.Error(p, m, text?.trim()?.take(40)?.ifBlank { "no emoji in reply" } ?: "no reply")
+                }
+            }.awaitAll()
+            running = false
+        }
+    }
+
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        TitleBar(helpTopic = "settings_default_icons", title = "Find icon", subject = label, onBackClick = onBack)
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Edit the prompt, then Find — every icon-worker model answers and you pick an emoji.",
+                fontSize = 11.sp, color = AppColors.TextTertiary)
+            OutlinedTextField(
+                value = prompt, onValueChange = { prompt = it },
+                modifier = Modifier.fillMaxWidth(), minLines = 3,
+                label = { Text("Prompt") }
+            )
+            if (models.isEmpty()) {
+                Text("No icon-worker models configured. Add models to the worker swarm under AI Setup → Worker prompts.",
+                    fontSize = 12.sp, color = AppColors.TextSecondary)
+            } else {
+                Button(
+                    onClick = { run() }, enabled = !running, modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                ) { Text(if (running) "Finding…" else "Find (${models.size} model${if (models.size == 1) "" else "s"})", fontSize = 14.sp) }
+            }
+            candidates.values.sortedBy { "${it.provider.id}/${it.model}" }.forEach { c ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                        .then(if (c is com.ai.viewmodel.IconCandidate.Done) Modifier.clickable { onPick(c.emoji) } else Modifier)
+                        .padding(vertical = 4.dp)
+                ) {
+                    Box(modifier = Modifier.width(40.dp), contentAlignment = Alignment.Center) {
+                        when (c) {
+                            is com.ai.viewmodel.IconCandidate.Running -> com.ai.ui.shared.AnimatedHourglass(fontSize = 18.sp)
+                            is com.ai.viewmodel.IconCandidate.Done -> Text(c.emoji, fontSize = 22.sp)
+                            is com.ai.viewmodel.IconCandidate.Error -> Text("❌", fontSize = 18.sp)
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
+                        Text(com.ai.ui.shared.modelLabel(c.provider.id, c.model), fontSize = 13.sp, color = Color.White,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                        val sub = when (c) {
+                            is com.ai.viewmodel.IconCandidate.Done -> "Tap to use this icon"
+                            is com.ai.viewmodel.IconCandidate.Error -> c.reason
+                            else -> "…"
+                        }
+                        Text(sub, fontSize = 11.sp, color = AppColors.TextTertiary,
+                            maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                }
+                HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.3f), thickness = 0.5.dp)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
