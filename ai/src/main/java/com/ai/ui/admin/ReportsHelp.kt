@@ -465,7 +465,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Edit prompt", "Edits the resolved meta prompt for one replay (optionally changing parameter presets and system prompt), runs it, and applies the chosen output."),
             HelpCard("Chat", "Opens a refine chat seeded with the report prompt + this result; applying a reply rewrites the content and tags it 'Changed by Chat'."),
             HelpCard("Sweeps & web search", "Temperature / Reasoning Effort run one-to-three variants to pick from; Web search re-runs once with web search enabled. Unsupported options report it on their screen. The applied variant tags a yellow 'Changed by …' badge on the detail."),
-            HelpCard("Title bar — 💬 / 🗣️", "💬 continues this analysis in the Chat section; 🗣️ refines it in place (same as the ✏️ → Chat option)."),
+            HelpCard("Title bar — 💬", "Continues this analysis in the Chat section. Refining the result in place lives under ✏️ → Chat now."),
             HelpCard("Title bar — ℹ️ / 🐞 / 🗑 / 📋 / 📤 / ✍️ / 👁", "Model Info for this row's model; trace (when tracing is on and a match exists); delete (multi-language rows get the Active-language-only / All-languages popup); copy / share the shown content; add a note; jump to the matching View screen."),
             HelpCard("Languages", "When this meta has translations, the icon row swaps the shown content / trace / copy / share onto the picked language. The ↔ translation-compare opens when a per-language overlay is active.")
         )

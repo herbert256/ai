@@ -459,8 +459,9 @@ internal fun MetaDetailScreen(
             },
             onOpenView = onOpenViewJump,
             onInfo = if (providerService != null) { { onNavigateToModelInfo(providerService, result.model) } } else null,
+            // 🗣️ refine-in-place lives under ✏️ → Chat now; the title bar
+            // keeps only 💬 continue-in-chat (separate Chat-section flow).
             onChat = if (hasContent) { { continueMetaInChat(result.reportId, result.id, activeLangName) } } else null,
-            onAgentChat = if (hasContent && providerService != null) { { showAgentChat = true } } else null,
             onTranslationCompare = if (liveTranslateActive != null && !result.content.isNullOrBlank() && !liveTranslateActive.content.isNullOrBlank()) {
                 { showLiveTranslationCompare = true }
             } else null,
