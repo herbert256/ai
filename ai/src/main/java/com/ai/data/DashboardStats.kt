@@ -3,6 +3,7 @@ package com.ai.data
 import android.content.Context
 import com.ai.model.Settings
 import com.ai.ui.admin.ProviderCostGroup
+import com.ai.ui.admin.StatWithCost
 import com.ai.ui.admin.buildProviderCostGroups
 import com.ai.ui.hub.reportHasProblems
 import com.ai.ui.hub.reportIsRunning
@@ -125,10 +126,29 @@ internal data class KnowledgeData(
  *  on its own screen, computed only when opened. */
 internal data class UsageGroupsResult(
     val groups: List<ProviderCostGroup>,
+    val typeGroups: List<UsageTypeGroup>,
+    val reportRows: List<UsageReportRow>,
     val totalCalls: Int,
     val totalTokens: Long,
     val totalCost: Double,
     val pricingStats: String,
+)
+
+internal data class UsageTypeGroup(
+    val category: String,
+    val calls: Int,
+    val tokens: Long,
+    val searchUnits: Long,
+    val totalCost: Double,
+)
+
+internal data class UsageReportRow(
+    val reportId: String,
+    val title: String,
+    val calls: Int,
+    val tokens: Long,
+    val totalCost: Double,
+    val timestamp: Long,
 )
 
 /** Spend & usage for the dedicated screen — reuses the AI Usage cost-grouping.
@@ -139,13 +159,189 @@ internal suspend fun computeUsageGroups(
 ): UsageGroupsResult = withContext(Dispatchers.IO) {
     val stats = settingsPrefs.loadUsageStats()
     val groups = buildProviderCostGroups(context, stats)
+    val typeGroups = buildUsageTypeGroups(groups)
+    val reportRows = buildUsageReportRows(context)
     UsageGroupsResult(
         groups = groups,
+        typeGroups = typeGroups,
+        reportRows = reportRows,
         totalCalls = stats.values.sumOf { it.callCount },
         totalTokens = stats.values.sumOf { it.totalTokens },
         totalCost = groups.sumOf { it.totalCost },
         pricingStats = PricingCache.getPricingStats(context),
     )
+}
+
+private fun buildUsageTypeGroups(groups: List<ProviderCostGroup>): List<UsageTypeGroup> =
+    groups.flatMap { it.models }
+        .groupBy { it.stat.kind }
+        .map { (category, rows) ->
+            UsageTypeGroup(
+                category = category,
+                calls = rows.sumOf { it.stat.callCount },
+                tokens = rows.sumOf { it.stat.totalTokens },
+                searchUnits = rows.sumOf { it.stat.searchUnits },
+                totalCost = rows.sumOf { it.totalCost },
+            )
+        }
+        .sortedByDescending { it.totalCost }
+
+private fun buildUsageReportRows(context: Context): List<UsageReportRow> =
+    ReportStorage.getAllReports(context)
+        .map { report ->
+            val secondaries = SecondaryResultStorage.listForReport(context, report.id)
+            val totals = summarizeReportUsage(context, report, secondaries)
+            UsageReportRow(
+                reportId = report.id,
+                title = report.barTitle.takeIf { it.isNotBlank() } ?: report.prompt.take(80),
+                calls = totals.calls,
+                tokens = totals.tokens,
+                totalCost = totals.cost,
+                timestamp = if (report.createdAt > 0L) report.createdAt else report.timestamp,
+            )
+        }
+        .sortedByDescending { it.totalCost }
+
+private data class ReportUsageTotals(
+    val calls: Int,
+    val tokens: Long,
+    val cost: Double,
+)
+
+private fun summarizeReportUsage(
+    context: Context,
+    report: Report,
+    secondaries: List<SecondaryResult>,
+): ReportUsageTotals {
+    var calls = 0
+    var tokens = 0L
+    var cost = 0.0
+
+    fun addCall(inputTokens: Int, outputTokens: Int, rowCost: Double) {
+        calls += 1
+        tokens += (inputTokens + outputTokens).toLong()
+        cost += rowCost.coerceAtLeast(0.0)
+    }
+
+    fun addCostRowIfPresent(
+        hasCost: Boolean,
+        inputTokens: Int,
+        outputTokens: Int,
+        rowCost: Double,
+    ) {
+        if (hasCost) addCall(inputTokens, outputTokens, rowCost)
+    }
+
+    val iconCalls = report.iconCalls
+    val altByType: Map<String, Pair<Double, Double>> = iconCalls
+        .filter { !it.type.isNullOrBlank() }
+        .groupBy { it.type!! }
+        .mapValues { (_, list) -> list.sumOf { it.inputCost } to list.sumOf { it.outputCost } }
+    val altTokensByType: Map<String, Pair<Int, Int>> = iconCalls
+        .filter { !it.type.isNullOrBlank() }
+        .groupBy { it.type!! }
+        .mapValues { (_, list) -> list.sumOf { it.inputTokens } to list.sumOf { it.outputTokens } }
+    val altBySecondary: Map<String, Pair<Double, Double>> = iconCalls
+        .filter { !it.attributedToSecondaryId.isNullOrBlank() }
+        .groupBy { it.attributedToSecondaryId!! }
+        .mapValues { (_, list) -> list.sumOf { it.inputCost } to list.sumOf { it.outputCost } }
+    val altTokensBySecondary: Map<String, Pair<Int, Int>> = iconCalls
+        .filter { !it.attributedToSecondaryId.isNullOrBlank() }
+        .groupBy { it.attributedToSecondaryId!! }
+        .mapValues { (_, list) -> list.sumOf { it.inputTokens } to list.sumOf { it.outputTokens } }
+
+    report.agents
+        .filter { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
+        .forEach { agent ->
+            val tu = agent.tokenUsage ?: return@forEach
+            val persisted = agent.inputCost != null || agent.outputCost != null
+            val rowCost = if (persisted) {
+                (agent.inputCost ?: 0.0) + (agent.outputCost ?: 0.0)
+            } else {
+                val provider = AppService.findById(agent.provider)
+                val computed = provider?.let {
+                    PricingCache.computeCost(tu, PricingCache.getPricing(context, it, agent.model))
+                }
+                computed ?: agent.cost ?: 0.0
+            }
+            addCall(tu.inputTokens, tu.outputTokens, rowCost)
+        }
+
+    val mainAltCost = (altByType["alt/main"]?.let { it.first + it.second } ?: 0.0)
+    val mainAltTokens = altTokensByType["alt/main"] ?: (0 to 0)
+    addCostRowIfPresent(
+        report.iconInputCost > 0.0 || report.iconOutputCost > 0.0,
+        (report.iconInputTokens - mainAltTokens.first).coerceAtLeast(0),
+        (report.iconOutputTokens - mainAltTokens.second).coerceAtLeast(0),
+        (report.iconInputCost + report.iconOutputCost - mainAltCost).coerceAtLeast(0.0),
+    )
+
+    addCostRowIfPresent(
+        report.languageInputCost > 0.0 || report.languageOutputCost > 0.0,
+        report.languageInputTokens,
+        report.languageOutputTokens,
+        report.languageInputCost + report.languageOutputCost,
+    )
+
+    val languageAltCost = (altByType["alt/language"]?.let { it.first + it.second } ?: 0.0)
+    val languageAltTokens = altTokensByType["alt/language"] ?: (0 to 0)
+    addCostRowIfPresent(
+        report.languageIconInputCost > 0.0 || report.languageIconOutputCost > 0.0,
+        (report.languageIconInputTokens - languageAltTokens.first).coerceAtLeast(0),
+        (report.languageIconOutputTokens - languageAltTokens.second).coerceAtLeast(0),
+        (report.languageIconInputCost + report.languageIconOutputCost - languageAltCost).coerceAtLeast(0.0),
+    )
+
+    addCostRowIfPresent(
+        report.titleInputCost > 0.0 || report.titleOutputCost > 0.0,
+        report.titleInputTokens,
+        report.titleOutputTokens,
+        report.titleInputCost + report.titleOutputCost,
+    )
+    addCostRowIfPresent(
+        report.titleLongInputCost > 0.0 || report.titleLongOutputCost > 0.0,
+        report.titleLongInputTokens,
+        report.titleLongOutputTokens,
+        report.titleLongInputCost + report.titleLongOutputCost,
+    )
+    report.agents.forEach { agent ->
+        addCostRowIfPresent(
+            agent.modelTitleInputCost > 0.0 || agent.modelTitleOutputCost > 0.0,
+            agent.modelTitleInputTokens,
+            agent.modelTitleOutputTokens,
+            agent.modelTitleInputCost + agent.modelTitleOutputCost,
+        )
+    }
+
+    iconCalls.forEach {
+        addCall(it.inputTokens, it.outputTokens, it.inputCost + it.outputCost)
+    }
+
+    secondaries.forEach { secondary ->
+        val tu = secondary.tokenUsage
+        if (tu != null) {
+            val srAlt = altBySecondary[secondary.id]
+            val srAltTokens = altTokensBySecondary[secondary.id]
+            addCall(
+                (tu.inputTokens - (srAltTokens?.first ?: 0)).coerceAtLeast(0),
+                (tu.outputTokens - (srAltTokens?.second ?: 0)).coerceAtLeast(0),
+                ((secondary.inputCost ?: 0.0) + (secondary.outputCost ?: 0.0) -
+                    (srAlt?.let { it.first + it.second } ?: 0.0)).coerceAtLeast(0.0),
+            )
+        }
+        if (secondary.fanOutSourceAgentId != null && secondary.fanInOf == null &&
+            (secondary.titleInputCost > 0.0 || secondary.titleOutputCost > 0.0)
+        ) {
+            addCall(
+                secondary.titleInputTokens,
+                secondary.titleOutputTokens,
+                secondary.titleInputCost + secondary.titleOutputCost,
+            )
+        }
+    }
+
+    cost += report.costsFromDeletedItems.coerceAtLeast(0.0)
+    return ReportUsageTotals(calls = calls, tokens = tokens, cost = cost)
 }
 
 /** Per-model pricing-tier resolution for the dedicated "Costs tier" screen:

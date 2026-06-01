@@ -80,6 +80,8 @@ import com.ai.data.ReportStats
 import com.ai.data.SecondaryKind
 import com.ai.data.TraceStatsData
 import com.ai.data.UsageGroupsResult
+import com.ai.data.UsageReportRow
+import com.ai.data.UsageTypeGroup
 import com.ai.data.computeKnowledgeStats
 import com.ai.data.computeLogStats
 import com.ai.data.computeTraceStats
@@ -92,6 +94,7 @@ import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCompactNumber
+import com.ai.ui.shared.formatCents
 import com.ai.ui.shared.resumeRefreshTick
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.ReportViewModel
@@ -1004,6 +1007,10 @@ fun AiSpendUsageScreen(
     onNavigateToStatistics: () -> Unit = {},
     /** 🐞 on a provider row → the API Traces scoped to that provider. */
     onNavigateToTraceProvider: (String) -> Unit = {},
+    /** 🐞 on a type row → API Traces scoped to that Trace/Costs category. */
+    onNavigateToTraceCategory: (String) -> Unit = {},
+    /** Report row → selected report's Costs section. */
+    onOpenReportCosts: (String) -> Unit = {},
     onHousekeeping: (() -> Unit)? = null,
 ) {
     BackHandler { onBack() }
@@ -1031,11 +1038,15 @@ fun AiSpendUsageScreen(
     // direction. Default: cost, descending (the most-asked question).
     var sortCol by rememberSaveable { mutableStateOf(UsageSort.COST) }
     var sortAsc by rememberSaveable { mutableStateOf(false) }
+    var mode by rememberSaveable { mutableStateOf(SpendUsageMode.PROVIDERS) }
     // Providers (AppService ids) that have at least one captured trace, so a
     // row only shows its 🐞 when there's something to open. Off the main
     // thread; getTraceFiles is cached after the first parse.
     val tracedProviders by produceState(emptySet<String>(), refreshTick) {
         value = withContext(Dispatchers.IO) { ApiTracer.getTraceFiles().map { providerLabelForHost(it.hostname) }.toSet() }
+    }
+    val tracedCategories by produceState(emptySet<String>(), refreshTick) {
+        value = withContext(Dispatchers.IO) { ApiTracer.getTraceFiles().mapNotNull { it.category }.toSet() }
     }
 
     Column(

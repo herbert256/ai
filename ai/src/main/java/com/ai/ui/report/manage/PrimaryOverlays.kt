@@ -79,6 +79,12 @@ internal fun ReportPrimaryOverlays(
     selectedAgentForViewer: String?,
     viewerSection: String?,
     agentIconDetailFor: String?,
+    /** When non-null, the Edit-model-title overlay
+     *  (ReportManageActionOverlays) owns the screen. Gated into the
+     *  single-result guard below so tapping the title on the Model
+     *  response screen yields to that overlay (and Back returns here),
+     *  exactly like [agentIconDetailFor] does for Icon lookup. */
+    editModelTitleFor: String?,
     showAdvancedParameters: Boolean,
     advancedParameters: AgentParameters?,
     /** Locked language carried into ReportsViewerScreen when the
@@ -124,6 +130,9 @@ internal fun ReportPrimaryOverlays(
     onClearPromptEditReplay: (String, String) -> Unit,
     onNavigateToModelInfo: (AppService, String) -> Unit,
     onOpenAgentIcon: (String) -> Unit,
+    /** Open Edit-model-title for the given agent — sets the manage
+     *  flow's editModelTitleFor. The Model response title taps here. */
+    onEditModelTitle: (String) -> Unit,
     onSecondaryRefresh: () -> Unit,
     /** Detected source-language display name (e.g. "English") from
      *  the report. Threaded into buildEveryItems so a META back-
@@ -512,7 +521,7 @@ internal fun ReportPrimaryOverlays(
         return true
     }
 
-    if (singleResultAgentId != null && currentReportId != null && agentIconDetailFor == null) {
+    if (singleResultAgentId != null && currentReportId != null && agentIconDetailFor == null && editModelTitleFor == null) {
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides loadedReportTitle,
@@ -540,6 +549,7 @@ internal fun ReportPrimaryOverlays(
                 onContinueWithAgentPicker = onContinueWithAgentPicker,
                 onContinueWithOnTheFly = onContinueWithOnTheFly,
                 onOpenAgentIcon = onOpenAgentIcon,
+                onEditModelTitle = onEditModelTitle,
                 temperatureSweepStates = temperatureSweepStates,
                 onStartTemperatureSweep = onStartTemperatureSweep,
                 onApplyTemperatureCandidate = onApplyTemperatureCandidate,

@@ -91,6 +91,12 @@ fun ReportModelScreen(
      *  directly on the Agent Icon screen without backing out to
      *  the report's agent grid. */
     onOpenAgentIcon: (String) -> Unit = {},
+    /** Open the per-model "Edit model title" screen for this agent.
+     *  Wired by the parent (ReportPrimaryOverlays) to set the manage
+     *  flow's editModelTitleFor state. The centred model-response title
+     *  below taps through here so the title doubles as an edit shortcut,
+     *  mirroring the big icon → Icon lookup tap. */
+    onEditModelTitle: (String) -> Unit = {},
     /** Real-route 👁 target: open the View "Model reports" screen for this
      *  report seeded at the given agent. Used when there's no overlay
      *  [LocalPendingViewOverManage] holder (the standalone route). */
@@ -648,7 +654,12 @@ fun ReportModelScreen(
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(glyph, fontSize = 80.sp, color = Color.White)
+                                // Tapping the big icon opens Icon lookup for
+                                // this model (same agentIconDetailFor overlay
+                                // the agent grid uses); layers over this screen
+                                // so Back returns here.
+                                Text(glyph, fontSize = 80.sp, color = Color.White,
+                                    modifier = Modifier.clickable { onOpenAgentIcon(currentAgentId) })
                                 // 🐞 → the trace of the call that produced THIS
                                 // icon (the per-model icon-chain trace).
                                 iconTraceFilename?.let { fn ->
@@ -666,9 +677,13 @@ fun ReportModelScreen(
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+                                // Tapping the title opens Edit model title for
+                                // this model; layers over this screen so Back
+                                // returns here.
                                 Text(mt, fontSize = 18.sp, color = AppColors.SuccessAccent,
                                     fontWeight = FontWeight.Bold,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                    modifier = Modifier.clickable { onEditModelTitle(currentAgentId) })
                                 titleTraceFilename?.let { fn ->
                                     Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                                         modifier = Modifier.padding(start = 10.dp)
