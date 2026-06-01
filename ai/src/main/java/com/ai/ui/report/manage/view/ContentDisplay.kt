@@ -382,7 +382,7 @@ private fun ReportsViewerScreenLoaded(
             TitleBar(helpTopic = sectionHelpTopic,
                 title = title,
                 subject = if (initialSection == "prompt") "The prompt sent to the models" else "Where the money went, per call",
-                reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
+                reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
                 onBackClick = onDismiss,
                 onOpenView = onOpenViewSectionJump,
                 onTrace = promptTraceFile?.let { tf -> { onNavigateToTraceFile(tf) } },
@@ -492,7 +492,7 @@ private fun OnePageReportView(
         TitleBar(
             helpTopic = "content_one_page",
             title = "View in one page",
-            reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
+            reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
             subject = titleText,
             onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
@@ -1039,7 +1039,7 @@ fun ReportApiCallsScreen(report: Report, onBack: () -> Unit, onNavigateToTraceFi
         TitleBar(
             helpTopic = "cost_view",
             title = "Report - API", subject = "Raw API request and response",
-            reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
+            reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
             onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp)
         )
@@ -1519,7 +1519,7 @@ private fun CostDetailDialog(
                 )
                 if (traceFile != null) {
                     Text(
-                        "🐞", fontSize = 20.sp,
+                        com.ai.data.MetadataIconsHolder.current.traces, fontSize = 20.sp,
                         modifier = Modifier
                             .clickable { onNavigateToTraceFile(traceFile) }
                             .padding(horizontal = 6.dp)

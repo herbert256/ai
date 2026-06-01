@@ -116,7 +116,7 @@ fun CollapsibleCard(
                 }
                 if (helpTopic != null) {
                     Text(
-                        text = "❓", fontSize = 14.sp, color = AppColors.Blue,
+                        text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.Blue,
                         modifier = Modifier
                             .padding(end = 8.dp)
                             .clickable { navigateHelp(helpTopic) }
@@ -165,13 +165,13 @@ fun ReportRowActionIcons(
     @Suppress("UNUSED_PARAMETER") reportId: String? = null
 ) {
     Text(
-        "👁", fontSize = 22.sp,
+        com.ai.data.MetadataIconsHolder.current.view, fontSize = 22.sp,
         modifier = Modifier
             .clickable { onOpenView() }
             .padding(start = 4.dp, end = 6.dp, top = 4.dp, bottom = 4.dp)
     )
     Text(
-        "🔧", fontSize = 18.sp,
+        com.ai.data.MetadataIconsHolder.current.openManage, fontSize = 18.sp,
         modifier = Modifier
             .clickable { onOpenManage() }
             .padding(start = 6.dp, end = 0.dp, top = 4.dp, bottom = 4.dp)

@@ -141,7 +141,7 @@ internal fun ExampleReportsCard(
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "💡", fontSize = 18.sp)
+                Text(text = com.ai.data.MetadataIconsHolder.current.tip, fontSize = 18.sp)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Example AI Reports", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
@@ -171,7 +171,7 @@ internal fun ExampleReportRow(
             .padding(vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = entry.icon.ifBlank { "📝" }, fontSize = 22.sp)
+        Text(text = entry.icon.ifBlank { com.ai.data.MetadataIconsHolder.current.reportIcon }, fontSize = 22.sp)
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = entry.title, fontSize = 14.sp, color = Color.White,
@@ -215,7 +215,7 @@ internal fun AllAiExamplesScreen(
         if (examples.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("💡", fontSize = 48.sp)
+                    Text(com.ai.data.MetadataIconsHolder.current.tip, fontSize = 48.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("No examples available", color = AppColors.TextTertiary, fontSize = 14.sp)
                 }

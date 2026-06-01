@@ -267,7 +267,7 @@ internal fun MetaDetailScreen(
             subject = metaModelLabel,
             actions = listOf(
                 ResponseChangeAction(
-                    icon = "🔄",
+                    icon = com.ai.data.MetadataIconsHolder.current.reload,
                     title = "Reload",
                     description = "Regenerate this result with its saved prompt, model and settings.",
                     onClick = {
@@ -276,7 +276,7 @@ internal fun MetaDetailScreen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "✏️",
+                    icon = com.ai.data.MetadataIconsHolder.current.edit,
                     title = "Edit prompt",
                     description = "Edit the meta prompt only for this replay (optionally change parameters and system prompt).",
                     enabled = canRunVariation,
@@ -286,7 +286,7 @@ internal fun MetaDetailScreen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "🗣️",
+                    icon = com.ai.data.MetadataIconsHolder.current.agentChat,
                     title = "Chat",
                     description = "Refine this result in a chat and apply a chosen assistant reply.",
                     enabled = providerService != null && hasContent,
@@ -296,7 +296,7 @@ internal fun MetaDetailScreen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "🌡️",
+                    icon = com.ai.data.MetadataIconsHolder.current.parameters,
                     title = "Temperature sweep",
                     description = "Run one to three temperature variants and select the best result.",
                     enabled = canRunVariation,
@@ -306,7 +306,7 @@ internal fun MetaDetailScreen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "🧠",
+                    icon = com.ai.data.MetadataIconsHolder.current.reportModelIcon,
                     title = "Reasoning Effort",
                     description = "Compare reasoning-effort levels for this result when supported.",
                     enabled = canRunVariation,
@@ -316,7 +316,7 @@ internal fun MetaDetailScreen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "🧭",
+                    icon = com.ai.data.MetadataIconsHolder.current.webSearchReplay,
                     title = "Web search",
                     description = "Re-run this result once with web search enabled and apply it.",
                     enabled = canRunVariation,
@@ -448,7 +448,7 @@ internal fun MetaDetailScreen(
         TitleBar(
             helpTopic = "meta_detail",
             title = "Meta detail",
-            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
+            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
             subject = title,
             onBackClick = onBack,
             onEdit = if (metaEditManager != null) { { showResponseChangeActions = true } } else null,

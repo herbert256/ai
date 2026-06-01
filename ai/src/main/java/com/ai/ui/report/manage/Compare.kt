@@ -95,7 +95,7 @@ fun CompareSelectMetaScreen(
             helpTopic = "compare_select_meta",
             title = "Compare with meta",
             subject = "Pick meta results to score answers against",
-            reportIcon = "🧮",
+            reportIcon = com.ai.data.MetadataIconsHolder.current.compare,
             onBackClick = onBack
         )
         if (metaItems.isEmpty()) {
@@ -116,7 +116,7 @@ fun CompareSelectMetaScreen(
                             .padding(vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(if (checked) "☑" else "☐", fontSize = 18.sp,
+                        Text(if (checked) com.ai.data.MetadataIconsHolder.current.checkboxOn else com.ai.data.MetadataIconsHolder.current.checkboxOff, fontSize = 18.sp,
                             color = if (checked) AppColors.Green else AppColors.TextSecondary,
                             modifier = Modifier.padding(end = 10.dp))
                         Column(Modifier.weight(1f)) {
@@ -158,7 +158,7 @@ fun CompareSelectPromptScreen(
             helpTopic = "compare_select_prompt",
             title = "Compare with meta",
             subject = "Pick a comparison prompt",
-            reportIcon = "🧮",
+            reportIcon = com.ai.data.MetadataIconsHolder.current.compare,
             onBackClick = onBack
         )
         if (prompts.isEmpty()) {
@@ -175,7 +175,7 @@ fun CompareSelectPromptScreen(
                         modifier = Modifier.fillMaxWidth().clickable { onRun(p.id) }.padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("🧮", fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
+                        Text(com.ai.data.MetadataIconsHolder.current.compare, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(p.name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                             if (p.title.isNotBlank()) {
@@ -227,7 +227,7 @@ fun CompareManageRow() {
                 !run.allTerminal -> Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
                     AnimatedHourglass(fontSize = 16.sp)
                 }
-                run.errorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                run.errorCount > 0 -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 else -> Text(compareIcon, fontSize = 16.sp, modifier = Modifier.width(24.dp))
             }
             RowTypeCell("compare")
@@ -590,7 +590,7 @@ private fun CompareCellRow(c: CompareCellState, label: String, onClick: () -> Un
         verticalAlignment = Alignment.CenterVertically
     ) {
         val status = when {
-            c.status == CompareCellStatus.ERROR -> "❌"
+            c.status == CompareCellStatus.ERROR -> com.ai.data.MetadataIconsHolder.current.statusFailed
             c.status == CompareCellStatus.RUNNING || c.status == CompareCellStatus.PENDING -> "⏳"
             else -> null
         }

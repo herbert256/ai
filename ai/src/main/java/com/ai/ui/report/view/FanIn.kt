@@ -123,7 +123,7 @@ fun FanInViewScreen(
         com.ai.data.InternalPromptIconCache.getByName(it)
     }?.takeIf { it.isNotBlank() }
     val rowIcon = result?.icon?.takeIf { it.isNotBlank() }
-    val headerIcon = cachedIcon ?: rowIcon ?: "🪢"
+    val headerIcon = cachedIcon ?: rowIcon ?: com.ai.data.MetadataIconsHolder.current.fanInKnot
     // Model name that did the fan-in synthesis — shown next to
     // the icon. Provider name dropped per the user's spec.
     val modelLabel = result?.model?.let { shortModelName(it) }.orEmpty()
@@ -241,9 +241,9 @@ fun FanInViewScreen(
                 // their own page's flag, not the active page's.
                 val pageFlag = when {
                     languages.size <= 1 -> null
-                    lang.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() } ?: "🌐"
+                    lang.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.translationRow
                     else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
-                        ?: "🌍"
+                        ?: com.ai.data.MetadataIconsHolder.current.world
                 }
                 // Box-anchored layout: the card wraps its content
                 // (short bodies sit at the top), and the language

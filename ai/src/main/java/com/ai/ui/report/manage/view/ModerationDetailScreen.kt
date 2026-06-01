@@ -157,7 +157,7 @@ internal fun ModerationDetailScreen(
         TitleBar(
             helpTopic = "moderation_detail",
             title = "Moderation",
-            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
+            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
             subject = reportTitle,
             onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,

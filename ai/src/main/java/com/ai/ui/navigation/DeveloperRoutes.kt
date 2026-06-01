@@ -375,7 +375,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 initialSubScreen = SettingsSubScreen.AI_IMPORT_EXPORT,
                 // Reached from Housekeeping → show 🧹 (not the AI Setup 🤖)
                 // and route the tap back to the Housekeeping hub.
-                sectionIconOverride = com.ai.ui.shared.TopBarLeftIcon("🧹") {
+                sectionIconOverride = com.ai.ui.shared.TopBarLeftIcon(com.ai.data.MetadataIconsHolder.current.housekeeping) {
                     if (!navController.popBackStack(NavRoutes.AI_HOUSEKEEPING, false))
                         navController.navigate(NavRoutes.AI_HOUSEKEEPING)
                 }
@@ -392,7 +392,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 initialSubScreen = SettingsSubScreen.AI_REFRESH,
                 // Reached from Housekeeping → show 🧹 (not the AI Setup 🤖)
                 // and route the tap back to the Housekeeping hub.
-                sectionIconOverride = com.ai.ui.shared.TopBarLeftIcon("🧹") {
+                sectionIconOverride = com.ai.ui.shared.TopBarLeftIcon(com.ai.data.MetadataIconsHolder.current.housekeeping) {
                     if (!navController.popBackStack(NavRoutes.AI_HOUSEKEEPING, false))
                         navController.navigate(NavRoutes.AI_HOUSEKEEPING)
                 }

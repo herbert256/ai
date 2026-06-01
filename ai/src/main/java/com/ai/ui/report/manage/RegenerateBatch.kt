@@ -107,7 +107,7 @@ fun RegenerateBatchScreen(
         TitleBar(
             helpTopic = "regenerate_batch",
             title = "Regenerate report", subject = "Re-run every model on this report",
-            reportIcon = reportIcon ?: "📝",
+            reportIcon = reportIcon ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
             onBackClick = onBack,
             // Bottom-bar 🗑 — confirms then drops the persisted
             // RegenerateJob + clears the Regenerate row from the
@@ -308,13 +308,13 @@ private fun TaskCard(t: RegenerateTask) {
 @Composable
 private fun StatusIcon(state: RegenerateTaskState) {
     when (state) {
-        RegenerateTaskState.WAITING -> Text("🕒", fontSize = 16.sp, modifier = Modifier.size(24.dp).padding(2.dp))
+        RegenerateTaskState.WAITING -> Text(com.ai.data.MetadataIconsHolder.current.clockTime, fontSize = 16.sp, modifier = Modifier.size(24.dp).padding(2.dp))
         RegenerateTaskState.RUNNING -> Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
             AnimatedHourglass(fontSize = 16.sp)
         }
-        RegenerateTaskState.SUCCESS -> Text("✅", fontSize = 16.sp, modifier = Modifier.size(24.dp).padding(2.dp))
-        RegenerateTaskState.ERROR -> Text("❌", fontSize = 16.sp, modifier = Modifier.size(24.dp).padding(2.dp))
-        RegenerateTaskState.CANCELLED -> Text("⏸", fontSize = 16.sp, modifier = Modifier.size(24.dp).padding(2.dp))
+        RegenerateTaskState.SUCCESS -> Text(com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 16.sp, modifier = Modifier.size(24.dp).padding(2.dp))
+        RegenerateTaskState.ERROR -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.size(24.dp).padding(2.dp))
+        RegenerateTaskState.CANCELLED -> Text(com.ai.data.MetadataIconsHolder.current.statusPaused, fontSize = 16.sp, modifier = Modifier.size(24.dp).padding(2.dp))
     }
 }
 
@@ -406,11 +406,11 @@ fun RegenerateBatchManageRow() {
                     modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center
                 ) { AnimatedHourglass(fontSize = 16.sp) }
                 com.ai.data.RegenerateJobStatus.PAUSED_ON_ERROR ->
-                    Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                    Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 com.ai.data.RegenerateJobStatus.DONE ->
-                    Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                    Text(com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 com.ai.data.RegenerateJobStatus.CANCELLED ->
-                    Text("⏸", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                    Text(com.ai.data.MetadataIconsHolder.current.statusPaused, fontSize = 16.sp, modifier = Modifier.width(24.dp))
             }
             // Type cell — matches the other rows' "compare" / "rerank"
             // / "fan-in" chip in the same column.

@@ -182,7 +182,7 @@ fun RerankViewScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(text = "🏆", fontSize = 40.sp)
+                    Text(text = com.ai.data.MetadataIconsHolder.current.rerank, fontSize = 40.sp)
                     Text(
                         text = "Rerank produced no parseable rows",
                         color = AppColors.TextPrimary, fontSize = 16.sp,
@@ -206,9 +206,9 @@ fun RerankViewScreen(
                 val label = agentLabels[row.id]
                 val onCardClick: (() -> Unit)? = label?.agentId?.let { aid -> { onOpenReportForAgent(aid) } }
                 when (row.rank) {
-                    1 -> PodiumCard(row, label, MedalSpec("🥇", Color(0xFFFFD54F), "Gold"), onCardClick)
-                    2 -> PodiumCard(row, label, MedalSpec("🥈", Color(0xFFB0BEC5), "Silver"), onCardClick)
-                    3 -> PodiumCard(row, label, MedalSpec("🥉", Color(0xFFCD7F32), "Bronze"), onCardClick)
+                    1 -> PodiumCard(row, label, MedalSpec(com.ai.data.MetadataIconsHolder.current.medalGold, Color(0xFFFFD54F), "Gold"), onCardClick)
+                    2 -> PodiumCard(row, label, MedalSpec(com.ai.data.MetadataIconsHolder.current.medalSilver, Color(0xFFB0BEC5), "Silver"), onCardClick)
+                    3 -> PodiumCard(row, label, MedalSpec(com.ai.data.MetadataIconsHolder.current.medalBronze, Color(0xFFCD7F32), "Bronze"), onCardClick)
                     else -> RankRow(row, label)
                 }
             }

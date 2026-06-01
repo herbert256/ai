@@ -183,7 +183,7 @@ internal fun ReportMetaScreen(
         }
         TitleBar(helpTopic = "report_meta",
             title = "Meta", subject = "Run a prompt over the report's answers",
-            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
+            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
             onOpenView = onOpenViewJump,
             onBackClick = onBack)
 
@@ -256,7 +256,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
         // success the cached meta-prompt emoji replaces ✅; fall
         // back to ✅ when no cache entry has landed yet.
         when {
-            r.errorMessage != null -> Text("❌", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+            r.errorMessage != null -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
             r.content.isNullOrBlank() -> {
                 val transition = rememberInfiniteTransition(label = "meta-row-hourglass")
                 val angle by transition.animateFloat(
@@ -272,7 +272,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
                     r.metaPromptName?.takeIf { it.isNotBlank() }
                         ?.let { com.ai.data.InternalPromptIconCache.getByName(it) }
                 }
-                Text(cachedEmoji ?: "✅", fontSize = 16.sp,
+                Text(cachedEmoji ?: com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 16.sp,
                     modifier = Modifier.padding(end = 8.dp))
             }
         }
@@ -295,7 +295,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
                 modifier = Modifier.padding(end = 4.dp))
         }
         IconButton(onClick = { confirmDelete = true }) {
-            Text("🗑", fontSize = 16.sp, color = AppColors.Red)
+            Text(com.ai.data.MetadataIconsHolder.current.delete, fontSize = 16.sp, color = AppColors.Red)
         }
     }
 

@@ -476,7 +476,7 @@ internal fun ReportSelectFlockScreen(
             placeholder = { Text("Search flocks...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
             trailingIcon = {
                 if (search.isNotEmpty()) IconButton(onClick = { search = "" }) {
-                    Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp)
+                    Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.TextTertiary, fontSize = 12.sp)
                 }
             }
         )
@@ -514,7 +514,7 @@ internal fun ReportSelectFlockScreen(
                         // tap target so the user can preview members
                         // without accidentally adding the flock.
                         Text(
-                            "ℹ️", fontSize = 18.sp, color = AppColors.Blue,
+                            com.ai.data.MetadataIconsHolder.current.info, fontSize = 18.sp, color = AppColors.Blue,
                             modifier = Modifier
                                 .clickable { infoFlock = flock }
                                 .padding(end = 12.dp, start = 2.dp)
@@ -597,7 +597,7 @@ internal fun ReportSelectSwarmScreen(
             placeholder = { Text("Search swarms...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
             trailingIcon = {
                 if (search.isNotEmpty()) IconButton(onClick = { search = "" }) {
-                    Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp)
+                    Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.TextTertiary, fontSize = 12.sp)
                 }
             }
         )
@@ -631,7 +631,7 @@ internal fun ReportSelectSwarmScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "ℹ️", fontSize = 18.sp, color = AppColors.Blue,
+                            com.ai.data.MetadataIconsHolder.current.info, fontSize = 18.sp, color = AppColors.Blue,
                             modifier = Modifier
                                 .clickable { infoSwarm = swarm }
                                 .padding(end = 12.dp, start = 2.dp)
@@ -740,7 +740,7 @@ internal fun ReportSelectInternalPromptScreen(
             placeholder = { Text("Search prompts...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
             trailingIcon = {
                 if (search.isNotEmpty()) IconButton(onClick = { search = "" }) {
-                    Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp)
+                    Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.TextTertiary, fontSize = 12.sp)
                 }
             }
         )
@@ -1014,7 +1014,7 @@ internal fun ReportSelectFromReportScreen(
 
         OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search title or prompt...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
-            trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp) } })
+            trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.TextTertiary, fontSize = 12.sp) } })
         Text("${filtered.size} of ${reports.size} reports", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
 
         Spacer(modifier = Modifier.height(8.dp))

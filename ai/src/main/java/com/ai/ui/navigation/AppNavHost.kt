@@ -335,13 +335,13 @@ fun AppNavHost(
     // One-off screens with no section hub — show a fitting local glyph
     // whose tap goes Home. About uses the same ℹ️ it has on the home page.
     val homeIconByRoute: Map<String, String> = mapOf(
-        NavRoutes.AI_COST_CONFIG to "💲",
-        NavRoutes.AI_MANUAL_COST_OVERRIDE_ADD to "💲",
-        NavRoutes.AI_API_TEST to "🧪",
-        NavRoutes.AI_API_TEST_EDIT to "🧪",
-        NavRoutes.DOCUMENTATION to "📖",
-        NavRoutes.DOCUMENTATION_MANUAL to "📖",
-        NavRoutes.ABOUT to "ℹ️"
+        NavRoutes.AI_COST_CONFIG to com.ai.data.MetadataIconsHolder.current.dollar,
+        NavRoutes.AI_MANUAL_COST_OVERRIDE_ADD to com.ai.data.MetadataIconsHolder.current.dollar,
+        NavRoutes.AI_API_TEST to com.ai.data.MetadataIconsHolder.current.test,
+        NavRoutes.AI_API_TEST_EDIT to com.ai.data.MetadataIconsHolder.current.test,
+        NavRoutes.DOCUMENTATION to com.ai.data.MetadataIconsHolder.current.book,
+        NavRoutes.DOCUMENTATION_MANUAL to com.ai.data.MetadataIconsHolder.current.book,
+        NavRoutes.ABOUT to com.ai.data.MetadataIconsHolder.current.info
     )
     val reportDefaultIcon = rootUiStateForLayout.generalSettings.metadataIcons.reportIcon
     val sectionTopIcon: com.ai.ui.shared.TopBarLeftIcon? = when {
@@ -351,36 +351,42 @@ fun AppNavHost(
         currentNavRoute in reportSectionRoutes ->
             com.ai.ui.shared.TopBarLeftIcon(reportDefaultIcon, rootNavigateToReportsHub)
         currentNavRoute == NavRoutes.AI_CHATS_HUB ->
-            com.ai.ui.shared.TopBarLeftIcon("💬", navigateHome)
+            com.ai.ui.shared.TopBarLeftIcon(com.ai.data.MetadataIconsHolder.current.chat, navigateHome)
         currentNavRoute.startsWith("ai_chat") || currentNavRoute.startsWith("ai_dual_chat") ->
-            com.ai.ui.shared.TopBarLeftIcon("💬") {
+            com.ai.ui.shared.TopBarLeftIcon(com.ai.data.MetadataIconsHolder.current.chat) {
                 if (!navController.popBackStack(NavRoutes.AI_CHATS_HUB, false))
                     navController.navigate(NavRoutes.AI_CHATS_HUB)
             }
         currentNavRoute == NavRoutes.AI_HOUSEKEEPING ->
-            com.ai.ui.shared.TopBarLeftIcon("🧹", navigateHome)
+            com.ai.ui.shared.TopBarLeftIcon(com.ai.data.MetadataIconsHolder.current.housekeeping, navigateHome)
         currentNavRoute in housekeepingSubRoutes ->
-            com.ai.ui.shared.TopBarLeftIcon("🧹") {
+            com.ai.ui.shared.TopBarLeftIcon(com.ai.data.MetadataIconsHolder.current.housekeeping) {
                 if (!navController.popBackStack(NavRoutes.AI_HOUSEKEEPING, false))
                     navController.navigate(NavRoutes.AI_HOUSEKEEPING)
             }
         currentNavRoute == NavRoutes.AI_MODEL_SEARCH ->
-            com.ai.ui.shared.TopBarLeftIcon("🧠", navigateHome)
+            com.ai.ui.shared.TopBarLeftIcon(com.ai.data.MetadataIconsHolder.current.reportModelIcon, navigateHome)
         currentNavRoute in modelSectionRoutes ->
-            com.ai.ui.shared.TopBarLeftIcon("🧠") {
+            com.ai.ui.shared.TopBarLeftIcon(com.ai.data.MetadataIconsHolder.current.reportModelIcon) {
                 if (!navController.popBackStack(NavRoutes.AI_MODEL_SEARCH, false))
                     navController.navigate(NavRoutes.AI_MODEL_SEARCH)
             }
         currentNavRoute == NavRoutes.AI_KNOWLEDGE ->
-            com.ai.ui.shared.TopBarLeftIcon("📚", navigateHome)
+            com.ai.ui.shared.TopBarLeftIcon(com.ai.data.MetadataIconsHolder.current.library, navigateHome)
         currentNavRoute in knowledgeSectionRoutes ->
-            com.ai.ui.shared.TopBarLeftIcon("📚") {
+            com.ai.ui.shared.TopBarLeftIcon(com.ai.data.MetadataIconsHolder.current.library) {
                 if (!navController.popBackStack(NavRoutes.AI_KNOWLEDGE, false))
                     navController.navigate(NavRoutes.AI_KNOWLEDGE)
             }
         homeIconByRoute[currentNavRoute] != null ->
             com.ai.ui.shared.TopBarLeftIcon(homeIconByRoute.getValue(currentNavRoute), navigateHome)
         else -> null
+    }
+    // Keep the non-composable MetadataIcons holder in sync with the live
+    // settings so helper/when-expression call sites read the user's Default
+    // icons. Composable sites use LocalMetadataIcons.current (provided below).
+    androidx.compose.runtime.SideEffect {
+        com.ai.data.MetadataIconsHolder.current = rootUiStateForLayout.generalSettings.metadataIcons
     }
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalTopBarLeftIcon provides sectionTopIcon,

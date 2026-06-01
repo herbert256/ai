@@ -223,7 +223,7 @@ private fun ReasoningEffortCandidatePanel(
                 }
                 traceFile?.let { fn ->
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("🐞", fontSize = 16.sp, modifier = Modifier.clickable { onTrace(fn) })
+                    Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp, modifier = Modifier.clickable { onTrace(fn) })
                 }
             }
             when (candidate) {

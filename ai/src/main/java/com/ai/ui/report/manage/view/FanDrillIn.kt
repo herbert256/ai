@@ -526,7 +526,7 @@ internal fun ColumnScope.FanOutDrillInView(
                         }
                         val tfNonNull = tf
                         if (ApiTracer.isTracingEnabled && tfNonNull != null) {
-                            Text("🐞", fontSize = 16.sp,
+                            Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                                 modifier = Modifier
                                     .padding(start = 6.dp)
                                     .clickable { onNavigateToTraceFile(tfNonNull) })
@@ -556,7 +556,7 @@ internal fun ColumnScope.FanOutDrillInView(
                         }
                         else -> {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("🕓", fontSize = 13.sp)
+                                Text(com.ai.data.MetadataIconsHolder.current.clockQueued, fontSize = 13.sp)
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("Queued", fontSize = 13.sp, color = AppColors.TextSecondary)
                             }
@@ -789,9 +789,9 @@ internal fun ColumnScope.FanOutDrillInView(
                         ) {
                             when (state) {
                                 "running" -> com.ai.ui.shared.AnimatedHourglass(fontSize = 16.sp)
-                                "queued" -> Text("🕓", fontSize = 16.sp)
-                                "errored" -> Text("❌", fontSize = 16.sp)
-                                else -> Text("✅", fontSize = 16.sp)
+                                "queued" -> Text(com.ai.data.MetadataIconsHolder.current.clockQueued, fontSize = 16.sp)
+                                "errored" -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp)
+                                else -> Text(com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 16.sp)
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
@@ -1095,7 +1095,7 @@ internal fun ColumnScope.FanOutDrillInView(
                     Box(modifier = Modifier.padding(end = 8.dp).width(20.dp),
                         contentAlignment = Alignment.Center) {
                         when {
-                            row.errorMessage != null -> Text("❌", fontSize = 16.sp)
+                            row.errorMessage != null -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp)
                             // durationMs is stamped on every successful +
                             // errored save (cleared by resetAndRelaunch).
                             // A row with content set OR durationMs set is
@@ -1105,7 +1105,7 @@ internal fun ColumnScope.FanOutDrillInView(
                             // shape as the L1 stats counters / the L3
                             // detail body.
                             !row.content.isNullOrBlank() || row.durationMs != null ->
-                                Text("✅", fontSize = 16.sp)
+                                Text(com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 16.sp)
                             else -> com.ai.ui.shared.AnimatedHourglass(fontSize = 16.sp)
                         }
                     }
@@ -1155,11 +1155,11 @@ internal fun ColumnScope.FanOutDrillInView(
                         // Orphan = source-of-truth report-agent has
                         // failed; the row only exists because past
                         // responses survived the agent's regression.
-                        isOrphan -> Text("🚫", fontSize = 16.sp)
+                        isOrphan -> Text(com.ai.data.MetadataIconsHolder.current.statusBlocked, fontSize = 16.sp)
                         rs.run > 0 -> com.ai.ui.shared.AnimatedHourglass(fontSize = 16.sp)
-                        rowPending > 0 -> Text("🕓", fontSize = 16.sp)
-                        rs.err > 0 -> Text("❌", fontSize = 16.sp)
-                        else -> Text("✅", fontSize = 16.sp)
+                        rowPending > 0 -> Text(com.ai.data.MetadataIconsHolder.current.clockQueued, fontSize = 16.sp)
+                        rs.err > 0 -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp)
+                        else -> Text(com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 16.sp)
                     }
                 }
                 Column(modifier = Modifier.weight(1f)) {

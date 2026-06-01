@@ -414,8 +414,8 @@ fun FanOutViewScreen(
                             // the run carries translations; tapping it
                             // cycles to the next language (wrapping).
                             val initiatorFlag = if (availableLanguages.size > 1) when {
-                                activeLanguage.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() } ?: "🌐"
-                                else -> com.ai.data.InternalPromptIconCache.get("translation_icon", activeLanguage) ?: "🌍"
+                                activeLanguage.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.translationRow
+                                else -> com.ai.data.InternalPromptIconCache.get("translation_icon", activeLanguage) ?: com.ai.data.MetadataIconsHolder.current.world
                             } else null
                             FanOutBodyCard(
                                 reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon,
@@ -770,7 +770,7 @@ private fun EmptyFanOutState() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(text = "🌀", fontSize = 40.sp)
+            Text(text = com.ai.data.MetadataIconsHolder.current.cyclone, fontSize = 40.sp)
             Text(
                 text = "No fan-out replies yet",
                 color = AppColors.TextPrimary,

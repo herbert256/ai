@@ -158,7 +158,7 @@ fun TranslateViewScreen(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "🌍", fontSize = 28.sp, modifier = Modifier.padding(end = 8.dp))
+            Text(text = com.ai.data.MetadataIconsHolder.current.world, fontSize = 28.sp, modifier = Modifier.padding(end = 8.dp))
             Text(
                 text = targetLanguage,
                 fontSize = 28.sp,
@@ -192,7 +192,7 @@ fun TranslateViewScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(text = "🌍", fontSize = 40.sp)
+                    Text(text = com.ai.data.MetadataIconsHolder.current.world, fontSize = 40.sp)
                     Text(
                         text = "No translation rows in this run",
                         color = AppColors.TextPrimary, fontSize = 16.sp,

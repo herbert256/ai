@@ -419,7 +419,7 @@ fun ReportModelScreen(
             subject = agentLabel,
             actions = listOf(
                 ResponseChangeAction(
-                    icon = "🔄",
+                    icon = com.ai.data.MetadataIconsHolder.current.reload,
                     title = "Reload",
                     description = "Regenerate this model response with the report's saved prompt and settings.",
                     onClick = {
@@ -428,7 +428,7 @@ fun ReportModelScreen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "✏️",
+                    icon = com.ai.data.MetadataIconsHolder.current.edit,
                     title = "Edit prompt",
                     description = "Edit the prompt only for this model replay, optionally changing parameters and system prompt.",
                     onClick = {
@@ -437,7 +437,7 @@ fun ReportModelScreen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "🗣️",
+                    icon = com.ai.data.MetadataIconsHolder.current.agentChat,
                     title = "Chat",
                     description = "Refine the response in a chat and apply a chosen assistant reply.",
                     enabled = canContinueInChat,
@@ -447,7 +447,7 @@ fun ReportModelScreen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "🌡️",
+                    icon = com.ai.data.MetadataIconsHolder.current.parameters,
                     title = "Temperature sweep",
                     description = "Run one to three temperature variants and select the best response.",
                     onClick = {
@@ -456,7 +456,7 @@ fun ReportModelScreen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "🧠",
+                    icon = com.ai.data.MetadataIconsHolder.current.reportModelIcon,
                     title = "Reasoning Effort",
                     description = "Compare selected reasoning-effort levels when the model supports them.",
                     onClick = {
@@ -465,7 +465,7 @@ fun ReportModelScreen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "🧭",
+                    icon = com.ai.data.MetadataIconsHolder.current.webSearchReplay,
                     title = "Web search",
                     description = "Replay once with web search enabled and apply the web-search result.",
                     onClick = {
@@ -551,7 +551,7 @@ fun ReportModelScreen(
         TitleBar(
             helpTopic = "report_single_result",
             title = "Model response",
-            reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: "📝",
+            reportIcon = report.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
             subject = agentLabel,
             subjectProviderService = provider,
             subjectModel = agent.model,
@@ -652,7 +652,7 @@ fun ReportModelScreen(
                                 // 🐞 → the trace of the call that produced THIS
                                 // icon (the per-model icon-chain trace).
                                 iconTraceFilename?.let { fn ->
-                                    Text("🐞", fontSize = 20.sp,
+                                    Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 20.sp,
                                         modifier = Modifier.padding(start = 12.dp)
                                             .clickable { onNavigateToTraceFile(fn) })
                                 }
@@ -670,7 +670,7 @@ fun ReportModelScreen(
                                     fontWeight = FontWeight.Bold,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                                 titleTraceFilename?.let { fn ->
-                                    Text("🐞", fontSize = 16.sp,
+                                    Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                                         modifier = Modifier.padding(start = 10.dp)
                                             .clickable { onNavigateToTraceFile(fn) })
                                 }
@@ -729,7 +729,7 @@ fun ReportModelScreen(
                                 }
                             }
                             traceFilename?.let { fn ->
-                                Text("🐞", fontSize = 16.sp,
+                                Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                                     modifier = Modifier.align(Alignment.TopEnd).clickable { onNavigateToTraceFile(fn) })
                             }
                         }
@@ -868,19 +868,19 @@ internal fun ContinueInChatPickerScreen(
                 modifier = Modifier.padding(bottom = 12.dp)
             )
             ContinueRow(
-                icon = "📜",
+                icon = com.ai.data.MetadataIconsHolder.current.appLog,
                 title = "with current history and model",
                 enabled = true,
                 onClick = onPickCurrent
             )
             ContinueRow(
-                icon = "🤖",
+                icon = com.ai.data.MetadataIconsHolder.current.agent,
                 title = "with this response only and select an agent",
                 enabled = true,
                 onClick = onPickAgentPicker
             )
             ContinueRow(
-                icon = "🛠️",
+                icon = com.ai.data.MetadataIconsHolder.current.tools,
                 title = "with this response only and configure on the fly",
                 enabled = true,
                 onClick = onPickOnTheFly

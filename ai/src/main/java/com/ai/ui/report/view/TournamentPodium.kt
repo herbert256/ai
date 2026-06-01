@@ -823,7 +823,7 @@ private fun EmptyTournamentCard(done: Int, total: Int) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text("🥊", fontSize = 42.sp)
+        Text(com.ai.data.MetadataIconsHolder.current.tournament, fontSize = 42.sp)
         Text("Tournament is still forming", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Text(
             "Judged $done/$total matches",
@@ -853,9 +853,9 @@ private fun scoreText(score: Double?, method: TournamentMethod): String {
 }
 
 private fun medalForRank(rank: Int?): String? = when (rank) {
-    1 -> "🥇"
-    2 -> "🥈"
-    3 -> "🥉"
+    1 -> com.ai.data.MetadataIconsHolder.current.medalGold
+    2 -> com.ai.data.MetadataIconsHolder.current.medalSilver
+    3 -> com.ai.data.MetadataIconsHolder.current.medalBronze
     else -> null
 }
 

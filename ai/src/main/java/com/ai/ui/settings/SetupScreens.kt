@@ -149,23 +149,23 @@ fun ModelsSetupScreen(
         TitleBar(helpTopic = "setup_models", title = "Models setup", subject = "Models, types and manual overrides", onBackClick = onBack, onHousekeeping = onHousekeeping)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard("🧠", "Models", "Source and model list per active provider", "$modelCount",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.reportModelIcon, "Models", "Source and model list per active provider", "$modelCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS) }, enabled = hasActiveProvider)
-            ModelsSetupNavCard("🏷️", "Model Types", "Default API path per type (chat, embedding, ...)", "${com.ai.data.ModelType.ALL.size}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.label, "Model Types", "Default API path per type (chat, embedding, ...)", "${com.ai.data.ModelType.ALL.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_TYPES) })
-            ModelsSetupNavCard("✍️", "Manual model types overrides", "Per-model type assignments that win over autodetection", "${aiSettings.modelTypeOverrides.size}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.addNote, "Manual model types overrides", "Per-model type assignments that win over autodetection", "${aiSettings.modelTypeOverrides.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MANUAL_MODEL_TYPES) })
             if (experimentalFeatures) {
-                ModelsSetupNavCard("💻", "Local Models", "On-device LLMs and LiteRT text embedders", "${liteRtCount + localLlmCount}",
+                ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.computer, "Local Models", "On-device LLMs and LiteRT text embedders", "${liteRtCount + localLlmCount}",
                     onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_MODELS_SETUP) })
             }
             ModelsSetupNavCard("⏳", "Model cooldowns", "Rate-limited models benched on a >1h 429", "${cooldownCount.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_COOLDOWNS) })
-            ModelsSetupNavCard("🚫", "Blocked models", "Provider/model pairs flagged as blocked — dimmed in every model picker", "${aiSettings.blockedModels.size}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.statusBlocked, "Blocked models", "Provider/model pairs flagged as blocked — dimmed in every model picker", "${aiSettings.blockedModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_BLOCKED_MODELS) })
-            ModelsSetupNavCard("💸", "Test-excluded models", "Skipped by Test all models — auto-added when a probe costs > 5¢", "${aiSettings.testExcludedModels.size}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.spend, "Test-excluded models", "Skipped by Test all models — auto-added when a probe costs > 5¢", "${aiSettings.testExcludedModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_TEST_EXCLUDED_MODELS) })
-            ModelsSetupNavCard("🔒", "Inaccessible models", "Not reachable on this account — dimmed in every model picker", "${aiSettings.inaccessibleModels.size}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.statusLocked, "Inaccessible models", "Not reachable on this account — dimmed in every model picker", "${aiSettings.inaccessibleModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_INACCESSIBLE_MODELS) })
         }
     }
@@ -201,13 +201,13 @@ fun WorkersSetupScreen(
         TitleBar(helpTopic = "setup_workers", title = "Workers", subject = "Models, agents, flocks and swarms", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard("🧠", "Models", "Browse every active provider's models", "$modelCount",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.reportModelIcon, "Models", "Browse every active provider's models", "$modelCount",
                 onClick = { navRoute(com.ai.ui.navigation.NavRoutes.AI_MODEL_SEARCH) }, enabled = hasApiKey)
-            ModelsSetupNavCard("🤖", "Agents", "Named model configurations", "$agentCount",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.agent, "Agents", "Named model configurations", "$agentCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }, enabled = hasApiKey)
-            ModelsSetupNavCard("🦆", "Flocks", "Groups of agents", "${aiSettings.flocks.size}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.flock, "Flocks", "Groups of agents", "${aiSettings.flocks.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_FLOCKS) }, enabled = hasApiKey)
-            ModelsSetupNavCard("🐝", "Swarms", "Groups of provider/model pairs", "${aiSettings.swarms.size}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.swarm, "Swarms", "Groups of provider/model pairs", "${aiSettings.swarms.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) }, enabled = hasApiKey)
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -242,20 +242,20 @@ fun WorkersSetupScreen(
 @Composable
 private fun WorkersDiagram() {
     Column(modifier = Modifier.fillMaxWidth()) {
-        DiagramEntity("⚙️", "Provider", AppColors.Blue, "has many models") {
+        DiagramEntity(com.ai.data.MetadataIconsHolder.current.settings, "Provider", AppColors.Blue, "has many models") {
             DiagramChipRow(listOf("🧠 Model", "🧠 Model", "🧠 Model", "🧠 Model"))
         }
         DiagramArrow("one model becomes an…")
-        DiagramEntity("🤖", "Agent", AppColors.Green, "a model with a system prompt and parameters") {
+        DiagramEntity(com.ai.data.MetadataIconsHolder.current.agent, "Agent", AppColors.Green, "a model with a system prompt and parameters") {
             DiagramChipRow(listOf("🧠 Model", "📝 System prompt", "🎛️ Parameters"), separator = "+")
         }
         DiagramArrow("agents grouped into a…")
-        DiagramEntity("🦆", "Flock", AppColors.Orange, "a collection of agents") {
+        DiagramEntity(com.ai.data.MetadataIconsHolder.current.flock, "Flock", AppColors.Orange, "a collection of agents") {
             DiagramChipRow(listOf("🤖 Agent", "🤖 Agent", "🤖 Agent"))
         }
 
         Spacer(modifier = Modifier.height(14.dp))
-        DiagramEntity("🐝", "Swarm", AppColors.Purple, "a collection of models") {
+        DiagramEntity(com.ai.data.MetadataIconsHolder.current.swarm, "Swarm", AppColors.Purple, "a collection of models") {
             DiagramChipRow(listOf("🧠 Model", "🧠 Model", "🧠 Model"))
         }
     }
@@ -317,7 +317,7 @@ private fun DiagramArrow(label: String) {
         modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("↓", fontSize = 16.sp, color = AppColors.TextDim)
+        Text(com.ai.data.MetadataIconsHolder.current.arrowDown, fontSize = 16.sp, color = AppColors.TextDim)
         Text(label, fontSize = 10.sp, color = AppColors.TextTertiary)
     }
 }
@@ -354,11 +354,11 @@ fun PromptsSetupScreen(
             countByCategory("internal") + countByCategory("workers") + countByCategory("alt")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard("🗨️", "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.speech, "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
-            ModelsSetupNavCard("🧠", "Internal prompts", "Meta, Fan out/in, Worker, and Other internal templates consumed by app features", "$internalTotal",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.reportModelIcon, "Internal prompts", "Meta, Fan out/in, Worker, and Other internal templates consumed by app features", "$internalTotal",
                 onClick = onOpenInternalPromptsHub)
-            ModelsSetupNavCard("📝", "Example prompts", "Curated (title, text) starters for the New Report flow", "${aiSettings.examplePrompts.size}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.reportIcon, "Example prompts", "Curated (title, text) starters for the New Report flow", "${aiSettings.examplePrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXAMPLE_PROMPTS) })
         }
     }
@@ -389,17 +389,17 @@ fun InternalPromptsHubScreen(
         val fanTotal = countByCategory("fan_out") + countByCategory("fan_in")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard("🧩", "Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report", "${countByCategory("meta")}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.puzzle, "Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report", "${countByCategory("meta")}",
                 onClick = { onOpenInternalPrompts("meta") })
-            ModelsSetupNavCard("🧮", "Compare prompts", "Worker-judged 'Compare with meta' prompts — score each answer's similarity to a meta result", "${countByCategory("meta_compare")}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.compare, "Compare prompts", "Worker-judged 'Compare with meta' prompts — score each answer's similarity to a meta result", "${countByCategory("meta_compare")}",
                 onClick = { onOpenInternalPrompts("meta_compare") })
-            ModelsSetupNavCard("🔀", "Fan out/in prompts", "Templates for the Fan out / Fan in flow — across pairs and combined reports", "$fanTotal",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.shuffle, "Fan out/in prompts", "Templates for the Fan out / Fan in flow — across pairs and combined reports", "$fanTotal",
                 onClick = onOpenFanInOutHub)
-            ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Chat title, Rerank, Moderation)", "${countByCategory("internal")}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.toolbox, "Other internal prompts", "Templates consumed by app features (Translate, Model info, Chat title, Rerank, Moderation)", "${countByCategory("internal")}",
                 onClick = { onOpenInternalPrompts("internal") })
-            ModelsSetupNavCard("👷", "Worker prompts", "Prompts that run on an ordered list of workers (agent or provider+model) tried as a fallback chain. Edit-only — wiring comes later.", "${countByCategory("workers")}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.worker, "Worker prompts", "Prompts that run on an ordered list of workers (agent or provider+model) tried as a fallback chain. Edit-only — wiring comes later.", "${countByCategory("workers")}",
                 onClick = { onOpenInternalPrompts("workers") })
-            ModelsSetupNavCard("✨", "Alternative prompts", "The *_alt variants the Find-alternative-icons / titles flows compose with their base prompt (distinct-emoji / no-flag nudges). Edit-only.", "${countByCategory("alt")}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.sparkles, "Alternative prompts", "The *_alt variants the Find-alternative-icons / titles flows compose with their base prompt (distinct-emoji / no-flag nudges). Edit-only.", "${countByCategory("alt")}",
                 onClick = { onOpenInternalPrompts("alt") })
         }
     }
@@ -427,9 +427,9 @@ fun FanInOutPromptsHubScreen(
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard("🔀", "Fan Out", "Run across every pair of report-models", "${countByCategory("fan_out")}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.shuffle, "Fan Out", "Run across every pair of report-models", "${countByCategory("fan_out")}",
                 onClick = { onOpenInternalPrompts("fan_out") })
-            ModelsSetupNavCard("🪢", "Fan in, total", "Combine all fan-out responses into a single report", "${countByCategory("fan_in")}",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.fanInKnot, "Fan in, total", "Combine all fan-out responses into a single report", "${countByCategory("fan_in")}",
                 onClick = { onOpenInternalPrompts("fan_in") })
         }
     }
@@ -460,9 +460,9 @@ fun LocalModelsSetupScreen(
         TitleBar(helpTopic = "setup_local_models", title = "Local models", subject = "On-device LLMs and embedders", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard("📱", "Local LLMs", "On-device .task chat models that drive the synthetic Local provider", "$localLlmCount",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.device, "Local LLMs", "On-device .task chat models that drive the synthetic Local provider", "$localLlmCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_LLMS) })
-            ModelsSetupNavCard("📐", "Local LiteRT models", "On-device .tflite text embedders for Local Semantic Search and Local-embedder Knowledge", "$liteRtCount",
+            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.ruler, "Local LiteRT models", "On-device .tflite text embedders for Local Semantic Search and Local-embedder Knowledge", "$liteRtCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_LITERT_MODELS) })
         }
     }
@@ -570,7 +570,7 @@ fun ProvidersScreen(
                             enabled = provider.adminUrl.isNotBlank()
                         ) {
                             Text(
-                                "🛠️",
+                                com.ai.data.MetadataIconsHolder.current.tools,
                                 fontSize = 18.sp,
                                 modifier = if (provider.adminUrl.isNotBlank()) Modifier else Modifier.alpha(0.3f)
                             )
@@ -765,7 +765,7 @@ private fun ExternalServiceCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(name, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                 IconButton(onClick = { onNavigateToHelpTopic(topicId) }, modifier = Modifier.size(28.dp)) {
-                    Text("ℹ️", fontSize = 16.sp)
+                    Text(com.ai.data.MetadataIconsHolder.current.info, fontSize = 16.sp)
                 }
             }
             Text(description, fontSize = 12.sp, color = AppColors.TextTertiary)

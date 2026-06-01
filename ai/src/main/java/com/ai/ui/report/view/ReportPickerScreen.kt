@@ -126,10 +126,10 @@ fun ReportPickerScreen(
 
     val cards = listOf(
         PickerCardData("⏳", AppColors.Orange, "Running AI reports", reportEntries(homeLists.running)),
-        PickerCardData("⚠️", AppColors.Red, "AI Reports with problems", reportEntries(homeLists.problems)),
-        PickerCardData("📌", AppColors.Yellow, "Pinned AI Reports", reportEntries(pinned)),
-        PickerCardData("🕘", AppColors.Blue, "Latest AI Reports", reportEntries(latest)),
-        PickerCardData("💡", AppColors.Purple, "Example AI Reports",
+        PickerCardData(com.ai.data.MetadataIconsHolder.current.statusWarning, AppColors.Red, "AI Reports with problems", reportEntries(homeLists.problems)),
+        PickerCardData(com.ai.data.MetadataIconsHolder.current.pin, AppColors.Yellow, "Pinned AI Reports", reportEntries(pinned)),
+        PickerCardData(com.ai.data.MetadataIconsHolder.current.clockRecent, AppColors.Blue, "Latest AI Reports", reportEntries(latest)),
+        PickerCardData(com.ai.data.MetadataIconsHolder.current.tip, AppColors.Purple, "Example AI Reports",
             // Examples can't be capability-filtered without importing, so
             // hide the bucket whenever a filter is active.
             if (filter != null) emptyList()

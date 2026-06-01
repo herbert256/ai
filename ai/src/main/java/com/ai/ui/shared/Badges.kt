@@ -17,21 +17,21 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun VisionBadge(isVisionCapable: Boolean) {
     if (!isVisionCapable) return
-    Text(text = "👁", fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+    Text(text = com.ai.data.MetadataIconsHolder.current.view, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
 }
 
 /** "Web-search-tool-capable" badge (Settings.isWebSearchCapable). */
 @Composable
 fun WebSearchBadge(isWebSearchCapable: Boolean) {
     if (!isWebSearchCapable) return
-    Text(text = "🌐", fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+    Text(text = com.ai.data.MetadataIconsHolder.current.translationRow, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
 }
 
 /** "Thinking / reasoning_effort capable" badge (Settings.isReasoningCapable). */
 @Composable
 fun ReasoningBadge(isReasoningCapable: Boolean) {
     if (!isReasoningCapable) return
-    Text(text = "🧠", fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+    Text(text = com.ai.data.MetadataIconsHolder.current.reportModelIcon, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
 }
 
 /** "On a >1h-429 cooldown" badge. */
@@ -45,7 +45,7 @@ fun CooldownBadge(onCooldown: Boolean) {
 @Composable
 fun BlockedBadge(isBlocked: Boolean) {
     if (!isBlocked) return
-    Text(text = "🚫", fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+    Text(text = com.ai.data.MetadataIconsHolder.current.statusBlocked, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
 }
 
 /** "Tier-gated / inaccessible" badge — selecting will usually fail
@@ -53,7 +53,7 @@ fun BlockedBadge(isBlocked: Boolean) {
 @Composable
 fun InaccessibleBadge(isInaccessible: Boolean) {
     if (!isInaccessible) return
-    Text(text = "🔒", fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+    Text(text = com.ai.data.MetadataIconsHolder.current.statusLocked, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
 }
 
 /** "Not a chat model" badge (image / TTS / STT / moderation / classify /
@@ -61,5 +61,5 @@ fun InaccessibleBadge(isInaccessible: Boolean) {
 @Composable
 fun NonTestableBadge(isNonTestable: Boolean) {
     if (!isNonTestable) return
-    Text(text = "🖼️", fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
+    Text(text = com.ai.data.MetadataIconsHolder.current.image, fontSize = 11.sp, modifier = Modifier.padding(start = 4.dp))
 }

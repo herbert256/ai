@@ -96,7 +96,7 @@ private fun ProviderHeroCard(provider: AppService) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(text = "🛰", fontSize = 56.sp)
+            Text(text = com.ai.data.MetadataIconsHolder.current.satellite, fontSize = 56.sp)
             Text(
                 text = provider.id,
                 fontSize = 22.sp,

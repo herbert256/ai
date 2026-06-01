@@ -326,7 +326,7 @@ fun AgentEditScreen(
 
                     val traceFile = lastTraceFile
                     if (traceFile != null && onNavigateToTrace != null && com.ai.data.ApiTracer.isTracingEnabled) {
-                        Text("🐞", fontSize = 22.sp,
+                        Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 22.sp,
                             modifier = Modifier
                                 .padding(start = 4.dp)
                                 .clickable { onNavigateToTrace(traceFile) })

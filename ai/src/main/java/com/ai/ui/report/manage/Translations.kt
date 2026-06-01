@@ -110,9 +110,9 @@ internal fun ReportTranslationsScreen(
                     val emoji = lang?.takeIf { it.isNotBlank() }
                         ?.let { com.ai.data.InternalPromptIconCache.get("translation_icon", it) }
                     when {
-                        run.errorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        run.errorCount > 0 -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                         emoji != null -> Text(emoji, fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                        else -> Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        else -> Text(com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                     }
                     RowTypeCell("translate")
                     val label = run.targetLanguageNative?.takeIf { it.isNotBlank() }

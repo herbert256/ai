@@ -552,7 +552,7 @@ private fun HeroCard(provider: AppService, modelName: String, onOpenProvider: ((
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(text = "🤖", fontSize = 56.sp)
+            Text(text = com.ai.data.MetadataIconsHolder.current.agent, fontSize = 56.sp)
             Text(
                 text = shortModelName(modelName),
                 fontSize = 22.sp,
@@ -646,25 +646,25 @@ private fun SourcesCard(
     // source opens [ParsedSourceOverlay]; tapping an absent row is
     // a no-op (the row is faded so the user reads it as inactive).
     SectionCard(title = "Sources") {
-        SourceRow("🤗", "HuggingFace", hfRaw, onTrace = hfTrace) {
+        SourceRow(com.ai.data.MetadataIconsHolder.current.huggingface, "HuggingFace", hfRaw, onTrace = hfTrace) {
             onOpen("HuggingFace", hfRaw ?: "{}", "https://huggingface.co/api/models")
         }
-        SourceRow("🌐", "OpenRouter", orRaw, onTrace = orTrace) {
+        SourceRow(com.ai.data.MetadataIconsHolder.current.translationRow, "OpenRouter", orRaw, onTrace = orTrace) {
             onOpen("OpenRouter", orRaw ?: "{}", "https://openrouter.ai/api/v1/models")
         }
-        SourceRow("🔖", "LiteLLM", liteLLMRaw) {
+        SourceRow(com.ai.data.MetadataIconsHolder.current.bookmark, "LiteLLM", liteLLMRaw) {
             onOpen("LiteLLM", liteLLMRaw ?: "{}", "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json")
         }
-        SourceRow("📦", "models.dev", modelsDevRaw) {
+        SourceRow(com.ai.data.MetadataIconsHolder.current.packageBox, "models.dev", modelsDevRaw) {
             onOpen("models.dev", modelsDevRaw ?: "{}", "https://models.dev/api.json")
         }
-        SourceRow("🔥", "Helicone", heliconeRaw) {
+        SourceRow(com.ai.data.MetadataIconsHolder.current.hot, "Helicone", heliconeRaw) {
             onOpen("Helicone", heliconeRaw ?: "{}", "https://www.helicone.ai/api/llm-costs")
         }
-        SourceRow("💰", "llm-prices", llmPricesRaw) {
+        SourceRow(com.ai.data.MetadataIconsHolder.current.cost, "llm-prices", llmPricesRaw) {
             onOpen("llm-prices", llmPricesRaw ?: "{}", "https://raw.githubusercontent.com/simonw/llm-prices/main/data/")
         }
-        SourceRow("📊", "Artificial Analysis", aaRaw, isLast = true) {
+        SourceRow(com.ai.data.MetadataIconsHolder.current.statisticsMonitor, "Artificial Analysis", aaRaw, isLast = true) {
             onOpen("Artificial Analysis", aaRaw ?: "{}", "https://artificialanalysis.ai/api/v2/data/llms/models")
         }
     }
@@ -690,7 +690,7 @@ private fun SourceRow(icon: String, label: String, raw: String?, isLast: Boolean
             maxLines = 1, overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = if (hasData) "✓" else "·",
+            text = if (hasData) com.ai.data.MetadataIconsHolder.current.checkMark else "·",
             color = if (hasData) AppColors.Green else AppColors.TextTertiary,
             fontSize = 14.sp, fontWeight = FontWeight.SemiBold
         )
@@ -699,7 +699,7 @@ private fun SourceRow(icon: String, label: String, raw: String?, isLast: Boolean
         // an absent row so a prior fetch's trace stays reachable.
         if (onTrace != null) {
             Text(
-                "🐞", fontSize = 16.sp,
+                com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                 modifier = Modifier
                     .alpha(1f)
                     .clickable { onTrace() }

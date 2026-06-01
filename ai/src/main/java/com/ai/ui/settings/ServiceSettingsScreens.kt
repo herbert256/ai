@@ -134,11 +134,11 @@ private fun ModelTestStatusIcon(
             )
             Text("⏳", fontSize = 14.sp, modifier = Modifier.padding(horizontal = 6.dp).rotate(angle))
         }
-        ModelTestStatus.Ok -> Text("✅", fontSize = 14.sp, modifier = Modifier.padding(horizontal = 6.dp))
+        ModelTestStatus.Ok -> Text(com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 14.sp, modifier = Modifier.padding(horizontal = 6.dp))
         is ModelTestStatus.Fail -> {
             val traceFile = status.traceFile
             Text(
-                "❌", fontSize = 14.sp,
+                com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 14.sp,
                 modifier = Modifier
                     .padding(horizontal = 6.dp)
                     .then(if (traceFile != null) Modifier.clickable { onTraceClick(traceFile) } else Modifier)
@@ -926,7 +926,7 @@ fun ProviderSettingsScreen(
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("Provider inactive", modifier = Modifier.weight(1f), color = Color.White)
                     Text(
-                        text = "❓", fontSize = 14.sp, color = AppColors.Blue,
+                        text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.Blue,
                         modifier = Modifier
                             .padding(end = 12.dp)
                             .clickable { navigateHelp("provider_card_state") }
@@ -975,7 +975,7 @@ fun ProviderSettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text("API Key", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                         Text(
-                            text = "❓", fontSize = 14.sp, color = AppColors.Blue,
+                            text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.Blue,
                             modifier = Modifier.clickable { navigateHelp("provider_card_apikey") }
                         )
                     }
@@ -994,7 +994,7 @@ fun ProviderSettingsScreen(
                         trailingIcon = {
                             if (apiKey.isNotEmpty()) {
                                 IconButton(onClick = { showApiKey = !showApiKey }) {
-                                    Text(if (showApiKey) "🙈" else "👁", fontSize = 16.sp)
+                                    Text(if (showApiKey) com.ai.data.MetadataIconsHolder.current.hide else com.ai.data.MetadataIconsHolder.current.view, fontSize = 16.sp)
                                 }
                             }
                         }
@@ -1075,7 +1075,7 @@ fun ProviderSettingsScreen(
                         } ?: Spacer(modifier = Modifier.weight(1f))
                         val tf = testTraceFile
                         if (!testSuccess && tf != null && onNavigateToTrace != null && com.ai.data.ApiTracer.isTracingEnabled) {
-                            Text("🐞", fontSize = 18.sp,
+                            Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 18.sp,
                                 modifier = Modifier
                                     .padding(start = 8.dp)
                                     .clickable { onNavigateToTrace(tf) })

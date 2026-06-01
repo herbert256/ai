@@ -359,7 +359,7 @@ internal fun SecondaryResultDetailScreen(
         TitleBar(
             helpTopic = "secondary_detail",
             title = "Secondary detail",
-            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
+            reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
             subject = title,
             onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,

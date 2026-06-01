@@ -66,12 +66,12 @@ fun NewAiReportScreen(
             onBackClick = onNavigateBack
         )
         Spacer(modifier = Modifier.height(8.dp))
-        NewAiReportItem(icon = "🗒", title = "New Report",
+        NewAiReportItem(icon = com.ai.data.MetadataIconsHolder.current.notepad, title = "New Report",
             enabled = true, onClick = onNavigateToNewReport)
-        NewAiReportItem(icon = "🔄", title = "Start with a previous prompt",
+        NewAiReportItem(icon = com.ai.data.MetadataIconsHolder.current.reload, title = "Start with a previous prompt",
             enabled = hasPromptHistory, onClick = onNavigateToPromptHistory)
         if (hasExamplePrompts) {
-            NewAiReportItem(icon = "💡", title = "Start with an example prompt",
+            NewAiReportItem(icon = com.ai.data.MetadataIconsHolder.current.tip, title = "Start with an example prompt",
                 enabled = true, onClick = onNavigateToExamplePrompts)
         }
     }

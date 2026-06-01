@@ -72,8 +72,8 @@ private fun TranslationCandidateRow(candidate: TranslationCandidate, onPick: (Tr
         ) {
             when (candidate) {
                 is TranslationCandidate.Running -> com.ai.ui.shared.AnimatedHourglass(fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
-                is TranslationCandidate.Done -> Text("🌍", fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
-                is TranslationCandidate.Error -> Text("❌", fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
+                is TranslationCandidate.Done -> Text(com.ai.data.MetadataIconsHolder.current.world, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
+                is TranslationCandidate.Error -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(providerModel, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)

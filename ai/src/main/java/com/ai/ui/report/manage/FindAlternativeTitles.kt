@@ -71,8 +71,8 @@ private fun TitleCandidateRow(candidate: TitleCandidate, onPickTitle: (String) -
         ) {
             when (candidate) {
                 is TitleCandidate.Running -> com.ai.ui.shared.AnimatedHourglass(fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
-                is TitleCandidate.Done -> Text("🏷️", fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
-                is TitleCandidate.Error -> Text("❌", fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
+                is TitleCandidate.Done -> Text(com.ai.data.MetadataIconsHolder.current.label, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
+                is TitleCandidate.Error -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(iconModel, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)

@@ -69,8 +69,8 @@ internal fun ReportCreateOverviewScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Spacer(modifier = Modifier.height(4.dp))
-            CreateRow("🔗", "Meta", "Compare, critique or synthesize the answers", metaEnabled, onMeta)
-            CreateRow("🧮", "Compare with meta", "Score each answer's similarity to a meta result", compareEnabled, onCompare)
+            CreateRow(com.ai.data.MetadataIconsHolder.current.meta, "Meta", "Compare, critique or synthesize the answers", metaEnabled, onMeta)
+            CreateRow(com.ai.data.MetadataIconsHolder.current.compare, "Compare with meta", "Score each answer's similarity to a meta result", compareEnabled, onCompare)
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
@@ -106,8 +106,8 @@ internal fun ReportTournamentOverviewScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Spacer(modifier = Modifier.height(4.dp))
-            CreateRow("🥊", "Tournament", "Head-to-head judge every pair of answers", tournamentEnabled, onTournament)
-            CreateRow("⚖️", "Judge the judges", "Score the judge models by how they judge 25 head-to-heads", judgeJudgesEnabled, onJudgeJudges)
+            CreateRow(com.ai.data.MetadataIconsHolder.current.tournament, "Tournament", "Head-to-head judge every pair of answers", tournamentEnabled, onTournament)
+            CreateRow(com.ai.data.MetadataIconsHolder.current.judges, "Judge the judges", "Score the judge models by how they judge 25 head-to-heads", judgeJudgesEnabled, onJudgeJudges)
             Spacer(modifier = Modifier.height(16.dp))
         }
     }

@@ -907,7 +907,7 @@ fun ChatSessionScreen(
                 onClick = { pickImageLauncher.launch("image/*") },
                 enabled = !isStreaming,
                 colors = AppColors.outlinedButtonColors()
-            ) { Text("📎", fontSize = 18.sp, maxLines = 1, softWrap = false) }
+            ) { Text(com.ai.data.MetadataIconsHolder.current.attach, fontSize = 18.sp, maxLines = 1, softWrap = false) }
             OutlinedTextField(
                 value = userInput, onValueChange = { userInput = it },
                 modifier = Modifier.weight(1f).focusRequester(focusRequester),
@@ -949,7 +949,7 @@ fun ChatSessionScreen(
                     Text("Input flagged by moderation", modifier = Modifier.weight(1f))
                     if (ApiTracer.isTracingEnabled && flagged.traceFilename != null) {
                         Text(
-                            "🐞", fontSize = 18.sp,
+                            com.ai.data.MetadataIconsHolder.current.traces, fontSize = 18.sp,
                             modifier = Modifier
                                 .clickable {
                                     // Don't clear pendingFlagged — the dialog is
@@ -1046,7 +1046,7 @@ private fun ChatMessageBubble(
                 val traceFilename = traceFilenameState?.value
                 if (ApiTracer.isTracingEnabled && traceFilename != null) {
                     Text(
-                        "🐞", fontSize = 14.sp,
+                        com.ai.data.MetadataIconsHolder.current.traces, fontSize = 14.sp,
                         modifier = Modifier
                             .clickable { onNavigateToTraceFile(traceFilename) }
                             .padding(start = 6.dp, top = 2.dp, bottom = 2.dp, end = 2.dp)

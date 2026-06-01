@@ -296,7 +296,7 @@ private fun FanOutSection(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "🌀", fontSize = 24.sp, modifier = Modifier.padding(end = 8.dp))
+                Text(text = com.ai.data.MetadataIconsHolder.current.cyclone, fontSize = 24.sp, modifier = Modifier.padding(end = 8.dp))
                 Text(
                     text = metaPromptName,
                     color = AppColors.Green,
@@ -335,7 +335,7 @@ private fun FanOutSection(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "→",
+                    text = com.ai.data.MetadataIconsHolder.current.arrowRight,
                     color = AppColors.TextSecondary,
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,

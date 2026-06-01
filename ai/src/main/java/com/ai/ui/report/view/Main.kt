@@ -594,7 +594,7 @@ internal fun ViewAiReportScreen(
             }
             val cached = if (useInternalPromptsIcons && resolvedPrompt != null && resolvedPrompt.name.isNotBlank())
                 com.ai.data.InternalPromptIconCache.get(resolvedPrompt.name, resolvedPrompt.title) else null
-            cached ?: "🌀"
+            cached ?: com.ai.data.MetadataIconsHolder.current.cyclone
         }
     }
     // Fan-out "View" overlay mount — placed before the Reports block so
@@ -887,7 +887,7 @@ internal fun ViewAiReportScreen(
             // iconRefreshTick, so the tile picks up a fresh icon
             // without remount.
             add(IdentifiedTile("doc:Prompt", ViewTile(
-                "Prompt", reportIcon?.takeIf { it.isNotBlank() } ?: "📝", AppColors.Purple,
+                "Prompt", reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon, AppColors.Purple,
                 enabled = promptEnabled,
                 onMissingClick = if (!promptEnabled) ({ openPromptMissing() }) else null
             ) {
@@ -895,7 +895,7 @@ internal fun ViewAiReportScreen(
                 promptViewOpen = true
             }))
             add(IdentifiedTile("doc:Reports", ViewTile(
-                "Reports", "📊", AppColors.Blue,
+                "Reports", com.ai.data.MetadataIconsHolder.current.statisticsMonitor, AppColors.Blue,
                 enabled = reportsEnabled,
                 onMissingClick = if (!reportsEnabled) ({ openReportsMissing() }) else null
             ) {
@@ -905,7 +905,7 @@ internal fun ViewAiReportScreen(
                 reportsViewInitialAgentId = null
                 reportsViewOpen = true
             }))
-            add(IdentifiedTile("doc:Costs", ViewTile("Costs", "💰", AppColors.Yellow) { showCostsView = true }))
+            add(IdentifiedTile("doc:Costs", ViewTile("Costs", com.ai.data.MetadataIconsHolder.current.cost, AppColors.Yellow) { showCostsView = true }))
             // HTML preview, Log, Trace tiles are deliberately omitted
             // from the View grid — the content-only View surface
             // focuses on the report's outputs, not export views or
@@ -913,11 +913,11 @@ internal fun ViewAiReportScreen(
             // reachable from Report - manage; Log + Trace from the
             // result page's bottom-bar icons (📜 App Log, 🐞 Trace
             // list).
-            add(IdentifiedTile("doc:Icons", ViewTile("Icons", "🖼", AppColors.Orange) { onViewIcons() }))
+            add(IdentifiedTile("doc:Icons", ViewTile("Icons", com.ai.data.MetadataIconsHolder.current.image, AppColors.Orange) { onViewIcons() }))
             // Value view — cost × quality frontier. Only meaningful with a
             // rerank to supply per-model quality scores.
             if (everyItems["rerank"].orEmpty().isNotEmpty()) {
-                add(IdentifiedTile("doc:Value", ViewTile("Value view", "💎", AppColors.Green) { showValueView = true }))
+                add(IdentifiedTile("doc:Value", ViewTile("Value view", com.ai.data.MetadataIconsHolder.current.gem, AppColors.Green) { showValueView = true }))
             }
         }
     }
@@ -979,7 +979,7 @@ internal fun ViewAiReportScreen(
                     // second line.
                     label = item.label,
                     sublabel = "meta",
-                    emoji = promptEmoji ?: "🧠",
+                    emoji = promptEmoji ?: com.ai.data.MetadataIconsHolder.current.reportModelIcon,
                     accent = AppColors.Purple,
                     enabled = metaEnabled,
                     onMissingClick = if (!metaEnabled) ({ openMetaMissing(item) }) else null,
@@ -1023,7 +1023,7 @@ internal fun ViewAiReportScreen(
                     // literal "fan-out".
                     label = item.label,
                     sublabel = "fan-out",
-                    emoji = promptEmoji ?: "🌀",
+                    emoji = promptEmoji ?: com.ai.data.MetadataIconsHolder.current.cyclone,
                     accent = AppColors.Indigo,
                     enabled = fanOutEnabled,
                     onClick = { item.open(currentLanguageState.value) }
@@ -1059,7 +1059,7 @@ internal fun ViewAiReportScreen(
                     // literal "fan-in".
                     label = item.label,
                     sublabel = "fan-in",
-                    emoji = promptEmoji ?: "🪢",
+                    emoji = promptEmoji ?: com.ai.data.MetadataIconsHolder.current.fanInKnot,
                     accent = AppColors.Green,
                     enabled = fanInEnabled,
                     onClick = {
@@ -1097,9 +1097,9 @@ internal fun ViewAiReportScreen(
         // (Unicode has no green-flag emoji, so ✅ mirrors the Moderation
         // detail screen's clean verdict — 🚩 / ✅.)
         val moderationColor = if (moderationFlagged) AppColors.Red else AppColors.Green
-        val moderationEmoji = if (moderationFlagged) "🚩" else "✅"
+        val moderationEmoji = if (moderationFlagged) com.ai.data.MetadataIconsHolder.current.validatePrompt else com.ai.data.MetadataIconsHolder.current.statusDone
         val specs = listOf(
-            ComputedSpec("rerank", "Rerank", "🏆", AppColors.Yellow),
+            ComputedSpec("rerank", "Rerank", com.ai.data.MetadataIconsHolder.current.rerank, AppColors.Yellow),
             ComputedSpec(
                 "tournament", "Tournament", tournamentIcon, AppColors.Green,
                 sublabel = "head-to-head", style = ViewTileStyle.Tournament
@@ -1108,7 +1108,7 @@ internal fun ViewAiReportScreen(
             // fan_in is no longer in computedTiles — it has its own
             // per-run tile set ([fanInTiles]) with dynamic icons,
             // mirroring the fan_out pattern.
-            ComputedSpec("translate", "Translate", "🌍", AppColors.Orange)
+            ComputedSpec("translate", "Translate", com.ai.data.MetadataIconsHolder.current.world, AppColors.Orange)
         )
         specs.mapNotNull { s ->
             val items = if (s.key == "tournament") tournamentItems else everyItems[s.key].orEmpty()

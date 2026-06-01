@@ -622,7 +622,7 @@ internal fun ColumnScope.GenerationPhase(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
         ) {
             Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("⚠", fontSize = 16.sp, color = AppColors.Orange, modifier = Modifier.padding(end = 8.dp))
+                Text(com.ai.data.MetadataIconsHolder.current.statusWarning, fontSize = 16.sp, color = AppColors.Orange, modifier = Modifier.padding(end = 8.dp))
                 Text(
                     "Changes pending: ${parts.joinToString(", ")}. Tap Regenerate to apply.",
                     fontSize = 12.sp, color = AppColors.TextSecondary
@@ -830,7 +830,7 @@ internal fun ColumnScope.GenerationPhase(
                         }
                     }
                     when {
-                        run.errorMessage != null -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        run.errorMessage != null -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                         running -> {
                             val transition = rememberInfiniteTransition(label = "meta-run-${run.id}")
                             val angle by transition.animateFloat(
@@ -1048,7 +1048,7 @@ internal fun ColumnScope.GenerationPhase(
                         run.pendingCount > 0 -> Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
                             AnimatedHourglass(fontSize = 16.sp)
                         }
-                        run.errorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        run.errorCount > 0 -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                         else -> {
                             // Success: try the per-prompt cached emoji
                             // before falling back to ✅. Cache miss fires
@@ -1119,8 +1119,8 @@ internal fun ColumnScope.GenerationPhase(
                                 modifier = Modifier.width(24.dp),
                                 contentAlignment = Alignment.Center
                             ) { AnimatedHourglass(fontSize = 16.sp) }
-                            run.titleErrorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
-                            else -> Text("🏷️", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                            run.titleErrorCount > 0 -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                            else -> Text(com.ai.data.MetadataIconsHolder.current.label, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                         }
                         RowTypeCell("fan-meta")
                         Column(modifier = Modifier.weight(1f)) {
@@ -1194,7 +1194,7 @@ internal fun ColumnScope.GenerationPhase(
                     // the call lands. Failed runs (errorCount > 0)
                     // keep ❌ unchanged.
                     when {
-                        run.errorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                        run.errorCount > 0 -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                         else -> {
                             val lang = run.targetLanguage
                             val emoji = if (
@@ -1217,7 +1217,7 @@ internal fun ColumnScope.GenerationPhase(
                                         .clickable { onOpenTranslationIconDetail(lang) }
                                 )
                             } else {
-                                Text("✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                                Text(com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                             }
                         }
                     }
@@ -1294,7 +1294,7 @@ internal fun ColumnScope.GenerationPhase(
                 // model's generated icon when one has landed, else ✅; ❌ on
                 // failure. (Icon detail + model-title live on Get-info.)
                 if (row.isNew) {
-                    Text(text = "🆕", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                    Text(text = com.ai.data.MetadataIconsHolder.current.add, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 } else if (result == null) {
                     val transition = rememberInfiniteTransition(label = "hourglass")
                     val angle by transition.animateFloat(
@@ -1305,9 +1305,9 @@ internal fun ColumnScope.GenerationPhase(
                     Text(text = "⏳", fontSize = 16.sp, modifier = Modifier.width(24.dp).rotate(angle))
                 } else if (result.isSuccess) {
                     val emoji = agentIconRows[agentId]?.icon?.takeIf { it.isNotBlank() }
-                    Text(text = emoji ?: "✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                    Text(text = emoji ?: com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 } else {
-                    Text(text = "❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                    Text(text = com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 }
                 RowTypeCell("report")
                 Column(modifier = Modifier.weight(1f)) {
@@ -1342,7 +1342,7 @@ internal fun ColumnScope.GenerationPhase(
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("🗑", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                    Text(com.ai.data.MetadataIconsHolder.current.delete, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                     RowTypeCell("deleted")
                     Text(
                         "Costs from deleted items",
@@ -1416,7 +1416,7 @@ internal fun LanguageRow(
         .clickable { onOpenDetail() },
         verticalAlignment = Alignment.CenterVertically) {
         when {
-            snapshot.error != null -> Text("❌", fontSize = 16.sp,
+            snapshot.error != null -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp,
                 modifier = Modifier.width(24.dp))
             !snapshot.loaded -> Spacer(modifier = Modifier.width(24.dp))
             running -> Box(modifier = Modifier.width(24.dp),
@@ -1483,14 +1483,14 @@ internal fun TitleRow(
         .clickable { onOpenDetail() },
         verticalAlignment = Alignment.CenterVertically) {
         when {
-            snapshot.error != null -> Text("❌", fontSize = 16.sp,
+            snapshot.error != null -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp,
                 modifier = Modifier.width(24.dp))
             !snapshot.loaded -> Spacer(modifier = Modifier.width(24.dp))
             running -> Box(modifier = Modifier.width(24.dp),
                 contentAlignment = Alignment.Center) {
                 AnimatedHourglass(fontSize = 16.sp)
             }
-            else -> Text("🏷️", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+            else -> Text(com.ai.data.MetadataIconsHolder.current.label, fontSize = 16.sp, modifier = Modifier.width(24.dp))
         }
         RowTypeCell("title")
         Column(modifier = Modifier.weight(1f)) {

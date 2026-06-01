@@ -186,7 +186,7 @@ fun ModerationViewScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(text = "🚩", fontSize = 40.sp)
+                    Text(text = com.ai.data.MetadataIconsHolder.current.validatePrompt, fontSize = 40.sp)
                     Text(
                         text = "Moderation produced no parseable rows",
                         color = AppColors.TextPrimary, fontSize = 16.sp,
@@ -297,7 +297,7 @@ private fun VerdictHero(total: Int, flagged: Int) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = if (flagged > 0) "🚩" else "✅",
+            text = if (flagged > 0) com.ai.data.MetadataIconsHolder.current.validatePrompt else com.ai.data.MetadataIconsHolder.current.statusDone,
             fontSize = 28.sp,
             modifier = Modifier.padding(end = 12.dp)
         )
@@ -341,7 +341,7 @@ private fun AgentModerationCard(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = if (row.flagged) "🚩" else "✓",
+                text = if (row.flagged) com.ai.data.MetadataIconsHolder.current.validatePrompt else com.ai.data.MetadataIconsHolder.current.checkMark,
                 fontSize = 18.sp,
                 color = if (row.flagged) AppColors.Red else AppColors.Green,
                 modifier = Modifier.padding(end = 8.dp)

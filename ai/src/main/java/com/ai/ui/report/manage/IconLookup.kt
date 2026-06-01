@@ -151,7 +151,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
             // running and ❌ on error.
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 val glyph = when {
-                    !ctx.errorMessage.isNullOrBlank() -> "❌"
+                    !ctx.errorMessage.isNullOrBlank() -> com.ai.data.MetadataIconsHolder.current.statusFailed
                     ctx.emoji.isNullOrBlank() -> "⏳"
                     else -> ctx.emoji
                 }

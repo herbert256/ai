@@ -121,11 +121,11 @@ fun ChatsHubScreen(
         }
         if (pinnedSessions.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
-            ChatListCard(title = "Pinned", icon = "📌", sessions = pinnedSessions, onResume = onResumeSession)
+            ChatListCard(title = "Pinned", icon = com.ai.data.MetadataIconsHolder.current.pin, sessions = pinnedSessions, onResume = onResumeSession)
         }
         if (recentSessions.isNotEmpty()) {
             Spacer(modifier = Modifier.height(12.dp))
-            ChatListCard(title = "Recent", icon = "🕘", sessions = recentSessions, onResume = onResumeSession)
+            ChatListCard(title = "Recent", icon = com.ai.data.MetadataIconsHolder.current.clockRecent, sessions = recentSessions, onResume = onResumeSession)
         }
         Spacer(modifier = Modifier.height(12.dp))
         ChatHubCard(
@@ -184,7 +184,7 @@ private fun LocalLlmChatCard(installed: List<String>, onPick: (String) -> Unit) 
     var open by remember { mutableStateOf(false) }
     Box {
         ChatHubCard(
-            icon = "📱", title = "Chat with a local LLM",
+            icon = com.ai.data.MetadataIconsHolder.current.device, title = "Chat with a local LLM",
             description = "Run a .task model fully on-device — nothing leaves the phone",
             onClick = {
                 // Explicit branching: a lone installed model opens directly,
@@ -220,7 +220,7 @@ private fun UnfinishedChatPill(count: Int, onResume: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("✉️", fontSize = 18.sp)
+            Text(com.ai.data.MetadataIconsHolder.current.mail, fontSize = 18.sp)
             Spacer(modifier = Modifier.width(10.dp))
             val label = if (count == 1) "1 chat awaiting reply" else "$count chats awaiting reply"
             Text(label, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,

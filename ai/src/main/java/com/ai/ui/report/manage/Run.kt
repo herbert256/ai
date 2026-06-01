@@ -366,7 +366,7 @@ internal fun ReportRunScreen(
             // icon, the green report-name and the bottom-bar 👁.
             onTitleClick = onOpenViewReport,
             subject = promptTitleForBar,
-            reportIcon = if (iconGenEnabled) reportIcon?.takeIf { it.isNotEmpty() } ?: "📝" else null,
+            reportIcon = if (iconGenEnabled) reportIcon?.takeIf { it.isNotEmpty() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon else null,
             // On the Manage report screen the report icon opens the main
             // View hub ("View a report") — same target as the green
             // report-name line and the bottom-bar 👁.
@@ -608,7 +608,7 @@ internal fun ReportRunScreen(
             // "current report" target so tapping the icon / title peels
             // this layer back to the Manage hub.
             androidx.compose.runtime.CompositionLocalProvider(
-                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon),
                 com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
                 com.ai.ui.shared.LocalNavigateToCurrentReport provides { st.showGetInfo.value = false }
             ) {
@@ -645,7 +645,7 @@ internal fun ReportRunScreen(
         // hub) render over these layers.
         if (st.showEditReportOverview.value && currentReportId != null) {
             androidx.compose.runtime.CompositionLocalProvider(
-                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon),
                 com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
                 com.ai.ui.shared.LocalNavigateToCurrentReport provides { st.showEditReportOverview.value = false }
             ) {
@@ -664,7 +664,7 @@ internal fun ReportRunScreen(
         }
         if (st.showEditIconsList.value && currentReportId != null) {
             androidx.compose.runtime.CompositionLocalProvider(
-                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon),
                 com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
                 com.ai.ui.shared.LocalNavigateToCurrentReport provides { st.showEditIconsList.value = false }
             ) {
@@ -678,7 +678,7 @@ internal fun ReportRunScreen(
         }
         if (st.showEditTitlesList.value && currentReportId != null) {
             androidx.compose.runtime.CompositionLocalProvider(
-                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon),
                 com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
                 com.ai.ui.shared.LocalNavigateToCurrentReport provides { st.showEditTitlesList.value = false }
             ) {
@@ -695,7 +695,7 @@ internal fun ReportRunScreen(
         // did (so Back from the opened picker returns to the hub).
         if (st.showCreateOverview.value && currentReportId != null) {
             androidx.compose.runtime.CompositionLocalProvider(
-                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon),
                 com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
                 com.ai.ui.shared.LocalNavigateToCurrentReport provides { st.showCreateOverview.value = false }
             ) {
@@ -718,7 +718,7 @@ internal fun ReportRunScreen(
         // icon. The actual runs still use the same confirm dialogs below.
         if (showTournamentOverview && currentReportId != null) {
             androidx.compose.runtime.CompositionLocalProvider(
-                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon),
                 com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
                 com.ai.ui.shared.LocalNavigateToCurrentReport provides { showTournamentOverview = false }
             ) {
@@ -745,13 +745,13 @@ internal fun ReportRunScreen(
         // a layer above this hub) or 🆕 a new one (the create flow).
         if (showTranslationsList && currentReportId != null) {
             androidx.compose.runtime.CompositionLocalProvider(
-                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon),
                 com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
                 com.ai.ui.shared.LocalNavigateToCurrentReport provides { showTranslationsList = false }
             ) {
                 ReportTranslationsScreen(
                     reportTitle = uiState.genericPromptTitleLong.ifBlank { uiState.genericPromptTitle },
-                    reportIcon = reportIcon?.takeIf { it.isNotBlank() } ?: "📝",
+                    reportIcon = reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
                     summaries = translationRunSummaries,
                     liveRuns = translationRuns,
                     onOpenRun = { st.openTranslationRunId.value = it },

@@ -108,7 +108,7 @@ private fun AgentHeroCard(agent: Agent) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(text = "🤖", fontSize = 56.sp)
+            Text(text = com.ai.data.MetadataIconsHolder.current.agent, fontSize = 56.sp)
             Text(
                 text = agent.name,
                 fontSize = 22.sp,

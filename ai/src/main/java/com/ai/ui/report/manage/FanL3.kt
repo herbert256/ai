@@ -274,7 +274,7 @@ internal fun FanOutL3Screen(
             subject = answererLabel,
             actions = listOf(
                 ResponseChangeAction(
-                    icon = "🔄",
+                    icon = com.ai.data.MetadataIconsHolder.current.reload,
                     title = "Reload",
                     description = "Rerun this fan-out pair with the saved fan-out prompt and settings.",
                     onClick = {
@@ -283,7 +283,7 @@ internal fun FanOutL3Screen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "✏️",
+                    icon = com.ai.data.MetadataIconsHolder.current.edit,
                     title = "Edit prompt",
                     description = "Edit the resolved fan-out prompt only for this pair replay.",
                     enabled = canRunVariation,
@@ -293,7 +293,7 @@ internal fun FanOutL3Screen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "🗣️",
+                    icon = com.ai.data.MetadataIconsHolder.current.agentChat,
                     title = "Chat",
                     description = "Refine the pair response in a chat and apply a chosen assistant reply.",
                     enabled = canChangePairResponse,
@@ -303,7 +303,7 @@ internal fun FanOutL3Screen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "🌡️",
+                    icon = com.ai.data.MetadataIconsHolder.current.parameters,
                     title = "Temperature sweep",
                     description = "Run one to three temperature variants and select the best pair response.",
                     enabled = canRunVariation,
@@ -313,7 +313,7 @@ internal fun FanOutL3Screen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "🧠",
+                    icon = com.ai.data.MetadataIconsHolder.current.reportModelIcon,
                     title = "Reasoning Effort",
                     description = "Compare selected reasoning-effort levels for this pair when supported.",
                     enabled = canRunVariation,
@@ -323,7 +323,7 @@ internal fun FanOutL3Screen(
                     }
                 ),
                 ResponseChangeAction(
-                    icon = "🧭",
+                    icon = com.ai.data.MetadataIconsHolder.current.webSearchReplay,
                     title = "Web search",
                     description = "Replay this pair once with web search enabled and apply the result.",
                     enabled = canRunVariation,
@@ -544,14 +544,14 @@ internal fun FanOutL3Screen(
                     )
                     if (sourcePaneIsOther && sourceProviderService != null && sourceAgent != null) {
                         Text(
-                            "ℹ️", fontSize = 16.sp,
+                            com.ai.data.MetadataIconsHolder.current.info, fontSize = 16.sp,
                             modifier = Modifier.padding(start = 6.dp)
                                 .clickable { actions.onNavigateToModelInfo(sourceProviderService, sourceAgent.model) }
                         )
                     }
                     if (sourcePaneIsOther && ApiTracer.isTracingEnabled && sourceTrace != null) {
                         Text(
-                            "🐞", fontSize = 16.sp,
+                            com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                             modifier = Modifier.padding(start = 6.dp)
                                 .clickable { actions.onNavigateToTraceFile(sourceTrace!!) }
                         )
@@ -604,14 +604,14 @@ internal fun FanOutL3Screen(
                     )
                     if (responsePaneIsOther && answererProviderService != null) {
                         Text(
-                            "ℹ️", fontSize = 16.sp,
+                            com.ai.data.MetadataIconsHolder.current.info, fontSize = 16.sp,
                             modifier = Modifier.padding(start = 6.dp)
                                 .clickable { actions.onNavigateToModelInfo(answererProviderService, pair.model) }
                         )
                     }
                     if (responsePaneIsOther && ApiTracer.isTracingEnabled && answererTrace != null) {
                         Text(
-                            "🐞", fontSize = 16.sp,
+                            com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                             modifier = Modifier.padding(start = 6.dp)
                                 .clickable { actions.onNavigateToTraceFile(answererTrace!!) }
                         )
@@ -816,7 +816,7 @@ internal fun FanOutL3MetaBody(
             verticalArrangement = Arrangement.Center
         ) {
             // Big, centered, the found icon.
-            Text(icon ?: "🏷️", fontSize = 72.sp, color = Color.White)
+            Text(icon ?: com.ai.data.MetadataIconsHolder.current.label, fontSize = 72.sp, color = Color.White)
             Spacer(Modifier.height(20.dp))
             // Green, big, the found title.
             Text(

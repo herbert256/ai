@@ -317,7 +317,7 @@ internal fun rememberReportRuntimeState(
     }
 
     val effectiveReportIcon =
-        if (iconGenEnabled && currentReportId != null) reportIcon?.takeIf { it.isNotEmpty() } ?: "📝"
+        if (iconGenEnabled && currentReportId != null) reportIcon?.takeIf { it.isNotEmpty() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon
         else null
 
     return ReportRuntimeState(

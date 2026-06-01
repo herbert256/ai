@@ -103,7 +103,7 @@ internal fun ReportEditOverviewScreen(
             // the right edge (all pencils share a right-aligned column).
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    icon?.takeIf { it.isNotBlank() } ?: "📝", fontSize = 56.sp, color = Color.White,
+                    icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon, fontSize = 56.sp, color = Color.White,
                     modifier = Modifier.align(Alignment.Center)
                 )
                 EditPencil(Modifier.align(Alignment.CenterEnd)) { st.showIconDetail.value = true }
@@ -173,7 +173,7 @@ internal fun ReportEditOverviewScreen(
 /** A 20sp ✏️ glyph that runs [onEdit] when tapped. */
 @Composable
 private fun EditPencil(modifier: Modifier = Modifier, onEdit: () -> Unit) {
-    Text("✏️", fontSize = 20.sp, modifier = modifier.clickable { onEdit() }.padding(4.dp))
+    Text(com.ai.data.MetadataIconsHolder.current.edit, fontSize = 20.sp, modifier = modifier.clickable { onEdit() }.padding(4.dp))
 }
 
 /** Centred text (a title) with its edit pencil pinned to the right edge. */

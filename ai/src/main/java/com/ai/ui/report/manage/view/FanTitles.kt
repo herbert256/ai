@@ -143,7 +143,7 @@ internal fun FanOutL1MetaScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             // The pair's found icon (Fan Meta result).
-                            Text(p.icon ?: "⬜", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+                            Text(p.icon ?: com.ai.data.MetadataIconsHolder.current.boxBlank, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
                             Text(
                                 p.title.orEmpty(), fontSize = 14.sp, color = Color.White,
                                 modifier = Modifier.weight(1f),
@@ -253,7 +253,7 @@ internal fun FanOutL2MetaScreen(
                         .padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("🏷️", fontSize = 18.sp, modifier = Modifier.padding(end = 8.dp))
+                    Text(com.ai.data.MetadataIconsHolder.current.label, fontSize = 18.sp, modifier = Modifier.padding(end = 8.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             p.title.orEmpty(), fontSize = 15.sp, color = Color.White,

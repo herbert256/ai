@@ -51,7 +51,7 @@ fun AlternativeIconsScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "alternative_icons", title = "Alternative icons", subject = "Live icon ideas from several models", onBackClick = onBack,
-            reportIcon = if (iconGenEnabled) loadedReportIcon?.takeIf { it.isNotBlank() } ?: "📝" else null
+            reportIcon = if (iconGenEnabled) loadedReportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon else null
         )
 
         // Stable order: by provider id, then model id — so re-renders
@@ -160,7 +160,7 @@ private fun CandidateRow(
                     candidate.emoji, fontSize = 28.sp, modifier = Modifier.padding(end = 12.dp)
                 )
                 is IconCandidate.Error -> androidx.compose.material3.Text(
-                    "❌", fontSize = 28.sp, modifier = Modifier.padding(end = 12.dp)
+                    com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 28.sp, modifier = Modifier.padding(end = 12.dp)
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
@@ -181,7 +181,7 @@ private fun CandidateRow(
             // trace exists for this row.
             if (traceFilename != null) {
                 androidx.compose.material3.Text(
-                    "🐞", fontSize = 16.sp,
+                    com.ai.data.MetadataIconsHolder.current.traces, fontSize = 16.sp,
                     modifier = Modifier
                         .clickable { onNavigateToTraceFile(traceFilename) }
                         .padding(horizontal = 6.dp)

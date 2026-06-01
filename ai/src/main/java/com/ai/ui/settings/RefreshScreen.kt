@@ -552,7 +552,7 @@ private fun RefreshActionRow(
             Text(description, fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
             if (helpTopic != null) {
                 IconButton(onClick = { onNavigateToHelpTopic(helpTopic) }, modifier = Modifier.size(28.dp)) {
-                    Text("ℹ️", fontSize = 14.sp)
+                    Text(com.ai.data.MetadataIconsHolder.current.info, fontSize = 14.sp)
                 }
             }
         }
@@ -615,8 +615,8 @@ private fun RefreshAllProgressScreen(
                 val (icon, statusText, color) = when (val s = step.status) {
                     RefreshStepStatus.Pending -> Triple("⏳", "queued", AppColors.TextTertiary)
                     is RefreshStepStatus.Running -> Triple("▶", s.detail ?: "running", AppColors.Orange)
-                    is RefreshStepStatus.Done -> Triple("✓", s.detail ?: "done", AppColors.Green)
-                    is RefreshStepStatus.Failed -> Triple("✗", s.detail ?: "failed", AppColors.Red)
+                    is RefreshStepStatus.Done -> Triple(com.ai.data.MetadataIconsHolder.current.checkMark, s.detail ?: "done", AppColors.Green)
+                    is RefreshStepStatus.Failed -> Triple(com.ai.data.MetadataIconsHolder.current.crossMark, s.detail ?: "failed", AppColors.Red)
                     RefreshStepStatus.Skipped -> Triple("—", "skipped", AppColors.TextTertiary)
                 }
                 CatalogProgressRow(label = step.label, icon = icon, statusText = statusText, color = color, isPending = step.status is RefreshStepStatus.Pending)
@@ -631,8 +631,8 @@ private fun RefreshAllProgressScreen(
                         WorkerStage.TestingKey -> WorkerStageView("▶", "testing key", AppColors.Orange, false)
                         WorkerStage.FetchingModels -> WorkerStageView("▶", "fetching models", AppColors.Orange, false)
                         WorkerStage.WritingAgent -> WorkerStageView("▶", "writing agent", AppColors.Orange, false)
-                        WorkerStage.Done -> WorkerStageView("✓", "done", AppColors.Green, false)
-                        is WorkerStage.Failed -> WorkerStageView("✗", stage.reason.take(60).ifBlank { "failed" }, AppColors.Red, false)
+                        WorkerStage.Done -> WorkerStageView(com.ai.data.MetadataIconsHolder.current.checkMark, "done", AppColors.Green, false)
+                        is WorkerStage.Failed -> WorkerStageView(com.ai.data.MetadataIconsHolder.current.crossMark, stage.reason.take(60).ifBlank { "failed" }, AppColors.Red, false)
                     }
                     CatalogProgressRow(label = row.serviceId, icon = icon, statusText = statusText, color = color, isPending = isPending)
                 }
@@ -665,7 +665,7 @@ private fun RefreshAllProgressScreen(
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("✗", fontSize = 14.sp, color = AppColors.Red, modifier = Modifier.width(20.dp))
+                                Text(com.ai.data.MetadataIconsHolder.current.crossMark, fontSize = 14.sp, color = AppColors.Red, modifier = Modifier.width(20.dp))
                                 Text(svc.id, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
                                 Text("Open ›", fontSize = 12.sp, color = AppColors.Blue)
                             }

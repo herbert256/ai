@@ -353,7 +353,7 @@ private fun TraceBug(orientation: String, traceFile: String?) {
     val navigateToRoute = com.ai.ui.shared.LocalNavigateToRoute.current
     val context = LocalContext.current
     Text(
-        "🐞", fontSize = 14.sp,
+        com.ai.data.MetadataIconsHolder.current.traces, fontSize = 14.sp,
         color = if (traceFile.isNullOrBlank()) AppColors.TextTertiary else Color.White,
         modifier = Modifier
             .padding(start = 6.dp)

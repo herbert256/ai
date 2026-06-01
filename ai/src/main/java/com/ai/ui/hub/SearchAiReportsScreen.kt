@@ -56,14 +56,14 @@ fun SearchAiReportsScreen(
             onBackClick = onNavigateBack
         )
         Spacer(modifier = Modifier.height(8.dp))
-        SearchAiReportsItem(icon = "🔍", title = "Quick local search",
+        SearchAiReportsItem(icon = com.ai.data.MetadataIconsHolder.current.search, title = "Quick local search",
             onClick = onNavigateToQuickLocalSearch)
-        SearchAiReportsItem(icon = "📂", title = "Extended local search",
+        SearchAiReportsItem(icon = com.ai.data.MetadataIconsHolder.current.folderOpen, title = "Extended local search",
             onClick = onNavigateToLocalSearch)
-        SearchAiReportsItem(icon = "🌐", title = "Remote semantic search",
+        SearchAiReportsItem(icon = com.ai.data.MetadataIconsHolder.current.translationRow, title = "Remote semantic search",
             onClick = onNavigateToSearch)
         if (experimentalFeatures) {
-            SearchAiReportsItem(icon = "📱", title = "Local semantic search",
+            SearchAiReportsItem(icon = com.ai.data.MetadataIconsHolder.current.device, title = "Local semantic search",
                 onClick = onNavigateToLocalSemanticSearch)
         }
     }

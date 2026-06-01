@@ -508,7 +508,7 @@ internal fun SecondaryResultsScreen(
             TitleBar(
                 helpTopic = "secondary_list",
                 title = "Secondary results",
-                reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
+                reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
                 subject = baseTitle,
                 onBackClick = onBack,
                 onTrace = if (isMetaPickerMode && ApiTracer.isTracingEnabled && tfTop != null) {
@@ -866,7 +866,7 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
         if (rowRunning) {
             com.ai.ui.shared.AnimatedHourglass(fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
         } else if (r.errorMessage != null) {
-            Text("❌", fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
+            Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
         } else {
             val cachedEmoji = remember(r.metaPromptName) {
                 r.metaPromptName?.takeIf { it.isNotBlank() }
@@ -881,7 +881,7 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
             Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         IconButton(onClick = { confirmDelete = true }) {
-            Text("🗑", fontSize = 16.sp, color = AppColors.Red)
+            Text(com.ai.data.MetadataIconsHolder.current.delete, fontSize = 16.sp, color = AppColors.Red)
         }
     }
 

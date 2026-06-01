@@ -77,7 +77,7 @@ fun AllAiReportsScreen(
         if (reports.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("📚", fontSize = 48.sp)
+                    Text(com.ai.data.MetadataIconsHolder.current.library, fontSize = 48.sp)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("No reports yet", color = AppColors.TextTertiary, fontSize = 14.sp)
                 }

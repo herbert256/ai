@@ -152,7 +152,7 @@ fun FanOutPairViewScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(text = "🌀", fontSize = 40.sp)
+                    Text(text = com.ai.data.MetadataIconsHolder.current.cyclone, fontSize = 40.sp)
                     Text(
                         text = if (report == null) "Loading…" else "No pairs in this fan-out",
                         color = AppColors.TextPrimary, fontSize = 16.sp,

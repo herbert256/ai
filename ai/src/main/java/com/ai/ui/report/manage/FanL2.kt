@@ -296,7 +296,7 @@ internal fun FanOutL2Screen(
                             val label = if (role == "Responder")
                                 (agentLabels[p.sourceAgentId] ?: p.sourceAgentId)
                                 else resolveModelLabel("${p.providerId}|${p.model}")
-                            Text(p.icon ?: "⬜", fontSize = 28.sp, modifier = Modifier.padding(start = 8.dp))
+                            Text(p.icon ?: com.ai.data.MetadataIconsHolder.current.boxBlank, fontSize = 28.sp, modifier = Modifier.padding(start = 8.dp))
                             Spacer(modifier = Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
@@ -314,14 +314,14 @@ internal fun FanOutL2Screen(
                             // Initiator's agent-level icon, then the
                             // pair's responder icon (this model's reply
                             // to that source).
-                            val initiatorIcon = agentIcons[p.sourceAgentId] ?: "⬜"
+                            val initiatorIcon = agentIcons[p.sourceAgentId] ?: com.ai.data.MetadataIconsHolder.current.boxBlank
                             Text(initiatorIcon, fontSize = 40.sp, modifier = Modifier.padding(start = 8.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(p.icon ?: "⬜", fontSize = 40.sp)
+                            Text(p.icon ?: com.ai.data.MetadataIconsHolder.current.boxBlank, fontSize = 40.sp)
                         } else {
                             // Initiator mode: this row's responder is
                             // pair.icon (the answerer's reply icon).
-                            Text(p.icon ?: "⬜", fontSize = 40.sp, modifier = Modifier.padding(start = 8.dp))
+                            Text(p.icon ?: com.ai.data.MetadataIconsHolder.current.boxBlank, fontSize = 40.sp, modifier = Modifier.padding(start = 8.dp))
                         }
                         if (!isTitlesMode) Spacer(modifier = Modifier.weight(1f))
                         if (p.totalCost > 0.0) {
@@ -416,10 +416,10 @@ internal fun FanOutL2Screen(
                             }
                         } else if (!allDone) {
                             val icon = when (effStatus) {
-                                PairStatus.ERROR -> "❌"
-                                PairStatus.DONE -> "✅"
+                                PairStatus.ERROR -> com.ai.data.MetadataIconsHolder.current.statusFailed
+                                PairStatus.DONE -> com.ai.data.MetadataIconsHolder.current.statusDone
                                 PairStatus.RUNNING -> "⏳"
-                                PairStatus.PENDING -> "🕓"
+                                PairStatus.PENDING -> com.ai.data.MetadataIconsHolder.current.clockQueued
                             }
                             if (icon == "⏳") {
                                 Box(
@@ -598,7 +598,7 @@ internal fun FanOutL2MetaModelScreen(
                             .clickable { onOpenPair("${p.providerId}|${p.model}", p.sourceAgentId) },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(p.icon ?: "⬜", fontSize = 28.sp, modifier = Modifier.padding(start = 8.dp))
+                        Text(p.icon ?: com.ai.data.MetadataIconsHolder.current.boxBlank, fontSize = 28.sp, modifier = Modifier.padding(start = 8.dp))
                         Spacer(modifier = Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(

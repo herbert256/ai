@@ -113,7 +113,7 @@ fun InternalPromptCrud(
             rowTrailing = { ip ->
                 if (hasTrace(ip)) {
                     Text(
-                        "🐞",
+                        com.ai.data.MetadataIconsHolder.current.traces,
                         fontSize = 18.sp,
                         modifier = Modifier
                             .clickable { onNavigateToTraceCategory(traceCat(ip)) }

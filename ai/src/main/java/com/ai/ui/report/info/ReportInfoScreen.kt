@@ -248,7 +248,7 @@ private fun InfoRow(
         )
         if (hasTrace) {
             Text(
-                "🐞", fontSize = 14.sp,
+                com.ai.data.MetadataIconsHolder.current.traces, fontSize = 14.sp,
                 modifier = Modifier.padding(start = 8.dp).clickable { onTrace!!(traceFile!!) }
             )
         }

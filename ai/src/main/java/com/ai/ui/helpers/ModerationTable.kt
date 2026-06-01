@@ -142,7 +142,7 @@ internal fun ModerationTable(
                 }
                 val scoresText = r.topScores.joinToString(", ") { (k, v) -> "$k=${"%.3f".format(v)}" }
                 Row(modifier = Modifier.clickable { onRowClick(r) }.padding(vertical = 6.dp)) {
-                    Text(if (r.flagged) "🚩" else "✓", fontSize = 13.sp,
+                    Text(if (r.flagged) com.ai.data.MetadataIconsHolder.current.validatePrompt else com.ai.data.MetadataIconsHolder.current.checkMark, fontSize = 13.sp,
                         color = if (r.flagged) AppColors.Red else AppColors.Green,
                         modifier = Modifier.width(40.dp))
                     Text(label, fontSize = 12.sp, color = Color.White,
@@ -240,7 +240,7 @@ internal fun ModerationCallDetailScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            if (fired) "🚩" else "·",
+                            if (fired) com.ai.data.MetadataIconsHolder.current.validatePrompt else "·",
                             fontSize = 13.sp, color = if (fired) AppColors.Red else AppColors.TextTertiary,
                             modifier = Modifier.width(24.dp)
                         )

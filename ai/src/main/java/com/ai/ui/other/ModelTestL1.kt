@@ -247,11 +247,11 @@ internal fun ModelTestL1Screen(
                         if (!allDone) {
                             val icon = when {
                                 running > 0 -> "⏳"
-                                total == 0 -> "🆕"
-                                err > 0 && err == total -> "❌"
-                                ok == total -> "✅"
-                                err > 0 -> "❌"
-                                else -> "🕓"
+                                total == 0 -> com.ai.data.MetadataIconsHolder.current.add
+                                err > 0 && err == total -> com.ai.data.MetadataIconsHolder.current.statusFailed
+                                ok == total -> com.ai.data.MetadataIconsHolder.current.statusDone
+                                err > 0 -> com.ai.data.MetadataIconsHolder.current.statusFailed
+                                else -> com.ai.data.MetadataIconsHolder.current.clockQueued
                             }
                             if (icon == "⏳") {
                                 Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {

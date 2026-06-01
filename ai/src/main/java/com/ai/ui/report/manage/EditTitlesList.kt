@@ -177,7 +177,7 @@ internal fun ReportEditTitlesScreen(
                         )
                     }
                     Text(
-                        "✏️", fontSize = 20.sp,
+                        com.ai.data.MetadataIconsHolder.current.edit, fontSize = 20.sp,
                         modifier = Modifier.clickable { item.onEdit() }.padding(horizontal = 6.dp, vertical = 4.dp)
                     )
                     Button(

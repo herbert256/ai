@@ -96,10 +96,10 @@ internal fun ModelTestL2Screen(
                     ) {
                         if (!allDone) {
                             val icon = when (p.status) {
-                                TestStatus.FAIL -> "❌"
-                                TestStatus.PASS -> "✅"
+                                TestStatus.FAIL -> com.ai.data.MetadataIconsHolder.current.statusFailed
+                                TestStatus.PASS -> com.ai.data.MetadataIconsHolder.current.statusDone
                                 TestStatus.RUNNING -> "⏳"
-                                TestStatus.PENDING -> "🕓"
+                                TestStatus.PENDING -> com.ai.data.MetadataIconsHolder.current.clockQueued
                             }
                             if (icon == "⏳") {
                                 Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {

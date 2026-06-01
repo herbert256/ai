@@ -158,7 +158,7 @@ internal fun LanguageSelectionScreen(
 
         OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
             placeholder = { Text("Search languages...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
-            trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp) } })
+            trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.TextTertiary, fontSize = 12.sp) } })
         Text("${filtered.size} of ${TARGET_LANGUAGES.size} languages", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp))
 
         Spacer(modifier = Modifier.height(8.dp))

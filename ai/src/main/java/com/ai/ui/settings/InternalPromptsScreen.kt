@@ -452,7 +452,7 @@ fun InternalPromptEditScreen(
                         fontFamily = FontFamily.Monospace
                     )
                     if (selectedParametersName != "*NONE") {
-                        Text("✕", color = AppColors.Red, fontSize = 16.sp,
+                        Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.Red, fontSize = 16.sp,
                             modifier = Modifier.clickable { selectedParametersName = "*NONE" }.padding(horizontal = 8.dp))
                     }
                 }
@@ -465,7 +465,7 @@ fun InternalPromptEditScreen(
                         fontFamily = FontFamily.Monospace
                     )
                     if (selectedSystemPromptName != "*NONE") {
-                        Text("✕", color = AppColors.Red, fontSize = 16.sp,
+                        Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.Red, fontSize = 16.sp,
                             modifier = Modifier.clickable { selectedSystemPromptName = "*NONE" }.padding(horizontal = 8.dp))
                     }
                 }

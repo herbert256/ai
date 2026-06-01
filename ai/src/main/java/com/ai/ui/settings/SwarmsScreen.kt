@@ -186,7 +186,7 @@ fun SwarmEditScreen(
                                 selectedMembers = selectedMembers.filterNot {
                                     it.provider.id == member.provider.id && it.model == member.model
                                 }
-                            }) { Text("✕", fontSize = 16.sp, color = AppColors.Red) }
+                            }) { Text(com.ai.data.MetadataIconsHolder.current.closeMark, fontSize = 16.sp, color = AppColors.Red) }
                         }
                     }
                 }

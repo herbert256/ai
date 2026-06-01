@@ -153,7 +153,7 @@ internal fun ReportEditIconsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(modifier = Modifier.width(36.dp), contentAlignment = Alignment.Center) {
-                        Text(item.glyph?.takeIf { it.isNotBlank() } ?: "⬜", fontSize = 22.sp)
+                        Text(item.glyph?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.boxBlank, fontSize = 22.sp)
                     }
                     Text(
                         item.category, fontSize = 11.sp, color = AppColors.TextTertiary,

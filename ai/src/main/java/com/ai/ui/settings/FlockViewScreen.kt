@@ -92,7 +92,7 @@ fun FlockViewScreen(
                                     .padding(vertical = 4.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("🤖", fontSize = 18.sp, modifier = Modifier.padding(end = 8.dp))
+                                Text(com.ai.data.MetadataIconsHolder.current.agent, fontSize = 18.sp, modifier = Modifier.padding(end = 8.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(a.name, fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                                     Text(
@@ -138,7 +138,7 @@ private fun FlockHero(flock: Flock, agentCount: Int) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(text = "🪶", fontSize = 56.sp)
+            Text(text = com.ai.data.MetadataIconsHolder.current.feather, fontSize = 56.sp)
             Text(
                 text = flock.name,
                 fontSize = 22.sp,

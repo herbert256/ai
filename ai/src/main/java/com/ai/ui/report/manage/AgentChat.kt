@@ -241,11 +241,11 @@ internal fun AgentChatScreen(
             )
             Spacer(Modifier.width(8.dp))
             if (isStreaming) {
-                Text("⏹", fontSize = 26.sp, modifier = Modifier.clickable { streamJob?.cancel() }.padding(6.dp))
+                Text(com.ai.data.MetadataIconsHolder.current.statusStopped, fontSize = 26.sp, modifier = Modifier.clickable { streamJob?.cancel() }.padding(6.dp))
             } else {
                 val canSend = userInput.isNotBlank() && bridge != null
                 Text(
-                    "➤", fontSize = 26.sp,
+                    com.ai.data.MetadataIconsHolder.current.arrowSubmit, fontSize = 26.sp,
                     color = if (canSend) AppColors.Green else AppColors.TextDim,
                     modifier = Modifier.clickable(enabled = canSend) { sendTurn() }.padding(6.dp)
                 )

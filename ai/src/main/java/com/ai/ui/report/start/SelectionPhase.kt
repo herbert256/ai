@@ -184,7 +184,7 @@ internal fun ColumnScope.SelectionPhase(
                     // ✕ stays clickable independently and at full
                     // opacity so the user can always remove a dimmed
                     // model from the list.
-                    Text("✕", color = AppColors.Red, fontSize = 14.sp, modifier = Modifier.clickable { onRemoveModel(index) })
+                    Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.Red, fontSize = 14.sp, modifier = Modifier.clickable { onRemoveModel(index) })
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }

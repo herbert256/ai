@@ -96,7 +96,7 @@ internal fun ReportSelectModelDialog(
                     modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
-                    colors = AppColors.outlinedFieldColors(), trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp) } })
+                    colors = AppColors.outlinedFieldColors(), trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.TextTertiary, fontSize = 12.sp) } })
                 Spacer(modifier = Modifier.height(6.dp))
                 // Shared row renderer so the Recent section and the
                 // main list stay byte-identical in look-and-feel.
@@ -127,7 +127,7 @@ internal fun ReportSelectModelDialog(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                             if (deprecation != null) {
-                                Text("⚠", fontSize = 12.sp, color = AppColors.Orange, modifier = Modifier.padding(end = 2.dp))
+                                Text(com.ai.data.MetadataIconsHolder.current.statusWarning, fontSize = 12.sp, color = AppColors.Orange, modifier = Modifier.padding(end = 2.dp))
                             }
                             com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
                             com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))

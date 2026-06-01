@@ -677,7 +677,7 @@ private fun DualMessageBubble(
                     )
                     val tf = traceFilename
                     if (com.ai.data.ApiTracer.isTracingEnabled && tf != null) {
-                        Text("🐞", fontSize = 14.sp,
+                        Text(com.ai.data.MetadataIconsHolder.current.traces, fontSize = 14.sp,
                             modifier = Modifier
                                 .clickable { onNavigateToTraceFile(tf) }
                                 .padding(start = 6.dp))

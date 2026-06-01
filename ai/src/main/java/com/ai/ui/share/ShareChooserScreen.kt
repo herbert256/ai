@@ -79,7 +79,7 @@ fun ShareChooserScreen(
         // text shared can still go to Knowledge as a paste-in URL or
         // raw note. Caller does the heavier validation.
         ShareCard(
-            icon = "📝",
+            icon = com.ai.data.MetadataIconsHolder.current.reportIcon,
             title = "New Report",
             description = "Multi-model analysis. Text becomes the prompt; the first image attaches for vision; non-image files queue for one-tap auto-attach as a knowledge base on the New Report screen.",
             enabled = hasText || hasUris,
@@ -87,7 +87,7 @@ fun ShareChooserScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
         ShareCard(
-            icon = "💬",
+            icon = com.ai.data.MetadataIconsHolder.current.chat,
             title = "New Chat",
             description = "Open a chat with this text staged as the first turn.",
             enabled = hasText,
@@ -96,7 +96,7 @@ fun ShareChooserScreen(
         if (experimentalFeatures) {
             Spacer(modifier = Modifier.height(12.dp))
             ShareCard(
-                icon = "📚",
+                icon = com.ai.data.MetadataIconsHolder.current.library,
                 title = "Add to Knowledge",
                 description = "Open the Knowledge screen with the file or URL pre-staged. Plain shared text (not a URL) can't be ingested here — use New Report instead.",
                 enabled = hasUris || shared.isUrl,

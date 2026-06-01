@@ -99,7 +99,7 @@ internal fun UserNoteCard(
                 modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("✍️", fontSize = 13.sp, modifier = Modifier.padding(end = 8.dp))
+                Text(com.ai.data.MetadataIconsHolder.current.addNote, fontSize = 13.sp, modifier = Modifier.padding(end = 8.dp))
                 Text(
                     text = headline,
                     color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
@@ -107,8 +107,8 @@ internal fun UserNoteCard(
                     modifier = Modifier.weight(1f)
                 )
                 if (expanded && !readOnly) {
-                    Text("✏️", fontSize = 16.sp, modifier = Modifier.clickable { onEdit() }.padding(horizontal = 6.dp))
-                    Text("🗑", fontSize = 14.sp, modifier = Modifier.clickable { onDelete() }.padding(horizontal = 6.dp))
+                    Text(com.ai.data.MetadataIconsHolder.current.edit, fontSize = 16.sp, modifier = Modifier.clickable { onEdit() }.padding(horizontal = 6.dp))
+                    Text(com.ai.data.MetadataIconsHolder.current.delete, fontSize = 14.sp, modifier = Modifier.clickable { onDelete() }.padding(horizontal = 6.dp))
                 }
                 Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary, modifier = Modifier.padding(start = 4.dp))
             }

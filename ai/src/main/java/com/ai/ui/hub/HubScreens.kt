@@ -401,9 +401,9 @@ fun ReportsHubScreen(
         // the bottom so the populated buckets lead. Examples stays last.
         val hubCards = listOf(
             Triple("⏳", AppColors.Orange, "Running AI reports") to homeReportLists.running,
-            Triple("⚠️", AppColors.Red, "Reports with problems") to homeReportLists.problems,
-            Triple("📌", AppColors.Yellow, "Pinned AI Reports") to pinnedReports,
-            Triple("🕘", AppColors.Blue, "Latest AI Reports") to latestReports,
+            Triple(com.ai.data.MetadataIconsHolder.current.statusWarning, AppColors.Red, "Reports with problems") to homeReportLists.problems,
+            Triple(com.ai.data.MetadataIconsHolder.current.pin, AppColors.Yellow, "Pinned AI Reports") to pinnedReports,
+            Triple(com.ai.data.MetadataIconsHolder.current.clockRecent, AppColors.Blue, "Latest AI Reports") to latestReports,
         ).sortedBy { it.second.isEmpty() }
         hubCards.forEachIndexed { i, (meta, reports) ->
             if (i > 0) Spacer(modifier = Modifier.height(10.dp))

@@ -299,7 +299,7 @@ fun SettingsScreen(
     val sectionMain = if (inSettingsSubtree) SettingsSubScreen.MAIN else SettingsSubScreen.AI_SETUP
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalTopBarLeftIcon provides (sectionIconOverride ?: com.ai.ui.shared.TopBarLeftIcon(
-            glyph = if (inSettingsSubtree) "⚙️" else "🤖",
+            glyph = if (inSettingsSubtree) com.ai.data.MetadataIconsHolder.current.settings else com.ai.data.MetadataIconsHolder.current.agent,
             onClick = {
                 if (currentSubScreen == sectionMain) onNavigateHome()
                 else currentSubScreen = sectionMain
@@ -838,37 +838,37 @@ private fun SettingsMainScreen(
             // table-of-contents — every actual control lives one tap
             // deeper.
             SettingsNavCard(
-                icon = "🌐",
+                icon = com.ai.data.MetadataIconsHolder.current.translationRow,
                 title = "Network settings",
                 description = "Read timeouts, per-provider throttling, 429 / 529 retry policy.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_NETWORK) }
             )
             SettingsNavCard(
-                icon = "🎨",
+                icon = com.ai.data.MetadataIconsHolder.current.palette,
                 title = "UI tweaks",
                 description = "Model name layout, full-screen, experimental features.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_UI) }
             )
             SettingsNavCard(
-                icon = "📜",
+                icon = com.ai.data.MetadataIconsHolder.current.appLog,
                 title = "Logging and tracing",
                 description = "API tracing master switch and application log level.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_LOGGING) }
             )
             SettingsNavCard(
-                icon = "🏷️",
+                icon = com.ai.data.MetadataIconsHolder.current.label,
                 title = "Metadata & icons",
                 description = "Master switch for all optional metadata — report icon / language / title, per-model icons / titles, fan & meta icons.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_METADATA) }
             )
             SettingsNavCard(
-                icon = "🎨",
+                icon = com.ai.data.MetadataIconsHolder.current.palette,
                 title = "Default icons",
                 description = "Edit the fallback emoji shown when a report or result has no generated icon of its own.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_DEFAULT_ICONS) }
             )
             SettingsNavCard(
-                icon = "⚙️",
+                icon = com.ai.data.MetadataIconsHolder.current.settings,
                 title = "Other settings",
                 description = "Identity (Name + Email), auto-create Rerank & Moderation.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_OTHER) }
@@ -1580,6 +1580,85 @@ private val DEFAULT_ICON_SECTIONS: List<Pair<String, List<IconRowSpec>>> = run {
             IconRowSpec("Help", { it.help }, { m, v -> m.copy(help = v) }, d.HELP),
             IconRowSpec("Icons help", { it.helpLegend }, { m, v -> m.copy(helpLegend = v) }, d.HELP_LEGEND),
         ),
+        "Status & progress" to listOf(
+            IconRowSpec("Done", { it.statusDone }, { m, v -> m.copy(statusDone = v) }, d.STATUS_DONE),
+            IconRowSpec("Failed", { it.statusFailed }, { m, v -> m.copy(statusFailed = v) }, d.STATUS_FAILED),
+            IconRowSpec("Pending", { it.statusPending }, { m, v -> m.copy(statusPending = v) }, d.STATUS_PENDING),
+            IconRowSpec("Paused", { it.statusPaused }, { m, v -> m.copy(statusPaused = v) }, d.STATUS_PAUSED),
+            IconRowSpec("Stopped", { it.statusStopped }, { m, v -> m.copy(statusStopped = v) }, d.STATUS_STOPPED),
+            IconRowSpec("Alarm", { it.statusAlarm }, { m, v -> m.copy(statusAlarm = v) }, d.STATUS_ALARM),
+            IconRowSpec("Blocked", { it.statusBlocked }, { m, v -> m.copy(statusBlocked = v) }, d.STATUS_BLOCKED),
+            IconRowSpec("Locked", { it.statusLocked }, { m, v -> m.copy(statusLocked = v) }, d.STATUS_LOCKED),
+            IconRowSpec("Warning", { it.statusWarning }, { m, v -> m.copy(statusWarning = v) }, d.STATUS_WARNING),
+            IconRowSpec("Hot", { it.hot }, { m, v -> m.copy(hot = v) }, d.HOT),
+            IconRowSpec("Clock", { it.clockTime }, { m, v -> m.copy(clockTime = v) }, d.CLOCK_TIME),
+            IconRowSpec("Clock (queued)", { it.clockQueued }, { m, v -> m.copy(clockQueued = v) }, d.CLOCK_QUEUED),
+            IconRowSpec("Clock (recent)", { it.clockRecent }, { m, v -> m.copy(clockRecent = v) }, d.CLOCK_RECENT),
+        ),
+        "Marks & ranks" to listOf(
+            IconRowSpec("Check", { it.checkMark }, { m, v -> m.copy(checkMark = v) }, d.CHECK),
+            IconRowSpec("Cross", { it.crossMark }, { m, v -> m.copy(crossMark = v) }, d.CROSS),
+            IconRowSpec("Close", { it.closeMark }, { m, v -> m.copy(closeMark = v) }, d.CLOSE),
+            IconRowSpec("Checkbox on", { it.checkboxOn }, { m, v -> m.copy(checkboxOn = v) }, d.CHECKBOX_ON),
+            IconRowSpec("Checkbox off", { it.checkboxOff }, { m, v -> m.copy(checkboxOff = v) }, d.CHECKBOX_OFF),
+            IconRowSpec("Blank box", { it.boxBlank }, { m, v -> m.copy(boxBlank = v) }, d.BOX_BLANK),
+            IconRowSpec("Gold medal", { it.medalGold }, { m, v -> m.copy(medalGold = v) }, d.MEDAL_GOLD),
+            IconRowSpec("Silver medal", { it.medalSilver }, { m, v -> m.copy(medalSilver = v) }, d.MEDAL_SILVER),
+            IconRowSpec("Bronze medal", { it.medalBronze }, { m, v -> m.copy(medalBronze = v) }, d.MEDAL_BRONZE),
+        ),
+        "Arrows" to listOf(
+            IconRowSpec("Arrow right", { it.arrowRight }, { m, v -> m.copy(arrowRight = v) }, d.ARROW_RIGHT),
+            IconRowSpec("Arrow down", { it.arrowDown }, { m, v -> m.copy(arrowDown = v) }, d.ARROW_DOWN),
+            IconRowSpec("Submit arrow", { it.arrowSubmit }, { m, v -> m.copy(arrowSubmit = v) }, d.ARROW_SUBMIT),
+        ),
+        "Search & files" to listOf(
+            IconRowSpec("Agent / AI", { it.agent }, { m, v -> m.copy(agent = v) }, d.AGENT),
+            IconRowSpec("Lookup", { it.lookup }, { m, v -> m.copy(lookup = v) }, d.LOOKUP),
+            IconRowSpec("Search", { it.search }, { m, v -> m.copy(search = v) }, d.SEARCH),
+            IconRowSpec("Open folder", { it.folderOpen }, { m, v -> m.copy(folderOpen = v) }, d.FOLDER_OPEN),
+            IconRowSpec("Label", { it.label }, { m, v -> m.copy(label = v) }, d.LABEL),
+            IconRowSpec("Bookmark", { it.bookmark }, { m, v -> m.copy(bookmark = v) }, d.BOOKMARK),
+            IconRowSpec("Notepad", { it.notepad }, { m, v -> m.copy(notepad = v) }, d.NOTEPAD),
+            IconRowSpec("Package", { it.packageBox }, { m, v -> m.copy(packageBox = v) }, d.PACKAGE_BOX),
+        ),
+        "Content & media" to listOf(
+            IconRowSpec("World", { it.world }, { m, v -> m.copy(world = v) }, d.WORLD),
+            IconRowSpec("Cyclone", { it.cyclone }, { m, v -> m.copy(cyclone = v) }, d.CYCLONE),
+            IconRowSpec("Library", { it.library }, { m, v -> m.copy(library = v) }, d.LIBRARY),
+            IconRowSpec("Book", { it.book }, { m, v -> m.copy(book = v) }, d.BOOK),
+            IconRowSpec("Image", { it.image }, { m, v -> m.copy(image = v) }, d.IMAGE),
+            IconRowSpec("Mail", { it.mail }, { m, v -> m.copy(mail = v) }, d.MAIL),
+            IconRowSpec("Speech", { it.speech }, { m, v -> m.copy(speech = v) }, d.SPEECH),
+            IconRowSpec("Gem", { it.gem }, { m, v -> m.copy(gem = v) }, d.GEM),
+            IconRowSpec("Tip", { it.tip }, { m, v -> m.copy(tip = v) }, d.TIP),
+        ),
+        "Cost" to listOf(
+            IconRowSpec("Cost", { it.cost }, { m, v -> m.copy(cost = v) }, d.COST),
+            IconRowSpec("Dollar", { it.dollar }, { m, v -> m.copy(dollar = v) }, d.DOLLAR),
+            IconRowSpec("Spend", { it.spend }, { m, v -> m.copy(spend = v) }, d.SPEND),
+        ),
+        "Workers & tools" to listOf(
+            IconRowSpec("Swarm", { it.swarm }, { m, v -> m.copy(swarm = v) }, d.SWARM),
+            IconRowSpec("Flock", { it.flock }, { m, v -> m.copy(flock = v) }, d.FLOCK),
+            IconRowSpec("Fan-in knot", { it.fanInKnot }, { m, v -> m.copy(fanInKnot = v) }, d.FAN_IN_KNOT),
+            IconRowSpec("Feather", { it.feather }, { m, v -> m.copy(feather = v) }, d.FEATHER),
+            IconRowSpec("Tools", { it.tools }, { m, v -> m.copy(tools = v) }, d.TOOLS),
+            IconRowSpec("Toolbox", { it.toolbox }, { m, v -> m.copy(toolbox = v) }, d.TOOLBOX),
+            IconRowSpec("Puzzle", { it.puzzle }, { m, v -> m.copy(puzzle = v) }, d.PUZZLE),
+            IconRowSpec("Palette", { it.palette }, { m, v -> m.copy(palette = v) }, d.PALETTE),
+            IconRowSpec("Test", { it.test }, { m, v -> m.copy(test = v) }, d.TEST),
+            IconRowSpec("Worker", { it.worker }, { m, v -> m.copy(worker = v) }, d.WORKER),
+            IconRowSpec("Sparkles", { it.sparkles }, { m, v -> m.copy(sparkles = v) }, d.SPARKLES),
+            IconRowSpec("Ruler", { it.ruler }, { m, v -> m.copy(ruler = v) }, d.RULER),
+            IconRowSpec("Shuffle", { it.shuffle }, { m, v -> m.copy(shuffle = v) }, d.SHUFFLE),
+            IconRowSpec("Hide", { it.hide }, { m, v -> m.copy(hide = v) }, d.HIDE),
+        ),
+        "Devices & misc" to listOf(
+            IconRowSpec("Device", { it.device }, { m, v -> m.copy(device = v) }, d.DEVICE),
+            IconRowSpec("Computer", { it.computer }, { m, v -> m.copy(computer = v) }, d.COMPUTER),
+            IconRowSpec("Satellite", { it.satellite }, { m, v -> m.copy(satellite = v) }, d.SATELLITE),
+            IconRowSpec("Hugging Face", { it.huggingface }, { m, v -> m.copy(huggingface = v) }, d.HUGGINGFACE),
+        ),
     )
 }
 
@@ -1701,12 +1780,12 @@ private fun IconDefaultRow(label: String, value: String, onChange: (String) -> U
         )
         // 🔎 lookup — opens the emoji picker; the pick is written into the field.
         Text(
-            "🔎", fontSize = 20.sp,
+            com.ai.data.MetadataIconsHolder.current.lookup, fontSize = 20.sp,
             modifier = Modifier.clickable { showPicker = true }.padding(start = 8.dp, end = 2.dp)
         )
         // 🤖 AI — ask models for a fitting emoji (editable prompt), pick one.
         Text(
-            "🤖", fontSize = 20.sp,
+            com.ai.data.MetadataIconsHolder.current.agent, fontSize = 20.sp,
             modifier = Modifier.clickable { onAiFind() }.padding(start = 6.dp, end = 2.dp)
         )
     }
@@ -1812,7 +1891,7 @@ private fun DefaultIconAiFinderScreen(
                         when (c) {
                             is com.ai.viewmodel.IconCandidate.Running -> com.ai.ui.shared.AnimatedHourglass(fontSize = 18.sp)
                             is com.ai.viewmodel.IconCandidate.Done -> Text(c.emoji, fontSize = 22.sp)
-                            is com.ai.viewmodel.IconCandidate.Error -> Text("❌", fontSize = 18.sp)
+                            is com.ai.viewmodel.IconCandidate.Error -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 18.sp)
                         }
                     }
                     Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {

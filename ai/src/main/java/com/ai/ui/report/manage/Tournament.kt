@@ -111,7 +111,7 @@ fun TournamentManageRow() {
                 !run.allTerminal -> Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
                     AnimatedHourglass(fontSize = 16.sp)
                 }
-                run.errorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                run.errorCount > 0 -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 else -> Text(tournamentIcon, fontSize = 16.sp, modifier = Modifier.width(24.dp))
             }
             RowTypeCell("tournament")
@@ -482,11 +482,11 @@ private fun TournamentReportModelRow(group: GroupRow, allDone: Boolean, onClick:
         if (!allDone) {
             val icon = when {
                 group.running > 0 -> "⏳"
-                group.total == 0 -> "🆕"
-                group.errored > 0 && group.errored == group.total -> "❌"
-                group.done == group.total -> "✅"
-                group.errored > 0 -> "❌"
-                else -> "🕓"
+                group.total == 0 -> com.ai.data.MetadataIconsHolder.current.add
+                group.errored > 0 && group.errored == group.total -> com.ai.data.MetadataIconsHolder.current.statusFailed
+                group.done == group.total -> com.ai.data.MetadataIconsHolder.current.statusDone
+                group.errored > 0 -> com.ai.data.MetadataIconsHolder.current.statusFailed
+                else -> com.ai.data.MetadataIconsHolder.current.clockQueued
             }
             if (icon == "⏳") {
                 Box(Modifier.width(20.dp), contentAlignment = Alignment.Center) {

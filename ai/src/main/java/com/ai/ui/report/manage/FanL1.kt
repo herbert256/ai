@@ -475,8 +475,8 @@ internal fun FanOutL1Screen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val icon = when (cr.status) {
-                        PairStatus.ERROR -> "❌"
-                        PairStatus.DONE -> "✅"
+                        PairStatus.ERROR -> com.ai.data.MetadataIconsHolder.current.statusFailed
+                        PairStatus.DONE -> com.ai.data.MetadataIconsHolder.current.statusDone
                         else -> null
                     }
                     if (icon != null) {
@@ -626,11 +626,11 @@ internal fun FanOutL1Screen(
                     if (!allDone) {
                         val icon = when {
                             running > 0 -> "⏳"
-                            total == 0 -> "🆕"
-                            err > 0 && err == total -> "❌"
-                            ok == total -> "✅"
-                            err > 0 -> "❌"
-                            else -> "🕓"
+                            total == 0 -> com.ai.data.MetadataIconsHolder.current.add
+                            err > 0 && err == total -> com.ai.data.MetadataIconsHolder.current.statusFailed
+                            ok == total -> com.ai.data.MetadataIconsHolder.current.statusDone
+                            err > 0 -> com.ai.data.MetadataIconsHolder.current.statusFailed
+                            else -> com.ai.data.MetadataIconsHolder.current.clockQueued
                         }
                         if (icon == "⏳") {
                             Box(

@@ -165,7 +165,7 @@ fun ModelSelectionScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     androidx.compose.material3.Text(
-                        "✕", color = AppColors.Red, fontSize = 14.sp,
+                        com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.Red, fontSize = 14.sp,
                         modifier = Modifier.clickable { onRemoveModel(index) }
                     )
                 }

@@ -193,7 +193,7 @@ fun CostsViewScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(text = "💰", fontSize = 40.sp)
+                    Text(text = com.ai.data.MetadataIconsHolder.current.cost, fontSize = 40.sp)
                     Text(
                         text = "No cost data yet",
                         color = AppColors.TextPrimary, fontSize = 18.sp,
@@ -272,7 +272,7 @@ fun CostsViewScreen(
             horizontalAlignment = Alignment.Start
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "💰", fontSize = 30.sp, modifier = Modifier.padding(end = 8.dp))
+                Text(text = com.ai.data.MetadataIconsHolder.current.cost, fontSize = 30.sp, modifier = Modifier.padding(end = 8.dp))
                 Text(
                     // This screen deliberately omits the "costs from deleted
                     // items" line (see header doc), so the figure is the

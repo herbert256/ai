@@ -198,7 +198,7 @@ fun buildInfoJobs(
             ?: if (state == InfoJobState.RUNNING) "Generating…" else "Queued…"
         jobs += InfoJob("title", label, state,
             report.titleInputCost + report.titleOutputCost + report.titleLongInputCost + report.titleLongOutputCost,
-            doneIcon = "🏷️", pending = state == InfoJobState.RUNNING || state == InfoJobState.CLOCK)
+            doneIcon = com.ai.data.MetadataIconsHolder.current.label, pending = state == InfoJobState.RUNNING || state == InfoJobState.CLOCK)
     }
 
     // Per-agent title state — agent must succeed first; when both jobs are
@@ -231,7 +231,7 @@ fun buildInfoJobs(
                 "model-title", modelName, titleState,
                 a.modelTitleInputCost + a.modelTitleOutputCost, a.agentId,
                 // Show the model's found icon when there is one, else 🏷️.
-                doneIcon = a.icon?.takeIf { it.isNotBlank() } ?: "🏷️",
+                doneIcon = a.icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.label,
                 pending = perModelPending(a, titleState)
             )
         }
@@ -277,13 +277,13 @@ fun aggregateInfoState(jobs: List<InfoJob>): InfoJobState = when {
 @Composable
 internal fun InfoStatusCell(state: InfoJobState, doneIcon: String? = null) {
     when (state) {
-        InfoJobState.CLOCK -> Text("⏰", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+        InfoJobState.CLOCK -> Text(com.ai.data.MetadataIconsHolder.current.statusAlarm, fontSize = 16.sp, modifier = Modifier.width(24.dp))
         InfoJobState.RUNNING -> Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
             AnimatedHourglass(fontSize = 16.sp)
         }
-        InfoJobState.FAILED -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+        InfoJobState.FAILED -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
         // Show the generated icon for this job once done; ✅ when none.
-        InfoJobState.DONE -> Text(doneIcon?.takeIf { it.isNotBlank() } ?: "✅", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+        InfoJobState.DONE -> Text(doneIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.statusDone, fontSize = 16.sp, modifier = Modifier.width(24.dp))
     }
 }
 

@@ -201,7 +201,7 @@ private fun DefaultMetaItemForm(
                 modifier = Modifier.weight(1f), fontSize = 13.sp,
                 color = if (hasModel) Color.White else AppColors.TextTertiary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (hasModel) Text("✕", color = AppColors.TextTertiary,
+            if (hasModel) Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.TextTertiary,
                 modifier = Modifier.clickableNoRipple { providerName = ""; modelName = "" })
         }
         Spacer(modifier = Modifier.height(12.dp))

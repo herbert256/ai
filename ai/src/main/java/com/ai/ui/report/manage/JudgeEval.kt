@@ -106,7 +106,7 @@ fun JudgeEvalManageRow() {
                 !run.allTerminal -> Box(modifier = Modifier.width(24.dp), contentAlignment = Alignment.Center) {
                     AnimatedHourglass(fontSize = 16.sp)
                 }
-                run.errorCount > 0 -> Text("❌", fontSize = 16.sp, modifier = Modifier.width(24.dp))
+                run.errorCount > 0 -> Text(com.ai.data.MetadataIconsHolder.current.statusFailed, fontSize = 16.sp, modifier = Modifier.width(24.dp))
                 else -> Text(judgesIcon, fontSize = 16.sp, modifier = Modifier.width(24.dp))
             }
             RowTypeCell("judges")
@@ -552,7 +552,7 @@ private fun JudgeEvalL2(
                     Text(verdictGlyph(c.verdict, c.status), color = Color.White, fontSize = 13.sp,
                         textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
                     Text(
-                        if (c.verdict == null) "—" else if (agree) "✓" else "✗",
+                        if (c.verdict == null) "—" else if (agree) com.ai.data.MetadataIconsHolder.current.checkMark else com.ai.data.MetadataIconsHolder.current.crossMark,
                         color = if (c.verdict == null) AppColors.TextTertiary else if (agree) AppColors.Green else AppColors.Red,
                         fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.width(56.dp)
                     )
@@ -675,7 +675,7 @@ private fun verdictGlyph(verdict: String?, status: JudgeCellStatus): String = wh
     verdict == "A" -> "A"
     verdict == "B" -> "B"
     verdict == "tie" -> "tie"
-    status == JudgeCellStatus.ERROR -> "❌"
+    status == JudgeCellStatus.ERROR -> com.ai.data.MetadataIconsHolder.current.statusFailed
     status == JudgeCellStatus.RUNNING -> "…"
     else -> "·"
 }
@@ -795,7 +795,7 @@ private fun JudgeEvalMatchScreen(
                     Text(verdictGlyph(c.verdict, c.status), color = Color.White, fontSize = 13.sp,
                         textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
                     Text(
-                        if (c.verdict == null) "—" else if (agree) "✓" else "✗",
+                        if (c.verdict == null) "—" else if (agree) com.ai.data.MetadataIconsHolder.current.checkMark else com.ai.data.MetadataIconsHolder.current.crossMark,
                         color = if (c.verdict == null) AppColors.TextTertiary else if (agree) AppColors.Green else AppColors.Red,
                         fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.width(56.dp)
                     )
@@ -815,7 +815,7 @@ private fun JudgeTraceBug(traceFile: String?) {
     val navigateToRoute = com.ai.ui.shared.LocalNavigateToRoute.current
     val context = LocalContext.current
     Text(
-        "🐞", fontSize = 13.sp,
+        com.ai.data.MetadataIconsHolder.current.traces, fontSize = 13.sp,
         color = if (traceFile.isNullOrBlank()) AppColors.TextDisabled else Color.White,
         textAlign = TextAlign.Center,
         modifier = Modifier

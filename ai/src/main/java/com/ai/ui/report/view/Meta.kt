@@ -172,7 +172,7 @@ fun MetaViewScreen(
     val rowIcon = row?.icon?.takeIf { it.isNotBlank() }
     val cachedIcon = metaPromptName?.let { InternalPromptIconCache.getByName(it) }
         ?.takeIf { it.isNotBlank() }
-    val displayedEmoji = cachedIcon ?: rowIcon ?: "🧠"
+    val displayedEmoji = cachedIcon ?: rowIcon ?: com.ai.data.MetadataIconsHolder.current.reportModelIcon
     val modelLabel = row?.model?.let { shortModelName(it) }.orEmpty()
 
     val metaFilter: ViewSwipeFilter? = metaPromptName?.let { ViewSwipeFilter.HasMeta(metaPromptName = it) }
@@ -247,7 +247,7 @@ fun MetaViewScreen(
                 val chatScope = rememberCoroutineScope()
                 var opening by remember { mutableStateOf(false) }
                 Text(
-                    text = "💬",
+                    text = com.ai.data.MetadataIconsHolder.current.chat,
                     fontSize = 24.sp,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -305,9 +305,9 @@ fun MetaViewScreen(
                 // page's flag, not the active page's.
                 val pageFlag = when {
                     languages.size <= 1 -> null
-                    lang.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() } ?: "🌐"
+                    lang.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.translationRow
                     else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
-                        ?: "🌍"
+                        ?: com.ai.data.MetadataIconsHolder.current.world
                 }
                 // Box-anchored layout: the card wraps its content
                 // (short rows sit at the top), and the language flag
