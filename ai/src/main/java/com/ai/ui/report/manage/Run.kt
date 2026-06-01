@@ -461,9 +461,10 @@ internal fun ReportRunScreen(
             // ✏️ opens the full-screen "Edit report" overview (layer on top
             // of this hub) instead of the old 3-button pop-up.
             onEdit = { st.showEditReportOverview.value = true },
-            // 🆕 opens the full-screen "Create" launcher (layer on top of this
-            // hub) instead of the old pop-up.
+            // 🔗 opens the full-screen "Meta" launcher (Meta + Compare with
+            // meta) as a layer on top of this hub.
             onAdd = { st.showCreateOverview.value = true },
+            addIcon = "🔗",
             addFirst = true,
             // ✍️ add a report-level note; 📒 open the all-notes list.
             onAddNote = if (currentReportId != null) { { noteEdit = NoteEdit.Add } } else null,

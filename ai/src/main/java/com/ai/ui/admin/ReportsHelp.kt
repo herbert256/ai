@@ -100,9 +100,9 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "report_create_overview" to HelpContent(
-        title = "Help - Create",
+        title = "Help - Meta",
         cards = listOf(
-            HelpCard("What you see", "A full-screen launcher (the 🆕 icon on Manage report) for adding a secondary result: Meta and Compare with meta — each a big icon with a one-line explanation."),
+            HelpCard("What you see", "A full-screen launcher (the 🔗 icon on Manage report) for adding a Meta-style secondary result: Meta and Compare with meta — each a big icon with a one-line explanation."),
             HelpCard("The options", "Meta runs a Compare / Critique / Synthesize prompt over the answers. Compare with meta scores each answer's similarity to a meta result. Tapping a row opens that kind's prompt / meta picker."),
             HelpCard("Moved to the bottom bar", "Rerank (🏆), Moderation (🚦), Translate (🌐), Fan out (🔱) and the head-to-head tools (🥊) now each have their own icon on the Manage report bottom bar. Rerank / Moderation jump straight to an existing result if there is one, else open the model picker.")
         )

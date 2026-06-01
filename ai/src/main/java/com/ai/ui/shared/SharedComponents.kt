@@ -818,6 +818,9 @@ data class TitleBarIcons(
      *  bar carries the "add new entry" action (replacing the old top-of-
      *  list Add button). Null → glyph hidden. */
     val onAdd: (() -> Unit)? = null,
+    /** Glyph for the [onAdd] icon — overridable so Manage report can show
+     *  the 🔗 Meta launcher instead of the generic 🆕. */
+    val addIcon: String = "🆕",
     /** Optional Fan Out launcher hook. Wired from Manage report to open an
      *  existing Fan Out or start a new one. Null → glyph hidden. */
     val onFanOut: (() -> Unit)? = null,
@@ -1112,6 +1115,8 @@ fun TitleBar(
     onSwipeNext: (() -> Boolean)? = null,
     /** Optional 🆕 add hook (CRUD list pages). Null → glyph hidden. */
     onAdd: (() -> Unit)? = null,
+    /** Glyph for [onAdd] — overridable (Manage report uses 🔗). */
+    addIcon: String = "🆕",
     /** Optional Fan Out launcher hook. Null → glyph hidden. */
     onFanOut: (() -> Unit)? = null,
     fanOutIcon: String = "🔱",
@@ -1238,6 +1243,7 @@ fun TitleBar(
         onModeration = onModeration,
         moderationIcon = moderationIcon,
         addFirst = addFirst,
+        addIcon = addIcon,
         costText = costText,
         onCostClick = onCostClick,
         onEdit = onEdit,
@@ -1698,7 +1704,7 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // ----- first-row-ish: creation / nav / share -----
     // 🆕 leads when the screen opts in (Manage report); otherwise it
     // stays in the trailing copy/edit/delete/new group below.
-    if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
+    if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon(icons.addIcon.takeIf { g -> g.isNotBlank() } ?: "🆕", Color.Unspecified, it, 28)) }
     icons.onFanOut?.let {
         add(BottomBarIcon(icons.fanOutIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🔱", Color.Unspecified, it, 28))
     }
@@ -1774,7 +1780,7 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // 📈 statistics trailing the 🗑 delete, when the screen opted in
     // (Application log — its App-log-statistics jump sits after clear-all).
     if (icons.statsAfterDelete) icons.onStats?.let { add(BottomBarIcon("📈", Color.Unspecified, it, 28)) }
-    if (!icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
+    if (!icons.addFirst) icons.onAdd?.let { add(BottomBarIcon(icons.addIcon.takeIf { g -> g.isNotBlank() } ?: "🆕", Color.Unspecified, it, 28)) }
     // 🐞 trace always sits last in the strip.
     icons.onTrace?.let { add(BottomBarIcon("🐞", Color.Unspecified, it, 22)) }
 }

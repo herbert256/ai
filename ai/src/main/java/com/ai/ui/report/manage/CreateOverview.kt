@@ -59,8 +59,8 @@ internal fun ReportCreateOverviewScreen(
     ) {
         TitleBar(
             helpTopic = "report_create_overview",
-            title = "Create",
-            subject = "Add a secondary result",
+            title = "Meta",
+            subject = "Run a meta prompt over the answers",
             onBackClick = onBack,
             publishBottomBar = false
         )
