@@ -440,7 +440,7 @@ private fun JudgeEvalL1(
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground)) {
                     val matches = buildMatchSummaries(run, agents)
                     matches.forEachIndexed { i, m ->
-                        MatchSummaryRow(m) { openMatch(m.matchKey) }
+                        MatchSummaryRow(m, allDone = run.allTerminal) { openMatch(m.matchKey) }
                         if (i < matches.lastIndex) HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.2f), thickness = 0.5.dp)
                     }
                 }
@@ -695,7 +695,11 @@ private data class MatchSummary(
     val bLabel: String,
     val consensus: String?,
     val agreeCount: Int,
-    val votedCount: Int
+    val votedCount: Int,
+    /** Terminal cells (judged + errored) for this match — the bar numerator. */
+    val done: Int,
+    /** Total cells (judges) for this match — the bar denominator. */
+    val total: Int
 )
 
 private fun buildMatchSummaries(run: JudgeEvalRunState, agents: Map<String, ReportAgent>): List<MatchSummary> =
@@ -710,15 +714,27 @@ private fun buildMatchSummaries(run: JudgeEvalRunState, agents: Map<String, Repo
                 bLabel = shortModelName(agents[first.responseBId]?.model ?: "?"),
                 consensus = cons,
                 agreeCount = cs.count { it.verdict != null && cons != null && it.verdict == cons },
-                votedCount = verdicts.size
+                votedCount = verdicts.size,
+                done = cs.count { it.status == JudgeCellStatus.DONE || it.status == JudgeCellStatus.ERROR },
+                total = cs.size
             )
         }
         .sortedWith(compareBy({ it.aLabel }, { it.bLabel }))
 
 @Composable
-private fun MatchSummaryRow(m: MatchSummary, onClick: () -> Unit) {
+private fun MatchSummaryRow(m: MatchSummary, allDone: Boolean, onClick: () -> Unit) {
+    // Green progress fill = this match's judged fraction, like Fan Meta's
+    // "Report models" rows. Hidden once the whole run is done.
+    val progressFraction = if (m.total > 0) m.done.toFloat() / m.total else 0f
+    val barColor = AppColors.Green.copy(alpha = 0.30f)
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 10.dp, vertical = 9.dp),
+        modifier = Modifier.fillMaxWidth()
+            .drawBehind {
+                if (!allDone && progressFraction > 0f) {
+                    drawRect(color = barColor, size = Size(size.width * progressFraction, size.height))
+                }
+            }
+            .clickable { onClick() }.padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text("${m.aLabel} vs ${m.bLabel}", color = Color.White, fontSize = 13.sp,
