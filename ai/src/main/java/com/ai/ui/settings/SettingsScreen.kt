@@ -1574,25 +1574,33 @@ private fun DefaultIconsSubScreen(
 }
 
 /** One labelled row on the Default icons screen: the item name on the
- *  left, a tappable emoji box on the right that opens the AndroidX
- *  EmojiPickerView in a bottom sheet. Picking an emoji writes exactly
- *  one glyph back, so the value is always a single valid emoji. */
+ *  left, an editable text field the user can type / paste any emoji into,
+ *  and a 🔎 lookup link beside it that opens the AndroidX EmojiPickerView in
+ *  a bottom sheet — picking writes the chosen emoji straight back into the
+ *  field. Blank on save falls back to the factory default (see `build()`). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun IconDefaultRow(label: String, value: String, onChange: (String) -> Unit) {
     var showPicker by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
-        Box(
+        OutlinedTextField(
+            value = value,
+            onValueChange = onChange,
+            singleLine = true,
+            textStyle = androidx.compose.ui.text.TextStyle(
+                fontSize = 20.sp,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            ),
+            modifier = Modifier.width(104.dp)
+        )
+        // 🔎 lookup — opens the emoji picker; the pick is written into the field.
+        Text(
+            "🔎", fontSize = 20.sp,
             modifier = Modifier
-                .width(96.dp)
-                .border(1.dp, AppColors.TextDisabled, androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
                 .clickable { showPicker = true }
-                .padding(vertical = 10.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(value, fontSize = 22.sp)
-        }
+                .padding(start = 10.dp, end = 2.dp)
+        )
     }
     if (showPicker) {
         ModalBottomSheet(onDismissRequest = { showPicker = false }) {
