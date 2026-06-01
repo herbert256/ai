@@ -1019,17 +1019,17 @@ fun friendlyErrorMessage(raw: String?): String = when (raw) {
 @Composable
 fun TitleBar(
     title: String? = null,
-    /** The bar's ORANGE second line (centre, under the white title) —
+    /** The bar's second line (centre, under the main title) —
      *  the former green page subject. Blank/null → no second line. */
     subject: String? = null,
-    /** When set, the orange subject line is a Model-Info link (matches
+    /** When set, the subject line is a Model-Info link (matches
      *  the old clickable [HardcodedSubjectRow]). */
     subjectProviderService: com.ai.data.AppService? = null,
     subjectModel: String? = null,
-    /** Independent tap target for the orange subject line, distinct from
+    /** Independent tap target for the subject line, distinct from
      *  the icon/title click. Used by Help (orange → originating screen). */
     subjectOnClick: (() -> Unit)? = null,
-    /** Optional trailing chip beside the orange subject line (e.g. the
+    /** Optional trailing chip beside the subject line (e.g. the
      *  Fan-out L3 role indicator). */
     subjectTrailing: @Composable RowScope.() -> Unit = {},
     onBackClick: (() -> Unit)? = null,
@@ -1381,9 +1381,9 @@ fun TitleBar(
  * Layout (matches the Manage TitleBar's perfected icon placement):
  *  - Left: the dynamic report glyph when [reportIcon] is non-null,
  *    else the AI logo. 66dp, offset(x=-10), top-aligned.
- *  - Centre column: white [screenTitle] (auto-shrinks 24→18sp on
- *    overflow), then orange [secondLine] (18sp), then green [thirdLine]
- *    (24sp). Tapping the column fires [onTitleClick]. The orange line
+ *  - Centre column: [screenTitle] (auto-shrinks 24→18sp on
+ *    overflow), then [secondLine] (18sp), then green [thirdLine]
+ *    (24sp). Tapping the column fires [onTitleClick]. The second line
  *    can instead be a Model-Info link ([secondProviderService] +
  *    [secondModel]) and/or carry a right-edge [secondTrailing] chip.
  *  - Right: the mirrored AI logo → Home. 66dp, offset(x=+10), top.
@@ -1402,7 +1402,7 @@ internal fun AppTopBarChrome(
     onSwipeNext: (() -> Boolean)?,
     secondProviderService: com.ai.data.AppService? = null,
     secondModel: String? = null,
-    /** Independent tap target for the orange 2nd line (overrides the
+    /** Independent tap target for the 2nd line (overrides the
      *  column/title click for that line). Used by Help: orange → origin. */
     secondLineOnClick: (() -> Unit)? = null,
     secondTrailing: @Composable RowScope.() -> Unit = {},
@@ -1482,7 +1482,7 @@ internal fun AppTopBarChrome(
             var bigSizeFits by remember(screenTitle, secondLine, thirdLine) { mutableStateOf(true) }
             val hasScreenTitle = !screenTitle.isNullOrBlank()
             val topText = if (hasScreenTitle) screenTitle!! else secondLine.orEmpty()
-            // Top row: left icon · white screen title · right icon.
+            // Top row: left icon · main screen title · right icon.
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 // Left — report glyph > section icon > AI logo.
                 if (reportIcon != null) {
@@ -1504,7 +1504,7 @@ internal fun AppTopBarChrome(
                     )
                 }
                 Text(
-                    text = topText, color = Color.White,
+                    text = topText, color = AppColors.MainTitle,
                     fontSize = if (bigSizeFits) 20.4.sp else 15.3.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1, softWrap = false,
@@ -1523,7 +1523,7 @@ internal fun AppTopBarChrome(
                     size = 44.dp, mirrored = true
                 )
             }
-            // Orange 2nd line — full screen width (not boxed by the icons).
+            // 2nd line — full screen width (not boxed by the icons).
             // Drawn a few dp higher (less gap above the white title) and
             // followed by a small spacer (more gap below, before the green
             // line / content).
@@ -1539,7 +1539,7 @@ internal fun AppTopBarChrome(
                             }
                         }
                     Text(
-                        text = secondLine, color = AppColors.WarningAccent,
+                        text = secondLine, color = AppColors.SubTitle,
                         fontSize = 15.3.sp, fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center, modifier = textMod

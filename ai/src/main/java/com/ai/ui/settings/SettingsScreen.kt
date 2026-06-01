@@ -1469,6 +1469,8 @@ private fun readableUiColorName(key: String): String =
 
 private fun uiColorDescription(key: String): String = when (key) {
     "AppBackground" -> "Full-screen app background behind every screen."
+    "MainTitle" -> "Top title text in the shared screen title bar."
+    "SubTitle" -> "Subtitle text below the main title in the shared title bar."
     "PrimaryAccent" -> "Primary action and user-side accent."
     "SecondaryAccent" -> "Secondary action and detail accent."
     "InfoAccent" -> "Headings, links, selected states, totals, and focused fields."
@@ -1502,6 +1504,8 @@ private fun uiColorDescription(key: String): String = when (key) {
 
 private fun uiColorIcon(key: String): String = when {
     key == "AppBackground" -> MetadataDefaults.DEVICE
+    key == "MainTitle" -> MetadataDefaults.TOGGLE_LABELS
+    key == "SubTitle" -> MetadataDefaults.LABEL
     key == "PrimaryAccent" -> MetadataDefaults.SPARKLES
     key == "SecondaryAccent" -> MetadataDefaults.GEM
     key == "InfoAccent" -> MetadataDefaults.INFO

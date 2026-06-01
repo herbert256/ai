@@ -12,6 +12,8 @@ import androidx.compose.ui.graphics.Color
 object AppColors {
     private val DefaultUiColorArgb = linkedMapOf(
         "AppBackground" to 0xFF000000.toInt(),
+        "MainTitle" to 0xFFFFFFFF.toInt(),
+        "SubTitle" to 0xFFFF9800.toInt(),
         "PrimaryAccent" to 0xFF8B5CF6.toInt(),
         "SecondaryAccent" to 0xFF6366F1.toInt(),
         "InfoAccent" to 0xFF6B9BFF.toInt(),
@@ -62,6 +64,10 @@ object AppColors {
 
     // App shell colors
     var AppBackground by mutableStateOf(colorFromArgb(defaultArgbFor("AppBackground")))
+        private set
+    var MainTitle by mutableStateOf(colorFromArgb(defaultArgbFor("MainTitle")))
+        private set
+    var SubTitle by mutableStateOf(colorFromArgb(defaultArgbFor("SubTitle")))
         private set
 
     // Role accent colors
@@ -153,13 +159,19 @@ object AppColors {
 
     fun defaultArgbFor(key: String): Int = DefaultUiColorArgb.getValue(key)
 
-    fun normalizeUiColorOverrides(overrides: Map<String, Int>): Map<String, Int> =
-        DefaultUiColorArgb.toMutableMap().apply {
+    fun normalizeUiColorOverrides(overrides: Map<String, Int>): Map<String, Int> {
+        val normalized = DefaultUiColorArgb.toMutableMap().apply {
             overrides.forEach { (rawKey, value) ->
                 val key = LegacyUiColorKeys[rawKey] ?: rawKey
                 if (key in DefaultUiColorArgb) put(key, value)
             }
         }
+        if ("SubTitle" !in overrides) {
+            val legacySubTitle = overrides["WarningAccent"] ?: overrides["Orange"]
+            if (legacySubTitle != null) normalized["SubTitle"] = legacySubTitle
+        }
+        return normalized
+    }
 
     fun applyUiColors(cardBackgroundArgb: Int, buttonBackgroundArgb: Int) {
         applyUiColors(
@@ -174,6 +186,8 @@ object AppColors {
         val colors = normalizeUiColorOverrides(overrides)
         fun color(key: String): Color = colorFromArgb(colors[key] ?: defaultArgbFor(key))
         AppBackground = color("AppBackground")
+        MainTitle = color("MainTitle")
+        SubTitle = color("SubTitle")
         PrimaryAccent = color("PrimaryAccent")
         SecondaryAccent = color("SecondaryAccent")
         InfoAccent = color("InfoAccent")
