@@ -152,13 +152,15 @@ fun MetaViewScreen(
     // translations load async) and rememberWrapPager doesn't re-seek when
     // the list grows — so a requested non-Original initial language never
     // landed (it opened on Original, first backward swipe blocked). Re-centre
-    // once per report, after the languages arrive; manual swipes after stand.
+    // once per META ROW (keyed on currentResultId, not report.id) so swiping
+    // to another meta result resets to that row's language instead of keeping
+    // the previous row's page; manual swipes within a row stand.
     var centeredFor by remember { mutableStateOf<String?>(null) }
-    LaunchedEffect(languages, report?.id) {
-        if (languages.size > 1 && centeredFor != report?.id) {
+    LaunchedEffect(languages, currentResultId) {
+        if (languages.size > 1 && centeredFor != currentResultId) {
             val target = languages.indexOf(language ?: "").coerceAtLeast(0)
             pagerState.scrollToPage(wrapCenterPage(languages.size, target))
-            centeredFor = report?.id
+            centeredFor = currentResultId
         }
     }
     val activeLanguage = if (languages.isEmpty()) ""
