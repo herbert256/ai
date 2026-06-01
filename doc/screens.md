@@ -149,7 +149,7 @@ then subtitle.
 | Local semantic search | On-device meaning search, no cloud |
 | Log entry | \<filename\> |
 | Log file | \<filename\> |
-| Logging and tracing | Log level and API call tracing |
+| Logging and tracing | API tracing, trace links, audit log and log level |
 | Manage a report | |
 | Manage chats | Bulk-delete old chats or export them |
 | Manage reports | Delete old reports or export them all |
@@ -180,7 +180,7 @@ then subtitle.
 | New Report | Write your prompt, then pick models |
 | One page view | \<model label\> |
 | One-time prompt | Run a prompt without saving it |
-| Other settings | Identity and report automation |
+| Other settings | Identity |
 | Pick a flock | Add a whole group of agents at once |
 | Pick a swarm | Add a multi-agent team to the report |
 | Pick an agent | Add a saved agent to the report |
