@@ -792,7 +792,7 @@ class TranslationRunManager(
             // calls.
             if (tu != null) {
                 appViewModel.settingsPrefs.updateUsageStatsAsync(
-                    provider, model, tu.inputTokens, tu.outputTokens, tu.totalTokens,
+                    provider, model, tu,
                     kind = item.traceType
                 )
             }
@@ -966,7 +966,7 @@ class TranslationRunManager(
                             // cost table only gains the picked candidate's
                             // cost (written in applyAltTranslation).
                             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                item.provider, item.model, tu.inputTokens, tu.outputTokens, tu.totalTokens, kind = traceType
+                                item.provider, item.model, tu, kind = traceType
                             )
                         }
                         val text = response.analysis.orEmpty()

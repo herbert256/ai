@@ -576,9 +576,7 @@ class FanOutEngine internal constructor(
             appViewModel.settingsPrefs.updateUsageStatsAsync(
                 task.provider,
                 task.model,
-                usage.inputTokens,
-                usage.outputTokens,
-                usage.totalTokens,
+                usage,
                 kind = kind
             )
         }

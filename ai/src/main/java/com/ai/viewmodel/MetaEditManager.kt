@@ -227,7 +227,7 @@ class MetaEditManager internal constructor(
         val cost = calculateResponseCost(context, task.provider, task.model, response.tokenUsage)
         if (response.error == null && response.tokenUsage != null) {
             val u = response.tokenUsage
-            appViewModel.settingsPrefs.updateUsageStatsAsync(task.provider, task.model, u.inputTokens, u.outputTokens, u.totalTokens, kind = kind)
+            appViewModel.settingsPrefs.updateUsageStatsAsync(task.provider, task.model, u, kind = kind)
         }
         MetaVariationCallResult(response, cost, durationMs, traceSink.get())
     }

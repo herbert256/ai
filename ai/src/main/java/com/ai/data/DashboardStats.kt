@@ -158,6 +158,7 @@ internal suspend fun computeUsageGroups(
     context: Context,
     settingsPrefs: SettingsPreferences,
 ): UsageGroupsResult = withContext(Dispatchers.IO) {
+    settingsPrefs.reconcileReportCostLedgers(context)
     val stats = settingsPrefs.loadUsageStats()
     val groups = buildProviderCostGroups(context, stats)
     val categoryStats = settingsPrefs.loadUsageCategoryStats()
@@ -227,7 +228,7 @@ private fun summarizeReportUsage(
     report: Report,
     secondaries: List<SecondaryResult>,
 ): ReportUsageTotals {
-    if (report.apiCallCostsComplete && report.apiCallCosts.isNotEmpty()) {
+    if (ReportStorage.isApiCallCostLedgerCurrent(report) && report.apiCallCosts.isNotEmpty()) {
         return ReportUsageTotals(
             calls = report.apiCallCosts.size,
             tokens = report.apiCallCosts.sumOf { (it.inputTokens + it.outputTokens).toLong() },

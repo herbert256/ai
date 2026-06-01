@@ -322,11 +322,12 @@ class CompareEngine internal constructor(
                 val provId = winAgent?.provider?.id ?: COMPARE_PENDING_PROVIDER
                 val mdl = winAgent?.model ?: COMPARE_PENDING_MODEL
                 var inCost = 0.0; var outCost = 0.0
-                if (winAgent != null && (inT > 0 || outT > 0)) {
+                if (winAgent != null && tu != null && (inT > 0 || outT > 0)) {
                     val pricing = PricingCache.getPricing(context, winAgent.provider, winAgent.model)
-                    inCost = inT * pricing.promptPrice
-                    outCost = outT * pricing.completionPrice
-                    appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, inT, outT, kind = USAGE_KIND)
+                    val split = PricingCache.computeInOutCost(tu, pricing)
+                    inCost = split.first
+                    outCost = split.second
+                    appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = USAGE_KIND)
                 }
                 SecondaryResultStorage.recordCompareCell(
                     context, reportId, rowId, provId, mdl,

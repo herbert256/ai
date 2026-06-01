@@ -1852,7 +1852,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 if (response.isSuccess) {
                     response.tokenUsage?.let { u ->
                         settingsPrefs.updateUsageStatsAsync(
-                            service, model, u.inputTokens, u.outputTokens, u.totalTokens,
+                            service, model, u,
                             kind = SETTINGS_ICONS_CALL_KIND
                         )
                     }

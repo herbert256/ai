@@ -195,11 +195,18 @@ internal fun rememberReportRuntimeState(
             // Report-costs screen). infoEnabled / infoState stay job-derived so
             // the row's status still reflects the active jobs. Same per-field
             // costs buildInfoJobs uses: report icon, language detect + icon,
-            // report title short + long, per-model title, per-model icon.
+            // report title short + long, per-model title, per-model icon, and
+            // title alternative searches that live only in iconCalls.
+            val titleAltTotal = r?.iconCalls
+                ?.filter {
+                    it.attributedToSecondaryId == null &&
+                        it.type in setOf("alt/report_title", "alt/report_title_long", "alt/model_title")
+                }
+                ?.sumOf { it.inputCost + it.outputCost } ?: 0.0
             infoMetaTotal = reportIconCost + languageDetectCost + languageIconCost +
                 ((r?.titleInputCost ?: 0.0) + (r?.titleOutputCost ?: 0.0) +
                     (r?.titleLongInputCost ?: 0.0) + (r?.titleLongOutputCost ?: 0.0)) +
-                agentModelTitles.values.sumOf { it.cost } +
+                titleAltTotal + agentModelTitles.values.sumOf { it.cost } +
                 agentIconRows.values.sumOf { it.cost }
             loadedReportPrompt = r?.prompt.orEmpty()
             loadedReportTitle = r?.barTitle
@@ -487,4 +494,3 @@ internal fun HandleExternalReportInstructions(
         }
     }
 }
-

@@ -1338,7 +1338,15 @@ internal fun ColumnScope.GenerationPhase(
                 if (result?.tokenUsage != null) {
                     // Just the model's own response cost — meta costs moved
                     // to the info row / Get-info screen.
-                    val baseCost = PricingCache.computeCost(result.tokenUsage, PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result)))
+                    val frozen = agentRecordsByAgentId[agentId]?.let { agent ->
+                        if (agent.inputCost != null || agent.outputCost != null)
+                            (agent.inputCost ?: 0.0) + (agent.outputCost ?: 0.0)
+                        else null
+                    }
+                    val baseCost = frozen ?: PricingCache.computeCost(
+                        result.tokenUsage,
+                        PricingCache.getPricing(context, result.service, resolveModelForResult(agentId, result))
+                    )
                     Text(formatCents(baseCost), fontSize = 10.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                 }
                 // Per-row 🐞 removed — ReportSingleResultScreen (the

@@ -383,6 +383,7 @@ data class Report(
      *  upgraded best-effort from traces/structured cost fields. */
     var apiCallCosts: MutableList<ReportApiCallCost> = mutableListOf(),
     var apiCallCostsComplete: Boolean = false,
+    var apiCallCostsVersion: Int = 3,
     /** UUID shared by every API trace produced during the initial
      *  generation of this report — the L1 🐞 icon in the title bar
      *  deep-links the trace list to this id so the user sees only
@@ -457,6 +458,10 @@ data class Report(
      *  on the detection row's cost popup. Null when tracing was off
      *  at call time or on legacy reports. */
     var languageTraceFile: String? = null,
+    /** Resolved "<providerId>/<modelId>" for the worker that produced
+     *  [languageName]. Kept separate from [languageIconModel] because
+     *  the displayed icon can later be replaced by a Find-alt pick. */
+    var languageModel: String? = null,
     /** Raw assistant text returned by the language-detection model
      *  (typically a single `language: …` line). Null on legacy
      *  reports / before the call returned. */

@@ -1004,7 +1004,7 @@ fun AiSpendUsageScreen(
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
     onOpenProvider: (String) -> Unit = {},
-    /** Types tab row → the per-type-prefix usage detail screen. */
+    /** Types tab row → the per-category usage detail screen. */
     onOpenType: (String) -> Unit = {},
     onNavigateToStatistics: () -> Unit = {},
     /** 🐞 on a provider row → the API Traces scoped to that provider. */
@@ -1238,17 +1238,13 @@ private fun ColumnScope.SpendUsageProvidersTab(
     }
 }
 
-/** One Types-tab row: the per-kind usage groups rolled up by the part
- *  of the type name before the first "/". */
-private data class TypePrefixRow(
-    val prefix: String,
+private data class TypeCategoryRow(
+    val category: String,
     val calls: Int,
     val tokens: Long,
     val searchUnits: Long,
     val totalCost: Double,
-    /** First underlying full kind that has a captured trace, or null —
-     *  drives the row's 🐞 (a prefix can span several trace categories). */
-    val traceCategory: String?,
+    val hasTrace: Boolean,
 )
 
 @Composable
@@ -1274,40 +1270,34 @@ private fun ColumnScope.SpendUsageTypesTab(
     val cName = 184.dp; val cCalls = 56.dp; val cTok = 78.dp
     val cGap = 18.dp; val cCost = 92.dp; val cBugGap = 12.dp; val cBug = 28.dp
     val tableWidth = cName + cCalls + cTok + cGap + cCost + cBugGap + cBug
-    // Roll the per-kind groups up by the part before the first "/" so
-    // e.g. meta / meta/temperature / meta/reasoning collapse into "meta"
-    // and fan/out/* collapses into "fan". Tapping a row drills into the
-    // per-entry detail for that prefix.
     val rows = remember(data.typeGroups, sortCol, sortAsc, tracedCategories) {
-        val grouped = data.typeGroups
-            .groupBy { it.category.substringBefore("/") }
-            .map { (prefix, gs) ->
-                TypePrefixRow(
-                    prefix = prefix,
-                    calls = gs.sumOf { it.calls },
-                    tokens = gs.sumOf { it.tokens },
-                    searchUnits = gs.sumOf { it.searchUnits },
-                    totalCost = gs.sumOf { it.totalCost },
-                    traceCategory = gs.map { it.category }.firstOrNull { it in tracedCategories },
-                )
-            }
-        val cmp: Comparator<TypePrefixRow> = when (sortCol) {
-            UsageSort.PROVIDER -> compareBy { it.prefix.lowercase() }
+        val categoryRows = data.typeGroups.map { group ->
+            TypeCategoryRow(
+                category = group.category,
+                calls = group.calls,
+                tokens = group.tokens,
+                searchUnits = group.searchUnits,
+                totalCost = group.totalCost,
+                hasTrace = group.category in tracedCategories,
+            )
+        }
+        val cmp: Comparator<TypeCategoryRow> = when (sortCol) {
+            UsageSort.PROVIDER -> compareBy { it.category.lowercase() }
             UsageSort.CALLS -> compareBy { it.calls }
             UsageSort.TOKENS -> compareBy { it.tokens + it.searchUnits }
             UsageSort.COST -> compareBy { it.totalCost }
         }
-        grouped.sortedWith(if (sortAsc) cmp else cmp.reversed())
+        categoryRows.sortedWith(if (sortAsc) cmp else cmp.reversed())
     }
 
     Column(modifier = Modifier.align(Alignment.CenterHorizontally).weight(1f).verticalScroll(rememberScrollState())) {
         SpendUsageTableHeader("Type", cName, cCalls, cTok, cGap, cCost, cBugGap, cBug, sortCol, sortAsc, onSort)
         rows.forEach { row ->
             Row(
-                modifier = Modifier.clickable { onOpenType(row.prefix) }.padding(vertical = 9.dp),
+                modifier = Modifier.clickable { onOpenType(row.category) }.padding(vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(row.prefix, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
+                Text(row.category, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
                 Text("${row.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
                 Text(
                     if (row.searchUnits > 0 && row.tokens == 0L) "${formatCompactNumber(row.searchUnits)} su" else formatCompactNumber(row.tokens),
@@ -1317,8 +1307,8 @@ private fun ColumnScope.SpendUsageTypesTab(
                 Text(cents(row.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
                 Spacer(Modifier.width(cBugGap))
                 Box(Modifier.width(cBug), contentAlignment = Alignment.Center) {
-                    row.traceCategory?.let { cat ->
-                        Text(com.ai.ui.shared.LocalMetadataIcons.current.traces, fontSize = 13.sp, modifier = Modifier.clickable { onNavigateToTraceCategory(cat) })
+                    if (row.hasTrace) {
+                        Text(com.ai.ui.shared.LocalMetadataIcons.current.traces, fontSize = 13.sp, modifier = Modifier.clickable { onNavigateToTraceCategory(row.category) })
                     }
                 }
             }
@@ -1510,14 +1500,13 @@ fun AiSpendUsageProviderScreen(
     }
 }
 
-/** One usage entry inside a type-prefix detail: a (provider, model,
+/** One usage entry inside a type-category detail: a (provider, model,
  *  kind) row paired with its provider for the Model-Info tap. */
 private data class TypeEntry(val provider: AppService, val swc: StatWithCost)
 
-/** Per-type-prefix usage detail — opened by tapping a row on the
+/** Per-category usage detail — opened by tapping a row on the
  *  Spend & usage Types tab. Lists every (provider, model, kind) entry
- *  whose kind's first path segment (before the first "/") matches
- *  [typePrefix]. */
+ *  whose kind matches [typePrefix]. */
 @Composable
 fun AiSpendUsageTypeScreen(
     typePrefix: String,
@@ -1534,7 +1523,7 @@ fun AiSpendUsageTypeScreen(
     val entries by produceState<List<TypeEntry>?>(null, refreshTick, typePrefix) {
         val groups = computeUsageGroups(context, settingsPrefs).groups
         value = groups.flatMap { g -> g.models.map { TypeEntry(g.provider, it) } }
-            .filter { it.swc.stat.kind.substringBefore("/") == typePrefix }
+            .filter { it.swc.stat.kind == typePrefix }
             .sortedByDescending { it.swc.totalCost }
     }
 

@@ -1186,8 +1186,8 @@ class SecondaryRunManager(
             // Falls through to no-cost when the API didn't report usage.
             val tu = r.tokenUsage
             val pricing = PricingCache.getPricing(context, provider, model)
-            val inCost = tu?.let { it.inputTokens * pricing.promptPrice }
-            val outCost = tu?.let { it.outputTokens * pricing.completionPrice }
+            val (inCost, outCost) = tu?.let { PricingCache.computeInOutCost(it, pricing) }
+                ?: (null to null)
             val saved = SecondaryResultStorage.saveIfStillPresent(context, placeholder.copy(
                 content = r.content,
                 errorMessage = r.errorMessage,
@@ -1201,11 +1201,9 @@ class SecondaryRunManager(
             // Skip usage-stats too if the row was deleted while in
             // flight — the user dropped this run, so we shouldn't bill
             // the per-provider token counters for it either.
-            if (saved && r.errorMessage == null) {
-                val inT = tu?.inputTokens ?: 0
-                val outT = tu?.outputTokens ?: 0
+            if (saved && r.errorMessage == null && tu != null) {
                 appViewModel.settingsPrefs.updateUsageStatsAsync(
-                    provider, model, inT, outT, inT + outT, kind = "moderation"
+                    provider, model, tu, kind = "moderation"
                 )
             }
             return
@@ -1332,7 +1330,7 @@ class SecondaryRunManager(
         }
         if (saved && response.error == null && tu != null) {
             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                provider, model, tu.inputTokens, tu.outputTokens, tu.totalTokens,
+                provider, model, tu,
                 kind = when (kind) {
                     SecondaryKind.RERANK -> "rerank"
                     SecondaryKind.META -> "meta"

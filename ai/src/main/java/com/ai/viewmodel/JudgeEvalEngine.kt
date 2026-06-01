@@ -351,11 +351,12 @@ class JudgeEvalEngine internal constructor(
                 val inT = tu?.inputTokens ?: 0
                 val outT = tu?.outputTokens ?: 0
                 var inCost = 0.0; var outCost = 0.0
-                if (inT > 0 || outT > 0) {
+                if (tu != null && (inT > 0 || outT > 0)) {
                     val pricing = PricingCache.getPricing(context, agent.provider, agent.model)
-                    inCost = inT * pricing.promptPrice
-                    outCost = outT * pricing.completionPrice
-                    appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, inT, outT, kind = "judges")
+                    val split = PricingCache.computeInOutCost(tu, pricing)
+                    inCost = split.first
+                    outCost = split.second
+                    appViewModel.settingsPrefs.updateUsageStatsAsync(agent.provider, agent.model, tu, kind = "judges")
                 }
                 SecondaryResultStorage.recordTournamentMatch(
                     context, reportId, rowId, item.judge.providerId, item.judge.model,

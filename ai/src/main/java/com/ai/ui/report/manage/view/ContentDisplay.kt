@@ -589,7 +589,7 @@ private fun buildReportCostDataFromRows(rows: List<CostRow>, deletedCents: Doubl
 @Composable
 internal fun rememberReportCostData(report: Report): ReportCostData? {
     val context = LocalContext.current
-    if (report.apiCallCostsComplete && report.apiCallCosts.isNotEmpty()) {
+    if (com.ai.data.ReportStorage.isApiCallCostLedgerCurrent(report) && report.apiCallCosts.isNotEmpty()) {
         val rows = remember(report.apiCallCosts) {
             report.apiCallCosts.map { c ->
                 CostRow(

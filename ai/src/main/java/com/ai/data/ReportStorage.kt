@@ -32,6 +32,7 @@ data class ReportApiCallAppendResult(
  */
 object ReportStorage {
     private const val REPORTS_DIR = "reports"
+    private const val API_CALL_COST_LEDGER_VERSION = 3
     /** iconCalls `type` values for the report-level Find-alt title
      *  fan-out (short + long report title, per-model title). These are
      *  the only alt records with no structured cost field; see
@@ -42,6 +43,14 @@ object ReportStorage {
     private val gson = createAppGson()
     private val lock = ReentrantLock()
     @Volatile private var reportsDir: File? = null
+
+    data class ApiCallCostLedgerDelta(
+        val reportId: String,
+        val title: String,
+        val timestamp: Long,
+        val oldRows: List<ReportApiCallCost>,
+        val newRows: List<ReportApiCallCost>
+    )
 
     fun init(context: Context) {
         if (reportsDir == null) lock.withLock {
@@ -93,7 +102,7 @@ object ReportStorage {
             knowledgeBaseIds = knowledgeBaseIds, runId = runId,
             parameterPresetIds = parameterPresetIds, advancedParameters = advancedParameters,
             selectionParamsById = selectionParamsById, reportSystemPromptId = reportSystemPromptId,
-            apiCallCostsComplete = true)
+            apiCallCostsComplete = true, apiCallCostsVersion = API_CALL_COST_LEDGER_VERSION)
         lock.withLock { saveReport(report) }
         AuditLog.start(report.id)
         AuditLog.append(report.id, buildString {
@@ -786,6 +795,7 @@ object ReportStorage {
         inputTokens: Int = 0, outputTokens: Int = 0,
         inputCost: Double = 0.0, outputCost: Double = 0.0,
         traceFile: String? = null,
+        model: String? = null,
         rawResponse: String? = null,
         durationMs: Long? = null
     ): Boolean {
@@ -801,6 +811,7 @@ object ReportStorage {
                 languageInputCost = report.languageInputCost + inputCost,
                 languageOutputCost = report.languageOutputCost + outputCost,
                 languageTraceFile = traceFile,
+                languageModel = model ?: report.languageModel,
                 languageRawResponse = rawResponse,
                 languageDurationMs = durationMs ?: report.languageDurationMs,
                 timestamp = System.currentTimeMillis()
@@ -1280,21 +1291,44 @@ object ReportStorage {
             timestamp = if (createdAt > 0L) createdAt else timestamp
         )
 
-    /** Best-effort one-time migration for legacy reports. New reports do
-     *  not need traces: their ledger is written directly at call
-     *  completion. For reports created before the ledger existed, trace
-     *  files are the only complete per-call source, so we read them once
-     *  when Spend & Usage needs report totals and then persist the result
-     *  back into the report JSON. */
-    fun ensureApiCallCostLedger(context: Context, reportId: String): Boolean {
+    fun isApiCallCostLedgerCurrent(report: Report): Boolean =
+        report.apiCallCostsComplete && report.apiCallCostsVersion >= API_CALL_COST_LEDGER_VERSION
+
+    fun reconcileApiCallCostLedger(context: Context, reportId: String): ApiCallCostLedgerDelta? {
         init(context)
-        if (!isSafeFlatId(reportId)) return false
-        val initial = lock.withLock { loadReport(reportId) } ?: return false
-        if (initial.apiCallCostsComplete) return false
+        if (!isSafeFlatId(reportId)) return null
+        val initial = lock.withLock { loadReport(reportId) } ?: return null
+        if (isApiCallCostLedgerCurrent(initial)) return null
+
+        val secondaries = SecondaryResultStorage.listForReport(context, reportId)
+        val structuredRows = buildStructuredApiCallCostRows(context, initial, secondaries)
+        if (structuredRows.isNotEmpty()) {
+            return lock.withLock {
+                val current = loadReport(reportId) ?: return@withLock null
+                if (isApiCallCostLedgerCurrent(current)) return@withLock null
+                val rows = buildStructuredApiCallCostRows(context, current, secondaries)
+                if (rows.isEmpty()) return@withLock null
+                val oldRows = current.apiCallCosts.toList()
+                val updated = current.copy(
+                    apiCallCosts = rows.toMutableList(),
+                    apiCallCostsComplete = true,
+                    apiCallCostsVersion = API_CALL_COST_LEDGER_VERSION
+                )
+                updated.totalCost = ledgerTotalCost(updated)
+                saveReport(updated)
+                ApiCallCostLedgerDelta(
+                    reportId = updated.id,
+                    title = updated.barTitle.takeIf { it.isNotBlank() } ?: updated.prompt.take(80),
+                    timestamp = if (updated.createdAt > 0L) updated.createdAt else updated.timestamp,
+                    oldRows = oldRows,
+                    newRows = rows
+                )
+            }
+        }
 
         ApiTracer.init(context)
         val traceInfos = ApiTracer.getTraceFilesForReport(reportId).sortedBy { it.timestamp }
-        if (traceInfos.isEmpty()) return false
+        if (traceInfos.isEmpty()) return null
 
         val rows = LinkedHashMap<String, ReportApiCallCost>()
         initial.apiCallCosts.forEach { rows[it.id] = it }
@@ -1308,7 +1342,6 @@ object ReportStorage {
             rows.putIfAbsent(record.id, record)
         }
 
-        val secondaries = SecondaryResultStorage.listForReport(context, reportId)
         addStructuredTraceBackfillRows(
             context = context,
             report = initial,
@@ -1319,21 +1352,302 @@ object ReportStorage {
         )
 
         return lock.withLock {
-            val current = loadReport(reportId) ?: return@withLock false
-            if (current.apiCallCostsComplete) return@withLock false
+            val current = loadReport(reportId) ?: return@withLock null
+            if (isApiCallCostLedgerCurrent(current)) return@withLock null
+            val oldRows = current.apiCallCosts.toList()
             current.apiCallCosts.forEach { rows[it.id] = it }
             val updated = current.copy(
                 apiCallCosts = rows.values.sortedBy { it.timestamp }.toMutableList(),
-                apiCallCostsComplete = true
+                apiCallCostsComplete = true,
+                apiCallCostsVersion = API_CALL_COST_LEDGER_VERSION
             )
             updated.totalCost = ledgerTotalCost(updated)
             saveReport(updated)
-            true
+            ApiCallCostLedgerDelta(
+                reportId = updated.id,
+                title = updated.barTitle.takeIf { it.isNotBlank() } ?: updated.prompt.take(80),
+                timestamp = if (updated.createdAt > 0L) updated.createdAt else updated.timestamp,
+                oldRows = oldRows,
+                newRows = updated.apiCallCosts.toList()
+            )
         }
     }
 
+    /** Best-effort one-time migration for legacy reports. New reports do
+     *  not need traces: their ledger is written directly at call
+     *  completion. For old complete ledgers, versioned rebuilds from the
+     *  report JSON itself so cached-token/API-reported costs and helper
+     *  icon/title/language calls are kept without depending on traces. */
+    fun ensureApiCallCostLedger(context: Context, reportId: String): Boolean =
+        reconcileApiCallCostLedger(context, reportId) != null
+
     private fun ledgerTotalCost(report: Report): Double =
         report.apiCallCosts.sumOf { it.inputCost + it.outputCost }
+
+    private fun buildStructuredApiCallCostRows(
+        context: Context,
+        report: Report,
+        secondaries: List<SecondaryResult>
+    ): List<ReportApiCallCost> {
+        val rows = mutableListOf<ReportApiCallCost>()
+        fun splitProviderModel(value: String?): Pair<String?, String?> {
+            val parts = value?.split("/", limit = 2)
+            return parts?.getOrNull(0) to parts?.getOrNull(1)
+        }
+        fun providerModelFromTrace(traceFile: String?): Pair<String?, String?> {
+            val file = traceFile?.takeIf { it.isNotBlank() } ?: return null to null
+            ApiTracer.init(context)
+            val trace = ApiTracer.readTraceFile(file) ?: return null to null
+            val provider = ProviderRegistry.findByHost(trace.hostname)?.id
+            val model = trace.model?.takeIf { it.isNotBlank() }
+            return provider to model
+        }
+        fun pricingSource(providerId: String?, model: String?): String {
+            val provider = providerId?.let { AppService.findById(it) } ?: return ""
+            val resolvedModel = model?.takeIf { it.isNotBlank() } ?: return ""
+            return PricingCache.getPricing(context, provider, resolvedModel).source
+        }
+        fun add(
+            id: String,
+            type: String,
+            timestamp: Long,
+            providerId: String?,
+            model: String?,
+            inputTokens: Int,
+            outputTokens: Int,
+            inputCost: Double,
+            outputCost: Double,
+            durationMs: Long? = null,
+            traceFile: String? = null,
+            pricingTier: String? = null,
+            searchUnits: Int = 0
+        ) {
+            if (inputTokens <= 0 && outputTokens <= 0 && searchUnits <= 0 &&
+                inputCost <= 0.0 && outputCost <= 0.0
+            ) return
+            rows += ReportApiCallCost(
+                id = id,
+                timestamp = timestamp,
+                type = normalizeUsageKind(type),
+                provider = providerId.orEmpty(),
+                model = model.orEmpty(),
+                pricingTier = pricingTier ?: pricingSource(providerId, model),
+                inputTokens = inputTokens.coerceAtLeast(0),
+                outputTokens = outputTokens.coerceAtLeast(0),
+                inputCost = inputCost.coerceAtLeast(0.0),
+                outputCost = outputCost.coerceAtLeast(0.0),
+                searchUnits = searchUnits.coerceAtLeast(0),
+                durationMs = durationMs,
+                traceFile = traceFile
+            )
+        }
+        fun costByType(type: String): Pair<Double, Double> {
+            val matches = report.iconCalls.filter { it.type == type && it.attributedToSecondaryId == null }
+            return matches.sumOf { it.inputCost } to matches.sumOf { it.outputCost }
+        }
+        fun tokensByType(type: String): Pair<Int, Int> {
+            val matches = report.iconCalls.filter { it.type == type && it.attributedToSecondaryId == null }
+            return matches.sumOf { it.inputTokens } to matches.sumOf { it.outputTokens }
+        }
+        val altBySecondaryCost = report.iconCalls
+            .filter { !it.attributedToSecondaryId.isNullOrBlank() }
+            .groupBy { it.attributedToSecondaryId!! }
+            .mapValues { (_, calls) -> calls.sumOf { it.inputCost } to calls.sumOf { it.outputCost } }
+        val altBySecondaryTokens = report.iconCalls
+            .filter { !it.attributedToSecondaryId.isNullOrBlank() }
+            .groupBy { it.attributedToSecondaryId!! }
+            .mapValues { (_, calls) -> calls.sumOf { it.inputTokens } to calls.sumOf { it.outputTokens } }
+
+        report.agents.forEach { agent ->
+            agent.tokenUsage?.let { usage ->
+                add(
+                    id = "structured:agent:${agent.agentId}:prompt",
+                    type = "report/prompt",
+                    timestamp = report.createdAt.takeIf { it > 0L } ?: report.timestamp,
+                    providerId = agent.provider,
+                    model = agent.model,
+                    inputTokens = usage.inputTokens,
+                    outputTokens = usage.outputTokens,
+                    inputCost = agent.inputCost ?: 0.0,
+                    outputCost = agent.outputCost ?: ((agent.cost ?: 0.0) - (agent.inputCost ?: 0.0)).coerceAtLeast(0.0),
+                    durationMs = agent.durationMs,
+                    traceFile = agent.traceFile
+                )
+            }
+            val (titleProvider, titleModel) = splitProviderModel(agent.modelTitleModel)
+            add(
+                id = "structured:agent:${agent.agentId}:model-title",
+                type = "model/titles",
+                timestamp = report.createdAt.takeIf { it > 0L } ?: report.timestamp,
+                providerId = titleProvider,
+                model = titleModel,
+                inputTokens = agent.modelTitleInputTokens,
+                outputTokens = agent.modelTitleOutputTokens,
+                inputCost = agent.modelTitleInputCost,
+                outputCost = agent.modelTitleOutputCost,
+                traceFile = agent.modelTitleTraceFile
+            )
+        }
+
+        val mainAltCost = costByType("alt/main")
+        val mainAltTokens = tokensByType("alt/main")
+        val (iconProvider, iconModel) = splitProviderModel(report.iconModel)
+        add(
+            id = "structured:report:${report.id}:icon",
+            type = "report/icon",
+            timestamp = report.createdAt.takeIf { it > 0L } ?: report.timestamp,
+            providerId = iconProvider,
+            model = iconModel,
+            inputTokens = (report.iconInputTokens - mainAltTokens.first).coerceAtLeast(0),
+            outputTokens = (report.iconOutputTokens - mainAltTokens.second).coerceAtLeast(0),
+            inputCost = (report.iconInputCost - mainAltCost.first).coerceAtLeast(0.0),
+            outputCost = (report.iconOutputCost - mainAltCost.second).coerceAtLeast(0.0),
+            durationMs = report.iconDurationMs,
+            traceFile = report.iconTraceFile
+        )
+
+        val (languageDetectProvider, languageDetectModel) = splitProviderModel(report.languageModel)
+            .let { stored ->
+                if (!stored.first.isNullOrBlank() && !stored.second.isNullOrBlank()) stored
+                else providerModelFromTrace(report.languageTraceFile)
+            }
+        add(
+            id = "structured:report:${report.id}:language",
+            type = "report/language",
+            timestamp = report.createdAt.takeIf { it > 0L } ?: report.timestamp,
+            providerId = languageDetectProvider,
+            model = languageDetectModel,
+            inputTokens = report.languageInputTokens,
+            outputTokens = report.languageOutputTokens,
+            inputCost = report.languageInputCost,
+            outputCost = report.languageOutputCost,
+            durationMs = report.languageDurationMs,
+            traceFile = report.languageTraceFile
+        )
+
+        val languageAltCost = costByType("alt/language")
+        val languageAltTokens = tokensByType("alt/language")
+        val (languageProvider, languageModel) = splitProviderModel(report.languageIconModel)
+        add(
+            id = "structured:report:${report.id}:language-icon",
+            type = "report/language-icon",
+            timestamp = report.createdAt.takeIf { it > 0L } ?: report.timestamp,
+            providerId = languageProvider,
+            model = languageModel,
+            inputTokens = (report.languageIconInputTokens - languageAltTokens.first).coerceAtLeast(0),
+            outputTokens = (report.languageIconOutputTokens - languageAltTokens.second).coerceAtLeast(0),
+            inputCost = (report.languageIconInputCost - languageAltCost.first).coerceAtLeast(0.0),
+            outputCost = (report.languageIconOutputCost - languageAltCost.second).coerceAtLeast(0.0),
+            durationMs = report.languageIconDurationMs,
+            traceFile = report.languageIconTraceFile
+        )
+
+        val (shortTitleProvider, shortTitleModel) = splitProviderModel(report.titleModel)
+        add(
+            id = "structured:report:${report.id}:title-short",
+            type = "report/title-short",
+            timestamp = report.createdAt.takeIf { it > 0L } ?: report.timestamp,
+            providerId = shortTitleProvider,
+            model = shortTitleModel,
+            inputTokens = report.titleInputTokens,
+            outputTokens = report.titleOutputTokens,
+            inputCost = report.titleInputCost,
+            outputCost = report.titleOutputCost,
+            durationMs = report.titleDurationMs,
+            traceFile = report.titleTraceFile
+        )
+        val (longTitleProvider, longTitleModel) = splitProviderModel(report.titleLongModel)
+        add(
+            id = "structured:report:${report.id}:title-long",
+            type = "report/title-long",
+            timestamp = report.createdAt.takeIf { it > 0L } ?: report.timestamp,
+            providerId = longTitleProvider,
+            model = longTitleModel,
+            inputTokens = report.titleLongInputTokens,
+            outputTokens = report.titleLongOutputTokens,
+            inputCost = report.titleLongInputCost,
+            outputCost = report.titleLongOutputCost,
+            durationMs = report.titleLongDurationMs,
+            traceFile = report.titleLongTraceFile
+        )
+
+        report.iconCalls.forEachIndexed { index, call ->
+            add(
+                id = "structured:icon-call:${index}:${call.timestamp}:${call.type.orEmpty()}:${call.agentId}",
+                type = call.type ?: if (report.agents.any { it.agentId == call.agentId }) "model/icons" else "fan/meta",
+                timestamp = call.timestamp,
+                providerId = call.provider,
+                model = call.model,
+                inputTokens = call.inputTokens,
+                outputTokens = call.outputTokens,
+                inputCost = call.inputCost,
+                outputCost = call.outputCost,
+                durationMs = call.durationMs,
+                pricingTier = call.pricingTier
+            )
+        }
+
+        val secById = secondaries.associateBy { it.id }
+        secondaries.forEach { secondary ->
+            val usage = secondary.tokenUsage
+            if (usage != null) {
+                val source = secondary.translateSourceTargetId?.let { secById[it] }
+                val type = when (secondary.kind) {
+                    SecondaryKind.RERANK -> "after/rerank"
+                    SecondaryKind.MODERATION -> "after/moderation"
+                    SecondaryKind.TRANSLATE -> translateTraceType(
+                        secondary.translateSourceKind,
+                        sourceIsFanOut = source?.fanOutSourceAgentId != null,
+                        sourceIsFanIn = source?.fanInOf != null
+                    )
+                    SecondaryKind.META -> when {
+                        secondary.fanOutSourceAgentId != null -> "fan_out/${secondary.metaPromptName ?: "response"}"
+                        secondary.fanInOf != null -> "fan_in/${secondary.metaPromptName ?: "meta"}"
+                        !secondary.metaPromptName.isNullOrBlank() -> "meta/${secondary.metaPromptName}"
+                        else -> "meta/meta"
+                    }
+                    SecondaryKind.TOURNAMENT -> "after/tournament"
+                    SecondaryKind.JUDGES -> "after/judges"
+                    SecondaryKind.COMPARE -> "meta/compare"
+                }
+                val altCost = altBySecondaryCost[secondary.id] ?: (0.0 to 0.0)
+                val altTokens = altBySecondaryTokens[secondary.id] ?: (0 to 0)
+                add(
+                    id = "structured:secondary:${secondary.id}:base",
+                    type = type,
+                    timestamp = secondary.timestamp,
+                    providerId = secondary.providerId,
+                    model = secondary.model,
+                    inputTokens = (usage.inputTokens - altTokens.first).coerceAtLeast(0),
+                    outputTokens = (usage.outputTokens - altTokens.second).coerceAtLeast(0),
+                    inputCost = ((secondary.inputCost ?: 0.0) - altCost.first).coerceAtLeast(0.0),
+                    outputCost = ((secondary.outputCost ?: 0.0) - altCost.second).coerceAtLeast(0.0),
+                    durationMs = secondary.durationMs,
+                    traceFile = secondary.traceFile
+                )
+            }
+            if (secondary.fanOutSourceAgentId != null && secondary.fanInOf == null &&
+                (secondary.titleInputCost > 0.0 || secondary.titleOutputCost > 0.0 ||
+                    secondary.iconInputCost > 0.0 || secondary.iconOutputCost > 0.0)
+            ) {
+                val (provider, model) = splitProviderModel(secondary.titleModel)
+                add(
+                    id = "structured:secondary:${secondary.id}:fan-meta",
+                    type = "fan/meta",
+                    timestamp = secondary.timestamp,
+                    providerId = provider ?: secondary.providerId,
+                    model = model ?: secondary.model,
+                    inputTokens = secondary.titleInputTokens + secondary.iconInputTokens,
+                    outputTokens = secondary.titleOutputTokens + secondary.iconOutputTokens,
+                    inputCost = secondary.titleInputCost + secondary.iconInputCost,
+                    outputCost = secondary.titleOutputCost + secondary.iconOutputCost,
+                    durationMs = secondary.titleDurationMs
+                )
+            }
+        }
+
+        return rows.sortedBy { it.timestamp }
+    }
 
     private fun apiCallCostFromTrace(
         context: Context,
@@ -1498,11 +1812,12 @@ object ReportStorage {
             outputCost = report.iconOutputCost,
             durationMs = report.iconDurationMs
         )
+        val (languageDetectProvider, languageDetectModel) = splitProviderModel(report.languageModel)
         addIfTraceWasNotParsed(
             traceFile = report.languageTraceFile,
             type = "report/language",
-            providerId = null,
-            model = null,
+            providerId = languageDetectProvider,
+            model = languageDetectModel,
             inputTokens = report.languageInputTokens,
             outputTokens = report.languageOutputTokens,
             inputCost = report.languageInputCost,

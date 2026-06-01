@@ -897,8 +897,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
 
         if (response.error == null && response.tokenUsage != null) {
             val usage = response.tokenUsage
-            appViewModel.settingsPrefs.updateUsageStatsAsync(task.runtimeAgent.provider, task.runtimeAgent.model,
-                usage.inputTokens, usage.outputTokens, usage.totalTokens)
+            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                task.runtimeAgent.provider, task.runtimeAgent.model, usage
+            )
         }
 
         val stillPresent = ReportStorage.getReport(context, reportId)
@@ -1096,7 +1097,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             val usage = response.tokenUsage
                             appViewModel.settingsPrefs.updateUsageStatsAsync(
                                 task.runtimeAgent.provider, task.runtimeAgent.model,
-                                usage.inputTokens, usage.outputTokens, usage.totalTokens,
+                                usage,
                                 kind = MODEL_TEMPERATURE_CALL_KIND
                             )
                         }
@@ -1303,7 +1304,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             val usage = response.tokenUsage
                             appViewModel.settingsPrefs.updateUsageStatsAsync(
                                 task.runtimeAgent.provider, task.runtimeAgent.model,
-                                usage.inputTokens, usage.outputTokens, usage.totalTokens,
+                                usage,
                                 kind = MODEL_REASONING_CALL_KIND
                             )
                         }
@@ -1489,7 +1490,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         val usage = response.tokenUsage
                         appViewModel.settingsPrefs.updateUsageStatsAsync(
                             task.runtimeAgent.provider, task.runtimeAgent.model,
-                            usage.inputTokens, usage.outputTokens, usage.totalTokens,
+                            usage,
                             kind = MODEL_WEB_SEARCH_CALL_KIND
                         )
                     }
@@ -1692,9 +1693,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         appViewModel.settingsPrefs.updateUsageStatsAsync(
                             task.runtimeAgent.provider,
                             task.runtimeAgent.model,
-                            usage.inputTokens,
-                            usage.outputTokens,
-                            usage.totalTokens,
+                            usage,
                             kind = MODEL_PROMPT_EDIT_CALL_KIND
                         )
                     }

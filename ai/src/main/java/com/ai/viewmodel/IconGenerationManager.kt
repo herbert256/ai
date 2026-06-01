@@ -111,6 +111,13 @@ class IconGenerationManager(
     private val appViewModel: AppViewModel,
     private val rvm: ReportViewModel
 ) {
+    private fun costSplit(
+        usage: TokenUsage?,
+        pricing: PricingCache.ModelPricing?
+    ): Pair<Double, Double> =
+        if (usage != null && pricing != null) PricingCache.computeInOutCost(usage, pricing)
+        else 0.0 to 0.0
+
     // ===== Find-alternative: pre-pick "Edit prompt" support =====
     // The user edits the resolved alt prompt BEFORE picking models. The
     // edited text is stashed here the instant they tap Next and consumed
@@ -314,8 +321,7 @@ class IconGenerationManager(
                         val inT = tu?.inputTokens ?: 0
                         val outT = tu?.outputTokens ?: 0
                         val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
-                        val inC = inT * (pricing?.promptPrice ?: 0.0)
-                        val outC = outT * (pricing?.completionPrice ?: 0.0)
+                        val (inC, outC) = costSplit(tu, pricing)
                         ReportStorage.updateReportIcon(
                             context, reportId, emoji,
                             inputTokens = inT, outputTokens = outT,
@@ -324,6 +330,11 @@ class IconGenerationManager(
                             promptUsed = "main",
                             durationMs = durationMs
                         )
+                        if (tu != null && winAgent != null && (inT > 0 || outT > 0)) {
+                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                winAgent.provider, winAgent.model, tu, kind = "icon"
+                            )
+                        }
                     }
                     else -> ReportStorage.updateReportIconError(
                         context, reportId,
@@ -431,11 +442,17 @@ class IconGenerationManager(
         val inT = tu?.inputTokens ?: 0
         val outT = tu?.outputTokens ?: 0
         val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
+        val (inC, outC) = costSplit(tu, pricing)
+        if (tu != null && winAgent != null && (inT > 0 || outT > 0)) {
+            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                winAgent.provider, winAgent.model, tu, kind = "title"
+            )
+        }
         return TitleGenResult(
             title = title,
             inputTokens = inT, outputTokens = outT,
-            inputCost = inT * (pricing?.promptPrice ?: 0.0),
-            outputCost = outT * (pricing?.completionPrice ?: 0.0),
+            inputCost = inC,
+            outputCost = outC,
             durationMs = durationMs,
             traceFile = traceSink.get(),
             model = winAgent?.let { "${it.provider.id}/${it.model}" },
@@ -669,8 +686,7 @@ class IconGenerationManager(
                                 val inT = tu?.inputTokens ?: 0
                                 val outT = tu?.outputTokens ?: 0
                                 val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
-                                val inC = inT * (pricing?.promptPrice ?: 0.0)
-                                val outC = outT * (pricing?.completionPrice ?: 0.0)
+                                val (inC, outC) = costSplit(tu, pricing)
                                 ReportStorage.updateReportAgentModelTitle(
                                     context, reportId, ra.agentId, generated,
                                     model = winAgent?.let { "${it.provider.id}/${it.model}" },
@@ -680,9 +696,9 @@ class IconGenerationManager(
                                     promptUsed = "model_title",
                                     durationMs = durationMs
                                 )
-                                if ((inT > 0 || outT > 0) && winAgent != null) {
+                                if ((inT > 0 || outT > 0) && winAgent != null && tu != null) {
                                     appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                        winAgent.provider, winAgent.model, inT, outT, kind = "title"
+                                        winAgent.provider, winAgent.model, tu, kind = "title"
                                     )
                                 }
                             }
@@ -756,6 +772,7 @@ class IconGenerationManager(
                         provider = winAgent.provider, model = winAgent.model,
                         inT = inT, outT = outT, durationMs = durationMs,
                         success = emoji != null,
+                        tokenUsage = tu,
                         type = "model/icons"
                     )
                 }
@@ -824,8 +841,7 @@ class IconGenerationManager(
                             val inT = tu?.inputTokens ?: 0
                             val outT = tu?.outputTokens ?: 0
                             val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
-                            val inC = inT * (pricing?.promptPrice ?: 0.0)
-                            val outC = outT * (pricing?.completionPrice ?: 0.0)
+                            val (inC, outC) = costSplit(tu, pricing)
                             // One call → attribute its cost AND duration to
                             // the detection row; the icon row stays 0 for
                             // both. ReportInfoScreen's total-API-time sums
@@ -839,6 +855,7 @@ class IconGenerationManager(
                                 inputTokens = inT, outputTokens = outT,
                                 inputCost = inC, outputCost = outC,
                                 traceFile = traceSink.get(),
+                                model = winAgent?.let { "${it.provider.id}/${it.model}" },
                                 rawResponse = analysis,
                                 durationMs = durationMs
                             )
@@ -853,6 +870,11 @@ class IconGenerationManager(
                                 promptUsed = "language",
                                 durationMs = 0L
                             )
+                            if (tu != null && winAgent != null && (inT > 0 || outT > 0)) {
+                                appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                    winAgent.provider, winAgent.model, tu, kind = "language"
+                                )
+                            }
                         }
                     }
                     else -> ReportStorage.updateReportLanguageError(
@@ -926,8 +948,7 @@ class IconGenerationManager(
                     val inT = tu?.inputTokens ?: 0
                     val outT = tu?.outputTokens ?: 0
                     val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
-                    val inC = inT * (pricing?.promptPrice ?: 0.0)
-                    val outC = outT * (pricing?.completionPrice ?: 0.0)
+                    val (inC, outC) = costSplit(tu, pricing)
                     InternalPromptIconCache.recordInitial(
                         name = prompt.name, title = prompt.title,
                         emoji = emoji,
@@ -938,9 +959,9 @@ class IconGenerationManager(
                         inputCost = inC, outputCost = outC,
                         promptName = "second-meta"
                     )
-                    if ((inT > 0 || outT > 0) && winAgent != null) {
+                    if ((inT > 0 || outT > 0) && winAgent != null && tu != null) {
                         appViewModel.settingsPrefs.updateUsageStatsAsync(
-                            winAgent.provider, winAgent.model, inT, outT, kind = "icon"
+                            winAgent.provider, winAgent.model, tu, kind = "icon"
                         )
                     }
                     appViewModel.updateUiState {
@@ -1062,15 +1083,16 @@ class IconGenerationManager(
                             val pricing = PricingCache.getPricing(context, item.provider, item.model)
                             val inT = tu?.inputTokens ?: 0
                             val outT = tu?.outputTokens ?: 0
-                            val inC = inT * pricing.promptPrice
-                            val outC = outT * pricing.completionPrice
+                            val (inC, outC) = costSplit(tu, pricing)
                             if (inT > 0 || outT > 0) {
                                 InternalPromptIconCache.bumpCost(
                                     prompt.name, prompt.title, inT, outT, inC, outC
                                 )
-                                appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                    item.provider, item.model, inT, outT, kind = "icon"
-                                )
+                                tu?.let {
+                                    appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                        item.provider, item.model, it, kind = "icon"
+                                    )
+                                }
                                 // Per-report attribution: bump the SR's
                                 // own cost (so its Report-Manage row
                                 // includes the alt spend) AND append
@@ -1284,8 +1306,7 @@ class IconGenerationManager(
                                     val pricing = PricingCache.getPricing(context, item.provider, item.model)
                                     val inT = tu?.inputTokens ?: 0
                                     val outT = tu?.outputTokens ?: 0
-                                    val inC = inT * pricing.promptPrice
-                                    val outC = outT * pricing.completionPrice
+                                    val (inC, outC) = costSplit(tu, pricing)
                                     if (inT > 0 || outT > 0) {
                                         // Bump the pair's per-icon cost
                                         // counters so the L2/L3 row total +
@@ -1296,9 +1317,11 @@ class IconGenerationManager(
                                             inputTokens = inT, outputTokens = outT,
                                             inputCost = inC, outputCost = outC
                                         )
-                                        appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                            item.provider, item.model, inT, outT, kind = "icon"
-                                        )
+                                        tu?.let {
+                                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                                item.provider, item.model, it, kind = "icon"
+                                            )
+                                        }
                                         // Per-call audit row labelled
                                         // `icon_fan_out_alt`, attributed to
                                         // the SR so the cost-table per-call
@@ -1448,8 +1471,7 @@ class IconGenerationManager(
                                     val pricing = PricingCache.getPricing(context, item.provider, item.model)
                                     val inT = tu?.inputTokens ?: 0
                                     val outT = tu?.outputTokens ?: 0
-                                    val inC = inT * pricing.promptPrice
-                                    val outC = outT * pricing.completionPrice
+                                    val (inC, outC) = costSplit(tu, pricing)
                                     if (inT > 0 || outT > 0) {
                                         SecondaryResultStorage.bumpFanOutTitleCost(
                                             context, reportId, pairId,
@@ -1457,9 +1479,11 @@ class IconGenerationManager(
                                             inputCost = inC, outputCost = outC,
                                             model = "${item.provider.id}/${item.model}"
                                         )
-                                        appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                            item.provider, item.model, inT, outT, kind = "title"
-                                        )
+                                        tu?.let {
+                                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                                item.provider, item.model, it, kind = "title"
+                                            )
+                                        }
                                         ReportStorage.appendIconCall(context, reportId, IconCallRecord(
                                             agentId = pairId, tier = 0,
                                             provider = item.provider.id, model = item.model,
@@ -1569,8 +1593,7 @@ class IconGenerationManager(
                     val inT = tu?.inputTokens ?: 0
                     val outT = tu?.outputTokens ?: 0
                     val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
-                    val inC = inT * (pricing?.promptPrice ?: 0.0)
-                    val outC = outT * (pricing?.completionPrice ?: 0.0)
+                    val (inC, outC) = costSplit(tu, pricing)
                     InternalPromptIconCache.recordInitial(
                         name = "translation_icon", title = language,
                         emoji = emoji,
@@ -1581,9 +1604,9 @@ class IconGenerationManager(
                         inputCost = inC, outputCost = outC,
                         promptName = "translation-icon"
                     )
-                    if ((inT > 0 || outT > 0) && winAgent != null) {
+                    if ((inT > 0 || outT > 0) && winAgent != null && tu != null) {
                         appViewModel.settingsPrefs.updateUsageStatsAsync(
-                            winAgent.provider, winAgent.model, inT, outT, kind = "icon"
+                            winAgent.provider, winAgent.model, tu, kind = "icon"
                         )
                     }
                     appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
@@ -1665,15 +1688,16 @@ class IconGenerationManager(
                             val pricing = PricingCache.getPricing(context, item.provider, item.model)
                             val inT = tu?.inputTokens ?: 0
                             val outT = tu?.outputTokens ?: 0
-                            val inC = inT * pricing.promptPrice
-                            val outC = outT * pricing.completionPrice
+                            val (inC, outC) = costSplit(tu, pricing)
                             if (inT > 0 || outT > 0) {
                                 InternalPromptIconCache.bumpCost(
                                     "translation_icon", language, inT, outT, inC, outC
                                 )
-                                appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                    item.provider, item.model, inT, outT, kind = "icon"
-                                )
+                                tu?.let {
+                                    appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                        item.provider, item.model, it, kind = "icon"
+                                    )
+                                }
                                 // Per-report attribution: bump the first
                                 // TRANSLATE SR for this language so its
                                 // Report-Manage row reflects the alt
@@ -1854,8 +1878,7 @@ class IconGenerationManager(
                                     val pricing = PricingCache.getPricing(context, item.provider, item.model)
                                     val inT = tu?.inputTokens ?: 0
                                     val outT = tu?.outputTokens ?: 0
-                                    val inC = inT * pricing.promptPrice
-                                    val outC = outT * pricing.completionPrice
+                                    val (inC, outC) = costSplit(tu, pricing)
                                     // Cost bump is unconditional — the
                                     // user paid for the call whether or
                                     // not it returned a usable emoji.
@@ -1878,6 +1901,11 @@ class IconGenerationManager(
                                             success = response.error == null,
                                             type = "alt/main"
                                         ))
+                                        tu?.let {
+                                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                                item.provider, item.model, it, kind = "icon"
+                                            )
+                                        }
                                     }
                                     val totalCost = inC + outC
                                     if (response.error == null && emoji.isNotEmpty()) {
@@ -2024,11 +2052,12 @@ class IconGenerationManager(
                         val pricing = PricingCache.getPricing(context, item.provider, item.model)
                         val inT = tu?.inputTokens ?: 0
                         val outT = tu?.outputTokens ?: 0
-                        val inC = inT * pricing.promptPrice
-                        val outC = outT * pricing.completionPrice
+                        val (inC, outC) = costSplit(tu, pricing)
                         val cost = inC + outC
                         if (inT > 0 || outT > 0) {
-                            appViewModel.settingsPrefs.updateUsageStatsAsync(item.provider, item.model, inT, outT, kind = "title")
+                            tu?.let {
+                                appViewModel.settingsPrefs.updateUsageStatsAsync(item.provider, item.model, it, kind = "title")
+                            }
                             // Per-call audit row so this alternative-title
                             // spend shows in the report cost table + totals
                             // (mirrors the Find-alt icon fan-out, which
@@ -2139,8 +2168,7 @@ class IconGenerationManager(
                                     val pricing = PricingCache.getPricing(context, item.provider, item.model)
                                     val inT = tu?.inputTokens ?: 0
                                     val outT = tu?.outputTokens ?: 0
-                                    val inC = inT * pricing.promptPrice
-                                    val outC = outT * pricing.completionPrice
+                                    val (inC, outC) = costSplit(tu, pricing)
                                     val totalCost = inC + outC
                                     // Cost bump is unconditional — every call
                                     // the user paid for adds to the language-
@@ -2161,6 +2189,11 @@ class IconGenerationManager(
                                             success = response.error == null,
                                             type = "alt/language"
                                         ))
+                                        tu?.let {
+                                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                                item.provider, item.model, it, kind = "icon"
+                                            )
+                                        }
                                     }
                                     if (response.error == null && emoji.isNotEmpty()) {
                                         appViewModel.updateLanguageIconFanOut(reportId) { list ->
@@ -2270,8 +2303,7 @@ class IconGenerationManager(
                                     val pricing = PricingCache.getPricing(context, item.provider, item.model)
                                     val inT = tu?.inputTokens ?: 0
                                     val outT = tu?.outputTokens ?: 0
-                                    val inC = inT * pricing.promptPrice
-                                    val outC = outT * pricing.completionPrice
+                                    val (inC, outC) = costSplit(tu, pricing)
                                     // Cost bump is unconditional — every
                                     // call counts on the agent's row, same
                                     // additive rule as the report-level
@@ -2300,6 +2332,11 @@ class IconGenerationManager(
                                             success = response.error == null,
                                             type = "alt/report"
                                         ))
+                                        tu?.let {
+                                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                                item.provider, item.model, it, kind = "icon"
+                                            )
+                                        }
                                     }
                                     val totalCost = inC + outC
                                     if (response.error == null) {
@@ -2421,11 +2458,11 @@ class IconGenerationManager(
         context: Context, reportId: String, agentId: String, tier: Int,
         provider: AppService, model: String,
         inT: Int, outT: Int, durationMs: Long, success: Boolean,
+        tokenUsage: TokenUsage? = null,
         type: String? = null
     ) {
         val pricing = PricingCache.getPricing(context, provider, model)
-        val inC = inT * pricing.promptPrice
-        val outC = outT * pricing.completionPrice
+        val (inC, outC) = costSplit(tokenUsage ?: TokenUsage(inT, outT), pricing)
         if (inT > 0 || outT > 0) {
             ReportStorage.bumpReportAgentIconCost(
                 context, reportId, agentId,
@@ -2433,7 +2470,7 @@ class IconGenerationManager(
                 inputCost = inC, outputCost = outC
             )
             appViewModel.settingsPrefs.updateUsageStatsAsync(
-                provider, model, inT, outT, kind = "icon"
+                provider, model, tokenUsage ?: TokenUsage(inT, outT), kind = "icon"
             )
         }
         ReportStorage.appendIconCall(
@@ -2621,15 +2658,16 @@ class IconGenerationManager(
                 val tu = outcome.response.tokenUsage
                 val inT = tu?.inputTokens ?: 0
                 val outT = tu?.outputTokens ?: 0
-                if ((inT > 0 || outT > 0) && winAgent != null) {
+                if ((inT > 0 || outT > 0) && winAgent != null && tu != null) {
                     val pricing = PricingCache.getPricing(context, winAgent.provider, winAgent.model)
+                    val (inC, outC) = costSplit(tu, pricing)
                     SecondaryResultStorage.bumpFanOutTitleCost(
                         context, reportId, pair.id,
                         inputTokens = inT, outputTokens = outT,
-                        inputCost = inT * pricing.promptPrice, outputCost = outT * pricing.completionPrice,
+                        inputCost = inC, outputCost = outC,
                         model = "${winAgent.provider.id}/${winAgent.model}"
                     )
-                    appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, inT, outT, kind = "title")
+                    appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = "title")
                 }
                 if (title.isNotBlank()) {
                     SecondaryResultStorage.setFanOutTitle(
