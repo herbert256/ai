@@ -188,7 +188,19 @@ internal fun rememberReportRuntimeState(
             ) else emptyList()
             infoEnabled = infoJobs.isNotEmpty()
             infoState = aggregateInfoState(infoJobs)
-            infoMetaTotal = infoJobs.sumOf { it.cost }
+            // The info row's COST is the actual metadata spend, summed straight
+            // from the persisted fields — NOT infoJobs.sumOf{cost}, which is
+            // toggle-gated (a toggled-off category drops its already-spent cost,
+            // making the info row and the grand total disagree with the
+            // Report-costs screen). infoEnabled / infoState stay job-derived so
+            // the row's status still reflects the active jobs. Same per-field
+            // costs buildInfoJobs uses: report icon, language detect + icon,
+            // report title short + long, per-model title, per-model icon.
+            infoMetaTotal = reportIconCost + languageDetectCost + languageIconCost +
+                ((r?.titleInputCost ?: 0.0) + (r?.titleOutputCost ?: 0.0) +
+                    (r?.titleLongInputCost ?: 0.0) + (r?.titleLongOutputCost ?: 0.0)) +
+                agentModelTitles.values.sumOf { it.cost } +
+                agentIconRows.values.sumOf { it.cost }
             loadedReportPrompt = r?.prompt.orEmpty()
             loadedReportTitle = r?.barTitle
             loadedReportTimestamp = r?.timestamp ?: 0L

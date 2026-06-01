@@ -583,10 +583,15 @@ internal fun ColumnScope.GenerationPhase(
 
     val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
     val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
-    // All metadata-job costs (report icon/language/title + per-model
-    // icon/model-title) are now summed once as `infoMetaTotal` (the same
-    // value the info row + Get-info screen show), folded into the grand
-    // total here so the bottom-bar total stays the true full total.
+    // The bottom-bar total is the exact sum of the body rows below — each
+    // term is shown in a row, so the headline can't drift from the page:
+    //   agentCost                  → the per-model report rows
+    //   secondaryTotals in/out     → the meta / fan-out / translation rows
+    //   secondaryTotals.fanOutMeta → the per-run "fan-meta" rows (title+icon)
+    //   infoMetaTotal              → the single "info" row (UNCONDITIONAL
+    //                                metadata spend, not toggle-gated)
+    //   costsFromDeletedItems      → the "Costs from deleted items" row
+    //   liveTranslationCost        → the in-flight translation rows
     val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost +
         liveTranslationCost + costsFromDeletedItems + secondaryTotals.fanOutMetaCost + infoMetaTotal
     val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
@@ -1133,8 +1138,14 @@ internal fun ColumnScope.GenerationPhase(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
-                        if (run.titleCost > 0.0) {
-                            Text(formatCents(run.titleCost), fontSize = 10.sp,
+                        // One Fan Meta call bills both the title and the icon to
+                        // the pair, so this row shows BOTH (titleCost + iconCost)
+                        // — matching the fan-out meta spend folded into the grand
+                        // total. Showing titleCost alone left the icon half in the
+                        // total but in no row.
+                        val fanMetaCost = run.titleCost + run.iconCost
+                        if (fanMetaCost > 0.0) {
+                            Text(formatCents(fanMetaCost), fontSize = 10.sp,
                                 color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
                         }
                     }
@@ -1254,9 +1265,11 @@ internal fun ColumnScope.GenerationPhase(
         // model-title) now live on the "Report - Get info" screen. The
         // row's status aggregates every enabled job (❌ if any failed,
         // else ⏳ if any clock/running, else ✅) and its cost is the
-        // info meta total; tapping opens the Info screen. Hidden when no
-        // metadata job is enabled.
-        if (infoEnabled) {
+        // info meta total; tapping opens the Info screen. Shown when a
+        // metadata job is enabled OR metadata cost was already spent — so
+        // toggling a metadata feature off doesn't hide its already-spent
+        // cost from the page (that cost stays in the grand total).
+        if (infoEnabled || infoMetaTotal > 0.0) {
             item(key = "row-info") {
                 Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     .clickable { onGetInfo() },
