@@ -11,18 +11,21 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.core.view.WindowCompat
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.ai.data.SharedContent
 import com.ai.ui.navigation.AppNavHost
-import com.ai.viewmodel.AppViewModel
+import com.ai.ui.shared.AppColors
 import com.ai.ui.theme.AppTheme
+import com.ai.viewmodel.AppViewModel
 
 class MainActivity : ComponentActivity() {
     private val externalTitle = mutableStateOf<String?>(null)
@@ -50,6 +53,17 @@ class MainActivity : ComponentActivity() {
             // has been removed — View screens no longer hide the
             // system bar at all.
             val hideStatusBar = uiState.generalSettings.fullScreen
+            val appBackground = AppColors.AppBackground
+            SideEffect {
+                val systemBarColor = appBackground.toArgb()
+                val useDarkSystemBarIcons = appBackground.luminance() > 0.5f
+                window.statusBarColor = systemBarColor
+                window.navigationBarColor = systemBarColor
+                WindowInsetsControllerCompat(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = useDarkSystemBarIcons
+                    isAppearanceLightNavigationBars = useDarkSystemBarIcons
+                }
+            }
             LaunchedEffect(hideStatusBar) {
                 val controller = WindowInsetsControllerCompat(window, window.decorView)
                 if (hideStatusBar) {
@@ -65,9 +79,8 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     // Pad the status bar only when it's visible — when
                     // hidden the inset shrinks to 0 so there's no slot
-                    // to reserve. Both system bars share the app's
-                    // #000000 background so drawing under the gesture
-                    // pill stays visually consistent.
+                    // to reserve. Both system bars share AppBackground
+                    // so drawing under the gesture pill stays consistent.
                     modifier = if (hideStatusBar) Modifier.fillMaxSize()
                                else Modifier.fillMaxSize().statusBarsPadding()
                 ) { innerPadding ->
