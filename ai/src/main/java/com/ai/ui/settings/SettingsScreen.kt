@@ -1477,11 +1477,11 @@ private fun uiColorPickerSpecs(): List<UiColorPickerSpec> {
 private fun uiColorTitle(key: String): String = when (key) {
     "InfoAccent" -> "Secondary / Info Accent"
     "SuccessAccent" -> "Success / Success Count Accent"
-    "DangerAccent" -> "Danger / Error / Destructive Action Background"
-    "WarningAccent" -> "Warning / Caution Accent"
-    "TextSecondary" -> "Text Secondary / Tertiary"
-    "TextDim" -> "Text Dim / Disabled / Very Dim / Darkest"
-    "BorderUnfocused" -> "Divider Dark / Border Unfocused"
+    "DangerAccent" -> "Error"
+    "WarningAccent" -> "Warning"
+    "TextSecondary" -> "Text Secondary"
+    "TextDim" -> "Text Dimmed"
+    "BorderUnfocused" -> "Border"
     else -> readableUiColorName(key)
 }
 
