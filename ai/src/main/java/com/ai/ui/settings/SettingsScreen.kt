@@ -1411,7 +1411,12 @@ private fun UiColorsSubScreen(
                     argb = colorOverrides[spec.key] ?: AppColors.defaultArgbFor(spec.key),
                     defaultArgb = AppColors.defaultArgbFor(spec.key),
                     onChange = { next ->
-                        colorOverrides = colorOverrides.toMutableMap().apply { put(spec.key, next) }.toMap()
+                        // A combined row writes the same value to every key it
+                        // represents (spec.alsoSet) — e.g. Primary + Info accent.
+                        colorOverrides = colorOverrides.toMutableMap().apply {
+                            put(spec.key, next)
+                            spec.alsoSet.forEach { put(it, next) }
+                        }.toMap()
                     }
                 )
             }
@@ -1420,7 +1425,10 @@ private fun UiColorsSubScreen(
 }
 
 private data class UiColorPickerSpec(
+    /** Representative key — drives the displayed value, default and reset. */
     val key: String,
+    /** Extra keys this single picker also writes (combined rows). */
+    val alsoSet: List<String> = emptyList(),
     val title: String,
     val description: String,
     val icon: String
@@ -1433,15 +1441,38 @@ private fun currentUiColorMap(generalSettings: GeneralSettings): Map<String, Int
     }
 }
 
-private fun uiColorPickerSpecs(): List<UiColorPickerSpec> =
-    AppColors.defaultUiColorMap().keys.map { key ->
-        UiColorPickerSpec(
-            key = key,
-            title = uiColorTitle(key),
-            description = uiColorDescription(key),
-            icon = uiColorIcon(key)
-        )
+private fun uiColorPickerSpecs(): List<UiColorPickerSpec> {
+    val out = mutableListOf<UiColorPickerSpec>()
+    AppColors.defaultUiColorMap().keys.forEach { key ->
+        when (key) {
+            // Folded into their combined row below; no standalone picker.
+            "InfoAccent", "CardBackground" -> Unit
+            "PrimaryAccent" -> out += UiColorPickerSpec(
+                key = "PrimaryAccent",
+                alsoSet = listOf("InfoAccent"),
+                title = "Primary & Secondary / Info Accent",
+                description = "One accent for primary actions and the secondary/detail accents " +
+                    "(headings, links, selected states, totals, focused fields).",
+                icon = uiColorIcon("PrimaryAccent")
+            )
+            "CardBackgroundAlt" -> out += UiColorPickerSpec(
+                key = "CardBackgroundAlt",
+                alsoSet = listOf("CardBackground"),
+                title = "Card Background",
+                description = "One surface for both the gray-blue cards (Monitor / Housekeeping) " +
+                    "and the darker dense panels.",
+                icon = uiColorIcon("CardBackgroundAlt")
+            )
+            else -> out += UiColorPickerSpec(
+                key = key,
+                title = uiColorTitle(key),
+                description = uiColorDescription(key),
+                icon = uiColorIcon(key)
+            )
+        }
     }
+    return out
+}
 
 private fun uiColorTitle(key: String): String = when (key) {
     "InfoAccent" -> "Secondary / Info Accent"
