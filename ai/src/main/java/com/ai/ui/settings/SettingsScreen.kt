@@ -1442,12 +1442,25 @@ private fun currentUiColorMap(generalSettings: GeneralSettings): Map<String, Int
 }
 
 private fun uiColorPickerSpecs(): List<UiColorPickerSpec> {
-    val out = mutableListOf<UiColorPickerSpec>()
-    AppColors.defaultUiColorMap().keys.forEach { key ->
+    // Explicit importance order; combined rows appear once via their
+    // representative key. Backgrounds & titles → text → card → button →
+    // accents → minor surfaces → border. "InfoAccent" / "CardBackground" are
+    // folded into the combined rows below.
+    val order = listOf(
+        "AppBackground", "MainTitle", "SubTitle",
+        "TextPrimary", "TextSecondary", "TextDim",
+        "CardBackgroundAlt", "ButtonBackground",
+        "PrimaryAccent", "SuccessAccent", "DangerAccent", "WarningAccent", "QueueAccent",
+        "SurfaceDark", "SelectionHighlight", "DisabledBackground",
+        "BorderUnfocused",
+    )
+    val folded = setOf("InfoAccent", "CardBackground")
+    // Append any color key not yet placed (defends against a new AppColors key
+    // being added later without updating this list).
+    val rest = AppColors.defaultUiColorMap().keys.filter { it !in order && it !in folded }
+    return (order + rest).map { key ->
         when (key) {
-            // Folded into their combined row below; no standalone picker.
-            "InfoAccent", "CardBackground" -> Unit
-            "PrimaryAccent" -> out += UiColorPickerSpec(
+            "PrimaryAccent" -> UiColorPickerSpec(
                 key = "PrimaryAccent",
                 alsoSet = listOf("InfoAccent"),
                 title = "Primary & Secondary / Info Accent",
@@ -1455,7 +1468,7 @@ private fun uiColorPickerSpecs(): List<UiColorPickerSpec> {
                     "(headings, links, selected states, totals, focused fields).",
                 icon = uiColorIcon("PrimaryAccent")
             )
-            "CardBackgroundAlt" -> out += UiColorPickerSpec(
+            "CardBackgroundAlt" -> UiColorPickerSpec(
                 key = "CardBackgroundAlt",
                 alsoSet = listOf("CardBackground"),
                 title = "Card Background",
@@ -1463,7 +1476,7 @@ private fun uiColorPickerSpecs(): List<UiColorPickerSpec> {
                     "and the darker dense panels.",
                 icon = uiColorIcon("CardBackgroundAlt")
             )
-            else -> out += UiColorPickerSpec(
+            else -> UiColorPickerSpec(
                 key = key,
                 title = uiColorTitle(key),
                 description = uiColorDescription(key),
@@ -1471,7 +1484,6 @@ private fun uiColorPickerSpecs(): List<UiColorPickerSpec> {
             )
         }
     }
-    return out
 }
 
 private fun uiColorTitle(key: String): String = when (key) {
