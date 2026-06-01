@@ -31,9 +31,14 @@ fun SwarmEditScreen(
 ) {
     BackHandler { onBack() }
     val isEditing = swarm != null
-    // Member rows are always kept sorted by provider id, then model (both
-    // case-insensitive) so the list reads predictably regardless of add order.
-    val memberOrder = compareBy<SwarmMember>({ it.provider.id.lowercase() }, { it.model.lowercase() })
+    // Member rows are always kept sorted by provider id, then the DISPLAYED
+    // (short) model name — both case-insensitive — so the list reads in the
+    // visual order the user sees, regardless of add order or routing prefixes.
+    val memberOrder = compareBy<SwarmMember>(
+        { it.provider.id.lowercase() },
+        { com.ai.ui.shared.shortModelName(it.model).lowercase() },
+        { it.model.lowercase() }
+    )
 
     var resetTick by remember { mutableStateOf(0) }
     var name by remember(resetTick) { mutableStateOf(swarm?.name ?: "") }
