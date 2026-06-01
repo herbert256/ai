@@ -91,8 +91,11 @@ private fun matchOn(
 ): SwipeMatch? = when (filter) {
     is ViewSwipeFilter.Any -> SwipeMatch(reportId = reportId)
     is ViewSwipeFilter.HasKind -> {
+        // listForReport returns rows oldest-first; land on the newest row of
+        // this kind so a report with several (regenerated rerank, multiple
+        // COMPARE) opens on its current result, not its first.
         val rows = SecondaryResultStorage.listForReport(context, reportId, filter.kind)
-        rows.firstOrNull()?.let { SwipeMatch(reportId = reportId, resultId = it.id) }
+        rows.lastOrNull()?.let { SwipeMatch(reportId = reportId, resultId = it.id) }
     }
     is ViewSwipeFilter.HasMeta -> {
         val rows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
