@@ -67,6 +67,7 @@ enum class SettingsSubScreen {
     SETTINGS_LOGGING,
     SETTINGS_OTHER,
     SETTINGS_METADATA,
+    SETTINGS_AUTOSTART,
     SETTINGS_DEFAULT_ICONS
 }
 
@@ -805,6 +806,13 @@ fun SettingsScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
+        SettingsSubScreen.SETTINGS_AUTOSTART -> {
+            AutostartSubScreen(
+                generalSettings = generalSettings, aiSettings = aiSettings,
+                onSave = onSaveGeneral, onBack = goBack, onNavigateHome = onNavigateHome,
+                onOpenDefaultMetaItems = { currentSubScreen = SettingsSubScreen.AI_DEFAULT_META_ITEMS }
+            )
+        }
         SettingsSubScreen.SETTINGS_OTHER -> {
             OtherSettingsSubScreen(
                 generalSettings = generalSettings, onSave = onSaveGeneral,
@@ -881,9 +889,15 @@ private fun SettingsMainScreen(
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_METADATA) }
             )
             SettingsNavCard(
+                icon = MetadataDefaults.REPEAT,
+                title = "Autostart",
+                description = "What the app starts automatically when a report finishes — Rerank & Moderation, Fan Meta, and the default meta items.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_AUTOSTART) }
+            )
+            SettingsNavCard(
                 icon = MetadataDefaults.SETTINGS,
                 title = "Other settings",
-                description = "Identity (Name + Email), auto-create Rerank & Moderation.",
+                description = "Identity (Name + Email).",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_OTHER) }
             )
             // ----- Network & logging: connectivity and diagnostics -----
@@ -1689,15 +1703,13 @@ private fun OtherSettingsSubScreen(
 ) {
     var userName by remember { mutableStateOf(generalSettings.userName) }
     var defaultEmail by remember { mutableStateOf(generalSettings.defaultEmail) }
-    var autoCreateRerankAndModeration by remember { mutableStateOf(generalSettings.autoCreateRerankAndModeration) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         userName = userName,
-        defaultEmail = defaultEmail,
-        autoCreateRerankAndModeration = autoCreateRerankAndModeration
+        defaultEmail = defaultEmail
     )
 
-    LaunchedEffect(userName, defaultEmail, autoCreateRerankAndModeration) {
+    LaunchedEffect(userName, defaultEmail) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1714,7 +1726,7 @@ private fun OtherSettingsSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity and report automation", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("Identity", "Used as the human side of the conversation in agent prompts; the email pre-fills the export sheet so you don't retype it on every send.", MetadataDefaults.MAIL) {
                 OutlinedTextField(
@@ -1730,12 +1742,68 @@ private fun OtherSettingsSubScreen(
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
             }
+        }
+    }
+}
+
+/** "Autostart" — what the app kicks off automatically when a report finishes:
+ *  auto-create Rerank & Moderation, autostart Fan Meta, and the default meta
+ *  items list. Grouped here (moved out of Other settings / Metadata / AI
+ *  Setup) so all the report-completion automation lives in one place. */
+@Composable
+private fun AutostartSubScreen(
+    generalSettings: GeneralSettings,
+    aiSettings: com.ai.model.Settings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit,
+    onOpenDefaultMetaItems: () -> Unit
+) {
+    var autoCreateRerankAndModeration by remember { mutableStateOf(generalSettings.autoCreateRerankAndModeration) }
+    var autostartFanMeta by remember { mutableStateOf(generalSettings.autostartFanMeta) }
+
+    fun build(): GeneralSettings = generalSettings.copy(
+        autoCreateRerankAndModeration = autoCreateRerankAndModeration,
+        autostartFanMeta = autostartFanMeta
+    )
+    LaunchedEffect(autoCreateRerankAndModeration, autostartFanMeta) {
+        val updated = build()
+        if (updated != generalSettings) {
+            kotlinx.coroutines.delay(400)
+            onSave(updated)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val updated = build()
+            if (updated != generalSettings) onSave(updated)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(helpTopic = "settings_autostart", title = "Autostart", subject = "What runs automatically when a report finishes", onBackClick = onBack)
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ToggleSettingCard(
                 title = "Auto create Rerank and Moderation",
                 description = "When a report's models all finish, automatically create one Rerank and one Moderation — each using the first rerank- / moderation-capable model found among your active providers. A kind is skipped when no capable model exists or one is already present. Manual Rerank / Moderation still lets you pick the model.",
                 icon = MetadataDefaults.REPEAT,
                 checked = autoCreateRerankAndModeration,
                 onCheckedChange = { autoCreateRerankAndModeration = it }
+            )
+            ToggleSettingCard(
+                title = "Autostart Fan Meta",
+                description = "When a Fan Out finishes with no errored pairs, automatically kick off its Fan Meta batch (one call per pair produces both the title and the icon) — so you don't have to tap the Fan Meta button by hand. A run with any error pair is left alone; you can still start it manually.",
+                icon = MetadataDefaults.FAN_OUT,
+                checked = autostartFanMeta,
+                onCheckedChange = { autostartFanMeta = it }
+            )
+            SettingsNavCard(
+                icon = MetadataDefaults.FAN_IN,
+                title = "Default meta items",
+                description = "Meta prompts auto-run when a report finishes (${aiSettings.defaultMetaItems.size}).",
+                onClick = onOpenDefaultMetaItems
             )
         }
     }
@@ -1759,7 +1827,6 @@ private fun MetadataSettingsSubScreen(
     var perModelIconGenEnabled by remember { mutableStateOf(generalSettings.perModelIconGenEnabled) }
     var perModelTitleGenEnabled by remember { mutableStateOf(generalSettings.perModelTitleGenEnabled) }
     var useInternalPromptsIcons by remember { mutableStateOf(generalSettings.useInternalPromptsIcons) }
-    var autostartFanMeta by remember { mutableStateOf(generalSettings.autostartFanMeta) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         metadataEnabled = metadataEnabled,
@@ -1768,11 +1835,10 @@ private fun MetadataSettingsSubScreen(
         reportLanguageGenEnabled = reportLanguageGenEnabled,
         perModelIconGenEnabled = perModelIconGenEnabled,
         perModelTitleGenEnabled = perModelTitleGenEnabled,
-        useInternalPromptsIcons = useInternalPromptsIcons,
-        autostartFanMeta = autostartFanMeta
+        useInternalPromptsIcons = useInternalPromptsIcons
     )
 
-    LaunchedEffect(metadataEnabled, reportTitleMode, iconGenEnabled, reportLanguageGenEnabled, perModelIconGenEnabled, perModelTitleGenEnabled, useInternalPromptsIcons, autostartFanMeta) {
+    LaunchedEffect(metadataEnabled, reportTitleMode, iconGenEnabled, reportLanguageGenEnabled, perModelIconGenEnabled, perModelTitleGenEnabled, useInternalPromptsIcons) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1847,13 +1913,6 @@ private fun MetadataSettingsSubScreen(
                     icon = MetadataDefaults.SYSTEM_PROMPT,
                     checked = useInternalPromptsIcons,
                     onCheckedChange = { useInternalPromptsIcons = it }
-                )
-                ToggleSettingCard(
-                    title = "Autostart Fan Meta",
-                    description = "When a Fan Out finishes with no errored pairs, automatically kick off its Fan Meta batch (one call per pair produces both the title and the icon) — so you don't have to tap the Fan Meta button by hand. A run with any error pair is left alone; you can still start it manually.",
-                    icon = MetadataDefaults.FAN_OUT,
-                    checked = autostartFanMeta,
-                    onCheckedChange = { autostartFanMeta = it }
                 )
             }
         }

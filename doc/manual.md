@@ -195,15 +195,14 @@ Meta prompts**. A typical setup:
 - **Critique** / **Synthesize** / etc. — any chat-type analysis
   you want; the prompt name becomes the button label and the
   view tab name in exports.
-- **Rerank** — pick a `type=rerank` Meta prompt (or a chat-type
-  one if you'd rather use a chat model) to rank responses 1..N
-  with a score and reason. Rerank-typed entries route through the
-  provider's dedicated rerank endpoint when the picked model
-  supports it (Cohere `/v2/rerank` is wired today). Action row
-  also has a dedicated **Rerank** button.
-- **Moderation** — `type=moderation` Meta prompt that runs the
+- **Rerank** — use the bundled Rerank action (or a chat-style Meta
+  prompt if you'd rather use a chat model) to rank responses 1..N
+  with a score and reason. The structured Rerank action routes through
+  the provider's dedicated rerank endpoint when the picked model
+  supports it (Cohere `/v2/rerank` is wired today).
+- **Moderation** — use the bundled Moderation action to run the
   report's responses through a provider's `/moderations` endpoint
-  and shows the flagged-categories table.
+  and show the flagged-categories table.
 
 Translate is a separate Actions button (not a Meta prompt) — it
 translates the prompt and every successful agent response (plus any
@@ -477,29 +476,27 @@ plain secrets. See [applog.md](applog.md).
 
 ## Settings
 
-The **Settings** main screen is split into three sub-screens.
-Each card on the main screen is collapsed by default and shows
-only the title; tapping expands it.
+The **Settings** main screen is a hub of icon cards. It separates
+general app preferences from the larger AI Setup area and keeps
+visual customization under dedicated UI screens.
 
 ### Preferences
 
-- **Identity** — name + email (the email pre-fills the export sheet).
-- **Model name layout** — model only / provider and model.
-- **Subject to title bar mode** — tri-state. **HARDCODED** keeps
-  the legacy fixed label + green sub-header; **SUBJECT** folds
-  the dynamic subject into the TitleBar and drops the green
-  line; **BOTH** (default) joins them with `/` (and falls back
-  to the title when the subject is blank) and drops the green
-  line.
-- The action icons + back arrow always live in a fixed bar
-  pinned at the bottom of the screen; the top bar shows only the
-  per-report icon (when set) and the title. The bar lives at
-  AppNavHost scope so it survives nav transitions.
-- **Generate report icons** — master switch for the per-report
-  emoji. Default on. See [report-icons.md](report-icons.md).
-- **Generate per model icons** — master switch for the per-agent
-  emoji (derived from the model title via the worker engine).
-  Default on.
+- **UI tweaks** — full-screen mode and model-name layout.
+- **UI Colors** — collapsed color-picker cards for App background,
+  title colors, card/button backgrounds, text, borders, and role
+  accents. Edits apply live and use `AppColors`. See
+  [ui-customization.md](ui-customization.md).
+- **Default icons** — edit the fallback/action glyphs used across
+  navigation cards, action bars, status rows, secondary kinds, and
+  fallback report/model icons. The app reads these through
+  `MetadataIcons`, so overrides apply globally.
+- **Metadata & icons** — master metadata switch plus per-feature
+  toggles for report icons/language/title, per-model icons/titles,
+  internal-prompt icons, Fan Meta, and automatic Rerank/Moderation.
+  See [report-icons.md](report-icons.md).
+- **Other settings** — identity (name + email), report automation,
+  and app-wide/report-model default prompt/parameter fallbacks.
 
 ### Privacy & backup
 
@@ -518,9 +515,14 @@ only the title; tapping expands it.
   [throttle.md](throttle.md).
 - **Max concurrent calls per provider** (default 3) — concurrency
   cap. Applies across overlapping flows (report + meta + chat).
+- **Maximal API calls** — per-flow concurrency caps for total API
+  calls, primary reports, translation, fan-out, Fan Meta, and Test
+  all models.
 - **Max 429 retries** (default 3) — in-line retries on a 429
   response. 0 disables.
 - **429 retry backoff (ms)** (default 1000).
+- **Max 529 retries** and **529 retry backoff** — same shape for
+  provider overload responses.
 
 Each provider has its own override card on its edit screen that
 inherits these values when left blank.
@@ -541,7 +543,7 @@ doesn't lose typed changes.
 | Providers | API keys, state, and default model per provider. The list sorts by state, and the **+ Add provider** entry is at the bottom. Each provider edit screen carries a Network card with per-provider rate-limit / concurrency / 429-retry overrides |
 | Models (sub-hub) | Models / Model Types / Manual model types overrides |
 | Workers (sub-hub) | Agents / Flocks / Swarms |
-| Prompt management | Top-level page (the legacy Internal Prompts sub-hub was collapsed): System Prompts / Internal Prompts grouped by category (Meta + Fan-out + Fan-in + Workers + Alt + Other internal — the Workers / Alt buckets hold the icon / title / language worker prompts and their Find-alternative variants) / Example prompts. Each row carries a per-card help icon |
+| Prompt management | System Prompts / Internal Prompts grouped by category (Meta + Compare prompts + Fan-out + Fan-in + Workers + Alt + Other internal) / Example prompts. Workers hold the fallback chains for metadata, Tournament, Fan Meta, and similar worker-run features |
 | Parameters | Reusable parameter presets (incl. reasoning effort) |
 | Costs | Manual price overrides + Cleanup + Layered costs (collapsed at the bottom) |
 | External Services | HuggingFace / OpenRouter / Artificial Analysis keys (debounced keystroke saves; flush on dispose) |
@@ -549,12 +551,13 @@ doesn't lose typed changes.
 
 > **Note:** Anything user-driven that runs on a report's outputs
 > (Compare, Critique, Synthesize, …) is configured under **Prompt
-> management → Meta prompts**. Fan-out / Fan-in templates live
-> under their own siblings; "Other internal" (chat-title / model-info / model-intro /
-> translate-text / translate-title / second-rerank / second-moderation / test-model) is a
-> fixed list with no Add / Delete. The icon / title / language generators live in the
-> **Workers** category (one prompt with a fallback chain of cheap models) and their
-> Find-alternative variants in the **Alt** category.
+> management → Meta prompts**. Compare-with-meta scoring prompts live under
+> **Compare prompts** (`meta_compare`). Fan-out / Fan-in templates live
+> under their own siblings; "Other internal" (chat-title / model-info /
+> model-intro / translate-text / translate-title / second-rerank /
+> second-moderation / test-model) is a fixed list with no Add / Delete.
+> The icon / title / language generators and Tournament judge prompt live
+> in **Workers**; Find-alternative variants live in **Alt**.
 
 ### Refresh
 
@@ -576,9 +579,11 @@ to each other on the landing page.
 |---|---|
 | Backup & Restore | Export the entire app to a `.zip`; restore from one. The Restore screen carries a red warning that the zip contains your API keys |
 | Export & Import | Collapsible cards for Settings / Model lists / Parameters / System prompts / Workers / Costs CSV / Prompts JSON / Runtime data / API keys / All (the All bundle has its own card; API keys are a dedicated card so they can be exported and shared separately) |
+| Update from cloud | Install the APK from a previously selected cloud/storage file |
+| Costs | Maintain manual pricing overrides and layered cost data |
+| Test | Run diagnostics such as Test all models and Stress test |
 | Refresh | Hand-off to the per-tier Refresh screen |
 | Trim by age | Drop reports / chats / traces / log files older than a chosen cutoff. Hides "Trim by age" when there's nothing to trim |
-| Usage statistics | Reset the per-(provider, model, kind) counters |
 | Reset | Five dedicated sub-screens (see below) |
 
 **Reset** is split into five sub-screens (each is a collapsible

@@ -85,8 +85,9 @@ edit screens surface a warning when the chosen model is known not to.
 
 ## Secondary operations & metadata generation
 
-Rerank, Meta, Fan-out, Translate, and the metadata-gen calls (report/per-model
-icon, title, language, alternatives) resolve through
+Rerank, Meta, Fan-out, Fan-in, Translate, Compare-with-meta, and
+the metadata-gen calls (report/per-model icon, title, language,
+alternatives) resolve through
 `resolveSecondaryParams(general, aiSettings, paramsIds, systemPromptId, prompt?, agent?)`.
 
 | # (highest wins) | Source |
@@ -98,6 +99,11 @@ icon, title, language, alternatives) resolve through
 | — | otherwise none |
 
 (Moderation: no system prompt.)
+
+Tournament and Judge-the-judges use worker prompts (`workers/tournament`)
+and the `tournament` swarm. Their model/system-prompt selection follows
+the expanded worker's agent / provider configuration plus the prompt's
+own settings; see [tournament-judges-compare.md](tournament-judges-compare.md).
 
 ---
 

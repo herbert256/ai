@@ -26,15 +26,36 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `default_email` | String | default email for the report email export |
 | `default_type_paths` | JSON Map<String,String> | global per-type API path defaults |
 | `tracing_enabled` | Boolean (default true) | master switch for `ApiTracer.isTracingEnabled` |
+| `full_screen` | Boolean (default false) | hides the Android status bar when enabled |
 | `model_name_layout` | String | enum name (`MODEL_ONLY` / `PROVIDER_AND_MODEL`) |
-| `subject_to_title_bar_mode` | String (default `BOTH`) | tri-state enum (`HARDCODED` / `SUBJECT` / `BOTH`). `HARDCODED` keeps the legacy fixed label + green sub-header; `SUBJECT` replaces with the dynamic subject; `BOTH` joins them with `/`. Replaces the legacy boolean `subject_to_title_bar` |
+| `ui_card_background_argb` | Int | legacy mirror for the card color override (`CardBackgroundAlt`) |
+| `ui_button_background_argb` | Int | legacy mirror for the button color override (`ButtonBackground`) |
+| `ui_color_overrides` | JSON Map<String,Int> | functional `AppColors` role overrides edited in Settings → UI Colors |
+| `metadata_enabled` | Boolean (default true) | grand-master switch for optional metadata generation |
 | `icon_gen_enabled` | Boolean (default true) | master switch for the per-report icon-gen feature (background `internal/icon` call on every new report — see [report-icons.md](report-icons.md)) |
+| `report_language_gen_enabled` | Boolean (default true) | gates automatic report language + flag generation |
+| `report_title_mode` | String | enum name (`Manual` / `AI`) |
 | `per_model_icon_gen_enabled` | Boolean (default true) | master switch for per-model icons (derives each model's icon from its title via the worker engine `workers/model-icons` on every successful agent call) |
+| `per_model_title_gen_enabled` | Boolean (default true) | gates automatic per-model response titles |
+| `use_internal_prompts_icons` | Boolean (default true) | gates generated/cached icons for internal-prompt rows |
+| `autostart_fan_meta` | Boolean (default true) | starts Fan Meta automatically after a clean Fan-out run |
+| `auto_create_rerank_moderation` | Boolean (default true) | creates default Rerank + Moderation rows after primary report generation when possible |
+| `metadata_icons` | JSON MetadataIcons | user-editable Default icons |
+| `app_wide_system_prompt_id` | String? | app-wide fallback system prompt id |
+| `app_wide_parameters_ids` | JSON List<String> | app-wide fallback parameter preset ids |
+| `report_model_system_prompt_id` | String? | fallback system prompt for direct report models |
+| `report_model_parameters_ids` | JSON List<String> | fallback parameters for direct report models |
 | `recent_report_models` | String (newline-separated) | last 3 (provider, model) picks from the Report section's model pickers, most-recent first. Encoded as `"providerId|model"` strings |
 | `streaming_read_timeout_sec` | Int | read timeout for streaming API calls (SSE chat/report). Default = `BuildConfig.NETWORK_READ_TIMEOUT_SEC` |
 | `nonstreaming_read_timeout_sec` | Int | read timeout for non-streaming calls. Default = `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC` |
 | `max_calls_per_provider_per_minute` | Int (default 30) | per-host sliding-window rate cap mirrored to `NetworkSettings.maxCallsPerProviderPerMinute`. See [throttle.md](throttle.md) |
 | `max_concurrent_calls_per_provider` | Int (default 3) | per-host concurrency cap |
+| `max_concurrent_api_calls` | Int | global hard cap for in-flight API calls |
+| `max_concurrent_report_calls` | Int | cap for primary report-generation calls |
+| `max_concurrent_translation_calls` | Int | cap for translation calls |
+| `max_concurrent_fan_out_calls` | Int | cap for Fan-out pair calls |
+| `max_concurrent_fan_meta_calls` | Int | cap for Fan Meta calls |
+| `max_test_api_calls` | Int | cap for Housekeeping → Test calls |
 | `max_retries_on_429` | Int (default 3) | in-line 429 retries; 0 disables |
 | `retry_backoff_ms_429` | Long (default 1000) | wait between 429 retry attempts in milliseconds |
 | `max_retries_on_529` | Int (default 3) | in-line 529 (server overloaded) retries; 0 disables |
@@ -43,6 +64,8 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `first_run_bootstrapped` | Boolean | gates the first-run providers + prompts seed (the every-start delta-merge still runs on subsequent starts — see [architecture.md](architecture.md)) |
 | `experimental_features` | Boolean (default false) | master gate for on-device models, AI Knowledge / RAG, and Local Semantic Search — see [experimental.md](experimental.md) |
 | `show_knowledge_card` | Boolean (default false) | shows the AI Knowledge card on the Hub (only meaningful when `experimental_features` is on) |
+| `pinned_dashboard_cards` | JSON List<String> | Live Dashboard card ids pinned open on page load |
+| `dashboard_card_order` | JSON List<String> | custom Live Dashboard card order |
 
 > The chat-title / model-info / model-intro / translate-text / second-rerank / second-moderation / test-model prompt
 > templates that used to live as dedicated `*_prompt` keys now live
@@ -89,6 +112,7 @@ For every provider id (`<key> = service.id`, e.g. `OpenAI`):
 | `ai_blocked_models` | JSON List<String> | `"providerId:model"` pairs flagged blocked; dimmed in every picker — see [model-states.md](model-states.md) |
 | `ai_test_excluded_models` | JSON List<String> | skipped by "Test all models"; auto-added when a probe would cost > 5¢; seeded from `assets/excluded.json` |
 | `ai_inaccessible_models` | JSON List<String> | not reachable on this account; dimmed in pickers; seeded from `assets/inaccessible.json` |
+| `ai_default_meta_items` | JSON List<DefaultMetaItem> | configurable default secondary/meta items |
 
 #### Caches and bookkeeping
 | Key | Type | Notes |
@@ -231,16 +255,23 @@ instead of being silently swallowed.
 
 ### `secondary/<reportId>/<resultId>.json`
 One file per `SecondaryResult` row — RERANK, META (every chat-type
-Meta / Fan-out / Fan-in prompt), MODERATION, or TRANSLATE. META
-rows carry the user-given `metaPromptName` (and `metaPromptId`)
-so the UI / exports group them under the prompt name regardless
-of how many or which prompts the user has configured. The
-`secondaryScope` field encodes the SecondaryScope used at run
-time so a cascade re-runs at the same scope. Subdirectory per
-parent report so deleting a report cascades cleanly. Translate
-rows additionally carry `translateSourceTargetId/Kind`,
+Meta / Fan-out / Fan-in prompt), MODERATION, TRANSLATE,
+TOURNAMENT, JUDGES, or COMPARE. META rows carry the user-given
+`metaPromptName` (and `metaPromptId`) so the UI / exports group
+them under the prompt name regardless of how many or which prompts
+the user has configured. The `secondaryScope` field encodes the
+SecondaryScope used at run time so a cascade re-runs at the same
+scope. Subdirectory per parent report so deleting a report cascades
+cleanly.
+
+Translate rows additionally carry `translateSourceTargetId/Kind`,
 `targetLanguage/Native`, and a shared `translationRunId`. Fan-out
 rows carry `fanOutSourceAgentId`; Fan-in rows carry `fanInOf`.
+Tournament and Judge-the-judges rows carry match/aggregate metadata
+such as `tournamentRole`, `tournamentJudgeRunId`,
+`matchResponseAId`, `matchResponseBId`, `matchOrientation`, and
+aggregate `tournamentMatrix`. Compare-with-meta rows carry
+`compareRunId`, `compareAgentId`, and `compareToResultId`.
 
 `SecondaryResultStorage.save` validates that the resolved file
 path stays inside the configured directory (defence against

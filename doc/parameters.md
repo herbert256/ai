@@ -116,10 +116,11 @@ dispatch fold applies (`overrideParams` carries the per-report 🌐 web-search a
 
 ## Secondary operations & metadata generation
 
-Rerank, Meta, Fan-out, Translate, and the automatic metadata-gen calls (report
-icon / title / language, per-model icon / title, alternative icons / titles) all
-resolve through one helper: `viewmodel/ReportViewModelHelpers.kt`
-→ `resolveSecondaryParams(general, aiSettings, paramsIds, systemPromptId, prompt?, agent?)`.
+Rerank, Meta, Fan-out, Fan-in, Translate, Compare-with-meta, and
+the automatic metadata-gen calls (report icon / title / language,
+per-model icon / title, alternative icons / titles) resolve through
+one helper: `viewmodel/ReportViewModelHelpers.kt` →
+`resolveSecondaryParams(general, aiSettings, paramsIds, systemPromptId, prompt?, agent?)`.
 
 | # (highest wins) | Source |
 |---|---|
@@ -130,6 +131,13 @@ resolve through one helper: `viewmodel/ReportViewModelHelpers.kt`
 | 5 | empty `AgentParameters()` |
 
 (Moderation: no parameters.)
+
+Tournament and Judge-the-judges are worker-grid flows rather than
+single selected-model secondary calls. They use `workers/tournament`
+and the `tournament` swarm: each expanded worker keeps its own agent
+/ provider parameters, and the prompt's own presets still apply when
+the worker call is resolved. The runtime shape is documented in
+[tournament-judges-compare.md](tournament-judges-compare.md).
 
 ---
 

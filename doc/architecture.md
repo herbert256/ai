@@ -159,10 +159,11 @@ then merges any custom provider definitions the user imports.
   the first assistant response and stamps `ChatSession.title`
   with the returned label.
 - **`ReportViewModel`** — report generation, secondary-result flows
-  (RERANK / META / MODERATION / TRANSLATE), the multi-language
-  fan-out for chat-type META and TRANSLATE, the Fan-out /
-  Fan-in flow, **and** per-model report icons (derived from each
-  model's title via the worker engine, `workers/model-icons`).
+  (RERANK / META / MODERATION / TRANSLATE / TOURNAMENT / JUDGES /
+  COMPARE), the multi-language fan-out for chat-type META and
+  TRANSLATE, the Fan-out / Fan-in flow, **and** per-model report
+  icons (derived from each model's title via the worker engine,
+  `workers/model-icons`).
   Holds an in-memory `_agentResults` flow separate from
   `UiState` so per-task completions don't ripple equality checks
   across the rest of the UiState. Holds a `Map<String,

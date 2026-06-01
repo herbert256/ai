@@ -76,8 +76,11 @@ debounced (`USAGE_STATS_FLUSH_MS`); see
 |---|---|
 | `report` (default) | primary report / chat generation |
 | `rerank` | Cohere rerank (uses `searchUnits`) |
-| `summarize` / `compare` / `moderation` / `translate` | secondary tasks |
+| `summarize` / `moderation` / `translate` | secondary tasks |
 | `meta` | fan-in / meta secondary |
+| `tournament` | Tournament judge match calls |
+| `judges` | Judge-the-judges match calls |
+| `compare` | Compare-with-meta scoring calls |
 | `title` | Find-alternative-title (`viewmodel/IconGenerationManager.kt:1676`) |
 
 Legacy rows written before `kind` existed deserialize via Gson's
@@ -137,7 +140,8 @@ call recorded against the report:
   the report ran); legacy rows with no pinned split fall back to a
   live `computeInOutCost`.
 - **Secondary results** — meta / fan-in / translate / moderation /
-  rerank, each carrying its own cost.
+  rerank / tournament / judges / compare, each carrying its own
+  cost.
 - **Icon-gen** (`icon_main`), **language** detect + icon
   (`language`), **model titles** (`model_title`), and the
   alternative-title / alternative-icon fan-outs. Per-call `_alt`
@@ -150,12 +154,12 @@ call recorded against the report:
 in/outCents`. Row-level cost is stored in **cents** (Double).
 
 The View screen collapses rows into buckets via `bucketFor(type)`
-(`Costs.kt:389`): Reports 📊 / Meta 🧠 / Fan-out 🌀 / Fan-in 🪢 /
-Translate 🌍 / Moderation 🚩 / Rerank 🏆 / Icons 🖼 / Model titles 🏷 /
-Language 🌐. A hero "💰 Total" card sits above a horizontal-bar list
-(bar length = share of total); zero-cost buckets are dropped. A
-Buckets ⇄ Models toggle re-rolls the same data by model. Tapping a
-bar drills L2 (cross-dimension) → L3 (individual calls, paged).
+(`Costs.kt`): Reports / Meta / Fan-out / Fan-in / Translate /
+Moderation / Rerank / Tournament / Judges / Compare / Icons /
+Model titles / Language. A Total card sits above a horizontal-bar
+list (bar length = share of total); zero-cost buckets are dropped.
+A Buckets ⇄ Models toggle re-rolls the same data by model. Tapping
+a bar drills L2 (cross-dimension) → L3 (individual calls, paged).
 Find-alternative-title cost is detailed in
 [regenerate.md](regenerate.md).
 
@@ -213,6 +217,8 @@ zip.
   sources and their caches.
 - [regenerate.md](regenerate.md) — Find-alternative-title call and
   how its cost is recorded.
+- [tournament-judges-compare.md](tournament-judges-compare.md) —
+  the three worker-judged secondary flows and their usage kinds.
 - [persistent.md](persistent.md) — `usage-stats.json`,
   `pricing_cache.xml`, and the `<filesDir>/pricing/` tier blobs.
 - [providers.md](providers.md) — providers, `crossProviderModelList`

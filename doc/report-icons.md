@@ -29,6 +29,13 @@ folded with their own sub-toggle:
 When a switch is off, the matching icon column doesn't generate;
 existing on-disk icons stay (re-enabling brings them back).
 
+These generated report/agent icons are separate from **Default
+icons**. Default icons are the user-editable fallback and navigation
+glyphs stored in `GeneralSettings.metadataIcons` and used by cards,
+empty metadata rows, and non-generated screen affordances. See
+[ui-customization.md](ui-customization.md) for the Default icons and
+UI Colors screens.
+
 ## The worker engine
 
 A `workers`-category `InternalPrompt` carries a **list of
@@ -251,7 +258,7 @@ Per-icon spend surfaces in three places:
 2. **HTML export — Complete and Costs views** — same three
    tabs, same per-call All rendering. The icon row in the
    Complete view shows the agent's effective icon + cost.
-3. **Global Usage statistics** — each icon call posts with
+3. **Global AI Usage** — each icon call posts with
    `kind="icon"`, attributed to the model that actually ran.
    Filterable in the Usage screen.
 

@@ -118,17 +118,21 @@ flock / swarm / per-call precedence), see **[parameters.md](parameters.md)**.
 
 ### `InternalPrompt`
 User-managed prompt template. Covers Meta-prompt launchers on the
-Report Result screen (`category="meta"`), Fan-out / Fan-in
-templates (`category="fan_out"` / `"fan_in"`), and the fixed
-internal templates (`category="internal"`: chat-title, model-info, model-intro,
-translate-text, second-rerank, second-moderation, test-model).
+Report Result screen (`category="meta"`), Compare-with-meta prompts
+(`category="meta_compare"`), Fan-out / Fan-in templates
+(`category="fan_out"` / `"fan_in"`), worker fallback-chain prompts
+(`category="workers"`), alternative icon/title prompts
+(`category="alt"`), and fixed internal templates
+(`category="internal"`: chat-title, model-info, model-intro,
+translate-text, translate-title, second-rerank, second-moderation,
+test-model).
 
 | Field | Type | Notes |
 |---|---|---|
 | id | `String` (UUID) | |
 | name | `String` | unique within (category, name) |
 | reference | `Boolean` (default false) | when true on a meta entry, executor appends `[N] = Provider / Model` legend |
-| category | `String` (default `"internal"`) | one of `meta`, `fan_out`, `fan_in`, `internal` |
+| category | `String` (default `"internal"`) | common values: `meta`, `meta_compare`, `fan_out`, `fan_in`, `workers`, `alt`, `internal` |
 | agent | `String` (default `"*select"`) | `"*select"` = ask the user; otherwise an `Agent.name` |
 | text | `String` | template body. Top-level placeholders: `@QUESTION@`, `@RESULTS@`, `@COUNT@`, `@TITLE@`, `@DATE@`, `@RESPONSE@`, `@PROMPT@`, `@LANGUAGE@`, `@TEXT@`, `@FAN_OUT_COUNT@`, `@MODEL@`, `@PROVIDER@`. Iterable block: `***Report*** @REPORT@@RESPONSES@` (whitespace-tolerant; one expansion per source-report) |
 | title | `String` (default empty) | one-line description shown alongside `name` on Fan out and the prompt-edit screen |
@@ -177,7 +181,7 @@ A per-(provider, model, kind) aggregate.
 | callCount | `Int` | |
 | inputTokens | `Long` | |
 | outputTokens | `Long` | |
-| kind | `String` | `report`, `rerank`, `meta`, `moderate`, or `translate`. (Fan-out rows tag as `meta` since they share the META kind; the Type column reads the prompt name on display.) |
+| kind | `String` | `report`, `rerank`, `meta`, `moderate`, `translate`, `tournament`, `judges`, `compare`, plus metadata/worker buckets such as `fan/meta`, `model/icons`, `report/icon`. The Type column often displays a friendlier prompt/flow label. |
 
 ### `ModelCapabilities`
 Per-model capability bundle derived from a provider's own `/models`
@@ -275,15 +279,16 @@ chain skipped past.
 | timestamp | `Long` |
 
 ### `SecondaryResult`
-Meta-result tied to a parent report — rerank, chat-type Meta
-(driven by the user's Meta-prompt CRUD entries), moderation,
-translation, fan-out per-pair row, or fan-in combined-report row.
+Result tied to a parent report — rerank, chat-type Meta (driven by
+the user's Meta-prompt CRUD entries), moderation, translation,
+fan-out per-pair row, fan-in combined-report row, Tournament match /
+aggregate row, Judge-the-judges cell / aggregate row, or Compare cell.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | `String` (UUID) | |
 | reportId | `String` | |
-| kind | `SecondaryKind` | `RERANK`, `META`, `MODERATION`, `TRANSLATE` |
+| kind | `SecondaryKind` | `RERANK`, `META`, `MODERATION`, `TRANSLATE`, `TOURNAMENT`, `JUDGES`, `COMPARE` |
 | providerId, model, agentName | `String` | |
 | timestamp | `Long` | |
 | content | `String?` | the model output (chat-type META rows whose Meta prompt has `reference=true` get a deterministic `## References` legend appended at storage time) |
@@ -291,7 +296,7 @@ translation, fan-out per-pair row, or fan-in combined-report row.
 | tokenUsage | `TokenUsage?` | |
 | inputCost, outputCost | `Double?` | |
 | durationMs | `Long?` | |
-| metaPromptId | `String?` | id of the `InternalPrompt` (`category="meta"` / `"fan_out"` / `"fan_in"`) that produced this row |
+| metaPromptId | `String?` | id of the `InternalPrompt` (`category="meta"` / `"meta_compare"` / `"fan_out"` / `"fan_in"` / `"workers"`) that produced this row |
 | metaPromptName | `String?` | display name of the prompt copied at run time. Drives every UI bucket / export section / cost-row label so renaming or deleting the prompt later doesn't reshape old rows |
 | fanOutSourceAgentId | `String?` | Fan-out per-pair rows: agentId of the report-model whose response was substituted into the prompt's `@RESPONSE@` slot. Together with this row's own `(providerId, model)` (the answerer) it forms the (answerer, source) pair the fan-out drill-in keys on |
 | fanInOf | `String?` | Fan-in combined-report rows: id of the `InternalPrompt` that produced this combined output. Lets the fan-out detail screen distinguish the single combined output from the per-pair response rows |
@@ -301,6 +306,14 @@ translation, fan-out per-pair row, or fan-in combined-report row.
 | targetLanguage | `String?` | TRANSLATE only — English language name (e.g. `"Dutch"`) |
 | targetLanguageNative | `String?` | TRANSLATE only — native rendering (e.g. `"Nederlands"`) |
 | translationRunId | `String?` | TRANSLATE only — UUID shared by every row of one Translate batch so the result page can group them |
+| tournamentRole | `String?` | TOURNAMENT/JUDGES only — `"MATCH"` for cell rows, `"AGGREGATE"` for rollup rows |
+| tournamentJudgeRunId | `String?` | run id shared by Tournament/Judges rows |
+| matchResponseAId, matchResponseBId | `String?` | Tournament/Judges match source agent ids |
+| matchOrientation | `Int?` | Tournament: 0 or 1 for A-vs-B / B-vs-A. Judges currently uses 0 |
+| tournamentMatrix | `String?` | TOURNAMENT aggregate row — win matrix plus selected ranking method |
+| compareRunId | `String?` | COMPARE run id shared by its cells |
+| compareAgentId | `String?` | COMPARE cell — answer being scored |
+| compareToResultId | `String?` | COMPARE cell — Meta row scored against |
 
 ### `SecondaryScope` (sealed)
 - `AllReports` — every successful agent feeds the meta-result.
@@ -322,6 +335,38 @@ present on the report.
 - `Selected(languages: Set<String>)` — restrict to the chosen
   English-name languages (plus the empty string for the original /
   untranslated source).
+
+### `TournamentRunState` / `MatchState`
+Runtime state for one Tournament on a report. Hydrated from
+`SecondaryResult(kind=TOURNAMENT)` rows.
+
+| Type | Notes |
+|---|---|
+| `TournamentRunState` | `key`, `reportId`, `runId`, `tournamentPrompt`, `scope`, `matches`, `aggregateRowId`, `selectedMethod`, `cancelled`; derived counts for total/done/error/running/queued/cost/judge models |
+| `MatchState` | one ordered head-to-head: row id, response A/B ids, orientation, status, judge model, verdict, confidence, reason, raw content, error, tokens, cost, duration, timestamp |
+
+`TournamentMethod` supports `COPELAND`, `ELO`, `DAVIDSON`,
+`TIDEMAN`, and `MARKOV`. See
+[tournament-judges-compare.md](tournament-judges-compare.md).
+
+### `JudgeEvalRunState` / `JudgeCellState`
+Runtime state for one Judge-the-judges run on a report. Hydrated from
+`SecondaryResult(kind=JUDGES)` rows.
+
+| Type | Notes |
+|---|---|
+| `JudgeEvalRunState` | `key`, `reportId`, `runId`, prompt, cell map, aggregate row id, cancelled flag; derived judge/match counts and cost |
+| `JudgeCellState` | one judge's verdict on one shared match: row id, judge provider/model, response A/B ids, status, verdict, confidence, reason, trace, tokens, cost, duration |
+| `JudgeStats` | computed agreement row: judge key/model, agreement, matches judged, cost, API time |
+
+### `CompareRunState` / `CompareCellState`
+Runtime state for Compare with meta. Hydrated from
+`SecondaryResult(kind=COMPARE)` rows.
+
+| Type | Notes |
+|---|---|
+| `CompareRunState` | `key`, `reportId`, `runId`, selected compare prompt, cell map, cancelled flag; derived counts/cost and per-agent/per-meta averages |
+| `CompareCellState` | one answer × meta-item similarity score: row id, agent id, meta result id, status, 0..100 percent, reason, scoring worker, trace, tokens, cost, duration |
 
 ### `RerankApiResult`
 Result of a provider's dedicated rerank endpoint call (e.g.
@@ -669,34 +714,56 @@ Computed:
 | defaultEmail | `String` | |
 | defaultTypePaths | `Map<String, String>` | global per-type API path defaults |
 | tracingEnabled | `Boolean` (default true) | master switch for `ApiTracer.isTracingEnabled` |
+| showLadybugIcons | `Boolean` (default true) | hides/shows trace hot-link icons without disabling trace capture |
+| auditLogEnabled | `Boolean` (default true) | master switch for per-report audit-log writes |
+| fullScreen | `Boolean` (default false) | hides the Android status bar when enabled |
 | modelNameLayout | `ModelNameLayout` | `MODEL_ONLY` (default) or `PROVIDER_AND_MODEL` |
-| subjectToTitleBarMode | `SubjectToTitleBarMode` (default `BOTH`) | tri-state: `HARDCODED` keeps the legacy fixed label + green sub-header; `SUBJECT` folds the dynamic subject into the title bar and drops the green line; `BOTH` joins them with `/` and drops the green line (gracefully falls back to the title when the subject is blank) |
-| iconGenEnabled | `Boolean` (default true) | master switch for the per-report icon-gen feature. When true, every new report kicks off a background LLM call (the bundled `internal/icon` prompt against its pinned agent) that generates a fitting emoji and writes it onto `Report.icon`. Surfaces in the result page, AI Reports hub, history rows, search hits, and the title bar's leftmost icon. When false the call is skipped, the icon row is hidden, the leftmost title-bar icon and its mirrored 📝 memo are hidden, and per-row icons fall back to the static 🕘 / 📌. Persisted icon / iconCost values on existing reports stay on disk — re-enabling brings them back |
+| uiCardBackgroundArgb, uiButtonBackgroundArgb | `Int` | legacy single-color mirrors for card/button customization |
+| uiColorOverrides | `Map<String, Int>` | ARGB overrides for functional `AppColors` roles; see [ui-customization.md](ui-customization.md) |
+| metadataEnabled | `Boolean` (default true) | grand-master switch for optional metadata generation |
+| iconGenEnabled | `Boolean` (default true) | master switch for the per-report icon-gen feature. When true, every new report kicks off a background worker call (`workers/report-icon`) that generates a fitting emoji and writes it onto `Report.icon`. Surfaces in the result page, AI Reports hub, history rows, search hits, and report title bars. When false the call is skipped and existing on-disk icon values stay intact for re-enable |
+| reportLanguageGenEnabled | `Boolean` (default true) | gates automatic report language + flag detection |
+| reportTitleMode | `ReportTitleMode` (default `AI`) | `Manual` keeps the title input; `AI` asks a worker prompt to title the report |
 | perModelIconGenEnabled | `Boolean` (default true) | master switch for per-model icons. When true, every successful agent call (initial generation AND regenerate) derives the model's icon from its title via the worker engine (`workers/model-icons`). Each agent's leftmost ✅ flips to the returned emoji once it lands. When false the step never runs automatically; per-agent rows keep their plain ✅. See [report-icons.md](report-icons.md) |
+| perModelTitleGenEnabled | `Boolean` (default true) | gates automatic per-model response titles |
+| useInternalPromptsIcons | `Boolean` (default true) | gates generated/cached icons for internal prompt rows |
+| autostartFanMeta | `Boolean` (default true) | starts Fan Meta automatically after a clean Fan-out run |
+| autoCreateRerankAndModeration | `Boolean` (default true) | creates default Rerank + Moderation rows after primary report generation when capable models exist |
+| metadataIcons | `MetadataIcons` | Default-icons overrides used by view/navigation cards and fallback metadata glyphs |
+| appWideSystemPromptId, reportModelSystemPromptId | `String?` | lowest fallback prompt ids; report-model defaults affect direct report models only |
+| appWideParametersIds, reportModelParametersIds | `List<String>` | lowest fallback parameter preset ids |
 | recentReportModels | `List<String>` (default empty) | last 3 (provider, model) pairs picked from the Report section's model pickers, most-recent first. Encoded as `"providerId|model"` strings; surfaces in the Report Select Models picker as a "Recent" section (honors the active provider / type / search filters) |
 | streamingReadTimeoutSec | `Int` (default `BuildConfig.NETWORK_READ_TIMEOUT_SEC`) | read timeout applied to streaming API calls (SSE chat / report streams). Mirrored to `NetworkSettings.streamingReadTimeoutSec` so the per-call OkHttp interceptor reads the live value |
 | nonStreamingReadTimeoutSec | `Int` (default `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC`) | read timeout applied to non-streaming calls (meta / rerank / translate / model-list / individual analyze). Much shorter than streaming by default so a hung provider can't gate a whole batch for 10 minutes |
 | maxCallsPerProviderPerMinute | `Int` (default 30) | sliding-window rate cap per provider hostname. The OkHttp interceptor `ProviderThrottleInterceptor` reads this via `NetworkSettings.maxCallsPerProviderPerMinute`. See [throttle.md](throttle.md) |
 | maxConcurrentCallsPerProvider | `Int` (default 3) | per-provider concurrency cap. Replaces the prior hardcoded fan-out semaphore — applies globally across every flow (report, meta, fan-out, chat, translate, model fetch) hitting the same provider host |
+| maxConcurrentApiCalls | `Int` | global hard ceiling for in-flight API calls |
+| maxConcurrentReportCalls | `Int` | concurrent primary report-generation calls |
+| maxConcurrentTranslationCalls | `Int` | concurrent translation item × language calls |
+| maxConcurrentFanOutCalls | `Int` | concurrent Fan-out pair calls |
+| maxConcurrentFanMetaCalls | `Int` | concurrent Fan Meta title/icon calls |
+| maxTestApiCalls | `Int` | concurrent Housekeeping → Test calls |
 | maxRetriesOn429 | `Int` (default 3) | maximum number of in-line retries the OkHttp client performs on a 429. 0 disables in-line retries entirely (the outer `withRetry` layer still gets a chance) |
 | retryBackoffMs429 | `Long` (default 1000) | wait between 429 retry attempts in milliseconds |
 | maxRetriesOn529 | `Int` (default 3) | maximum number of in-line retries the OkHttp client performs on a 529 (server overloaded). 0 disables in-line retries entirely. Independent of the 429 budget |
 | retryBackoffMs529 | `Long` (default 1000) | wait between 529 retry attempts in milliseconds |
 | logLevel | `LogLevel` (default `INFO`) | threshold for the in-app file logger ([applog.md](applog.md)). `TRACE` / `DEBUG` / `INFO` / `WARN` / `ERROR` / `OFF`. Persisted in main prefs; `AppLog.init` reads it directly so DEBUG calls inside bootstrap are admitted on cold start |
+| showKnowledgeCard | `Boolean` (default false) | shows AI Knowledge on the Hub when Experimental features are enabled |
+| experimentalFeaturesEnabled | `Boolean` (default false) | gates Local models, Knowledge/RAG, and Local Semantic Search surfaces |
+| pinnedDashboardCards, dashboardCardOrder | `Set<String>` / `List<String>` | persisted Live Dashboard layout |
 
 > The chat-title / model-info / model-intro / translate-text / second-rerank / second-moderation / test-model prompt
 > templates that used to live as `GeneralSettings` fields now live
 > as `InternalPrompt` rows under `Settings.internalPrompts`
-> (category = `"internal"` for the fixed five) and are CRUD'd via
+> (usually `category = "internal"`) and are CRUD'd via
 > Settings → AI Setup → Prompt management.
 
 ### `ModelNameLayout` (enum)
 `MODEL_ONLY`, `PROVIDER_AND_MODEL`. Provided to the composition
 tree via `LocalModelNameLayout` in `AppNavHost`.
 
-### `SubjectToTitleBarMode` (enum)
-`HARDCODED`, `SUBJECT`, `BOTH`. See `GeneralSettings`. Provided to
-the composition tree via `LocalSubjectToTitleBarMode`.
+### `ReportTitleMode` (enum)
+`Manual`, `AI`.
 
 ### `FetchModelsError`
 | message | `String` |

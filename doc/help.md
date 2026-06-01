@@ -33,10 +33,10 @@ Topics group into:
 - **Chat flow** — Chat hub, configure-on-the-fly, chat session,
   Dual Chat.
 - **Settings → AI Setup** — every sub-card has a topic. Sub-hubs
-  (Models, Workers, Prompt management) have their own
-  overview topic plus per-card detail topics.
+  (Models, Workers, Prompt management, Default icons, UI Colors)
+  have their own overview topic plus per-card detail topics.
 - **Housekeeping** — Backup & Restore, Export & Import, Refresh,
-  Trim by age, Usage statistics, Reset.
+  Trim by age, Update from cloud, Costs, Test, Reset.
 - **Trace** — Trace list, Trace detail, the captured-call detail
   view.
 - **Help** — the home help page, including the icon legend, plus
@@ -155,6 +155,9 @@ actually are rather than from a list inside Help.
   agent icon detail, alternative-icons list, icons grid, Find
   icons picker, etc.) gets its own dedicated topic so help is
   always one tap away.
+- When adding a new visual setting or default icon, update both the
+  Settings topic and the focused reference doc
+  [ui-customization.md](ui-customization.md).
 - When adding or changing a report-Manage screen's bottom-bar
   icons, update its `SCREEN_ICON_HELP[topic]` rows in
   `IconHelp.kt` (glyph, short name, screen-specific description) so

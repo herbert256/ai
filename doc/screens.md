@@ -51,6 +51,12 @@ then subtitle.
 | Configure API parameters | |
 | Configure API parameters | Current active: \<preset names\> |
 | Continue in chat | Send this answer into a new chat |
+| Compare | \<report title\> |
+| Compare - cell | \<report title\> |
+| Compare - meta | \<report title\> |
+| Compare - model | \<report title\> |
+| Compare with meta | Pick a comparison prompt |
+| Compare with meta | Pick meta results to score answers against |
 | Cooldown | \<provider\> / \<model\> |
 | Costs | Correct model prices used in cost totals |
 | Costs | Where the money went, per call |
@@ -117,7 +123,9 @@ then subtitle.
 | Fan-out pair | \<report title\> |
 | Flock | \<flock name\> |
 | Flocks | Named groups of agents |
+| Find icon | \<icon target\> |
 | Help | \<per-topic subject\> |
+| Head-to-heads | \<model\> |
 | History | All your saved reports, newest first |
 | Housekeeping | Backup, cleanup and maintenance tools |
 | HTML preview | \<report title\> |
@@ -130,6 +138,9 @@ then subtitle.
 | Info provider | \<provider name\> |
 | Info Providers | Six pricing & capability catalogs |
 | Internal prompts | Prompts the app's own flows use |
+| Judge | \<report title\> |
+| Judge the judges | \<report title\> |
+| Match | \<report title\> |
 | Live Dashboard | What's happening right now |
 | Loading… | Loading settings… |
 | Local LiteRT models | On-device embedding models |
@@ -220,6 +231,7 @@ then subtitle.
 | Select Provider | Pick a cloud provider |
 | Semantic search | Cloud embedding search by meaning |
 | Settings | App preferences, grouped by topic |
+| Share | Turn shared content into a report/chat |
 | Setup | Providers, models, workers & prompts |
 | Source | \<model name\> |
 | Spend & usage | Calls, tokens and cost per provider |
@@ -248,7 +260,13 @@ then subtitle.
 | Translation call | \<target language\> |
 | Translation compare | \<translation title\> |
 | Trim by age | Delete reports, chats & traces by age |
+| Tournament | \<report title\> |
+| Tournament | \<ranking method\> ranking |
+| Tournament - judge | \<report title\> |
+| Tournament - Match | \<report title\> |
+| Tournament - model | \<report title\> |
 | UI tweaks | Visual and layout preferences |
+| UI Colors | App palette |
 | Update from cloud | Install the latest APK from a synced file |
 | View a report | \<report title\> |
 | View in one page | \<section title\> |
