@@ -217,6 +217,71 @@ fun AppLogListScreen(
             }
         )
     }
+
+    if (showSharePicker) {
+        AlertDialog(
+            onDismissRequest = { showSharePicker = false },
+            title = { Text("Share log file") },
+            text = {
+                Column {
+                    Text(
+                        "Pick a day to send its log file through the Android share sheet.",
+                        fontSize = 12.sp, color = AppColors.TextTertiary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Column(
+                        modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        files.forEach { info ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().clickable {
+                                    showSharePicker = false
+                                    // Read off the UI thread, then hand the
+                                    // bytes to shareExportText (stages under
+                                    // cacheDir/exports + FileProvider URI).
+                                    scope.launch {
+                                        val body = withContext(Dispatchers.IO) {
+                                            AppLog.readLogFile(info.filename) ?: ""
+                                        }
+                                        if (body.isBlank()) {
+                                            Toast.makeText(context, "Log file is empty", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            shareExportText(
+                                                context = context,
+                                                fileName = info.filename,
+                                                mimeType = "text/plain",
+                                                chooserTitle = "Share log file",
+                                                content = body
+                                            )
+                                        }
+                                    }
+                                }.padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    info.date, fontSize = 14.sp, color = Color.White,
+                                    modifier = Modifier.weight(1f), maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    formatBytes(info.sizeBytes), fontSize = 12.sp,
+                                    color = AppColors.TextTertiary
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showSharePicker = false }) {
+                    Text("Cancel", maxLines = 1, softWrap = false)
+                }
+            }
+        )
+    }
 }
 
 @Composable

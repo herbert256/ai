@@ -27,7 +27,7 @@ import kotlinx.coroutines.withContext
 
 // General app settings
 val DEFAULT_UI_CARD_BACKGROUND_ARGB: Int = 0xFF2A3A4A.toInt()
-val DEFAULT_UI_BUTTON_BACKGROUND_ARGB: Int = DEFAULT_UI_CARD_BACKGROUND_ARGB
+val DEFAULT_UI_BUTTON_BACKGROUND_ARGB: Int = 0xFF27594E.toInt()
 
 /** How combined provider+model labels render across UI rows.
  *  MODEL_ONLY shows just the model id (the dense default); PROVIDER_AND_MODEL

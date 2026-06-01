@@ -23,7 +23,7 @@ object AppColors {
         "SurfaceDark" to 0xFF2A2A2A.toInt(),
         "CardBackground" to 0xFF2A2A3A.toInt(),
         "CardBackgroundAlt" to 0xFF2A3A4A.toInt(),
-        "ButtonBackground" to 0xFF2A3A4A.toInt(),
+        "ButtonBackground" to 0xFF27594E.toInt(),
         "DisabledBackground" to 0xFF1A1A1A.toInt(),
         "SelectionHighlight" to 0xFF2A4A3A.toInt(),
         "TextPrimary" to 0xFFFFFFFF.toInt(),

@@ -167,6 +167,7 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Application log — file list",
         cards = listOf(
             HelpCard("Overview", "List of daily-rotating application log files stored under `<filesDir>/applog/`. Each file captures one calendar day filtered by the level threshold set in Settings → Logging. Rows show the date (YYYY-MM-DD) and on-disk size."),
+            HelpCard("Title bar — 📤", "Opens a day-picker; tapping a day sends that file's whole log through the Android share sheet as a real `.log` attachment (Email, Drive, Files, …). The bytes are staged into the app cache first, so the share works even after the original rotates."),
             HelpCard("Title bar — 🗑", "Clears every log file after confirmation. The currently-active in-memory session writes are dropped too — the next log call starts a fresh file."),
             HelpCard("Tap a row", "Opens the per-file detail view with search, tag filter, level filter, time-range filter, copy + share. Files appear newest-first."),
             HelpCard("Empty state", "Shows the current threshold so you can tell when nothing's been written because everything is below it (e.g. threshold = WARN and no warnings have fired today). A red banner appears instead if the log writer hit a disk / IO error — message + dropped-line count surfaced inline."),
