@@ -1023,6 +1023,8 @@ private fun NetworkSettingsSubScreen(
                         },
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        SettingsCardHeaderIcon(MetadataDefaults.CONTROLS)
+                        Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             "Maximal API calls",
                             fontWeight = FontWeight.Bold, color = Color.White,
@@ -1034,7 +1036,8 @@ private fun NetworkSettingsSubScreen(
             }
             SettingCard(
                 "Network read timeouts",
-                "How long the app waits for an API response before giving up. Streaming applies to chat / report SSE streams (the timeout is the gap between chunks, so the long default is normal). Non-streaming applies to analyze, meta, rerank, fetch-models, translate — everything that blocks for the full response body. Provider-test calls always cap at 30 s regardless."
+                "How long the app waits for an API response before giving up. Streaming applies to chat / report SSE streams (the timeout is the gap between chunks, so the long default is normal). Non-streaming applies to analyze, meta, rerank, fetch-models, translate — everything that blocks for the full response body. Provider-test calls always cap at 30 s regardless.",
+                MetadataDefaults.STATUS_ALARM
             ) {
                 OutlinedTextField(
                     value = streamingReadTimeoutText,
@@ -1053,7 +1056,8 @@ private fun NetworkSettingsSubScreen(
             }
             SettingCard(
                 "Per-provider throttling",
-                "Caps the load the app puts on any single provider. Calls beyond the per-minute rate sleep until the sliding window opens up; concurrent calls beyond the cap queue on a per-host semaphore. Defaults: 60 calls/minute, 5 in flight at once."
+                "Caps the load the app puts on any single provider. Calls beyond the per-minute rate sleep until the sliding window opens up; concurrent calls beyond the cap queue on a per-host semaphore. Defaults: 60 calls/minute, 5 in flight at once.",
+                MetadataDefaults.CONTROLS
             ) {
                 OutlinedTextField(
                     value = maxCallsPerMinuteText,
@@ -1072,7 +1076,8 @@ private fun NetworkSettingsSubScreen(
             }
             SettingCard(
                 "429 error handling",
-                "When a provider answers HTTP 429 (rate-limited), the OkHttp client waits and re-issues the same request up to this many times. Set retries to 0 to disable in-line retries entirely (the outer retry layer still gets a chance on transient 4xx). Defaults: 3 retries, 1000 ms between each."
+                "When a provider answers HTTP 429 (rate-limited), the OkHttp client waits and re-issues the same request up to this many times. Set retries to 0 to disable in-line retries entirely (the outer retry layer still gets a chance on transient 4xx). Defaults: 3 retries, 1000 ms between each.",
+                MetadataDefaults.ROADBLOCK
             ) {
                 OutlinedTextField(
                     value = maxRetriesText,
@@ -1091,7 +1096,8 @@ private fun NetworkSettingsSubScreen(
             }
             SettingCard(
                 "529 error handling",
-                "When a provider answers HTTP 529 (server overloaded), the OkHttp client waits and re-issues the same request up to this many times. Set retries to 0 to disable in-line retries entirely (the outer retry layer still gets a chance on transient 5xx). Defaults: 3 retries, 1000 ms between each."
+                "When a provider answers HTTP 529 (server overloaded), the OkHttp client waits and re-issues the same request up to this many times. Set retries to 0 to disable in-line retries entirely (the outer retry layer still gets a chance on transient 5xx). Defaults: 3 retries, 1000 ms between each.",
+                MetadataDefaults.EXPLOSION
             ) {
                 OutlinedTextField(
                     value = maxRetries529Text,
@@ -1172,7 +1178,8 @@ private fun MaximalApiCallsSubScreen(
         ) {
             SettingCard(
                 "Concurrent API calls at the same time",
-                "Hard global ceiling on every API call the app keeps in flight at once — reports, translations, fan-out, and any sub-dispatcher under them. Calls beyond the cap suspend until a permit frees up. Default 100."
+                "Hard global ceiling on every API call the app keeps in flight at once — reports, translations, fan-out, and any sub-dispatcher under them. Calls beyond the cap suspend until a permit frees up. Default 100.",
+                MetadataDefaults.CLOUD
             ) {
                 OutlinedTextField(
                     value = apiText,
@@ -1184,7 +1191,8 @@ private fun MaximalApiCallsSubScreen(
             }
             SettingCard(
                 "Concurrent Model reports API calls",
-                "Cap on the primary per-agent calls fired during a new-report run. The global cap still wins if it's lower. Default 50."
+                "Cap on the primary per-agent calls fired during a new-report run. The global cap still wins if it's lower. Default 50.",
+                MetadataDefaults.REPORT_ICON
             ) {
                 OutlinedTextField(
                     value = reportText,
@@ -1196,7 +1204,8 @@ private fun MaximalApiCallsSubScreen(
             }
             SettingCard(
                 "Concurrent Translations API calls",
-                "Cap on per-item translation calls inside a translation run. With multi-model translation runs, the cap is on the total across models, not per model. Default 50."
+                "Cap on per-item translation calls inside a translation run. With multi-model translation runs, the cap is on the total across models, not per model. Default 50.",
+                MetadataDefaults.TRANSLATE
             ) {
                 OutlinedTextField(
                     value = translationText,
@@ -1208,7 +1217,8 @@ private fun MaximalApiCallsSubScreen(
             }
             SettingCard(
                 "Concurrent Fan Out API calls",
-                "Cap on per-pair fan-out calls. The per-provider cap (Network settings → Per-provider throttling) still applies on top, so a single-provider fan-out still respects that limit. Default 50."
+                "Cap on per-pair fan-out calls. The per-provider cap (Network settings → Per-provider throttling) still applies on top, so a single-provider fan-out still respects that limit. Default 50.",
+                MetadataDefaults.FAN_OUT
             ) {
                 OutlinedTextField(
                     value = fanOutText,
@@ -1220,7 +1230,8 @@ private fun MaximalApiCallsSubScreen(
             }
             SettingCard(
                 "Concurrent Fan Meta API calls",
-                "Cap on the Fan Meta batch — the title+icon generation the user launches from a fan-out's Fan Meta button. Separate from the fan-out cap so the two can run side-by-side without halving each other's budget. Default 50."
+                "Cap on the Fan Meta batch — the title+icon generation the user launches from a fan-out's Fan Meta button. Separate from the fan-out cap so the two can run side-by-side without halving each other's budget. Default 50.",
+                MetadataDefaults.META
             ) {
                 OutlinedTextField(
                     value = fanMetaText,
@@ -1232,7 +1243,8 @@ private fun MaximalApiCallsSubScreen(
             }
             SettingCard(
                 "Concurrent Test all models API calls",
-                "Cap on the \"Test all models\" run (Housekeeping → Test). A run probes every configured model of every active provider, so this controls how hard that sweep hits the network. Default 50."
+                "Cap on the \"Test all models\" run (Housekeeping → Test). A run probes every configured model of every active provider, so this controls how hard that sweep hits the network. Default 50.",
+                MetadataDefaults.TEST
             ) {
                 OutlinedTextField(
                     value = testText,
@@ -1286,7 +1298,7 @@ private fun UiTweaksSubScreen(
     ) {
         TitleBar(helpTopic = "settings_ui", title = "UI tweaks", subject = "Visual and layout preferences", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SettingCard("Model name layout", "How model labels render across rows and pickers.") {
+            SettingCard("Model name layout", "How model labels render across rows and pickers.", MetadataDefaults.LABEL) {
                 Column {
                     RadioRow(
                         selected = modelNameLayout == com.ai.viewmodel.ModelNameLayout.MODEL_ONLY,
@@ -1303,6 +1315,7 @@ private fun UiTweaksSubScreen(
             ToggleSettingCard(
                 title = "Experimental features",
                 description = "Master gate for on-device Local LLMs, LiteRT embedders, AI Knowledge / RAG, and Local Semantic Search. Off (default) hides those UI surfaces — installed model files and KBs stay on disk, and any KB already attached to a chat or report keeps sending context at API time.",
+                icon = MetadataDefaults.SPARKLES,
                 checked = experimentalFeatures,
                 onCheckedChange = { experimentalFeatures = it }
             )
@@ -1310,6 +1323,7 @@ private fun UiTweaksSubScreen(
                 ToggleSettingCard(
                     title = "Show Knowledge card on home page",
                     description = "Show the AI Knowledge / RAG card on the Hub. Off hides the card — knowledge bases still work via the share-target chooser, and any KB already attached to a chat or report is unaffected.",
+                    icon = MetadataDefaults.LIBRARY,
                     checked = showKnowledgeCard,
                     onCheckedChange = { showKnowledgeCard = it }
                 )
@@ -1317,6 +1331,7 @@ private fun UiTweaksSubScreen(
             ToggleSettingCard(
                 title = "Full screen",
                 description = "Hide the Android status bar (clock / battery / signal) so the app uses the full screen height. Swipe down from the top edge to reveal the bar transiently.",
+                icon = MetadataDefaults.DEVICE,
                 checked = fullScreen,
                 onCheckedChange = { fullScreen = it }
             )
@@ -1364,7 +1379,7 @@ private fun OtherSettingsSubScreen(
     ) {
         TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity and report automation", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SettingCard("Identity", "Used as the human side of the conversation in agent prompts; the email pre-fills the export sheet so you don't retype it on every send.") {
+            SettingCard("Identity", "Used as the human side of the conversation in agent prompts; the email pre-fills the export sheet so you don't retype it on every send.", MetadataDefaults.MAIL) {
                 OutlinedTextField(
                     value = userName, onValueChange = { userName = it },
                     label = { Text("Name") },
@@ -1381,6 +1396,7 @@ private fun OtherSettingsSubScreen(
             ToggleSettingCard(
                 title = "Auto create Rerank and Moderation",
                 description = "When a report's models all finish, automatically create one Rerank and one Moderation — each using the first rerank- / moderation-capable model found among your active providers. A kind is skipped when no capable model exists or one is already present. Manual Rerank / Moderation still lets you pick the model.",
+                icon = MetadataDefaults.REPEAT,
                 checked = autoCreateRerankAndModeration,
                 onCheckedChange = { autoCreateRerankAndModeration = it }
             )
@@ -1441,11 +1457,12 @@ private fun MetadataSettingsSubScreen(
             ToggleSettingCard(
                 title = "Generate metadata & icons",
                 description = "Grand-master switch for every optional metadata item: report icon, report language, AI report title, per-model icons & titles, Fan Out icons & titles, and the meta / rerank / moderate / translate row icons. When off, none of it is generated and all of its UI disappears — the Fan Out Icons / Titles buttons, the Manage report 'info' row — and a new report must be given a manual title. View screens are unaffected: a report that already has icons keeps showing them. Turn it on to reveal the per-item toggles below.",
+                icon = MetadataDefaults.PALETTE,
                 checked = metadataEnabled,
                 onCheckedChange = { metadataEnabled = it }
             )
             if (metadataEnabled) {
-                SettingCard("Report title", "How a new report's title is decided. Manual keeps the Title input field on the New Report screen. Generate (default) hides the field and runs a background LLM call after report start that fills the title from the prompt body — the resolved title shows on the 'title' row of the Manage report screen, alongside the icon and language rows.") {
+                SettingCard("Report title", "How a new report's title is decided. Manual keeps the Title input field on the New Report screen. Generate (default) hides the field and runs a background LLM call after report start that fills the title from the prompt body — the resolved title shows on the 'title' row of the Manage report screen, alongside the icon and language rows.", MetadataDefaults.DOCUMENT) {
                     Column {
                         RadioRow(
                             selected = reportTitleMode == com.ai.viewmodel.ReportTitleMode.Manual,
@@ -1462,36 +1479,42 @@ private fun MetadataSettingsSubScreen(
                 ToggleSettingCard(
                     title = "Generate report icon",
                     description = "Run a small LLM call at the start of every report to pick a fitting emoji icon. The icon shows in the title bar, hub list, history, and search hits. Turn this off to skip the call and hide every report-icon affordance.",
+                    icon = MetadataDefaults.REPORT_ICON,
                     checked = iconGenEnabled,
                     onCheckedChange = { iconGenEnabled = it }
                 )
                 ToggleSettingCard(
                     title = "Generate report language",
                     description = "Detect the report's language and pick a flag emoji for it (a two-step LLM call after report start). Surfaces as the 'language' row on the info screen and as a flag on the language picker. Independent of the report icon.",
+                    icon = MetadataDefaults.LANGUAGE,
                     checked = reportLanguageGenEnabled,
                     onCheckedChange = { reportLanguageGenEnabled = it }
                 )
                 ToggleSettingCard(
                     title = "Generate per model icons",
                     description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ${com.ai.data.MetadataIconsHolder.current.statusDone} flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
+                    icon = MetadataDefaults.MODEL_ICON,
                     checked = perModelIconGenEnabled,
                     onCheckedChange = { perModelIconGenEnabled = it }
                 )
                 ToggleSettingCard(
                     title = "Generate per model titles",
                     description = "After each model response, run a short Anthropic call (internal/model_title) to title that response in ≤4 words. The title replaces the model name on the Manage report 'report' row; its cost folds into that row and into a 'Model titles' category on the Costs screen. Off by default — it's one extra LLM call per model.",
+                    icon = MetadataDefaults.LABEL,
                     checked = perModelTitleGenEnabled,
                     onCheckedChange = { perModelTitleGenEnabled = it }
                 )
                 ToggleSettingCard(
                     title = "Use internal prompts icons",
                     description = "Generate a small emoji for each Internal Prompt and show it as a leading glyph on the secondary-result rows of the report result page (compare / critique / rerank / fan-out / …). One LLM call per (name, title) — results cached persistently and reused across reports. Renaming a prompt or editing its title invalidates only that entry.",
+                    icon = MetadataDefaults.SYSTEM_PROMPT,
                     checked = useInternalPromptsIcons,
                     onCheckedChange = { useInternalPromptsIcons = it }
                 )
                 ToggleSettingCard(
                     title = "Autostart Fan Meta",
                     description = "When a Fan Out finishes with no errored pairs, automatically kick off its Fan Meta batch (one call per pair produces both the title and the icon) — so you don't have to tap the Fan Meta button by hand. A run with any error pair is left alone; you can still start it manually.",
+                    icon = MetadataDefaults.FAN_OUT,
                     checked = autostartFanMeta,
                     onCheckedChange = { autostartFanMeta = it }
                 )
@@ -1726,6 +1749,28 @@ private val DEFAULT_ICON_SECTIONS: List<Pair<String, List<IconRowSpec>>> = run {
     )
 }
 
+private fun defaultIconSectionIcon(section: String): String = when (section) {
+    "Report" -> MetadataDefaults.REPORT_ICON
+    "Secondary results" -> MetadataDefaults.META
+    "Translation" -> MetadataDefaults.TRANSLATE
+    "Monitor bar" -> MetadataDefaults.LIVE_DASHBOARD
+    "Create & chat" -> MetadataDefaults.CHAT
+    "Navigation" -> MetadataDefaults.ARROW_RIGHT
+    "Configuration" -> MetadataDefaults.SETTINGS
+    "Report actions" -> MetadataDefaults.OPEN_MANAGE
+    "Item actions" -> MetadataDefaults.EDIT
+    "View bar & help" -> MetadataDefaults.HELP
+    "Status & progress" -> MetadataDefaults.STATUS_PENDING
+    "Marks & ranks" -> MetadataDefaults.CHECK
+    "Arrows" -> MetadataDefaults.ARROW_RIGHT
+    "Search & files" -> MetadataDefaults.SEARCH
+    "Content & media" -> MetadataDefaults.IMAGE
+    "Cost" -> MetadataDefaults.COST
+    "Workers & tools" -> MetadataDefaults.TOOLS
+    "Devices & misc" -> MetadataDefaults.DEVICE
+    else -> MetadataDefaults.PALETTE
+}
+
 /** "Default icons" — edit every fallback / action emoji the app draws: the
  *  report & secondary-result fallbacks on the view screens, plus every glyph in
  *  the bottom action bars. Always reachable (independent of the metadata master
@@ -1804,6 +1849,7 @@ private fun DefaultIconsSubScreen(
             DEFAULT_ICON_SECTIONS.forEach { (section, rows) ->
                 IconCategoryCard(
                     title = section,
+                    icon = defaultIconSectionIcon(section),
                     glyphs = rows.map { row -> row.get(icons).ifBlank { row.factory } }
                 ) {
                     rows.forEach { row ->
@@ -1826,6 +1872,7 @@ private fun DefaultIconsSubScreen(
 @Composable
 private fun IconCategoryCard(
     title: String,
+    icon: String,
     glyphs: List<String>,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -1839,6 +1886,8 @@ private fun IconCategoryCard(
                 modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                SettingsCardHeaderIcon(icon)
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                 Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
             }
@@ -2068,11 +2117,11 @@ private fun AppSettingsScreen(
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "settings_app_settings", title = "App settings", subject = "App-wide & report-model default prompt / parameters", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SettingCard("System prompt", "App-wide is the lowest fallback for every model; Report model applies to bare models (not from an agent / flock / swarm) and is skipped when a pre-generation system prompt is given.") {
+            SettingCard("System prompt", "App-wide is the lowest fallback for every model; Report model applies to bare models (not from an agent / flock / swarm) and is skipped when a pre-generation system prompt is given.", MetadataDefaults.SYSTEM_PROMPT) {
                 AppDefaultRow("App-wide", appSp?.let { aiSettings.getSystemPromptById(it)?.name }) { spDialog = "app" }
                 AppDefaultRow("Report model", rmSp?.let { aiSettings.getSystemPromptById(it)?.name }) { spDialog = "rm" }
             }
-            SettingCard("Parameters", "App-wide is the lowest fallback for every model; Report model applies to bare models (not from an agent / flock / swarm) and is skipped when pre-generation parameters are given.") {
+            SettingCard("Parameters", "App-wide is the lowest fallback for every model; Report model applies to bare models (not from an agent / flock / swarm) and is skipped when pre-generation parameters are given.", MetadataDefaults.PARAMETERS) {
                 AppDefaultRow("App-wide", appPar.mapNotNull { aiSettings.getParametersById(it)?.name }.joinToString(", ").ifBlank { null }) { parDialog = "app" }
                 AppDefaultRow("Report model", rmPar.mapNotNull { aiSettings.getParametersById(it)?.name }.joinToString(", ").ifBlank { null }) { parDialog = "rm" }
             }
@@ -2138,12 +2187,14 @@ private fun LoggingAndTracingSubScreen(
             ToggleSettingCard(
                 title = "API tracing",
                 description = "Record every API request and response. Turn off to hide the AI API Traces card and the ${com.ai.data.MetadataIconsHolder.current.traces} trace icons.",
+                icon = MetadataDefaults.TRACES,
                 checked = tracingEnabled,
                 onCheckedChange = { tracingEnabled = it }
             )
             SettingCard(
                 "Application log level",
-                "Severity threshold for the in-app file logger. Calls at or above this level are appended to a daily-rotating file in app storage. View / clear under Housekeeping → Application log. OFF disables the file appender."
+                "Severity threshold for the in-app file logger. Calls at or above this level are appended to a daily-rotating file in app storage. View / clear under Housekeeping → Application log. OFF disables the file appender.",
+                MetadataDefaults.APP_LOG
             ) {
                 Column {
                     com.ai.data.LogLevel.entries.forEach { lvl ->
@@ -2163,6 +2214,7 @@ private fun LoggingAndTracingSubScreen(
 private fun SettingCard(
     title: String,
     description: String? = null,
+    icon: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
     // Cards start collapsed so the Settings screen lands on a compact
@@ -2177,6 +2229,8 @@ private fun SettingCard(
                 modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                SettingsCardHeaderIcon(icon)
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                 Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
             }
@@ -2198,6 +2252,7 @@ private fun SettingCard(
 private fun ToggleSettingCard(
     title: String,
     description: String? = null,
+    icon: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
@@ -2211,6 +2266,8 @@ private fun ToggleSettingCard(
                 modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                SettingsCardHeaderIcon(icon)
+                Spacer(modifier = Modifier.width(12.dp))
                 Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                 Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
             }
@@ -2227,6 +2284,16 @@ private fun ToggleSettingCard(
             }
         }
     }
+}
+
+@Composable
+private fun SettingsCardHeaderIcon(icon: String) {
+    Text(
+        LocalMetadataIcons.current.forFactoryGlyph(icon),
+        fontSize = 28.sp,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.width(42.dp)
+    )
 }
 
 /** Radio + label on one row. Default RadioButton ships with a 48dp

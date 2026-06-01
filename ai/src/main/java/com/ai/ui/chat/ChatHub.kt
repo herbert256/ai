@@ -14,11 +14,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ChatHistoryManager
+import com.ai.data.MetadataDefaults
 import com.ai.model.Settings
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.LocalMetadataIcons
 import com.ai.ui.shared.TitleBar
 
 @Composable
@@ -106,7 +109,7 @@ fun ChatsHubScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
         ChatHubCard(
-            icon = "\uD83D\uDCDA", title = "Continue Existing Chat",
+            icon = MetadataDefaults.LIBRARY, title = "Continue Existing Chat",
             description = "Resume a previous chat session",
             onClick = onNavigateToChatHistory, enabled = hasChatHistory
         )
@@ -129,13 +132,13 @@ fun ChatsHubScreen(
         }
         Spacer(modifier = Modifier.height(12.dp))
         ChatHubCard(
-            icon = "\uD83D\uDD0D", title = "Search Chats",
+            icon = MetadataDefaults.SEARCH, title = "Search Chats",
             description = "Search across all chat messages",
             onClick = onNavigateToChatSearch, enabled = hasChatHistory
         )
         Spacer(modifier = Modifier.height(12.dp))
         ChatHubCard(
-            icon = "\uD83E\uDDF9", title = "Manage",
+            icon = MetadataDefaults.OPEN_MANAGE, title = "Manage",
             description = "Delete old chats or export a backup",
             onClick = onNavigateToManage, enabled = hasChatHistory
         )
@@ -184,7 +187,7 @@ private fun LocalLlmChatCard(installed: List<String>, onPick: (String) -> Unit) 
     var open by remember { mutableStateOf(false) }
     Box {
         ChatHubCard(
-            icon = com.ai.data.MetadataIconsHolder.current.device, title = "Chat with a local LLM",
+            icon = MetadataDefaults.DEVICE, title = "Chat with a local LLM",
             description = "Run a .task model fully on-device — nothing leaves the phone",
             onClick = {
                 // Explicit branching: a lone installed model opens directly,
@@ -242,24 +245,33 @@ private fun StartChatGroup(
     onDualChat: () -> Unit,
     onStartWithPhoto: () -> Unit
 ) {
+    val mi = LocalMetadataIcons.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
-            Text("Start", fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                color = AppColors.TextSecondary,
-                modifier = Modifier.padding(bottom = 4.dp))
-            ChatStartRow(icon = "\uD83E\uDD16", title = "New Chat with Agent", enabled = hasAgents, onClick = onAgentChat)
-            ChatStartRow(icon = "\uD83D\uDCAC", title = "New Chat \u2013 Configure On The Fly", enabled = true, onClick = onNewChat)
-            ChatStartRow(icon = "\uD83E\uDD1C\uD83E\uDD1B", title = "Dual Chat", enabled = true, onClick = onDualChat)
-            ChatStartRow(icon = "\uD83D\uDCF8", title = "Start with photo", enabled = true, onClick = onStartWithPhoto)
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 4.dp)) {
+                Text(
+                    mi.forFactoryGlyph(MetadataDefaults.ADD),
+                    fontSize = 20.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.width(30.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Start", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.TextSecondary)
+            }
+            ChatStartRow(icon = MetadataDefaults.AGENT, title = "New Chat with Agent", enabled = hasAgents, onClick = onAgentChat)
+            ChatStartRow(icon = MetadataDefaults.CHAT, title = "New Chat – Configure On The Fly", enabled = true, onClick = onNewChat)
+            ChatStartRow(icon = MetadataDefaults.HANDSHAKE, title = "Dual Chat", enabled = true, onClick = onDualChat)
+            ChatStartRow(icon = MetadataDefaults.CAMERA, title = "Start with photo", enabled = true, onClick = onStartWithPhoto)
         }
     }
 }
 
 @Composable
 private fun ChatStartRow(icon: String, title: String, enabled: Boolean, onClick: () -> Unit) {
+    val mi = LocalMetadataIcons.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -267,7 +279,12 @@ private fun ChatStartRow(icon: String, title: String, enabled: Boolean, onClick:
             .padding(vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = icon, fontSize = 22.sp, modifier = if (enabled) Modifier else Modifier.alpha(0.4f))
+        Text(
+            text = mi.forFactoryGlyph(icon),
+            fontSize = 28.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(42.dp).then(if (enabled) Modifier else Modifier.alpha(0.4f))
+        )
         Spacer(modifier = Modifier.width(12.dp))
         Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
             color = if (enabled) Color.White else AppColors.TextDim)
@@ -282,6 +299,7 @@ private fun ChatHubCard(
     onClick: () -> Unit,
     enabled: Boolean = true
 ) {
+    val mi = LocalMetadataIcons.current
     Card(
         modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.clickable { onClick() } else Modifier),
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
@@ -290,7 +308,12 @@ private fun ChatHubCard(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = icon, fontSize = 32.sp, modifier = if (enabled) Modifier else Modifier.alpha(0.5f))
+            Text(
+                text = mi.forFactoryGlyph(icon),
+                fontSize = 28.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(42.dp).then(if (enabled) Modifier else Modifier.alpha(0.5f))
+            )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(

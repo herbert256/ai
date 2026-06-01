@@ -21,6 +21,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -28,6 +29,7 @@ import com.ai.R
 import com.ai.data.AnalysisRepository
 import com.ai.data.KnowledgeService
 import com.ai.data.KnowledgeStore
+import com.ai.data.MetadataDefaults
 import com.ai.data.ModelCooldownStore
 import com.ai.data.Report
 import com.ai.data.ReportStatus
@@ -41,6 +43,7 @@ import com.ai.ui.knowledge.pickTypeForUri
 import com.ai.ui.search.supportedEmbeddingChoices
 import com.ai.ui.settings.SettingsPreferences
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.LocalMetadataIcons
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.ReportViewModel
@@ -139,45 +142,46 @@ fun HubScreen(
             // inside the `if`, so the gap goes with it and the layout
             // stays compact.
             if (hasAnyAgent) {
-                HubCard(icon = "\uD83D\uDCDD", title = "Reports", onClick = onNavigateToReportsHub)
+                HubCard(icon = MetadataDefaults.REPORT_ICON, title = "Reports", onClick = onNavigateToReportsHub)
                 Spacer(modifier = Modifier.height(12.dp))
-                HubCard(icon = "\uD83D\uDCAC", title = "Chat", onClick = onNavigateToChatsHub)
+                HubCard(icon = MetadataDefaults.CHAT, title = "Chat", onClick = onNavigateToChatsHub)
                 Spacer(modifier = Modifier.height(12.dp))
             } else {
                 // No agents yet \u2192 the AI Reports hub is hidden. Offer the
                 // bundled example reports so a first-run user can open a
                 // real report without configuring a provider.
-                HubCard(icon = "\uD83D\uDCA1", title = "Examples", onClick = onNavigateToExamples)
+                HubCard(icon = MetadataDefaults.TIP, title = "Examples", onClick = onNavigateToExamples)
                 Spacer(modifier = Modifier.height(12.dp))
             }
             if (uiState.generalSettings.experimentalFeaturesEnabled && uiState.generalSettings.showKnowledgeCard) {
-                HubCard(icon = "\uD83D\uDCDA", title = "Knowledge", onClick = onNavigateToKnowledge)
+                HubCard(icon = MetadataDefaults.LIBRARY, title = "Knowledge", onClick = onNavigateToKnowledge)
                 Spacer(modifier = Modifier.height(12.dp))
             }
             // Models moved to Setup \u2192 Workers (a model is the raw material
             // agents / swarms are built from), so it sits with them now.
-            HubCard(icon = "\uD83D\uDCE1", title = "Monitor", onClick = onNavigateToMonitor)
+            HubCard(icon = MetadataDefaults.LIVE_DASHBOARD, title = "Monitor", onClick = onNavigateToMonitor)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83E\uDD16", title = "Setup", onClick = onNavigateToAiSetup)
+            HubCard(icon = MetadataDefaults.AGENT, title = "Setup", onClick = onNavigateToAiSetup)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\uD83E\uDDF9", title = "Housekeeping", onClick = onNavigateToHousekeeping)
+            HubCard(icon = MetadataDefaults.HOUSEKEEPING, title = "Housekeeping", onClick = onNavigateToHousekeeping)
             Spacer(modifier = Modifier.height(12.dp))
             Spacer(modifier = Modifier.height(32.dp))
-            HubCard(icon = "\u2699\uFE0F", title = "Settings", onClick = onNavigateToSettings)
+            HubCard(icon = MetadataDefaults.SETTINGS, title = "Settings", onClick = onNavigateToSettings)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = "\u2753", title = "Help", onClick = onNavigateToHelp)
+            HubCard(icon = MetadataDefaults.HELP, title = "Help", onClick = onNavigateToHelp)
             Spacer(modifier = Modifier.height(12.dp))
             // \u2139\uFE0F About \u2014 replaces the old Documentation card. The About
             // screen surfaces the AI logo + version + build date and
             // hosts the two documentation hubs (Manual + Technical) as
             // its own cards.
-            HubCard(icon = "\u2139\uFE0F", title = "About", onClick = onNavigateToAbout)
+            HubCard(icon = MetadataDefaults.INFO, title = "About", onClick = onNavigateToAbout)
         }
     }
 }
 
 @Composable
 internal fun HubCard(icon: String, title: String, onClick: () -> Unit) {
+    val mi = LocalMetadataIcons.current
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
@@ -186,7 +190,12 @@ internal fun HubCard(icon: String, title: String, onClick: () -> Unit) {
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = icon, fontSize = 26.sp)
+            Text(
+                text = mi.forFactoryGlyph(icon),
+                fontSize = 28.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(42.dp)
+            )
             Spacer(modifier = Modifier.width(12.dp))
             Text(text = title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
         }
@@ -400,10 +409,10 @@ fun ReportsHubScreen(
         // Section cards, with empty ones (e.g. Running / Problems) sunk to
         // the bottom so the populated buckets lead. Examples stays last.
         val hubCards = listOf(
-            Triple("⏳", AppColors.Orange, "Running AI reports") to homeReportLists.running,
-            Triple(com.ai.data.MetadataIconsHolder.current.statusWarning, AppColors.Red, "Reports with problems") to homeReportLists.problems,
-            Triple(com.ai.data.MetadataIconsHolder.current.pin, AppColors.Yellow, "Pinned AI Reports") to pinnedReports,
-            Triple(com.ai.data.MetadataIconsHolder.current.clockRecent, AppColors.Blue, "Latest AI Reports") to latestReports,
+            Triple(MetadataDefaults.STATUS_PENDING, AppColors.Orange, "Running AI reports") to homeReportLists.running,
+            Triple(MetadataDefaults.STATUS_WARNING, AppColors.Red, "Reports with problems") to homeReportLists.problems,
+            Triple(MetadataDefaults.PIN, AppColors.Yellow, "Pinned AI Reports") to pinnedReports,
+            Triple(MetadataDefaults.CLOCK_RECENT, AppColors.Blue, "Latest AI Reports") to latestReports,
         ).sortedBy { it.second.isEmpty() }
         hubCards.forEachIndexed { i, (meta, reports) ->
             if (i > 0) Spacer(modifier = Modifier.height(10.dp))
@@ -443,6 +452,7 @@ private fun ReportsHubListCard(
     showEmptyHint: Boolean = true
 ) {
     val empty = reports.isEmpty()
+    val mi = LocalMetadataIcons.current
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier
@@ -451,7 +461,7 @@ private fun ReportsHubListCard(
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = accentEmoji, fontSize = 18.sp)
+                Text(text = mi.forFactoryGlyph(accentEmoji), fontSize = 18.sp)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,

@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.BuildConfig
 import com.ai.R
+import com.ai.data.MetadataDefaults
 import com.ai.ui.hub.HubCard
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
@@ -45,7 +46,6 @@ fun AboutScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "about",
@@ -97,8 +97,8 @@ fun AboutScreen(
             )
             Spacer(modifier = Modifier.height(28.dp))
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                HubCard(icon = mi.book, title = "Manual", onClick = onOpenManual)
-                HubCard(icon = mi.tools, title = "Technical documentation", onClick = onOpenTechnicalDocs)
+                HubCard(icon = MetadataDefaults.BOOK, title = "Manual", onClick = onOpenManual)
+                HubCard(icon = MetadataDefaults.TOOLS, title = "Technical documentation", onClick = onOpenTechnicalDocs)
             }
             Spacer(modifier = Modifier.height(24.dp))
             // Copyright footer pinned at the bottom of the About
