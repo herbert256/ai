@@ -60,7 +60,7 @@ fun SearchAiReportsScreen(
             onClick = onNavigateToQuickLocalSearch)
         SearchAiReportsItem(icon = com.ai.data.MetadataIconsHolder.current.folderOpen, title = "Extended local search",
             onClick = onNavigateToLocalSearch)
-        SearchAiReportsItem(icon = com.ai.data.MetadataIconsHolder.current.translationRow, title = "Remote semantic search",
+        SearchAiReportsItem(icon = com.ai.data.MetadataIconsHolder.current.web, title = "Remote semantic search",
             onClick = onNavigateToSearch)
         if (experimentalFeatures) {
             SearchAiReportsItem(icon = com.ai.data.MetadataIconsHolder.current.device, title = "Local semantic search",

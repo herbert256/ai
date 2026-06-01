@@ -649,7 +649,7 @@ private fun SourcesCard(
         SourceRow(com.ai.data.MetadataIconsHolder.current.huggingface, "HuggingFace", hfRaw, onTrace = hfTrace) {
             onOpen("HuggingFace", hfRaw ?: "{}", "https://huggingface.co/api/models")
         }
-        SourceRow(com.ai.data.MetadataIconsHolder.current.translationRow, "OpenRouter", orRaw, onTrace = orTrace) {
+        SourceRow(com.ai.data.MetadataIconsHolder.current.web, "OpenRouter", orRaw, onTrace = orTrace) {
             onOpen("OpenRouter", orRaw ?: "{}", "https://openrouter.ai/api/v1/models")
         }
         SourceRow(com.ai.data.MetadataIconsHolder.current.bookmark, "LiteLLM", liteLLMRaw) {
@@ -664,7 +664,7 @@ private fun SourcesCard(
         SourceRow(com.ai.data.MetadataIconsHolder.current.cost, "llm-prices", llmPricesRaw) {
             onOpen("llm-prices", llmPricesRaw ?: "{}", "https://raw.githubusercontent.com/simonw/llm-prices/main/data/")
         }
-        SourceRow(com.ai.data.MetadataIconsHolder.current.statisticsMonitor, "Artificial Analysis", aaRaw, isLast = true) {
+        SourceRow(com.ai.data.MetadataIconsHolder.current.chart, "Artificial Analysis", aaRaw, isLast = true) {
             onOpen("Artificial Analysis", aaRaw ?: "{}", "https://artificialanalysis.ai/api/v2/data/llms/models")
         }
     }

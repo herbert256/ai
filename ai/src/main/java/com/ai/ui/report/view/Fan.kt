@@ -414,7 +414,7 @@ fun FanOutViewScreen(
                             // the run carries translations; tapping it
                             // cycles to the next language (wrapping).
                             val initiatorFlag = if (availableLanguages.size > 1) when {
-                                activeLanguage.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.translationRow
+                                activeLanguage.isBlank() -> report.languageIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.languageIcon
                                 else -> com.ai.data.InternalPromptIconCache.get("translation_icon", activeLanguage) ?: com.ai.data.MetadataIconsHolder.current.world
                             } else null
                             FanOutBodyCard(

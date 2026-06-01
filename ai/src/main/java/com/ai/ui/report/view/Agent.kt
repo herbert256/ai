@@ -289,7 +289,7 @@ fun ReportsViewScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(text = com.ai.data.MetadataIconsHolder.current.statisticsMonitor, fontSize = 40.sp)
+                    Text(text = com.ai.data.MetadataIconsHolder.current.chart, fontSize = 40.sp)
                     Text(
                         text = "No successful agent responses",
                         color = AppColors.TextPrimary, fontSize = 16.sp,

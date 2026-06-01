@@ -111,6 +111,8 @@ object MetadataDefaults {
     const val ARROW_SUBMIT = "➤"
     // Search & files
     const val AGENT = "🤖"
+    const val AI_FIND = "🤖"            // 🤖 AI-icon-finder affordance (split from AGENT)
+    const val WEB = "🌐"               // 🌐 web / remote / network (split from TRANSLATE)
     const val LOOKUP = "🔎"
     const val SEARCH = "🔍"
     const val FOLDER_OPEN = "📂"
@@ -120,6 +122,7 @@ object MetadataDefaults {
     const val PACKAGE_BOX = "📦"
     // Content & media
     const val WORLD = "🌍"
+    const val CHART = "📊"             // 📊 generic statistics / chart (split from STATISTICS_MONITOR)
     const val CYCLONE = "🌀"
     const val LIBRARY = "📚"
     const val BOOK = "📖"
@@ -260,6 +263,8 @@ data class MetadataIcons(
     val arrowSubmit: String = MetadataDefaults.ARROW_SUBMIT,
     // Search & files
     val agent: String = MetadataDefaults.AGENT,
+    val aiFind: String = MetadataDefaults.AI_FIND,
+    val web: String = MetadataDefaults.WEB,
     val lookup: String = MetadataDefaults.LOOKUP,
     val search: String = MetadataDefaults.SEARCH,
     val folderOpen: String = MetadataDefaults.FOLDER_OPEN,
@@ -269,6 +274,7 @@ data class MetadataIcons(
     val packageBox: String = MetadataDefaults.PACKAGE_BOX,
     // Content & media
     val world: String = MetadataDefaults.WORLD,
+    val chart: String = MetadataDefaults.CHART,
     val cyclone: String = MetadataDefaults.CYCLONE,
     val library: String = MetadataDefaults.LIBRARY,
     val book: String = MetadataDefaults.BOOK,
@@ -399,6 +405,8 @@ data class MetadataIcons(
             arrowDown = f(arrowDown, MetadataDefaults.ARROW_DOWN),
             arrowSubmit = f(arrowSubmit, MetadataDefaults.ARROW_SUBMIT),
             agent = f(agent, MetadataDefaults.AGENT),
+            aiFind = f(aiFind, MetadataDefaults.AI_FIND),
+            web = f(web, MetadataDefaults.WEB),
             lookup = f(lookup, MetadataDefaults.LOOKUP),
             search = f(search, MetadataDefaults.SEARCH),
             folderOpen = f(folderOpen, MetadataDefaults.FOLDER_OPEN),
@@ -407,6 +415,7 @@ data class MetadataIcons(
             notepad = f(notepad, MetadataDefaults.NOTEPAD),
             packageBox = f(packageBox, MetadataDefaults.PACKAGE_BOX),
             world = f(world, MetadataDefaults.WORLD),
+            chart = f(chart, MetadataDefaults.CHART),
             cyclone = f(cyclone, MetadataDefaults.CYCLONE),
             library = f(library, MetadataDefaults.LIBRARY),
             book = f(book, MetadataDefaults.BOOK),

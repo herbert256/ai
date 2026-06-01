@@ -895,7 +895,7 @@ internal fun ViewAiReportScreen(
                 promptViewOpen = true
             }))
             add(IdentifiedTile("doc:Reports", ViewTile(
-                "Reports", com.ai.data.MetadataIconsHolder.current.statisticsMonitor, AppColors.Blue,
+                "Reports", com.ai.data.MetadataIconsHolder.current.chart, AppColors.Blue,
                 enabled = reportsEnabled,
                 onMissingClick = if (!reportsEnabled) ({ openReportsMissing() }) else null
             ) {

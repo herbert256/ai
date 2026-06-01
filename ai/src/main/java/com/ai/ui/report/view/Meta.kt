@@ -305,7 +305,7 @@ fun MetaViewScreen(
                 // page's flag, not the active page's.
                 val pageFlag = when {
                     languages.size <= 1 -> null
-                    lang.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.translationRow
+                    lang.isBlank() -> report?.languageIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.languageIcon
                     else -> com.ai.data.InternalPromptIconCache.get("translation_icon", lang)
                         ?: com.ai.data.MetadataIconsHolder.current.world
                 }

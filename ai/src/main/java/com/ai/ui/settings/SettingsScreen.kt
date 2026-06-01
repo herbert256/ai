@@ -838,7 +838,7 @@ private fun SettingsMainScreen(
             // table-of-contents — every actual control lives one tap
             // deeper.
             SettingsNavCard(
-                icon = com.ai.data.MetadataIconsHolder.current.translationRow,
+                icon = com.ai.data.MetadataIconsHolder.current.web,
                 title = "Network settings",
                 description = "Read timeouts, per-provider throttling, 429 / 529 retry policy.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_NETWORK) }
@@ -1613,6 +1613,8 @@ private val DEFAULT_ICON_SECTIONS: List<Pair<String, List<IconRowSpec>>> = run {
         ),
         "Search & files" to listOf(
             IconRowSpec("Agent / AI", { it.agent }, { m, v -> m.copy(agent = v) }, d.AGENT),
+            IconRowSpec("AI find", { it.aiFind }, { m, v -> m.copy(aiFind = v) }, d.AI_FIND),
+            IconRowSpec("Web / remote", { it.web }, { m, v -> m.copy(web = v) }, d.WEB),
             IconRowSpec("Lookup", { it.lookup }, { m, v -> m.copy(lookup = v) }, d.LOOKUP),
             IconRowSpec("Search", { it.search }, { m, v -> m.copy(search = v) }, d.SEARCH),
             IconRowSpec("Open folder", { it.folderOpen }, { m, v -> m.copy(folderOpen = v) }, d.FOLDER_OPEN),
@@ -1623,6 +1625,7 @@ private val DEFAULT_ICON_SECTIONS: List<Pair<String, List<IconRowSpec>>> = run {
         ),
         "Content & media" to listOf(
             IconRowSpec("World", { it.world }, { m, v -> m.copy(world = v) }, d.WORLD),
+            IconRowSpec("Chart", { it.chart }, { m, v -> m.copy(chart = v) }, d.CHART),
             IconRowSpec("Cyclone", { it.cyclone }, { m, v -> m.copy(cyclone = v) }, d.CYCLONE),
             IconRowSpec("Library", { it.library }, { m, v -> m.copy(library = v) }, d.LIBRARY),
             IconRowSpec("Book", { it.book }, { m, v -> m.copy(book = v) }, d.BOOK),
@@ -1785,7 +1788,7 @@ private fun IconDefaultRow(label: String, value: String, onChange: (String) -> U
         )
         // 🤖 AI — ask models for a fitting emoji (editable prompt), pick one.
         Text(
-            com.ai.data.MetadataIconsHolder.current.agent, fontSize = 20.sp,
+            com.ai.data.MetadataIconsHolder.current.aiFind, fontSize = 20.sp,
             modifier = Modifier.clickable { onAiFind() }.padding(start = 6.dp, end = 2.dp)
         )
     }
