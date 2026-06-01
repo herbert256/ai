@@ -331,6 +331,9 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("modelNameLayout", g.modelNameLayout.name)
     addProperty("uiCardBackgroundArgb", g.uiCardBackgroundArgb)
     addProperty("uiButtonBackgroundArgb", g.uiButtonBackgroundArgb)
+    add("uiColorOverrides", JsonObject().apply {
+        g.uiColorOverrides.forEach { (k, v) -> addProperty(k, v) }
+    })
     addProperty("iconGenEnabled", g.iconGenEnabled)
     addProperty("reportTitleMode", g.reportTitleMode.name)
     addProperty("showKnowledgeCard", g.showKnowledgeCard)
@@ -400,12 +403,28 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
     val layout = str("modelNameLayout")?.let {
         runCatching { ModelNameLayout.valueOf(it) }.getOrNull()
     }
+    val uiColorOverrides: Map<String, Int>? = obj.getAsJsonObject("uiColorOverrides")?.let { o ->
+        val m = LinkedHashMap<String, Int>()
+        o.entrySet().forEach { (k, v) ->
+            if (v.isJsonPrimitive && v.asJsonPrimitive.isNumber) {
+                runCatching { v.asInt }.getOrNull()?.let { m[k] = it }
+            }
+        }
+        m
+    }
     val titleMode = str("reportTitleMode")?.let {
         runCatching { com.ai.viewmodel.ReportTitleMode.valueOf(it) }.getOrNull()
     }
     str("viewTileOrder")?.let { order ->
         context.getSharedPreferences("view_screen_prefs", Context.MODE_PRIVATE)
             .edit().putString("tile_order", order).apply()
+    }
+    val importedCardBackgroundArgb = int("uiCardBackgroundArgb")
+    val importedButtonBackgroundArgb = int("uiButtonBackgroundArgb")
+    val mergedUiColorOverrides = current.uiColorOverrides.toMutableMap().apply {
+        uiColorOverrides?.let { putAll(it) }
+        importedCardBackgroundArgb?.let { put("CardBackgroundAlt", it) }
+        importedButtonBackgroundArgb?.let { put("ButtonBackground", it) }
     }
     return current.copy(
         userName = str("userName") ?: current.userName,
@@ -414,8 +433,9 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
         fullScreen = bool("fullScreen") ?: current.fullScreen,
         modelNameLayout = layout ?: current.modelNameLayout,
-        uiCardBackgroundArgb = int("uiCardBackgroundArgb") ?: current.uiCardBackgroundArgb,
-        uiButtonBackgroundArgb = int("uiButtonBackgroundArgb") ?: current.uiButtonBackgroundArgb,
+        uiCardBackgroundArgb = mergedUiColorOverrides["CardBackgroundAlt"] ?: current.uiCardBackgroundArgb,
+        uiButtonBackgroundArgb = mergedUiColorOverrides["ButtonBackground"] ?: current.uiButtonBackgroundArgb,
+        uiColorOverrides = mergedUiColorOverrides,
         iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled,
         reportTitleMode = titleMode ?: current.reportTitleMode,
         showKnowledgeCard = bool("showKnowledgeCard") ?: current.showKnowledgeCard,

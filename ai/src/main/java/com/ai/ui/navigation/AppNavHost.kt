@@ -387,10 +387,11 @@ fun AppNavHost(
     // icons. Composable sites use LocalMetadataIcons.current (provided below).
     androidx.compose.runtime.SideEffect {
         com.ai.data.MetadataIconsHolder.current = rootUiStateForLayout.generalSettings.metadataIcons
-        AppColors.applyUiColors(
-            rootUiStateForLayout.generalSettings.uiCardBackgroundArgb,
-            rootUiStateForLayout.generalSettings.uiButtonBackgroundArgb
-        )
+        val uiColors = rootUiStateForLayout.generalSettings.uiColorOverrides.toMutableMap().apply {
+            putIfAbsent("CardBackgroundAlt", rootUiStateForLayout.generalSettings.uiCardBackgroundArgb)
+            putIfAbsent("ButtonBackground", rootUiStateForLayout.generalSettings.uiButtonBackgroundArgb)
+        }
+        AppColors.applyUiColors(uiColors)
     }
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalTopBarLeftIcon provides sectionTopIcon,

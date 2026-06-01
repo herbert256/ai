@@ -78,6 +78,7 @@ data class GeneralSettings(
      *  without Compose/UI types in the view-model layer. */
     val uiCardBackgroundArgb: Int = DEFAULT_UI_CARD_BACKGROUND_ARGB,
     val uiButtonBackgroundArgb: Int = DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
+    val uiColorOverrides: Map<String, Int> = emptyMap(),
     /** Grand master switch for every optional metadata item — report
      *  icon, report language, AI title, per-model icons / titles, fan
      *  icons / titles, and internal-prompt (meta / rerank / moderate /

@@ -7,6 +7,7 @@ import com.ai.data.createAppGson
 import com.ai.data.normalizeUsageKind
 import com.ai.data.writeTextAtomic
 import com.ai.model.*
+import com.ai.ui.shared.AppColors
 import com.ai.viewmodel.GeneralSettings
 import com.ai.viewmodel.ModelNameLayout
 import com.ai.viewmodel.PromptHistoryEntry
@@ -41,6 +42,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val listDefaultMetaItemType: Type = object : TypeToken<List<DefaultMetaItem>>() {}.type
         val mapEndpointsType: Type = object : TypeToken<Map<String, List<Endpoint>>>() {}.type
         val mapStringStringType: Type = object : TypeToken<Map<String, String>>() {}.type
+        val mapStringIntType: Type = object : TypeToken<Map<String, Int>>() {}.type
         val listPromptHistoryType: Type = object : TypeToken<List<PromptHistoryEntry>>() {}.type
         val listUsageStatsType: Type = object : TypeToken<List<UsageStats>>() {}.type
     }
@@ -72,6 +74,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val metadataIcons: com.ai.data.MetadataIcons = (prefs.getString(KEY_METADATA_ICONS, null)?.let {
             try { gson.fromJson(it, com.ai.data.MetadataIcons::class.java) } catch (_: Exception) { null }
         } ?: com.ai.data.MetadataIcons()).sanitized()
+        val uiColorOverrides = loadUiColorOverrides()
         return GeneralSettings(
             userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",
@@ -82,8 +85,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
             fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, false),
             modelNameLayout = modelNameLayout,
-            uiCardBackgroundArgb = prefs.getInt(KEY_UI_CARD_BACKGROUND_ARGB, DEFAULT_UI_CARD_BACKGROUND_ARGB),
-            uiButtonBackgroundArgb = prefs.getInt(KEY_UI_BUTTON_BACKGROUND_ARGB, DEFAULT_UI_BUTTON_BACKGROUND_ARGB),
+            uiCardBackgroundArgb = uiColorOverrides["CardBackgroundAlt"] ?: DEFAULT_UI_CARD_BACKGROUND_ARGB,
+            uiButtonBackgroundArgb = uiColorOverrides["ButtonBackground"] ?: DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
+            uiColorOverrides = uiColorOverrides,
             metadataEnabled = prefs.getBoolean(KEY_METADATA_ENABLED, true),
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             reportLanguageGenEnabled = prefs.getBoolean(KEY_REPORT_LANGUAGE_GEN_ENABLED, true),
@@ -138,6 +142,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun saveGeneralSettings(settings: GeneralSettings) {
+        val uiColorOverrides = AppColors.defaultUiColorMap().toMutableMap().apply {
+            val knownKeys = keys
+            putAll(settings.uiColorOverrides.filterKeys { it in knownKeys })
+        }
+        val cardBackgroundArgb = uiColorOverrides["CardBackgroundAlt"] ?: settings.uiCardBackgroundArgb
+        val buttonBackgroundArgb = uiColorOverrides["ButtonBackground"] ?: settings.uiButtonBackgroundArgb
         prefs.edit {
             putString(KEY_USER_NAME, settings.userName.ifBlank { "user" })
             putString(KEY_HUGGINGFACE_API_KEY, settings.huggingFaceApiKey)
@@ -148,8 +158,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
             putBoolean(KEY_FULL_SCREEN, settings.fullScreen)
             putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
-            putInt(KEY_UI_CARD_BACKGROUND_ARGB, settings.uiCardBackgroundArgb)
-            putInt(KEY_UI_BUTTON_BACKGROUND_ARGB, settings.uiButtonBackgroundArgb)
+            putInt(KEY_UI_CARD_BACKGROUND_ARGB, cardBackgroundArgb)
+            putInt(KEY_UI_BUTTON_BACKGROUND_ARGB, buttonBackgroundArgb)
+            putString(KEY_UI_COLOR_OVERRIDES, gson.toJson(uiColorOverrides))
             putBoolean(KEY_METADATA_ENABLED, settings.metadataEnabled)
             putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
             putBoolean(KEY_REPORT_LANGUAGE_GEN_ENABLED, settings.reportLanguageGenEnabled)
@@ -556,6 +567,24 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         return try { gson.fromJson(json, TypeTokens.mapStringStringType) ?: emptyMap() } catch (_: Exception) { emptyMap() }
     }
 
+    private fun loadUiColorOverrides(): Map<String, Int> {
+        val knownDefaults = AppColors.defaultUiColorMap()
+        val colors = knownDefaults.toMutableMap()
+        val stored = prefs.getString(KEY_UI_COLOR_OVERRIDES, null)?.let {
+            try { gson.fromJson<Map<String, Int>>(it, TypeTokens.mapStringIntType) } catch (_: Exception) { null }
+        }.orEmpty()
+        stored.forEach { (key, value) ->
+            if (key in knownDefaults) colors[key] = value
+        }
+        if ("CardBackgroundAlt" !in stored) {
+            colors["CardBackgroundAlt"] = prefs.getInt(KEY_UI_CARD_BACKGROUND_ARGB, DEFAULT_UI_CARD_BACKGROUND_ARGB)
+        }
+        if ("ButtonBackground" !in stored) {
+            colors["ButtonBackground"] = prefs.getInt(KEY_UI_BUTTON_BACKGROUND_ARGB, DEFAULT_UI_BUTTON_BACKGROUND_ARGB)
+        }
+        return colors
+    }
+
     private fun loadEndpoints(): Map<AppService, List<Endpoint>> {
         val json = prefs.getString(KEY_AI_ENDPOINTS, null) ?: return emptyMap()
         return try {
@@ -582,6 +611,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
         private const val KEY_UI_CARD_BACKGROUND_ARGB = "ui_card_background_argb"
         private const val KEY_UI_BUTTON_BACKGROUND_ARGB = "ui_button_background_argb"
+        private const val KEY_UI_COLOR_OVERRIDES = "ui_color_overrides"
         private const val KEY_METADATA_ENABLED = "metadata_enabled"
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
         private const val KEY_REPORT_LANGUAGE_GEN_ENABLED = "report_language_gen_enabled"

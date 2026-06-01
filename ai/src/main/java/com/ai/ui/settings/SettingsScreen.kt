@@ -1365,65 +1365,61 @@ private fun UiColorsSubScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
-    var cardBackgroundArgb by remember(generalSettings.uiCardBackgroundArgb) {
-        mutableStateOf(generalSettings.uiCardBackgroundArgb)
-    }
-    var buttonBackgroundArgb by remember(generalSettings.uiButtonBackgroundArgb) {
-        mutableStateOf(generalSettings.uiButtonBackgroundArgb)
+    var colorOverrides by remember(generalSettings.uiColorOverrides, generalSettings.uiCardBackgroundArgb, generalSettings.uiButtonBackgroundArgb) {
+        mutableStateOf(currentUiColorMap(generalSettings))
     }
 
     fun build(): GeneralSettings = generalSettings.copy(
-        uiCardBackgroundArgb = cardBackgroundArgb,
-        uiButtonBackgroundArgb = buttonBackgroundArgb
+        uiCardBackgroundArgb = colorOverrides["CardBackgroundAlt"] ?: DEFAULT_UI_CARD_BACKGROUND_ARGB,
+        uiButtonBackgroundArgb = colorOverrides["ButtonBackground"] ?: DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
+        uiColorOverrides = colorOverrides
     )
 
     SideEffect {
-        AppColors.applyUiColors(cardBackgroundArgb, buttonBackgroundArgb)
+        AppColors.applyUiColors(colorOverrides)
     }
-    LaunchedEffect(cardBackgroundArgb, buttonBackgroundArgb) {
+    LaunchedEffect(colorOverrides) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(250)
             onSave(updated)
         }
     }
+    val latestSettings by rememberUpdatedState(build())
     DisposableEffect(Unit) {
         onDispose {
-            val updated = build()
-            if (updated != generalSettings) onSave(updated)
+            if (latestSettings != generalSettings) onSave(latestSettings)
         }
     }
 
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_ui_colors", title = "UI Colors", subject = "Card and button backgrounds", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_ui_colors", title = "UI Colors", subject = "App palette", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
-                "These colors apply to the shared gray-blue card surface and the neutral outlined button background used across the app.",
+                "These are the simple AppColors definitions used by shared cards, buttons, text, borders, badges, and status accents.",
                 fontSize = 12.sp,
                 color = AppColors.TextTertiary,
                 lineHeight = 17.sp,
                 modifier = Modifier.padding(horizontal = 2.dp)
             )
-            UiColorPickerCard(
-                title = "Card background",
-                description = "Used by gray-blue cards such as Housekeeping and Refresh rows.",
-                icon = MetadataDefaults.BLUE_DIAMOND,
-                argb = cardBackgroundArgb,
-                defaultArgb = DEFAULT_UI_CARD_BACKGROUND_ARGB,
-                onChange = { cardBackgroundArgb = it }
-            )
-            UiColorPickerCard(
-                title = "Button background",
-                description = "Used by neutral outlined buttons, including the Refresh action buttons.",
-                icon = MetadataDefaults.CONTROLS,
-                argb = buttonBackgroundArgb,
-                defaultArgb = DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
-                onChange = { buttonBackgroundArgb = it }
-            )
+            uiColorPickerSpecs().forEach { spec ->
+                UiColorPickerCard(
+                    title = spec.title,
+                    description = spec.description,
+                    icon = spec.icon,
+                    argb = colorOverrides[spec.key] ?: AppColors.defaultArgbFor(spec.key),
+                    defaultArgb = AppColors.defaultArgbFor(spec.key),
+                    onChange = { next ->
+                        colorOverrides = colorOverrides.toMutableMap().apply { put(spec.key, next) }.toMap()
+                    }
+                )
+            }
             Card(
-                colors = CardDefaults.cardColors(containerColor = AppColors.colorFromArgb(cardBackgroundArgb)),
+                colors = CardDefaults.cardColors(
+                    containerColor = AppColors.colorFromArgb(colorOverrides["CardBackgroundAlt"] ?: DEFAULT_UI_CARD_BACKGROUND_ARGB)
+                ),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1432,7 +1428,9 @@ private fun UiColorsSubScreen(
                     OutlinedButton(
                         onClick = {},
                         modifier = Modifier.fillMaxWidth(),
-                        colors = AppColors.outlinedButtonColors(containerColor = AppColors.colorFromArgb(buttonBackgroundArgb))
+                        colors = AppColors.outlinedButtonColors(
+                            containerColor = AppColors.colorFromArgb(colorOverrides["ButtonBackground"] ?: DEFAULT_UI_BUTTON_BACKGROUND_ARGB)
+                        )
                     ) {
                         Text("Button background preview", maxLines = 1, softWrap = false)
                     }
@@ -1440,6 +1438,74 @@ private fun UiColorsSubScreen(
             }
         }
     }
+}
+
+private data class UiColorPickerSpec(
+    val key: String,
+    val title: String,
+    val description: String,
+    val icon: String
+)
+
+private fun currentUiColorMap(generalSettings: GeneralSettings): Map<String, Int> {
+    val defaults = AppColors.defaultUiColorMap()
+    return defaults.toMutableMap().apply {
+        putAll(generalSettings.uiColorOverrides.filterKeys { it in defaults })
+        put("CardBackgroundAlt", generalSettings.uiColorOverrides["CardBackgroundAlt"] ?: generalSettings.uiCardBackgroundArgb)
+        put("ButtonBackground", generalSettings.uiColorOverrides["ButtonBackground"] ?: generalSettings.uiButtonBackgroundArgb)
+    }
+}
+
+private fun uiColorPickerSpecs(): List<UiColorPickerSpec> =
+    AppColors.defaultUiColorMap().keys.map { key ->
+        UiColorPickerSpec(
+            key = key,
+            title = readableUiColorName(key),
+            description = uiColorDescription(key),
+            icon = uiColorIcon(key)
+        )
+    }
+
+private fun readableUiColorName(key: String): String =
+    key.replace(Regex("(?<=[a-z])(?=[A-Z])"), " ")
+
+private fun uiColorDescription(key: String): String = when (key) {
+    "CardBackgroundAlt" -> "Monitor and Housekeeping gray-blue card surface."
+    "ButtonBackground" -> "Neutral outlined button fill."
+    "CardBackground" -> "Darker card surface used by older dense panels."
+    "SurfaceDark" -> "Primary dark app surface."
+    "DisabledBackground" -> "Disabled or unavailable surface fill."
+    "IndigoHighlight" -> "Muted highlight strip and selected-state accent."
+    "TextPrimary" -> "Primary text color."
+    "TextSecondary" -> "Secondary text color."
+    "TextTertiary" -> "Muted helper text color."
+    "TextDim" -> "Dim metadata text color."
+    "TextDisabled" -> "Disabled text color."
+    "TextVeryDim" -> "Very low emphasis text color."
+    "TextDarkest" -> "Darkest text/badge contrast color."
+    "DividerDark" -> "Subtle divider line color."
+    "BorderUnfocused" -> "Unfocused field and swatch border."
+    "PricingBadgeBackground" -> "Pricing badge background."
+    "PricingBadgeText" -> "Pricing badge text."
+    "CountGreen" -> "Success count highlight."
+    else -> "AppColors.$key accent."
+}
+
+private fun uiColorIcon(key: String): String = when {
+    key == "ButtonBackground" -> MetadataDefaults.CONTROLS
+    key.contains("Card") -> MetadataDefaults.BLUE_DIAMOND
+    key.contains("Surface") || key.contains("Background") -> MetadataDefaults.BENTO
+    key.contains("Text") -> MetadataDefaults.TOGGLE_LABELS
+    key.contains("Border") || key.contains("Divider") -> MetadataDefaults.RULER_STRAIGHT
+    key.contains("Pricing") -> MetadataDefaults.COST
+    key.contains("Count") -> MetadataDefaults.NUMBER_INPUT
+    key.contains("Green") -> MetadataDefaults.GREEN_CIRCLE
+    key.contains("Red") -> MetadataDefaults.RED_CIRCLE
+    key.contains("Orange") -> MetadataDefaults.ORANGE_CIRCLE
+    key.contains("Blue") || key.contains("Indigo") || key.contains("Purple") -> MetadataDefaults.BLUE_CIRCLE
+    key.contains("Yellow") -> MetadataDefaults.SUN
+    key.contains("Brown") -> MetadataDefaults.PACKAGE_BOX
+    else -> MetadataDefaults.PALETTE
 }
 
 @Composable
@@ -1458,19 +1524,37 @@ private fun UiColorPickerCard(
     }
     val parsedHex = parseRgbHex(hexText)
     val shape = RoundedCornerShape(8.dp)
+    var expanded by rememberSaveable(title) { mutableStateOf(false) }
+    val mi = LocalMetadataIcons.current
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }
+            ) {
                 SettingsCardHeaderIcon(icon)
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(title, fontWeight = FontWeight.Bold, color = Color.White)
-                    Text(description, fontSize = 11.sp, color = AppColors.TextTertiary)
+                    Text(argbToRgbHex(argb), fontSize = 11.sp, color = AppColors.TextTertiary)
                 }
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(AppColors.colorFromArgb(argb), shape)
+                        .border(1.dp, AppColors.BorderUnfocused, shape)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    mi.forFactoryGlyph(if (expanded) MetadataDefaults.CARET_EXPANDED else MetadataDefaults.CARET_COLLAPSED),
+                    color = AppColors.TextTertiary
+                )
             }
+            if (!expanded) return@Column
+            Text(description, fontSize = 11.sp, color = AppColors.TextTertiary)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Box(
                     modifier = Modifier
