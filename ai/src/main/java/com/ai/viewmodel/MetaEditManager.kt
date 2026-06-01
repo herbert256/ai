@@ -129,9 +129,13 @@ class MetaEditManager internal constructor(
         val traceFile: String?
     )
 
-    /** Rebuild a single META row's call (resolved prompt + model + params),
-     *  mirroring SecondaryRunManager.resumeStaleMetaPlaceholder's resolution. */
-    private fun buildMetaReplayTask(context: Context, reportId: String, resultId: String): MetaReplayTask {
+    /** Rebuild a single META row's call (resolved prompt + model + params).
+     *  Plain meta rows resolve against the report's answers (mirroring
+     *  SecondaryRunManager.resumeStaleMetaPlaceholder); fan-in (combine-
+     *  reports) rows resolve against the fan-out matrix via the shared
+     *  SecondaryRunManager.buildFanInResolution so a sweep / prompt-edit
+     *  replays the SAME call the row was produced by. */
+    private suspend fun buildMetaReplayTask(context: Context, reportId: String, resultId: String): MetaReplayTask {
         val row = SecondaryResultStorage.get(context, reportId, resultId) ?: error("This result no longer exists")
         val aiSettings = appViewModel.uiState.value.aiSettings
         val promptId = row.metaPromptId ?: error("This result has no meta prompt")
@@ -140,28 +144,34 @@ class MetaEditManager internal constructor(
             ?: error("Meta prompt no longer exists")
         val provider = AppService.findById(row.providerId) ?: error("Provider ${row.providerId} is not registered")
         val report = ReportStorage.getReport(context, reportId) ?: error("Report not found")
-        val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
-        val scope = SecondaryScope.decodeOrAllReports(row.secondaryScope)
-        val lang = row.targetLanguage
-        val includeIds: Set<Int>? = when (scope) {
-            SecondaryScope.AllReports -> null
-            is SecondaryScope.TopRanked -> {
-                val rerank = SecondaryResultStorage.get(context, reportId, scope.rerankResultId)
-                extractTopRankedIds(rerank?.content, scope.count)?.toSet()
+        val resolvedPrompt = if (row.fanInOf != null) {
+            reportViewModel.secondary.buildFanInResolution(context, reportId, metaPrompt, report, row.targetLanguage)
+                ?.resolvedPrompt
+                ?: error("No fan-out responses available to rebuild this combined report")
+        } else {
+            val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
+            val scope = SecondaryScope.decodeOrAllReports(row.secondaryScope)
+            val lang = row.targetLanguage
+            val includeIds: Set<Int>? = when (scope) {
+                SecondaryScope.AllReports -> null
+                is SecondaryScope.TopRanked -> {
+                    val rerank = SecondaryResultStorage.get(context, reportId, scope.rerankResultId)
+                    extractTopRankedIds(rerank?.content, scope.count)?.toSet()
+                }
+                is SecondaryScope.Manual -> {
+                    val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                    val ids = successful.mapIndexedNotNull { idx, a -> if (a.agentId in scope.agentIds) idx + 1 else null }
+                    if (ids.isEmpty()) null else ids.toSet()
+                }
             }
-            is SecondaryScope.Manual -> {
-                val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                val ids = successful.mapIndexedNotNull { idx, a -> if (a.agentId in scope.agentIds) idx + 1 else null }
-                if (ids.isEmpty()) null else ids.toSet()
-            }
+            val successfulCount = if (includeIds != null) includeIds.size
+                else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+            val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
+            resolveSecondaryPrompt(
+                metaPrompt.text, question = translatedPrompt, results = resultsBlock,
+                count = successfulCount, title = report.title
+            )
         }
-        val successfulCount = if (includeIds != null) includeIds.size
-            else report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-        val (translatedPrompt, resultsBlock) = buildLanguageInputs(report, allSecondaries, lang, includeIds)
-        val resolvedPrompt = resolveSecondaryPrompt(
-            metaPrompt.text, question = translatedPrompt, results = resultsBlock,
-            count = successfulCount, title = report.title
-        )
         val agent = Agent(
             id = "meta:${row.id}", name = row.agentName,
             provider = provider, model = row.model, apiKey = aiSettings.getApiKey(provider)

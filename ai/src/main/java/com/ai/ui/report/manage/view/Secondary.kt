@@ -381,21 +381,47 @@ internal fun SecondaryResultsScreen(
             ?: fanInRows.firstOrNull { it.id == id }
     }
     if (openResult != null) {
-        SecondaryResultDetailScreen(
-            result = openResult,
-            onDelete = {
-                onDelete(openResult.id)
-                openId = null
-                refreshTick++
-            },
-            onBack = { openId = null },
-            onNavigateHome = onNavigateHome,
-            forcedLanguage = forcedLanguage,
-            onDeleteRowById = { rid ->
-                onDelete(rid)
-                refreshTick++
-            }
-        )
+        // Plain meta (Compare / Summarize / …) and fan-in (combine-reports)
+        // rows — every META row that isn't a fan-out pair — open the
+        // dedicated MetaDetailScreen with its ✏️ edit overlay. Rerank /
+        // moderation / translate / fan-out-pair rows keep the shared screen.
+        val isMetaEditable = openResult.kind == SecondaryKind.META &&
+            openResult.fanOutSourceAgentId == null
+        if (isMetaEditable) {
+            MetaDetailScreen(
+                result = openResult,
+                onDelete = {
+                    onDelete(openResult.id)
+                    openId = null
+                    refreshTick++
+                },
+                onBack = { openId = null },
+                onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToModelInfo = onNavigateToModelInfo,
+                forcedLanguage = forcedLanguage,
+                onDeleteRowById = { rid ->
+                    onDelete(rid)
+                    refreshTick++
+                }
+            )
+        } else {
+            SecondaryResultDetailScreen(
+                result = openResult,
+                onDelete = {
+                    onDelete(openResult.id)
+                    openId = null
+                    refreshTick++
+                },
+                onBack = { openId = null },
+                onNavigateHome = onNavigateHome,
+                forcedLanguage = forcedLanguage,
+                onDeleteRowById = { rid ->
+                    onDelete(rid)
+                    refreshTick++
+                }
+            )
+        }
         return
     }
 

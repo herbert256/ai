@@ -1196,12 +1196,13 @@ fun ReportsScreen(
     val openMetaResult = openMetaResultId?.let { id -> secondaryRuns.firstOrNull { it.id == id } }
     if (openMetaResult != null && currentReportId != null) {
         val rid = currentReportId
-        // Plain meta → dedicated MetaDetailScreen (with ✏️ edit); fan-in /
-        // fan-out / rerank / moderation rows keep the shared detail screen.
-        val isPlainMeta = openMetaResult.kind == com.ai.data.SecondaryKind.META &&
-            openMetaResult.fanOutSourceAgentId == null && openMetaResult.fanInOf == null
+        // Plain meta + fan-in (combine-reports) → dedicated MetaDetailScreen
+        // (with ✏️ edit); fan-out pairs / rerank / moderation keep the
+        // shared detail screen.
+        val isMetaEditable = openMetaResult.kind == com.ai.data.SecondaryKind.META &&
+            openMetaResult.fanOutSourceAgentId == null
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { openMetaResultId = null }) {
-            if (isPlainMeta) {
+            if (isMetaEditable) {
                 com.ai.ui.report.manage.view.MetaDetailScreen(
                     result = openMetaResult,
                     onDelete = {

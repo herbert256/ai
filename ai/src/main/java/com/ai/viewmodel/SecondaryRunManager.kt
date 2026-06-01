@@ -558,6 +558,26 @@ class SecondaryRunManager(
             try {
                 withTracerTags(reportId = reportId, category = cat) {
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
+                    // Fan-in (combine-reports) rows rebuild from the fan-out
+                    // matrix, NOT from the report's answers — resolve via the
+                    // shared fan-in builder and re-issue against the same
+                    // placeholder (preserving the fanInOf linkage). Without
+                    // this branch the row would be regenerated as a plain
+                    // meta over the report answers (wrong content).
+                    if (placeholder.fanInOf != null) {
+                        val resolution = buildFanInResolution(context, reportId, metaPrompt, report, lang)
+                            ?: return@withTracerTags
+                        executeSecondaryTask(
+                            context, reportId, kind, metaPrompt,
+                            provider, model, resolution.resolvedPrompt, aiSettings, report,
+                            targetLanguage = lang,
+                            targetLanguageNative = langNative ?: resolution.languageNative,
+                            fanInOf = placeholder.fanInOf,
+                            existingPlaceholder = placeholder,
+                            scopeEncoded = placeholder.secondaryScope
+                        )
+                        return@withTracerTags
+                    }
                     val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
                     // Same scope → includeIds resolution as runMetaPrompt.
                     val includeIds: Set<Int>? = when (scope) {
@@ -637,78 +657,11 @@ class SecondaryRunManager(
                     val aiSettings = state.aiSettings
                     val report = ReportStorage.getReport(context, reportId) ?: return@withTracerTags
                     ReportStorage.bumpReportTimestamp(context, reportId)
-                    val successful = report.agents.filter {
-                        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-                    }
-                    // Wait for any in-flight fan out runs on this report
-                    // to finish before reading their per-pair rows —
-                    // otherwise the combine call would build its
-                    // payload from an arbitrary partial subset of
-                    // responses while the user thinks the report is
-                    // "all of them". The engine owns every run's batch
-                    // Job; join them all for this report.
-                    rvm.fanOutEngine.joinActiveRunsForReport(reportId)
-                    val fanOutRows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
-                        .filter { it.fanOutSourceAgentId != null }
-                        // Drop errored rows before bucketing — without
-                        // this, the firstOrNull pick below grabs the
-                        // OLDEST row (we sort ascending), which is the
-                        // failed first attempt. A successful retry
-                        // landed afterwards is then ignored. Filtering
-                        // up front leaves only valid responses in the
-                        // bucket, so the firstOrNull picks the oldest
-                        // successful one — closer to the user's
-                        // expected "completed run" semantics.
-                        .filter { it.errorMessage == null && !it.content.isNullOrBlank() }
-                    // Bucket fan out rows by (providerId, model, sourceAgentId).
-                    // Two report rows can legitimately share (provider,
-                    // model) — e.g. an Agent UUID row and a swarm:provider:model
-                    // row pointing at the same model under different
-                    // agentIds. Bucketing into a list keeps every
-                    // matching row, and the answerer-side resolution
-                    // below picks the best-fit row per (other.provider,
-                    // other.model, other.agentId, source.agentId).
-                    val byPair = LinkedHashMap<String, MutableList<SecondaryResult>>()
-                    fanOutRows.sortedBy { it.timestamp }.forEach { r ->
-                        val src = r.fanOutSourceAgentId ?: return@forEach
-                        byPair.getOrPut("${r.providerId}|${r.model}|$src") { mutableListOf() }.add(r)
-                    }
-                    val consumed = HashSet<String>()
-                    // Translation context for the parent fan-out's
-                    // language. Null when sourceLanguage is null
-                    // (Original); otherwise carries the translated
-                    // prompt/title/native + per-agent translated body
-                    // map. Built once per call from the secondaries we
-                    // already listed for the fan-out lookup.
-                    val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
-                    val langCtx = lookupLanguageTranslations(report, allSecondaries, sourceLanguage)
-                    val perReport: List<Pair<String, List<String>>> = successful.map { source ->
-                        val fanOutResponses = successful.mapNotNull other@{ other ->
-                            if (other.agentId == source.agentId) return@other null
-                            // Pick the next un-consumed row for this
-                            // (provider, model, source) bucket so two
-                            // distinct other-agents sharing (provider,
-                            // model) each get their own response.
-                            val bucket = byPair["${other.provider}|${other.model}|${source.agentId}"]
-                                ?: return@other null
-                            val row = bucket.firstOrNull { it.id !in consumed }
-                                ?: return@other null
-                            consumed += row.id
-                            if (row.errorMessage != null) return@other null
-                            val c = row.content
-                            if (c.isNullOrBlank()) null else c.trim()
-                        }
-                        // Each @REPORT@ slot: translated body when
-                        // available, original otherwise. Without this,
-                        // a Dutch fan-in feeds the picked model the
-                        // Dutch @RESPONSES@ but English @REPORT@ — the
-                        // assistant typically replies in English and
-                        // the row ends up mismatched against its tag.
-                        val sourceBody = langCtx?.bodiesByAgentId?.get(source.agentId)
-                            ?: source.responseBody?.trim().orEmpty()
-                        sourceBody to fanOutResponses
-                    }
-                    if (perReport.all { it.second.isEmpty() }) {
+                    // Build the fan-in prompt from the current fan-out
+                    // matrix. Shared with the resume / edit paths so the
+                    // matrix assembly never drifts (see buildFanInResolution).
+                    val resolution = buildFanInResolution(context, reportId, metaPrompt, report, sourceLanguage)
+                    if (resolution == null) {
                         val (provider, model) = pick
                         val agentName = "${provider.id} / ${shortModelName(model)}"
                         SecondaryResultStorage.create(
@@ -723,20 +676,12 @@ class SecondaryRunManager(
                         }
                         return@withTracerTags
                     }
-                    val resolved = resolveFanInPrompt(
-                        template = metaPrompt.text,
-                        question = langCtx?.prompt ?: report.prompt,
-                        count = perReport.size,
-                        fanOutCount = (perReport.size - 1).coerceAtLeast(0),
-                        perReport = perReport,
-                        title = langCtx?.title ?: report.title
-                    )
                     val (provider, model) = pick
                     executeSecondaryTask(
                         context, reportId, SecondaryKind.META, metaPrompt,
-                        provider, model, resolved, aiSettings, report,
+                        provider, model, resolution.resolvedPrompt, aiSettings, report,
                         targetLanguage = sourceLanguage,
-                        targetLanguageNative = langCtx?.native,
+                        targetLanguageNative = resolution.languageNative,
                         fanInOf = metaPrompt.id,
                         paramsIds = paramsIds, systemPromptId = systemPromptId
                     )
@@ -745,6 +690,96 @@ class SecondaryRunManager(
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
             }
         }
+    }
+
+    /** Resolved fan-in (combine-reports) prompt + the source-report count
+     *  it expanded, plus the resolved language native name. */
+    internal data class FanInResolution(
+        val resolvedPrompt: String,
+        val sourceCount: Int,
+        val languageNative: String?
+    )
+
+    /** Rebuild the fan-in (combine-reports) prompt for [reportId] from the
+     *  current fan-out matrix — the single source of truth shared by
+     *  [runFanInPrompt] (initial run), [resumeStaleMetaPlaceholder] (resume
+     *  after kill) and [MetaEditManager]'s ✏️ edit overlay (Reload / sweeps
+     *  / prompt-edit), so the matrix assembly never drifts. Joins any
+     *  in-flight fan-out runs first so the matrix is complete before it is
+     *  read. Returns null when no fan-out responses exist yet (the caller
+     *  surfaces the "run the fan-out prompt first" error). */
+    internal suspend fun buildFanInResolution(
+        context: Context,
+        reportId: String,
+        metaPrompt: com.ai.model.InternalPrompt,
+        report: Report,
+        sourceLanguage: String?
+    ): FanInResolution? {
+        val successful = report.agents.filter {
+            it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
+        }
+        // Wait for any in-flight fan out runs on this report to finish
+        // before reading their per-pair rows — otherwise the combine call
+        // would build its payload from an arbitrary partial subset of
+        // responses while the user thinks the report is "all of them". The
+        // engine owns every run's batch Job; join them all for this report.
+        rvm.fanOutEngine.joinActiveRunsForReport(reportId)
+        val fanOutRows = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
+            .filter { it.fanOutSourceAgentId != null }
+            // Drop errored rows before bucketing — without this, the
+            // firstOrNull pick below grabs the OLDEST row (we sort
+            // ascending), which is the failed first attempt. A successful
+            // retry landed afterwards is then ignored. Filtering up front
+            // leaves only valid responses in the bucket.
+            .filter { it.errorMessage == null && !it.content.isNullOrBlank() }
+        // Bucket fan out rows by (providerId, model, sourceAgentId). Two
+        // report rows can legitimately share (provider, model) — e.g. an
+        // Agent UUID row and a swarm:provider:model row pointing at the
+        // same model under different agentIds. Bucketing into a list keeps
+        // every matching row.
+        val byPair = LinkedHashMap<String, MutableList<SecondaryResult>>()
+        fanOutRows.sortedBy { it.timestamp }.forEach { r ->
+            val src = r.fanOutSourceAgentId ?: return@forEach
+            byPair.getOrPut("${r.providerId}|${r.model}|$src") { mutableListOf() }.add(r)
+        }
+        val consumed = HashSet<String>()
+        // Translation context for the parent fan-out's language. Null when
+        // sourceLanguage is null (Original); otherwise carries the
+        // translated prompt/title/native + per-agent translated body map.
+        val allSecondaries = SecondaryResultStorage.listForReport(context, reportId)
+        val langCtx = lookupLanguageTranslations(report, allSecondaries, sourceLanguage)
+        val perReport: List<Pair<String, List<String>>> = successful.map { source ->
+            val fanOutResponses = successful.mapNotNull other@{ other ->
+                if (other.agentId == source.agentId) return@other null
+                // Pick the next un-consumed row for this (provider, model,
+                // source) bucket so two distinct other-agents sharing
+                // (provider, model) each get their own response.
+                val bucket = byPair["${other.provider}|${other.model}|${source.agentId}"]
+                    ?: return@other null
+                val row = bucket.firstOrNull { it.id !in consumed }
+                    ?: return@other null
+                consumed += row.id
+                if (row.errorMessage != null) return@other null
+                val c = row.content
+                if (c.isNullOrBlank()) null else c.trim()
+            }
+            // Each @REPORT@ slot: translated body when available, original
+            // otherwise. Without this, a Dutch fan-in feeds the picked
+            // model the Dutch @RESPONSES@ but English @REPORT@.
+            val sourceBody = langCtx?.bodiesByAgentId?.get(source.agentId)
+                ?: source.responseBody?.trim().orEmpty()
+            sourceBody to fanOutResponses
+        }
+        if (perReport.all { it.second.isEmpty() }) return null
+        val resolved = resolveFanInPrompt(
+            template = metaPrompt.text,
+            question = langCtx?.prompt ?: report.prompt,
+            count = perReport.size,
+            fanOutCount = (perReport.size - 1).coerceAtLeast(0),
+            perReport = perReport,
+            title = langCtx?.title ?: report.title
+        )
+        return FanInResolution(resolved, perReport.size, langCtx?.native)
     }
 
     /** Build a fresh AI Report from the L2 active model's fan-out

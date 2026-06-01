@@ -459,9 +459,9 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "meta_detail" to HelpContent(
         title = "Help - Meta result — detail",
         cards = listOf(
-            HelpCard("Overview", "Dedicated detail screen for a plain meta result (Compare / Critique / Summarize / Synthesize / …). Renders the full content via ContentWithThinkSections; errors show a red Error block, blank content shows '(no content)'. Fan-in / fan-out / rerank / moderation rows still use the shared Secondary-detail screen."),
+            HelpCard("Overview", "Dedicated detail screen for a meta result that isn't a fan-out pair: a plain meta (Compare / Critique / Summarize / Synthesize / …) or a fan-in combined report. Renders the full content via ContentWithThinkSections; errors show a red Error block, blank content shows '(no content)'. Fan-out pairs / rerank / moderation rows still use the shared Secondary-detail screen."),
             HelpCard("Title bar — ✏️", "Opens 'Change result' — a list of ways to re-do this meta result: 🔄 Reload, ✏️ Edit prompt, 🗣️ Chat, 🌡️ Temperature sweep, 🧠 Reasoning Effort, 🧭 Web search. Each writes the chosen output back to this same row."),
-            HelpCard("Reload", "Re-runs the meta prompt in place with its saved prompt, model, parameters, scope and language. Replaces the content, cost and tokens on this row."),
+            HelpCard("Reload", "Re-runs in place with the row's saved prompt, model, parameters and language, replacing content, cost and tokens. A plain meta rebuilds from the report's answers (honouring its scope); a fan-in rebuilds from the current fan-out matrix (joining any still-running fan-out first)."),
             HelpCard("Edit prompt", "Edits the resolved meta prompt for one replay (optionally changing parameter presets and system prompt), runs it, and applies the chosen output."),
             HelpCard("Chat", "Opens a refine chat seeded with the report prompt + this result; applying a reply rewrites the content and tags it 'Changed by Chat'."),
             HelpCard("Sweeps & web search", "Temperature / Reasoning Effort run one-to-three variants to pick from; Web search re-runs once with web search enabled. Unsupported options report it on their screen. The applied variant tags a yellow 'Changed by …' badge on the detail."),

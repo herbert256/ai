@@ -96,12 +96,12 @@ internal fun ReportMetaScreen(
 
     val openResult = openId?.let { id -> results.firstOrNull { it.id == id } }
     if (openResult != null) {
-        // Plain meta (Compare / Summarize / …) gets the dedicated
-        // MetaDetailScreen with the ✏️ edit overlay; fan-in / fan-out /
-        // rerank / moderation rows keep the shared detail screen.
-        val isPlainMeta = openResult.kind == SecondaryKind.META &&
-            openResult.fanOutSourceAgentId == null && openResult.fanInOf == null
-        if (isPlainMeta) {
+        // Plain meta (Compare / Summarize / …) and fan-in (combine-reports)
+        // rows get the dedicated MetaDetailScreen with the ✏️ edit overlay;
+        // fan-out pairs / rerank / moderation rows keep the shared screen.
+        val isMetaEditable = openResult.kind == SecondaryKind.META &&
+            openResult.fanOutSourceAgentId == null
+        if (isMetaEditable) {
             com.ai.ui.report.manage.view.MetaDetailScreen(
                 result = openResult,
                 onDelete = {
