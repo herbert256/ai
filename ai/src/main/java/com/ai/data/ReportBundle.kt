@@ -214,10 +214,23 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
             attributedToSecondaryId = c.attributedToSecondaryId?.let { secIdMap[it] }
         )
     }.toMutableList()
+    // User notes point at ids that the import re-keys: a REPORT note targets
+    // the report id, a SECONDARY note a secondary id, a FANOUT_RUN note a
+    // runKey(reportId, metaPromptId). Remap them or the notes orphan and
+    // render as "Deleted item". AGENT notes need no remap (agents keep ids).
+    val remappedNotes = parsedReport.userNotes.map { note ->
+        when (note.targetKind) {
+            "REPORT" -> note.copy(targetId = newReportId)
+            "SECONDARY" -> note.copy(targetId = secIdMap[note.targetId] ?: note.targetId)
+            "FANOUT_RUN" -> note.copy(targetId = runKey(newReportId, note.targetId.substringAfter("|", "")))
+            else -> note
+        }
+    }.toMutableList()
     val report = parsedReport.copy(
         id = newReportId,
         timestamp = System.currentTimeMillis(),
         agents = remappedAgents,
+        userNotes = remappedNotes,
         iconCalls = remappedIconCalls,
         iconTraceFile = remapTrace(parsedReport.iconTraceFile),
         titleTraceFile = remapTrace(parsedReport.titleTraceFile),
