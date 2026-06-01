@@ -279,6 +279,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  matches and scores their inter-judge agreement. See [JudgeEvalEngine]. */
     val judgeEvalEngine: JudgeEvalEngine = JudgeEvalEngine(appViewModel, this)
 
+    /** The "Change response"-style edit flows (regenerate / prompt-edit / chat /
+     *  temperature / reasoning / web-search) for a plain META secondary result,
+     *  surfaced by the dedicated Meta detail screen. See [MetaEditManager]. */
+    val metaEditManager: MetaEditManager = MetaEditManager(appViewModel, this)
+
     /** Per-report orchestrator for the "Regenerate report" batch
      *  job. Replaces the legacy one-shot [regenerateReport] call —
      *  the title-bar 🔁 icon's confirm dialog now calls
@@ -2415,6 +2420,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         tournamentEngine.cancelAllForReport(reportId)
         // Judge-the-judges runs + per-cell coroutines likewise.
         judgeEvalEngine.cancelAllForReport(reportId)
+        // Plain-meta edit sweeps / replays (MetaDetailScreen ✏️) likewise.
+        metaEditManager.cancelAllForReport(reportId)
         // Translation runs + the regenerate-batch orchestrator are also
         // report-owned and were NOT cancelled here — a translation
         // completing after the delete writes via SecondaryResultStorage

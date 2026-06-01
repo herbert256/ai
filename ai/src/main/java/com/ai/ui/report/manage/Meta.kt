@@ -96,22 +96,46 @@ internal fun ReportMetaScreen(
 
     val openResult = openId?.let { id -> results.firstOrNull { it.id == id } }
     if (openResult != null) {
-        SecondaryResultDetailScreen(
-            result = openResult,
-            onDelete = {
-                onDelete(openResult.id)
-                openId = null
-                refreshTick++
-            },
-            onBack = { openId = null },
-            onNavigateHome = onNavigateHome,
-            onNavigateToTraceFile = onNavigateToTraceFile,
-            onNavigateToModelInfo = onNavigateToModelInfo,
-            onDeleteRowById = { rid ->
-                onDelete(rid)
-                refreshTick++
-            }
-        )
+        // Plain meta (Compare / Summarize / …) gets the dedicated
+        // MetaDetailScreen with the ✏️ edit overlay; fan-in / fan-out /
+        // rerank / moderation rows keep the shared detail screen.
+        val isPlainMeta = openResult.kind == SecondaryKind.META &&
+            openResult.fanOutSourceAgentId == null && openResult.fanInOf == null
+        if (isPlainMeta) {
+            com.ai.ui.report.manage.view.MetaDetailScreen(
+                result = openResult,
+                onDelete = {
+                    onDelete(openResult.id)
+                    openId = null
+                    refreshTick++
+                },
+                onBack = { openId = null },
+                onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToModelInfo = onNavigateToModelInfo,
+                onDeleteRowById = { rid ->
+                    onDelete(rid)
+                    refreshTick++
+                }
+            )
+        } else {
+            SecondaryResultDetailScreen(
+                result = openResult,
+                onDelete = {
+                    onDelete(openResult.id)
+                    openId = null
+                    refreshTick++
+                },
+                onBack = { openId = null },
+                onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToModelInfo = onNavigateToModelInfo,
+                onDeleteRowById = { rid ->
+                    onDelete(rid)
+                    refreshTick++
+                }
+            )
+        }
         return
     }
 

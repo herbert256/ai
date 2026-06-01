@@ -595,6 +595,11 @@ val LocalTournamentOpenState =
 /** [LocalTournamentEngine] analog for the "Judge the judges" drill-in. */
 val LocalJudgeEvalEngine = compositionLocalOf<com.ai.viewmodel.JudgeEvalEngine?> { null }
 
+/** [LocalTournamentEngine] analog for the plain-meta "Meta detail" edit
+ *  screen — lets [MetaDetailScreen] reach the per-report
+ *  [com.ai.viewmodel.MetaEditManager] without threading ~15 callbacks. */
+val LocalMetaEditManager = compositionLocalOf<com.ai.viewmodel.MetaEditManager?> { null }
+
 /** Shared "Judge-the-judges L1 is open for reportId X" state slot. */
 val LocalJudgeEvalOpenState =
     compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
@@ -1783,7 +1788,7 @@ internal val LEGEND_OVERLAY_TOPICS = setOf(
     "report_edit_model_title", "report_edit_pair_title",
     // Meta / secondary creation + drill-ins.
     "report_meta", "report_meta_run", "report_fan_out_confirm", "secondary_scope",
-    "secondary_list", "secondary_detail",
+    "secondary_list", "secondary_detail", "meta_detail",
     "secondary_fan_out_l1", "secondary_fan_out_l2", "secondary_fan_out_l3",
     "secondary_fan_out_onepage", "fan_meta",
     // Translation drill-ins.

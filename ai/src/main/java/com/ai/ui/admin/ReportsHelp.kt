@@ -456,6 +456,20 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Translation info", "Shown only for META rows that have a translateSourceTargetId resolving to a non-blank source — opens TranslationCompareScreen.")
         )
     ),
+    "meta_detail" to HelpContent(
+        title = "Help - Meta result — detail",
+        cards = listOf(
+            HelpCard("Overview", "Dedicated detail screen for a plain meta result (Compare / Critique / Summarize / Synthesize / …). Renders the full content via ContentWithThinkSections; errors show a red Error block, blank content shows '(no content)'. Fan-in / fan-out / rerank / moderation rows still use the shared Secondary-detail screen."),
+            HelpCard("Title bar — ✏️", "Opens 'Change result' — a list of ways to re-do this meta result: 🔄 Reload, ✏️ Edit prompt, 🗣️ Chat, 🌡️ Temperature sweep, 🧠 Reasoning Effort, 🧭 Web search. Each writes the chosen output back to this same row."),
+            HelpCard("Reload", "Re-runs the meta prompt in place with its saved prompt, model, parameters, scope and language. Replaces the content, cost and tokens on this row."),
+            HelpCard("Edit prompt", "Edits the resolved meta prompt for one replay (optionally changing parameter presets and system prompt), runs it, and applies the chosen output."),
+            HelpCard("Chat", "Opens a refine chat seeded with the report prompt + this result; applying a reply rewrites the content and tags it 'Changed by Chat'."),
+            HelpCard("Sweeps & web search", "Temperature / Reasoning Effort run one-to-three variants to pick from; Web search re-runs once with web search enabled. Unsupported options report it on their screen. The applied variant tags a yellow 'Changed by …' badge on the detail."),
+            HelpCard("Title bar — 💬 / 🗣️", "💬 continues this analysis in the Chat section; 🗣️ refines it in place (same as the ✏️ → Chat option)."),
+            HelpCard("Title bar — ℹ️ / 🐞 / 🗑 / 📋 / 📤 / ✍️ / 👁", "Model Info for this row's model; trace (when tracing is on and a match exists); delete (multi-language rows get the Active-language-only / All-languages popup); copy / share the shown content; add a note; jump to the matching View screen."),
+            HelpCard("Languages", "When this meta has translations, the icon row swaps the shown content / trace / copy / share onto the picked language. The ↔ translation-compare opens when a per-language overlay is active.")
+        )
+    ),
     "secondary_fan_out_l1" to HelpContent(
         title = "Help - Fan out — answerers",
         cards = listOf(

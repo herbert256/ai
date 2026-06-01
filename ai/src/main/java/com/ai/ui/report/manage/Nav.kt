@@ -325,7 +325,8 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalTournamentEngine provides reportViewModel.tournamentEngine,
         com.ai.ui.shared.LocalTournamentOpenState provides openTournamentReportId,
         com.ai.ui.shared.LocalJudgeEvalEngine provides reportViewModel.judgeEvalEngine,
-        com.ai.ui.shared.LocalJudgeEvalOpenState provides openJudgeEvalReportId
+        com.ai.ui.shared.LocalJudgeEvalOpenState provides openJudgeEvalReportId,
+        com.ai.ui.shared.LocalMetaEditManager provides reportViewModel.metaEditManager
     ) {
     // Regenerate-batch overlay — layered here (inside the provider) so it
     // sees the report-context locals (ids/switch/neighbor nav, icon

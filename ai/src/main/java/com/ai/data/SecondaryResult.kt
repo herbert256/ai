@@ -211,7 +211,8 @@ object SecondaryResultStorage {
     }
 
     /** Overwrite a fan-out pair's [SecondaryResult.content] with a chosen
-     *  replacement. Leaves cost/tokens and metadata untouched. */
+     *  replacement (a fan-out pair or a plain meta row). Leaves
+     *  cost/tokens and metadata untouched. */
     fun updateContent(
         context: Context,
         reportId: String,
@@ -227,7 +228,7 @@ object SecondaryResultStorage {
             responseChangeValue = changeValue?.takeIf { it.isNotBlank() }
         ))
         AuditLog.append(reportId, buildString {
-            append("Selected a new response for a Fan Out pair")
+            append("Selected a new response for a result")
             changeSource?.takeIf { it.isNotBlank() }?.let { src ->
                 append(" from $src")
                 changeValue?.takeIf { it.isNotBlank() }?.let { append(" with value $it") }

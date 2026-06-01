@@ -1196,24 +1196,48 @@ fun ReportsScreen(
     val openMetaResult = openMetaResultId?.let { id -> secondaryRuns.firstOrNull { it.id == id } }
     if (openMetaResult != null && currentReportId != null) {
         val rid = currentReportId
+        // Plain meta → dedicated MetaDetailScreen (with ✏️ edit); fan-in /
+        // fan-out / rerank / moderation rows keep the shared detail screen.
+        val isPlainMeta = openMetaResult.kind == com.ai.data.SecondaryKind.META &&
+            openMetaResult.fanOutSourceAgentId == null && openMetaResult.fanInOf == null
         CompositionLocalProvider(com.ai.ui.shared.LocalReportIcon provides effectiveReportIcon, com.ai.ui.shared.LocalReportTitle provides loadedReportTitle, LocalNavigateToCurrentReport provides { openMetaResultId = null }) {
-            SecondaryResultDetailScreen(
-                result = openMetaResult,
-                onDelete = {
-                    onDeleteSecondaryWithRefresh(rid, openMetaResult.id)
-                    openMetaResultId = null
-                    secondaryLockedLanguage = null
-                },
-                onBack = {
-                    openMetaResultId = null
-                    secondaryLockedLanguage = null
-                },
-                onNavigateHome = onNavigateHome,
-                onNavigateToTraceFile = onNavigateToTraceFile,
-                onNavigateToModelInfo = onNavigateToModelInfo,
-                forcedLanguage = secondaryLockedLanguage,
-                onDeleteRowById = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) }
-            )
+            if (isPlainMeta) {
+                com.ai.ui.report.manage.view.MetaDetailScreen(
+                    result = openMetaResult,
+                    onDelete = {
+                        onDeleteSecondaryWithRefresh(rid, openMetaResult.id)
+                        openMetaResultId = null
+                        secondaryLockedLanguage = null
+                    },
+                    onBack = {
+                        openMetaResultId = null
+                        secondaryLockedLanguage = null
+                    },
+                    onNavigateHome = onNavigateHome,
+                    onNavigateToTraceFile = onNavigateToTraceFile,
+                    onNavigateToModelInfo = onNavigateToModelInfo,
+                    forcedLanguage = secondaryLockedLanguage,
+                    onDeleteRowById = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) }
+                )
+            } else {
+                SecondaryResultDetailScreen(
+                    result = openMetaResult,
+                    onDelete = {
+                        onDeleteSecondaryWithRefresh(rid, openMetaResult.id)
+                        openMetaResultId = null
+                        secondaryLockedLanguage = null
+                    },
+                    onBack = {
+                        openMetaResultId = null
+                        secondaryLockedLanguage = null
+                    },
+                    onNavigateHome = onNavigateHome,
+                    onNavigateToTraceFile = onNavigateToTraceFile,
+                    onNavigateToModelInfo = onNavigateToModelInfo,
+                    forcedLanguage = secondaryLockedLanguage,
+                    onDeleteRowById = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) }
+                )
+            }
         }
         return
     }
