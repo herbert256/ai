@@ -819,24 +819,27 @@ data class TitleBarIcons(
      *  list Add button). Null → glyph hidden. */
     val onAdd: (() -> Unit)? = null,
     /** Glyph for the [onAdd] icon — overridable so Manage report can show
-     *  the 🔗 Meta launcher instead of the generic 🆕. */
-    val addIcon: String = "🆕",
+     *  the 🔗 Meta launcher instead of the generic 🆕. Blank → resolved from
+     *  the user's Default icons (MetadataIcons.add) at render time. */
+    val addIcon: String = "",
     /** Optional Fan Out launcher hook. Wired from Manage report to open an
      *  existing Fan Out or start a new one. Null → glyph hidden. */
     val onFanOut: (() -> Unit)? = null,
-    val fanOutIcon: String = "🔱",
+    /** Override glyph for the launcher icons. Blank → resolved from the user's
+     *  Default icons (MetadataIcons) at render time rather than hard-coded. */
+    val fanOutIcon: String = "",
     /** Optional tournament launcher hook. Wired from Manage report to open
      *  the dedicated Tournament creation screen. Null → glyph hidden. */
     val onTournament: (() -> Unit)? = null,
-    val tournamentIcon: String = "🥊",
+    val tournamentIcon: String = "",
     /** Optional Translate / Rerank / Moderation launcher hooks. Wired from
      *  Manage report (replacing the old Create-launcher rows). Null → hidden. */
     val onTranslate: (() -> Unit)? = null,
-    val translateIcon: String = "🌐",
+    val translateIcon: String = "",
     val onRerank: (() -> Unit)? = null,
-    val rerankIcon: String = "🏆",
+    val rerankIcon: String = "",
     val onModeration: (() -> Unit)? = null,
-    val moderationIcon: String = "🚦",
+    val moderationIcon: String = "",
     /** Optional ✏️ edit hook. CRUD view pages publish it so the bottom
      *  bar carries the "edit this entry" action. Null → glyph hidden. */
     val onEdit: (() -> Unit)? = null,
@@ -1115,22 +1118,24 @@ fun TitleBar(
     onSwipeNext: (() -> Boolean)? = null,
     /** Optional 🆕 add hook (CRUD list pages). Null → glyph hidden. */
     onAdd: (() -> Unit)? = null,
-    /** Glyph for [onAdd] — overridable (Manage report uses 🔗). */
-    addIcon: String = "🆕",
+    /** Glyph for [onAdd] — overridable (Manage report uses 🔗). Blank →
+     *  resolved from the user's Default icons (MetadataIcons.add). */
+    addIcon: String = "",
     /** Optional Fan Out launcher hook. Null → glyph hidden. */
     onFanOut: (() -> Unit)? = null,
-    fanOutIcon: String = "🔱",
+    /** Launcher glyph overrides — blank resolves from the user's Default icons. */
+    fanOutIcon: String = "",
     /** Optional tournament launcher hook. Null → glyph hidden. */
     onTournament: (() -> Unit)? = null,
-    tournamentIcon: String = "🥊",
+    tournamentIcon: String = "",
     /** Optional Translate / Rerank / Moderation launcher hooks (Manage report
      *  bottom bar). Null → glyph hidden. */
     onTranslate: (() -> Unit)? = null,
-    translateIcon: String = "🌐",
+    translateIcon: String = "",
     onRerank: (() -> Unit)? = null,
-    rerankIcon: String = "🏆",
+    rerankIcon: String = "",
     onModeration: (() -> Unit)? = null,
-    moderationIcon: String = "🚦",
+    moderationIcon: String = "",
     /** When true, 🆕 leads the bar instead of sitting in the trailing
      *  group. Used by the Manage report screen. */
     addFirst: Boolean = false,
@@ -1674,115 +1679,115 @@ fun HardcodedSubjectRow(
     }
 }
 
-/** One action icon in [BottomIconBar]'s strip. */
+/** One action icon in [BottomIconBar]'s strip. [emoji] is the live (possibly
+ *  user-overridden) glyph that renders; [legendKey] is the stable factory glyph
+ *  the icon-legend / help maps are keyed by, so the legend still names an icon
+ *  the user has re-skinned. Defaults to [emoji] for the few glyphs that aren't
+ *  configurable. */
 private data class BottomBarIcon(
     val emoji: String,
     val tint: Color,
     val onClick: () -> Unit,
     val widthDp: Int,
     val fontSize: androidx.compose.ui.unit.TextUnit = 16.sp,
-    val alpha: Float = 1f
+    val alpha: Float = 1f,
+    val legendKey: String = emoji
 )
 
 /** Ordered list of the action icons currently present (❓ help is kept
  *  separate by [BottomIconBar] so it can stay pinned bottom-right).
  *  Order is fixed; only the non-null callbacks contribute. */
-private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = buildList {
+private fun buildBottomBarIcons(icons: TitleBarIcons, mi: com.ai.data.MetadataIcons): List<BottomBarIcon> = buildList {
+    val D = com.ai.data.MetadataDefaults
+    // Glyph for the add slot: the screen's per-screen override (e.g. 🔗 Meta on
+    // Manage report) when set, else the user's Default-icons 🆕. legendKey =
+    // that same glyph so the legend can name it.
+    val addGlyph = icons.addIcon.ifBlank { mi.add }
     // ----- Monitor-section jump group (leads the strip) -----
-    // On every screen in the Monitor subtree, the four parts of Monitor —
-    // 📡 Live Dashboard, 🐞 API Traces, 📜 Application log, 📊 Statistics —
-    // get a quick-jump icon at the very start of the row so the user can
-    // hop between sections without backing out to the hub.
+    // On every screen in the Monitor subtree, the parts of Monitor —
+    // 📡 Live Dashboard, 🐞 API Traces, 📜 Application log, 🧾 Audit,
+    // 📊 Statistics — get a quick-jump icon at the very start of the row so
+    // the user can hop between sections without backing out to the hub.
     icons.monitorNav?.let { mn ->
         // The screen's own part is skipped — its icon would just link to here.
-        if (mn.active != MonitorPart.LIVE_DASHBOARD) add(BottomBarIcon("📡", Color.Unspecified, mn.onLiveDashboard, 28))
-        if (mn.active != MonitorPart.TRACES) add(BottomBarIcon("🐞", Color.Unspecified, mn.onTraces, 22))
-        if (mn.active != MonitorPart.APP_LOG) add(BottomBarIcon("📜", Color.Unspecified, mn.onAppLog, 28))
-        if (mn.active != MonitorPart.AUDIT) add(BottomBarIcon("🧾", Color.Unspecified, mn.onAudit, 28))
-        if (mn.active != MonitorPart.STATISTICS) add(BottomBarIcon("📊", Color.Unspecified, mn.onStatistics, 28))
+        if (mn.active != MonitorPart.LIVE_DASHBOARD) add(BottomBarIcon(mi.liveDashboard, Color.Unspecified, mn.onLiveDashboard, 28, legendKey = D.LIVE_DASHBOARD))
+        if (mn.active != MonitorPart.TRACES) add(BottomBarIcon(mi.traces, Color.Unspecified, mn.onTraces, 22, legendKey = D.TRACES))
+        if (mn.active != MonitorPart.APP_LOG) add(BottomBarIcon(mi.appLog, Color.Unspecified, mn.onAppLog, 28, legendKey = D.APP_LOG))
+        if (mn.active != MonitorPart.AUDIT) add(BottomBarIcon(mi.audit, Color.Unspecified, mn.onAudit, 28, legendKey = D.AUDIT))
+        if (mn.active != MonitorPart.STATISTICS) add(BottomBarIcon(mi.statisticsMonitor, Color.Unspecified, mn.onStatistics, 28, legendKey = D.STATISTICS_MONITOR))
     }
     // ----- first-row-ish: creation / nav / share -----
-    // 🆕 leads when the screen opts in (Manage report); otherwise it
+    // The add glyph leads when the screen opts in (Manage report); otherwise it
     // stays in the trailing copy/edit/delete/new group below.
-    if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon(icons.addIcon.takeIf { g -> g.isNotBlank() } ?: "🆕", Color.Unspecified, it, 28)) }
-    icons.onFanOut?.let {
-        add(BottomBarIcon(icons.fanOutIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🔱", Color.Unspecified, it, 28))
-    }
-    icons.onTournament?.let {
-        add(BottomBarIcon(icons.tournamentIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🥊", Color.Unspecified, it, 28))
-    }
-    icons.onTranslate?.let {
-        add(BottomBarIcon(icons.translateIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🌐", Color.Unspecified, it, 28))
-    }
-    icons.onRerank?.let {
-        add(BottomBarIcon(icons.rerankIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🏆", Color.Unspecified, it, 28))
-    }
-    icons.onModeration?.let {
-        add(BottomBarIcon(icons.moderationIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🚦", Color.Unspecified, it, 28))
-    }
+    if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon(addGlyph, Color.Unspecified, it, 28, legendKey = addGlyph)) }
+    icons.onFanOut?.let { add(BottomBarIcon(icons.fanOutIcon.ifBlank { mi.fanOutRow }, Color.Unspecified, it, 28, legendKey = D.FAN_OUT)) }
+    icons.onTournament?.let { add(BottomBarIcon(icons.tournamentIcon.ifBlank { mi.tournament }, Color.Unspecified, it, 28, legendKey = D.TOURNAMENT)) }
+    icons.onTranslate?.let { add(BottomBarIcon(icons.translateIcon.ifBlank { mi.translationRow }, Color.Unspecified, it, 28, legendKey = D.TRANSLATE)) }
+    icons.onRerank?.let { add(BottomBarIcon(icons.rerankIcon.ifBlank { mi.rerank }, Color.Unspecified, it, 28, legendKey = D.RERANK)) }
+    icons.onModeration?.let { add(BottomBarIcon(icons.moderationIcon.ifBlank { mi.moderate }, Color.Unspecified, it, 28, legendKey = D.MODERATE)) }
     // Chat slot — normally 💬 chat; when swapped (Model response) the 🔄
     // reload glyph takes this early position instead.
     if (icons.swapChatAndReload) {
-        icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
+        icons.onReload?.let { add(BottomBarIcon(mi.reload, AppColors.Orange, it, 28, legendKey = D.RELOAD)) }
     } else {
-        icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
+        icons.onChat?.let { add(BottomBarIcon(mi.chat, Color.Unspecified, it, 28, legendKey = D.CHAT)) }
     }
-    icons.onAgentChat?.let { add(BottomBarIcon("🗣️", Color.Unspecified, it, 28)) }
-    icons.onTemperatureSweep?.let { add(BottomBarIcon("🎲", Color.Unspecified, it, 28)) }
-    icons.onReasoningEffortSweep?.let { add(BottomBarIcon("🧠", Color.Unspecified, it, 28)) }
-    icons.onWebSearchReplay?.let { add(BottomBarIcon("🧭", Color.Unspecified, it, 28)) }
+    icons.onAgentChat?.let { add(BottomBarIcon(mi.agentChat, Color.Unspecified, it, 28, legendKey = D.AGENT_CHAT)) }
+    icons.onTemperatureSweep?.let { add(BottomBarIcon(mi.temperatureSweep, Color.Unspecified, it, 28, legendKey = D.TEMPERATURE_SWEEP)) }
+    icons.onReasoningEffortSweep?.let { add(BottomBarIcon(mi.reasoningSweep, Color.Unspecified, it, 28, legendKey = D.REASONING_SWEEP)) }
+    icons.onWebSearchReplay?.let { add(BottomBarIcon(mi.webSearchReplay, Color.Unspecified, it, 28, legendKey = D.WEB_SEARCH_REPLAY)) }
     // 🗂️ pick another report (same glyph as the View hub's picker) —
     // leads the nav group on the Manage screens that support it.
-    icons.onPickReport?.let { add(BottomBarIcon("🗂️", Color.Unspecified, it, 28)) }
+    icons.onPickReport?.let { add(BottomBarIcon(mi.pickReport, Color.Unspecified, it, 28, legendKey = D.PICK_REPORT)) }
     // 🔧 manage — rendered a touch smaller so 👁 leads on View screens.
-    icons.onOpenManage?.let { add(BottomBarIcon("🔧", Color.Unspecified, it, 28, fontSize = 15.sp)) }
+    icons.onOpenManage?.let { add(BottomBarIcon(mi.openManage, Color.Unspecified, it, 28, fontSize = 15.sp, legendKey = D.OPEN_MANAGE)) }
     // 🧹 jump to the related Housekeeping screen, ⚙️ jump to the related
     // AI Setup / Settings screen — grouped with the other nav-jumps.
-    icons.onHousekeeping?.let { add(BottomBarIcon("🧹", Color.Unspecified, it, 28)) }
-    icons.onSettings?.let { add(BottomBarIcon("⚙️", Color.Unspecified, it, 28)) }
+    icons.onHousekeeping?.let { add(BottomBarIcon(mi.housekeeping, Color.Unspecified, it, 28, legendKey = D.HOUSEKEEPING)) }
+    icons.onSettings?.let { add(BottomBarIcon(mi.settings, Color.Unspecified, it, 28, legendKey = D.SETTINGS)) }
     // 📈 statistics — normally grouped with the other nav-jumps. A screen
     // can opt to push it past the trailing actions (statsAfterDelete) so it
     // sits just after 🗑 delete instead — see the second-row block below.
-    if (!icons.statsAfterDelete) icons.onStats?.let { add(BottomBarIcon("📈", Color.Unspecified, it, 28)) }
-    icons.onInfo?.let { add(BottomBarIcon("ℹ️", Color.Unspecified, it, 28)) }
+    if (!icons.statsAfterDelete) icons.onStats?.let { add(BottomBarIcon(mi.statistics, Color.Unspecified, it, 28, legendKey = D.STATISTICS)) }
+    icons.onInfo?.let { add(BottomBarIcon(mi.info, Color.Unspecified, it, 28, legendKey = D.INFO)) }
     // 🌡️ parameters + 🎭 system prompt — paired config actions, kept
     // adjacent so they read as a couple wherever a screen exposes them.
-    icons.onParameters?.let { add(BottomBarIcon("🌡️", Color.Unspecified, it, 28)) }
-    icons.onSystemPrompt?.let { add(BottomBarIcon("🎭", Color.Unspecified, it, 28)) }
-    icons.onClear?.let { add(BottomBarIcon("🧽", Color.Unspecified, it, 28)) }
-    icons.onAttach?.let { add(BottomBarIcon("📎", Color.Unspecified, it, 28)) }
+    icons.onParameters?.let { add(BottomBarIcon(mi.parameters, Color.Unspecified, it, 28, legendKey = D.PARAMETERS)) }
+    icons.onSystemPrompt?.let { add(BottomBarIcon(mi.systemPrompt, Color.Unspecified, it, 28, legendKey = D.SYSTEM_PROMPT)) }
+    icons.onClear?.let { add(BottomBarIcon(mi.clear, Color.Unspecified, it, 28, legendKey = D.CLEAR)) }
+    icons.onAttach?.let { add(BottomBarIcon(mi.attach, Color.Unspecified, it, 28, legendKey = D.ATTACH)) }
     // 🚩 validate prompt — grayed until the user activates it (picks a
     // moderation model), mirroring the 📌 pin alpha treatment.
-    icons.onValidatePrompt?.let { add(BottomBarIcon("🚩", Color.Unspecified, it, 28, alpha = if (icons.validatePromptActive) 1f else 0.35f)) }
-    icons.onCopy?.let { add(BottomBarIcon("📋", Color.Unspecified, it, 28)) }
-    icons.onPin?.let { add(BottomBarIcon("📌", Color.Unspecified, it, 28, alpha = if (icons.isPinned) 1f else 0.35f)) }
+    icons.onValidatePrompt?.let { add(BottomBarIcon(mi.validatePrompt, Color.Unspecified, it, 28, alpha = if (icons.validatePromptActive) 1f else 0.35f, legendKey = D.VALIDATE_PROMPT)) }
+    icons.onCopy?.let { add(BottomBarIcon(mi.copy, Color.Unspecified, it, 28, legendKey = D.COPY)) }
+    icons.onPin?.let { add(BottomBarIcon(mi.pin, Color.Unspecified, it, 28, alpha = if (icons.isPinned) 1f else 0.35f, legendKey = D.PIN)) }
     icons.onToggleModelRowLabels?.let {
-        add(BottomBarIcon("🔤", Color.Unspecified, it, 28, alpha = if (icons.modelRowLabelsShowModelNames) 1f else 0.55f))
+        add(BottomBarIcon(mi.toggleLabels, Color.Unspecified, it, 28, alpha = if (icons.modelRowLabelsShowModelNames) 1f else 0.55f, legendKey = D.TOGGLE_LABELS))
     }
-    icons.onShare?.let { add(BottomBarIcon("📤", Color.Unspecified, it, 28)) }
-    icons.onCopyReport?.let { add(BottomBarIcon("👯", Color.Unspecified, it, 28)) }
+    icons.onShare?.let { add(BottomBarIcon(mi.share, Color.Unspecified, it, 28, legendKey = D.SHARE)) }
+    icons.onCopyReport?.let { add(BottomBarIcon(mi.duplicate, Color.Unspecified, it, 28, legendKey = D.DUPLICATE)) }
     // ----- second-row-ish: 👁 view leads the second row, the per-item
     // actions follow, and 🔄 regenerate sits just before 🗑 delete. -----
-    icons.onOpenView?.let { add(BottomBarIcon("👁", Color.Unspecified, it, 32, fontSize = 18.sp)) }
-    icons.onTranslationCompare?.let { add(BottomBarIcon("🌐", Color.Unspecified, it, 28)) }
-    icons.onMemo?.let { add(BottomBarIcon("📝", Color.Unspecified, it, 28)) }
-    icons.onAddNote?.let { add(BottomBarIcon("✍️", Color.Unspecified, it, 28)) }
-    icons.onListNotes?.let { add(BottomBarIcon("📒", Color.Unspecified, it, 28)) }
-    icons.onEdit?.let { add(BottomBarIcon("✏️", Color.Unspecified, it, 28)) }
+    icons.onOpenView?.let { add(BottomBarIcon(mi.view, Color.Unspecified, it, 32, fontSize = 18.sp, legendKey = D.VIEW)) }
+    icons.onTranslationCompare?.let { add(BottomBarIcon(mi.translationCompare, Color.Unspecified, it, 28, legendKey = D.TRANSLATION_COMPARE)) }
+    icons.onMemo?.let { add(BottomBarIcon(mi.memo, Color.Unspecified, it, 28, legendKey = D.MEMO)) }
+    icons.onAddNote?.let { add(BottomBarIcon(mi.addNote, Color.Unspecified, it, 28, legendKey = D.ADD_NOTE)) }
+    icons.onListNotes?.let { add(BottomBarIcon(mi.listNotes, Color.Unspecified, it, 28, legendKey = D.LIST_NOTES)) }
+    icons.onEdit?.let { add(BottomBarIcon(mi.edit, Color.Unspecified, it, 28, legendKey = D.EDIT)) }
     // Reload slot — normally 🔄 reload; when swapped (Model response) the
     // 💬 chat glyph takes this late position instead.
     if (icons.swapChatAndReload) {
-        icons.onChat?.let { add(BottomBarIcon("💬", Color.Unspecified, it, 28)) }
+        icons.onChat?.let { add(BottomBarIcon(mi.chat, Color.Unspecified, it, 28, legendKey = D.CHAT)) }
     } else {
-        icons.onReload?.let { add(BottomBarIcon("🔄", AppColors.Orange, it, 28)) }
+        icons.onReload?.let { add(BottomBarIcon(mi.reload, AppColors.Orange, it, 28, legendKey = D.RELOAD)) }
     }
-    icons.onDelete?.let { add(BottomBarIcon("🗑", AppColors.Red, it, 22)) }
+    icons.onDelete?.let { add(BottomBarIcon(mi.delete, AppColors.Red, it, 22, legendKey = D.DELETE)) }
     // 📈 statistics trailing the 🗑 delete, when the screen opted in
     // (Application log — its App-log-statistics jump sits after clear-all).
-    if (icons.statsAfterDelete) icons.onStats?.let { add(BottomBarIcon("📈", Color.Unspecified, it, 28)) }
-    if (!icons.addFirst) icons.onAdd?.let { add(BottomBarIcon(icons.addIcon.takeIf { g -> g.isNotBlank() } ?: "🆕", Color.Unspecified, it, 28)) }
+    if (icons.statsAfterDelete) icons.onStats?.let { add(BottomBarIcon(mi.statistics, Color.Unspecified, it, 28, legendKey = D.STATISTICS)) }
+    if (!icons.addFirst) icons.onAdd?.let { add(BottomBarIcon(addGlyph, Color.Unspecified, it, 28, legendKey = addGlyph)) }
     // 🐞 trace always sits last in the strip.
-    icons.onTrace?.let { add(BottomBarIcon("🐞", Color.Unspecified, it, 22)) }
+    icons.onTrace?.let { add(BottomBarIcon(mi.traces, Color.Unspecified, it, 22, legendKey = D.TRACES)) }
 }
 
 /** Renders one row of bottom-bar action icons via [TitleBarIcon]. When
@@ -1897,7 +1902,8 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
             else -> 7f
         }
     } ?: 0f
-    val specs = if (icons != null) buildBottomBarIcons(icons) else emptyList()
+    val barIcons = LocalMetadataIcons.current
+    val specs = if (icons != null) buildBottomBarIcons(icons, barIcons) else emptyList()
     val navigateHelp = LocalNavigateToHelp.current
     // On allowlisted screens the white ❓ opens a live icon-legend overlay
     // (this screen's visible bar icons) instead of the help page. The
@@ -2007,13 +2013,13 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                     if (isLast) {
                         if (showLegendHelp) {
                             // White ❔ → live "<screen> - icons" overlay.
-                            TitleBarIcon("❔", AppColors.Blue, { showLegend = true }, width = 18.dp, heightDp = rowCellH, scale = scale)
+                            TitleBarIcon(barIcons.helpLegend, AppColors.Blue, { showLegend = true }, width = 18.dp, heightDp = rowCellH, scale = scale)
                         } else if (showIconPageHelp && iconTopic != null) {
                             // White ❔ → static icon-table help page.
-                            TitleBarIcon("❔", AppColors.Blue, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale)
+                            TitleBarIcon(barIcons.helpLegend, AppColors.Blue, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale)
                         }
                         // Red ❓ → the screen's help page (unchanged).
-                        TitleBarIcon("❓", AppColors.Blue, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
+                        TitleBarIcon(barIcons.help, AppColors.Blue, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
                     }
                 }
             }
@@ -2026,6 +2032,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
         IconLegendOverlay(
             icons = icons,
             specs = specs,
+            mi = barIcons,
             navigateHelp = navigateHelp,
             onClose = { showLegend = false }
         )
@@ -2042,6 +2049,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
 private fun IconLegendOverlay(
     icons: TitleBarIcons,
     specs: List<BottomBarIcon>,
+    mi: com.ai.data.MetadataIcons,
     navigateHelp: (String?) -> Unit,
     onClose: () -> Unit
 ) {
@@ -2079,7 +2087,10 @@ private fun IconLegendOverlay(
                                     color = if (spec.tint == Color.Unspecified) Color.White else spec.tint
                                 )
                             }
-                            val entry = legend[spec.emoji] ?: com.ai.ui.admin.DEFAULT_BAR_ICON_HELP[spec.emoji]
+                            // Key the legend label off the stable factory glyph
+                            // (legendKey), not the live one — so a user-overridden
+                            // glyph still resolves its name + description.
+                            val entry = legend[spec.legendKey] ?: com.ai.ui.admin.DEFAULT_BAR_ICON_HELP[spec.legendKey]
                             Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                                 Text(
                                     entry?.first ?: spec.emoji,
@@ -2105,7 +2116,7 @@ private fun IconLegendOverlay(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
-                            Text("❔", fontSize = 30.sp, color = Color.White)
+                            Text(mi.helpLegend, fontSize = 30.sp, color = Color.White)
                         }
                         Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                             Text(
@@ -2126,7 +2137,7 @@ private fun IconLegendOverlay(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
-                            Text("❓", fontSize = 30.sp, color = AppColors.Red)
+                            Text(mi.help, fontSize = 30.sp, color = AppColors.Red)
                         }
                         Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                             Text(
@@ -2150,7 +2161,7 @@ private fun IconLegendOverlay(
                     // already covers the icons, so it no longer points to the
                     // standalone icon-table page). Match the bottom bar's help
                     // glyph size (scales to the 2.1× ceiling) so it isn't tiny.
-                    TitleBarIcon("❓", AppColors.Red, {
+                    TitleBarIcon(mi.help, AppColors.Red, {
                         onClose()
                         navigateHelp(icons.helpTopic)
                     }, width = 18.dp, heightDp = 32, scale = 2.1f)

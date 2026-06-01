@@ -387,7 +387,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
     }
     val metadataIcons = obj.getAsJsonObject("metadataIcons")?.let {
         runCatching { gson.fromJson(it, com.ai.data.MetadataIcons::class.java) }.getOrNull()
-    }
+    }?.sanitized()
     val logLevel = str("logLevel")?.let { runCatching { com.ai.data.LogLevel.valueOf(it) }.getOrNull() }
     val typePaths: Map<String, String>? = obj.getAsJsonObject("defaultTypePaths")?.let { o ->
         val m = LinkedHashMap<String, String>()

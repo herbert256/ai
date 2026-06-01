@@ -61,6 +61,9 @@ val LocalViewBottomBar = compositionLocalOf<MutableState<ViewBottomBarSpec?>?> {
 fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
     val onManage = spec.onManage
     val navigateHelp = com.ai.ui.shared.LocalNavigateToHelp.current
+    // Glyphs resolve from the user's Default icons (Settings → Default icons)
+    // rather than being hard-coded here.
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Box(
         modifier = modifier.fillMaxWidth().padding(bottom = 12.dp),
         contentAlignment = Alignment.Center
@@ -69,7 +72,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
         // tapping flips it. Independent of the centred 🔧.
         if (spec.showAll != null && spec.onToggleOneOrAll != null) {
             Text(
-                text = if (spec.showAll) "☝️" else "✋",
+                text = if (spec.showAll) mi.viewShowAll else mi.viewShowOne,
                 fontSize = 28.sp,
                 color = Color.White,
                 modifier = Modifier
@@ -83,7 +86,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
         // not 📋 — that read as copy-to-clipboard.
         if (spec.onViewList != null) {
             Text(
-                text = "🗂️",
+                text = mi.pickReport,
                 fontSize = 27.sp,
                 color = Color.White,
                 modifier = Modifier
@@ -94,7 +97,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
         }
         if (onManage != null) {
             Text(
-                text = "🔧",
+                text = mi.openManage,
                 fontSize = 30.sp,
                 color = Color.White,
                 modifier = Modifier
@@ -105,7 +108,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
         // Right-aligned ❓ help — moved here from the View top bar.
         if (spec.helpTopic != null) {
             Text(
-                text = "❓",
+                text = mi.help,
                 fontSize = 28.sp,
                 color = AppColors.Blue,
                 modifier = Modifier

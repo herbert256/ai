@@ -64,9 +64,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val reportTitleMode = titleModeName?.let {
             try { com.ai.viewmodel.ReportTitleMode.valueOf(it) } catch (_: Exception) { null }
         } ?: com.ai.viewmodel.ReportTitleMode.AI
-        val metadataIcons: com.ai.data.MetadataIcons = prefs.getString(KEY_METADATA_ICONS, null)?.let {
+        // sanitized(): newer MetadataIcons fields are absent from older stored
+        // JSON; Gson leaves them null (it bypasses the Kotlin constructor), so
+        // backfill the factory defaults before the bars read them.
+        val metadataIcons: com.ai.data.MetadataIcons = (prefs.getString(KEY_METADATA_ICONS, null)?.let {
             try { gson.fromJson(it, com.ai.data.MetadataIcons::class.java) } catch (_: Exception) { null }
-        } ?: com.ai.data.MetadataIcons()
+        } ?: com.ai.data.MetadataIcons()).sanitized()
         return GeneralSettings(
             userName = prefs.getString(KEY_USER_NAME, "user") ?: "user",
             huggingFaceApiKey = prefs.getString(KEY_HUGGINGFACE_API_KEY, "") ?: "",

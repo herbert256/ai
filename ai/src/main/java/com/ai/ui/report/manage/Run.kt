@@ -475,9 +475,10 @@ internal fun ReportRunScreen(
             // of this hub) instead of the old 3-button pop-up.
             onEdit = { st.showEditReportOverview.value = true },
             // 🔗 opens the full-screen "Meta" launcher (Meta + Compare with
-            // meta) as a layer on top of this hub.
+            // meta) as a layer on top of this hub. Glyph = the user's Meta
+            // default icon (Settings → Default icons) rather than hard-coded.
             onAdd = { st.showCreateOverview.value = true },
-            addIcon = "🔗",
+            addIcon = com.ai.ui.shared.LocalMetadataIcons.current.meta,
             addFirst = true,
             // ✍️ add a report-level note; 📒 open the all-notes list.
             onAddNote = if (currentReportId != null) { { noteEdit = NoteEdit.Add } } else null,

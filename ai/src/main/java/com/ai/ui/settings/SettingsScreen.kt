@@ -1491,10 +1491,103 @@ private fun MetadataSettingsSubScreen(
     }
 }
 
-/** "Default icons" — edit the 11 fallback emoji shown when a report /
- *  secondary result has no generated icon of its own. Always reachable
- *  (independent of the metadata master switch) since defaults render on
- *  view screens regardless. Blank field on save → factory default. */
+/** One editable row on the Default icons screen, bound to a single
+ *  [com.ai.data.MetadataIcons] field: its [label], a getter/setter over the
+ *  immutable data class, and the [factory] glyph a blank field falls back to. */
+private class IconRowSpec(
+    val label: String,
+    val get: (com.ai.data.MetadataIcons) -> String,
+    val set: (com.ai.data.MetadataIcons, String) -> com.ai.data.MetadataIcons,
+    val factory: String,
+)
+
+/** Every editable icon, grouped into the sections shown on the Default icons
+ *  screen. Covers the report/secondary fallbacks rendered on the view screens
+ *  AND every glyph the bottom action bars draw, so nothing in the bars is
+ *  hard-coded — the render sites (buildBottomBarIcons / ViewBottomBar) read the
+ *  live values straight from this same MetadataIcons set. */
+private val DEFAULT_ICON_SECTIONS: List<Pair<String, List<IconRowSpec>>> = run {
+    val d = com.ai.data.MetadataDefaults
+    listOf(
+        "Report" to listOf(
+            IconRowSpec("Report", { it.reportIcon }, { m, v -> m.copy(reportIcon = v) }, d.REPORT_ICON),
+            IconRowSpec("Report model", { it.reportModelIcon }, { m, v -> m.copy(reportModelIcon = v) }, d.MODEL_ICON),
+        ),
+        "Secondary results" to listOf(
+            IconRowSpec("Rerank", { it.rerank }, { m, v -> m.copy(rerank = v) }, d.RERANK),
+            IconRowSpec("Moderate", { it.moderate }, { m, v -> m.copy(moderate = v) }, d.MODERATE),
+            IconRowSpec("Meta", { it.meta }, { m, v -> m.copy(meta = v) }, d.META),
+            IconRowSpec("Tournament", { it.tournament }, { m, v -> m.copy(tournament = v) }, d.TOURNAMENT),
+            IconRowSpec("Judges", { it.judges }, { m, v -> m.copy(judges = v) }, d.JUDGES),
+            IconRowSpec("Compare", { it.compare }, { m, v -> m.copy(compare = v) }, d.COMPARE),
+            IconRowSpec("Fan out", { it.fanOutRow }, { m, v -> m.copy(fanOutRow = v) }, d.FAN_OUT),
+            IconRowSpec("Fan in", { it.fanInRow }, { m, v -> m.copy(fanInRow = v) }, d.FAN_IN),
+        ),
+        "Translation" to listOf(
+            IconRowSpec("Language", { it.languageIcon }, { m, v -> m.copy(languageIcon = v) }, d.LANGUAGE),
+            IconRowSpec("Translation row", { it.translationRow }, { m, v -> m.copy(translationRow = v) }, d.TRANSLATE),
+            IconRowSpec("Translation compare", { it.translationCompare }, { m, v -> m.copy(translationCompare = v) }, d.TRANSLATION_COMPARE),
+        ),
+        "Monitor bar" to listOf(
+            IconRowSpec("Live dashboard", { it.liveDashboard }, { m, v -> m.copy(liveDashboard = v) }, d.LIVE_DASHBOARD),
+            IconRowSpec("Traces", { it.traces }, { m, v -> m.copy(traces = v) }, d.TRACES),
+            IconRowSpec("App log", { it.appLog }, { m, v -> m.copy(appLog = v) }, d.APP_LOG),
+            IconRowSpec("Audit", { it.audit }, { m, v -> m.copy(audit = v) }, d.AUDIT),
+            IconRowSpec("Statistics (monitor)", { it.statisticsMonitor }, { m, v -> m.copy(statisticsMonitor = v) }, d.STATISTICS_MONITOR),
+        ),
+        "Create & chat" to listOf(
+            IconRowSpec("Add / new", { it.add }, { m, v -> m.copy(add = v) }, d.ADD),
+            IconRowSpec("Chat", { it.chat }, { m, v -> m.copy(chat = v) }, d.CHAT),
+            IconRowSpec("Agent chat", { it.agentChat }, { m, v -> m.copy(agentChat = v) }, d.AGENT_CHAT),
+            IconRowSpec("Temperature sweep", { it.temperatureSweep }, { m, v -> m.copy(temperatureSweep = v) }, d.TEMPERATURE_SWEEP),
+            IconRowSpec("Reasoning sweep", { it.reasoningSweep }, { m, v -> m.copy(reasoningSweep = v) }, d.REASONING_SWEEP),
+            IconRowSpec("Web-search replay", { it.webSearchReplay }, { m, v -> m.copy(webSearchReplay = v) }, d.WEB_SEARCH_REPLAY),
+        ),
+        "Navigation" to listOf(
+            IconRowSpec("Pick report", { it.pickReport }, { m, v -> m.copy(pickReport = v) }, d.PICK_REPORT),
+            IconRowSpec("Open manage", { it.openManage }, { m, v -> m.copy(openManage = v) }, d.OPEN_MANAGE),
+            IconRowSpec("Housekeeping", { it.housekeeping }, { m, v -> m.copy(housekeeping = v) }, d.HOUSEKEEPING),
+            IconRowSpec("Settings", { it.settings }, { m, v -> m.copy(settings = v) }, d.SETTINGS),
+            IconRowSpec("Statistics", { it.statistics }, { m, v -> m.copy(statistics = v) }, d.STATISTICS),
+            IconRowSpec("Info", { it.info }, { m, v -> m.copy(info = v) }, d.INFO),
+        ),
+        "Configuration" to listOf(
+            IconRowSpec("Parameters", { it.parameters }, { m, v -> m.copy(parameters = v) }, d.PARAMETERS),
+            IconRowSpec("System prompt", { it.systemPrompt }, { m, v -> m.copy(systemPrompt = v) }, d.SYSTEM_PROMPT),
+            IconRowSpec("Clear", { it.clear }, { m, v -> m.copy(clear = v) }, d.CLEAR),
+            IconRowSpec("Attach", { it.attach }, { m, v -> m.copy(attach = v) }, d.ATTACH),
+            IconRowSpec("Validate prompt", { it.validatePrompt }, { m, v -> m.copy(validatePrompt = v) }, d.VALIDATE_PROMPT),
+        ),
+        "Report actions" to listOf(
+            IconRowSpec("Copy", { it.copy }, { m, v -> m.copy(copy = v) }, d.COPY),
+            IconRowSpec("Pin", { it.pin }, { m, v -> m.copy(pin = v) }, d.PIN),
+            IconRowSpec("Toggle labels", { it.toggleLabels }, { m, v -> m.copy(toggleLabels = v) }, d.TOGGLE_LABELS),
+            IconRowSpec("Share", { it.share }, { m, v -> m.copy(share = v) }, d.SHARE),
+            IconRowSpec("Duplicate", { it.duplicate }, { m, v -> m.copy(duplicate = v) }, d.DUPLICATE),
+        ),
+        "Item actions" to listOf(
+            IconRowSpec("View", { it.view }, { m, v -> m.copy(view = v) }, d.VIEW),
+            IconRowSpec("Memo", { it.memo }, { m, v -> m.copy(memo = v) }, d.MEMO),
+            IconRowSpec("Add note", { it.addNote }, { m, v -> m.copy(addNote = v) }, d.ADD_NOTE),
+            IconRowSpec("List notes", { it.listNotes }, { m, v -> m.copy(listNotes = v) }, d.LIST_NOTES),
+            IconRowSpec("Edit", { it.edit }, { m, v -> m.copy(edit = v) }, d.EDIT),
+            IconRowSpec("Reload", { it.reload }, { m, v -> m.copy(reload = v) }, d.RELOAD),
+            IconRowSpec("Delete", { it.delete }, { m, v -> m.copy(delete = v) }, d.DELETE),
+        ),
+        "View bar & help" to listOf(
+            IconRowSpec("Show all", { it.viewShowAll }, { m, v -> m.copy(viewShowAll = v) }, d.VIEW_SHOW_ALL),
+            IconRowSpec("Show one", { it.viewShowOne }, { m, v -> m.copy(viewShowOne = v) }, d.VIEW_SHOW_ONE),
+            IconRowSpec("Help", { it.help }, { m, v -> m.copy(help = v) }, d.HELP),
+            IconRowSpec("Icons help", { it.helpLegend }, { m, v -> m.copy(helpLegend = v) }, d.HELP_LEGEND),
+        ),
+    )
+}
+
+/** "Default icons" — edit every fallback / action emoji the app draws: the
+ *  report & secondary-result fallbacks on the view screens, plus every glyph in
+ *  the bottom action bars. Always reachable (independent of the metadata master
+ *  switch) since the fallbacks render on view screens regardless. Blank field on
+ *  save → factory default. Driven entirely by [DEFAULT_ICON_SECTIONS]. */
 @Composable
 private fun DefaultIconsSubScreen(
     generalSettings: GeneralSettings,
@@ -1504,33 +1597,20 @@ private fun DefaultIconsSubScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
-    val factory = remember { com.ai.data.MetadataIcons() }
-    var reportIcon by remember { mutableStateOf(generalSettings.metadataIcons.reportIcon) }
-    var reportModelIcon by remember { mutableStateOf(generalSettings.metadataIcons.reportModelIcon) }
-    var rerank by remember { mutableStateOf(generalSettings.metadataIcons.rerank) }
-    var moderate by remember { mutableStateOf(generalSettings.metadataIcons.moderate) }
-    var languageIcon by remember { mutableStateOf(generalSettings.metadataIcons.languageIcon) }
-    var translationRow by remember { mutableStateOf(generalSettings.metadataIcons.translationRow) }
-    var meta by remember { mutableStateOf(generalSettings.metadataIcons.meta) }
-    var fanOutRow by remember { mutableStateOf(generalSettings.metadataIcons.fanOutRow) }
-    var fanInRow by remember { mutableStateOf(generalSettings.metadataIcons.fanInRow) }
+    var icons by remember { mutableStateOf(generalSettings.metadataIcons) }
 
-    fun build(): GeneralSettings {
-        fun f(v: String, d: String) = v.trim().ifBlank { d }
-        return generalSettings.copy(metadataIcons = com.ai.data.MetadataIcons(
-            reportIcon = f(reportIcon, factory.reportIcon),
-            reportModelIcon = f(reportModelIcon, factory.reportModelIcon),
-            rerank = f(rerank, factory.rerank),
-            moderate = f(moderate, factory.moderate),
-            languageIcon = f(languageIcon, factory.languageIcon),
-            translationRow = f(translationRow, factory.translationRow),
-            meta = f(meta, factory.meta),
-            fanOutRow = f(fanOutRow, factory.fanOutRow),
-            fanInRow = f(fanInRow, factory.fanInRow)
-        ))
+    // Blank field on save → its factory default. Walks the same row table the UI
+    // renders, so any field added there is normalized automatically.
+    fun normalized(): com.ai.data.MetadataIcons {
+        var m = icons
+        DEFAULT_ICON_SECTIONS.forEach { (_, rows) ->
+            rows.forEach { row -> if (row.get(m).isBlank()) m = row.set(m, row.factory) }
+        }
+        return m
     }
+    fun build(): GeneralSettings = generalSettings.copy(metadataIcons = normalized())
 
-    LaunchedEffect(reportIcon, reportModelIcon, rerank, moderate, languageIcon, translationRow, meta, fanOutRow, fanInRow) {
+    LaunchedEffect(icons) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1564,14 +1644,9 @@ private fun DefaultIconsSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_default_icons", title = "Default icons", subject = "Fallback emoji for reports without their own icon", onBackClick = onBack,
+        TitleBar(helpTopic = "settings_default_icons", title = "Default icons", subject = "Fallback + bottom-bar action emoji", onBackClick = onBack,
             // 🧽 restores every icon to its factory default.
-            onClear = {
-                reportIcon = factory.reportIcon; reportModelIcon = factory.reportModelIcon
-                rerank = factory.rerank; moderate = factory.moderate
-                languageIcon = factory.languageIcon; translationRow = factory.translationRow
-                meta = factory.meta; fanOutRow = factory.fanOutRow; fanInRow = factory.fanInRow
-            }
+            onClear = { icons = com.ai.data.MetadataIcons() }
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Card(
@@ -1580,19 +1655,23 @@ private fun DefaultIconsSubScreen(
             ) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "Shown on view screens when a report or result carries no generated icon. Editing one updates every report that lacks its own.",
+                        "Every emoji the app draws — report/result fallbacks on the view screens and every action icon in the bottom bars. Editing one updates it everywhere; a blank field falls back to the factory default, and 🧽 resets them all.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
-                    IconDefaultRow("Report", reportIcon, { reportIcon = it }) { aiFindFor = IconAiTarget("Report") { reportIcon = it } }
-                    IconDefaultRow("Report model", reportModelIcon, { reportModelIcon = it }) { aiFindFor = IconAiTarget("Report model") { reportModelIcon = it } }
-                    IconDefaultRow("Rerank", rerank, { rerank = it }) { aiFindFor = IconAiTarget("Rerank") { rerank = it } }
-                    IconDefaultRow("Moderate", moderate, { moderate = it }) { aiFindFor = IconAiTarget("Moderate") { moderate = it } }
-                    IconDefaultRow("Language icon", languageIcon, { languageIcon = it }) { aiFindFor = IconAiTarget("Language") { languageIcon = it } }
-                    IconDefaultRow("Translation row", translationRow, { translationRow = it }) { aiFindFor = IconAiTarget("Translation") { translationRow = it } }
-                    IconDefaultRow("Meta", meta, { meta = it }) { aiFindFor = IconAiTarget("Meta") { meta = it } }
-                    IconDefaultRow("Fan Out row", fanOutRow, { fanOutRow = it }) { aiFindFor = IconAiTarget("Fan out") { fanOutRow = it } }
-                    IconDefaultRow("Fan In row", fanInRow, { fanInRow = it }) { aiFindFor = IconAiTarget("Fan in") { fanInRow = it } }
-                    // "Reset all to defaults" moved to the 🧽 bottom-bar icon.
+                    DEFAULT_ICON_SECTIONS.forEach { (section, rows) ->
+                        Text(
+                            section, fontSize = 12.sp,
+                            color = AppColors.TextSecondary,
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                        rows.forEach { row ->
+                            IconDefaultRow(row.label, row.get(icons), { icons = row.set(icons, it) }) {
+                                aiFindFor = IconAiTarget(row.label) { picked -> icons = row.set(icons, picked) }
+                            }
+                        }
+                    }
+                    // "Reset all to defaults" lives on the 🧽 bottom-bar icon.
                 }
             }
         }
