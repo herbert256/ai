@@ -257,6 +257,25 @@ private fun TranslatePair(
                 sourceBody = meta.content.orEmpty()
             }
         }
+        "TITLE" -> {
+            sourceLabel = "${mi.reportIcon} Report title"
+            sourceBody = report?.title.orEmpty()
+        }
+        "TITLE_LONG" -> {
+            sourceLabel = "${mi.reportIcon} Report long title"
+            sourceBody = report?.titleLong.orEmpty()
+        }
+        "AGENT_TITLE" -> {
+            val agent = report?.agents?.firstOrNull { it.agentId == sourceTargetId }
+            val prov = agent?.let { AppService.findById(it.provider)?.id ?: it.provider } ?: "?"
+            val mdl = agent?.model?.let { shortModelName(it) } ?: sourceTargetId.take(8)
+            sourceLabel = "${mi.agent} Title · $prov / $mdl"
+            sourceBody = agent?.modelTitle.orEmpty()
+        }
+        "FANOUT_TITLE" -> {
+            sourceLabel = "${mi.reportModelIcon} Fan-out title"
+            sourceBody = metaSources[sourceTargetId]?.title.orEmpty()
+        }
         else -> {
             sourceLabel = sourceKind.ifBlank { "Source" }
             sourceBody = ""
