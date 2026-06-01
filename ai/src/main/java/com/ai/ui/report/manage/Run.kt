@@ -326,10 +326,6 @@ internal fun ReportRunScreen(
             // ✏️ opens the full-screen "Edit report" overview (layer on top
             // of this hub) instead of the old 3-button pop-up.
             onEdit = { st.showEditReportOverview.value = true },
-            // 🌡️ parameters / 🎭 system prompt — pulled out of the Edit
-            // pop-up onto their own bottom-bar icons.
-            onParameters = if (currentReportId != null) { { st.showEditParameters.value = true } } else null,
-            onSystemPrompt = if (currentReportId != null) editSystemPromptTrigger else null,
             // 🆕 opens the full-screen "Create" launcher (layer on top of this
             // hub) instead of the old pop-up.
             onAdd = { st.showCreateOverview.value = true },
