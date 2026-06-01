@@ -2,7 +2,15 @@
   "name": "fan_out",
   "title": "Find an ALTERNATIVE fitting emoji for a fan-out pair response",
   "reference": false,
-  "agent": "*N/A",
+  "workers": [
+    {
+      "agent": "*N/A",
+      "provider": "*N/A",
+      "model": "*N/A",
+      "flock": "*N/A",
+      "swarm": "workers"
+    }
+  ],
   "parameters": "*NONE",
   "systemPrompt": "*NONE"
 }

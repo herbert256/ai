@@ -2,7 +2,15 @@
   "name": "main",
   "title": "Find an ALTERNATIVE fitting emoji for a report title",
   "reference": false,
-  "agent": "DeepSeek",
+  "workers": [
+    {
+      "agent": "*N/A",
+      "provider": "*N/A",
+      "model": "*N/A",
+      "flock": "*N/A",
+      "swarm": "workers"
+    }
+  ],
   "parameters": "*NONE",
   "systemPrompt": "*NONE"
 }

@@ -2,7 +2,15 @@
   "name": "report_title_long",
   "title": "Find an ALTERNATIVE long report title",
   "reference": false,
-  "agent": "*N/A",
+  "workers": [
+    {
+      "agent": "*N/A",
+      "provider": "*N/A",
+      "model": "*N/A",
+      "flock": "*N/A",
+      "swarm": "workers"
+    }
+  ],
   "parameters": "*NONE",
   "systemPrompt": "*NONE"
 }

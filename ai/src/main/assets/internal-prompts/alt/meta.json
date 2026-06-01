@@ -2,7 +2,15 @@
   "name": "meta",
   "title": "Find an ALTERNATIVE fitting emoji for an internal prompt",
   "reference": false,
-  "agent": "DeepSeek",
+  "workers": [
+    {
+      "agent": "*N/A",
+      "provider": "*N/A",
+      "model": "*N/A",
+      "flock": "*N/A",
+      "swarm": "workers"
+    }
+  ],
   "parameters": "*NONE",
   "systemPrompt": "*NONE"
 }
