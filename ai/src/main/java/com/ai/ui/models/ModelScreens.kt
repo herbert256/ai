@@ -553,8 +553,9 @@ fun ModelInfoScreen(
                                 }
                                 testResult?.let { r ->
                                     val passed = testPassed == true
+                                    val mi = com.ai.ui.shared.LocalMetadataIcons.current
                                     Text(
-                                        text = if (passed) "✅ $r" else "❌ $r",
+                                        text = if (passed) "${mi.statusDone} $r" else "${mi.statusFailed} $r",
                                         fontSize = 12.sp,
                                         color = if (passed) AppColors.Green else AppColors.Red
                                     )
@@ -923,11 +924,12 @@ fun ModelInfoScreen(
                             md != null -> "models.dev"
                             else -> "Auto-detected from name"
                         }
-                        val visionSrc = "Vision 👁: ${if (visionEffective) "yes" else "no"}" to
+                        val mi = com.ai.ui.shared.LocalMetadataIcons.current
+                        val visionSrc = "Vision ${mi.view}: ${if (visionEffective) "yes" else "no"}" to
                             source(visionPinned, providerVision, litellmVision, modelsDevVision)
-                        val webSrc = "Web search 🌐: ${if (webEffective) "yes" else "no"}" to
+                        val webSrc = "Web search ${mi.web}: ${if (webEffective) "yes" else "no"}" to
                             source(webPinned, providerWeb, litellmWeb, modelsDevWeb)
-                        val reasoningSrc = "Thinking 🧠: ${if (reasoningEffective) "yes" else "no"}" to
+                        val reasoningSrc = "Thinking ${mi.reportModelIcon}: ${if (reasoningEffective) "yes" else "no"}" to
                             source(reasoningPinned, providerReasoning, litellmReasoning, modelsDevReasoning)
                         val (visionLabel, visionSrcText) = visionSrc
                         val (webLabel, webSrcText) = webSrc
@@ -964,15 +966,15 @@ fun ModelInfoScreen(
                                 // the source label is fixed when present.
                                 cfg.modelCapabilities[modelName]?.supportsPdfInput?.let { pdf ->
                                     Row {
-                                        Text("PDF input 📄: ${if (pdf) "yes" else "no"}",
+                                        Text("PDF input ${mi.document}: ${if (pdf) "yes" else "no"}",
                                             fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
                                         Text("Provider self-report", fontSize = 12.sp, color = AppColors.TextTertiary)
                                     }
                                 }
                                 cfg.modelCapabilities[modelName]?.deprecationDate?.let { date ->
                                     val replacement = cfg.modelCapabilities[modelName]?.deprecationReplacement
-                                    val msg = if (replacement.isNullOrBlank()) "⚠ Deprecated $date"
-                                        else "⚠ Deprecated $date → use $replacement"
+                                    val msg = if (replacement.isNullOrBlank()) "${mi.warningPlain} Deprecated $date"
+                                        else "${mi.warningPlain} Deprecated $date ${mi.arrowRight} use $replacement"
                                     Row {
                                         Text(msg, fontSize = 13.sp, color = AppColors.Orange, modifier = Modifier.weight(1f))
                                         Text("Provider", fontSize = 12.sp, color = AppColors.TextTertiary)
@@ -1274,9 +1276,10 @@ private fun InfoProviderName(
 
 @Composable
 private fun ModelInfoRow(label: String, value: String) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, fontSize = 13.sp, color = AppColors.TextTertiary)
-        Text(value, fontSize = 13.sp, color = Color.White)
+        Text(mi.iconizedText(label), fontSize = 13.sp, color = AppColors.TextTertiary)
+        Text(mi.iconizedText(value), fontSize = 13.sp, color = Color.White)
     }
 }
 

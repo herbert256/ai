@@ -1236,7 +1236,7 @@ private fun renderModerationContent(content: String, contextId: String, agentsBy
     sb.append("<div class='moderation-buttons'>")
     rows.forEachIndexed { i, r ->
         val label = agentsByAnchor[r.id] ?: "[${r.id}]"
-        val flagPrefix = if (r.flagged) "🚩 " else "✓ "
+        val flagPrefix = if (r.flagged) "${com.ai.data.MetadataIconsHolder.current.validatePrompt} " else "${com.ai.data.MetadataIconsHolder.current.checkMark} "
         val color = if (r.flagged) "#ff7a7a" else "#7fdc7f"
         val active = if (i == 0) " active" else ""
         sb.append(
@@ -1252,7 +1252,7 @@ private fun renderModerationContent(content: String, contextId: String, agentsBy
         val style = if (i == 0) "" else " style='display:none'"
         sb.append("<div class='mod-row$active' data-mod='${escId(contextId)}-${r.id}'$style>")
         val verdictColor = if (r.flagged) "#ff7a7a" else "#7fdc7f"
-        val verdictText = if (r.flagged) "🚩 Flagged" else "✓ Clean"
+        val verdictText = if (r.flagged) "${com.ai.data.MetadataIconsHolder.current.validatePrompt} Flagged" else "${com.ai.data.MetadataIconsHolder.current.checkMark} Clean"
         sb.append("<div class='mod-verdict' style='color:$verdictColor;font-weight:600;margin-bottom:6px'>$verdictText</div>")
 
         // Categories table — every category the API returned,
@@ -1268,7 +1268,7 @@ private fun renderModerationContent(content: String, contextId: String, agentsBy
                 val fired = r.allCategories[cat] == true
                 val score = r.allScores[cat]
                 val rowStyle = if (fired) " style='color:#ff7a7a'" else ""
-                val flagCell = if (fired) "🚩" else "·"
+                val flagCell = if (fired) com.ai.data.MetadataIconsHolder.current.validatePrompt else "·"
                 val scoreCell = score?.let { "%.4f".format(it) } ?: "—"
                 sb.append("<tr$rowStyle><td>$flagCell</td><td>${esc(cat)}</td><td class='num'>$scoreCell</td></tr>")
             }

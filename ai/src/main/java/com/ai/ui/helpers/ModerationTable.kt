@@ -201,7 +201,7 @@ internal fun ModerationCallDetailScreen(
             // Flag headline + meta line.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    if (row.flagged) "🚩 Flagged" else "✓ Clean",
+                    if (row.flagged) "${com.ai.data.MetadataIconsHolder.current.validatePrompt} Flagged" else "${com.ai.data.MetadataIconsHolder.current.checkMark} Clean",
                     fontSize = 18.sp, color = flagColor, fontWeight = FontWeight.SemiBold
                 )
             }

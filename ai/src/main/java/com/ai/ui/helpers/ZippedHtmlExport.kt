@@ -212,7 +212,7 @@ private fun bugLink(loc: TraceLoc?, pageDepth: Int, basePath: String = ""): Stri
     if (loc == null) return ""
     val totalDepth = pageDepth + basePath.count { it == '/' }
     val rel = "../".repeat(totalDepth) + loc.zipPath
-    return "<a class='bug' href='${esc(rel)}' title='View API trace'>🐞</a>"
+    return "<a class='bug' href='${esc(rel)}' title='View API trace'>${esc(com.ai.data.MetadataIconsHolder.current.traces)}</a>"
 }
 
 // ===== Report index (reverse of TraceLoc) — every report/secondary
@@ -282,7 +282,7 @@ private fun List<ReportLoc>.findReportFor(t: HtmlTraceData): ReportLoc? {
 private fun reportLink(loc: ReportLoc?, pageDepth: Int): String {
     if (loc == null) return ""
     val rel = "../".repeat(pageDepth) + loc.zipPath
-    return "<a class='bug' href='${esc(rel)}' title='View report page built from this call'>📄</a>"
+    return "<a class='bug' href='${esc(rel)}' title='View report page built from this call'>${esc(com.ai.data.MetadataIconsHolder.current.document)}</a>"
 }
 
 // ===== Sections present in one language directory =====

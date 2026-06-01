@@ -97,16 +97,17 @@ fun TraceListScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val mi = LocalMetadataIcons.current
     // Resolve the per-report icon when this list is scoped to a
     // report — the trace-list screen is reached via Compose
     // Navigation, so it sits outside the LocalReportIcon provider
     // ReportsScreenNav installs for its inline overlays. Without
     // this lookup the report-icon slot on the top bar stays empty.
-    val resolvedReportIcon by produceState<String?>(initialValue = null, reportId) {
+    val resolvedReportIcon by produceState<String?>(initialValue = null, reportId, mi.reportIcon) {
         val rid = reportId ?: return@produceState
         value = withContext(Dispatchers.IO) {
             com.ai.data.ReportStorage.getReport(context, rid)?.icon?.takeIf { it.isNotBlank() }
-                ?: "📝"
+                ?: mi.reportIcon
         }
     }
     // First call of the session populates ApiTracer's cache via a
@@ -305,7 +306,7 @@ fun TraceListScreen(
             // report ("trace entry from an AI Report"), else the 🐞 ladybug.
             // Icon + title tap: main list → Home; scoped list → main traces.
             val isMainTraceList = reportId == null && modelFilter == null && runIdFilter == null
-            val leftGlyph = (if (reportId != null) resolvedReportIcon else null) ?: "🐞"
+            val leftGlyph = (if (reportId != null) resolvedReportIcon else null) ?: mi.traces
             val traceIconClick: () -> Unit = { if (isMainTraceList) onNavigateHome() else (onNavigateToTraceList ?: onNavigateHome)() }
             TitleBar(
                 helpTopic = "trace_list",
@@ -538,6 +539,7 @@ private fun TraceModelPickerOverlay(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
+    val mi = LocalMetadataIcons.current
     val advisory = com.ai.ui.shared.rememberModelAdvisoryLookup(aiSettings)
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "trace_pick_model", title = "Pick model", subject = "Filter the trace list to one model", onBackClick = onBack)
@@ -548,7 +550,7 @@ private fun TraceModelPickerOverlay(
                 Text("(All models)", fontSize = 13.sp,
                     color = if (current == null) AppColors.Blue else Color.White,
                     modifier = Modifier.weight(1f))
-                if (current == null) Text("✓", color = AppColors.Blue, fontSize = 13.sp)
+                if (current == null) Text(mi.checkMark, color = AppColors.Blue, fontSize = 13.sp)
             }
         }
         Spacer(modifier = Modifier.height(6.dp))
@@ -570,7 +572,7 @@ private fun TraceModelPickerOverlay(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             com.ai.ui.shared.ModelAdvisoryCaptions(state)
                         }
-                        if (selected) Text("✓", color = AppColors.Blue, fontSize = 13.sp)
+                        if (selected) Text(mi.checkMark, color = AppColors.Blue, fontSize = 13.sp)
                     }
                 }
             }
@@ -851,6 +853,7 @@ fun TraceDetailScreen(
     // hides the icon below also gate on the same field, so the
     // provider would be unused otherwise.
     val tracedReportId = t?.reportId
+    val mi = LocalMetadataIcons.current
     val reportIconNav: () -> Unit = remember(tracedReportId) {
         { tracedReportId?.let(onOpenReport) }
     }
@@ -864,7 +867,7 @@ fun TraceDetailScreen(
             // Left glyph: the originating report's icon when this trace is
             // from an AI Report, else the 🐞 ladybug. Tap (icon or title) →
             // the main AI API Traces list (this screen is never the main one).
-            reportIcon = reportForTrace?.icon?.takeIf { it.isNotBlank() } ?: "🐞",
+            reportIcon = reportForTrace?.icon?.takeIf { it.isNotBlank() } ?: mi.traces,
             onReportIconClick = onNavigateToTraceList,
             onTitleClick = onNavigateToTraceList,
             onInfo = onInfoAction,
@@ -1066,7 +1069,7 @@ fun TraceDetailScreen(
                     contentPadding = PaddingValues(0.dp),
                     modifier = Modifier.width(36.dp).semantics { contentDescription = "Open report" },
                     colors = AppColors.outlinedButtonColors()
-                ) { Text("📝", fontSize = 14.sp, maxLines = 1, softWrap = false) }
+                ) { Text(mi.reportIcon, fontSize = 14.sp, maxLines = 1, softWrap = false) }
                 // 👁 — sibling of 📝 / 🔧. Opens the same report but lands
                 // on the View tile grid instead of Manage. The 📝 button
                 // above keeps the historical Manage entry behaviour; this
@@ -1077,7 +1080,7 @@ fun TraceDetailScreen(
                     contentPadding = PaddingValues(0.dp),
                     modifier = Modifier.width(36.dp).semantics { contentDescription = "View report" },
                     colors = AppColors.outlinedButtonColors()
-                ) { Text("👁", fontSize = 14.sp, maxLines = 1, softWrap = false) }
+                ) { Text(mi.view, fontSize = 14.sp, maxLines = 1, softWrap = false) }
             }
             // Copy and Share lived here too, but they're already wired
             // on the title-bar icon strip (📋 + 📤) with byte-identical

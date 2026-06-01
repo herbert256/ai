@@ -276,6 +276,7 @@ fun ChatSessionScreen(
     // because Compose registers BackHandlers in declaration order
     // and the outermost one was previously unconditional.
     val context = LocalContext.current
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val focusRequester = remember { FocusRequester() }
@@ -688,8 +689,8 @@ fun ChatSessionScreen(
             // KB exists. Per-turn injection happens in
             // ChatViewModel.{sendChatMessageStream,sendLocalLlmStream}.
             if (experimentalFeatures && availableKbs.isNotEmpty()) {
-                val kbLabel = if (attachedKnowledgeBaseIds.isEmpty()) "📚 Knowledge"
-                    else "📚 ${attachedKnowledgeBaseIds.size}"
+                val kbLabel = if (attachedKnowledgeBaseIds.isEmpty()) "${mi.library} Knowledge"
+                    else "${mi.library} ${attachedKnowledgeBaseIds.size}"
                 Text(kbLabel, fontSize = 11.sp,
                     color = if (attachedKnowledgeBaseIds.isNotEmpty()) AppColors.Green else AppColors.TextTertiary,
                     modifier = Modifier
@@ -697,7 +698,7 @@ fun ChatSessionScreen(
                         .padding(horizontal = 8.dp, vertical = 2.dp))
             }
             Text(
-                if (pinned) "📌 Pinned" else "📌 Pin",
+                if (pinned) "${mi.pin} Pinned" else "${mi.pin} Pin",
                 fontSize = 11.sp,
                 color = if (pinned) AppColors.Orange else AppColors.TextTertiary,
                 modifier = Modifier
@@ -788,7 +789,7 @@ fun ChatSessionScreen(
             FilterChip(
                 selected = useWebSearch,
                 onClick = { useWebSearch = !useWebSearch },
-                label = { Text("🌐 Web search", fontSize = 12.sp) },
+                label = { Text("${mi.web} Web search", fontSize = 12.sp) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = AppColors.Blue.copy(alpha = 0.2f),
                     selectedLabelColor = AppColors.Blue
@@ -806,7 +807,7 @@ fun ChatSessionScreen(
                     FilterChip(
                         selected = reasoningEffort.isNotBlank(),
                         onClick = { reasoningMenuExpanded = true },
-                        label = { Text("🧠 $levelLabel", fontSize = 12.sp) },
+                        label = { Text("${mi.reportModelIcon} $levelLabel", fontSize = 12.sp) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = AppColors.Purple.copy(alpha = 0.2f),
                             selectedLabelColor = AppColors.Purple
@@ -851,7 +852,7 @@ fun ChatSessionScreen(
                     else moderationModel = null
                 },
                 label = {
-                    val label = moderationModel?.let { (p, m) -> "🛡 $m" } ?: "🛡 Validate input"
+                    val label = moderationModel?.let { (p, m) -> "${mi.shield} $m" } ?: "${mi.shield} Validate input"
                     Text(label, fontSize = 12.sp, maxLines = 1)
                 },
                 colors = FilterChipDefaults.filterChipColors(
@@ -896,7 +897,7 @@ fun ChatSessionScreen(
             }
             if (!isVisionCapable) {
                 Text(
-                    "⚠ Model is not flagged vision-capable in Model Info. The request may fail.",
+                    "${mi.warningPlain} Model is not flagged vision-capable in Model Info. The request may fail.",
                     fontSize = 11.sp, color = AppColors.Red, modifier = Modifier.padding(bottom = 4.dp)
                 )
             }

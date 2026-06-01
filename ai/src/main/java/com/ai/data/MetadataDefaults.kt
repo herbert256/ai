@@ -106,9 +106,15 @@ object MetadataDefaults {
     const val MEDAL_SILVER = "🥈"
     const val MEDAL_BRONZE = "🥉"
     // Arrows
+    const val ARROW_UP = "↑"
     const val ARROW_RIGHT = "→"
     const val ARROW_DOWN = "↓"
+    const val ARROW_BACK = "◀"
+    const val ARROW_FORWARD = "➡"
     const val ARROW_SUBMIT = "➤"
+    const val CARET_EXPANDED = "▾"
+    const val CARET_COLLAPSED = "▸"
+    const val MINUS = "➖"
     // Search & files
     const val AGENT = "🤖"
     const val AI_FIND = "🤖"            // 🤖 AI-icon-finder affordance (split from AGENT)
@@ -119,7 +125,11 @@ object MetadataDefaults {
     const val LABEL = "🏷️"
     const val BOOKMARK = "🔖"
     const val NOTEPAD = "🗒"
+    const val DOCUMENT = "📄"
     const val PACKAGE_BOX = "📦"
+    const val PLUG = "🔌"
+    const val KEY = "🔑"
+    const val SLEEP = "💤"
     // Content & media
     const val WORLD = "🌍"
     const val CHART = "📊"             // 📊 generic statistics / chart (split from STATISTICS_MONITOR)
@@ -131,10 +141,20 @@ object MetadataDefaults {
     const val SPEECH = "🗨️"
     const val GEM = "💎"
     const val TIP = "💡"
+    const val CAMERA = "📸"
+    const val GIFT = "🎁"
+    const val ROCKET = "🚀"
+    const val HOME = "🏠"
+    const val SAVE = "💾"
+    const val CLOUD = "☁️"
+    const val BUILDING_BLOCKS = "🧱"
+    const val GROUPINGS = "🪺"
+    const val GITHUB = "🐙"
     // Cost
     const val COST = "💰"
     const val DOLLAR = "💲"
     const val SPEND = "💸"
+    const val CASH = "💵"
     // Workers & tools
     const val SWARM = "🐝"
     const val FLOCK = "🦆"
@@ -148,13 +168,45 @@ object MetadataDefaults {
     const val WORKER = "👷"
     const val SPARKLES = "✨"
     const val RULER = "📐"
+    const val RULER_STRAIGHT = "📏"
     const val SHUFFLE = "🔀"
+    const val REPEAT = "🔁"
     const val HIDE = "🙈"
+    const val SHIELD = "🛡"
+    const val MICROSCOPE = "🔬"
+    const val CONTROLS = "🎚️"
+    const val SLIDERS = "🎛️"
+    const val MAGIC = "🪄"
     // Devices & misc
     const val DEVICE = "📱"
     const val COMPUTER = "💻"
     const val SATELLITE = "🛰"
     const val HUGGINGFACE = "🤗"
+    const val GREEN_CIRCLE = "🟢"
+    const val WHITE_CIRCLE = "⚪"
+    const val RED_CIRCLE = "🔴"
+    const val ORANGE_CIRCLE = "🟠"
+    const val BLUE_CIRCLE = "🔵"
+    const val SUN = "☀️"
+    const val CALENDAR = "📅"
+    const val CALENDAR_SPIRAL = "🗓️"
+    const val RUNNER = "🏃"
+    const val ROADBLOCK = "🚧"
+    const val EXPLOSION = "💥"
+    const val SNOWFLAKE = "❄️"
+    const val NO_ENTRY = "⛔"
+    const val FOG = "🌫️"
+    const val BENTO = "🍱"
+    const val NUMBER_INPUT = "🔢"
+    const val SYMBOLS = "🔣"
+    const val HANDSHAKE = "🤝"
+    const val BLUE_DIAMOND = "🔷"
+    const val GROUP = "👥"
+    const val WARNING_PLAIN = "⚠"
+    const val BOLT = "⚡"
+    const val HEALTH = "🩺"
+    const val SLOW = "🐌"
+    const val COFFIN = "⚰️"
 }
 
 // Holder for the live [MetadataIcons] so non-@Composable call sites (helper
@@ -258,9 +310,15 @@ data class MetadataIcons(
     val medalSilver: String = MetadataDefaults.MEDAL_SILVER,
     val medalBronze: String = MetadataDefaults.MEDAL_BRONZE,
     // Arrows
+    val arrowUp: String = MetadataDefaults.ARROW_UP,
     val arrowRight: String = MetadataDefaults.ARROW_RIGHT,
     val arrowDown: String = MetadataDefaults.ARROW_DOWN,
+    val arrowBack: String = MetadataDefaults.ARROW_BACK,
+    val arrowForward: String = MetadataDefaults.ARROW_FORWARD,
     val arrowSubmit: String = MetadataDefaults.ARROW_SUBMIT,
+    val caretExpanded: String = MetadataDefaults.CARET_EXPANDED,
+    val caretCollapsed: String = MetadataDefaults.CARET_COLLAPSED,
+    val minus: String = MetadataDefaults.MINUS,
     // Search & files
     val agent: String = MetadataDefaults.AGENT,
     val aiFind: String = MetadataDefaults.AI_FIND,
@@ -271,7 +329,11 @@ data class MetadataIcons(
     val label: String = MetadataDefaults.LABEL,
     val bookmark: String = MetadataDefaults.BOOKMARK,
     val notepad: String = MetadataDefaults.NOTEPAD,
+    val document: String = MetadataDefaults.DOCUMENT,
     val packageBox: String = MetadataDefaults.PACKAGE_BOX,
+    val plug: String = MetadataDefaults.PLUG,
+    val key: String = MetadataDefaults.KEY,
+    val sleep: String = MetadataDefaults.SLEEP,
     // Content & media
     val world: String = MetadataDefaults.WORLD,
     val chart: String = MetadataDefaults.CHART,
@@ -283,10 +345,20 @@ data class MetadataIcons(
     val speech: String = MetadataDefaults.SPEECH,
     val gem: String = MetadataDefaults.GEM,
     val tip: String = MetadataDefaults.TIP,
+    val camera: String = MetadataDefaults.CAMERA,
+    val gift: String = MetadataDefaults.GIFT,
+    val rocket: String = MetadataDefaults.ROCKET,
+    val home: String = MetadataDefaults.HOME,
+    val save: String = MetadataDefaults.SAVE,
+    val cloud: String = MetadataDefaults.CLOUD,
+    val buildingBlocks: String = MetadataDefaults.BUILDING_BLOCKS,
+    val groupings: String = MetadataDefaults.GROUPINGS,
+    val github: String = MetadataDefaults.GITHUB,
     // Cost
     val cost: String = MetadataDefaults.COST,
     val dollar: String = MetadataDefaults.DOLLAR,
     val spend: String = MetadataDefaults.SPEND,
+    val cash: String = MetadataDefaults.CASH,
     // Workers & tools
     val swarm: String = MetadataDefaults.SWARM,
     val flock: String = MetadataDefaults.FLOCK,
@@ -300,13 +372,45 @@ data class MetadataIcons(
     val worker: String = MetadataDefaults.WORKER,
     val sparkles: String = MetadataDefaults.SPARKLES,
     val ruler: String = MetadataDefaults.RULER,
+    val rulerStraight: String = MetadataDefaults.RULER_STRAIGHT,
     val shuffle: String = MetadataDefaults.SHUFFLE,
+    val repeat: String = MetadataDefaults.REPEAT,
     val hide: String = MetadataDefaults.HIDE,
+    val shield: String = MetadataDefaults.SHIELD,
+    val microscope: String = MetadataDefaults.MICROSCOPE,
+    val controls: String = MetadataDefaults.CONTROLS,
+    val sliders: String = MetadataDefaults.SLIDERS,
+    val magic: String = MetadataDefaults.MAGIC,
     // Devices & misc
     val device: String = MetadataDefaults.DEVICE,
     val computer: String = MetadataDefaults.COMPUTER,
     val satellite: String = MetadataDefaults.SATELLITE,
     val huggingface: String = MetadataDefaults.HUGGINGFACE,
+    val greenCircle: String = MetadataDefaults.GREEN_CIRCLE,
+    val whiteCircle: String = MetadataDefaults.WHITE_CIRCLE,
+    val redCircle: String = MetadataDefaults.RED_CIRCLE,
+    val orangeCircle: String = MetadataDefaults.ORANGE_CIRCLE,
+    val blueCircle: String = MetadataDefaults.BLUE_CIRCLE,
+    val sun: String = MetadataDefaults.SUN,
+    val calendar: String = MetadataDefaults.CALENDAR,
+    val calendarSpiral: String = MetadataDefaults.CALENDAR_SPIRAL,
+    val runner: String = MetadataDefaults.RUNNER,
+    val roadblock: String = MetadataDefaults.ROADBLOCK,
+    val explosion: String = MetadataDefaults.EXPLOSION,
+    val snowflake: String = MetadataDefaults.SNOWFLAKE,
+    val noEntry: String = MetadataDefaults.NO_ENTRY,
+    val fog: String = MetadataDefaults.FOG,
+    val bento: String = MetadataDefaults.BENTO,
+    val numberInput: String = MetadataDefaults.NUMBER_INPUT,
+    val symbols: String = MetadataDefaults.SYMBOLS,
+    val handshake: String = MetadataDefaults.HANDSHAKE,
+    val blueDiamond: String = MetadataDefaults.BLUE_DIAMOND,
+    val group: String = MetadataDefaults.GROUP,
+    val warningPlain: String = MetadataDefaults.WARNING_PLAIN,
+    val bolt: String = MetadataDefaults.BOLT,
+    val health: String = MetadataDefaults.HEALTH,
+    val slow: String = MetadataDefaults.SLOW,
+    val coffin: String = MetadataDefaults.COFFIN,
 ) {
     // Configured glyph for a secondary-result row when its cached internal-prompt
     // icon is missing, keyed off the result's kind.
@@ -318,6 +422,38 @@ data class MetadataIcons(
         SecondaryKind.TOURNAMENT -> tournament
         SecondaryKind.JUDGES -> judges
         SecondaryKind.COMPARE -> compare
+    }
+
+    fun forFactoryGlyph(factoryGlyph: String): String =
+        factoryGlyphMap()[factoryGlyph] ?: factoryGlyph
+
+    fun iconizedText(text: String): String {
+        var out = text
+        factoryGlyphMap().entries
+            .sortedByDescending { it.key.length }
+            .forEach { (factory, live) ->
+                if (factory != live) out = out.replace(factory, live)
+            }
+        return out
+    }
+
+    private fun factoryGlyphMap(): Map<String, String> {
+        val map = linkedMapOf<String, String>()
+        for (field in STRING_FIELDS) {
+            val factory = field.get(DEFAULT_INSTANCE) as? String ?: continue
+            val live = field.get(this) as? String ?: continue
+            if (factory.isNotBlank() && live.isNotBlank()) map.putIfAbsent(factory, live)
+        }
+        return map
+    }
+
+    companion object {
+        private val STRING_FIELDS: List<java.lang.reflect.Field> by lazy {
+            MetadataIcons::class.java.declaredFields
+                .filter { it.type == String::class.java }
+                .onEach { it.isAccessible = true }
+        }
+        private val DEFAULT_INSTANCE by lazy { MetadataIcons() }
     }
 
     // Backfill any field left null (older stored JSON predating it) or blank with
@@ -401,9 +537,15 @@ data class MetadataIcons(
             medalGold = f(medalGold, MetadataDefaults.MEDAL_GOLD),
             medalSilver = f(medalSilver, MetadataDefaults.MEDAL_SILVER),
             medalBronze = f(medalBronze, MetadataDefaults.MEDAL_BRONZE),
+            arrowUp = f(arrowUp, MetadataDefaults.ARROW_UP),
             arrowRight = f(arrowRight, MetadataDefaults.ARROW_RIGHT),
             arrowDown = f(arrowDown, MetadataDefaults.ARROW_DOWN),
+            arrowBack = f(arrowBack, MetadataDefaults.ARROW_BACK),
+            arrowForward = f(arrowForward, MetadataDefaults.ARROW_FORWARD),
             arrowSubmit = f(arrowSubmit, MetadataDefaults.ARROW_SUBMIT),
+            caretExpanded = f(caretExpanded, MetadataDefaults.CARET_EXPANDED),
+            caretCollapsed = f(caretCollapsed, MetadataDefaults.CARET_COLLAPSED),
+            minus = f(minus, MetadataDefaults.MINUS),
             agent = f(agent, MetadataDefaults.AGENT),
             aiFind = f(aiFind, MetadataDefaults.AI_FIND),
             web = f(web, MetadataDefaults.WEB),
@@ -413,7 +555,11 @@ data class MetadataIcons(
             label = f(label, MetadataDefaults.LABEL),
             bookmark = f(bookmark, MetadataDefaults.BOOKMARK),
             notepad = f(notepad, MetadataDefaults.NOTEPAD),
+            document = f(document, MetadataDefaults.DOCUMENT),
             packageBox = f(packageBox, MetadataDefaults.PACKAGE_BOX),
+            plug = f(plug, MetadataDefaults.PLUG),
+            key = f(key, MetadataDefaults.KEY),
+            sleep = f(sleep, MetadataDefaults.SLEEP),
             world = f(world, MetadataDefaults.WORLD),
             chart = f(chart, MetadataDefaults.CHART),
             cyclone = f(cyclone, MetadataDefaults.CYCLONE),
@@ -424,9 +570,19 @@ data class MetadataIcons(
             speech = f(speech, MetadataDefaults.SPEECH),
             gem = f(gem, MetadataDefaults.GEM),
             tip = f(tip, MetadataDefaults.TIP),
+            camera = f(camera, MetadataDefaults.CAMERA),
+            gift = f(gift, MetadataDefaults.GIFT),
+            rocket = f(rocket, MetadataDefaults.ROCKET),
+            home = f(home, MetadataDefaults.HOME),
+            save = f(save, MetadataDefaults.SAVE),
+            cloud = f(cloud, MetadataDefaults.CLOUD),
+            buildingBlocks = f(buildingBlocks, MetadataDefaults.BUILDING_BLOCKS),
+            groupings = f(groupings, MetadataDefaults.GROUPINGS),
+            github = f(github, MetadataDefaults.GITHUB),
             cost = f(cost, MetadataDefaults.COST),
             dollar = f(dollar, MetadataDefaults.DOLLAR),
             spend = f(spend, MetadataDefaults.SPEND),
+            cash = f(cash, MetadataDefaults.CASH),
             swarm = f(swarm, MetadataDefaults.SWARM),
             flock = f(flock, MetadataDefaults.FLOCK),
             fanInKnot = f(fanInKnot, MetadataDefaults.FAN_IN_KNOT),
@@ -439,12 +595,44 @@ data class MetadataIcons(
             worker = f(worker, MetadataDefaults.WORKER),
             sparkles = f(sparkles, MetadataDefaults.SPARKLES),
             ruler = f(ruler, MetadataDefaults.RULER),
+            rulerStraight = f(rulerStraight, MetadataDefaults.RULER_STRAIGHT),
             shuffle = f(shuffle, MetadataDefaults.SHUFFLE),
+            repeat = f(repeat, MetadataDefaults.REPEAT),
             hide = f(hide, MetadataDefaults.HIDE),
+            shield = f(shield, MetadataDefaults.SHIELD),
+            microscope = f(microscope, MetadataDefaults.MICROSCOPE),
+            controls = f(controls, MetadataDefaults.CONTROLS),
+            sliders = f(sliders, MetadataDefaults.SLIDERS),
+            magic = f(magic, MetadataDefaults.MAGIC),
             device = f(device, MetadataDefaults.DEVICE),
             computer = f(computer, MetadataDefaults.COMPUTER),
             satellite = f(satellite, MetadataDefaults.SATELLITE),
             huggingface = f(huggingface, MetadataDefaults.HUGGINGFACE),
+            greenCircle = f(greenCircle, MetadataDefaults.GREEN_CIRCLE),
+            whiteCircle = f(whiteCircle, MetadataDefaults.WHITE_CIRCLE),
+            redCircle = f(redCircle, MetadataDefaults.RED_CIRCLE),
+            orangeCircle = f(orangeCircle, MetadataDefaults.ORANGE_CIRCLE),
+            blueCircle = f(blueCircle, MetadataDefaults.BLUE_CIRCLE),
+            sun = f(sun, MetadataDefaults.SUN),
+            calendar = f(calendar, MetadataDefaults.CALENDAR),
+            calendarSpiral = f(calendarSpiral, MetadataDefaults.CALENDAR_SPIRAL),
+            runner = f(runner, MetadataDefaults.RUNNER),
+            roadblock = f(roadblock, MetadataDefaults.ROADBLOCK),
+            explosion = f(explosion, MetadataDefaults.EXPLOSION),
+            snowflake = f(snowflake, MetadataDefaults.SNOWFLAKE),
+            noEntry = f(noEntry, MetadataDefaults.NO_ENTRY),
+            fog = f(fog, MetadataDefaults.FOG),
+            bento = f(bento, MetadataDefaults.BENTO),
+            numberInput = f(numberInput, MetadataDefaults.NUMBER_INPUT),
+            symbols = f(symbols, MetadataDefaults.SYMBOLS),
+            handshake = f(handshake, MetadataDefaults.HANDSHAKE),
+            blueDiamond = f(blueDiamond, MetadataDefaults.BLUE_DIAMOND),
+            group = f(group, MetadataDefaults.GROUP),
+            warningPlain = f(warningPlain, MetadataDefaults.WARNING_PLAIN),
+            bolt = f(bolt, MetadataDefaults.BOLT),
+            health = f(health, MetadataDefaults.HEALTH),
+            slow = f(slow, MetadataDefaults.SLOW),
+            coffin = f(coffin, MetadataDefaults.COFFIN),
         )
     }
 }

@@ -96,6 +96,7 @@ fun HelpScreen(
     onNavigateToAbout: () -> Unit = {}
 ) {
     BackHandler { onBack() }
+    val mi = LocalMetadataIcons.current
     val topic = topicId?.takeIf { it.isNotBlank() }?.let { HELP_TOPICS[it] }
     // Standard top bar for every help screen: ❓ glyph left, white
     // "Help" always, orange = this page's subject (the topic title with
@@ -110,7 +111,7 @@ fun HelpScreen(
         TitleBar(
             title = "Help",
             subject = subject,
-            reportIcon = "❓",
+            reportIcon = mi.help,
             onReportIconClick = onNavigateToHelpHome,
             onTitleClick = onNavigateToHelpHome,
             subjectOnClick = onBack,
@@ -132,7 +133,7 @@ fun HelpScreen(
                         onClick = { onNavigateToTopic("${topicId}_icons") }
                     )
                 }
-                topic.cards.forEach { HelpSection(it.title, it.body) }
+                topic.cards.forEach { HelpSection(mi.iconizedText(it.title), mi.iconizedText(it.body)) }
                 // The three table subpages of Help home (icons /
                 // info providers / AI providers) attach their
                 // legacy table widget here, below the topic's
@@ -226,6 +227,7 @@ private fun HelpFooter(
     onNavigateToAbout: () -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
+    val mi = LocalMetadataIcons.current
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text("More information", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
@@ -248,7 +250,7 @@ private fun HelpFooter(
                     modifier = Modifier.fillMaxWidth().clickable { onNavigateToAbout() },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("ℹ️", fontSize = 24.sp, modifier = Modifier.width(40.dp))
+                    Text(mi.info, fontSize = 24.sp, modifier = Modifier.width(40.dp))
                     Text("About", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
                 }
                 Row(
@@ -262,7 +264,7 @@ private fun HelpFooter(
                     },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("🐙", fontSize = 24.sp, modifier = Modifier.width(40.dp))
+                    Text(mi.github, fontSize = 24.sp, modifier = Modifier.width(40.dp))
                     Text(
                         "GitHub: herbert256/ai",
                         fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
@@ -280,15 +282,16 @@ private fun HelpFooter(
  *  title and the whole Row carries the click handler. */
 @Composable
 private fun HomeSubpageLink(icon: String, title: String, blurb: String, onClick: () -> Unit) {
+    val mi = LocalMetadataIcons.current
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(icon, fontSize = 14.sp, modifier = Modifier.width(24.dp))
+            Text(mi.forFactoryGlyph(icon), fontSize = 14.sp, modifier = Modifier.width(24.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
-                Text(blurb, fontSize = 12.sp, color = AppColors.TextSecondary)
+                Text(mi.iconizedText(title), fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(mi.iconizedText(blurb), fontSize = 12.sp, color = AppColors.TextSecondary)
             }
         }
     }
@@ -298,6 +301,7 @@ private fun HomeSubpageLink(icon: String, title: String, blurb: String, onClick:
 private fun CompactOverview(
     onNavigateToTopic: (String) -> Unit = {}
 ) {
+    val mi = LocalMetadataIcons.current
     // Help-home search box — case-insensitive substring search
     // across every topic title + every card title + every card
     // body. Non-blank query suppresses the rest of the home
@@ -314,7 +318,7 @@ private fun CompactOverview(
                 fontSize = 13.sp, color = Color(0xFF888888)
             )
         },
-        leadingIcon = { Text("🔍", fontSize = 14.sp) },
+        leadingIcon = { Text(mi.search, fontSize = 14.sp) },
         singleLine = true,
         modifier = Modifier.fillMaxWidth()
     )
@@ -475,6 +479,7 @@ private fun snippetAround(body: String, needle: String): String {
  *  a single "no matches" card so the user knows the search ran. */
 @Composable
 private fun SearchResults(query: String, onNavigateToTopic: (String) -> Unit) {
+    val mi = LocalMetadataIcons.current
     val hits = searchHelp(query)
     if (hits.isEmpty()) {
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
@@ -502,14 +507,14 @@ private fun SearchResults(query: String, onNavigateToTopic: (String) -> Unit) {
                     .padding(14.dp),
                 verticalAlignment = Alignment.Top
             ) {
-                Text("🔍", fontSize = 14.sp, modifier = Modifier.width(24.dp))
+                    Text(mi.search, fontSize = 14.sp, modifier = Modifier.width(24.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(hit.topicTitle, fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    Text(mi.iconizedText(hit.topicTitle), fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
                     if (hit.matchedCardTitle != null) {
-                        Text(hit.matchedCardTitle, fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text(mi.iconizedText(hit.matchedCardTitle), fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                     }
                     if (hit.snippet.isNotBlank()) {
-                        Text(hit.snippet, fontSize = 12.sp, color = Color(0xFFCCCCCC), lineHeight = 16.sp)
+                        Text(mi.iconizedText(hit.snippet), fontSize = 12.sp, color = Color(0xFFCCCCCC), lineHeight = 16.sp)
                     }
                 }
             }
@@ -527,6 +532,7 @@ private fun RelevantHelpPagesCard(
     related: List<Pair<String, String>>,
     onNavigateToTopic: (String) -> Unit
 ) {
+    val mi = LocalMetadataIcons.current
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text("Relevant Help pages", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
@@ -538,7 +544,7 @@ private fun RelevantHelpPagesCard(
                         .clickable { onNavigateToTopic(id) }
                         .padding(vertical = 5.dp)
                 ) {
-                    Text("→", fontSize = 13.sp, color = AppColors.Blue, modifier = Modifier.width(24.dp))
+                    Text(mi.arrowRight, fontSize = 13.sp, color = AppColors.Blue, modifier = Modifier.width(24.dp))
                     Text(title, fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 }
             }
@@ -548,11 +554,12 @@ private fun RelevantHelpPagesCard(
 
 @Composable
 private fun HelpSection(title: String, content: String) {
+    val mi = LocalMetadataIcons.current
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
+            Text(mi.iconizedText(title), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
             Spacer(modifier = Modifier.height(6.dp))
-            Text(content, fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp)
+            Text(mi.iconizedText(content), fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp)
         }
     }
 }
@@ -564,6 +571,7 @@ private fun HelpSection(title: String, content: String) {
  *  icons. Rows live in [SCREEN_ICON_HELP] (IconHelp.kt). */
 @Composable
 private fun IconHelpTable(rows: List<Triple<String, String, String>>, title: String? = null) {
+    val mi = LocalMetadataIcons.current
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 10.dp)) {
             if (title != null) {
@@ -572,9 +580,9 @@ private fun IconHelpTable(rows: List<Triple<String, String, String>>, title: Str
             }
             rows.forEach { (icon, name, desc) ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
-                    Text(icon, fontSize = 26.sp, modifier = Modifier.width(34.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.width(94.dp))
-                    Text(desc, fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                    Text(mi.forFactoryGlyph(icon), fontSize = 26.sp, modifier = Modifier.width(34.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                    Text(mi.iconizedText(name), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.width(94.dp))
+                    Text(mi.iconizedText(desc), fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -583,6 +591,7 @@ private fun IconHelpTable(rows: List<Triple<String, String, String>>, title: Str
 
 @Composable
 private fun HelpIconTable() {
+    val mi = LocalMetadataIcons.current
     val rows = listOf(
         Triple("◀", "Back", "Previous screen."),
         Triple("🏠", "Home", "Returns here from anywhere."),
@@ -602,9 +611,9 @@ private fun HelpIconTable() {
             Spacer(modifier = Modifier.height(8.dp))
             rows.forEach { (icon, name, desc) ->
                 Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 3.dp)) {
-                    Text(icon, fontSize = 16.sp, modifier = Modifier.width(28.dp))
+                    Text(mi.forFactoryGlyph(icon), fontSize = 16.sp, modifier = Modifier.width(28.dp))
                     Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.width(72.dp))
-                    Text(desc, fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                    Text(mi.iconizedText(desc), fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp, modifier = Modifier.weight(1f))
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -870,4 +879,3 @@ fun infoProviderForTrace(url: String?, category: String?): InfoProviderRef? {
     if (ref.requiresChatCategoryGate && !isInfoFetchCategory(category)) return null
     return ref
 }
-

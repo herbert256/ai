@@ -267,7 +267,7 @@ class IconGenerationManager(
                     is WorkerOutcome.Success -> {
                         // Always end with exactly one emoji glyph (first emoji,
                         // strip prose, 📝 fallback on an empty 200).
-                        val emoji = extractFirstEmoji(outcome.response.analysis) ?: "📝"
+                        val emoji = extractFirstEmoji(outcome.response.analysis) ?: MetadataIconsHolder.current.reportIcon
                         val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
                             it.copy(model = aiSettings.getEffectiveModelForAgent(it))
                         }
@@ -777,7 +777,7 @@ class IconGenerationManager(
                         } else {
                             // Emoji from the `icon:` line; fall back to scanning the whole reply.
                             val iconLine = analysis?.lineSequence()?.firstOrNull { it.trim().startsWith("icon", ignoreCase = true) }
-                            val emoji = extractFirstEmoji(iconLine ?: analysis.orEmpty()) ?: "🌐"
+                            val emoji = extractFirstEmoji(iconLine ?: analysis.orEmpty()) ?: MetadataIconsHolder.current.languageIcon
                             val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
                                 it.copy(model = aiSettings.getEffectiveModelForAgent(it))
                             }
@@ -879,7 +879,7 @@ class IconGenerationManager(
                     extractFirstEmoji(it.analysis) != null
                 }
                 if (outcome is WorkerOutcome.Success) {
-                    val emoji = extractFirstEmoji(outcome.response.analysis) ?: "📝"
+                    val emoji = extractFirstEmoji(outcome.response.analysis) ?: MetadataIconsHolder.current.meta
                     val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
                         it.copy(model = aiSettings.getEffectiveModelForAgent(it))
                     }
@@ -1067,7 +1067,7 @@ class IconGenerationManager(
                             )
                             val callCost = inC + outC
                             val emoji = if (response.error == null) {
-                                extractFirstEmoji(response.analysis) ?: "📝"
+                                extractFirstEmoji(response.analysis) ?: MetadataIconsHolder.current.meta
                             } else null
                             appViewModel.updateInternalPromptIconFanOut(key) { list ->
                                 list.map { c ->
@@ -1278,7 +1278,7 @@ class IconGenerationManager(
                                     }
                                     val totalCost = inC + outC
                                     if (response.error == null) {
-                                        val emoji = extractFirstEmoji(response.analysis) ?: "📝"
+                                        val emoji = extractFirstEmoji(response.analysis) ?: MetadataIconsHolder.current.fanOutRow
                                         appViewModel.updatePairIconFanOut(pairId) { list ->
                                             list.map { c ->
                                                 if (c.provider.id == item.provider.id && c.model == item.model)
@@ -1522,7 +1522,7 @@ class IconGenerationManager(
                     extractFirstEmoji(it.analysis) != null
                 }
                 if (outcome is WorkerOutcome.Success) {
-                    val emoji = extractFirstEmoji(outcome.response.analysis) ?: "📝"
+                    val emoji = extractFirstEmoji(outcome.response.analysis) ?: MetadataIconsHolder.current.translationRow
                     val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
                         it.copy(model = aiSettings.getEffectiveModelForAgent(it))
                     }
@@ -1667,7 +1667,7 @@ class IconGenerationManager(
                             )
                             val callCost = inC + outC
                             val emoji = if (response.error == null) {
-                                extractFirstEmoji(response.analysis) ?: "📝"
+                                extractFirstEmoji(response.analysis) ?: MetadataIconsHolder.current.translationRow
                             } else null
                             appViewModel.updateInternalPromptIconFanOut(key) { list ->
                                 list.map { c ->
@@ -2264,7 +2264,7 @@ class IconGenerationManager(
                                     }
                                     val totalCost = inC + outC
                                     if (response.error == null) {
-                                        val emoji = extractFirstEmoji(response.analysis) ?: "📝"
+                                        val emoji = extractFirstEmoji(response.analysis) ?: MetadataIconsHolder.current.reportModelIcon
                                         appViewModel.updateAgentIconFanOut(agentId) { list ->
                                             list.map { c ->
                                                 if (c.provider.id == item.provider.id && c.model == item.model)
@@ -2575,7 +2575,7 @@ class IconGenerationManager(
                     ?.substringAfter(":") ?: analysis
                 val title = cleanTitle(titleRaw)
                 val iconLine = analysis?.lineSequence()?.firstOrNull { it.trim().startsWith("icon", ignoreCase = true) }
-                val emoji = extractFirstEmoji(iconLine ?: analysis.orEmpty()) ?: "📝"
+                val emoji = extractFirstEmoji(iconLine ?: analysis.orEmpty()) ?: MetadataIconsHolder.current.fanOutRow
                 val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
                     it.copy(model = aiSettings.getEffectiveModelForAgent(it))
                 }

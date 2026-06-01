@@ -31,6 +31,7 @@ import com.ai.data.toJudgesJson
 import com.ai.data.withTracerTags
 import com.ai.model.InternalPrompt
 import com.ai.model.Settings
+import com.ai.model.SwarmMember
 import com.ai.model.Worker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -466,6 +467,80 @@ class JudgeEvalEngine internal constructor(
             recomputeAndPersistAggregate(context, reportId)
             ReportStorage.bumpReportTimestamp(context, reportId)
             AppLog.i("JudgeEval", "Removed judge $judgeKey from run on $reportId (${cells.size} cells)")
+        }
+
+    /** Add a judge (provider/model) to the prompt's worker swarm — the inverse
+     *  of [removeJudgeFromSwarm], so future runs (and the Tournament) include it.
+     *  No-op if the swarm is unresolved or already contains the member. */
+    fun addJudgeToSwarm(provider: AppService, model: String) {
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val swarmName = judgePrompt(aiSettings)?.workers?.firstOrNull()?.swarm ?: return
+        var changed = false
+        val updated = aiSettings.copy(swarms = aiSettings.swarms.map { s ->
+            if (s.name.equals(swarmName, ignoreCase = true) &&
+                s.members.none { it.provider.id == provider.id && it.model == model }
+            ) {
+                changed = true
+                s.copy(members = s.members + SwarmMember(provider, model))
+            } else s
+        })
+        if (!changed) return
+        appViewModel.updateUiState { it.copy(aiSettings = updated) }
+        appViewModel.viewModelScope.launch(Dispatchers.IO) { appViewModel.settingsPrefs.saveSettings(updated) }
+        AppLog.i("JudgeEval", "Added judge ${provider.id}/$model to swarm '$swarmName'")
+    }
+
+    /** Add ONE new judge (provider/model) to the current run on [reportId]:
+     *  create a CELL for it on every match already in the run, run only those
+     *  new cells, and refresh the agreement aggregate. Existing judges' cells
+     *  are left untouched (only the new judge's row appears / updates). No-op if
+     *  the judge is already in the run or there are no matches yet. */
+    fun addJudgeToRun(context: Context, reportId: String, provider: AppService, model: String): Job =
+        appViewModel.viewModelScope.launch(reportViewModel.reportLogContext(reportId)) {
+            val run = _runs.value[reportId] ?: return@launch
+            val judgeKey = "${provider.id}/$model"
+            if (run.cells.values.any { it.judgeKey == judgeKey }) return@launch
+            val matches = run.cells.values
+                .map { Triple(it.responseAId, it.responseBId, it.orientation) }.distinct()
+            if (matches.isEmpty()) return@launch
+            val report = ReportStorage.getReport(context, reportId) ?: return@launch
+            val prompt = run.prompt
+            val runId = run.runId
+            val scopeEncoded = SecondaryScope.AllReports.encode()
+            val judge = Judge(Worker(provider = provider.id, model = model), provider.id, model)
+
+            appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
+            try {
+                val pending = mutableListOf<PendingCell>()
+                val newCells = LinkedHashMap<String, JudgeCellState>()
+                for ((aId, bId, orient) in matches) {
+                    val placeholder = SecondaryResultStorage.create(
+                        context, reportId, SecondaryKind.JUDGES,
+                        judge.providerId, judge.model, "${judge.providerId} / ${judge.model}"
+                    ) {
+                        it.copy(
+                            tournamentRole = JUDGE_ROLE_CELL, tournamentJudgeRunId = runId,
+                            matchResponseAId = aId, matchResponseBId = bId, matchOrientation = orient,
+                            metaPromptId = prompt.id, metaPromptName = prompt.name,
+                            runId = runId, secondaryScope = scopeEncoded
+                        )
+                    }
+                    pending.add(PendingCell(judge, aId, bId, orient, placeholder))
+                    placeholder.toJudgeCellState()?.let { newCells[it.key] = it }
+                }
+                _runs.update { runs ->
+                    val r = runs[reportId] ?: return@update runs
+                    runs + (reportId to r.copy(cells = r.cells + newCells))
+                }
+                ReportStorage.bumpReportTimestamp(context, reportId)
+                AppLog.i("JudgeEval", "Added judge $judgeKey to run on $reportId (${matches.size} cells)")
+                withTracerTags(reportId = reportId, category = "after/judges", runId = runId) {
+                    dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
+                }
+                recomputeAndPersistAggregate(context, reportId)
+            } finally {
+                appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
+            }
         }
 
     // -----------------------------------------------------------------

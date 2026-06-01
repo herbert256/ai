@@ -42,11 +42,12 @@ fun ManualOverridesCrud(
         }
         onSave(aiSettings.withModelTypeOverrides(deduped))
     }
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     val flags: (ModelTypeOverride) -> String = {
         buildString {
-            if (it.supportsVision) append(" 👁")
-            if (it.supportsWebSearch) append(" 🌐")
-            if (it.supportsReasoning) append(" 🧠")
+            if (it.supportsVision) append(" ${mi.view}")
+            if (it.supportsWebSearch) append(" ${mi.web}")
+            if (it.supportsReasoning) append(" ${mi.reportModelIcon}")
         }
     }
 

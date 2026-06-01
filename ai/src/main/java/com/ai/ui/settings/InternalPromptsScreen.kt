@@ -444,7 +444,7 @@ fun InternalPromptEditScreen(
             SectionCard {
                 Text("Parameters & System prompt", fontSize = 12.sp, color = AppColors.TextTertiary)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("🌡️ ", fontSize = 14.sp)
+                    Text("${com.ai.data.MetadataIconsHolder.current.parameters} ", fontSize = 14.sp)
                     Text(
                         if (selectedParametersName == "*NONE") "No parameters preset" else selectedParametersName,
                         modifier = Modifier.weight(1f), fontSize = 13.sp,
@@ -457,7 +457,7 @@ fun InternalPromptEditScreen(
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("🎭 ", fontSize = 14.sp)
+                    Text("${com.ai.data.MetadataIconsHolder.current.systemPrompt} ", fontSize = 14.sp)
                     Text(
                         if (selectedSystemPromptName == "*NONE") "No system prompt" else selectedSystemPromptName,
                         modifier = Modifier.weight(1f), fontSize = 13.sp,
@@ -470,7 +470,7 @@ fun InternalPromptEditScreen(
                     }
                 }
                 Text(
-                    "Use 🌡️ / 🎭 in the bottom bar to set these. When set they override agent / provider / app-wide for this prompt — unless picked at run time.",
+                    com.ai.data.MetadataIconsHolder.current.iconizedText("Use 🌡️ / 🎭 in the bottom bar to set these. When set they override agent / provider / app-wide for this prompt — unless picked at run time."),
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
             }
@@ -536,7 +536,7 @@ private fun WorkerRowEditor(
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Worker ${index + 1}", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
-                TextButton(onClick = onRemove) { Text("✕ Remove", fontSize = 12.sp, color = AppColors.Red) }
+                TextButton(onClick = onRemove) { Text("${com.ai.data.MetadataIconsHolder.current.closeMark} Remove", fontSize = 12.sp, color = AppColors.Red) }
             }
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 SegmentedButton(

@@ -130,6 +130,7 @@ fun AiLiveDashboardScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
 
     val uiState by appViewModel.uiState.collectAsState()
     val gs = uiState.generalSettings
@@ -175,7 +176,7 @@ fun AiLiveDashboardScreen(
             title = "Live Dashboard",
             subject = "What's happening right now",
             onBackClick = onBack,
-            reportIcon = "📡", reportIconGoesHome = true
+            reportIcon = mi.liveDashboard, reportIconGoesHome = true
         )
 
         Spacer(Modifier.height(8.dp))
@@ -201,7 +202,7 @@ fun AiLiveDashboardScreen(
                 if (pinnedOrder.isEmpty()) {
                     item {
                         Text(
-                            "No pinned cards yet — switch to All and tap 📌 on the cards you want here.",
+                            mi.iconizedText("No pinned cards yet — switch to All and tap 📌 on the cards you want here."),
                             fontSize = 13.sp, color = AppColors.TextTertiary,
                             modifier = Modifier.padding(vertical = 16.dp)
                         )
@@ -249,7 +250,7 @@ private fun DashboardCard(
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(emoji, fontSize = 16.sp)
+                Text(com.ai.ui.shared.LocalMetadataIcons.current.forFactoryGlyph(emoji), fontSize = 16.sp)
                 Spacer(Modifier.width(8.dp))
                 Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -285,7 +286,7 @@ fun AiMonitorScreen(
             title = "Monitor",
             subject = "Live and historical observability",
             onBackClick = onBack,
-            reportIcon = "📡", reportIconGoesHome = true,
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.liveDashboard, reportIconGoesHome = true,
             onTitleClick = onNavigateHome,
             onHousekeeping = onHousekeeping
         )
@@ -294,11 +295,11 @@ fun AiMonitorScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
-            item { LinkCard("📡", "Live Dashboard", "In-flight calls, caps and throttle state", onNavigateToLiveDashboard) }
-            item { LinkCard("🐞", "API Traces", "Per-call request/response records", onNavigateToTraces) }
-            item { LinkCard("📜", "Application log", "The in-app application log, line by line", onNavigateToAppLog) }
-            item { LinkCard("🧾", "Audit", "Per-report trail of actions, batches and API calls", onNavigateToAudit) }
-            item { LinkCard("📊", "Statistics", "Lifetime totals across reports, providers, models, spend and logs", onNavigateToStatistics) }
+            item { LinkCard(com.ai.data.MetadataDefaults.LIVE_DASHBOARD, "Live Dashboard", "In-flight calls, caps and throttle state", onNavigateToLiveDashboard) }
+            item { LinkCard(com.ai.data.MetadataDefaults.TRACES, "API Traces", "Per-call request/response records", onNavigateToTraces) }
+            item { LinkCard(com.ai.data.MetadataDefaults.APP_LOG, "Application log", "The in-app application log, line by line", onNavigateToAppLog) }
+            item { LinkCard(com.ai.data.MetadataDefaults.AUDIT, "Audit", "Per-report trail of actions, batches and API calls", onNavigateToAudit) }
+            item { LinkCard(com.ai.data.MetadataDefaults.STATISTICS_MONITOR, "Statistics", "Lifetime totals across reports, providers, models, spend and logs", onNavigateToStatistics) }
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
@@ -341,7 +342,7 @@ fun AiStatisticsScreen(
             title = "Statistics",
             subject = "Lifetime aggregates across the app",
             onBackClick = onBack,
-            reportIcon = "📊", reportIconGoesHome = true,
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.chart, reportIconGoesHome = true,
             onTitleClick = onNavigateHome,
             onHousekeeping = onHousekeeping
         )
@@ -350,13 +351,13 @@ fun AiStatisticsScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             item { Spacer(Modifier.height(4.dp)) }
-            item { LinkCard("📋", "Reports", "Reports + secondary results totals", onNavigateToReports) }
-            item { LinkCard("🔌", "Providers", "Per-provider keys, formats, caches, test runs", onNavigateToProviders) }
-            item { LinkCard("🧠", "Models", "Capabilities, types, context, states", onNavigateToModels) }
-            item { LinkCard("💰", "Spend & usage", "Calls, tokens and cost per provider", onNavigateToSpendUsage) }
-            item { LinkCard("🧮", "Costs tiers", "Pricing tier per model + catalog freshness", onNavigateToCostsTier) }
-            item { LinkCard("🐞", "Trace statistics", "Aggregate stats over the API traces", onNavigateToTraceStats) }
-            item { LinkCard("📜", "App log statistics", "Aggregate stats over the application log", onNavigateToLogStats) }
+            item { LinkCard(com.ai.data.MetadataDefaults.COPY, "Reports", "Reports + secondary results totals", onNavigateToReports) }
+            item { LinkCard(com.ai.data.MetadataDefaults.PLUG, "Providers", "Per-provider keys, formats, caches, test runs", onNavigateToProviders) }
+            item { LinkCard(com.ai.data.MetadataDefaults.MODEL_ICON, "Models", "Capabilities, types, context, states", onNavigateToModels) }
+            item { LinkCard(com.ai.data.MetadataDefaults.COST, "Spend & usage", "Calls, tokens and cost per provider", onNavigateToSpendUsage) }
+            item { LinkCard(com.ai.data.MetadataDefaults.COMPARE, "Costs tiers", "Pricing tier per model + catalog freshness", onNavigateToCostsTier) }
+            item { LinkCard(com.ai.data.MetadataDefaults.TRACES, "Trace statistics", "Aggregate stats over the API traces", onNavigateToTraceStats) }
+            item { LinkCard(com.ai.data.MetadataDefaults.APP_LOG, "App log statistics", "Aggregate stats over the application log", onNavigateToLogStats) }
             kb?.let { if (it.kbCount > 0) item { KnowledgeSection(it) } }
             item { Spacer(Modifier.height(24.dp)) }
         }
@@ -382,7 +383,7 @@ fun AiTraceStatsScreen(
     ) {
         TitleBar(
             helpTopic = "ai_trace_stats", title = "API trace statistics", subject = "What hit the network",
-            onBackClick = onBack, reportIcon = "📈",
+            onBackClick = onBack, reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics, onTitleClick = onNavigateToStatistics
         )
         val s = d
@@ -472,9 +473,9 @@ fun AiTraceBreakdownScreen(
     val refreshTick = resumeRefreshTick()
     val d by produceState<TraceStatsData?>(null, refreshTick) { value = computeTraceStats() }
     val (emoji, title, accent) = when (dim) {
-        "host" -> Triple("🌐", "Trace hosts", AppColors.Green)
-        "model" -> Triple("🧠", "Trace models", AppColors.Purple)
-        else -> Triple("🏷️", "Trace categories", AppColors.Indigo)
+        "host" -> Triple(com.ai.data.MetadataDefaults.WEB, "Trace hosts", AppColors.Green)
+        "model" -> Triple(com.ai.data.MetadataDefaults.MODEL_ICON, "Trace models", AppColors.Purple)
+        else -> Triple(com.ai.data.MetadataDefaults.LABEL, "Trace categories", AppColors.Indigo)
     }
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
@@ -482,7 +483,7 @@ fun AiTraceBreakdownScreen(
     ) {
         TitleBar(
             helpTopic = "ai_trace_breakdown", title = title, subject = "Every $dim, by trace count",
-            onBackClick = onBack, reportIcon = "📈",
+            onBackClick = onBack, reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics, onTitleClick = onNavigateToStatistics
         )
         val s = d
@@ -523,7 +524,7 @@ fun AiLogStatsScreen(
     ) {
         TitleBar(
             helpTopic = "ai_log_stats", title = "App log statistics", subject = "The in-app log",
-            onBackClick = onBack, reportIcon = "📈",
+            onBackClick = onBack, reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics, onTitleClick = onNavigateToStatistics
         )
         val s = d
@@ -610,7 +611,7 @@ fun AiStatReportsScreen(
             title = "Reports",
             subject = "Reports and secondary results",
             onBackClick = onBack,
-            reportIcon = "📈",
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics,
             onTitleClick = onNavigateToStatistics
         )
@@ -731,7 +732,7 @@ fun AiStatProvidersScreen(
             title = "Providers / Models",
             subject = "The whole model fleet",
             onBackClick = onBack,
-            reportIcon = "📈",
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics,
             onTitleClick = onNavigateToStatistics
         )
@@ -829,7 +830,7 @@ fun AiStatModelsScreen(
     ) {
         TitleBar(
             helpTopic = "ai_stat_models", title = "Models", subject = "The whole catalog",
-            onBackClick = onBack, reportIcon = "📈",
+            onBackClick = onBack, reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics, onTitleClick = onNavigateToStatistics
         )
         val d = data
@@ -911,13 +912,14 @@ fun AiStatModelsScreen(
 
 @Composable
 private fun ProviderStatCard(row: ProviderRow, isExpanded: Boolean, onToggle: () -> Unit) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
         modifier = Modifier.fillMaxWidth().clickable { onToggle() }
     ) {
         Column(Modifier.fillMaxWidth().padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(if (row.active) "🟢" else "⚪", fontSize = 11.sp)
+                Text(if (row.active) mi.greenCircle else mi.whiteCircle, fontSize = 11.sp)
                 Spacer(Modifier.width(6.dp))
                 Text(row.id, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, modifier = Modifier.weight(1f))
                 Text(
@@ -927,15 +929,15 @@ private fun ProviderStatCard(row: ProviderRow, isExpanded: Boolean, onToggle: ()
                 Spacer(Modifier.width(8.dp))
                 Text("${row.models} models", fontSize = 12.sp, color = AppColors.TextSecondary)
                 Spacer(Modifier.width(6.dp))
-                Text(if (isExpanded) "▾" else "▸", color = AppColors.TextTertiary)
+                Text(if (isExpanded) mi.caretExpanded else mi.caretCollapsed, color = AppColors.TextTertiary)
             }
             // Compact signal chips — only the non-zero ones.
             val signals = buildList {
-                if (row.vision > 0) add("👁" to row.vision)
-                if (row.webSearch > 0) add("🌐" to row.webSearch)
-                if (row.reasoning > 0) add("🧠" to row.reasoning)
-                if (row.cooling > 0) add("❄️" to row.cooling)
-                if (row.blocked > 0) add("⛔" to row.blocked)
+                if (row.vision > 0) add(mi.view to row.vision)
+                if (row.webSearch > 0) add(mi.web to row.webSearch)
+                if (row.reasoning > 0) add(mi.reportModelIcon to row.reasoning)
+                if (row.cooling > 0) add(mi.snowflake to row.cooling)
+                if (row.blocked > 0) add(mi.noEntry to row.blocked)
             }
             if (signals.isNotEmpty() || !row.hasKey) {
                 Spacer(Modifier.height(4.dp))
@@ -1046,7 +1048,7 @@ fun AiSpendUsageScreen(
             title = "Spend & usage",
             subject = "Calls, tokens and cost per provider",
             onBackClick = onBack,
-            reportIcon = "📈",
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics,
             onTitleClick = onNavigateToStatistics,
             onDelete = { confirmClear = true },
@@ -1124,7 +1126,7 @@ fun AiSpendUsageScreen(
                             Text(money4(group.totalCost), fontSize = 13.sp, color = AppColors.Green, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
                             Spacer(Modifier.width(cBugGap))
                             Box(Modifier.width(cBug), contentAlignment = Alignment.Center) {
-                                if (hasTrace) Text("🐞", fontSize = 13.sp, modifier = Modifier.clickable { onNavigateToTraceProvider(group.provider.id) })
+                                if (hasTrace) Text(com.ai.ui.shared.LocalMetadataIcons.current.traces, fontSize = 13.sp, modifier = Modifier.clickable { onNavigateToTraceProvider(group.provider.id) })
                             }
                         }
                         HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.width(tableWidth))
@@ -1184,7 +1186,7 @@ fun AiSpendUsageProviderScreen(
             title = providerId,
             subject = "Usage detail",
             onBackClick = onBack,
-            reportIcon = "📈",
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics,
             onTitleClick = onNavigateToStatistics
         )
@@ -1321,7 +1323,7 @@ fun AiCostsTierScreen(
             title = "Costs tiers",
             subject = "Pricing tier per model + catalog freshness",
             onBackClick = onBack,
-            reportIcon = "📈",
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics,
             onTitleClick = onNavigateToStatistics
         )
@@ -1372,6 +1374,7 @@ private fun CollapsibleCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val isOpen = id in open
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth()
@@ -1383,18 +1386,18 @@ private fun CollapsibleCard(
                     modifier = Modifier.weight(1f).clickable { onToggle(id) },
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(emoji, fontSize = 16.sp)
+                    Text(mi.forFactoryGlyph(emoji), fontSize = 16.sp)
                     Spacer(Modifier.width(8.dp))
                     Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 // Reorder ↑ ↓ (dimmed at the ends), 📌 pin (open on load), expand ▾/▸.
-                Text("↑", fontSize = 15.sp, color = if (isFirst) AppColors.TextDim else AppColors.TextSecondary,
+                Text(mi.arrowUp, fontSize = 15.sp, color = if (isFirst) AppColors.TextDim else AppColors.TextSecondary,
                     modifier = Modifier.clickable(enabled = !isFirst) { onMoveUp(id) }.padding(horizontal = 5.dp))
-                Text("↓", fontSize = 15.sp, color = if (isLast) AppColors.TextDim else AppColors.TextSecondary,
+                Text(mi.arrowDown, fontSize = 15.sp, color = if (isLast) AppColors.TextDim else AppColors.TextSecondary,
                     modifier = Modifier.clickable(enabled = !isLast) { onMoveDown(id) }.padding(horizontal = 5.dp))
-                Text("📌", fontSize = 13.sp,
+                Text(mi.pin, fontSize = 13.sp,
                     modifier = Modifier.alpha(if (id in pinned) 1f else 0.3f).clickable { onTogglePin(id) }.padding(horizontal = 5.dp))
-                Text(if (isOpen) "▾" else "▸", fontSize = 15.sp, color = AppColors.TextTertiary,
+                Text(if (isOpen) mi.caretExpanded else mi.caretCollapsed, fontSize = 15.sp, color = AppColors.TextTertiary,
                     modifier = Modifier.clickable { onToggle(id) }.padding(start = 4.dp))
             }
             if (isOpen) {
@@ -1547,7 +1550,7 @@ private fun ActiveRunsBody(appViewModel: AppViewModel, reportViewModel: ReportVi
         runs.forEach { r ->
             Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(r.glyph, fontSize = 13.sp, modifier = Modifier.padding(end = 6.dp))
+                    Text(com.ai.ui.shared.LocalMetadataIcons.current.forFactoryGlyph(r.glyph), fontSize = 13.sp, modifier = Modifier.padding(end = 6.dp))
                     Text(r.label, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Text(
                         if (r.total > 0) "${r.done}/${r.total}" else "${r.running} running",
@@ -1618,7 +1621,7 @@ private fun ThrottleBody(
                     // 🐞 (trailing) → API Traces filtered to this host (full
                     // host, not the trimmed display label).
                     Spacer(Modifier.width(16.dp))
-                    Text("🐞", fontSize = 13.sp, modifier = Modifier.clickable { onOpenTraceFilter("host", h.host) })
+                    Text(com.ai.ui.shared.LocalMetadataIcons.current.traces, fontSize = 13.sp, modifier = Modifier.clickable { onOpenTraceFilter("host", h.host) })
                 }
                 Bar(if (h.limit > 0) h.inUse.toFloat() / h.limit else 0f, concColor)
             }
@@ -1697,15 +1700,16 @@ private fun HttpCodesBody(onOpenTraceFilter: (String, String) -> Unit) {
 
 @Composable
 private fun HttpCodeRow(label: String, c1: Int, c5: Int, accent: Color, onTrace: () -> Unit) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 12.sp, color = Color.White)
+        Text(mi.iconizedText(label), fontSize = 12.sp, color = Color.White)
         Spacer(Modifier.weight(1f))
         Text("$c1", fontSize = 12.sp, color = if (c1 > 0) accent else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
         Text("$c5", fontSize = 12.sp, color = if (c5 > 0) accent else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
         // 🐞 (trailing) → API Traces filtered to this status class. Fixed-
         // width slot + matching header spacer keeps the 1m/5m columns aligned.
         Spacer(Modifier.width(16.dp))
-        Text("🐞", fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.width(22.dp).clickable { onTrace() })
+        Text(mi.traces, fontSize = 13.sp, textAlign = TextAlign.Center, modifier = Modifier.width(22.dp).clickable { onTrace() })
     }
 }
 
@@ -2089,7 +2093,7 @@ private fun PricingSection(
                     // Only when the retrieve was actually captured.
                     if (hasTrace) {
                         Text(
-                            "🐞", fontSize = 12.sp,
+                            com.ai.ui.shared.LocalMetadataIcons.current.traces, fontSize = 12.sp,
                             modifier = Modifier.padding(start = 6.dp).clickable { onNavigateToTraceCategory(traceCat) }
                         )
                     }
@@ -2112,6 +2116,7 @@ private fun fmtFetched(ms: Long): String =
  *  heavy Spend & usage / Costs tier pages). */
 @Composable
 private fun LinkCard(emoji: String, title: String, subtitle: String, onClick: () -> Unit) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth().clickable { onClick() }
@@ -2120,7 +2125,7 @@ private fun LinkCard(emoji: String, title: String, subtitle: String, onClick: ()
             modifier = Modifier.fillMaxWidth().padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(emoji, fontSize = 16.sp)
+            Text(mi.forFactoryGlyph(emoji), fontSize = 16.sp)
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
@@ -2133,13 +2138,14 @@ private fun LinkCard(emoji: String, title: String, subtitle: String, onClick: ()
 
 @Composable
 private fun SectionCard(emoji: String, title: String, accent: Color, onClick: (() -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth().let { if (onClick != null) it.clickable { onClick() } else it }
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                Text(emoji, fontSize = 16.sp)
+                Text(mi.forFactoryGlyph(emoji), fontSize = 16.sp)
                 Spacer(Modifier.width(8.dp))
                 Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = accent, modifier = Modifier.weight(1f))
                 if (onClick != null) Text("›", fontSize = 22.sp, color = AppColors.TextTertiary)
@@ -2182,12 +2188,13 @@ private fun Bar(fraction: Float, color: Color) {
 
 @Composable
 private fun StatChip(emoji: String, label: String, count: Int, accent: Color) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Row(
         modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(AppColors.SurfaceDark)
             .padding(horizontal = 8.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(emoji, fontSize = 12.sp)
+        Text(mi.forFactoryGlyph(emoji), fontSize = 12.sp)
         Spacer(Modifier.width(4.dp))
         Text("$count", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = accent)
         Spacer(Modifier.width(4.dp))
@@ -2197,9 +2204,10 @@ private fun StatChip(emoji: String, label: String, count: Int, accent: Color) {
 
 @Composable
 private fun KeyVal(label: String, value: String, valueColor: Color = Color.White) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, fontSize = 12.sp, color = AppColors.TextSecondary)
-        Text(value, fontSize = 12.sp, color = valueColor, fontWeight = FontWeight.Medium)
+        Text(mi.iconizedText(label), fontSize = 12.sp, color = AppColors.TextSecondary)
+        Text(mi.iconizedText(value), fontSize = 12.sp, color = valueColor, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -2207,11 +2215,12 @@ private fun KeyVal(label: String, value: String, valueColor: Color = Color.White
  *  signal the row drills into a filtered API-trace list. */
 @Composable
 private fun StatRow(label: String, value: String, valueColor: Color = Color.White, onClick: () -> Unit) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Row(
         Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f),
+        Text(mi.iconizedText(label), fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f),
             maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.width(8.dp))
         Text(value, fontSize = 12.sp, color = valueColor, fontWeight = FontWeight.Medium)

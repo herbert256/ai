@@ -13,10 +13,11 @@ internal fun ManualOverrideView(
     onDelete: () -> Unit,
     onBack: () -> Unit
 ) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     val caps = buildList {
-        if (item.supportsVision) add("vision 👁")
-        if (item.supportsWebSearch) add("web-search 🌐")
-        if (item.supportsReasoning) add("thinking 🧠")
+        if (item.supportsVision) add("vision ${mi.view}")
+        if (item.supportsWebSearch) add("web-search ${mi.web}")
+        if (item.supportsReasoning) add("thinking ${mi.reportModelIcon}")
     }.joinToString(", ").ifBlank { "(none)" }
     CrudViewPage(
         title = "Manual override",

@@ -86,6 +86,7 @@ internal fun ModelTestL3Screen(
     val curIdx = siblings.indexOfFirst { it.key == item.key }
     val prev = if (curIdx > 0) siblings[curIdx - 1] else null
     val next = if (curIdx in 0 until siblings.size - 1) siblings[curIdx + 1] else null
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
@@ -122,13 +123,13 @@ internal fun ModelTestL3Screen(
 
             // Status line.
             when (item.status) {
-                TestStatus.PASS -> Text("✅ Passed", color = AppColors.Green, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                TestStatus.FAIL -> Text("❌ Failed", color = AppColors.Red, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                TestStatus.PASS -> Text("${mi.statusDone} Passed", color = AppColors.Green, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                TestStatus.FAIL -> Text("${mi.statusFailed} Failed", color = AppColors.Red, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 TestStatus.RUNNING -> Row(verticalAlignment = Alignment.CenterVertically) {
                     AnimatedHourglass(fontSize = 16.sp)
                     Text("  Running…", color = AppColors.Orange, fontSize = 15.sp)
                 }
-                TestStatus.PENDING -> Text("🕓 Queued", color = AppColors.TextTertiary, fontSize = 15.sp)
+                TestStatus.PENDING -> Text("${mi.clockQueued} Queued", color = AppColors.TextTertiary, fontSize = 15.sp)
             }
 
             if (!item.errorMessage.isNullOrBlank()) {

@@ -69,7 +69,7 @@ fun AuditListScreen(
             title = "Audit", subject = "Per-report audit trail",
             onBackClick = onBack,
             // 🧾 section glyph top-left; tapping it (or the title) jumps to Monitor.
-            reportIcon = "🧾",
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.audit,
             onReportIconClick = onNavigateToMonitor,
             onTitleClick = onNavigateToMonitor,
             onDelete = if (rows.isNotEmpty()) { { confirmClearAll = true } } else null
@@ -179,7 +179,7 @@ fun AuditDetailScreen(
             title = "Audit",
             subject = title ?: reportId,
             onBackClick = onBack,
-            reportIcon = "🧾",
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.audit,
             onReportIconClick = onNavigateToMonitor,
             onTitleClick = onNavigateToMonitor,
             onDelete = { confirmDelete = true },

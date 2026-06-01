@@ -131,9 +131,10 @@ internal fun ManualOverrideForm(
                 }
             }
             Text("Capabilities", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
-            CapRow("Supports vision (image input) 👁", supportsVision) { supportsVision = it }
-            CapRow("Supports web-search tool 🌐", supportsWebSearch) { supportsWebSearch = it }
-            CapRow("Supports thinking 🧠", supportsReasoning) { supportsReasoning = it }
+            val mi = com.ai.ui.shared.LocalMetadataIcons.current
+            CapRow("Supports vision (image input) ${mi.view}", supportsVision) { supportsVision = it }
+            CapRow("Supports web-search tool ${mi.web}", supportsWebSearch) { supportsWebSearch = it }
+            CapRow("Supports thinking ${mi.reportModelIcon}", supportsReasoning) { supportsReasoning = it }
         }
     }
 }

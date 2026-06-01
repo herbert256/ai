@@ -93,7 +93,7 @@ fun ApiTestScreen(
                 placeholder = { Text("Search models...") }, singleLine = true, colors = AppColors.outlinedFieldColors(),
                 trailingIcon = {
                     if (search.isNotEmpty()) IconButton(onClick = { search = "" }) {
-                        Text("✕", color = AppColors.TextTertiary, fontSize = 12.sp)
+                        Text(com.ai.ui.shared.LocalMetadataIcons.current.closeMark, color = AppColors.TextTertiary, fontSize = 12.sp)
                     }
                 }
             )

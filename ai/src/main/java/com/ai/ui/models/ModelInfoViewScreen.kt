@@ -595,9 +595,10 @@ private fun SectionCard(title: String, content: @Composable androidx.compose.fou
 
 @Composable
 private fun KeyValueRow(label: String, value: String) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, fontSize = 13.sp, color = AppColors.TextTertiary)
-        Text(value, fontSize = 13.sp, color = Color.White)
+        Text(mi.iconizedText(label), fontSize = 13.sp, color = AppColors.TextTertiary)
+        Text(mi.iconizedText(value), fontSize = 13.sp, color = Color.White)
     }
 }
 
@@ -608,15 +609,16 @@ private fun CapabilitiesCard(aiSettings: Settings, provider: AppService, modelNa
     val webEffective = aiSettings.isWebSearchCapable(provider, modelName)
     val reasoningEffective = aiSettings.isReasoningCapable(provider, modelName)
     SectionCard(title = "Capabilities") {
-        KeyValueRow("Vision 👁", if (visionEffective) "yes" else "no")
-        KeyValueRow("Web search 🌐", if (webEffective) "yes" else "no")
-        KeyValueRow("Thinking 🧠", if (reasoningEffective) "yes" else "no")
+        val mi = com.ai.ui.shared.LocalMetadataIcons.current
+        KeyValueRow("Vision ${mi.view}", if (visionEffective) "yes" else "no")
+        KeyValueRow("Web search ${mi.web}", if (webEffective) "yes" else "no")
+        KeyValueRow("Thinking ${mi.reportModelIcon}", if (reasoningEffective) "yes" else "no")
         cfg.modelCapabilities[modelName]?.supportsPdfInput?.let { pdf ->
-            KeyValueRow("PDF input 📄", if (pdf) "yes" else "no")
+            KeyValueRow("PDF input ${mi.document}", if (pdf) "yes" else "no")
         }
         cfg.modelCapabilities[modelName]?.deprecationDate?.let { date ->
             val replacement = cfg.modelCapabilities[modelName]?.deprecationReplacement
-            val msg = if (replacement.isNullOrBlank()) "⚠ Deprecated $date" else "⚠ Deprecated $date → use $replacement"
+            val msg = if (replacement.isNullOrBlank()) "${mi.warningPlain} Deprecated $date" else "${mi.warningPlain} Deprecated $date ${mi.arrowRight} use $replacement"
             Text(msg, fontSize = 13.sp, color = AppColors.Orange)
         }
         cfg.modelCapabilities[modelName]?.defaultTemperature?.let {

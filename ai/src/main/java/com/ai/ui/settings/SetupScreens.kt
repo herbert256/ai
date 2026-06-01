@@ -290,6 +290,7 @@ private fun DiagramEntity(
  *  "Model + System prompt + Parameters"). */
 @Composable
 private fun DiagramChipRow(items: List<String>, separator: String? = null) {
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Row(
         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         verticalAlignment = Alignment.CenterVertically,
@@ -304,7 +305,7 @@ private fun DiagramChipRow(items: List<String>, separator: String? = null) {
                     .background(AppColors.CardBackgroundAlt, RoundedCornerShape(7.dp))
                     .padding(horizontal = 9.dp, vertical = 5.dp)
             ) {
-                Text(label, fontSize = 12.sp, color = AppColors.TextSecondary, maxLines = 1)
+                Text(mi.iconizedText(label), fontSize = 12.sp, color = AppColors.TextSecondary, maxLines = 1)
             }
         }
     }

@@ -45,6 +45,7 @@ fun AboutScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         TitleBar(
             helpTopic = "about",
@@ -96,8 +97,8 @@ fun AboutScreen(
             )
             Spacer(modifier = Modifier.height(28.dp))
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                HubCard(icon = "📖", title = "Manual", onClick = onOpenManual)
-                HubCard(icon = "🛠️", title = "Technical documentation", onClick = onOpenTechnicalDocs)
+                HubCard(icon = mi.book, title = "Manual", onClick = onOpenManual)
+                HubCard(icon = mi.tools, title = "Technical documentation", onClick = onOpenTechnicalDocs)
             }
             Spacer(modifier = Modifier.height(24.dp))
             // Copyright footer pinned at the bottom of the About

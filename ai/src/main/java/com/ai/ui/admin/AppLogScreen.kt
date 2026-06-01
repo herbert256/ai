@@ -625,7 +625,7 @@ fun AppLogDetailScreen(
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         TextButton(onClick = { searchQuery = "" }, contentPadding = PaddingValues(0.dp)) {
-                            Text("✕", fontSize = 14.sp, color = AppColors.TextTertiary)
+                            Text(com.ai.ui.shared.LocalMetadataIcons.current.closeMark, fontSize = 14.sp, color = AppColors.TextTertiary)
                         }
                     }
                 },

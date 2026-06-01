@@ -83,6 +83,7 @@ internal fun ManualModelTypeEditScreen(
     var supportsReasoning by remember(resetTick) { mutableStateOf(initial?.supportsReasoning ?: false) }
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
 
     val dup = com.ai.ui.shared.rememberDuplicateMode(
         isEditingExisting = initial != null
@@ -185,9 +186,9 @@ internal fun ManualModelTypeEditScreen(
                         val websearch = provider != null && aiSettings.isWebSearchCapable(provider, m)
                         val reasoning = provider != null && aiSettings.isReasoningCapable(provider, m)
                         val suffix = buildString {
-                            if (vision) append(" 👁")
-                            if (websearch) append(" 🌐")
-                            if (reasoning) append(" 🧠")
+                            if (vision) append(" ${mi.view}")
+                            if (websearch) append(" ${mi.web}")
+                            if (reasoning) append(" ${mi.reportModelIcon}")
                         }
                         DropdownMenuItem(
                             text = { Text("$m$suffix") },
@@ -225,7 +226,7 @@ internal fun ManualModelTypeEditScreen(
             ) {
                 Checkbox(checked = supportsVision, onCheckedChange = { supportsVision = it })
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Supports vision (image input) 👁", color = Color.White, fontSize = 13.sp)
+                Text("Supports vision (image input) ${mi.view}", color = Color.White, fontSize = 13.sp)
             }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 4.dp).clickable { supportsWebSearch = !supportsWebSearch },
@@ -233,7 +234,7 @@ internal fun ManualModelTypeEditScreen(
             ) {
                 Checkbox(checked = supportsWebSearch, onCheckedChange = { supportsWebSearch = it })
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Supports web-search tool 🌐", color = Color.White, fontSize = 13.sp)
+                Text("Supports web-search tool ${mi.web}", color = Color.White, fontSize = 13.sp)
             }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 4.dp).clickable { supportsReasoning = !supportsReasoning },
@@ -241,7 +242,7 @@ internal fun ManualModelTypeEditScreen(
             ) {
                 Checkbox(checked = supportsReasoning, onCheckedChange = { supportsReasoning = it })
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Supports thinking 🧠", color = Color.White, fontSize = 13.sp)
+                Text("Supports thinking ${mi.reportModelIcon}", color = Color.White, fontSize = 13.sp)
             }
         }
 

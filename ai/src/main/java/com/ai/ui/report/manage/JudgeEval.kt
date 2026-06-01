@@ -142,6 +142,8 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val navigateToRoute = com.ai.ui.shared.LocalNavigateToRoute.current
+    val aiSettings = com.ai.ui.shared.LocalAiSettings.current
+    val navigateHome = com.ai.ui.shared.LocalNavigateHome.current
     val runs by engine.runs.collectAsState()
     val throttled by engine.throttledCells.collectAsState()
     val run = runs[reportId]
@@ -175,6 +177,8 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
     var judgeKey by rememberSaveable { mutableStateOf("") }
     var matchKey by rememberSaveable { mutableStateOf("") }
     var confirmDeleteJudge by rememberSaveable { mutableStateOf<String?>(null) }
+    // Set by the 🆕 icon (Judges mode) → opens the model picker to add a judge.
+    var showAddJudge by rememberSaveable { mutableStateOf(false) }
     // Set when the user taps ✏️ to edit the swarm; checked on the way back
     // (the overlay is disposed on nav-out and recomposed on nav-in) to offer a
     // rerun if the swarm's judges no longer match this batch's judges.
@@ -222,6 +226,34 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
         return
     }
 
+    // 🆕 add-a-judge → the same full-screen model picker the Edit-swarm screen
+    // uses. On pick: add the model to the judges' swarm AND judge only the new
+    // model across the run's existing matches (its row alone is added/updated).
+    // Judges already in the run are dimmed so they can't be double-added.
+    if (showAddJudge) {
+        // Dim judges already in the run — keyed off each cell's real
+        // (judgeProviderId, judgeModel) rather than splitting the "prov/model"
+        // key, since a model id can itself contain '/'.
+        val already = remember(run.cells) {
+            run.cells.values.mapNotNull { c ->
+                com.ai.data.AppService.findById(c.judgeProviderId)?.let { it to c.judgeModel }
+            }.toSet()
+        }
+        com.ai.ui.other.ReportSelectModelsScreen(
+            aiSettings = aiSettings,
+            alreadyAdded = already,
+            titleText = "Add a judge model",
+            onConfirm = { (provider, model) ->
+                engine.addJudgeToSwarm(provider, model)
+                engine.addJudgeToRun(context, reportId, provider, model)
+                showAddJudge = false
+            },
+            onBack = { showAddJudge = false },
+            onNavigateHome = navigateHome
+        )
+        return
+    }
+
     when (level) {
         2 -> if (byMatch) {
             JudgeEvalMatchScreen(run, agents, reportTitle, reportIcon, matchKey,
@@ -240,6 +272,8 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
             openJudge = { jk -> if (navOk()) { judgeKey = jk; byMatch = false; level = 2 } },
             openMatch = { mk -> if (navOk()) { matchKey = mk; byMatch = true; level = 2 } },
             mode = l1Mode, setMode = { l1Mode = it },
+            onAddJudge = { showAddJudge = true },
+            onDeleteJudge = { confirmDeleteJudge = it },
             onEditSwarm = {
                 engine.activeSwarmId()?.let {
                     awaitingEditReturn = true
@@ -333,6 +367,8 @@ private fun JudgeEvalL1(
     openMatch: (String) -> Unit,
     mode: JudgeEvalL1Mode,
     setMode: (JudgeEvalL1Mode) -> Unit,
+    onAddJudge: () -> Unit,
+    onDeleteJudge: (String) -> Unit,
     onEditSwarm: () -> Unit,
     onRedo: () -> Unit,
     onRestartFailed: () -> Unit,
@@ -344,7 +380,10 @@ private fun JudgeEvalL1(
         TitleBar(
             helpTopic = "judge_eval_l1", title = "Judge the judges",
             subject = reportTitle, reportIcon = reportIcon,
-            onBackClick = onBack, onEdit = onEditSwarm, onReload = onRedo, onDelete = onDeleteRun
+            onBackClick = onBack, onEdit = onEditSwarm, onReload = onRedo, onDelete = onDeleteRun,
+            // 🆕 add a judge — Judges mode only (the picker adds it to the swarm
+            // and judges only the new model across the existing matches).
+            onAdd = if (mode == JudgeEvalL1Mode.JUDGES) onAddJudge else null
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
@@ -413,10 +452,11 @@ private fun JudgeEvalL1(
                             Text("¢", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
                             Text("Time", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(50.dp))
                             Text("Cons.", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+                            Spacer(Modifier.width(28.dp))   // aligns with the per-row ✗ remove column
                         }
                         HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.35f), thickness = 0.5.dp)
                         stats2.forEachIndexed { i, s ->
-                            JudgeLeaderRow(rank = i + 1, s = s) { openJudge(s.judgeKey) }
+                            JudgeLeaderRow(rank = i + 1, s = s, onDelete = { onDeleteJudge(s.judgeKey) }) { openJudge(s.judgeKey) }
                             if (i < stats2.lastIndex) HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.2f), thickness = 0.5.dp)
                         }
                     }
@@ -480,9 +520,9 @@ private fun JudgeProgressRow(label: String, done: Int, total: Int, barFrac: Floa
 
 /** One-line judge row: # / Model / Cost(¢) / API time / Agreement. */
 @Composable
-private fun JudgeLeaderRow(rank: Int, s: JudgeStats, onClick: () -> Unit) {
+private fun JudgeLeaderRow(rank: Int, s: JudgeStats, onDelete: () -> Unit, onClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(horizontal = 10.dp, vertical = 9.dp),
+        modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(start = 10.dp, end = 2.dp, top = 9.dp, bottom = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text("$rank", color = AppColors.TextTertiary, fontSize = 12.sp,
@@ -495,6 +535,14 @@ private fun JudgeLeaderRow(rank: Int, s: JudgeStats, onClick: () -> Unit) {
             fontFamily = FontFamily.Monospace, textAlign = TextAlign.End, modifier = Modifier.width(50.dp))
         Text(pct(s.agreement), color = agreementColor(s.agreement), fontSize = 14.sp, fontWeight = FontWeight.Bold,
             textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+        // ✗ remove this judge — from the batch AND the swarm (confirm dialog).
+        // A plain glyph (not emoji) so it honours the red tint.
+        Text(
+            com.ai.data.MetadataIconsHolder.current.crossMark,
+            color = AppColors.Red, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(28.dp).clickable { onDelete() }.padding(vertical = 2.dp)
+        )
     }
 }
 
