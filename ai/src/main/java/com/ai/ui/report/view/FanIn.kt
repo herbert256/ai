@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +50,7 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.report.view.helpers.ViewTitleBar
 import com.ai.ui.report.view.helpers.viewBodySwipe
 import com.ai.ui.report.view.helpers.rememberWrapPager
+import com.ai.ui.report.view.helpers.wrapCenterPage
 import com.ai.ui.report.view.helpers.wrapTo
 import com.ai.ui.shared.modelInfoViewClickable
 import com.ai.ui.shared.shortModelName
@@ -141,6 +143,19 @@ fun FanInViewScreen(
         languages.indexOf(target).coerceAtLeast(0)
     }
     val pagerState = rememberWrapPager(languages.size, initialIndex)
+    // The pager is created while `languages` is still just [""] (the fan-in
+    // translations load async) and rememberWrapPager doesn't re-seek when the
+    // list grows — so a requested non-Original launch language never landed
+    // (it opened on Original). Re-centre once per result, after the languages
+    // arrive; manual swipes after that stand.
+    var centeredFor by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(languages, currentResultId) {
+        if (languages.size > 1 && centeredFor != currentResultId) {
+            val target = languages.indexOf(language ?: "").coerceAtLeast(0)
+            pagerState.scrollToPage(wrapCenterPage(languages.size, target))
+            centeredFor = currentResultId
+        }
+    }
     val activeLanguage = if (languages.isEmpty()) ""
         else languages[pagerState.currentPage.wrapTo(languages.size)]
     val activeLangState = rememberUpdatedState(activeLanguage)
