@@ -1789,6 +1789,10 @@ internal val LEGEND_OVERLAY_TOPICS = setOf(
     // Translation drill-ins.
     "translation_run_l1", "translation_run_l2", "translation_run_l3",
     "translation_models", "alternative_translations",
+    // Tournament drill-ins.
+    "tournament_l1", "tournament_l2", "tournament_l3",
+    // Judge-the-judges drill-ins.
+    "judge_eval_l1", "judge_eval_l2", "judge_eval_l3", "judge_eval_match",
     // Find-alternative + icon-lookup detail screens.
     "alternative_icons", "alternative_titles",
     "icon_lookup_main", "icon_lookup_agent", "icon_lookup_meta",
