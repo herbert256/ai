@@ -131,6 +131,83 @@ fun AiLiveDashboardScreen(
      *  row. Field is "status" or "host". */
     onOpenTraceFilter: (field: String, value: String) -> Unit = { _, _ -> },
 ) {
+    // Full-screen overlay: the ✏️ in the icon bar swaps in the editor (pin /
+    // reorder / preview every card). The early return preserves this screen's
+    // remember-state, and only the editor's BackHandler is live while it's up,
+    // so Back closes the editor before it leaves the dashboard.
+    var showEdit by remember { mutableStateOf(false) }
+    if (showEdit) {
+        AiDashboardEditScreen(appViewModel, reportViewModel, onBack = { showEdit = false }, onOpenTraceFilter)
+        return
+    }
+
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val mi = com.ai.ui.shared.LocalMetadataIcons.current
+
+    val uiState by appViewModel.uiState.collectAsState()
+    val gs = uiState.generalSettings
+    val pinned = gs.pinnedDashboardCards
+    val order = reconcileDashboardOrder(gs.dashboardCardOrder)
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_live_dashboard",
+            title = "Live Dashboard",
+            subject = "What's happening right now",
+            onBackClick = onBack,
+            onEdit = { showEdit = true },
+            reportIcon = mi.liveDashboard, reportIconGoesHome = true
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        LazyColumn(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Just the pinned cards, in order — each open, no controls. Pin /
+            // reorder happens behind the ✏️ editor. Each card body owns its own
+            // ticker + data, so keeping this set lean keeps the screen cheap.
+            val pinnedOrder = order.filter { it in pinned }
+            if (pinnedOrder.isEmpty()) {
+                item {
+                    Text(
+                        mi.iconizedText("No pinned cards yet — tap ✏️ to pin the cards you want here."),
+                        fontSize = 13.sp, color = AppColors.TextTertiary,
+                        modifier = Modifier.padding(vertical = 16.dp)
+                    )
+                }
+            }
+            itemsIndexed(pinnedOrder, key = { _, id -> id }) { _, id ->
+                val meta = DASH_CARD_META[id] ?: return@itemsIndexed
+                DashboardCard(meta.emoji, meta.title, meta.accent) {
+                    DashCardBody(id, appViewModel, reportViewModel, context, onOpenTraceFilter)
+                }
+            }
+            item { Spacer(Modifier.height(24.dp)) }
+        }
+    }
+}
+
+/** The Live Dashboard editor — every card in the user's saved order, each with
+ *  its 📌 pin (open on the dashboard), ↑ / ↓ reorder and ▾ / ▸ collapse
+ *  controls. Reached from the ✏️ on the Live Dashboard. Pins + order persist on
+ *  GeneralSettings → eval_prefs, so they survive restart and ride along in
+ *  backup/restore automatically. A card fetches + ~0.75 s-refreshes only while
+ *  expanded (the body composes only while open), so a collapsed card does zero
+ *  work even here. */
+@Composable
+private fun AiDashboardEditScreen(
+    appViewModel: AppViewModel,
+    reportViewModel: ReportViewModel,
+    onBack: () -> Unit,
+    onOpenTraceFilter: (field: String, value: String) -> Unit = { _, _ -> },
+) {
     BackHandler { onBack() }
     val context = LocalContext.current
     val mi = com.ai.ui.shared.LocalMetadataIcons.current
@@ -141,14 +218,10 @@ fun AiLiveDashboardScreen(
     val order = reconcileDashboardOrder(gs.dashboardCardOrder)
 
     // Expansion state. Initialised from the pinned set so pinned cards open on
-    // load and everything else (incl. Live activity) starts collapsed. Plain
-    // remember → resets to the pinned baseline each time the screen opens. Each
-    // card body owns its own ticker + data, so a collapsed (un-composed) card
-    // does zero work — the screen never recomputes a hidden card.
+    // load and everything else starts collapsed. Plain remember → resets to the
+    // pinned baseline each time the editor opens.
     var open by remember { mutableStateOf(pinned) }
     val toggle: (String) -> Unit = { k -> open = if (k in open) open - k else open + k }
-    // Pin (open on load) + reorder are persisted on GeneralSettings → eval_prefs,
-    // so they survive restart and ride along in backup/restore automatically.
     fun togglePin(id: String) {
         val wasPinned = id in gs.pinnedDashboardCards
         appViewModel.updateGeneralSettings(
@@ -164,75 +237,39 @@ fun AiLiveDashboardScreen(
         appViewModel.updateGeneralSettings(gs.copy(dashboardCardOrder = cur))
     }
 
-    // View mode. Ephemeral (plain remember) → starts on Pinned every time
-    // the screen opens. Pinned = only the pinned cards, open, no controls;
-    // All = every card with its pin / reorder / collapse controls.
-    var mode by remember { mutableStateOf("pinned") }
-
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
-            helpTopic = "ai_live_dashboard",
-            title = "Live Dashboard",
-            subject = "What's happening right now",
+            helpTopic = "ai_live_dashboard_edit",
+            title = "Edit dashboard",
+            subject = "Pin, reorder and preview cards",
             onBackClick = onBack,
-            reportIcon = mi.liveDashboard, reportIconGoesHome = true
+            reportIcon = mi.liveDashboard
         )
 
-        Spacer(Modifier.height(8.dp))
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            SegmentedButton(
-                selected = mode == "pinned", onClick = { mode = "pinned" },
-                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
-            ) { Text("Pinned", fontSize = 13.sp) }
-            SegmentedButton(
-                selected = mode == "all", onClick = { mode = "all" },
-                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
-            ) { Text("All", fontSize = 13.sp) }
-        }
         Spacer(Modifier.height(8.dp))
 
         LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            if (mode == "pinned") {
-                // Only the pinned cards, in order — each open, no controls.
-                val pinnedOrder = order.filter { it in pinned }
-                if (pinnedOrder.isEmpty()) {
-                    item {
-                        Text(
-                            mi.iconizedText("No pinned cards yet — switch to All and tap 📌 on the cards you want here."),
-                            fontSize = 13.sp, color = AppColors.TextTertiary,
-                            modifier = Modifier.padding(vertical = 16.dp)
-                        )
-                    }
-                }
-                itemsIndexed(pinnedOrder, key = { _, id -> id }) { _, id ->
-                    val meta = DASH_CARD_META[id] ?: return@itemsIndexed
-                    DashboardCard(meta.emoji, meta.title, meta.accent) {
-                        DashCardBody(id, appViewModel, reportViewModel, context, onOpenTraceFilter)
-                    }
-                }
-            } else {
-                // Every card in the user's saved order, with controls; each
-                // collapsed unless pinned (the body composes only while open).
-                itemsIndexed(order, key = { _, id -> id }) { index, id ->
-                    val meta = DASH_CARD_META[id] ?: return@itemsIndexed
-                    CollapsibleCard(
-                        id = id, emoji = meta.emoji, title = meta.title, accent = meta.accent,
-                        open = open, pinned = pinned,
-                        isFirst = index == 0, isLast = index == order.lastIndex,
-                        onToggle = toggle,
-                        onTogglePin = { togglePin(it) },
-                        onMoveUp = { moveCard(it, -1) },
-                        onMoveDown = { moveCard(it, +1) },
-                    ) {
-                        DashCardBody(id, appViewModel, reportViewModel, context, onOpenTraceFilter)
-                    }
+            // Every card in the user's saved order, with controls; each
+            // collapsed unless pinned (the body composes only while open).
+            itemsIndexed(order, key = { _, id -> id }) { index, id ->
+                val meta = DASH_CARD_META[id] ?: return@itemsIndexed
+                CollapsibleCard(
+                    id = id, emoji = meta.emoji, title = meta.title, accent = meta.accent,
+                    open = open, pinned = pinned,
+                    isFirst = index == 0, isLast = index == order.lastIndex,
+                    onToggle = toggle,
+                    onTogglePin = { togglePin(it) },
+                    onMoveUp = { moveCard(it, -1) },
+                    onMoveDown = { moveCard(it, +1) },
+                ) {
+                    DashCardBody(id, appViewModel, reportViewModel, context, onOpenTraceFilter)
                 }
             }
             item { Spacer(Modifier.height(24.dp)) }

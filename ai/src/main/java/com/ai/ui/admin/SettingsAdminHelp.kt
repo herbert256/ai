@@ -628,7 +628,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "ai_live_dashboard" to HelpContent(
         title = "Help - Live Dashboard",
         cards = listOf(
-            HelpCard("Overview", "A live ops monitor — what's happening right now, reached from Monitor → Live Dashboard. A Pinned / All switch at the top picks the view (it starts on Pinned each time you open the screen). Pinned shows just the cards you've pinned, each open and control-free. All shows every card with its 📌 pin, ↑ / ↓ reorder and ▾ / ▸ collapse controls — pin the cards you want on the Pinned view from here. Pins + order are saved and ride along in backup/restore. For performance, in All mode a card fetches and ~0.75 s-refreshes only while expanded; on the Pinned view your pinned cards are all open, so keep that set lean. Lifetime totals + costs live on the Statistics hub (under Monitor)."),
+            HelpCard("Overview", "A live ops monitor — what's happening right now, reached from Monitor → Live Dashboard. It shows just the cards you've pinned, each open and control-free; Live activity, Spend & tokens and HTTP responses are pinned out of the box. Tap ✏️ in the icon bar to open the editor and choose, reorder or preview every card. Your pinned cards are all open here, so keep that set lean — each card fetches and ~0.75 s-refreshes while it's shown. Lifetime totals + costs live on the Statistics hub (under Monitor)."),
             HelpCard("🟢 Live activity", "Hero number is global API calls in flight / the global cap, with an Idle / Active / Saturated badge. The Global bar is always shown; the per-feature bars (Report, Translation, Fan-out, Fan Meta) appear only while that feature has a call in flight — green under 60 %, orange approaching the cap, red at the cap. The caps are owned by Settings → Network settings and count live API calls (a pair parked on a provider's rate-limit holds no cap permit). An orange Throttled row appears when batches are waiting on a provider rate-limit."),
             HelpCard("🏃 Active runs", "What's actually running right now — translation, fan-out, regenerate and fan-meta batches by name, with done/total progress (fan-meta shows in-flight count, which is all it can attribute). A \"Parked on a provider gate\" line counts items waiting on a rate-limit. Hidden when nothing is in flight; a live \"Test all models\" run has its own card below."),
             HelpCard("💸 Spend & tokens", "Rolling cost and token throughput over the last 1 minute and 5 minutes — the 1-minute column is the live per-minute rate. Fed from the same usage chokepoint every paid call funnels through (report / chat / secondary / translation / fan-meta). Cost is priced through the pricing cache (so it tracks computed, not provider-reported, cost). In-memory only."),
@@ -644,6 +644,16 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("🩺 System health", "Log-writer status (OK / ERROR), dropped log lines, trace-file count + size on disk, embeddings and knowledge cache sizes, API activity, the streaming/non-streaming read timeouts and the per-minute cap currently in effect. Disk sizes refresh on a slow tick."),
             HelpCard("Tips", "Open this while a Stress test (Housekeeping → Test) runs to watch the caps fill, hosts saturate and batches move through throttling in real time."),
             HelpCard("Pitfalls", "The live ticker only runs while the screen is on top — navigate away and it stops."),
+        )
+    ),
+    "ai_live_dashboard_edit" to HelpContent(
+        title = "Help - Edit dashboard",
+        cards = listOf(
+            HelpCard("Overview", "The editor for the Live Dashboard, reached from the ✏️ in its icon bar. Every card is listed in its saved order, each collapsed unless pinned. Use it to choose which cards appear on the dashboard, in what order, and to preview any card's live data."),
+            HelpCard("📌 Pin", "Tap the pin on a card to add it to (or remove it from) the dashboard. Pinned cards show on the Live Dashboard, open and control-free; Live activity, Spend & tokens and HTTP responses are pinned by default. A dim pin means the card isn't pinned. Pinned cards are all open on the dashboard, so keep the set lean."),
+            HelpCard("↑ / ↓ Reorder", "Move a card up or down to set the order it appears in — on both this editor and the dashboard. The arrows dim at the ends of the list."),
+            HelpCard("▾ / ▸ Preview", "Tap a card's title or caret to expand it and watch its live data right here, the same as on the dashboard. A collapsed card does no work — it only fetches and ~0.75 s-refreshes while expanded — so expanding a card just to preview it has no lasting cost."),
+            HelpCard("Saved", "Pins and order are saved on the spot and ride along in backup/restore automatically. Back returns to the Live Dashboard with your changes applied."),
         )
     ),
     "ai_monitor" to HelpContent(

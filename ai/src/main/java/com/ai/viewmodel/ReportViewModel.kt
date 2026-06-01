@@ -219,7 +219,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  `viewModelScope.launch` sites; `return@launch` stays valid
      *  because the `launch` call itself is unchanged. */
     internal fun reportLogContext(logId: String?) =
-        Dispatchers.IO + AppLog.currentLogId.asContextElement(logId)
+        Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler +
+            AppLog.currentLogId.asContextElement(logId)
 
     // Outer Jobs for "Find alternative icons" fan-outs, keyed by
     // reportId. Cancelling the entry cascades to every per-pair child

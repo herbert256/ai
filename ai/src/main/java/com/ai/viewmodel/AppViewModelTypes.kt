@@ -301,9 +301,10 @@ data class GeneralSettings(
      *  attach UI is hidden. */
     val experimentalFeaturesEnabled: Boolean = false,
     /** Live Dashboard layout, persisted (and so backed up via eval_prefs):
-     *  the card ids the user pinned (open on page load) and their custom
-     *  card order. Empty = nothing pinned / default order. */
-    val pinnedDashboardCards: Set<String> = emptySet(),
+     *  the card ids the user pinned (shown on the dashboard, open) and their
+     *  custom card order. Defaults to the three at-a-glance cards pinned;
+     *  empty order = default order. Edited behind the ✏️ on the dashboard. */
+    val pinnedDashboardCards: Set<String> = setOf("live", "spend", "http"),
     val dashboardCardOrder: List<String> = emptyList()
 ) {
     /** Effective gates — the grand-master [metadataEnabled] ANDed with

@@ -10,21 +10,31 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.ai.data.CrashReporter
 import com.ai.data.SharedContent
 import com.ai.ui.navigation.AppNavHost
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.shareText
 import com.ai.ui.theme.AppTheme
 import com.ai.viewmodel.AppViewModel
 
@@ -37,6 +47,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Install the crash recorder before anything else can throw, so a
+        // startup crash still lands a shareable report.
+        CrashReporter.init(applicationContext)
         enableEdgeToEdge()
         // Only process the launch intent on a fresh start. After a configuration change
         // (rotation, locale switch, etc.) onCreate runs again with the same launch intent
@@ -109,6 +122,35 @@ class MainActivity : ComponentActivity() {
                         sharedContent = sharedContent.value,
                         onSharedContentHandled = { sharedContent.value = null },
                         appViewModel = viewModel
+                    )
+                }
+
+                // Surface a crash report saved on the previous run — one tap
+                // to share it (out to email / notes / wherever) so it can be
+                // analysed. Read off the main thread; the file is tiny.
+                val crashContext = LocalContext.current
+                var pendingCrash by remember { mutableStateOf<String?>(null) }
+                LaunchedEffect(Unit) {
+                    pendingCrash = withContext(Dispatchers.IO) { CrashReporter.peekPendingCrashReport() }
+                }
+                pendingCrash?.let { report ->
+                    AlertDialog(
+                        onDismissRequest = { CrashReporter.clearPendingCrashReport(); pendingCrash = null },
+                        title = { Text("The app crashed last time") },
+                        text = { Text("A crash report was saved. Share it so the problem can be analysed? It contains app version, device, locale and the error — no prompts or report content.") },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                shareText(crashContext, report, "AI crash report")
+                                CrashReporter.clearPendingCrashReport()
+                                pendingCrash = null
+                            }) { Text("Share", maxLines = 1, softWrap = false) }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = {
+                                CrashReporter.clearPendingCrashReport()
+                                pendingCrash = null
+                            }) { Text("Dismiss", maxLines = 1, softWrap = false) }
+                        }
                     )
                 }
             }

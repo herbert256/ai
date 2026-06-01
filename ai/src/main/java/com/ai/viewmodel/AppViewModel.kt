@@ -382,7 +382,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // sweep wedged on the throttle gates) — escalate to a WARN (which
         // also toasts) carrying the exact cap + per-host state so the next
         // occurrence is self-diagnosing. Idle ticks log nothing.
-        viewModelScope.launch(Dispatchers.Default) {
+        viewModelScope.launch(Dispatchers.Default + com.ai.data.CrashReporter.coroutineHandler) {
             var lastLine = ""
             var stalledTicks = 0
             while (true) {
@@ -405,7 +405,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
 
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch(Dispatchers.IO + com.ai.data.CrashReporter.coroutineHandler) {
             val startTag = "App.start"
             val bs = bootstrap(application)
 
