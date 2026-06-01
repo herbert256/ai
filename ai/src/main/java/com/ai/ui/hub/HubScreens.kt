@@ -142,28 +142,28 @@ fun HubScreen(
             // inside the `if`, so the gap goes with it and the layout
             // stays compact.
             if (hasAnyAgent) {
-                HubCard(icon = MetadataDefaults.REPORT_ICON, title = "Reports", onClick = onNavigateToReportsHub)
+                HubCard(icon = MetadataDefaults.REPORT_ICON, title = "AI Reports", onClick = onNavigateToReportsHub)
                 Spacer(modifier = Modifier.height(12.dp))
-                HubCard(icon = MetadataDefaults.CHAT, title = "Chat", onClick = onNavigateToChatsHub)
+                HubCard(icon = MetadataDefaults.CHAT, title = "AI Chat", onClick = onNavigateToChatsHub)
                 Spacer(modifier = Modifier.height(12.dp))
             } else {
                 // No agents yet \u2192 the AI Reports hub is hidden. Offer the
                 // bundled example reports so a first-run user can open a
                 // real report without configuring a provider.
-                HubCard(icon = MetadataDefaults.TIP, title = "Examples", onClick = onNavigateToExamples)
+                HubCard(icon = MetadataDefaults.TIP, title = "AI Examples", onClick = onNavigateToExamples)
                 Spacer(modifier = Modifier.height(12.dp))
             }
             if (uiState.generalSettings.experimentalFeaturesEnabled && uiState.generalSettings.showKnowledgeCard) {
-                HubCard(icon = MetadataDefaults.LIBRARY, title = "Knowledge", onClick = onNavigateToKnowledge)
+                HubCard(icon = MetadataDefaults.LIBRARY, title = "AI Knowledge", onClick = onNavigateToKnowledge)
                 Spacer(modifier = Modifier.height(12.dp))
             }
             // Models moved to Setup \u2192 Workers (a model is the raw material
             // agents / swarms are built from), so it sits with them now.
-            HubCard(icon = MetadataDefaults.LIVE_DASHBOARD, title = "Monitor", onClick = onNavigateToMonitor)
+            HubCard(icon = MetadataDefaults.LIVE_DASHBOARD, title = "AI Monitor", onClick = onNavigateToMonitor)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = MetadataDefaults.AGENT, title = "Setup", onClick = onNavigateToAiSetup)
+            HubCard(icon = MetadataDefaults.AGENT, title = "AI Setup", onClick = onNavigateToAiSetup)
             Spacer(modifier = Modifier.height(12.dp))
-            HubCard(icon = MetadataDefaults.HOUSEKEEPING, title = "Housekeeping", onClick = onNavigateToHousekeeping)
+            HubCard(icon = MetadataDefaults.HOUSEKEEPING, title = "AI Housekeeping", onClick = onNavigateToHousekeeping)
             Spacer(modifier = Modifier.height(12.dp))
             Spacer(modifier = Modifier.height(32.dp))
             HubCard(icon = MetadataDefaults.SETTINGS, title = "Settings", onClick = onNavigateToSettings)

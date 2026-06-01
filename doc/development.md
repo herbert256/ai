@@ -117,10 +117,9 @@ ai/src/main/java/com/ai/
     │                                  # manual overrides), prompts, params,
     │                                  # cost overrides
     ├── admin/       (30)              # Housekeeping / Backup-Restore /
-    │                                  # Reset / Trim by age / Usage /
-    │                                  # statistics / traces / help /
-    │                                  # provider admin / developer +
-    │                                  # AppLogScreen
+    │                                  # Reset / Trim by age / Costs /
+    │                                  # Test / traces / help / provider
+    │                                  # admin / developer + AppLogScreen
     ├── settings/    (22)              # AI Setup sub-screens + Workers/
     │                                  # Local-runtime setup
     ├── shared/      (17)              # CrudListScreen, TitleBar +
@@ -258,9 +257,9 @@ The same pattern documents itself; lean on the compiler.
 
 ### A new Internal Prompt category
 
-Internal prompts have a free-form `category` string —
-`"meta"`, `"fan_out"`, `"fan_in"`, `"internal"` are the four in
-use today. Adding a new one means:
+Internal prompts have a free-form `category` string. Common current
+categories are `"meta"`, `"meta_compare"`, `"fan_out"`, `"fan_in"`,
+`"workers"`, `"alt"`, and `"internal"`. Adding a new one means:
 
 1. Bump the `assets/internal-prompts/` to seed a default row.
 2. Add a sub-hub entry to `SetupScreens.kt` →

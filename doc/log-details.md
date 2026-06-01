@@ -9,7 +9,7 @@
 > For *how the logger works* (levels, rotation, redaction, viewer), see
 > **[applog.md](applog.md)**.
 
-**453 call sites** — 57 ERROR, 140 WARN, 92 INFO, 111 DEBUG, 53 TRACE.
+**463 call sites** — 61 ERROR, 149 WARN, 94 INFO, 106 DEBUG, 53 TRACE.
 
 Severity is chosen at the call site by which method is invoked:
 
@@ -23,43 +23,45 @@ Severity is chosen at the call site by which method is invoked:
 
 ---
 
-## ERROR (57)
+## ERROR (61)
 
 `AppLog.e` — priority 6 (matches `Log.ERROR`). Also posts a debounced Toast.
 
 ### `data/ApiTracer.kt`
 
-- **L128** `"ApiTracer"` — "Failed to save trace ($resolvedFilename): ${e.message}"
-- **L163** `"ApiTracer"` — "Cache update failed for $resolvedFilename — invalidating cache: ${e.message}"
+- **L152** `"ApiTracer"` — "Failed to save trace ($resolvedFilename): ${e.message}"
+- **L188** `"ApiTracer"` — "Cache update failed for $resolvedFilename — invalidating cache: ${e.message}"
 
 ### `data/AtomicFileWrite.kt`
 
-- **L54** `"AtomicFileWrite"` — "Failed to write $absolutePath: ${e.message}"
+- **L60** `"AtomicFileWrite"` — "Failed to write $absolutePath: ${e.message}"
 
 ### `data/ChatHistoryManager.kt`
 
-- **L36** `"ChatHistory"` — "Refusing to save session with suspect id ${session.id}"
-- **L44** `"ChatHistory"` — "Refusing to save session that escapes historyDir: ${session.id}"
-- **L62** `"ChatHistory"` — "Failed to save: ${e.message}"
-- **L79** `"ChatHistory"` — "Failed to load: ${e.message}"
-- **L91** `"ChatHistory"` — "Failed to parse: ${e.message}"
+- **L37** `"ChatHistory"` — "Refusing to save session with suspect id ${session.id}"
+- **L45** `"ChatHistory"` — "Refusing to save session that escapes historyDir: ${session.id}"
+- **L63** `"ChatHistory"` — "Failed to save: ${e.message}"
+- **L71** `"ChatHistory"` — "Refusing to load session with unsafe id: $sessionId"
+- **L84** `"ChatHistory"` — "Failed to load: ${e.message}"
+- **L96** `"ChatHistory"` — "Failed to parse: ${e.message}"
+- **L106** `"ChatHistory"` — "Refusing to delete session with unsafe id: $sessionId"
 
 ### `data/Knowledge.kt`
 
-- **L196** `"Knowledge"` — "Refusing to save source with suspect id ${source.id}"
-- **L203** `"Knowledge"` — "Refusing to save source that escapes chunks dir: ${source.id}"
-- **L281** `"Knowledge"` — "Refusing to resolve KB dir for suspect id $kbId"
-- **L293** `"Knowledge"` — "Refusing to resolve KB dir that escapes root: $kbId"
+- **L204** `"Knowledge"` — "Refusing to save source with suspect id ${source.id}"
+- **L211** `"Knowledge"` — "Refusing to save source that escapes chunks dir: ${source.id}"
+- **L292** `"Knowledge"` — "Refusing to resolve KB dir for suspect id $kbId"
+- **L304** `"Knowledge"` — "Refusing to resolve KB dir that escapes root: $kbId"
 
 ### `data/PricingCache.kt`
 
-- **L340** `"PricingCache"` — "ensureLoadedBlocking invoked on the main thread — refusing to mark preload complete. " + "Move the call to Dispatchers.IO."
-- **L807** `"PricingCache"` — "Online LITELLM refresh failed: ${e.message}"
-- **L845** `"PricingCache"` — "models.dev refresh failed: ${e.message}"
-- **L981** `"PricingCache"` — "Helicone refresh failed: ${e.message}"
-- **L1069** `"PricingCache"` — "llm-prices refresh failed: ${e.message}"
-- **L1145** `"PricingCache"` — "Artificial Analysis refresh failed: ${e.message}"
-- **L1480** `"PricingCache"` — "Failed: ${e.message}"
+- **L351** `"PricingCache"` — "ensureLoadedBlocking invoked on the main thread — refusing to mark preload complete. " + "Move the call to Dispatchers.IO."
+- **L846** `"PricingCache"` — "Online LITELLM refresh failed: ${e.message}"
+- **L885** `"PricingCache"` — "models.dev refresh failed: ${e.message}"
+- **L1021** `"PricingCache"` — "Helicone refresh failed: ${e.message}"
+- **L1109** `"PricingCache"` — "llm-prices refresh failed: ${e.message}"
+- **L1185** `"PricingCache"` — "Artificial Analysis refresh failed: ${e.message}"
+- **L1514** `"PricingCache"` — "Failed: ${e.message}"
 
 ### `data/ProviderRegistry.kt`
 
@@ -72,20 +74,22 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/ReportStorage.kt`
 
-- **L257** `"ReportStorage"` — "Failed to load report $reportId: ${e.message}"
-- **L265** `"ReportStorage"` — "Failed to load ${file.name}: ${e.message}"
-- **L279** `"ReportStorage"` — "Refusing to save report with suspect id ${report.id}"
-- **L284** `"ReportStorage"` — "Refusing to save report that escapes reportsDir: ${report.id}"
-- **L293** `"ReportStorage"` — "Failed to save report ${report.id} (writeTextAtomic returned false)"
+- **L418** `"ReportStorage"` — "Failed to load report $reportId: ${e.message}"
+- **L426** `"ReportStorage"` — "Failed to load ${file.name}: ${e.message}"
+- **L474** `"ReportStorage"` — "Refusing to save report with suspect id ${report.id}"
+- **L479** `"ReportStorage"` — "Refusing to save report that escapes reportsDir: ${report.id}"
+- **L488** `"ReportStorage"` — "Failed to save report ${report.id} (writeTextAtomic returned false)"
 
 ### `data/SecondaryResult.kt`
 
 - **L55** `"SecondaryResultStorage"` — "Refusing to resolve report dir for suspect id $reportId"
 - **L60** `"SecondaryResultStorage"` — "Refusing to resolve report dir that escapes root: $reportId"
-- **L76** `"SecondaryResultStorage"` — "Refusing to save result with suspect id ${result.id}"
-- **L83** `"SecondaryResultStorage"` — "Refusing to save result that escapes report dir: ${result.id}"
-- **L196** `"SecondaryResultStorage"` — "Refusing to save result with suspect id ${result.id}"
-- **L211** `"SecondaryResultStorage"` — "Refusing to save result that escapes report dir: ${result.id}"
+- **L78** `"SecondaryResultStorage"` — "Refusing to resolve report dir for suspect id $reportId"
+- **L83** `"SecondaryResultStorage"` — "Refusing to resolve report dir that escapes root: $reportId"
+- **L102** `"SecondaryResultStorage"` — "Refusing to save result with suspect id ${result.id}"
+- **L113** `"SecondaryResultStorage"` — "Refusing to save result that escapes report dir: ${result.id}"
+- **L264** `"SecondaryResultStorage"` — "Refusing to save result with suspect id ${result.id}"
+- **L280** `"SecondaryResultStorage"` — "Refusing to save result that escapes report dir: ${result.id}"
 
 ### `data/local/LlmRuntime.kt`
 
@@ -95,12 +99,12 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/local/LocalEmbedder.kt`
 
-- **L128** `"LocalEmbedder"` — "model ${spec.name} download failed: ${e.message}"
-- **L249** `"LocalEmbedder"` — "embed failed: ${e.message}"
+- **L135** `"LocalEmbedder"` — "model ${spec.name} download failed: ${e.message}"
+- **L252** `"LocalEmbedder"` — "embed failed: ${e.message}"
 
 ### `data/local/LocalLlm.kt`
 
-- **L173** `"LocalLlm"` — "generate failed: ${e.message}"
+- **L181** `"LocalLlm"` — "generate failed: ${e.message}"
 
 ### `ui/helpers/PdfExport.kt`
 
@@ -111,14 +115,14 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `ui/helpers/ReportExportScreen.kt`
 
-- **L139** `"ReportExport"` — "Export failed"
-- **L179** `"ReportExport"` — "Export all failed"
+- **L141** `"ReportExport"` — "Export failed"
+- **L181** `"ReportExport"` — "Export all failed"
 
 ### `ui/settings/ImportExportScreen.kt`
 
-- **L992** `"ImportExport"` — "AI Report import error"
-- **L1030** `"ImportExport"` — "API keys import parse error"
-- **L1033** `"ImportExport"` — "API keys import error"
+- **L1170** `"ImportExport"` — "AI Report import error"
+- **L1208** `"ImportExport"` — "API keys import parse error"
+- **L1211** `"ImportExport"` — "API keys import error"
 
 ### `ui/settings/LocalRuntimeScreens.kt`
 
@@ -133,48 +137,56 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `viewmodel/AppViewModel.kt`
 
-- **L1613** `"Housekeeping"` — "← Reset application FAILED"
+- **L1084** `"Housekeeping"` — "← Reset application FAILED"
 
----
+## WARN (149)
 
-## WARN (140)
-
-`AppLog.w` — priority 5 (matches `Log.WARN`). Also posts a debounced Toast. Includes the `w(tag, t)` throwable-only overload.
+`AppLog.w` — priority 5 (matches `Log.WARN`). Also posts a debounced Toast.
 
 ### `data/AnalysisRepository.kt`
 
-- **L284** `"AiAnalysis"` — "Tool fallback also failed for ${agent.name}: " + "first=${first.httpStatusCode}/${first.error?.take(120)}; " + "fallback=${retried.httpStatusCode}/${retried.error?.take(120)}"
-- **L348** `"AiAnalysis"` — "$label first attempt permanent failure, skipping retry"
-- **L351** `"AiAnalysis"` — "$label first attempt failed, retrying..."
-- **L373** `"AiAnalysis"` — "$label first attempt I/O failure: ${e.message}, retrying…"
+- **L322** `"AiAnalysis"` — "Tool fallback also failed for ${agent.name}: " + "first=${first.httpStatusCode}/${first.error?.take(120)}; " + "fallback=${retried.httpStatusCode}/${retried.error?.take(120)}"
+- **L435** `"AiAnalysis"` — "Streaming attempt failed for ${agent.name} (${e.message}); using non-streaming"
+- **L482** `"AiAnalysis"` — "$label first attempt permanent failure, skipping retry"
+- **L485** `"AiAnalysis"` — "$label first attempt failed, retrying..."
+- **L507** `"AiAnalysis"` — "$label first attempt I/O failure: ${e.message}, retrying…"
+
+### `data/ApiClient.kt`
+
+- **L288** `"ApiClient"` — "fetchUrlAsString non-2xx ${resp.code} for $url — raw snapshot skipped"
+- **L295** `"ApiClient"` — "fetchUrlAsString failed for $url: ${e.message}"
 
 ### `data/ApiDispatch.kt`
 
-- **L611** `"ApiDispatch"` — "OpenRouter listModelsDetailed threw: ${e.javaClass.simpleName}: ${e.message}"
-- **L701** `"ApiDispatch"` — "Native capability listModels HTTP ${resp.code()}: ${body ?: "(no body)"}"
-- **L705** `"ApiDispatch"` — "Native capability listModels threw: ${e.javaClass.simpleName}: ${e.message}"
-- **L802** `"ApiDispatch"` — "Anthropic listModels threw: ${e.javaClass.simpleName}: ${e.message}"
-- **L807** `"ApiDispatch"` — "Anthropic listModels HTTP ${response.code()}: ${body ?: "(no body)"}"
-- **L812** `"ApiDispatch"` — "Anthropic listModels returned 200 but no claude-* entries (data size=${response.body()?.data?.size ?: 0})"
-- **L893** `"ApiDispatch"` — "Gemini listModels HTTP ${response.code()}: ${body ?: "(no body)"}"
-- **L901** `"ApiDispatch"` — "Gemini listModels threw: ${e.javaClass.simpleName}: ${e.message}"
-- **L1281** `"ApiDispatch"` — "Anthropic reasoning override: max_tokens raised from $baseMax to $effectiveMax (thinking budget=$budget)"
+- **L753** `"ApiDispatch"` — "OpenRouter listModelsDetailed threw: ${e.javaClass.simpleName}: ${e.message}"
+- **L843** `"ApiDispatch"` — "Native capability listModels HTTP ${resp.code()}: ${body ?: "(no body)"}"
+- **L847** `"ApiDispatch"` — "Native capability listModels threw: ${e.javaClass.simpleName}: ${e.message}"
+- **L944** `"ApiDispatch"` — "Anthropic listModels threw: ${e.javaClass.simpleName}: ${e.message}"
+- **L949** `"ApiDispatch"` — "Anthropic listModels HTTP ${response.code()}: ${body ?: "(no body)"}"
+- **L954** `"ApiDispatch"` — "Anthropic listModels returned 200 but no claude-* entries (data size=${response.body()?.data?.size ?: 0})"
+- **L1035** `"ApiDispatch"` — "Gemini listModels HTTP ${response.code()}: ${body ?: "(no body)"}"
+- **L1043** `"ApiDispatch"` — "Gemini listModels threw: ${e.javaClass.simpleName}: ${e.message}"
+- **L1595** `"ApiDispatch"` — "Anthropic reasoning override: max_tokens raised from $baseMax to $effectiveMax (thinking budget=$budget)"
 
 ### `data/ApiTracer.kt`
 
-- **L132** `"ApiTracer"` — "writeTextAtomic returned false for $resolvedFilename — skipping cache update"
+- **L156** `"ApiTracer"` — "writeTextAtomic returned false for $resolvedFilename — skipping cache update"
 
 ### `data/BackupManager.kt`
 
 - **L304** `"Backup"` — "Skipping zip entry that escapes filesDir: $name"
 - **L315** `"Backup"` — "Skipping zip entry that escapes cacheDir: $name"
-- **L514** `"Backup"` — "applyPrefs($name): unknown type tag '$tag' for key '$k' — entry skipped"
-- **L561** `"Backup"` — "Skipping symlink that escapes ${dir.absolutePath}: ${child.absolutePath} → $childCanonical"
+- **L518** `"Backup"` — "applyPrefs($name): unknown type tag '$tag' for key '$k' — entry skipped"
+- **L565** `"Backup"` — "Skipping symlink that escapes ${dir.absolutePath}: ${child.absolutePath} → $childCanonical"
 
 ### `data/ChatHistoryManager.kt`
 
-- **L30** `"ChatHistory"` — "Not initialized"
-- **L68** `"ChatHistory"` — "Not initialized"
+- **L31** `"ChatHistory"` — "Not initialized"
+- **L69** `"ChatHistory"` — "Not initialized"
+
+### `data/DefaultMetaItemSeed.kt`
+
+- **L49** `"DefaultMetaItemSeed"` — "Failed to load meta.json: ${e.message}"
 
 ### `data/EmbeddingsStore.kt`
 
@@ -187,6 +199,11 @@ Severity is chosen at the call site by which method is invoked:
 - **L40** `"ExamplePromptSeed"` — "Failed to load examples.json: ${e.message}"
 - **L86** `"ExamplePromptSeed"` — "upsertFromJson failed: ${e.message}"
 
+### `data/FlockSeed.kt`
+
+- **L50** `"FlockSeed"` — "Skipped flock entry: ${e.message}"
+- **L55** `"FlockSeed"` — "Failed to load workers/flocks.json: ${e.message}"
+
 ### `data/InaccessibleSeed.kt`
 
 - **L42** `"InaccessibleSeed"` — "Failed to load inaccessible.json: ${e.message}"
@@ -198,14 +215,15 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/InternalPromptSeed.kt`
 
-- **L64** `"InternalPromptSeed"` — "Failed to load internal-prompts/: ${e.message}"
-- **L142** `"InternalPromptSeed"` — "upsertFromJson failed: ${e.message}"
+- **L83** `"InternalPromptSeed"` — "Missing body for $dir/$stem.txt: ${e.message}"
+- **L107** `"InternalPromptSeed"` — "Failed to load internal-prompts/: ${e.message}"
+- **L187** `"InternalPromptSeed"` — "upsertFromJson failed: ${e.message}"
 
 ### `data/Knowledge.kt`
 
-- **L222** `"Knowledge"` — "Embedding dim mismatch on saveSource: kb=$kbId, " + "manifest=${current.embeddingDim}, new=$embeddingDim. " + "Manifest dim retained; cosine queries against this " + "source will silent-zero against chunks from other " + "embedders. Re-create the KB to mix embedders cleanly."
-- **L239** `"Knowledge"` — "Refusing to delete source with suspect id $sourceId"
-- **L246** `"Knowledge"` — "Refusing to delete source that escapes chunks dir: $sourceId"
+- **L233** `"Knowledge"` — "Embedding dim mismatch on saveSource: kb=$kbId, " + "manifest=${current.embeddingDim}, new=$embeddingDim. " + "Manifest dim retained; cosine queries against this " + "source will silent-zero against chunks from other " + "embedders. Re-create the KB to mix embedders cleanly."
+- **L250** `"Knowledge"` — "Refusing to delete source with suspect id $sourceId"
+- **L257** `"Knowledge"` — "Refusing to delete source that escapes chunks dir: $sourceId"
 
 ### `data/KnowledgeService.kt`
 
@@ -228,14 +246,14 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/OverloadedRetry.kt`
 
-- **L59** `"Overloaded"` — "529 still present after $attempt retries on ${request.url.host}"
+- **L67** `"Overloaded"` — "529 still present after $attempt retries on ${request.url.host}"
 
 ### `data/PricingCache.kt`
 
-- **L828** `"PricingCache"` — "models.dev refresh: empty / failed response"
-- **L965** `"PricingCache"` — "Helicone refresh: empty / failed response"
-- **L1120** `"PricingCache"` — "Artificial Analysis refresh skipped: missing API key"
-- **L1129** `"PricingCache"` — "Artificial Analysis refresh: empty / failed response"
+- **L868** `"PricingCache"` — "models.dev refresh: empty / failed response"
+- **L1005** `"PricingCache"` — "Helicone refresh: empty / failed response"
+- **L1160** `"PricingCache"` — "Artificial Analysis refresh skipped: missing API key"
+- **L1169** `"PricingCache"` — "Artificial Analysis refresh: empty / failed response"
 
 ### `data/ProviderFieldTimestamps.kt`
 
@@ -254,18 +272,29 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/RateLimitRetry.kt`
 
-- **L103** `"RateLimit"` — "long 429 on $host but provider/model unresolved (provider=$providerId model=$model)"
-- **L153** `"RateLimit"` — "429 still present after $attempt retries on ${request.url.host}"
+- **L107** `"RateLimit"` — "long 429 on $host but provider/model unresolved (provider=$providerId model=$model)"
+- **L162** `"RateLimit"` — "429 still present after $attempt retries on ${request.url.host}"
 
 ### `data/RegenerateBatchStorage.kt`
 
 - **L55** `"RegenerateBatchStorage"` — "parse failed for $reportId: ${e.message}"
+- **L82** `"RegenerateBatchStorage"` — "parse failed for $reportId: ${e.message}"
 
 ### `data/ReportStorage.kt`
 
-- **L214** `"ReportStorage"` — "Refusing to delete report with suspect id $reportId"
-- **L221** `"ReportStorage"` — "Refusing to delete report that escapes reportsDir: $reportId"
-- **L250** `"ReportStorage"` — "Rejected reportId with path traversal markers: $reportId"
+- **L357** `"ReportStorage"` — "Refusing to delete report with suspect id $reportId"
+- **L364** `"ReportStorage"` — "Refusing to delete report that escapes reportsDir: $reportId"
+- **L411** `"ReportStorage"` — "Rejected reportId with path traversal markers: $reportId"
+
+### `data/SecondaryResult.kt`
+
+- **L92** `"SecondaryResultStorage"` — "Skipping save for deleted report ${result.reportId}"
+- **L107** `"SecondaryResultStorage"` — "Skipping save for deleted report ${result.reportId}"
+
+### `data/SwarmSeed.kt`
+
+- **L34** `"SwarmSeed"` — "Skipped swarm entry: ${e.message}"
+- **L39** `"SwarmSeed"` — "Failed to load workers/swarms.json: ${e.message}"
 
 ### `data/SystemPromptSeed.kt`
 
@@ -277,121 +306,134 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/TracingInterceptor.kt`
 
-- **L94** `tag` — "✗ $callLabel — ${e.javaClass.simpleName}: ${e.message ?: ""} (${System.currentTimeMillis() - callStart}ms)"
-- **L152** `tag` — "← ${response.code} $callLabel in ${durationMs}ms$tail"
-- **L166** `tag` — "← ${response.code} $callLabel in ${durationMs}ms"
+- **L97** `tag` — "${MetadataIconsHolder.current.crossMark} $callLabel — ${e.javaClass.simpleName}: ${e.message ?: ""} (${System.currentTimeMillis() - callStart}ms)"
+- **L155** `tag` — "← ${response.code} $callLabel in ${durationMs}ms$tail"
+- **L169** `tag` — "← ${response.code} $callLabel in ${durationMs}ms"
+
+### `ui/helpers/BulkExport.kt`
+
+- **L137** `"BulkExport"` — "PDF render produced no output: ${f.name}"
 
 ### `ui/settings/ImportExportScreen.kt`
 
-- **L97** `"ImportExport"` — "Skipped $name entry: ${e.message}"
-- **L186** `"ImportExport"` — "Skipped runtime report entry: ${e.message}"
-- **L199** `"ImportExport"` — "Skipped secondary row: ${e.message}"
-- **L221** `"ImportExport"` — "Skipped chat session entry: ${e.message}"
-- **L350** `"ImportExport"` — "Skipped model list for unknown provider $key"
-- **L430** `"ImportExport"` — "Skipped endpoints for unknown provider $key"
-- **L436** `"ImportExport"` — "Skipped endpoint entry: ${e.message}"
-- **L456** `"ImportExport"` — "Skipped parameters entry: ${e.message}"
-- **L471** `"ImportExport"` — "Skipped model type override entry: ${e.message}"
-- **L489** `"ImportExport"` — "Skipped model cooldowns blob: ${e.message}"
-- **L503** `"ImportExport"` — "Skipped system prompt entry: ${e.message}"
-- **L519** `"ImportExport"` — "Skipped blocked model entry: ${e.message}"
-- **L535** `"ImportExport"` — "Skipped test-excluded model entry: ${e.message}"
-- **L551** `"ImportExport"` — "Skipped inaccessible model entry: ${e.message}"
-- **L1346** `"ImportExport"` — "Bundle apiKeys section failed: ${e.message}"
+- **L103** `"ImportExport"` — "Skipped $name entry: ${e.message}"
+- **L148** `"ImportExport"` — "Skipped flock entry: ${e.message}"
+- **L244** `"ImportExport"` — "Skipped runtime report entry: ${e.message}"
+- **L264** `"ImportExport"` — "Skipped secondary row: ${e.message}"
+- **L290** `"ImportExport"` — "Skipped chat session entry: ${e.message}"
+- **L512** `"ImportExport"` — "Skipped model list for unknown provider $key"
+- **L600** `"ImportExport"` — "Skipped endpoints for unknown provider $key"
+- **L606** `"ImportExport"` — "Skipped endpoint entry: ${e.message}"
+- **L626** `"ImportExport"` — "Skipped parameters entry: ${e.message}"
+- **L641** `"ImportExport"` — "Skipped model type override entry: ${e.message}"
+- **L659** `"ImportExport"` — "Skipped model cooldowns blob: ${e.message}"
+- **L673** `"ImportExport"` — "Skipped system prompt entry: ${e.message}"
+- **L689** `"ImportExport"` — "Skipped blocked model entry: ${e.message}"
+- **L705** `"ImportExport"` — "Skipped test-excluded model entry: ${e.message}"
+- **L721** `"ImportExport"` — "Skipped inaccessible model entry: ${e.message}"
+- **L1528** `"ImportExport"` — "Bundle apiKeys section failed: ${e.message}"
+- **L1554** `"ImportExport"` — "Bundle costs section failed: ${e.message}"
 
 ### `viewmodel/AppViewModel.kt`
 
-- **L928** `tag` — "First-run providers.json import failed"
-- **L959** `tag` — "← providers.json delta-sync failed in ${System.currentTimeMillis() - tSync}ms"
-- **L1244** `tag` — "← internal-prompts/ delta-merge failed in ${System.currentTimeMillis() - tPrompts}ms"
-- **L1273** `tag` — "← examples.json delta-merge failed in ${System.currentTimeMillis() - tExamples}ms"
-- **L1300** `tag` — "← system-prompts.json delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms"
-- **L1326** `tag` — "← excluded.json delta-merge failed in ${System.currentTimeMillis() - tExcluded}ms"
-- **L1354** `tag` — "← inaccessible.json delta-merge failed in ${System.currentTimeMillis() - tInaccessible}ms"
-- **L1574** `"App"` — "providers.json reload failed during reset"
-- **L1948** `"App"` — "Failed to fetch models for ${service.id}: ${e.message}"
-- **L2320** `"RefreshAll"` — "model fetch failed for ${service.id}: ${it.message}"
+- **L402** `"CapsWatch"` — "POSSIBLE STALL — throttle state frozen ${stalledTicks * 15}s — $line"
+- **L561** `tag` — "First-run providers.json import failed"
+- **L592** `tag` — "← providers.json delta-sync failed in ${System.currentTimeMillis() - tSync}ms"
+- **L642** `tag` — "← internal-prompts/ delta-merge failed in ${System.currentTimeMillis() - tPrompts}ms"
+- **L671** `tag` — "← examples.json delta-merge failed in ${System.currentTimeMillis() - tExamples}ms"
+- **L698** `tag` — "← system-prompts.json delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms"
+- **L722** `tag` — "← workers/swarms.json delta-merge failed in ${System.currentTimeMillis() - tSwarms}ms"
+- **L745** `tag` — "← workers/flocks.json delta-merge failed in ${System.currentTimeMillis() - tFlocks}ms"
+- **L771** `tag` — "← excluded.json delta-merge failed in ${System.currentTimeMillis() - tExcluded}ms"
+- **L799** `tag` — "← inaccessible.json delta-merge failed in ${System.currentTimeMillis() - tInaccessible}ms"
+- **L821** `tag` — "← meta.json delta-merge failed in ${System.currentTimeMillis() - tMeta}ms"
+- **L1039** `"App"` — "providers.json reload failed during reset"
+- **L1421** `"App"` — "Failed to fetch models for ${service.id}: ${e.message}"
+- **L1798** `"RefreshAll"` — "model fetch failed for ${service.id}: ${it.message}"
 
 ### `viewmodel/ChatViewModel.kt`
 
 - **L94** `"Chat.RAG"` — "Retrieval failed for kbs=$knowledgeBaseIds: ${e.javaClass.simpleName}: ${e.message}"
 
+### `viewmodel/CompareEngine.kt`
+
+- **L182** `"Compare"` — "meta_compare prompt not configured / no runnable workers — aborting"
+- **L196** `"Compare"` — "nothing to compare (answers=${successful.size}, meta=${metaRows.size})"
+
 ### `viewmodel/FanOutEngine.kt`
 
-- **L480** `"FanOut"` — "pair ans=$answererAgentId src=$sourceAgentId timed out after 60s"
+- **L1340** `"FanOut"` — "pair ans=$answererAgentId src=$sourceAgentId timed out after 60s"
 
 ### `viewmodel/IconGenerationManager.kt`
 
-- **L414** `"ReportIcons"` — "title-icon failed for ${ra.agentId}: ${e.message}"
-- **L607** `"InternalPromptIcon"` — "internal/meta not configured — skipping"
-- **L613** `"InternalPromptIcon"` — "agent '${iconPrompt.agent}' not found — skipping"
-- **L668** `"InternalPromptIcon"` — "call failed for name='${prompt.name}': ${response.error}"
-- **L674** `"InternalPromptIcon"` — "exception generating icon for name='${prompt.name}': ${e.message}"
-- **L734** `"InternalPromptIconAlt"` — "internal/meta not configured — skipping fan-out"
-- **L740** `"InternalPromptIconAlt"` — "internal/meta_alt not configured — skipping fan-out"
-- **L853** `"InternalPromptIconAlt"` — "exception for ${item.provider.id}/${item.model}: ${e.message}"
-- **L961** `"PairIconAlt"` — "internal/fan_out prompt not found — skipping (pair=$pairId)"
-- **L967** `"PairIconAlt"` — "internal/fan_out_alt prompt not found — skipping (pair=$pairId)"
-- **L1148** `"TranslationIcon"` — "internal/translation not configured — skipping"
-- **L1154** `"TranslationIcon"` — "agent '${iconPrompt.agent}' not found — skipping"
-- **L1200** `"TranslationIcon"` — "call failed for language='$language': ${response.error}"
-- **L1206** `"TranslationIcon"` — "exception generating icon for language='$language': ${e.message}"
-- **L1240** `"TranslationIconAlt"` — "internal/translation not configured — skipping fan-out"
-- **L1246** `"TranslationIconAlt"` — "internal/translation_alt not configured — skipping fan-out"
-- **L1348** `"TranslationIconAlt"` — "exception for ${item.provider.id}/${item.model}: ${e.message}"
-- **L1722** `"LanguageIconAlt"` — "no detected language on report=$reportId — skipping fan-out"
-- **L1855** `"AgentIconAlt"` — "internal/report prompt not found — skipping (agent=$agentId)"
-- **L1861** `"AgentIconAlt"` — "internal/report_alt prompt not found — skipping (agent=$agentId)"
-- **L2082** `"ReportIcons"` — "no icon prompts configured — skipping (agent=${ra.agentId})"
-- **L2183** `"ReportIcons"` — "tier 1 failed for ${ra.agentId}: ${e.message}"
-- **L2241** `"ReportIcons"` — "tier 2 failed for ${ra.agentId}: ${e.message}"
-- **L2263** `"ReportIcons"` — "tier 3 skipped — no agent matching '${tier3Prompt.agent}' configured"
-- **L2306** `"ReportIcons"` — "tier 3 failed for ${ra.agentId}: ${e.message}"
-- **L2435** `"FanOutIcons"` — "no icon prompts configured — skipping (pair=${pair.id})"
-- **L2456** `"FanOutIcons"` — "tier 1 rate-limited (429) for pair=${pair.id} on $pairHost — chain stopped"
-- **L2483** `"FanOutIcons"` — "tier 2 rate-limited (429) for pair=${pair.id} on $pairHost — chain stopped"
-- **L2505** `"FanOutIcons"` — "tier 3 rate-limited (429) for pair=${pair.id} — chain stopped"
-- **L2838** `"FanTitles"` — "no fan_out_title prompt configured — skipping"
-- **L3086** `"FanTitles"` — "title call failed for pair=${pair.id}: ${e.message}"
-- **L3166** `"FanOutIcons"` — "tier 1 failed for pair=${pair.id}: ${e.message}"
-- **L3224** `"FanOutIcons"` — "tier 2 failed for pair=${pair.id}: ${e.message}"
-- **L3238** `"FanOutIcons"` — "tier 3 skipped — no agent matching '${tier3Prompt.agent}' configured"
-- **L3280** `"FanOutIcons"` — "tier 3 failed for pair=${pair.id}: ${e.message}"
+- **L867** `"InternalPromptIcon"` — "second/meta not configured — skipping"
+- **L911** `"InternalPromptIcon"` — "no worker produced an icon for name='${prompt.name}'"
+- **L974** `"InternalPromptIconAlt"` — "alt/meta not configured — skipping fan-out"
+- **L1088** `"InternalPromptIconAlt"` — "exception for ${item.provider.id}/${item.model}: ${e.message}"
+- **L1196** `"PairIconAlt"` — "alt/fan_out prompt not found — skipping (pair=$pairId)"
+- **L1371** `"PairTitleAlt"` — "alt/model_title prompt not found — skipping (pair=$pairId)"
+- **L1512** `"TranslationIcon"` — "translation/icon not configured — skipping"
+- **L1552** `"TranslationIcon"` — "no worker produced an icon for language='$language'"
+- **L1586** `"TranslationIconAlt"` — "alt/translation not configured — skipping fan-out"
+- **L1688** `"TranslationIconAlt"` — "exception for ${item.provider.id}/${item.model}: ${e.message}"
+- **L2062** `"LanguageIconAlt"` — "no detected language on report=$reportId — skipping fan-out"
+- **L2193** `"AgentIconAlt"` — "alt/report prompt not found — skipping (agent=$agentId)"
+- **L2472** `"FanMeta"` — "fan/meta not configured — skipping"
+
+### `viewmodel/JudgeEvalEngine.kt`
+
+- **L204** `"JudgeEval"` — "workers/tournament prompt not configured — aborting"
+- **L209** `"JudgeEval"` — "no resolvable judges in the prompt's swarm — aborting"
 
 ### `viewmodel/RegenerateBatchEngine.kt`
 
-- **L226** `"RegenBatch"` — "orchestrator crashed for $reportId: ${e.message}"
-- **L299** `"RegenBatch"` — "phase $phase timed out for $reportId — pausing"
+- **L237** `"RegenBatch"` — "orchestrator crashed for $reportId: ${e.message}"
+- **L310** `"RegenBatch"` — "phase $phase timed out for $reportId — pausing"
 
 ### `viewmodel/ReportViewModel.kt`
 
-- **L555** `"Report"` — "skip benched ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} — marking agent ${task.resultId} errored"
+- **L785** `"Report"` — "skip benched ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} — marking agent ${task.resultId} errored"
+- **L1817** `"Report"` — "background report skipped — no active models for swarm $swarmId"
 
 ### `viewmodel/SecondaryRunManager.kt`
 
-- **L958** `"BgResumeSweep"` — "iteration failed: ${e.javaClass.simpleName}: ${e.message}"
-- **L2016** `"Secondary"` — "skip benched ${provider.id}/$model — marking row ${placeholder.id} errored"
+- **L470** `"BgResumeSweep"` — "iteration failed: ${e.javaClass.simpleName}: ${e.message}"
+- **L1156** `"Secondary"` — "skip benched ${provider.id}/$model — marking row ${placeholder.id} errored"
+
+### `viewmodel/StressTestEngine.kt`
+
+- **L113** `"StressTest"` — "failed: ${e.javaClass.simpleName}: ${e.message}"
+
+### `viewmodel/TournamentEngine.kt`
+
+- **L200** `"Tournament"` — "workers/tournament not configured — aborting"
 
 ### `viewmodel/TranslationRunManager.kt`
 
-- **L70** `"Translation"` — "startTranslation called with empty models — skipping"
-- **L417** `"Translation"` — "item ${item.id} timed out on ${ctx.provider.id}/${ctx.model} after ${callBudgetMs / 1000}s — reassigning"
-- **L579** `"Translation"` — "skip benched ${provider.id}/$model — item ${item.id} failed attempt"
-- **L1530** `"Translation"` — "item ${item.id} timed out on ${ctx.provider.id}/${ctx.model} after ${callBudgetMs / 1000}s"
-- **L1588** `"Meta-xlate"` — "No existing translation run for $targetLanguageName — skipping cross-translate"
-- **L1635** `"Meta-xlate"` — "Could not rebuild persisted state for run $runId — aborting cross-translate"
-- **L1703** `"Translate-missing"` — "No existing translation run for $targetLanguageName and no model to bootstrap from — skipping ${items.size} item(s)"
-- **L1749** `"Translate-missing"` — "Could not rebuild persisted state for run $runId — aborting"
+- **L123** `"Translation"` — "startTranslation called with empty models — skipping"
+- **L522** `"Translation"` — "item ${item.id} timed out on ${ctx.provider.id}/${ctx.model} after ${callBudgetMs / 1000}s — reassigning"
+- **L686** `"Translation"` — "skip benched ${provider.id}/$model — item ${item.id} failed attempt"
+- **L1862** `"Translation"` — "item ${item.id} timed out on ${ctx.provider.id}/${ctx.model} after ${callBudgetMs / 1000}s"
+- **L1920** `"Meta-xlate"` — "No existing translation run for $targetLanguageName — skipping cross-translate"
+- **L1967** `"Meta-xlate"` — "Could not rebuild persisted state for run $runId — aborting cross-translate"
+- **L2035** `"Translate-missing"` — "No existing translation run for $targetLanguageName and no model to bootstrap from — skipping ${items.size} item(s)"
+- **L2081** `"Translate-missing"` — "Could not rebuild persisted state for run $runId — aborting"
 
----
+### `viewmodel/WorkerRunner.kt`
 
-## INFO (92)
+- **L97** `"Workers"` — "prompt '${prompt.name}' has no runnable workers — nothing to run"
+- **L135** `"Workers"` — "429 '${prompt.name}' via ${agent.name} — cooling ${waitMs}ms, next worker"
+- **L143** `"Workers"` — "${resp.httpStatusCode ?: "model-gone"} '${prompt.name}' via ${agent.name} — model unavailable, disabling this worker for the session"
+- **L148** `"Workers"` — "no usable result '${prompt.name}' via ${agent.name} — next worker"
+- **L149** `"Workers"` — "miss '${prompt.name}' via ${agent.name}: ${resp.error?.take(80)}"
 
-`AppLog.i` — priority 4 (matches `Log.INFO`). The default `threshold`, so these are the baseline of what lands on disk.
+## INFO (94)
+
+`AppLog.i` — priority 4 (matches `Log.INFO`).
 
 ### `data/AnalysisRepository.kt`
 
-- **L289** `"AiAnalysis"` — "Tool fallback succeeded for ${agent.name} " + "after first=${first.httpStatusCode}/${first.error?.take(120)}"
+- **L327** `"AiAnalysis"` — "Tool fallback succeeded for ${agent.name} " + "after first=${first.httpStatusCode}/${first.error?.take(120)}"
 
 ### `data/BackupManager.kt`
 
@@ -411,10 +453,10 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/PricingCache.kt`
 
-- **L832** `"PricingCache"` — "models.dev parse: ${pricing.size} priced, ${meta.size} meta entries (raw ${json.length} bytes)"
-- **L969** `"PricingCache"` — "Helicone parse: ${exact.size} exact, ${patterns.size} patterns"
-- **L1059** `"PricingCache"` — "llm-prices parse: ${combined.size} entries from ${llmPricesVendors.size} vendors"
-- **L1133** `"PricingCache"` — "Artificial Analysis parse: ${pricing.size} priced, ${meta.size} meta entries"
+- **L872** `"PricingCache"` — "models.dev parse: ${pricing.size} priced, ${meta.size} meta entries (raw ${json.length} bytes)"
+- **L1009** `"PricingCache"` — "Helicone parse: ${exact.size} exact, ${patterns.size} patterns"
+- **L1099** `"PricingCache"` — "llm-prices parse: ${combined.size} entries from ${llmPricesVendors.size} vendors"
+- **L1173** `"PricingCache"` — "Artificial Analysis parse: ${pricing.size} priced, ${meta.size} meta entries"
 
 ### `data/ProviderRegistry.kt`
 
@@ -425,9 +467,9 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/TracingInterceptor.kt`
 
-- **L89** `tag` — "→ $callLabel"
-- **L154** `tag` — "← ${response.code} $callLabel in ${durationMs}ms"
-- **L168** `tag` — "← ${response.code} $callLabel in ${durationMs}ms"
+- **L92** `tag` — "→ $callLabel"
+- **L157** `tag` — "← ${response.code} $callLabel in ${durationMs}ms"
+- **L171** `tag` — "← ${response.code} $callLabel in ${durationMs}ms"
 
 ### `data/local/LlmRuntime.kt`
 
@@ -436,13 +478,13 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/local/LocalLlm.kt`
 
-- **L117** `"LocalLlm"` — "→ load $modelName from ${file.name} (${file.length() / (1024 * 1024)} MiB)"
-- **L127** `"LocalLlm"` — "← loaded $modelName in ${System.currentTimeMillis() - loadStart}ms"
+- **L124** `"LocalLlm"` — "→ load $modelName from ${file.name} (${file.length() / (1024 * 1024)} MiB)"
+- **L134** `"LocalLlm"` — "← loaded $modelName in ${System.currentTimeMillis() - loadStart}ms"
 
 ### `ui/admin/AppLogScreen.kt`
 
-- **L173** `"Housekeeping"` — "Cleared $n log file(s)"
-- **L196** `"Housekeeping"` — "Deleted $n log file(s) older than 7 days"
+- **L177** `"Housekeeping"` — "Cleared $n log file(s)"
+- **L200** `"Housekeeping"` — "Deleted $n log file(s) older than 7 days"
 
 ### `ui/helpers/PdfExport.kt`
 
@@ -462,43 +504,43 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `viewmodel/AppViewModel.kt`
 
-- **L832** `"App"` — "App started — $appLabel v${com.ai.BuildConfig.VERSION_NAME} " + "(built $builtAt, installed $installedAt) " + "logLevel=${bs.first.logLevel}, tracing=${bs.first.tracingEnabled}"
-- **L975** `tag` — "Seeding ${needsSeed.size} default-inactive provider state(s): ${needsSeed.joinToString { it.id }}"
-- **L1024** `tag` — "Migrated ${migrated.zip(ai.internalPrompts).count { (a, b) -> a !== b }} icon prompts from category 'internal' → 'icons'"
-- **L1065** `tag` — "Renamed ${migrated.zip(ai.internalPrompts).count { (a, b) -> a !== b }} bundled icon prompts to the new naming scheme"
-- **L1106** `tag` — "Stripped `_icon` from ${migrated.zip(ai.internalPrompts).count { (a, b) -> a !== b }} icons-category prompt name(s)"
-- **L1142** `tag` — "Trimmed ${trimmed.zip(ai.internalPrompts).count { (a, b) -> a !== b }} bundled `_alt` icon prompt(s) to the nudge-only text"
-- **L1170** `tag` — "Upgraded ${upgraded.zip(ai.internalPrompts).count { (a, b) -> a !== b }} tier-1 icon prompt(s) to the new wording"
-- **L1189** `tag` — "Upgraded test-model prompt to the directive wording"
-- **L1212** `tag` — "Re-categorized ${recat.zip(ai.internalPrompts).count { (a, b) -> a !== b }} metadata prompt(s) to 'info'"
-- **L1379** `tag` — "→ Migrated ${togetherInExcluded.size} Together entries from test-excluded to inaccessible"
-- **L1484** `"Housekeeping"` — "→ Clear logs / chats / traces / reports / prompts / usage stats / test run"
-- **L1508** `"Housekeeping"` — "→ Clear Info-provider caches"
-- **L1510** `"Housekeeping"` — "← Clear Info-provider caches done"
-- **L1514** `"Housekeeping"` — "→ Clear all configuration"
-- **L1522** `"Housekeeping"` — "← Clear all configuration: localLlms=$llms embedders=$embedders"
-- **L1538** `"Housekeeping"` — "→ Reset application (preserve API keys)"
-- **L1609** `"Housekeeping"` — "← Reset application: $count API keys restored"
-- **L1662** `"Settings"` — "Log level changed: ${previous.logLevel} → ${settings.logLevel}"
-- **L1779** `"ModelTest"` — "→ test-run flush: ${snapshot.blockedModels.size} blocked, ${snapshot.testExcludedModels.size} test-excluded, ${snapshot.inaccessibleModels.size} inaccessible"
+- **L404** `"CapsWatch"` — line
+- **L464** `"App"` — "App started — $appLabel v${com.ai.BuildConfig.VERSION_NAME} " + "(built $builtAt, installed $installedAt) " + "logLevel=${bs.first.logLevel}, tracing=${bs.first.tracingEnabled}"
+- **L608** `tag` — "Seeding ${needsSeed.size} default-inactive provider state(s): ${needsSeed.joinToString { it.id }}"
+- **L949** `"Housekeeping"` — "→ Clear logs / chats / traces / reports / prompts / usage stats / test run"
+- **L973** `"Housekeeping"` — "→ Clear Info-provider caches"
+- **L975** `"Housekeeping"` — "← Clear Info-provider caches done"
+- **L979** `"Housekeeping"` — "→ Clear all configuration"
+- **L987** `"Housekeeping"` — "← Clear all configuration: localLlms=$llms embedders=$embedders"
+- **L1003** `"Housekeeping"` — "→ Reset application (preserve API keys)"
+- **L1080** `"Housekeeping"` — "← Reset application: $count API keys restored"
+- **L1135** `"Settings"` — "Log level changed: ${previous.logLevel} → ${settings.logLevel}"
+- **L1252** `"ModelTest"` — "→ test-run flush: ${snapshot.blockedModels.size} blocked, ${snapshot.testExcludedModels.size} test-excluded, ${snapshot.inaccessibleModels.size} inaccessible"
+
+### `viewmodel/CompareEngine.kt`
+
+- **L199** `"Compare"` — "→ start report=$reportId (${successful.size} answers × ${metaRows.size} meta = ${cellCountFor(successful.size, metaRows.size)} cells)"
+- **L232** `"Compare"` — "← done report=$reportId in ${System.currentTimeMillis() - startMs}ms"
 
 ### `viewmodel/FanOutEngine.kt`
 
-- **L263** `"FanOut"` — "→ engine.startRun \"${metaPrompt.name}\" report=$reportId"
-- **L371** `"FanOut"` — "← engine.startRun done \"${metaPrompt.name}\" (${pending.size} pairs)"
-- **L382** `"FanOut"` — "autostart icons+titles for \"${metaPrompt.name}\""
+- **L1068** `"FanOut"` — "→ start \"${metaPrompt.name}\" (report=$reportId, ${successful.size} successful agents)"
+- **L1160** `"FanOut"` — "← end \"${metaPrompt.name}\" (${pending.size} pairs in ${System.currentTimeMillis() - fanOutStartMs}ms)"
 
 ### `viewmodel/IconGenerationManager.kt`
 
-- **L2572** `"FanIcons"` — "no pending pairs for ${metaPrompt.name} on $reportId — nothing to do"
-- **L2575** `"FanIcons"` — "→ start ${metaPrompt.name} (report=$reportId, ${pending.size} pairs)"
-- **L2665** `"FanIcons"` — "← end ${metaPrompt.name} (report=$reportId)"
-- **L2755** `"FanIcons"` — "cleared icon state on ${errored.size} errored pair(s) for ${metaPromptId.take(8)}"
-- **L2795** `"FanIcons"` — "restart: $cleared pair(s) cleared for re-chain, $stamped no-content pair(s) stamped 📝"
-- **L2865** `"FanTitles"` — "no pending pairs for ${metaPrompt.name} on $reportId — nothing to do"
-- **L2868** `"FanTitles"` — "→ start ${metaPrompt.name} (report=$reportId, ${pending.size} pairs)"
-- **L2941** `"FanTitles"` — "← end ${metaPrompt.name} (report=$reportId)"
-- **L3001** `"FanTitles"` — "cleared title state on ${errored.size} errored pair(s) for ${metaPromptId.take(8)}"
+- **L2485** `"FanMeta"` — "no pending pairs on $reportId — nothing to do"
+- **L2488** `"FanMeta"` — "→ start (report=$reportId, ${pending.size} pairs)"
+- **L2513** `"FanMeta"` — "← end (report=$reportId)"
+
+### `viewmodel/JudgeEvalEngine.kt`
+
+- **L226** `"JudgeEval"` — "→ start report=$reportId (${judges.size} judges × ${chosen.size} matches = ${judges.size * chosen.size} cells)"
+- **L269** `"JudgeEval"` — "← done report=$reportId in ${System.currentTimeMillis() - startMs}ms"
+- **L444** `"JudgeEval"` — "Removed judge $providerId/$model from swarm '$swarmName'"
+- **L469** `"JudgeEval"` — "Removed judge $judgeKey from run on $reportId (${cells.size} cells)"
+- **L490** `"JudgeEval"` — "Added judge ${provider.id}/$model to swarm '$swarmName'"
+- **L536** `"JudgeEval"` — "Added judge $judgeKey to run on $reportId (${matches.size} cells)"
 
 ### `viewmodel/ModelTestEngine.kt`
 
@@ -508,58 +550,73 @@ Severity is chosen at the call site by which method is invoked:
 - **L294** `"ModelTest"` — "↻ rerunErrors dropped ${staleKeys.size} stale, nothing to rerun"
 - **L312** `"ModelTest"` — "↻ rerunErrors dropped ${staleKeys.size} stale items"
 - **L314** `"ModelTest"` — "↻ rerunErrors ${toRerunKeys.size} previously-failed models"
-- **L347** `"ModelTest"` — "← run done (${items.size} models)"
-- **L424** `"ModelTest"` — "✕ run cancelled"
+- **L349** `"ModelTest"` — "← run done (${items.size} models)"
+- **L426** `"ModelTest"` — "${com.ai.data.MetadataIconsHolder.current.closeMark} run cancelled"
 
 ### `viewmodel/RegenerateBatchEngine.kt`
 
-- **L185** `"RegenBatch"` — "reviving stale RUNNING orchestrator for $reportId"
-- **L193** `"RegenBatch"` — "auto-resuming PAUSED batch for $reportId — error cleared"
-- **L273** `"RegenBatch"` — "phase $phase paused on error for $reportId"
+- **L196** `"RegenBatch"` — "reviving stale RUNNING orchestrator for $reportId"
+- **L204** `"RegenBatch"` — "auto-resuming PAUSED batch for $reportId — error cleared"
+- **L284** `"RegenBatch"` — "phase $phase paused on error for $reportId"
 
 ### `viewmodel/ReportViewModel.kt`
 
-- **L355** `"Report"` — "→ start \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))"
-- **L426** `"Report"` — "← end \"${title.ifBlank { "AI Report" }}\" ok=$ok fail=$fail in ${System.currentTimeMillis() - reportStartMs}ms"
+- **L449** `"Report"` — "→ start \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))"
+- **L470** `"Report"` — "← end \"${title.ifBlank { "AI Report" }}\" ok=$ok fail=$fail in ${System.currentTimeMillis() - reportStartMs}ms"
+- **L708** `"Report"` — "auto-rerank skipped: no rerank-capable model"
+- **L711** `"Report"` — "auto-moderation skipped: no moderation-capable model"
+- **L750** `"Report"` — "auto-meta skipped: no meta prompt '${item.metaName}'"
+- **L755** `"Report"` — "auto-meta '${item.metaName}': no resolvable model"
+- **L1831** `"Report"` — "→ start (bg) \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))"
+- **L1842** `"Report"` — "← end (bg) id=$reportId ok=$ok fail=$fail in ${System.currentTimeMillis() - startMs}ms"
 
 ### `viewmodel/SecondaryRunManager.kt`
 
-- **L143** `"Rerank"` — "→ start report=$reportId via ${provider.id}/$model"
-- **L206** `"Moderation"` — "→ start report=$reportId via ${provider.id}/$model"
-- **L308** `"FanOut"` — "→ start \"${metaPrompt.name}\" (report=$reportId, ${successful.size} successful agents)"
-- **L543** `"FanOut"` — "← end \"${metaPrompt.name}\" (${pending.size} pairs in ${System.currentTimeMillis() - fanOutStartMs}ms)"
-- **L1043** `"Resume"` — "→ re-issue ${kind.name} \"${metaPrompt.name}\" report=$reportId row=${placeholder.id} via ${provider.id}/$model"
-- **L1381** `"FanIn"` — "→ start \"${metaPrompt.name}\" report=$reportId via ${pick.first.id}/${pick.second}"
-- **L1536** `"ModelFanIn"` — "→ start \"${metaPrompt.name}\" report=$reportId active=$activeProviderId/$activeModel via ${pick.first.id}/${pick.second}"
-- **L1788** `"Meta"` — "→ start \"${metaPrompt.name}\" report=$reportId — ${picks.size} pick(s)"
+- **L144** `"Rerank"` — "→ start report=$reportId via ${provider.id}/$model"
+- **L207** `"Moderation"` — "→ start report=$reportId via ${provider.id}/$model"
+- **L555** `"Resume"` — "→ re-issue ${kind.name} \"${metaPrompt.name}\" report=$reportId row=${placeholder.id} via ${provider.id}/$model"
+- **L650** `"FanIn"` — "→ start \"${metaPrompt.name}\" report=$reportId via ${pick.first.id}/${pick.second}"
+- **L909** `"Meta"` — "→ start \"${metaPrompt.name}\" report=$reportId — ${picks.size} pick(s)"
+
+### `viewmodel/StressTestEngine.kt`
+
+- **L99** `"StressTest"` — "→ start: submitting $total report(s) with swarm '$SWARM_NAME'"
+- **L107** `"StressTest"` — "← submitted $total report(s) — generating in the background"
+
+### `viewmodel/TournamentEngine.kt`
+
+- **L209** `"Tournament"` — "→ start report=$reportId (${successful.size} responses, ${matchCountFor(successful.size)} matches)"
+- **L257** `"Tournament"` — "← done report=$reportId in ${System.currentTimeMillis() - startMs}ms"
 
 ### `viewmodel/TranslationRunManager.kt`
 
-- **L183** `"Translation"` — "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${itemsWithIds.size} items via ${models.size} model${if (models.size == 1) "" else "s"}"
-- **L500** `"Translation"` — "← cancelled $targetLanguageName for report=$sourceReportId"
-- **L510** `"Translation"` — "← done $targetLanguageName for report=$sourceReportId — ok=$okCount fail=$failCount"
-- **L807** `"Translation"` — "reconciling stalled translation runId=$runId — rebuilding in-memory state from disk"
-- **L829** `"Translation"` — "reconcile runId=$runId — placeholders present, re-dispatching via startMissingTranslations"
+- **L273** `"Translation"` — "→ start $targetLanguageName ($targetLanguageNative) for report=$sourceReportId — ${itemsWithIds.size} items via ${models.size} model${if (models.size == 1) "" else "s"}"
+- **L605** `"Translation"` — "← cancelled $targetLanguageName for report=$sourceReportId"
+- **L615** `"Translation"` — "← done $targetLanguageName for report=$sourceReportId — ok=$okCount fail=$failCount"
+- **L1097** `"Translation"` — "reconciling stalled translation runId=$runId — rebuilding in-memory state from disk"
+- **L1119** `"Translation"` — "reconcile runId=$runId — placeholders present, re-dispatching via startMissingTranslations"
 
----
+### `viewmodel/WorkerRunner.kt`
 
-## DEBUG (111)
+- **L128** `"Workers"` — "${com.ai.data.MetadataIconsHolder.current.checkMark} '${prompt.name}' via ${agent.name} (worker ${idx + 1}/$n)"
 
-`AppLog.d` — priority 3 (matches `Log.DEBUG`). Written only when the log level is set to DEBUG or TRACE.
+## DEBUG (106)
+
+`AppLog.d` — priority 3 (matches `Log.DEBUG`).
 
 ### `data/ApiDispatch.kt`
 
-- **L39** `"ApiDispatch"` — "analyze ${service.id}/$model fmt=${service.apiFormat} promptLen=${prompt.length} img=${imageBase64 != null}"
-- **L58** `"ApiDispatch"` — "sendChat ${service.id}/$model fmt=${service.apiFormat} msgs=${messages.size}"
-- **L98** `"ApiDispatch"` — "fetchModels ${service.id} fmt=${service.apiFormat}"
-- **L106** `"ApiDispatch"` — "fetchModels ${service.id} → ${result.ids.size} models in ${System.currentTimeMillis() - t0}ms"
-- **L148** `"ApiDispatch"` — "embed ${service.id}/$model — ${texts.size} input(s)"
-- **L938** `"ApiDispatch"` — "testApiConnectionWithJson ${service.id} bodyLen=${jsonBody.length}"
+- **L102** `"ApiDispatch"` — "analyze ${service.id}/$model fmt=${service.apiFormat} promptLen=${prompt.length} img=${imageBase64 != null}"
+- **L127** `"ApiDispatch"` — "sendChat ${service.id}/$model fmt=${service.apiFormat} msgs=${messages.size}"
+- **L171** `"ApiDispatch"` — "fetchModels ${service.id} fmt=${service.apiFormat}"
+- **L181** `"ApiDispatch"` — "fetchModels ${service.id} → ${result.ids.size} models in ${System.currentTimeMillis() - t0}ms"
+- **L223** `"ApiDispatch"` — "embed ${service.id}/$model — ${texts.size} input(s)"
+- **L1080** `"ApiDispatch"` — "testApiConnectionWithJson ${service.id} bodyLen=${jsonBody.length}"
 
 ### `data/ApiStreaming.kt`
 
-- **L56** `"SSE"` — "stream open"
-- **L138** `"SSE"` — "stream closed — $chunkCount chunks in ${System.currentTimeMillis() - parseStartMs}ms"
+- **L62** `"SSE"` — "stream open"
+- **L155** `"SSE"` — "stream closed — $chunkCount chunks in ${System.currentTimeMillis() - parseStartMs}ms"
 
 ### `data/BackupManager.kt`
 
@@ -585,7 +642,7 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/KnowledgeService.kt`
 
-- **L290** `"Knowledge"` — "retrieve kbs=${kbs.size} topK=$topK queryLen=${query.length} → hits=${out.size}" + (out.firstOrNull()?.score?.let { " topScore=${"%.3f".format(it)}" } ?: "")
+- **L303** `"Knowledge"` — "retrieve kbs=${kbs.size} topK=$topK queryLen=${query.length} → hits=${out.size}" + (out.firstOrNull()?.score?.let { " topScore=${"%.3f".format(it)}" } ?: "")
 
 ### `data/ModelListCache.kt`
 
@@ -596,13 +653,13 @@ Severity is chosen at the call site by which method is invoked:
 ### `data/OverloadedRetry.kt`
 
 - **L39** `"Overloaded"` — "529 received on ${request.url.host}, starting retry loop (max=$maxRetries, backoff=${backoffMs}ms)"
-- **L55** `"Overloaded"` — "529 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}"
-- **L61** `"Overloaded"` — "recovered after $attempt retry (status=${current.code})"
+- **L63** `"Overloaded"` — "529 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}"
+- **L69** `"Overloaded"` — "recovered after $attempt retry (status=${current.code})"
 
 ### `data/PricingCache.kt`
 
-- **L314** `"PricingCache"` — "preload start"
-- **L317** `"PricingCache"` — "preload done in ${System.currentTimeMillis() - t0}ms" + " (litellm=${litellmPricing?.size ?: 0}, modelsDev=${modelsDevPricing?.size ?: 0}," + " llmPrices=${llmPricesPricing?.size ?: 0}, aa=${aaPricing?.size ?: 0}," + " openrouter=${openRouterPricing?.size ?: 0}, helicone=${heliconePricing?.size ?: 0}," + " manual=${manualPricing?.size ?: 0})"
+- **L325** `"PricingCache"` — "preload start"
+- **L328** `"PricingCache"` — "preload done in ${System.currentTimeMillis() - t0}ms" + " (litellm=${litellmPricing?.size ?: 0}, modelsDev=${modelsDevPricing?.size ?: 0}," + " llmPrices=${llmPricesPricing?.size ?: 0}, aa=${aaPricing?.size ?: 0}," + " openrouter=${openRouterPricing?.size ?: 0}, helicone=${heliconePricing?.size ?: 0}," + " manual=${manualPricing?.size ?: 0})"
 
 ### `data/ProviderRegistry.kt`
 
@@ -610,74 +667,83 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/ProviderThrottling.kt`
 
-- **L165** `"Throttle"` — "rate-limit wait ${sleepMs}ms on $host (queue=${window.size}/$perMinuteLimit)"
-- **L178** `"Throttle"` — "concurrent-cap wait ${System.currentTimeMillis() - concurrentWaitStart}ms on $host (cap=$concurrentLimit)"
+- **L219** `"Throttle"` — "rate-limit wait ${sleepMs}ms on $host (queue=${window.size}/$perMinuteLimit)"
+- **L232** `"Throttle"` — "concurrent-cap wait ${System.currentTimeMillis() - concurrentWaitStart}ms on $host (cap=$concurrentLimit)"
 
 ### `data/RateLimitRetry.kt`
 
-- **L119** `"RateLimit"` — "429 received on ${request.url.host}, starting retry loop (max=$maxRetries, backoff=${backoffMs}ms)"
-- **L149** `"RateLimit"` — "429 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}"
-- **L155** `"RateLimit"` — "recovered after $attempt retry (status=${current.code})"
-- **L175** `"RateLimit"` — "Retry-After=${trimmed}s on $hostForLog → sleeping ${ms}ms"
-- **L186** `"RateLimit"` — "Retry-After=\"$trimmed\" on $hostForLog → sleeping ${it}ms"
+- **L123** `"RateLimit"` — "429 received on ${request.url.host}, starting retry loop (max=$maxRetries, backoff=${backoffMs}ms)"
+- **L158** `"RateLimit"` — "429 retry $attempt/$maxRetries after ${sleepMs}ms on ${request.url.host}"
+- **L164** `"RateLimit"` — "recovered after $attempt retry (status=${current.code})"
+- **L184** `"RateLimit"` — "Retry-After=${trimmed}s on $hostForLog → sleeping ${ms}ms"
+- **L195** `"RateLimit"` — "Retry-After=\"$trimmed\" on $hostForLog → sleeping ${it}ms"
 
 ### `data/SecondaryResult.kt`
 
-- **L206** `"SecondaryResultStorage"` — "saveIfStillPresent: row ${result.id} no longer on disk, skipping save"
+- **L275** `"SecondaryResultStorage"` — "saveIfStillPresent: row ${result.id} no longer on disk, skipping save"
 
 ### `data/local/LocalEmbedder.kt`
 
-- **L230** `"LocalEmbedder"` — "→ embed $modelName n=${inputs.size} avgLen=${if (inputs.isNotEmpty()) inputs.sumOf { it.length } / inputs.size else 0}"
-- **L246** `"LocalEmbedder"` — "← embed $modelName n=${out.size} dim=${out.firstOrNull()?.size ?: 0} ${System.currentTimeMillis() - started}ms"
+- **L232** `"LocalEmbedder"` — "→ embed $modelName n=${inputs.size} avgLen=${if (inputs.isNotEmpty()) inputs.sumOf { it.length } / inputs.size else 0}"
+- **L249** `"LocalEmbedder"` — "← embed $modelName n=${out.size} dim=${out.firstOrNull()?.size ?: 0} ${System.currentTimeMillis() - started}ms"
 
 ### `data/local/LocalLlm.kt`
 
-- **L162** `"LocalLlm"` — "→ generate $modelName promptChars=${prompt.length}"
-- **L170** `"LocalLlm"` — "← generate $modelName outChars=$outLen ${durMs}ms (${"%.1f".format(rate)} chars/s)"
+- **L169** `"LocalLlm"` — "→ generate $modelName promptChars=${prompt.length}"
+- **L178** `"LocalLlm"` — "← generate $modelName outChars=$outLen ${durMs}ms (${"%.1f".format(rate)} chars/s)"
 
 ### `ui/settings/SettingsPreferences.kt`
 
-- **L115** `"SettingsPrefs"` — "loadGeneralSettings logLevel=${it.logLevel} tracing=${it.tracingEnabled} " + "streamRT=${it.streamingReadTimeoutSec}s nonStreamRT=${it.nonStreamingReadTimeoutSec}s " + "maxPerMin=${it.maxCallsPerProviderPerMinute} maxConc=${it.maxConcurrentCallsPerProvider} " + "recentReportModels=${it.recentReportModels.size}"
-- **L170** `"SettingsPrefs"` — "saveGeneralSettings logLevel=${settings.logLevel} tracing=${settings.tracingEnabled} " + "streamRT=${settings.streamingReadTimeoutSec}s nonStreamRT=${settings.nonStreamingReadTimeoutSec}s " + "maxPerMin=${settings.maxCallsPerProviderPerMinute} maxConc=${settings.maxConcurrentCallsPerProvider}"
+- **L134** `"SettingsPrefs"` — "loadGeneralSettings logLevel=${it.logLevel} tracing=${it.tracingEnabled} " + "streamRT=${it.streamingReadTimeoutSec}s nonStreamRT=${it.nonStreamingReadTimeoutSec}s " + "maxPerMin=${it.maxCallsPerProviderPerMinute} maxConc=${it.maxConcurrentCallsPerProvider} " + "recentReportModels=${it.recentReportModels.size}"
+- **L198** `"SettingsPrefs"` — "saveGeneralSettings logLevel=${settings.logLevel} tracing=${settings.tracingEnabled} " + "streamRT=${settings.streamingReadTimeoutSec}s nonStreamRT=${settings.nonStreamingReadTimeoutSec}s " + "maxPerMin=${settings.maxCallsPerProviderPerMinute} maxConc=${settings.maxConcurrentCallsPerProvider}"
 
 ### `viewmodel/AppViewModel.kt`
 
-- **L771** `"App.start"` — "→ Prewarm caches (ApiTracer + PricingCache)"
-- **L774** `"App.start"` — "← Prewarm caches dispatched (background)"
-- **L780** `startTag` — "→ Apply general settings to global singletons"
-- **L811** `startTag` — "← Apply general settings done"
-- **L841** `startTag` — "→ ProviderThrottle reset"
-- **L843** `startTag` — "← ProviderThrottle reset done"
-- **L850** `startTag` — "→ Publish initial UiState"
-- **L852** `startTag` — "← Publish initial UiState done"
-- **L854** `startTag` — "→ refreshAllModelLists (cache-respecting)"
-- **L858** `startTag` — "← refreshAllModelLists done in ${System.currentTimeMillis() - tRefresh}ms"
-- **L893** `tag` — "→ Singletons init"
-- **L905** `tag` — "← Singletons init done in ${System.currentTimeMillis() - bootStart}ms"
-- **L907** `tag` — "→ Load prefs"
-- **L914** `tag` — "← Load prefs done in ${System.currentTimeMillis() - tLoad}ms"
-- **L919** `tag` — "→ First-run seed"
-- **L935** `tag` — "← First-run seed done in ${System.currentTimeMillis() - tFirst}ms"
-- **L950** `tag` — "→ providers.json delta-sync"
-- **L957** `tag` — "← providers.json delta-sync done in ${System.currentTimeMillis() - tSync}ms (synced=$syncCount, added=$addCount)"
-- **L1224** `tag` — "→ internal-prompts/ delta-merge"
-- **L1239** `tag` — "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (added=$added)"
-- **L1241** `tag` — "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (empty asset)"
-- **L1253** `tag` — "→ examples.json delta-merge"
-- **L1268** `tag` — "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (added=$added)"
-- **L1270** `tag` — "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (empty asset)"
-- **L1280** `tag` — "→ system-prompts.json delta-merge"
-- **L1295** `tag` — "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (added=$added)"
-- **L1297** `tag` — "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (empty asset)"
-- **L1307** `tag` — "→ excluded.json delta-merge"
-- **L1321** `tag` — "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (added=$added)"
-- **L1323** `tag` — "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (empty asset)"
-- **L1335** `tag` — "→ inaccessible.json delta-merge"
-- **L1349** `tag` — "← inaccessible.json delta-merge done in ${System.currentTimeMillis() - tInaccessible}ms (added=$added)"
-- **L1351** `tag` — "← inaccessible.json delta-merge done in ${System.currentTimeMillis() - tInaccessible}ms (empty asset)"
-- **L1384** `tag` — "bootstrap total ${System.currentTimeMillis() - bootStart}ms"
-- **L1995** `"RefreshAll"` — "→ ${toRefresh.size} provider(s): ${toRefresh.joinToString { it.id }}"
-- **L2046** `"RefreshAll"` — "← ok=${successful.size}/${toRefresh.size} in ${System.currentTimeMillis() - t0}ms"
+- **L373** `"App.start"` — "→ Prewarm caches (ApiTracer + PricingCache)"
+- **L376** `"App.start"` — "← Prewarm caches dispatched (background)"
+- **L412** `startTag` — "→ Apply general settings to global singletons"
+- **L443** `startTag` — "← Apply general settings done"
+- **L473** `startTag` — "→ ProviderThrottle reset"
+- **L475** `startTag` — "← ProviderThrottle reset done"
+- **L482** `startTag` — "→ Publish initial UiState"
+- **L484** `startTag` — "← Publish initial UiState done"
+- **L486** `startTag` — "→ refreshAllModelLists (cache-respecting)"
+- **L490** `startTag` — "← refreshAllModelLists done in ${System.currentTimeMillis() - tRefresh}ms"
+- **L525** `tag` — "→ Singletons init"
+- **L538** `tag` — "← Singletons init done in ${System.currentTimeMillis() - bootStart}ms"
+- **L540** `tag` — "→ Load prefs"
+- **L547** `tag` — "← Load prefs done in ${System.currentTimeMillis() - tLoad}ms"
+- **L552** `tag` — "→ First-run seed"
+- **L568** `tag` — "← First-run seed done in ${System.currentTimeMillis() - tFirst}ms"
+- **L583** `tag` — "→ providers.json delta-sync"
+- **L590** `tag` — "← providers.json delta-sync done in ${System.currentTimeMillis() - tSync}ms (synced=$syncCount, added=$addCount)"
+- **L622** `tag` — "→ internal-prompts/ delta-merge"
+- **L637** `tag` — "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (added=$added)"
+- **L639** `tag` — "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (empty asset)"
+- **L651** `tag` — "→ examples.json delta-merge"
+- **L666** `tag` — "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (added=$added)"
+- **L668** `tag` — "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (empty asset)"
+- **L678** `tag` — "→ system-prompts.json delta-merge"
+- **L693** `tag` — "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (added=$added)"
+- **L695** `tag` — "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (empty asset)"
+- **L705** `tag` — "→ workers/swarms.json delta-merge"
+- **L717** `tag` — "← workers/swarms.json delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (added=$added)"
+- **L719** `tag` — "← workers/swarms.json delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (empty asset)"
+- **L728** `tag` — "→ workers/flocks.json delta-merge"
+- **L740** `tag` — "← workers/flocks.json delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (added=$added)"
+- **L742** `tag` — "← workers/flocks.json delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (empty asset)"
+- **L752** `tag` — "→ excluded.json delta-merge"
+- **L766** `tag` — "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (added=$added)"
+- **L768** `tag` — "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (empty asset)"
+- **L780** `tag` — "→ inaccessible.json delta-merge"
+- **L794** `tag` — "← inaccessible.json delta-merge done in ${System.currentTimeMillis() - tInaccessible}ms (added=$added)"
+- **L796** `tag` — "← inaccessible.json delta-merge done in ${System.currentTimeMillis() - tInaccessible}ms (empty asset)"
+- **L802** `tag` — "→ meta.json delta-merge"
+- **L816** `tag` — "← meta.json delta-merge done in ${System.currentTimeMillis() - tMeta}ms (added=$added)"
+- **L818** `tag` — "← meta.json delta-merge done in ${System.currentTimeMillis() - tMeta}ms (empty asset)"
+- **L825** `tag` — "bootstrap total ${System.currentTimeMillis() - bootStart}ms"
+- **L1468** `"RefreshAll"` — "→ ${toRefresh.size} provider(s): ${toRefresh.joinToString { it.id }}"
+- **L1524** `"RefreshAll"` — "← ok=${successful.size}/${toRefresh.size} in ${System.currentTimeMillis() - t0}ms"
 
 ### `viewmodel/ChatViewModel.kt`
 
@@ -688,130 +754,105 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `viewmodel/FanOutEngine.kt`
 
-- **L431** `"FanOut"` — "queued pair ans=$answererAgentId src=$sourceAgentId ${provider.id}/$answererModel"
-- **L437** `"FanOut"` — "skip pair $placeholderId — deleted before launch"
-- **L508** `"FanOut"` — "← pair ans=$answererAgentId src=$sourceAgentId ${System.currentTimeMillis() - pairStart}ms"
-
-### `viewmodel/IconGenerationManager.kt`
-
-- **L2602** `"FanIcons"` — "skip pair ${pair.id} — host $host rate-limited earlier this batch"
-- **L2635** `"FanIcons"` — "skip pair ${pair.id} — deleted before launch"
-- **L2652** `"FanIcons"` — "← pair ${pair.id} ${System.currentTimeMillis() - pairStart}ms"
-- **L2889** `"FanTitles"` — "skip pair ${pair.id} — host $host rate-limited earlier this batch"
-- **L2911** `"FanTitles"` — "skip pair ${pair.id} — deleted before launch"
-- **L2928** `"FanTitles"` — "← pair ${pair.id} ${System.currentTimeMillis() - pairStart}ms"
-- **L3100** `"FanTitles"` — "title pair=${pair.id} ${System.currentTimeMillis() - started}ms"
+- **L1292** `"FanOut"` — "queued pair ans=$answererAgentId src=$sourceAgentId ${provider.id}/$answererModel"
+- **L1294** `"FanOut"` — "skip pair $placeholderId — deleted before launch"
+- **L1370** `"FanOut"` — "← pair ans=$answererAgentId src=$sourceAgentId ${System.currentTimeMillis() - pairStart}ms"
 
 ### `viewmodel/RegenerateBatchEngine.kt`
 
-- **L137** `"RegenBatch"` — "restart no-op: row $pausedRowId still errored"
+- **L138** `"RegenBatch"` — "restart no-op: row $pausedRowId still errored"
 
 ### `viewmodel/ReportViewModel.kt`
 
-- **L549** `"Report"` — "→ task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId}${if (isRegeneration) " (regen)" else ""}"
-- **L659** `"Report"` — "← task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId} " + (if (response.isSuccess) "ok" else "err") + " ${durationMs}ms" + (response.tokenUsage?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") + (cost?.let { " cost=${"%.5f".format(it)}" } ?: "")
+- **L779** `"Report"` — "→ task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId}${if (isRegeneration) " (regen)" else ""}"
+- **L908** `"Report"` — "skip UI publish for deleted agent=${task.resultId} report=$reportId"
+- **L917** `"Report"` — "← task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId} " + (if (response.isSuccess) "ok" else "err") + " ${durationMs}ms" + (response.tokenUsage?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") + (cost?.let { " cost=${"%.5f".format(it)}" } ?: "")
 
 ### `viewmodel/SecondaryRunManager.kt`
 
-- **L473** `"FanOut"` — "queued pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}"
-- **L483** `"FanOut"` — "skip pair ${item.placeholder.id} — deleted before launch"
-- **L489** `"FanOut"` — "→ pair ans=${item.answerer.agentId} src=${item.source.agentId} ${provider.id}/${item.answerer.model}"
-- **L519** `"FanOut"` — "← pair ans=${item.answerer.agentId} src=${item.source.agentId} ${System.currentTimeMillis() - pairStart}ms"
-- **L650** `"FanOut"` — "queued rerun ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}"
-- **L652** `"FanOut"` — "skip rerun ${ph.id} — deleted before launch"
-- **L658** `"FanOut"` — "→ rerun pair ph=${ph.id} src=${source.agentId} ${provider.id}/${ph.model}"
-- **L684** `"FanOut"` — "← rerun pair ph=${ph.id} ${System.currentTimeMillis() - rerunStart}ms"
-- **L977** `"BgResumeSweep"` — "scanning ${recent.size} report${if (recent.size == 1) "" else "s"} (last 7 days)"
+- **L489** `"BgResumeSweep"` — "scanning ${recent.size} report${if (recent.size == 1) "" else "s"} (last 7 days)"
 
 ### `viewmodel/TranslationRunManager.kt`
 
-- **L601** `"Translation"` — "→ item ${item.id} \"${item.label}\" kind=${item.kind} srcLen=${item.sourceText.length}"
-- **L635** `"Translation"` — "← item ${item.id} err ${callDurationMs}ms — ${response.error ?: "Empty response"}"
-- **L681** `"Translation"` — "← item ${item.id} ok ${callDurationMs}ms" + (tu?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") + " cost=${"%.5f".format(costDollars)}"
-- **L804** `"Translation"` — "reconcile skipped — runId=$runId has active dispatch job"
-
----
+- **L708** `"Translation"` — "→ item ${item.id} \"${item.label}\" kind=${item.kind} srcLen=${item.sourceText.length}"
+- **L753** `"Translation"` — "← item ${item.id} err ${callDurationMs}ms — ${response.error ?: "Empty response"}"
+- **L799** `"Translation"` — "← item ${item.id} ok ${callDurationMs}ms" + (tu?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") + " cost=${"%.5f".format(costDollars)}"
+- **L1094** `"Translation"` — "reconcile skipped — runId=$runId has active dispatch job"
 
 ## TRACE (53)
 
-`AppLog.v` — priority 2 (matches `Log.VERBOSE`). Written only at the TRACE level.
+`AppLog.v` — priority 2 (matches `Log.VERBOSE`).
 
 ### `data/ApiStreaming.kt`
 
-- **L81** `"SSE"` — "[DONE] terminator (event=$eventType)"
-- **L92** `"SSE"` — "chunk event=${eventType ?: "(none)"} dataBytes=${data.length} contentBytes=${content.length}"
-- **L96** `"SSE"` — "final chunk (event=$eventType)"
+- **L87** `"SSE"` — "[DONE] terminator (event=$eventType)"
+- **L103** `"SSE"` — "chunk event=${eventType ?: "(none)"} dataBytes=${data.length} contentBytes=${content.length}"
+- **L107** `"SSE"` — "final chunk (event=$eventType)"
 
 ### `data/ApiTracer.kt`
 
-- **L140** `"ApiTracer"` — "trace written $resolvedFilename status=${trace.response.statusCode} partial=${trace.partial}"
+- **L164** `"ApiTracer"` — "trace written $resolvedFilename status=${normalizedTrace.response.statusCode} partial=${normalizedTrace.partial}"
 
 ### `data/ChatHistoryManager.kt`
 
-- **L56** `"ChatHistory"` — "save ${session.id} msgs=${session.messages.size} bytes=${json.length}"
-- **L78** `"ChatHistory"` — "load ${it.id} msgs=${it.messages.size}"
-- **L112** `"ChatHistory"` — "delete $sessionId"
+- **L57** `"ChatHistory"` — "save ${session.id} msgs=${session.messages.size} bytes=${json.length}"
+- **L83** `"ChatHistory"` — "load ${it.id} msgs=${it.messages.size}"
+- **L121** `"ChatHistory"` — "delete $sessionId"
 
 ### `data/KnowledgeService.kt`
 
-- **L299** `"Knowledge"` — " cand[$i] kb=${s.hit.kbName} src=${s.hit.sourceName} score=${"%.3f".format(s.score)} chars=${s.hit.text.length}"
+- **L312** `"Knowledge"` — " cand[$i] kb=${s.hit.kbName} src=${s.hit.sourceName} score=${"%.3f".format(s.score)} chars=${s.hit.text.length}"
 
 ### `data/PricingCache.kt`
 
-- **L385** `"PricingCache"` — "miss ${provider.id}/$model → DEFAULT"
-- **L390** `"PricingCache"` — "match ${provider.id}/$model → $tier in=${p.promptPrice * 1_000_000} out=${p.completionPrice * 1_000_000}"
+- **L396** `"PricingCache"` — "miss ${provider.id}/$model → DEFAULT"
+- **L401** `"PricingCache"` — "match ${provider.id}/$model → $tier in=${p.promptPrice * 1_000_000} out=${p.completionPrice * 1_000_000}"
 
 ### `data/TagPropagation.kt`
 
-- **L134** `"TagPropagation"` — "submit reportId=${captured.reportId} cat=${captured.category}"
+- **L142** `"TagPropagation"` — "submit reportId=${captured.reportId} cat=${captured.category}"
 
 ### `viewmodel/AppViewModel.kt`
 
-- **L782** `startTag` — " ModelType.userDefaults set (${bs.first.defaultTypePaths.size} entries)"
-- **L784** `startTag` — " ApiTracer.isTracingEnabled=${bs.first.tracingEnabled}"
-- **L786** `startTag` — " AnalysisRepository.TEST_PROMPT=${com.ai.data.AnalysisRepository.TEST_PROMPT}"
-- **L802** `startTag` — " NetworkSettings: streamRT=${bs.first.streamingReadTimeoutSec}s nonStreamRT=${bs.first.nonStreamingReadTimeoutSec}s " + "maxPerMin=${bs.first.maxCallsPerProviderPerMinute} maxConc=${bs.first.maxConcurrentCallsPerProvider} " + "maxRetries429=${bs.first.maxRetriesOn429} retryBackoff=${bs.first.retryBackoffMs429}ms " + "maxRetries529=${bs.first.maxRetriesOn529} retryBackoff529=${bs.first.retryBackoffMs529}ms"
-- **L810** `startTag` — " AppLog.threshold=${bs.first.logLevel}"
-- **L857** `startTag` — " refreshed ${refreshed.size} provider(s): ${refreshed.entries.joinToString { "${it.key}=${it.value}" }}"
-- **L894** `tag` — " init AppLog"
-- **L895** `tag` — " init ApiTracer"
-- **L896** `tag` — " init ChatHistoryManager"
-- **L897** `tag` — " init ReportStorage"
-- **L898** `tag` — " init SecondaryResultStorage"
-- **L899** `tag` — " init ProviderRegistry"
-- **L900** `tag` — " init ProviderFieldTimestamps"
-- **L901** `tag` — " init PromptCache"
-- **L902** `tag` — " init InternalPromptIconCache"
-- **L903** `tag` — " init TranslationModeStore"
-- **L904** `tag` — " init LastReportTracker"
-- **L910** `tag` — " GeneralSettings loaded (logLevel=${gs.logLevel}, tracing=${gs.tracingEnabled})"
-- **L912** `tag` — " providers=${ai.providers.size} agents=${ai.agents.size} flocks=${ai.flocks.size} swarms=${ai.swarms.size}"
-- **L913** `tag` — " internalPrompts=${ai.internalPrompts.size} examplePrompts=${ai.examplePrompts.size} parameters=${ai.parameters.size} systemPrompts=${ai.systemPrompts.size}"
-- **L923** `tag` — " first run; isEmptyInstall=$isEmptyInstall"
-- **L926** `tag` — " providers.json seed: added=$providersAdded"
-- **L933** `tag` — " not a first run; skipping seed"
-- **L954** `tag` — " syncFromAsset: $syncCount unedited fields refreshed"
-- **L956** `tag` — " importFromAsset: $addCount new providers appended"
-- **L1228** `tag` — " bundled internal-prompts/ entries: ${bundled.size}"
-- **L1233** `tag` — " merge: before=$before merged=${merged.size} added=$added"
-- **L1237** `tag` — " settings saved with $added new prompts"
-- **L1257** `tag` — " bundled examples.json entries: ${bundled.size}"
-- **L1262** `tag` — " merge: before=$before merged=${merged.size} added=$added"
-- **L1266** `tag` — " settings saved with $added new example prompts"
-- **L1284** `tag` — " bundled system-prompts.json entries: ${bundled.size}"
-- **L1289** `tag` — " merge: before=$before merged=${merged.size} added=$added"
-- **L1293** `tag` — " settings saved with $added new system prompts"
-- **L1311** `tag` — " bundled excluded.json entries: ${bundled.size}"
-- **L1319** `tag` — " settings saved with $added new test-excluded entries"
-- **L1339** `tag` — " bundled inaccessible.json entries: ${bundled.size}"
-- **L1347** `tag` — " settings saved with $added new inaccessible entries"
-- **L1675** `"RecentModels"` — "record $providerId/$model"
-
-### `viewmodel/SecondaryRunManager.kt`
-
-- **L453** `"Caps"` — "pair=${item.placeholder.id} WAIT hostCap (host=$host)"
-- **L468** `"Caps"` — "pair=${item.placeholder.id} WAIT global ${ApiCallCaps.snapshot().let { "${it.globalInFlight}/${it.globalMax}" }}"
-- **L471** `"Caps"` — "pair=${item.placeholder.id} WAIT fanOut ${ApiCallCaps.snapshot().let { "${it.fanOutInFlight}/${it.fanOutMax}" }}"
-
----
-
+- **L414** `startTag` — " ModelType.userDefaults set (${bs.first.defaultTypePaths.size} entries)"
+- **L416** `startTag` — " ApiTracer.isTracingEnabled=${bs.first.tracingEnabled}"
+- **L418** `startTag` — " AnalysisRepository.TEST_PROMPT=${com.ai.data.AnalysisRepository.TEST_PROMPT}"
+- **L434** `startTag` — " NetworkSettings: streamRT=${bs.first.streamingReadTimeoutSec}s nonStreamRT=${bs.first.nonStreamingReadTimeoutSec}s " + "maxPerMin=${bs.first.maxCallsPerProviderPerMinute} maxConc=${bs.first.maxConcurrentCallsPerProvider} " + "maxRetries429=${bs.first.maxRetriesOn429} retryBackoff=${bs.first.retryBackoffMs429}ms " + "maxRetries529=${bs.first.maxRetriesOn529} retryBackoff529=${bs.first.retryBackoffMs529}ms"
+- **L442** `startTag` — " AppLog.threshold=${bs.first.logLevel}"
+- **L489** `startTag` — " refreshed ${refreshed.size} provider(s): ${refreshed.entries.joinToString { "${it.key}=${it.value}" }}"
+- **L526** `tag` — " init AppLog"
+- **L527** `tag` — " init ApiTracer"
+- **L528** `tag` — " init AuditLog"
+- **L529** `tag` — " init ChatHistoryManager"
+- **L530** `tag` — " init ReportStorage"
+- **L531** `tag` — " init SecondaryResultStorage"
+- **L532** `tag` — " init ProviderRegistry"
+- **L533** `tag` — " init ProviderFieldTimestamps"
+- **L534** `tag` — " init PromptCache"
+- **L535** `tag` — " init InternalPromptIconCache"
+- **L536** `tag` — " init TranslationModeStore"
+- **L537** `tag` — " init LastReportTracker"
+- **L543** `tag` — " GeneralSettings loaded (logLevel=${gs.logLevel}, tracing=${gs.tracingEnabled})"
+- **L545** `tag` — " providers=${ai.providers.size} agents=${ai.agents.size} flocks=${ai.flocks.size} swarms=${ai.swarms.size}"
+- **L546** `tag` — " internalPrompts=${ai.internalPrompts.size} examplePrompts=${ai.examplePrompts.size} parameters=${ai.parameters.size} systemPrompts=${ai.systemPrompts.size}"
+- **L556** `tag` — " first run; isEmptyInstall=$isEmptyInstall"
+- **L559** `tag` — " providers.json seed: added=$providersAdded"
+- **L566** `tag` — " not a first run; skipping seed"
+- **L587** `tag` — " syncFromAsset: $syncCount unedited fields refreshed"
+- **L589** `tag` — " importFromAsset: $addCount new providers appended"
+- **L626** `tag` — " bundled internal-prompts/ entries: ${bundled.size}"
+- **L631** `tag` — " merge: before=$before merged=${merged.size} added=$added"
+- **L635** `tag` — " settings saved with $added new prompts"
+- **L655** `tag` — " bundled examples.json entries: ${bundled.size}"
+- **L660** `tag` — " merge: before=$before merged=${merged.size} added=$added"
+- **L664** `tag` — " settings saved with $added new example prompts"
+- **L682** `tag` — " bundled system-prompts.json entries: ${bundled.size}"
+- **L687** `tag` — " merge: before=$before merged=${merged.size} added=$added"
+- **L691** `tag` — " settings saved with $added new system prompts"
+- **L756** `tag` — " bundled excluded.json entries: ${bundled.size}"
+- **L764** `tag` — " settings saved with $added new test-excluded entries"
+- **L784** `tag` — " bundled inaccessible.json entries: ${bundled.size}"
+- **L792** `tag` — " settings saved with $added new inaccessible entries"
+- **L806** `tag` — " bundled meta.json entries: ${bundled.size}"
+- **L814** `tag` — " settings saved with $added new default meta items"
+- **L1148** `"RecentModels"` — "record $providerId/$model"
