@@ -2125,8 +2125,13 @@ private fun LinkCard(emoji: String, title: String, subtitle: String, onClick: ()
             modifier = Modifier.fillMaxWidth().padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(mi.forFactoryGlyph(emoji), fontSize = 16.sp)
-            Spacer(Modifier.width(10.dp))
+            Text(
+                mi.forFactoryGlyph(emoji),
+                fontSize = 28.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(42.dp)
+            )
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 Text(subtitle, fontSize = 11.sp, color = AppColors.TextTertiary)
