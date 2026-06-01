@@ -818,6 +818,10 @@ data class TitleBarIcons(
      *  bar carries the "add new entry" action (replacing the old top-of-
      *  list Add button). Null → glyph hidden. */
     val onAdd: (() -> Unit)? = null,
+    /** Optional tournament launcher hook. Wired from Manage report to open
+     *  the dedicated Tournament creation screen. Null → glyph hidden. */
+    val onTournament: (() -> Unit)? = null,
+    val tournamentIcon: String = "🥊",
     /** Optional ✏️ edit hook. CRUD view pages publish it so the bottom
      *  bar carries the "edit this entry" action. Null → glyph hidden. */
     val onEdit: (() -> Unit)? = null,
@@ -1096,6 +1100,9 @@ fun TitleBar(
     onSwipeNext: (() -> Boolean)? = null,
     /** Optional 🆕 add hook (CRUD list pages). Null → glyph hidden. */
     onAdd: (() -> Unit)? = null,
+    /** Optional tournament launcher hook. Null → glyph hidden. */
+    onTournament: (() -> Unit)? = null,
+    tournamentIcon: String = "🥊",
     /** When true, 🆕 leads the bar instead of sitting in the trailing
      *  group. Used by the Manage report screen. */
     addFirst: Boolean = false,
@@ -1197,6 +1204,8 @@ fun TitleBar(
         onToggleModelRowLabels = onToggleModelRowLabels,
         modelRowLabelsShowModelNames = modelRowLabelsShowModelNames,
         onAdd = onAdd,
+        onTournament = onTournament,
+        tournamentIcon = tournamentIcon,
         addFirst = addFirst,
         costText = costText,
         onCostClick = onCostClick,
@@ -1659,6 +1668,9 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // 🆕 leads when the screen opts in (Manage report); otherwise it
     // stays in the trailing copy/edit/delete/new group below.
     if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
+    icons.onTournament?.let {
+        add(BottomBarIcon(icons.tournamentIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🥊", Color.Unspecified, it, 28))
+    }
     // Chat slot — normally 💬 chat; when swapped (Model response) the 🔄
     // reload glyph takes this early position instead.
     if (icons.swapChatAndReload) {

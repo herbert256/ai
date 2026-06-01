@@ -124,6 +124,7 @@ internal fun ReportRunScreen(
     // so there is no judge model to pick.
     var confirmTournament by rememberSaveable { mutableStateOf(false) }
     var confirmJudgeJudges by rememberSaveable { mutableStateOf(false) }
+    var showTournamentOverview by rememberSaveable { mutableStateOf(false) }
     // Open-state for the Tournament L1 overlay — set on Run so the user lands
     // on the batch screen immediately instead of staying on Manage.
     val tournamentOpenState = com.ai.ui.shared.LocalTournamentOpenState.current
@@ -367,6 +368,15 @@ internal fun ReportRunScreen(
                 { showModelNamesInReportRows = !showModelNamesInReportRows }
             } else null,
             modelRowLabelsShowModelNames = showModelNamesInReportRows,
+            onTournament = if (currentReportId != null) {
+                {
+                    st.showCreateOverview.value = false
+                    showTournamentOverview = true
+                }
+            } else null,
+            tournamentIcon = com.ai.ui.shared.LocalMetadataIcons.current.tournament
+                .takeIf { it.isNotBlank() }
+                ?: com.ai.data.MetadataDefaults.TOURNAMENT,
             // ✏️ opens the full-screen "Edit report" overview (layer on top
             // of this hub) instead of the old 3-button pop-up.
             onEdit = { st.showEditReportOverview.value = true },
@@ -598,10 +608,6 @@ internal fun ReportRunScreen(
                     rerankEnabled = secondaryCounts.rerank == 0,
                     moderationEnabled = secondaryCounts.moderation == 0,
                     fanOutEnabled = aiSettings.internalPrompts.any { it.category == "fan_out" },
-                    // Tournament needs ≥2 responses; multiple judges allowed (not single-shot).
-                    tournamentEnabled = tournamentResponseCount >= 2,
-                    // Judge-the-judges needs ≥2 responses to form a head-to-head pair.
-                    judgeJudgesEnabled = tournamentResponseCount >= 2,
                     compareEnabled = compareEnabled,
                     onMeta = {
                         st.showCreateOverview.value = false
@@ -625,19 +631,36 @@ internal fun ReportRunScreen(
                         st.showCreateOverview.value = false
                         generationHandlers.onTranslate()
                     },
-                    onTournament = {
-                        st.showCreateOverview.value = false
-                        confirmTournament = true
-                    },
-                    onJudgeJudges = {
-                        st.showCreateOverview.value = false
-                        confirmJudgeJudges = true
-                    },
                     onCompare = {
                         st.showCreateOverview.value = false
                         compareStep = 1
                     },
                     onBack = { st.showCreateOverview.value = false }
+                )
+            }
+        }
+        // Tournament launcher — opened by the Manage bottom-bar tournament
+        // icon. The actual runs still use the same confirm dialogs below.
+        if (showTournamentOverview && currentReportId != null) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides { showTournamentOverview = false }
+            ) {
+                ReportTournamentOverviewScreen(
+                    // Tournament needs ≥2 responses; multiple judges allowed (not single-shot).
+                    tournamentEnabled = tournamentResponseCount >= 2,
+                    // Judge-the-judges needs ≥2 responses to form a head-to-head pair.
+                    judgeJudgesEnabled = tournamentResponseCount >= 2,
+                    onTournament = {
+                        showTournamentOverview = false
+                        confirmTournament = true
+                    },
+                    onJudgeJudges = {
+                        showTournamentOverview = false
+                        confirmJudgeJudges = true
+                    },
+                    onBack = { showTournamentOverview = false }
                 )
             }
         }
