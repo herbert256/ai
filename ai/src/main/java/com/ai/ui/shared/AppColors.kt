@@ -4,9 +4,15 @@ import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 
 object AppColors {
+    val DefaultCardBackgroundAltArgb: Int = 0xFF2A3A4A.toInt()
+    val DefaultButtonBackgroundArgb: Int = DefaultCardBackgroundAltArgb
+
     // Primary accent colors
     val Purple = Color(0xFF8B5CF6)
     val Indigo = Color(0xFF6366F1)
@@ -22,7 +28,10 @@ object AppColors {
     // Card and surface colors
     val SurfaceDark = Color(0xFF2A2A2A)
     val CardBackground = Color(0xFF2A2A3A)
-    val CardBackgroundAlt = Color(0xFF2A3A4A)
+    var CardBackgroundAlt by mutableStateOf(colorFromArgb(DefaultCardBackgroundAltArgb))
+        private set
+    var ButtonBackground by mutableStateOf(colorFromArgb(DefaultButtonBackgroundArgb))
+        private set
     val DisabledBackground = Color(0xFF1A1A1A)
     val IndigoHighlight = Color(0xFF2A4A3A)
 
@@ -60,11 +69,19 @@ object AppColors {
     // Success count
     val CountGreen = Color(0xFF00E676)
 
+    fun colorFromArgb(argb: Int): Color =
+        Color(argb.toLong() and 0xFFFFFFFFL)
+
+    fun applyUiColors(cardBackgroundArgb: Int, buttonBackgroundArgb: Int) {
+        CardBackgroundAlt = colorFromArgb(cardBackgroundArgb)
+        ButtonBackground = colorFromArgb(buttonBackgroundArgb)
+    }
+
     /** Default filled style for OutlinedButton — gives every "neutral" button a subtle
      *  background instead of the Material default transparent container. */
     @Composable
     fun outlinedButtonColors(
-        containerColor: Color = CardBackgroundAlt,
+        containerColor: Color = ButtonBackground,
         contentColor: Color = Color.White
     ): ButtonColors = ButtonDefaults.outlinedButtonColors(
         containerColor = containerColor, contentColor = contentColor

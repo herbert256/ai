@@ -26,6 +26,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // General app settings
+val DEFAULT_UI_CARD_BACKGROUND_ARGB: Int = 0xFF2A3A4A.toInt()
+val DEFAULT_UI_BUTTON_BACKGROUND_ARGB: Int = DEFAULT_UI_CARD_BACKGROUND_ARGB
+
 /** How combined provider+model labels render across UI rows.
  *  MODEL_ONLY shows just the model id (the dense default); PROVIDER_AND_MODEL
  *  shows both, joined by " · ", for users who run the same model on
@@ -70,6 +73,11 @@ data class GeneralSettings(
      *  chat headers, …) show only the model or both. Provided to the
      *  composition tree via LocalModelNameLayout in the AppNavHost. */
     val modelNameLayout: ModelNameLayout = ModelNameLayout.MODEL_ONLY,
+    /** User-selected UI colours, edited under Settings → UI Colors.
+     *  Stored as Android ARGB ints so they can round-trip through prefs
+     *  without Compose/UI types in the view-model layer. */
+    val uiCardBackgroundArgb: Int = DEFAULT_UI_CARD_BACKGROUND_ARGB,
+    val uiButtonBackgroundArgb: Int = DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
     /** Grand master switch for every optional metadata item — report
      *  icon, report language, AI title, per-model icons / titles, fan
      *  icons / titles, and internal-prompt (meta / rerank / moderate /

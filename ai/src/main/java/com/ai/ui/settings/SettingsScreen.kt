@@ -3,6 +3,7 @@ package com.ai.ui.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -17,8 +18,11 @@ import com.ai.data.AppService
 import com.ai.data.MetadataDefaults
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.IconCardHeader
 import com.ai.ui.shared.LocalMetadataIcons
 import com.ai.ui.shared.TitleBar
+import com.ai.viewmodel.DEFAULT_UI_BUTTON_BACKGROUND_ARGB
+import com.ai.viewmodel.DEFAULT_UI_CARD_BACKGROUND_ARGB
 import com.ai.viewmodel.GeneralSettings
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -60,6 +64,7 @@ enum class SettingsSubScreen {
     SETTINGS_NETWORK,
     SETTINGS_NETWORK_API_CALLS,
     SETTINGS_UI,
+    SETTINGS_UI_COLORS,
     SETTINGS_LOGGING,
     SETTINGS_OTHER,
     SETTINGS_METADATA,
@@ -264,6 +269,7 @@ fun SettingsScreen(
             SettingsSubScreen.AI_EXAMPLE_PROMPT_EDIT -> { editingExamplePromptId = null; currentSubScreen = SettingsSubScreen.AI_EXAMPLE_PROMPTS }
             SettingsSubScreen.SETTINGS_NETWORK,
             SettingsSubScreen.SETTINGS_UI,
+            SettingsSubScreen.SETTINGS_UI_COLORS,
             SettingsSubScreen.SETTINGS_LOGGING,
             SettingsSubScreen.SETTINGS_OTHER -> currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.SETTINGS_METADATA -> currentSubScreen = SettingsSubScreen.MAIN
@@ -294,6 +300,7 @@ fun SettingsScreen(
         SettingsSubScreen.SETTINGS_NETWORK,
         SettingsSubScreen.SETTINGS_NETWORK_API_CALLS,
         SettingsSubScreen.SETTINGS_UI,
+        SettingsSubScreen.SETTINGS_UI_COLORS,
         SettingsSubScreen.SETTINGS_LOGGING,
         SettingsSubScreen.SETTINGS_OTHER,
         SettingsSubScreen.SETTINGS_METADATA,
@@ -787,6 +794,12 @@ fun SettingsScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
+        SettingsSubScreen.SETTINGS_UI_COLORS -> {
+            UiColorsSubScreen(
+                generalSettings = generalSettings, onSave = onSaveGeneral,
+                onBack = goBack, onNavigateHome = onNavigateHome
+            )
+        }
         SettingsSubScreen.SETTINGS_LOGGING -> {
             LoggingAndTracingSubScreen(
                 generalSettings = generalSettings, onSave = onSaveGeneral,
@@ -851,6 +864,12 @@ private fun SettingsMainScreen(
                 title = "UI tweaks",
                 description = "Model name layout, full-screen, experimental features.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_UI) }
+            )
+            SettingsNavCard(
+                icon = MetadataDefaults.BLUE_DIAMOND,
+                title = "UI Colors",
+                description = "Customize card and neutral button backgrounds.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_UI_COLORS) }
             )
             SettingsNavCard(
                 icon = MetadataDefaults.APP_LOG,
@@ -1337,6 +1356,185 @@ private fun UiTweaksSubScreen(
             )
         }
     }
+}
+
+@Composable
+private fun UiColorsSubScreen(
+    generalSettings: GeneralSettings,
+    onSave: (GeneralSettings) -> Unit,
+    onBack: () -> Unit,
+    onNavigateHome: () -> Unit
+) {
+    var cardBackgroundArgb by remember(generalSettings.uiCardBackgroundArgb) {
+        mutableStateOf(generalSettings.uiCardBackgroundArgb)
+    }
+    var buttonBackgroundArgb by remember(generalSettings.uiButtonBackgroundArgb) {
+        mutableStateOf(generalSettings.uiButtonBackgroundArgb)
+    }
+
+    fun build(): GeneralSettings = generalSettings.copy(
+        uiCardBackgroundArgb = cardBackgroundArgb,
+        uiButtonBackgroundArgb = buttonBackgroundArgb
+    )
+
+    SideEffect {
+        AppColors.applyUiColors(cardBackgroundArgb, buttonBackgroundArgb)
+    }
+    LaunchedEffect(cardBackgroundArgb, buttonBackgroundArgb) {
+        val updated = build()
+        if (updated != generalSettings) {
+            kotlinx.coroutines.delay(250)
+            onSave(updated)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            val updated = build()
+            if (updated != generalSettings) onSave(updated)
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(helpTopic = "settings_ui_colors", title = "UI Colors", subject = "Card and button backgrounds", onBackClick = onBack)
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                "These colors apply to the shared gray-blue card surface and the neutral outlined button background used across the app.",
+                fontSize = 12.sp,
+                color = AppColors.TextTertiary,
+                lineHeight = 17.sp,
+                modifier = Modifier.padding(horizontal = 2.dp)
+            )
+            UiColorPickerCard(
+                title = "Card background",
+                description = "Used by gray-blue cards such as Housekeeping and Refresh rows.",
+                icon = MetadataDefaults.BLUE_DIAMOND,
+                argb = cardBackgroundArgb,
+                defaultArgb = DEFAULT_UI_CARD_BACKGROUND_ARGB,
+                onChange = { cardBackgroundArgb = it }
+            )
+            UiColorPickerCard(
+                title = "Button background",
+                description = "Used by neutral outlined buttons, including the Refresh action buttons.",
+                icon = MetadataDefaults.CONTROLS,
+                argb = buttonBackgroundArgb,
+                defaultArgb = DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
+                onChange = { buttonBackgroundArgb = it }
+            )
+            Card(
+                colors = CardDefaults.cardColors(containerColor = AppColors.colorFromArgb(cardBackgroundArgb)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    IconCardHeader(icon = MetadataDefaults.VIEW, title = "Preview")
+                    Text("Card background preview", fontSize = 12.sp, color = AppColors.TextTertiary)
+                    OutlinedButton(
+                        onClick = {},
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = AppColors.outlinedButtonColors(containerColor = AppColors.colorFromArgb(buttonBackgroundArgb))
+                    ) {
+                        Text("Button background preview", maxLines = 1, softWrap = false)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UiColorPickerCard(
+    title: String,
+    description: String,
+    icon: String,
+    argb: Int,
+    defaultArgb: Int,
+    onChange: (Int) -> Unit
+) {
+    var hexText by remember { mutableStateOf(argbToRgbHex(argb)) }
+    LaunchedEffect(argb) {
+        val current = argbToRgbHex(argb)
+        if (hexText != current) hexText = current
+    }
+    val parsedHex = parseRgbHex(hexText)
+    val shape = RoundedCornerShape(8.dp)
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SettingsCardHeaderIcon(icon)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(title, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(description, fontSize = 11.sp, color = AppColors.TextTertiary)
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .background(AppColors.colorFromArgb(argb), shape)
+                        .border(1.dp, AppColors.BorderUnfocused, shape)
+                )
+                OutlinedTextField(
+                    value = hexText,
+                    onValueChange = { raw ->
+                        hexText = raw.uppercase(java.util.Locale.US)
+                        parseRgbHex(raw)?.let(onChange)
+                    },
+                    label = { Text("Hex") },
+                    isError = parsedHex == null,
+                    singleLine = true,
+                    modifier = Modifier.weight(1f),
+                    colors = AppColors.outlinedFieldColors()
+                )
+                TextButton(onClick = { onChange(defaultArgb) }) {
+                    Text("Default", maxLines = 1, softWrap = false)
+                }
+            }
+            ColorChannelSlider("Red", colorChannel(argb, 16)) { onChange(withColorChannel(argb, 16, it)) }
+            ColorChannelSlider("Green", colorChannel(argb, 8)) { onChange(withColorChannel(argb, 8, it)) }
+            ColorChannelSlider("Blue", colorChannel(argb, 0)) { onChange(withColorChannel(argb, 0, it)) }
+        }
+    }
+}
+
+@Composable
+private fun ColorChannelSlider(label: String, value: Int, onValueChange: (Int) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.width(52.dp))
+        Slider(
+            value = value.toFloat(),
+            onValueChange = { onValueChange(it.toInt().coerceIn(0, 255)) },
+            valueRange = 0f..255f,
+            steps = 254,
+            modifier = Modifier.weight(1f)
+        )
+        Text(value.toString().padStart(3, ' '), fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.width(34.dp))
+    }
+}
+
+private fun colorChannel(argb: Int, shift: Int): Int = (argb ushr shift) and 0xFF
+
+private fun withColorChannel(argb: Int, shift: Int, value: Int): Int {
+    val cleared = argb and (0xFF shl shift).inv()
+    return (cleared or ((value.coerceIn(0, 255) and 0xFF) shl shift)) or 0xFF000000.toInt()
+}
+
+private fun argbToRgbHex(argb: Int): String = String.format(
+    java.util.Locale.US,
+    "#%02X%02X%02X",
+    colorChannel(argb, 16),
+    colorChannel(argb, 8),
+    colorChannel(argb, 0)
+)
+
+private fun parseRgbHex(raw: String): Int? {
+    val clean = raw.trim().removePrefix("#").takeLast(6)
+    if (clean.length != 6 || clean.any { it !in '0'..'9' && it !in 'A'..'F' && it !in 'a'..'f' }) return null
+    return (0xFF000000L or clean.toLong(16)).toInt()
 }
 
 /** Everything that doesn't fit the network / UI / logging buckets:

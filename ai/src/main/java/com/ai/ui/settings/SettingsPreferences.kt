@@ -10,6 +10,8 @@ import com.ai.model.*
 import com.ai.viewmodel.GeneralSettings
 import com.ai.viewmodel.ModelNameLayout
 import com.ai.viewmodel.PromptHistoryEntry
+import com.ai.viewmodel.DEFAULT_UI_BUTTON_BACKGROUND_ARGB
+import com.ai.viewmodel.DEFAULT_UI_CARD_BACKGROUND_ARGB
 import com.google.gson.reflect.TypeToken
 import java.io.File
 import java.lang.reflect.Type
@@ -80,6 +82,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
             fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, false),
             modelNameLayout = modelNameLayout,
+            uiCardBackgroundArgb = prefs.getInt(KEY_UI_CARD_BACKGROUND_ARGB, DEFAULT_UI_CARD_BACKGROUND_ARGB),
+            uiButtonBackgroundArgb = prefs.getInt(KEY_UI_BUTTON_BACKGROUND_ARGB, DEFAULT_UI_BUTTON_BACKGROUND_ARGB),
             metadataEnabled = prefs.getBoolean(KEY_METADATA_ENABLED, true),
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             reportLanguageGenEnabled = prefs.getBoolean(KEY_REPORT_LANGUAGE_GEN_ENABLED, true),
@@ -144,6 +148,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
             putBoolean(KEY_FULL_SCREEN, settings.fullScreen)
             putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
+            putInt(KEY_UI_CARD_BACKGROUND_ARGB, settings.uiCardBackgroundArgb)
+            putInt(KEY_UI_BUTTON_BACKGROUND_ARGB, settings.uiButtonBackgroundArgb)
             putBoolean(KEY_METADATA_ENABLED, settings.metadataEnabled)
             putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
             putBoolean(KEY_REPORT_LANGUAGE_GEN_ENABLED, settings.reportLanguageGenEnabled)
@@ -574,6 +580,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_TRACING_ENABLED = "tracing_enabled"
         private const val KEY_FULL_SCREEN = "full_screen"
         private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
+        private const val KEY_UI_CARD_BACKGROUND_ARGB = "ui_card_background_argb"
+        private const val KEY_UI_BUTTON_BACKGROUND_ARGB = "ui_button_background_argb"
         private const val KEY_METADATA_ENABLED = "metadata_enabled"
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
         private const val KEY_REPORT_LANGUAGE_GEN_ENABLED = "report_language_gen_enabled"

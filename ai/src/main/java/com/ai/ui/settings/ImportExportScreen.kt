@@ -329,6 +329,8 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("tracingEnabled", g.tracingEnabled)
     addProperty("fullScreen", g.fullScreen)
     addProperty("modelNameLayout", g.modelNameLayout.name)
+    addProperty("uiCardBackgroundArgb", g.uiCardBackgroundArgb)
+    addProperty("uiButtonBackgroundArgb", g.uiButtonBackgroundArgb)
     addProperty("iconGenEnabled", g.iconGenEnabled)
     addProperty("reportTitleMode", g.reportTitleMode.name)
     addProperty("showKnowledgeCard", g.showKnowledgeCard)
@@ -412,6 +414,8 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         tracingEnabled = bool("tracingEnabled") ?: current.tracingEnabled,
         fullScreen = bool("fullScreen") ?: current.fullScreen,
         modelNameLayout = layout ?: current.modelNameLayout,
+        uiCardBackgroundArgb = int("uiCardBackgroundArgb") ?: current.uiCardBackgroundArgb,
+        uiButtonBackgroundArgb = int("uiButtonBackgroundArgb") ?: current.uiButtonBackgroundArgb,
         iconGenEnabled = bool("iconGenEnabled") ?: current.iconGenEnabled,
         reportTitleMode = titleMode ?: current.reportTitleMode,
         showKnowledgeCard = bool("showKnowledgeCard") ?: current.showKnowledgeCard,
