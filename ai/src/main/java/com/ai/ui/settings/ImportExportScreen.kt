@@ -1663,28 +1663,28 @@ fun ImportExportScreen(
                     "API keys imported — pick what should happen next:",
                     fontSize = 12.sp, color = AppColors.TextTertiary
                 )
-                Button(
+                OutlinedButton(
                     onClick = {
                         keysImportedActions = false
                         onStartRefreshAll()
                         onNavigateToRefresh()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Refresh all", maxLines = 1, softWrap = false) }
-                Button(
+                OutlinedButton(
                     onClick = {
                         keysImportedActions = false
                         onStartRefreshWorkers()
                         onNavigateToRefresh()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Refresh providers, model lists & default agents", maxLines = 1, softWrap = false) }
-                Button(
+                OutlinedButton(
                     onClick = { restartApp(context) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Restart application", maxLines = 1, softWrap = false) }
             }
         }

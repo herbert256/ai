@@ -761,10 +761,10 @@ fun ReportModelScreen(
 
         if (canShowTranslation) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
+                OutlinedButton(
                     onClick = { showTranslationCompare = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Translation info", fontSize = 13.sp, maxLines = 1, softWrap = false) }
             }
         }

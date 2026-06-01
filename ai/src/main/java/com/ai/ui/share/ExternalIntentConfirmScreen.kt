@@ -96,10 +96,10 @@ fun ExternalIntentConfirmScreen(
                 onClick = onCancel,
                 modifier = Modifier.weight(1f)
             ) { Text("Cancel") }
-            Button(
+            OutlinedButton(
                 onClick = onConfirm,
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text(if (intent.willAutoGenerate) "Generate" else "Continue") }
         }
     }

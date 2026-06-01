@@ -63,7 +63,7 @@ fun TrimByAgeScreen(
                         "Cannot be undone.")
                 },
                 confirmButton = {
-                    Button(
+                    OutlinedButton(
                         onClick = {
                             showTrimConfirm = false
                             val reports = ReportStorage.getAllReports(context).filter { it.timestamp < cutoff }
@@ -77,7 +77,7 @@ fun TrimByAgeScreen(
                                 Toast.LENGTH_LONG
                             ).show()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) { Text("Trim", maxLines = 1, softWrap = false) }
                 },
                 dismissButton = { TextButton(onClick = { showTrimConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -105,11 +105,11 @@ fun TrimByAgeScreen(
                         modifier = Modifier.fillMaxWidth(),
                         colors = AppColors.outlinedFieldColors()
                     )
-                    Button(
+                    OutlinedButton(
                         onClick = { showTrimConfirm = true },
                         enabled = daysToKeep != null && daysToKeep > 0,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) { Text("Clear Reports/Chats/Traces", maxLines = 1, softWrap = false) }
                 }
             }

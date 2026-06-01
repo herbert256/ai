@@ -10,6 +10,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -155,9 +156,9 @@ private fun textAlignFor(a: TableAlign?) = when (a) {
 private fun ThinkSection(content: String) {
     var isExpanded by remember { mutableStateOf(false) }
     Column {
-        Button(
+        OutlinedButton(
             onClick = { isExpanded = !isExpanded },
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+            colors = AppColors.outlinedButtonColors(),
             border = BorderStroke(1.dp, AppColors.TextDim),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
             modifier = Modifier.padding(vertical = 8.dp)

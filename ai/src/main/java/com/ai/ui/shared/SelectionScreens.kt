@@ -140,10 +140,10 @@ fun SelectModelScreen(
             }
             if (onNavigateToProviderModels != null) {
                 Spacer(modifier = Modifier.width(8.dp))
-                Button(
+                OutlinedButton(
                     onClick = onNavigateToProviderModels,
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Open Models", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             }
         }

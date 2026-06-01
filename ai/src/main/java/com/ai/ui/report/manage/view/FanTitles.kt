@@ -24,6 +24,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -216,9 +217,9 @@ internal fun FanOutL2MetaScreen(
                 "Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary,
                 modifier = Modifier.weight(1f)
             )
-            Button(
+            OutlinedButton(
                 onClick = { onSwitchRole(if (role == "Responder") "Initiator" else "Responder") },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                colors = AppColors.outlinedButtonColors(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }

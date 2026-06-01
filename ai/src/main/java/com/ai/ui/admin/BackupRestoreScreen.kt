@@ -81,7 +81,7 @@ fun BackupRestoreScreen(
             title = { Text("Restore from backup?") },
             text = { Text("This overwrites all current configuration, API keys, reports, chats, and traces with the contents of the selected backup. You'll be prompted to restart when restore finishes.") },
             confirmButton = {
-                Button(
+                OutlinedButton(
                     onClick = {
                         showRestoreConfirm = null
                         busyLabel = "Restoring…"
@@ -108,7 +108,7 @@ fun BackupRestoreScreen(
                             )
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Restore", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showRestoreConfirm = null }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -164,14 +164,14 @@ fun BackupRestoreScreen(
                     )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         if (!restoreOnly) {
-                            Button(
+                            OutlinedButton(
                                 onClick = { runBackup() },
                                 enabled = busyLabel == null,
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                                colors = AppColors.outlinedButtonColors()
                             ) { Text("Backup", maxLines = 1, softWrap = false) }
                         }
-                        Button(
+                        OutlinedButton(
                             // Restrict the picker to .zip files. Some providers report
                             // the mime as application/octet-stream rather than
                             // application/zip — accept both, but drop the */* fallback
@@ -179,7 +179,7 @@ fun BackupRestoreScreen(
                             onClick = { restorePickLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
                             enabled = busyLabel == null,
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                            colors = AppColors.outlinedButtonColors()
                         ) { Text("Restore", maxLines = 1, softWrap = false) }
                     }
                 }

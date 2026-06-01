@@ -521,18 +521,18 @@ fun ModelInfoScreen(
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Actions", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    Button(
+                                    OutlinedButton(
                                         onClick = { onStartChat(provider, modelName) },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                                        colors = AppColors.outlinedButtonColors()
                                     ) { Text("Start Chat", maxLines = 1, softWrap = false) }
-                                    Button(
+                                    OutlinedButton(
                                         onClick = { showAgentEdit = true },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                                        colors = AppColors.outlinedButtonColors()
                                     ) { Text("Create Agent", maxLines = 1, softWrap = false) }
                                     if (isProviderActive) {
-                                        Button(
+                                        OutlinedButton(
                                             onClick = {
                                                 testRunning = true
                                                 testResult = null
@@ -547,7 +547,7 @@ fun ModelInfoScreen(
                                             },
                                             enabled = !testRunning,
                                             modifier = Modifier.weight(1f),
-                                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                                            colors = AppColors.outlinedButtonColors()
                                         ) { Text(if (testRunning) "Testing…" else "Test", maxLines = 1, softWrap = false) }
                                     }
                                 }
@@ -780,7 +780,7 @@ fun ModelInfoScreen(
                                     ) { Text("Artificial Analysis", fontSize = 10.sp, maxLines = 1, softWrap = false) }
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Button(
+                                OutlinedButton(
                                     onClick = {
                                         // Concatenate every source's raw JSON into one
                                         // pretty-printed dump — saves tapping seven
@@ -800,7 +800,7 @@ fun ModelInfoScreen(
                                         rawView = RawView(title = "All sources · $modelName", body = body)
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                                    colors = AppColors.outlinedButtonColors()
                                 ) { Text("Show all", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                             }
                         }
@@ -868,10 +868,10 @@ fun ModelInfoScreen(
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Button(
+                                OutlinedButton(
                                     onClick = { onNavigateToAddCostOverride(provider, modelName) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                                    colors = AppColors.outlinedButtonColors()
                                 ) { Text("Add manual cost override", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                             }
                         }
@@ -1005,10 +1005,10 @@ fun ModelInfoScreen(
                                 // Manual model types CRUD uses, pre-filled with this
                                 // (provider, model). If an override already exists
                                 // for this pair the form opens in edit mode.
-                                Button(
+                                OutlinedButton(
                                     onClick = { onNavigateToAddManualOverride(provider, modelName) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                                    colors = AppColors.outlinedButtonColors()
                                 ) { Text("Add manual override", fontSize = 14.sp, maxLines = 1, softWrap = false) }
                             }
                         }
@@ -1130,10 +1130,10 @@ fun ModelInfoScreen(
                                         Text("Generating...", fontSize = 13.sp, color = AppColors.TextTertiary)
                                     }
                                     aiDescription != null -> ContentWithThinkSections(aiDescription ?: "")
-                                    else -> Button(
+                                    else -> OutlinedButton(
                                         onClick = requestIntroduction,
                                         modifier = Modifier.fillMaxWidth(),
-                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                                        colors = AppColors.outlinedButtonColors()
                                     ) { Text("Ask the model to introduce itself", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                                 }
                             }

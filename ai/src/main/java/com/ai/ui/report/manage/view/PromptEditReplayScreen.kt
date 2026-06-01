@@ -24,6 +24,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -139,10 +140,10 @@ internal fun PromptEditReplayScreen(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
-                Button(
+                OutlinedButton(
                     onClick = { onCallModel(promptText, selectedParamsIds, selectedSystemPromptId) },
                     enabled = promptText.isNotBlank() && !running,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                    colors = AppColors.outlinedButtonColors(),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (running) {
@@ -207,9 +208,9 @@ private fun PromptEditResultCard(
                 PromptEditReplayResult.Running -> Text("Running model call…", color = AppColors.TextTertiary, fontSize = 13.sp)
                 is PromptEditReplayResult.Error -> Text(result.message, color = AppColors.DangerAccent, fontSize = 14.sp)
                 is PromptEditReplayResult.Success -> {
-                    Button(
+                    OutlinedButton(
                         onClick = onUseResponse,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                        colors = AppColors.outlinedButtonColors(),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Use this response", maxLines = 1, softWrap = false) }
                     ContentWithThinkSections(analysis = result.response)

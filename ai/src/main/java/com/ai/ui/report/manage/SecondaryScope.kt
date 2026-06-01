@@ -129,7 +129,7 @@ internal fun SecondaryScopeScreen(
         // tap away regardless of how far the scope list scrolls.
         // Behaviour / colors / gating unchanged from the original
         // bottom-of-page version.
-        Button(
+        OutlinedButton(
             onClick = {
                 val scope = when (scopeMode) {
                     ScopeMode.ALL -> SecondaryScope.AllReports
@@ -161,7 +161,7 @@ internal fun SecondaryScopeScreen(
             },
             enabled = canContinue,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Continue", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(12.dp))
 

@@ -11,6 +11,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -52,10 +53,10 @@ fun RestartAppDialog(message: String, onConfirm: () -> Unit) {
         title = { Text(message) },
         text = { Text("Press OK to restart the application.") },
         confirmButton = {
-            Button(
+            OutlinedButton(
                 onClick = onConfirm,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("OK", maxLines = 1, softWrap = false) }
         }
     )
@@ -71,10 +72,10 @@ fun RestartAppDialog(message: String, onConfirm: () -> Unit) {
 @Composable
 fun RestartAppBanner(message: String, onConfirm: () -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
-        Button(
+        OutlinedButton(
             onClick = onConfirm,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) {
             Text(
                 "Restart application",

@@ -28,6 +28,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -140,13 +141,13 @@ internal fun TemperatureSweepScreen(
                         }
                     }
                 }
-                Button(
+                OutlinedButton(
                     onClick = {
                         locallySubmittedTemps = selectedTemps
                         onSubmit(selectedTemps)
                     },
                     enabled = selectedAllValid && !running,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                    colors = AppColors.outlinedButtonColors(),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (running) {
@@ -240,9 +241,9 @@ private fun TemperatureCandidatePanel(
                     Text(candidate.message, color = AppColors.DangerAccent, fontSize = 14.sp)
                 }
                 is TemperatureSweepCandidate.Success -> {
-                    Button(
+                    OutlinedButton(
                         onClick = { onUseCandidate(index) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                        colors = AppColors.outlinedButtonColors(),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Use this response", maxLines = 1, softWrap = false) }
                     Card(colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)) {

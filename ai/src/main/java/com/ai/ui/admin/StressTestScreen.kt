@@ -81,10 +81,10 @@ fun StressTestScreen(
             // Start / Run-again — hidden only during the brief submit window.
             val running = s?.phase == StressTestEngine.Phase.SUBMITTING
             if (!running) {
-                Button(
+                OutlinedButton(
                     onClick = { showConfirm = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) {
                     Text(
                         if (s?.phase == StressTestEngine.Phase.DONE || s?.phase == StressTestEngine.Phase.ERROR)

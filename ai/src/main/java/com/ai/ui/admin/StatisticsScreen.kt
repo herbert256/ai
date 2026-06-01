@@ -246,13 +246,13 @@ internal fun AddManualOverrideScreen(
             onClear = { resetTick++ }
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = {
+        OutlinedButton(onClick = {
             val inp = inputPrice.toDoubleOrNull()?.div(1_000_000)
             val outp = outputPrice.toDoubleOrNull()?.div(1_000_000)
             if (inp != null && outp != null && selectedProvider != null && model.isNotBlank()) onSave(selectedProvider!!, model, inp, outp, isAddMode)
         }, enabled = selectedProvider != null && model.isNotBlank() && inputPrice.toDoubleOrNull() != null && outputPrice.toDoubleOrNull() != null &&
             !(isAddMode && keyMatchesOriginal),
-            modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()
         ) { Text(if (isAddMode) "Add" else "Save", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 

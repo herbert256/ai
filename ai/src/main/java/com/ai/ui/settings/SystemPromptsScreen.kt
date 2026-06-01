@@ -59,13 +59,13 @@ fun SystemPromptEditScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         if (isAddMode) {
-            Button(
+            OutlinedButton(
                 onClick = {
                     onSave(SystemPrompt(java.util.UUID.randomUUID().toString(), name.trim(), prompt)); onBack()
                 },
                 enabled = nameError == null && prompt.isNotBlank(),
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {

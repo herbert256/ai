@@ -24,6 +24,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -106,13 +107,13 @@ internal fun ReasoningEffortSweepScreen(
                         )
                     }
                 }
-                Button(
+                OutlinedButton(
                     onClick = {
                         locallySubmittedEfforts = selectedEfforts
                         onSubmit(selectedEfforts)
                     },
                     enabled = canSubmit,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                    colors = AppColors.outlinedButtonColors(),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (running) {
@@ -233,9 +234,9 @@ private fun ReasoningEffortCandidatePanel(
                     Text(candidate.message, color = AppColors.DangerAccent, fontSize = 14.sp)
                 }
                 is ReasoningEffortCandidate.Success -> {
-                    Button(
+                    OutlinedButton(
                         onClick = { onUseCandidate(index) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                        colors = AppColors.outlinedButtonColors(),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Use this response", maxLines = 1, softWrap = false) }
                     Card(colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)) {

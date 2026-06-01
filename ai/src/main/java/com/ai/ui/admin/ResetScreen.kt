@@ -63,7 +63,7 @@ fun ResetRuntimeDataScreen(
             title = { Text("Clear runtime data?") },
             text = { Text("This permanently deletes the app logs, chat history, API traces, AI reports, prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, parameters, system + internal + example prompts, API keys), knowledge bases, the six Info-provider caches, the per-provider model-list cache, and the local semantic-search embedding cache are all kept.") },
             confirmButton = {
-                Button(
+                OutlinedButton(
                     onClick = {
                         val r = onClearRuntimeData()
                         showConfirm = false
@@ -73,7 +73,7 @@ fun ResetRuntimeDataScreen(
                             Toast.LENGTH_LONG
                         ).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Clear", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -88,10 +88,10 @@ fun ResetRuntimeDataScreen(
                 "Wipes the activity + personal-history surface that accumulates while the app is in use: rolling app logs, chat sessions, API traces, AI reports (incl. their secondary-result rows), prompt history, usage statistics, and the last \"Test all models\" run. Configuration (providers, agents, flocks, swarms, system / internal / example prompts, parameters, API keys), knowledge bases, the six Info-provider pricing caches, the per-provider model-list cache, and the local semantic-search embedding cache are all preserved.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
-            Button(
+            OutlinedButton(
                 onClick = { showConfirm = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Clear runtime data", maxLines = 1, softWrap = false) }
         }
     }
@@ -113,13 +113,13 @@ fun ResetInfoProvidersScreen(
             title = { Text("Clear Info providers?") },
             text = { Text("This permanently deletes every cached tier from the six Info providers (OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis) and the OpenRouter model-specs cache. Manual cost overrides and Together's native pricing are preserved. Until you run Refresh again, pricing lookups will fall back to DEFAULT.") },
             confirmButton = {
-                Button(
+                OutlinedButton(
                     onClick = {
                         onClearInfoProviders()
                         showConfirm = false
                         Toast.makeText(context, "Info-provider caches cleared", Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Clear", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -134,10 +134,10 @@ fun ResetInfoProvidersScreen(
                 "Drops the per-provider pricing tier blobs and prefs entries from the six Info providers — OpenRouter, LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis — plus the OpenRouter model-specs cache. Manual cost overrides survive (they sit above the Info tiers in the layered lookup) and Together's native self-reported pricing also survives. Pricing lookups will fall back to DEFAULT_PRICING until Housekeeping → Refresh repopulates the caches.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
-            Button(
+            OutlinedButton(
                 onClick = { showConfirm = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Clear Info providers", maxLines = 1, softWrap = false) }
         }
     }
@@ -159,7 +159,7 @@ fun ResetConfigurationScreen(
             title = { Text("Clear all configuration?") },
             text = { Text("This permanently deletes every provider's API key, models, endpoints, plus all agents, flocks, swarms, parameters, prompts, system prompts, External Services keys (HuggingFace, OpenRouter), user name, default email, and every installed Local LLM (.task) and LiteRT model (.tflite). Reports, chats, traces, and usage statistics are kept.") },
             confirmButton = {
-                Button(
+                OutlinedButton(
                     onClick = {
                         val r = onClearConfiguration()
                         showConfirm = false
@@ -169,7 +169,7 @@ fun ResetConfigurationScreen(
                             Toast.LENGTH_LONG
                         ).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Clear all", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -184,10 +184,10 @@ fun ResetConfigurationScreen(
                 "Wipes every piece of the app's configuration surface: each provider's API key + model list + endpoint set; every agent, flock, swarm, parameter preset, system prompt, internal prompt, example prompt; External Services keys (HuggingFace, OpenRouter, Artificial Analysis); user name and default email; every installed Local LLM (.task) and LiteRT embedder (.tflite). Reports, chats, traces, usage statistics, and the Info-provider pricing caches are kept.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
-            Button(
+            OutlinedButton(
                 onClick = { showConfirm = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Clear all configuration", maxLines = 1, softWrap = false) }
         }
     }
@@ -213,7 +213,7 @@ fun ResetAssetsScreen(
             title = { Text("Restore from ${target.assetPath}?") },
             text = { Text(target.dialogBody) },
             confirmButton = {
-                Button(
+                OutlinedButton(
                     onClick = {
                         val n = when (target) {
                             AssetReset.PROVIDERS -> onRestartProvidersFromAsset()
@@ -230,7 +230,7 @@ fun ResetAssetsScreen(
                         }
                         Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Restore", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { pending = null }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -245,30 +245,30 @@ fun ResetAssetsScreen(
                 "Restore one of the bundled JSON catalogs to its as-shipped contents. Each button drops every entry in the matching list and reloads from the asset; user-authored entries in that list are lost. Other configuration (API keys, agents, etc.) is untouched — these buttons are scoped to a single list each.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
-            Button(
+            OutlinedButton(
                 onClick = { pending = AssetReset.PROVIDERS },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("back to assets/providers.json", maxLines = 1, softWrap = false) }
-            Button(
+            OutlinedButton(
                 onClick = { pending = AssetReset.PROMPTS },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("back to assets/internal-prompts/", maxLines = 1, softWrap = false) }
-            Button(
+            OutlinedButton(
                 onClick = { pending = AssetReset.EXAMPLES },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("back to assets/examples.json", maxLines = 1, softWrap = false) }
-            Button(
+            OutlinedButton(
                 onClick = { pending = AssetReset.SYSTEM_PROMPTS },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("back to assets/system-prompts.json", maxLines = 1, softWrap = false) }
-            Button(
+            OutlinedButton(
                 onClick = { pending = AssetReset.DEFAULT_META },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("back to assets/meta.json", maxLines = 1, softWrap = false) }
         }
     }
@@ -326,7 +326,7 @@ fun ResetApplicationScreen(
                 }
             },
             confirmButton = {
-                Button(
+                OutlinedButton(
                     onClick = {
                         showConfirm = false
                         busy = true
@@ -337,7 +337,7 @@ fun ResetApplicationScreen(
                         }
                     },
                     enabled = !busy,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Reset", maxLines = 1, softWrap = false) }
             },
             dismissButton = {
@@ -357,25 +357,25 @@ fun ResetApplicationScreen(
                     "$msg — pick what should happen next:",
                     fontSize = 12.sp, color = AppColors.TextTertiary
                 )
-                Button(
+                OutlinedButton(
                     onClick = { restartMessage = null; onStartRefreshAll() },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Refresh all", maxLines = 1, softWrap = false) }
-                Button(
+                OutlinedButton(
                     onClick = { restartMessage = null; onStartRefreshWorkers() },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Refresh providers, model lists & default agents", maxLines = 1, softWrap = false) }
-                Button(
+                OutlinedButton(
                     onClick = { restartApp(context) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Restart application", maxLines = 1, softWrap = false) }
-                Button(
+                OutlinedButton(
                     onClick = { restartMessage = null; onNavigateToImportExport() },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Import API keys", maxLines = 1, softWrap = false) }
             }
         }
@@ -385,11 +385,11 @@ fun ResetApplicationScreen(
                 "Factory-style reset. API keys (per-provider + HuggingFace + OpenRouter + Artificial Analysis) survive — everything else is wiped, providers and internal prompts reload from assets. A confirm dialog gates the action; on success a banner appears at the top of the page with four follow-ups: Refresh all, Refresh providers/models/default agents, Restart application, or Import API keys.",
                 fontSize = 12.sp, color = AppColors.TextTertiary
             )
-            Button(
+            OutlinedButton(
                 onClick = { showConfirm = true },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Reset application", maxLines = 1, softWrap = false) }
         }
     }

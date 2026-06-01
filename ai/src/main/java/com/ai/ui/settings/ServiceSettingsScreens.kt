@@ -225,7 +225,7 @@ fun ModelsListScreen(
         // Housekeeping. forceRefresh=true matches the Refresh-screen
         // behaviour: cache-validity check is bypassed.
         Spacer(modifier = Modifier.height(12.dp))
-        Button(
+        OutlinedButton(
             onClick = {
                 scope.launch {
                     refreshInProgress = true
@@ -239,7 +239,7 @@ fun ModelsListScreen(
             },
             enabled = !refreshInProgress && activeProviders.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) {
             Text(
                 if (refreshInProgress) "Refreshing…" else "Call all API retrieve models lists",
@@ -408,14 +408,14 @@ fun ProviderModelSettingsScreen(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     if (modelSource == ModelSource.API) {
-                        Button(
+                        OutlinedButton(
                             onClick = { onFetchModels(apiKey) },
                             enabled = !isLoadingModels,
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                            colors = AppColors.outlinedButtonColors()
                         ) { Text(if (isLoadingModels) "Fetching..." else "Fetch Models", maxLines = 1, softWrap = false) }
                     }
                     if (onTestSpecificModel != null && models.isNotEmpty()) {
-                        Button(
+                        OutlinedButton(
                             onClick = {
                                 val targets = models.toList()
                                 testStatuses = targets.associateWith { ModelTestStatus.Running }
@@ -452,7 +452,7 @@ fun ProviderModelSettingsScreen(
                                 }
                             },
                             enabled = !testInProgress,
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                            colors = AppColors.outlinedButtonColors()
                         ) { Text(if (testInProgress) "Testing..." else "Test all models", maxLines = 1, softWrap = false) }
                     }
                     // Surface the prune affordance only after a Test all
@@ -468,13 +468,13 @@ fun ProviderModelSettingsScreen(
                             .map { it.key }
                     }
                     if (!testInProgress && failedModels.isNotEmpty()) {
-                        Button(
+                        OutlinedButton(
                             onClick = {
                                 val drop = failedModels.toSet()
                                 models = models.filterNot { it in drop }
                                 testStatuses = testStatuses - drop
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                            colors = AppColors.outlinedButtonColors()
                         ) { Text("Remove ${failedModels.size} failed", maxLines = 1, softWrap = false) }
                     }
                 }
@@ -513,7 +513,7 @@ fun ProviderModelSettingsScreen(
                         singleLine = true, colors = AppColors.outlinedFieldColors(),
                         isError = isDuplicate || hasWhitespace
                     )
-                    Button(
+                    OutlinedButton(
                         onClick = {
                             val t = trimmed
                             models = if (isEditing) models.map { if (it == editingOriginal) t else it } else models + t
@@ -521,7 +521,7 @@ fun ProviderModelSettingsScreen(
                             editingOriginal = null
                         },
                         enabled = canSubmit,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) { Text(if (isEditing) "Update" else "Add", maxLines = 1, softWrap = false) }
                     if (isEditing) {
                         TextButton(onClick = { manualInput = ""; editingOriginal = null }) {
@@ -1042,7 +1042,7 @@ fun ProviderSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         if (apiKey.isNotBlank()) {
-                            Button(
+                            OutlinedButton(
                                 onClick = {
                                     scope.launch {
                                         isTesting = true; testResult = null; testTraceFile = null
@@ -1067,7 +1067,7 @@ fun ProviderSettingsScreen(
                                         isTesting = false
                                     }
                                 },
-                                enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                                enabled = !isTesting, colors = AppColors.outlinedButtonColors()
                             ) { Text(if (isTesting) "Testing..." else "Test", maxLines = 1, softWrap = false) }
                             Text(
                                 "Test uses the default model as set above",

@@ -22,6 +22,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -195,11 +196,11 @@ internal fun UserNoteEditorScreen(
             helpTopic = "report_user_note_edit", title = titleBarTitle,
             subject = "Your own note — not sent to any model", onBackClick = onCancel
         )
-        Button(
+        OutlinedButton(
             onClick = { onSave(text.trim()) },
             enabled = canSave,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Save note", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(

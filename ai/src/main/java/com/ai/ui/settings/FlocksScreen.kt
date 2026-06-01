@@ -110,13 +110,13 @@ fun FlockEditScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         if (isAddMode) {
-            Button(
+            OutlinedButton(
                 onClick = {
                     onSave(Flock(java.util.UUID.randomUUID().toString(), name.trim(), selectedAgentIds.toList(), selectedParamsIds.distinct(), selectedSystemPromptId)); onBack()
                 },
                 enabled = nameError == null && selectedAgentIds.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {

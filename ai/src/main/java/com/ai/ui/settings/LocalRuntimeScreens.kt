@@ -84,11 +84,11 @@ fun LocalLiteRtModelsScreen(
             LocalEmbedder.downloadable.forEach { spec ->
                 val isInstalled = spec.name in installed
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Button(
+                    OutlinedButton(
                         onClick = {
                             if (isInstalled) {
                                 status = "${spec.displayName} is already installed."
-                                return@Button
+                                return@OutlinedButton
                             }
                             working = true
                             status = "Downloading ${spec.displayName}…"
@@ -110,7 +110,7 @@ fun LocalLiteRtModelsScreen(
                         },
                         enabled = !working && !isInstalled,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) {
                         Text(
                             if (isInstalled) "${spec.displayName} ${com.ai.data.MetadataIconsHolder.current.checkMark}"
@@ -122,11 +122,11 @@ fun LocalLiteRtModelsScreen(
                 }
             }
 
-            Button(
+            OutlinedButton(
                 onClick = { pickFile.launch(arrayOf("application/octet-stream", "*/*")) },
                 enabled = !working,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Add model from file…", maxLines = 1, softWrap = false) }
 
             if (installed.isNotEmpty()) {
@@ -214,11 +214,11 @@ fun LocalLlmsScreen(
             )
 
             Text("LLM runtime", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
-            Button(
+            OutlinedButton(
                 onClick = {
                     if (runtimeInstalled) {
                         status = "Runtime is already installed."
-                        return@Button
+                        return@OutlinedButton
                     }
                     working = true
                     status = "Downloading runtime…"
@@ -241,7 +241,7 @@ fun LocalLlmsScreen(
                 },
                 enabled = !working && !runtimeInstalled,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) {
                 Text(
                     if (runtimeInstalled) "LLM runtime ${com.ai.data.MetadataIconsHolder.current.checkMark}"
@@ -266,14 +266,14 @@ fun LocalLlmsScreen(
             Text("Model download links", fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
             LocalLlm.recommendedLinks.forEach { link ->
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Button(
+                    OutlinedButton(
                         onClick = {
                             runCatching {
                                 context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(link.url)))
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) {
                         Text(
                             text = if (link.sizeHint != null) "${link.name} (${link.sizeHint})" else link.name,
@@ -284,11 +284,11 @@ fun LocalLlmsScreen(
                 }
             }
 
-            Button(
+            OutlinedButton(
                 onClick = { pickFile.launch(arrayOf("application/octet-stream", "*/*")) },
                 enabled = !working,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Add LLM from file…", maxLines = 1, softWrap = false) }
             Text(
                 "Accepts .task, .zip, .tar.gz, .tgz, .tar — the first .task entry inside an archive is extracted automatically.",

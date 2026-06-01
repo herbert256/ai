@@ -25,6 +25,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -200,9 +201,9 @@ internal fun FanOutL2Screen(
             modifier = Modifier.padding(top = 4.dp)
         ) {
             Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
-            Button(
+            OutlinedButton(
                 onClick = { onSwitchRole(if (role == "Responder") "Initiator" else "Responder") },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                colors = AppColors.outlinedButtonColors(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -233,9 +234,9 @@ internal fun FanOutL2Screen(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             if (erroredHere > 0) {
-                Button(
+                OutlinedButton(
                     onClick = { confirmRemoveFailed = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                    colors = AppColors.outlinedButtonColors(),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
                 ) { Text("Remove", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -246,17 +247,17 @@ internal fun FanOutL2Screen(
                 ) { Text("Restart", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
             if (rawRows.isNotEmpty()) {
-                Button(
+                OutlinedButton(
                     onClick = onOpenOnePage,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                    colors = AppColors.outlinedButtonColors(),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
                 ) { Text("onepage", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
             if (hasTitles) {
-                Button(
+                OutlinedButton(
                     onClick = onOpenTitles,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                    colors = AppColors.outlinedButtonColors(),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
                 ) { Text("Fan Meta", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -723,9 +724,9 @@ internal fun FanOutL2OnePageScreen(
             modifier = Modifier.padding(top = 4.dp)
         ) {
             Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
-            Button(
+            OutlinedButton(
                 onClick = { onSwitchRole(if (role == "Responder") "Initiator" else "Responder") },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                colors = AppColors.outlinedButtonColors(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }

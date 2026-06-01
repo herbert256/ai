@@ -50,13 +50,13 @@ fun ExamplePromptEditScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         if (isAddMode) {
-            Button(
+            OutlinedButton(
                 onClick = {
                     onSave(ExamplePrompt(id = java.util.UUID.randomUUID().toString(), title = title.trim(), text = text)); onBack()
                 },
                 enabled = titleError == null,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {

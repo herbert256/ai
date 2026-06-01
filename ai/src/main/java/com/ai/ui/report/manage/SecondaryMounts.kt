@@ -251,11 +251,11 @@ internal fun MetaRunScreen(
         // Cancel is dropped: the existing BackHandler at the top of
         // this Composable routes Android back to onCancel, so a
         // separate button isn't pulling weight.
-        Button(
+        OutlinedButton(
             onClick = { onContinue(metaPrompt.copy(text = editablePrompt)) },
             enabled = editablePrompt.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Continue", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
         Column(
@@ -355,13 +355,13 @@ internal fun FanOutConfirmScreen(
         // editable per-run prompt. Cancel is dropped: the
         // BackHandler at the top of this Composable already routes
         // Android back to onCancel.
-        Button(
+        OutlinedButton(
             onClick = {
                 onRun(fanOutMp.copy(text = editablePrompt), selectedInitiators, selectedResponders, pickedParamsIds, pickedSystemPromptId)
             },
             enabled = pairCount > 0,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Run", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
         Column(

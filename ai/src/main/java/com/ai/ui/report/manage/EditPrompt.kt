@@ -75,11 +75,11 @@ fun ReportEditPromptScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Button(
+        OutlinedButton(
             onClick = { onUpdate(prompt.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Update prompt", maxLines = 1, softWrap = false) }
 
         if (history.isNotEmpty()) {
@@ -249,11 +249,11 @@ private fun SingleTitleEditScreen(
             onTrace = titleTraceFilename?.let { fn -> { onNavigateToTraceFile(fn) } }
         )
 
-        Button(
+        OutlinedButton(
             onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Update title", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -306,11 +306,11 @@ fun ReportEditModelTitleScreen(
             onTrace = traceFilename?.takeIf { it.isNotBlank() }?.let { fn -> { onNavigateToTraceFile(fn) } }
         )
 
-        Button(
+        OutlinedButton(
             onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Update title", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -366,11 +366,11 @@ fun ReportEditPairTitleScreen(
             helpTopic = "report_edit_pair_title", title = "Edit title", subject = "Rename one fan-out response title", onBackClick = onBack
         )
 
-        Button(
+        OutlinedButton(
             onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Update title", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 

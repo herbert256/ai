@@ -134,13 +134,13 @@ fun SemanticSearchScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Button(
+        OutlinedButton(
             onClick = {
-                val (svc, model) = picked ?: return@Button
+                val (svc, model) = picked ?: return@OutlinedButton
                 val q = query.trim()
-                if (q.isBlank()) return@Button
+                if (q.isBlank()) return@OutlinedButton
                 val key = aiSettings.getApiKey(svc)
-                if (key.isBlank()) { status = "No API key set for ${svc.id}"; return@Button }
+                if (key.isBlank()) { status = "No API key set for ${svc.id}"; return@OutlinedButton }
                 running = true
                 status = "Indexing reports…"
                 results = emptyList()
@@ -160,7 +160,7 @@ fun SemanticSearchScreen(
             },
             enabled = !running && picked != null && query.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text(if (running) "Searching…" else "Search reports", maxLines = 1, softWrap = false) }
 
         status?.let {

@@ -2426,9 +2426,9 @@ private fun DefaultIconAiFinderScreen(
                 Text("No icon-worker models configured. Add models to the worker swarm under AI Setup → Worker prompts.",
                     fontSize = 12.sp, color = AppColors.TextSecondary)
             } else {
-                Button(
+                OutlinedButton(
                     onClick = { run() }, enabled = !running, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text(if (running) "Finding…" else "Find (${models.size} model${if (models.size == 1) "" else "s"})", fontSize = 14.sp) }
             }
             candidates.values.sortedBy { "${it.provider.id}/${it.model}" }.forEach { c ->

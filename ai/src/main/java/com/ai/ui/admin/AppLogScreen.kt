@@ -637,7 +637,7 @@ fun AppLogDetailScreen(
             title = { Text("Delete this log file?") },
             text = { Text("Permanently removes $currentFilename from disk.") },
             confirmButton = {
-                Button(
+                OutlinedButton(
                     onClick = {
                         confirmDelete = false
                         if (AppLog.deleteLog(currentFilename)) {
@@ -647,7 +647,7 @@ fun AppLogDetailScreen(
                             Toast.makeText(context, "Could not delete log", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Delete", maxLines = 1, softWrap = false) }
             },
             dismissButton = {

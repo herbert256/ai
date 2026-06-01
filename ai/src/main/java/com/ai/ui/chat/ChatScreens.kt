@@ -134,7 +134,7 @@ fun ChatParametersScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
+        OutlinedButton(
             onClick = {
                 val presetParams = aiSettings.mergeParameters(selectedParametersIds)
                 val resolvedSp = selectedSystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt } ?: systemPrompt
@@ -155,7 +155,7 @@ fun ChatParametersScreen(
                     )
                 )
             },
-            modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()
         ) { Text("Start Chat", fontSize = 16.sp, maxLines = 1, softWrap = false) }
     }
 }
@@ -915,10 +915,10 @@ fun ChatSessionScreen(
                 placeholder = { Text("Type a message...") },
                 maxLines = 4, colors = AppColors.outlinedFieldColors()
             )
-            Button(
+            OutlinedButton(
                 onClick = { if ((userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating) trySend(userInput.trim()) },
                 enabled = (userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating,
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Send", maxLines = 1, softWrap = false) }
         }
     }

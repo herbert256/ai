@@ -84,11 +84,11 @@ fun ReportManageScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 Text("Pinned reports are skipped.", fontSize = 11.sp, color = AppColors.TextTertiary)
                 Spacer(modifier = Modifier.height(8.dp))
-                Button(
+                OutlinedButton(
                     onClick = { confirmDelete = true },
                     enabled = !working && daysText.toIntOrNull()?.let { it > 0 } == true,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Delete", maxLines = 1, softWrap = false) }
             }
         }
@@ -104,7 +104,7 @@ fun ReportManageScreen(
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Button(
+                OutlinedButton(
                     onClick = {
                         working = true
                         status = "Zipping reports…"
@@ -124,7 +124,7 @@ fun ReportManageScreen(
                     },
                     enabled = !working,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text(if (working) "Working…" else "Export all", maxLines = 1, softWrap = false) }
             }
         }

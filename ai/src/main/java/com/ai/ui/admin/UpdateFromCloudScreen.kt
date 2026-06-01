@@ -133,12 +133,12 @@ fun UpdateFromCloudScreen(
         // without scrolling once the source file is picked. Repeats
         // the same enabled/onClick logic the old bottom button had —
         // the bottom row keeps only the "Pick / Change source" affordance.
-        Button(
+        OutlinedButton(
             onClick = {
                 val uriStr = apkUriString
                 if (uriStr == null) {
                     Toast.makeText(context, "Pick a source file first", Toast.LENGTH_SHORT).show()
-                    return@Button
+                    return@OutlinedButton
                 }
                 // Copy the (potentially tens-of-MB, cloud-fetched) APK off
                 // the main thread to avoid ANRs, then fire the install
@@ -157,7 +157,7 @@ fun UpdateFromCloudScreen(
             },
             enabled = apkUriString != null && !isInstalling,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text(if (isInstalling) "Preparing…" else "Update", maxLines = 1, softWrap = false) }
 
         Column(

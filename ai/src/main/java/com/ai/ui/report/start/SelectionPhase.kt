@@ -72,18 +72,18 @@ internal fun ColumnScope.SelectionPhase(
     // same behaviour as the previous bottom-of-page version. Clear
     // stays at the bottom as a disposal action.
     if (editModeReportId != null) {
-        Button(
+        OutlinedButton(
             onClick = onUpdateModelList,
             enabled = models.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Update model list", maxLines = 1, softWrap = false) }
     } else {
-        Button(
+        OutlinedButton(
             onClick = { onGenerate(ReportType.CLASSIC) },
             enabled = models.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Generate", maxLines = 1, softWrap = false) }
     }
     Spacer(modifier = Modifier.height(8.dp))

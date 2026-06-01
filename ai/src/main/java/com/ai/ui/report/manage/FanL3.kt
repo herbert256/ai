@@ -23,6 +23,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -673,7 +674,7 @@ internal fun FanOutL3Screen(
 
             // Prev / Next arrow row at the bottom.
             Row(Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                Button(
+                OutlinedButton(
                     onClick = {
                         prev?.let {
                             if (role == "Responder") onStepSource(it.sourceAgentId)
@@ -682,10 +683,10 @@ internal fun FanOutL3Screen(
                     },
                     enabled = prev != null,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("← Prev", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 Spacer(Modifier.padding(horizontal = 4.dp))
-                Button(
+                OutlinedButton(
                     onClick = {
                         next?.let {
                             if (role == "Responder") onStepSource(it.sourceAgentId)
@@ -694,7 +695,7 @@ internal fun FanOutL3Screen(
                     },
                     enabled = next != null,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Next →", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
         }
@@ -846,16 +847,16 @@ internal fun FanOutL3MetaBody(
         }
 
         // Two Find-alt buttons.
-        Button(
+        OutlinedButton(
             onClick = { actions.onFindAlternativePairIcon(pair.id) },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Find alternative icon", maxLines = 1, softWrap = false) }
         Spacer(Modifier.height(8.dp))
-        Button(
+        OutlinedButton(
             onClick = { actions.onFindAlternativePairTitle(pair.id) },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Find alternative title", maxLines = 1, softWrap = false) }
 
         // Swipe ← / → steps through the L2-scoped pair list (the small

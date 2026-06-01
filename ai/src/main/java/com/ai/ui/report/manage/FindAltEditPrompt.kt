@@ -15,6 +15,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -89,10 +90,10 @@ internal fun FindAltPromptEditorScreen(
                 modifier = Modifier.padding(vertical = 12.dp)
             )
             Spacer(modifier = Modifier.weight(1f))
-            Button(
+            OutlinedButton(
                 onClick = { onNext(null) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Continue", maxLines = 1, softWrap = false) }
             return
         }
@@ -113,13 +114,13 @@ internal fun FindAltPromptEditorScreen(
             colors = AppColors.outlinedFieldColors()
         )
         Spacer(modifier = Modifier.height(12.dp))
-        Button(
+        OutlinedButton(
             onClick = {
                 onNext(AltEditPayload(resolved.promptId, text, resolved.subs))
             },
             enabled = text.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Next — pick models", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
     }

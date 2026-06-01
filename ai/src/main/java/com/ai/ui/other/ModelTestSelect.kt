@@ -23,6 +23,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -138,11 +139,11 @@ internal fun ModelTestSelectScreen(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
+        OutlinedButton(
             onClick = { onStart(selected) },
             enabled = selected.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) {
             Text(
                 if (selected.isEmpty()) "Start test"

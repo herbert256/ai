@@ -26,6 +26,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -338,10 +339,10 @@ internal fun TranslationL1Screen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (errorCount > 0) {
-                    Button(
+                    OutlinedButton(
                         onClick = { confirmRemoveFailed = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) { Text("Remove failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     Button(
                         onClick = { confirmRestartFailed = true },
@@ -349,10 +350,10 @@ internal fun TranslationL1Screen(
                     ) { Text("Restart failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
                 if (benchCount > 0) {
-                    Button(
+                    OutlinedButton(
                         onClick = { confirmRemoveBenched = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) { Text("Remove benched", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }

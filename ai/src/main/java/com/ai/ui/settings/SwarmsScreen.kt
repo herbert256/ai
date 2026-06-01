@@ -132,13 +132,13 @@ fun SwarmEditScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         if (isAddMode) {
-            Button(
+            OutlinedButton(
                 onClick = {
                     onSave(Swarm(java.util.UUID.randomUUID().toString(), name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId)); onBack()
                 },
                 enabled = nameError == null && selectedMembers.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {
@@ -162,9 +162,9 @@ fun SwarmEditScreen(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("${selectedMembers.size} member${if (selectedMembers.size == 1) "" else "s"}",
                 fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
-            Button(
+            OutlinedButton(
                 onClick = { showModelPicker = true },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("+ Add model", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
 

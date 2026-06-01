@@ -20,6 +20,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -150,20 +151,20 @@ internal fun ReportEditOverviewScreen(
             }
 
             Spacer(modifier = Modifier.height(4.dp))
-            Button(
+            OutlinedButton(
                 onClick = onEditModels,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Edit models", maxLines = 1, softWrap = false) }
-            Button(
+            OutlinedButton(
                 onClick = { st.showEditIconsList.value = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Edit icons", maxLines = 1, softWrap = false) }
-            Button(
+            OutlinedButton(
                 onClick = { st.showEditTitlesList.value = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Edit titles", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(16.dp))
         }

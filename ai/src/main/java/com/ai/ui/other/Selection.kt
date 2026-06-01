@@ -948,7 +948,7 @@ internal fun ReportOneTimePromptScreen(
         }
 
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
+        OutlinedButton(
             onClick = {
                 val built = InternalPrompt(
                     id = java.util.UUID.randomUUID().toString(),
@@ -960,7 +960,7 @@ internal fun ReportOneTimePromptScreen(
             },
             enabled = text.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Run", maxLines = 1, softWrap = false) }
     }
 }

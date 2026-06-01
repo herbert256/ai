@@ -11,6 +11,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -382,10 +383,10 @@ fun ReportGetInfoScreen(
         // Restart errors — shown only when at least one job failed (red ❌).
         // Clears the errored jobs' error state and re-fires just those.
         if (jobs.any { it.state == InfoJobState.FAILED }) {
-            Button(
+            OutlinedButton(
                 onClick = onRestartErrors,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Restart errors", maxLines = 1, softWrap = false) }
         }
     }

@@ -22,6 +22,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -287,35 +288,35 @@ internal fun ModelTestL1Screen(
         Spacer(modifier = Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (running) {
-                Button(
+                OutlinedButton(
                     onClick = { actions.onCheckRun() },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) {
                     Text("Check current test run", fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
-                Button(
+                OutlinedButton(
                     onClick = { actions.onCancelRun() },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) {
                     Text("Cancel test", fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
             } else {
-                Button(
+                OutlinedButton(
                     onClick = onOpenSelect,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) {
                     Text("Test all models", fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
                 // Re-probe just the previously-errored models — shown only
                 // when there's an idle run with errors.
                 if (run != null && run.errorCount > 0) {
-                    Button(
+                    OutlinedButton(
                         onClick = { actions.onRerunErrors() },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) {
                         Text("Rerun Errors (${run.errorCount})", fontSize = 13.sp, maxLines = 1, softWrap = false)
                     }

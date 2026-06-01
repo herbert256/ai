@@ -157,7 +157,7 @@ internal fun ReportExportScreen(
         // user sees both options without scrolling.
         Spacer(modifier = Modifier.height(8.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(
+            OutlinedButton(
                 onClick = {
                     when (target) {
                         ReportExportTarget.ANDROID_SHARE -> runExport(ReportExportAction.SHARE)
@@ -167,9 +167,9 @@ internal fun ReportExportScreen(
                 },
                 enabled = progress == null,
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Export", maxLines = 1, softWrap = false) }
-            Button(
+            OutlinedButton(
                 onClick = {
                     scope.launch {
                         progress = 0 to 1
@@ -190,7 +190,7 @@ internal fun ReportExportScreen(
                 },
                 enabled = progress == null,
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Export all (zip)", maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(8.dp))

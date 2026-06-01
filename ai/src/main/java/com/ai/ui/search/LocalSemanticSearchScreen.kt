@@ -134,11 +134,11 @@ fun LocalSemanticSearchScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Button(
+        OutlinedButton(
             onClick = {
-                val model = picked ?: return@Button
+                val model = picked ?: return@OutlinedButton
                 val q = query.trim()
-                if (q.isBlank()) return@Button
+                if (q.isBlank()) return@OutlinedButton
                 running = true
                 searchStartedAt = System.currentTimeMillis()
                 status = "Indexing reports…"
@@ -158,7 +158,7 @@ fun LocalSemanticSearchScreen(
             },
             enabled = !running && picked != null && query.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text(if (running) "Searching…" else "Search reports", maxLines = 1, softWrap = false) }
 
         status?.let {

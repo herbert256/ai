@@ -800,7 +800,7 @@ fun TraceDetailScreen(
             title = { Text("Delete this trace?") },
             text = { Text("Permanently removes the trace file from disk. Cannot be undone.") },
             confirmButton = {
-                Button(
+                OutlinedButton(
                     onClick = {
                         showDeleteConfirm = false
                         if (ApiTracer.deleteTrace(currentFilename)) {
@@ -810,7 +810,7 @@ fun TraceDetailScreen(
                             Toast.makeText(context, "Could not delete trace", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Delete", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -926,18 +926,18 @@ fun TraceDetailScreen(
         }
         if (matchingAgent != null) {
             Spacer(modifier = Modifier.height(6.dp))
-            Button(onClick = { onNavigateToEditAgent(matchingAgent.id) },
+            OutlinedButton(onClick = { onNavigateToEditAgent(matchingAgent.id) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                colors = AppColors.outlinedButtonColors(),
                 contentPadding = PaddingValues(horizontal = 4.dp)
             ) { Text("Agent", fontSize = 11.sp, maxLines = 1, softWrap = false) }
         }
         if (translationParts != null) {
             Spacer(modifier = Modifier.height(6.dp))
-            Button(
+            OutlinedButton(
                 onClick = { showTranslationCompare = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Translation result", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
 

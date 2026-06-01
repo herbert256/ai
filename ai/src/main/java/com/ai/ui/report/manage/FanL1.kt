@@ -344,10 +344,10 @@ internal fun FanOutL1Screen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (mainErrored > 0) {
-                    Button(
+                    OutlinedButton(
                         onClick = { confirmRemoveFailed = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) { Text("Remove failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     Button(
                         onClick = { confirmRestartFailed = true },
@@ -355,10 +355,10 @@ internal fun FanOutL1Screen(
                     ) { Text("Restart failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
                 if (mainBenched > 0) {
-                    Button(
+                    OutlinedButton(
                         onClick = { confirmRemoveBenched = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) { Text("Remove benched", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
@@ -385,11 +385,11 @@ internal fun FanOutL1Screen(
                 // the inner Text was clipped mid-word. Drop to 6 dp
                 // so the labels always render in full.
                 val tightPadding = PaddingValues(horizontal = 6.dp, vertical = 8.dp)
-                Button(
+                OutlinedButton(
                     onClick = { actions.onClearFanMetaErrors(run.key) },
                     modifier = Modifier.weight(1f),
                     contentPadding = tightPadding,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Remove errors", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { actions.onRestartFanMetaErrors(run.key) },
@@ -680,16 +680,16 @@ internal fun FanOutL1Screen(
         ) {
             if (isMetaMode) {
                 // META: back to responses + "Show Fan Meta" list.
-                Button(
+                OutlinedButton(
                     onClick = onShowResponses,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Fan-Out", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 if (hasTitles) {
-                    Button(
+                    OutlinedButton(
                         onClick = onOpenTitles,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) { Text("Show all", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             } else {
@@ -697,10 +697,10 @@ internal fun FanOutL1Screen(
                 // batch (mode flip) or confirms a fresh job. Hidden when
                 // the grand-master metadata switch is off.
                 if (com.ai.ui.shared.LocalMetadataEnabled.current) {
-                    Button(
+                    OutlinedButton(
                         onClick = { if (hasFanMeta) onShowFanMeta() else confirmStartTitles = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) { Text("Fan Meta", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
@@ -709,10 +709,10 @@ internal fun FanOutL1Screen(
         // the Icons / Titles toggle row above isn't cramped to thirds.
         if (!isMetaMode) {
             Spacer(modifier = Modifier.height(8.dp))
-            Button(
+            OutlinedButton(
                 onClick = { actions.onRunFanIn(run.key) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
     }

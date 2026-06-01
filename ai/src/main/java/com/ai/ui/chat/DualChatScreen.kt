@@ -282,7 +282,7 @@ fun DualChatSetupScreen(
         }
 
         Spacer(modifier = Modifier.height(12.dp))
-        Button(
+        OutlinedButton(
             onClick = {
                 savePrefs()
                 val sp1 = model1SystemPromptId?.let { aiSettings.getSystemPromptById(it)?.prompt } ?: ""
@@ -299,7 +299,7 @@ fun DualChatSetupScreen(
                 )
             },
             enabled = canStart, modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Go", fontSize = 16.sp, maxLines = 1, softWrap = false) }
     }
 }
@@ -584,7 +584,7 @@ fun DualChatSessionScreen(
                     label = { Text("Extra chats") }, colors = AppColors.outlinedFieldColors()
                 )
                 val extraCount = (extraChatsText.toIntOrNull() ?: 0).coerceAtMost(MAX_DUAL_ROUNDS)
-                Button(
+                OutlinedButton(
                     onClick = {
                         if (extraCount > 0) {
                             targetInteractions = currentInteraction + extraCount
@@ -592,7 +592,7 @@ fun DualChatSessionScreen(
                         }
                     },
                     enabled = extraCount > 0,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Chat $extraCount more", maxLines = 1, softWrap = false) }
             }
         }

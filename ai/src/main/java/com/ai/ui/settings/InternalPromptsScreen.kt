@@ -250,11 +250,11 @@ fun InternalPromptEditScreen(
         )
         Spacer(modifier = Modifier.height(8.dp))
         if (isAddMode) {
-            Button(
+            OutlinedButton(
                 onClick = { onSave(buildPrompt(java.util.UUID.randomUUID().toString())); onBack() },
                 enabled = nameError == null,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {

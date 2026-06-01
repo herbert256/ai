@@ -242,7 +242,7 @@ fun ApiTestScreen(
         }
 
         Spacer(modifier = Modifier.height(12.dp))
-        Button(onClick = {
+        OutlinedButton(onClick = {
             prefs.edit().apply {
                 putString("last_test_provider", selectedProvider.id)
                 putString("last_test_api_url", apiUrl)
@@ -255,7 +255,7 @@ fun ApiTestScreen(
                 remove("last_test_raw_json") // clear any previous raw JSON
             }.apply()
             onNavigateToEditRequest()
-        }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+        }, modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedButtonColors()
         ) { Text("Build Request", maxLines = 1, softWrap = false) }
     }
 }
@@ -330,7 +330,7 @@ fun EditApiRequestScreen(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Button(onClick = {
+        OutlinedButton(onClick = {
             scope.launch {
                 isLoading = true
                 try {
@@ -358,7 +358,7 @@ fun EditApiRequestScreen(
                 } finally { isLoading = false }
             }
         }, enabled = !isLoading, modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text(if (isLoading) "Sending..." else "Submit", maxLines = 1, softWrap = false) }
     }
 }

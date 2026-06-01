@@ -147,7 +147,7 @@ fun CostsMaintenanceScreen(
                         "Drops every manual price override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter), equal to the built-in default, or equal to what the lookup would return without it.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
                     )
-                    Button(
+                    OutlinedButton(
                         onClick = {
                             val n = PricingCache.cleanupRedundantManualOverrides(context)
                             Toast.makeText(
@@ -157,7 +157,7 @@ fun CostsMaintenanceScreen(
                             ).show()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) { Text("Cleanup redundant overrides", maxLines = 1, softWrap = false) }
                 }
             }

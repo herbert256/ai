@@ -264,7 +264,7 @@ fun NewReportScreen(
         // Primary CTA hoisted into its own full-width row so the
         // "advance" affordance is always reachable without picking
         // it out of the Clear / 📎 row.
-        Button(
+        OutlinedButton(
             onClick = next@{
                     val titleRequired = !uiState.generalSettings.reportTitleAiOn()
                     if ((titleRequired && title.isBlank()) || prompt.isBlank() || isModerating) return@next
@@ -317,7 +317,7 @@ fun NewReportScreen(
             enabled = (uiState.generalSettings.reportTitleAiOn() || title.isNotBlank())
                 && prompt.isNotBlank() && !isModerating,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) {
             if (isModerating) {
                 CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
@@ -513,11 +513,11 @@ private fun SharedKbBanner(
             }
             if (state !is SharedKbBannerState.Done) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
+                    OutlinedButton(
                         onClick = onAttach,
                         enabled = canAttach,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        colors = AppColors.outlinedButtonColors()
                     ) { Text("Attach as KB", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     OutlinedButton(
                         onClick = onSkip,

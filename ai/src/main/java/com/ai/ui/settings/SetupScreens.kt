@@ -604,10 +604,10 @@ fun ProvidersScreen(
             // add a new entry", so the action lands under the user's
             // thumb after the scan.
             Spacer(modifier = Modifier.height(4.dp))
-            Button(
+            OutlinedButton(
                 onClick = { showAddDialog = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("+ Add provider", maxLines = 1, softWrap = false) }
         }
     }

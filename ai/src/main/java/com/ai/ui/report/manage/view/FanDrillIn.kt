@@ -250,10 +250,10 @@ internal fun ColumnScope.FanOutDrillInView(
                 fontFamily = FontFamily.Monospace)
         }
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
+        OutlinedButton(
             onClick = { showPromptViewer = false },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Close", fontSize = 13.sp) }
         return
     }
@@ -645,9 +645,9 @@ internal fun ColumnScope.FanOutDrillInView(
             modifier = Modifier.padding(top = 4.dp)) {
             Text("Role: $selectedRole", fontSize = 12.sp, color = AppColors.TextSecondary,
                 modifier = Modifier.weight(1f))
-            Button(
+            OutlinedButton(
                 onClick = { selectedRole = if (selectedRole == "Responder") "Initiator" else "Responder" },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                colors = AppColors.outlinedButtonColors(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -670,10 +670,10 @@ internal fun ColumnScope.FanOutDrillInView(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Button(
+            OutlinedButton(
                 onClick = { onCreateReportFromFanOut?.invoke(activePid, activeMdl) },
                 enabled = onCreateReportFromFanOut != null && hasInitiatorRows,
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                colors = AppColors.outlinedButtonColors(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.weight(1f).heightIn(min = 32.dp)
             ) { Text("Create Report", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -840,10 +840,10 @@ internal fun ColumnScope.FanOutDrillInView(
         }
         // Bottom button — One page view
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
+        OutlinedButton(
             onClick = { showOnePageView = true },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("One page view", fontSize = 13.sp, maxLines = 1, softWrap = false) }
 
         if (confirmModelDelete) {
@@ -975,10 +975,10 @@ internal fun ColumnScope.FanOutDrillInView(
     )
     if (fanInPrompts.isNotEmpty() && onRunFanIn != null) {
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
+        OutlinedButton(
             onClick = { onRunFanIn() },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
     }
     // Per-failure controls — only visible when at least one pair row
@@ -1486,9 +1486,9 @@ private fun OnePageView(
             modifier = Modifier.padding(top = 4.dp)) {
             Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary,
                 modifier = Modifier.weight(1f))
-            Button(
+            OutlinedButton(
                 onClick = onSwitchRole,
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                colors = AppColors.outlinedButtonColors(),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }

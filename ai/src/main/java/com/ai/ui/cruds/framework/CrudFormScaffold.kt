@@ -14,6 +14,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -55,11 +56,11 @@ fun CrudFormScaffold(
     ) {
         TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack, onClear = onReset)
         if (isAdd) {
-            Button(
+            OutlinedButton(
                 onClick = { onSave(); onBack() },
                 enabled = current != null,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(12.dp))
         } else {

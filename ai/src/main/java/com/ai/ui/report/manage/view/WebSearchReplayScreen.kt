@@ -23,6 +23,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
@@ -186,9 +187,9 @@ private fun WebSearchResultPane(
                 WebSearchReplayResult.Running -> Text("Running web-search replay…", color = AppColors.TextTertiary, fontSize = 13.sp)
                 is WebSearchReplayResult.Error -> Text(result.message, color = AppColors.DangerAccent, fontSize = 14.sp)
                 is WebSearchReplayResult.Success -> {
-                    Button(
+                    OutlinedButton(
                         onClick = onUseResponse,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                        colors = AppColors.outlinedButtonColors(),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Use this response", maxLines = 1, softWrap = false) }
                     ContentWithThinkSections(analysis = result.response)

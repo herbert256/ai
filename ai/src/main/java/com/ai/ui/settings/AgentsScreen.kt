@@ -173,14 +173,14 @@ fun AgentEditScreen(
         }
         Spacer(modifier = Modifier.height(8.dp))
         if (isAddMode) {
-            Button(
+            OutlinedButton(
                 onClick = {
                     persistSelectedEndpoint()
                     onSave(buildAgent(java.util.UUID.randomUUID().toString())); onBack()
                 },
                 enabled = nameError == null,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                colors = AppColors.outlinedButtonColors()
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {
@@ -306,7 +306,7 @@ fun AgentEditScreen(
             // Test
             if (apiKey.isNotBlank() || aiSettings.getApiKey(selectedProvider).isNotBlank()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
+                    OutlinedButton(
                         onClick = {
                             scope.launch {
                                 isTesting = true; testResult = null; lastTraceFile = null
@@ -335,7 +335,7 @@ fun AgentEditScreen(
                                 isTesting = false
                             }
                         },
-                        enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                        enabled = !isTesting, colors = AppColors.outlinedButtonColors()
                     ) { Text(if (isTesting) "Testing..." else "Test Agent", maxLines = 1, softWrap = false) }
 
                     val traceFile = lastTraceFile

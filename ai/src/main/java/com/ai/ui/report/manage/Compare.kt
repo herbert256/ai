@@ -25,6 +25,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -135,11 +136,11 @@ fun CompareSelectMetaScreen(
                 modifier = Modifier.padding(vertical = 8.dp)
             )
         }
-        Button(
+        OutlinedButton(
             onClick = { onNext(selected.toList()) },
             enabled = selected.isNotEmpty(),
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+            colors = AppColors.outlinedButtonColors()
         ) { Text("Next — pick a prompt (${selected.size})", fontSize = 14.sp) }
     }
 }
@@ -496,9 +497,9 @@ private fun CompareL1(
 
             Spacer(Modifier.height(16.dp))
             if (run.errorCount > 0) {
-                Button(
+                OutlinedButton(
                     onClick = onRestartFailed, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
+                    colors = AppColors.outlinedButtonColors()
                 ) { Text("Restart ${run.errorCount} failed", fontSize = 14.sp) }
             }
             Spacer(Modifier.height(24.dp))

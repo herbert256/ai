@@ -225,9 +225,9 @@ internal fun ReportMetaScreen(
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         metaPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
-                            Button(
+                            OutlinedButton(
                                 onClick = { onLaunchMetaPrompt(mp) },
-                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                                colors = AppColors.outlinedButtonColors(),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                             ) { Text(mp.name, fontSize = 11.sp, maxLines = 1, softWrap = false) }
                         }

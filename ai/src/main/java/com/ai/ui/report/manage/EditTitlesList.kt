@@ -19,6 +19,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -180,9 +181,9 @@ internal fun ReportEditTitlesScreen(
                         com.ai.data.MetadataIconsHolder.current.edit, fontSize = 20.sp,
                         modifier = Modifier.clickable { item.onEdit() }.padding(horizontal = 6.dp, vertical = 4.dp)
                     )
-                    Button(
+                    OutlinedButton(
                         onClick = item.onFindAlt,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
+                        colors = AppColors.outlinedButtonColors(),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                         modifier = Modifier.heightIn(min = 32.dp).padding(start = 4.dp)
                     ) { Text("Find", fontSize = 12.sp, maxLines = 1, softWrap = false) }
