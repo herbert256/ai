@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 
 object AppColors {
     private val DefaultUiColorArgb = linkedMapOf(
+        "AppBackground" to 0xFF000000.toInt(),
         "PrimaryAccent" to 0xFF8B5CF6.toInt(),
         "SecondaryAccent" to 0xFF6366F1.toInt(),
         "InfoAccent" to 0xFF6B9BFF.toInt(),
@@ -58,6 +59,10 @@ object AppColors {
 
     val DefaultCardBackgroundAltArgb: Int = DefaultUiColorArgb.getValue("CardBackgroundAlt")
     val DefaultButtonBackgroundArgb: Int = DefaultUiColorArgb.getValue("ButtonBackground")
+
+    // App shell colors
+    var AppBackground by mutableStateOf(colorFromArgb(defaultArgbFor("AppBackground")))
+        private set
 
     // Role accent colors
     var PrimaryAccent by mutableStateOf(colorFromArgb(defaultArgbFor("PrimaryAccent")))
@@ -168,6 +173,7 @@ object AppColors {
     fun applyUiColors(overrides: Map<String, Int>) {
         val colors = normalizeUiColorOverrides(overrides)
         fun color(key: String): Color = colorFromArgb(colors[key] ?: defaultArgbFor(key))
+        AppBackground = color("AppBackground")
         PrimaryAccent = color("PrimaryAccent")
         SecondaryAccent = color("SecondaryAccent")
         InfoAccent = color("InfoAccent")

@@ -1468,6 +1468,7 @@ private fun readableUiColorName(key: String): String =
     key.replace(Regex("(?<=[a-z])(?=[A-Z])"), " ")
 
 private fun uiColorDescription(key: String): String = when (key) {
+    "AppBackground" -> "Full-screen app background behind every screen."
     "PrimaryAccent" -> "Primary action and user-side accent."
     "SecondaryAccent" -> "Secondary action and detail accent."
     "InfoAccent" -> "Headings, links, selected states, totals, and focused fields."
@@ -1500,6 +1501,7 @@ private fun uiColorDescription(key: String): String = when (key) {
 }
 
 private fun uiColorIcon(key: String): String = when {
+    key == "AppBackground" -> MetadataDefaults.DEVICE
     key == "PrimaryAccent" -> MetadataDefaults.SPARKLES
     key == "SecondaryAccent" -> MetadataDefaults.GEM
     key == "InfoAccent" -> MetadataDefaults.INFO
