@@ -360,12 +360,19 @@ private fun assignRanks(scored: List<RankScored>): List<RankRow> {
 fun List<RankRow>.toRerankJson(): String {
     val arr = JsonArray()
     forEach { row ->
+        // A divergent iterative method (Davidson / Elo / Markov on a big or
+        // degenerate run) can produce a NaN / Infinity score. Gson is left
+        // strict (no serializeSpecialFloatingPointValues), so emitting one
+        // throws and — because the aggregate recompute runs in a background
+        // resume coroutine — used to crash the whole app. Coerce non-finite
+        // scores to 0 so serialization can never throw.
+        val safeScore = if (row.score.isFinite()) row.score else 0.0
         arr.add(JsonObject().apply {
             addProperty("id", row.id)
             addProperty("rank", row.rank)
             // Integer-valued scores serialise clean; fractional keep 2dp.
-            val s = if (row.score == Math.floor(row.score)) row.score.toInt() else
-                "%.2f".format(row.score).toDouble()
+            val s = if (safeScore == Math.floor(safeScore)) safeScore.toInt() else
+                "%.2f".format(safeScore).toDouble()
             addProperty("score", s)
             addProperty("reason", row.reason)
         })

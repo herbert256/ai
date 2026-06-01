@@ -394,14 +394,22 @@ class TournamentEngine internal constructor(
         val idByAgent = report.agents
             .filter { it.agentId in participantIds }
             .withIndex().associate { (i, a) -> a.agentId to (i + 1) }
-        val matrix = computeWinMatrix(run.matches.values.toList()) { idByAgent[it] }
-        val ranks = rankFor(run.selectedMethod, matrix)
-        val row = SecondaryResultStorage.get(context, reportId, aggId) ?: return
-        SecondaryResultStorage.save(context, row.copy(
-            content = ranks.toRerankJson(),
-            tournamentMatrix = matrix.encode(run.selectedMethod),
-            durationMs = row.durationMs ?: 0
-        ))
+        // The aggregation math (iterative ranking methods, JSON encode) must
+        // never take the app down — this runs from the background resume
+        // sweep at startup as well as user actions. Swallow + log; a failed
+        // recompute just leaves the previous aggregate in place.
+        try {
+            val matrix = computeWinMatrix(run.matches.values.toList()) { idByAgent[it] }
+            val ranks = rankFor(run.selectedMethod, matrix)
+            val row = SecondaryResultStorage.get(context, reportId, aggId) ?: return
+            SecondaryResultStorage.save(context, row.copy(
+                content = ranks.toRerankJson(),
+                tournamentMatrix = matrix.encode(run.selectedMethod),
+                durationMs = row.durationMs ?: 0
+            ))
+        } catch (e: Exception) {
+            AppLog.w("Tournament", "recompute aggregate failed report=$reportId method=${run.selectedMethod}: ${e.javaClass.simpleName}: ${e.message}")
+        }
     }
 
     /** Switch the displayed / Top-ranked aggregation method — a pure local
@@ -563,6 +571,15 @@ class TournamentEngine internal constructor(
                     dispatchMatches(context, reportId, prompt, report.prompt, report.title, pending)
                 }
                 recomputeAndPersistAggregate(context, reportId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // This launch is a direct child of viewModelScope, so an
+                // uncaught throw here reaches the global handler and crashes
+                // the app (the background resume sweep only join()s this Job,
+                // it can't catch it). Contain it — a failed resume just leaves
+                // the run as-is until the next open / sweep.
+                AppLog.w("Tournament", "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
             } finally {
                 resumeScans.remove(reportId)
             }
