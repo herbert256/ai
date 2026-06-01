@@ -140,6 +140,7 @@ fun JudgeEvalOverlay(reportId: String, engine: JudgeEvalEngine, onClose: () -> U
 fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val navigateToRoute = com.ai.ui.shared.LocalNavigateToRoute.current
     val runs by engine.runs.collectAsState()
     val throttled by engine.throttledCells.collectAsState()
     val run = runs[reportId]
@@ -220,6 +221,7 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
         else -> JudgeEvalL1(run, agents, throttled, reportTitle, reportIcon,
             openJudge = { jk -> if (navOk()) { judgeKey = jk; byMatch = false; level = 2 } },
             openMatch = { mk -> if (navOk()) { matchKey = mk; byMatch = true; level = 2 } },
+            onEditSwarm = { engine.activeSwarmId()?.let { navigateToRoute(com.ai.ui.navigation.NavRoutes.settingsSwarmEdit(it)) } },
             onRestartFailed = { scope.launch { engine.restartFailedCells(context, reportId) } },
             onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
             onBack = onBack)
@@ -261,6 +263,7 @@ private fun JudgeEvalL1(
     reportIcon: String,
     openJudge: (String) -> Unit,
     openMatch: (String) -> Unit,
+    onEditSwarm: () -> Unit,
     onRestartFailed: () -> Unit,
     onDeleteRun: () -> Unit,
     onBack: () -> Unit
@@ -270,7 +273,7 @@ private fun JudgeEvalL1(
         TitleBar(
             helpTopic = "judge_eval_l1", title = "Judge the judges",
             subject = reportTitle, reportIcon = reportIcon,
-            onBackClick = onBack, onDelete = onDeleteRun
+            onBackClick = onBack, onEdit = onEditSwarm, onDelete = onDeleteRun
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))

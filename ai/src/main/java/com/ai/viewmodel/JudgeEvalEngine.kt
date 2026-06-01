@@ -402,6 +402,14 @@ class JudgeEvalEngine internal constructor(
     // Swarm editing
     // -----------------------------------------------------------------
 
+    /** Id of the swarm the judges are drawn from (the workers/tournament
+     *  prompt's swarm), for the ✏️ "edit this swarm" jump. Null if unresolved. */
+    fun activeSwarmId(): String? {
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val swarmName = judgePrompt(aiSettings)?.workers?.firstOrNull()?.swarm ?: return null
+        return aiSettings.getSwarmByName(swarmName)?.id
+    }
+
     /** Remove a judge (provider/model) from the prompt's worker swarm, so
      *  future runs (and the Tournament) no longer use it. Persists settings.
      *  No-op if the swarm or member can't be found. */
