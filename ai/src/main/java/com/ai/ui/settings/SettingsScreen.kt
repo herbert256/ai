@@ -1463,7 +1463,7 @@ private fun uiColorPickerSpecs(): List<UiColorPickerSpec> {
             "PrimaryAccent" -> UiColorPickerSpec(
                 key = "PrimaryAccent",
                 alsoSet = listOf("InfoAccent"),
-                title = "Primary & Secondary / Info Accent",
+                title = "Accent",
                 description = "One accent for primary actions and the secondary/detail accents " +
                     "(headings, links, selected states, totals, focused fields).",
                 icon = uiColorIcon("PrimaryAccent")
@@ -1488,7 +1488,7 @@ private fun uiColorPickerSpecs(): List<UiColorPickerSpec> {
 
 private fun uiColorTitle(key: String): String = when (key) {
     "InfoAccent" -> "Secondary / Info Accent"
-    "SuccessAccent" -> "Success / Success Count Accent"
+    "SuccessAccent" -> "Success"
     "DangerAccent" -> "Error"
     "WarningAccent" -> "Warning"
     "TextSecondary" -> "Text Secondary"
