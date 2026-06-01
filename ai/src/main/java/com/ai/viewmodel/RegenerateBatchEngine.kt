@@ -869,6 +869,10 @@ class RegenerateBatchEngine internal constructor(
             r.kind != SecondaryKind.TOURNAMENT &&
             // JUDGES cells are owned by JudgeEvalEngine, not the regenerate batch.
             r.kind != SecondaryKind.JUDGES &&
+            // COMPARE cells are a worker-judged grid owned by CompareEngine
+            // (compareAgentId/compareToResultId, no meta-prompt call) — they
+            // must NOT be swept into the single-call META resume path.
+            r.kind != SecondaryKind.COMPARE &&
             r.fanOutSourceAgentId == null &&
             r.fanInOf == null
 
