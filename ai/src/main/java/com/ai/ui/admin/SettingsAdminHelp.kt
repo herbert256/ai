@@ -664,6 +664,17 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("🐞 AI API Traces →", "The per-call request/response records (filterable by category, provider, host, model). Needs API tracing enabled in Settings. Its 📈 icon opens the API trace statistics."),
             HelpCard("📜 Application log →", "The in-app application log, line by line. Its 📈 icon opens the App log statistics."),
             HelpCard("📊 Statistics →", "Own hub: the lifetime-aggregate stat pages — Reports, Providers, Models, Spend & usage, Costs tiers — plus Trace and App-log statistics and the inline Knowledge totals."),
+            HelpCard("💥 Crash reports →", "Appears only after the app has captured at least one error. Lists every saved crash report (newest first); tap one to view, share or delete it. Cleared with 🗑."),
+        )
+    ),
+    "ai_crash_reports" to HelpContent(
+        title = "Help - Crash reports",
+        cards = listOf(
+            HelpCard("Overview", "Every error the app captured. A fatal crash is recorded just before the app closes; background errors that were caught (so the app kept running) are recorded too. The entry only appears on the Monitor hub once at least one report exists."),
+            HelpCard("What's in a report", "App version + build, device model, Android version, locale, the thread, and the full stack trace (with causes). No prompts or report content — safe to share."),
+            HelpCard("View & share", "Tap a row to open the full report. 📋 copies it, 📤 shares it (paste it wherever it can be analysed), 🗑 deletes that one report."),
+            HelpCard("Clear", "The 🗑 in the list's title bar clears every saved report (confirm dialog)."),
+            HelpCard("After a crash", "The next launch also pops a one-tap 'Share crash report' prompt for the most recent fatal crash — this screen is for browsing the history later."),
         )
     ),
     "ai_statistics" to HelpContent(

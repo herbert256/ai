@@ -313,9 +313,17 @@ fun AiMonitorScreen(
     onNavigateToAppLog: () -> Unit = {},
     onNavigateToAudit: () -> Unit = {},
     onNavigateToStatistics: () -> Unit = {},
+    onNavigateToCrashReports: () -> Unit = {},
     onHousekeeping: (() -> Unit)? = null,
 ) {
     BackHandler { onBack() }
+    // Only surface the Crash reports entry when at least one report exists.
+    // Re-checked on every screen-resume so it appears after a fresh crash
+    // and disappears once the user clears them.
+    val resumeTick = com.ai.ui.shared.resumeRefreshTick()
+    val hasCrashReports by produceState(false, resumeTick) {
+        value = withContext(Dispatchers.IO) { com.ai.data.CrashReporter.hasReports() }
+    }
     Column(
         modifier = Modifier.fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
@@ -340,8 +348,135 @@ fun AiMonitorScreen(
             item { LinkCard(com.ai.data.MetadataDefaults.APP_LOG, "Application log", "The in-app application log, line by line", onNavigateToAppLog) }
             item { LinkCard(com.ai.data.MetadataDefaults.AUDIT, "Audit", "Per-report trail of actions, batches and API calls", onNavigateToAudit) }
             item { LinkCard(com.ai.data.MetadataDefaults.STATISTICS_MONITOR, "Statistics", "Lifetime totals across reports, providers, models, spend and logs", onNavigateToStatistics) }
+            if (hasCrashReports) {
+                item { LinkCard("💥", "Crash reports", "Captured app errors — tap to view and share", onNavigateToCrashReports) }
+            }
             item { Spacer(Modifier.height(24.dp)) }
         }
+    }
+}
+
+/** Crash reports — browse / view / share / clear the captured error
+ *  reports [com.ai.data.CrashReporter] saves. Reached from the Monitor hub
+ *  (shown there only when at least one report exists). Each report carries
+ *  app version, device, locale and the stack trace. */
+@Composable
+fun AiCrashReportsScreen(
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateToMonitor: () -> Unit = {},
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    var refreshTick by remember { mutableStateOf(0) }
+    var selected by remember { mutableStateOf<String?>(null) }
+    var confirmClear by remember { mutableStateOf(false) }
+
+    // Detail overlay — full report text with copy / share / delete. Layers
+    // over the list (returns here on back), per the full-screen overlay pattern.
+    val sel = selected
+    if (sel != null) {
+        val body by produceState<String?>(null, sel) {
+            value = withContext(Dispatchers.IO) { com.ai.data.CrashReporter.readReport(sel) }
+        }
+        val text = body
+        Column(
+            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+                .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        ) {
+            TitleBar(
+                helpTopic = "ai_crash_reports",
+                title = "Crash report",
+                subject = sel.removePrefix("report_").removeSuffix(".txt"),
+                onBackClick = { selected = null },
+                onCopy = text?.let { t -> { com.ai.ui.shared.copyToClipboard(context, t) } },
+                onShare = text?.let { t -> { com.ai.ui.shared.shareText(context, t, "AI crash report") } },
+                onDelete = {
+                    com.ai.data.CrashReporter.deleteReport(sel)
+                    selected = null
+                    refreshTick++
+                }
+            )
+            if (text == null) {
+                Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            } else {
+                Text(
+                    text, fontSize = 12.sp, color = Color.White,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
+                    modifier = Modifier.fillMaxWidth().weight(1f)
+                        .verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 16.dp)
+                )
+            }
+        }
+        return
+    }
+
+    val reports by produceState<List<com.ai.data.CrashReporter.CrashReportInfo>?>(null, refreshTick) {
+        value = withContext(Dispatchers.IO) { com.ai.data.CrashReporter.listReports() }
+    }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_crash_reports",
+            title = "Crash reports",
+            subject = "Captured errors — tap to view & share",
+            onBackClick = onBack,
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.liveDashboard,
+            onReportIconClick = onNavigateToMonitor,
+            onTitleClick = onNavigateToMonitor,
+            onDelete = { confirmClear = true }
+        )
+        val list = reports
+        when {
+            list == null -> Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            list.isEmpty() -> Text("No crash reports.", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            else -> LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                item { Spacer(Modifier.height(4.dp)) }
+                items(list, key = { it.id }) { r ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
+                        modifier = Modifier.fillMaxWidth().clickable { selected = r.id }
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(r.whenLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                Text(
+                                    r.kind, fontSize = 10.sp,
+                                    color = if (r.kind == "FATAL") AppColors.DangerAccent else AppColors.WarningAccent,
+                                    modifier = Modifier.clip(RoundedCornerShape(4.dp))
+                                        .background(AppColors.SurfaceDark).padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            Text(r.summary, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                }
+                item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+    }
+
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text("Clear all crash reports?") },
+            text = { Text("Deletes every saved crash report. Cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmClear = false
+                    com.ai.data.CrashReporter.clearAllReports()
+                    refreshTick++
+                    Toast.makeText(context, "Crash reports cleared", Toast.LENGTH_SHORT).show()
+                }) { Text("Clear", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
+            },
+            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
+        )
     }
 }
 

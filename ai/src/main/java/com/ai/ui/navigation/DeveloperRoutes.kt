@@ -106,7 +106,13 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToAppLog = { navController.navigate(NavRoutes.AI_APPLOG_LIST) },
                 onNavigateToAudit = { navController.navigate(NavRoutes.AI_AUDIT_LIST) },
                 onNavigateToStatistics = { navController.navigate(NavRoutes.AI_STATISTICS) },
+                onNavigateToCrashReports = { navController.navigate(NavRoutes.AI_CRASH_REPORTS) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
+        }
+        monitorComposable(NavRoutes.AI_CRASH_REPORTS, monitorNav) {
+            AiCrashReportsScreen(
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onNavigateToMonitor = { navController.navigate(NavRoutes.AI_MONITOR) })
         }
         monitorComposable(NavRoutes.AI_STATISTICS, monitorNav, MonitorPart.STATISTICS) {
             AiStatisticsScreen(
