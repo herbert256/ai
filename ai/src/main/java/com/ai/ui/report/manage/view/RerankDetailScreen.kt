@@ -23,6 +23,7 @@ import com.ai.data.ReportStorage
 import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.data.UserNote
+import com.ai.data.barTitle
 import com.ai.data.notesFor
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
@@ -121,11 +122,15 @@ internal fun RerankDetailScreen(
         val onOpenViewJump: (() -> Unit)? = pendingViewHolder?.let { holder ->
             { holder.value = com.ai.ui.shared.ViewJump.Rerank(result.id) }
         }
+        // Orange subject line = the report's long title (falls back to the
+        // short title via barTitle, then to the rerank label before the
+        // report loads).
+        val reportTitle = parentReport?.barTitle?.takeIf { it.isNotBlank() } ?: title
         TitleBar(
             helpTopic = "rerank_detail",
             title = "Rerank",
             reportIcon = parentReport?.icon?.takeIf { it.isNotBlank() } ?: "📝",
-            subject = title,
+            subject = reportTitle,
             onBackClick = onBack,
             onTrace = if (traceEnabled) { { onNavigateToTraceFile(traceFilename!!) } } else null,
             onDelete = { confirmDelete = true },
