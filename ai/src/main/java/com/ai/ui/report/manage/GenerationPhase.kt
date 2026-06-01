@@ -200,7 +200,10 @@ internal fun buildEveryItems(
     // sourceRows surfaces the run's first row so the Report - view
     // tile click can route to a content-only TranslateViewScreen
     // (it reads translationRunId off the seed row to load the run).
-    val translate = secondaryRuns
+    // TRANSLATE rows are stripped from [secondaryRuns] (RuntimeState removes
+    // them) and arrive in the dedicated [translates] param — read them from
+    // there, or this tile is always empty.
+    val translate = translates
         .filter { it.kind == SecondaryKind.TRANSLATE }
         .groupBy { it.translationRunId ?: "lang:${it.targetLanguage.orEmpty()}" }
         .map { (runId, rows) ->
