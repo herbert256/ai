@@ -63,6 +63,43 @@ data class AltEditPayload(
     val subs: List<Pair<String, String>>,
 )
 
+/** The category=="alt" internal-prompt name a find-alternative [flow] composes
+ *  with. Single source of truth for the run-time worker-skip check; the
+ *  `alt(...)` lookups in [IconGenerationManager.resolveAltPrompt] must use the
+ *  same names. Null for flows that don't draw on an "alt" template
+ *  (TranslationText uses the translate-title / translate-text prompt directly,
+ *  and never reaches the find-icons picker). */
+fun altPromptNameFor(flow: AltPromptFlow): String? = when (flow) {
+    is AltPromptFlow.ReportTitle -> if (flow.long) "report_title_long" else "report_title"
+    is AltPromptFlow.ModelTitle -> "model_title"
+    is AltPromptFlow.PairTitle -> "model_title"
+    is AltPromptFlow.ReportIcon -> "main"
+    is AltPromptFlow.AgentIcon -> "report"
+    is AltPromptFlow.PairIcon -> "fan_out"
+    is AltPromptFlow.MetaIcon -> "meta"
+    is AltPromptFlow.LanguageIcon -> "language"
+    is AltPromptFlow.TranslationIcon -> "translation"
+    is AltPromptFlow.TranslationText -> null
+}
+
+/** The configured worker models for a find-alternative [flow]: resolve the alt
+ *  prompt's [InternalPrompt.workers] chain (Model / Agent / Flock / Swarm) to
+ *  concrete provider/model [ReportModel]s. Empty when the alt prompt carries no
+ *  resolvable worker — the caller then shows the model-selection screen. A
+ *  flock/swarm expands to several models (several candidates); a single
+ *  agent/model yields one. */
+fun altWorkerModels(aiSettings: Settings, flow: AltPromptFlow): List<ReportModel> {
+    val name = altPromptNameFor(flow) ?: return emptyList()
+    val prompt = aiSettings.internalPrompts.firstOrNull {
+        it.category == "alt" && it.name.equals(name, ignoreCase = true)
+    } ?: return emptyList()
+    return prompt.workers
+        .flatMap { aiSettings.expandWorker(it) }
+        .mapNotNull { aiSettings.resolveWorker(it) }
+        .map { toReportModel(it.provider, it.model) }
+        .distinctBy { "${it.provider.id}/${it.model}" }
+}
+
 /** Icon-generation orchestration extracted from [ReportViewModel]:
  *  the report/title/language icon kick-offs, every per-scope icon
  *  fan-out (internal-prompt / pair / translation / agent / language),
@@ -101,6 +138,8 @@ class IconGenerationManager(
         aiSettings: Settings,
         flow: AltPromptFlow
     ): ResolvedAltPrompt? = withContext(Dispatchers.IO) {
+        // Names here must match [altPromptNameFor] (the run-time worker-skip
+        // check resolves the same alt prompt by that map).
         fun alt(name: String) = aiSettings.internalPrompts.firstOrNull {
             it.category == "alt" && it.name.equals(name, ignoreCase = true)
         }

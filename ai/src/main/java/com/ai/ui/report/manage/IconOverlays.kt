@@ -123,6 +123,10 @@ internal fun FindIconsPickerRouter(
     internalPrompts: List<com.ai.model.InternalPrompt>,
     aiSettings: Settings,
     models: List<ReportModel>,
+    /** When non-empty the alt prompt has a worker configured: skip the
+     *  model-selection screen entirely and run the fan-out directly on these
+     *  models (resolved from the prompt's worker chain). */
+    autoDispatchModels: List<ReportModel> = emptyList(),
     genericPromptText: String,
     /** Non-null when this run finds alternative TITLES not icons:
      *  "report" for the report title, else the agentId. */
@@ -149,6 +153,26 @@ internal fun FindIconsPickerRouter(
         internalPrompts.firstOrNull { it.id == id }
     }
     val isTitleFlow = targetTitleFor != null || targetPairTitleId != null
+    // Worker-configured alt prompt: skip the model-selection screen and run the
+    // fan-out straight on the prompt's resolved worker models. Mirrors the
+    // onAction / onActionWithParams routing below (params-flows get no run-time
+    // 🌡️/🎭 override), then confirms into the candidates grid.
+    if (autoDispatchModels.isNotEmpty()) {
+        LaunchedEffect(autoDispatchModels) {
+            when {
+                targetPairTitleId != null -> onStartPairTitleFanOut(reportId, targetPairTitleId, autoDispatchModels)
+                targetTitleFor != null -> onStartTitleFanOut(targetTitleFor, autoDispatchModels, emptyList(), null)
+                targetPrompt != null -> onStartInternalPromptIconFanOut(targetPrompt, autoDispatchModels, emptyList(), null)
+                targetLanguageIcon -> languageIconCallbacks.onStartFanOut(reportId, genericPromptText, autoDispatchModels)
+                targetLanguage != null -> translationIconCallbacks.onStartFanOut(targetLanguage, autoDispatchModels)
+                targetPairId != null -> onStartPairIconFanOut(reportId, targetPairId, autoDispatchModels)
+                targetAgentId != null -> onStartAgentIconFanOut(reportId, targetAgentId, autoDispatchModels)
+                else -> onStartIconFanOut(reportId, genericPromptText, autoDispatchModels)
+            }
+            onConfirm()
+        }
+        return
+    }
     ModelSelectionScreen(
         models = models,
         aiSettings = aiSettings,

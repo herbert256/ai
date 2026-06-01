@@ -410,7 +410,7 @@ fun InternalPromptsHubScreen(
                 onClick = { onOpenInternalPrompts("internal") })
             ModelsSetupNavCard(MetadataDefaults.WORKER, "Worker prompts", "Prompts that run on an ordered worker fallback chain for app-owned jobs.", "${countByCategory("workers")}",
                 onClick = { onOpenInternalPrompts("workers") })
-            ModelsSetupNavCard(MetadataDefaults.SPARKLES, "Alternative prompts", "The *_alt variants the Find-alternative-icons / titles flows compose with their base prompt (distinct-emoji / no-flag nudges). Edit-only.", "${countByCategory("alt")}",
+            ModelsSetupNavCard(MetadataDefaults.SPARKLES, "Alternative prompts", "The *_alt variants the Find-alternative-icons / titles flows compose with their base prompt. Edit-only. Configure a Model/Agent/Flock/Swarm worker to skip the model-selection screen at run time.", "${countByCategory("alt")}",
                 onClick = { onOpenInternalPrompts("alt") })
         }
     }

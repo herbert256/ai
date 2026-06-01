@@ -136,6 +136,12 @@ internal fun ReportIconFlowOverlays(
     }
 
     if (st.showFindIconsPicker.value && currentReportId != null) {
+        // If the active flow's alt prompt has a worker (Model/Agent/Flock/Swarm)
+        // configured, skip the model-selection screen and run the fan-out on the
+        // resolved worker models; empty ⇒ show the picker as before.
+        val autoModels = altFlowFor(st, uiState, currentReportId)
+            ?.let { com.ai.viewmodel.altWorkerModels(aiSettings, it) }
+            ?: emptyList()
         CompositionLocalProvider(
             com.ai.ui.shared.LocalReportIcon provides runtime.effectiveReportIcon,
             com.ai.ui.shared.LocalReportTitle provides runtime.loadedReportTitle,
@@ -165,6 +171,7 @@ internal fun ReportIconFlowOverlays(
                 internalPrompts = aiSettings.internalPrompts,
                 aiSettings = aiSettings,
                 models = st.findIconsModels.value,
+                autoDispatchModels = autoModels,
                 genericPromptText = uiState.genericPromptText,
                 targetTitleFor = st.findTitlesFor.value,
                 onStartTitleFanOut = { target, models, pIds, spId ->

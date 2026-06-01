@@ -145,13 +145,18 @@ fun InternalPromptEditScreen(
     var model by remember(resetTick) { mutableStateOf(internalPrompt?.model ?: "") }
     var providerDialogOpen by remember { mutableStateOf(false) }
     var modelDialogOpen by remember { mutableStateOf(false) }
-    // "workers" category: an ordered list of worker rows replaces the
-    // single agent / provider+model picker. Execution is not wired yet.
-    // The "workers" category — and "meta_compare" (Compare-with-meta prompts,
-    // which are worker-judged) — expose the ordered worker-row editor in place
-    // of the single agent / provider+model picker, and persist the chain.
+    // Categories that expose the ordered worker-row editor (Model / Agent /
+    // Flock / Swarm) in place of the single agent / provider+model picker, and
+    // persist the chain in [InternalPrompt.workers]:
+    //  - "workers"      — app-owned worker jobs (report-icon, …).
+    //  - "meta_compare" — Compare-with-meta prompts, worker-judged.
+    //  - "alt"          — Find-alternative icon/title prompts. A configured
+    //                     worker is used directly at run time, skipping the
+    //                     model-selection screen (empty ⇒ pick models then).
     val isWorkers = category.equals("workers", ignoreCase = true) ||
-        category.equals("meta_compare", ignoreCase = true)
+        category.equals("meta_compare", ignoreCase = true) ||
+        category.equals("alt", ignoreCase = true)
+    val isAltWorkers = category.equals("alt", ignoreCase = true)
     var workers by remember(resetTick) { mutableStateOf(internalPrompt?.workers ?: emptyList()) }
     // Per-prompt Parameters / System-prompt preset NAMES ("*NONE" = unset).
     var selectedParametersName by remember(resetTick) { mutableStateOf(internalPrompt?.parameters ?: "*NONE") }
@@ -418,13 +423,22 @@ fun InternalPromptEditScreen(
                 } else modelDialogOpen = false
             }
           } else {
-            // Workers category: edit an ordered list of worker rows
-            // (each one agent OR provider+model). Intended as a fallback
-            // chain; execution is not wired yet.
+            // Worker editor: an ordered list of worker rows (each one
+            // Model / Agent / Flock / Swarm). For workers / meta_compare this
+            // is a fallback chain; for "alt" it's the set the alternative
+            // lookup is generated on (empty ⇒ ask via the model picker).
             SectionCard {
-                Text("Workers — ordered fallback chain", fontSize = 12.sp, color = AppColors.TextTertiary)
+                Text(
+                    if (isAltWorkers) "Workers — alternatives are generated on each"
+                    else "Workers — ordered fallback chain",
+                    fontSize = 12.sp, color = AppColors.TextTertiary
+                )
                 if (workers.isEmpty()) {
-                    Text("No workers yet — add at least one.", fontSize = 12.sp, color = AppColors.TextDim)
+                    Text(
+                        if (isAltWorkers) "No workers — the model-selection screen is shown at run time."
+                        else "No workers yet — add at least one.",
+                        fontSize = 12.sp, color = AppColors.TextDim
+                    )
                 }
                 workers.forEachIndexed { idx, w ->
                     WorkerRowEditor(
