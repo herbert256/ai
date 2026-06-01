@@ -179,6 +179,7 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
     // rerun if the swarm's judges no longer match this batch's judges.
     var awaitingEditReturn by rememberSaveable { mutableStateOf(false) }
     var confirmRerun by rememberSaveable { mutableStateOf(false) }
+    var confirmRedo by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         if (awaitingEditReturn) {
             awaitingEditReturn = false
@@ -242,6 +243,7 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
                     navigateToRoute(com.ai.ui.navigation.NavRoutes.settingsSwarmEdit(it))
                 }
             },
+            onRedo = { confirmRedo = true },
             onRestartFailed = { scope.launch { engine.restartFailedCells(context, reportId) } },
             onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
             onBack = onBack)
@@ -267,6 +269,26 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmDeleteJudge = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (confirmRedo) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmRedo = false },
+            title = { Text("Redo the batch?") },
+            text = {
+                Text("Delete the current results and re-judge all matches from scratch with the current swarm?")
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmRedo = false
+                    level = 1
+                    engine.rerunBatch(context, reportId)
+                }) { Text("Redo") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmRedo = false }) { Text("Cancel") }
             }
         )
     }
@@ -304,6 +326,7 @@ private fun JudgeEvalL1(
     openJudge: (String) -> Unit,
     openMatch: (String) -> Unit,
     onEditSwarm: () -> Unit,
+    onRedo: () -> Unit,
     onRestartFailed: () -> Unit,
     onDeleteRun: () -> Unit,
     onBack: () -> Unit
@@ -313,7 +336,7 @@ private fun JudgeEvalL1(
         TitleBar(
             helpTopic = "judge_eval_l1", title = "Judge the judges",
             subject = reportTitle, reportIcon = reportIcon,
-            onBackClick = onBack, onEdit = onEditSwarm, onDelete = onDeleteRun
+            onBackClick = onBack, onEdit = onEditSwarm, onReload = onRedo, onDelete = onDeleteRun
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
