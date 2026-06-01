@@ -180,7 +180,7 @@ fun AgentEditScreen(
                 },
                 enabled = nameError == null,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {
@@ -335,7 +335,7 @@ fun AgentEditScreen(
                                 isTesting = false
                             }
                         },
-                        enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                        enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                     ) { Text(if (isTesting) "Testing..." else "Test Agent", maxLines = 1, softWrap = false) }
 
                     val traceFile = lastTraceFile

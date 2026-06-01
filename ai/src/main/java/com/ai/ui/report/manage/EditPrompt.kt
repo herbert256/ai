@@ -79,7 +79,7 @@ fun ReportEditPromptScreen(
             onClick = { onUpdate(prompt.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Update prompt", maxLines = 1, softWrap = false) }
 
         if (history.isNotEmpty()) {
@@ -253,7 +253,7 @@ private fun SingleTitleEditScreen(
             onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Update title", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -310,7 +310,7 @@ fun ReportEditModelTitleScreen(
             onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Update title", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -370,7 +370,7 @@ fun ReportEditPairTitleScreen(
             onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Update title", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 

@@ -188,7 +188,7 @@ private fun WebSearchResultPane(
                 is WebSearchReplayResult.Success -> {
                     Button(
                         onClick = onUseResponse,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Use this response", maxLines = 1, softWrap = false) }
                     ContentWithThinkSections(analysis = result.response)

@@ -682,7 +682,7 @@ internal fun FanOutL3Screen(
                     },
                     enabled = prev != null,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("← Prev", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 Spacer(Modifier.padding(horizontal = 4.dp))
                 Button(
@@ -694,7 +694,7 @@ internal fun FanOutL3Screen(
                     },
                     enabled = next != null,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Next →", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
         }
@@ -849,13 +849,13 @@ internal fun FanOutL3MetaBody(
         Button(
             onClick = { actions.onFindAlternativePairIcon(pair.id) },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Find alternative icon", maxLines = 1, softWrap = false) }
         Spacer(Modifier.height(8.dp))
         Button(
             onClick = { actions.onFindAlternativePairTitle(pair.id) },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Find alternative title", maxLines = 1, softWrap = false) }
 
         // Swipe ← / → steps through the L2-scoped pair list (the small

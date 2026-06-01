@@ -347,7 +347,7 @@ internal fun FanOutL1Screen(
                     Button(
                         onClick = { confirmRemoveFailed = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                     ) { Text("Remove failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     Button(
                         onClick = { confirmRestartFailed = true },
@@ -358,7 +358,7 @@ internal fun FanOutL1Screen(
                     Button(
                         onClick = { confirmRemoveBenched = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                     ) { Text("Remove benched", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
@@ -389,7 +389,7 @@ internal fun FanOutL1Screen(
                     onClick = { actions.onClearFanMetaErrors(run.key) },
                     modifier = Modifier.weight(1f),
                     contentPadding = tightPadding,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Remove errors", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { actions.onRestartFanMetaErrors(run.key) },
@@ -683,13 +683,13 @@ internal fun FanOutL1Screen(
                 Button(
                     onClick = onShowResponses,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Fan-Out", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 if (hasTitles) {
                     Button(
                         onClick = onOpenTitles,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                     ) { Text("Show all", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             } else {
@@ -700,7 +700,7 @@ internal fun FanOutL1Screen(
                     Button(
                         onClick = { if (hasFanMeta) onShowFanMeta() else confirmStartTitles = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                     ) { Text("Fan Meta", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
@@ -712,7 +712,7 @@ internal fun FanOutL1Screen(
             Button(
                 onClick = { actions.onRunFanIn(run.key) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
     }

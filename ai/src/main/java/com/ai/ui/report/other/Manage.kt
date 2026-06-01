@@ -88,7 +88,7 @@ fun ReportManageScreen(
                     onClick = { confirmDelete = true },
                     enabled = !working && daysText.toIntOrNull()?.let { it > 0 } == true,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Delete", maxLines = 1, softWrap = false) }
             }
         }
@@ -124,7 +124,7 @@ fun ReportManageScreen(
                     },
                     enabled = !working,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text(if (working) "Working…" else "Export all", maxLines = 1, softWrap = false) }
             }
         }

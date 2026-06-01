@@ -202,7 +202,7 @@ internal fun FanOutL2Screen(
             Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
             Button(
                 onClick = { onSwitchRole(if (role == "Responder") "Initiator" else "Responder") },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -235,7 +235,7 @@ internal fun FanOutL2Screen(
             if (erroredHere > 0) {
                 Button(
                     onClick = { confirmRemoveFailed = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
                 ) { Text("Remove", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -248,7 +248,7 @@ internal fun FanOutL2Screen(
             if (rawRows.isNotEmpty()) {
                 Button(
                     onClick = onOpenOnePage,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
                 ) { Text("onepage", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -256,7 +256,7 @@ internal fun FanOutL2Screen(
             if (hasTitles) {
                 Button(
                     onClick = onOpenTitles,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
                 ) { Text("Fan Meta", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -725,7 +725,7 @@ internal fun FanOutL2OnePageScreen(
             Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
             Button(
                 onClick = { onSwitchRole(if (role == "Responder") "Initiator" else "Responder") },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }

@@ -199,7 +199,7 @@ internal fun UserNoteEditorScreen(
             onClick = { onSave(text.trim()) },
             enabled = canSave,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Save note", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(

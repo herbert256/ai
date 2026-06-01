@@ -255,7 +255,7 @@ internal fun MetaRunScreen(
             onClick = { onContinue(metaPrompt.copy(text = editablePrompt)) },
             enabled = editablePrompt.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Continue", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
         Column(
@@ -361,7 +361,7 @@ internal fun FanOutConfirmScreen(
             },
             enabled = pairCount > 0,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Run", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
         Column(

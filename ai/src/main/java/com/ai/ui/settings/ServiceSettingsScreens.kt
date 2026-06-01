@@ -239,7 +239,7 @@ fun ModelsListScreen(
             },
             enabled = !refreshInProgress && activeProviders.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) {
             Text(
                 if (refreshInProgress) "Refreshing…" else "Call all API retrieve models lists",
@@ -411,7 +411,7 @@ fun ProviderModelSettingsScreen(
                         Button(
                             onClick = { onFetchModels(apiKey) },
                             enabled = !isLoadingModels,
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                         ) { Text(if (isLoadingModels) "Fetching..." else "Fetch Models", maxLines = 1, softWrap = false) }
                     }
                     if (onTestSpecificModel != null && models.isNotEmpty()) {
@@ -452,7 +452,7 @@ fun ProviderModelSettingsScreen(
                                 }
                             },
                             enabled = !testInProgress,
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                         ) { Text(if (testInProgress) "Testing..." else "Test all models", maxLines = 1, softWrap = false) }
                     }
                     // Surface the prune affordance only after a Test all
@@ -474,7 +474,7 @@ fun ProviderModelSettingsScreen(
                                 models = models.filterNot { it in drop }
                                 testStatuses = testStatuses - drop
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                         ) { Text("Remove ${failedModels.size} failed", maxLines = 1, softWrap = false) }
                     }
                 }
@@ -521,7 +521,7 @@ fun ProviderModelSettingsScreen(
                             editingOriginal = null
                         },
                         enabled = canSubmit,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                     ) { Text(if (isEditing) "Update" else "Add", maxLines = 1, softWrap = false) }
                     if (isEditing) {
                         TextButton(onClick = { manualInput = ""; editingOriginal = null }) {
@@ -1067,7 +1067,7 @@ fun ProviderSettingsScreen(
                                         isTesting = false
                                     }
                                 },
-                                enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                                enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                             ) { Text(if (isTesting) "Testing..." else "Test", maxLines = 1, softWrap = false) }
                             Text(
                                 "Test uses the default model as set above",

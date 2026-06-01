@@ -524,12 +524,12 @@ fun ModelInfoScreen(
                                     Button(
                                         onClick = { onStartChat(provider, modelName) },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                                     ) { Text("Start Chat", maxLines = 1, softWrap = false) }
                                     Button(
                                         onClick = { showAgentEdit = true },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                                     ) { Text("Create Agent", maxLines = 1, softWrap = false) }
                                     if (isProviderActive) {
                                         Button(
@@ -547,7 +547,7 @@ fun ModelInfoScreen(
                                             },
                                             enabled = !testRunning,
                                             modifier = Modifier.weight(1f),
-                                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+                                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                                         ) { Text(if (testRunning) "Testing…" else "Test", maxLines = 1, softWrap = false) }
                                     }
                                 }
@@ -800,7 +800,7 @@ fun ModelInfoScreen(
                                         rawView = RawView(title = "All sources · $modelName", body = body)
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                                 ) { Text("Show all", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                             }
                         }
@@ -871,7 +871,7 @@ fun ModelInfoScreen(
                                 Button(
                                     onClick = { onNavigateToAddCostOverride(provider, modelName) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                                 ) { Text("Add manual cost override", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                             }
                         }
@@ -1008,7 +1008,7 @@ fun ModelInfoScreen(
                                 Button(
                                     onClick = { onNavigateToAddManualOverride(provider, modelName) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                                 ) { Text("Add manual override", fontSize = 14.sp, maxLines = 1, softWrap = false) }
                             }
                         }
@@ -1133,7 +1133,7 @@ fun ModelInfoScreen(
                                     else -> Button(
                                         onClick = requestIntroduction,
                                         modifier = Modifier.fillMaxWidth(),
-                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                                     ) { Text("Ask the model to introduce itself", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                                 }
                             }

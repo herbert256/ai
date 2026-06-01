@@ -139,7 +139,7 @@ fun CompareSelectMetaScreen(
             onClick = { onNext(selected.toList()) },
             enabled = selected.isNotEmpty(),
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Next — pick a prompt (${selected.size})", fontSize = 14.sp) }
     }
 }
@@ -498,7 +498,7 @@ private fun CompareL1(
             if (run.errorCount > 0) {
                 Button(
                     onClick = onRestartFailed, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Restart ${run.errorCount} failed", fontSize = 14.sp) }
             }
             Spacer(Modifier.height(24.dp))

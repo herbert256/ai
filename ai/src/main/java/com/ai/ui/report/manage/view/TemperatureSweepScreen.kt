@@ -146,7 +146,7 @@ internal fun TemperatureSweepScreen(
                         onSubmit(selectedTemps)
                     },
                     enabled = selectedAllValid && !running,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (running) {
@@ -242,7 +242,7 @@ private fun TemperatureCandidatePanel(
                 is TemperatureSweepCandidate.Success -> {
                     Button(
                         onClick = { onUseCandidate(index) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Use this response", maxLines = 1, softWrap = false) }
                     Card(colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)) {

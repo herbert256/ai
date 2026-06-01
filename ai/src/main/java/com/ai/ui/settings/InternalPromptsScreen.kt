@@ -254,7 +254,7 @@ fun InternalPromptEditScreen(
                 onClick = { onSave(buildPrompt(java.util.UUID.randomUUID().toString())); onBack() },
                 enabled = nameError == null,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {

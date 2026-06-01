@@ -2428,7 +2428,7 @@ private fun DefaultIconAiFinderScreen(
             } else {
                 Button(
                     onClick = { run() }, enabled = !running, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text(if (running) "Finding…" else "Find (${models.size} model${if (models.size == 1) "" else "s"})", fontSize = 14.sp) }
             }
             candidates.values.sortedBy { "${it.provider.id}/${it.model}" }.forEach { c ->

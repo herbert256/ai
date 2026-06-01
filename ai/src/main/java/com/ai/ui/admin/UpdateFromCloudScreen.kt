@@ -157,7 +157,7 @@ fun UpdateFromCloudScreen(
             },
             enabled = apkUriString != null && !isInstalling,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text(if (isInstalling) "Preparing…" else "Update", maxLines = 1, softWrap = false) }
 
         Column(

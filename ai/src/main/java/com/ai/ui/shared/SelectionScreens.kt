@@ -143,7 +143,7 @@ fun SelectModelScreen(
                 Button(
                     onClick = onNavigateToProviderModels,
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Open Models", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             }
         }

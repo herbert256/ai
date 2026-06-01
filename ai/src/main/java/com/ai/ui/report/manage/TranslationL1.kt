@@ -341,7 +341,7 @@ internal fun TranslationL1Screen(
                     Button(
                         onClick = { confirmRemoveFailed = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                     ) { Text("Remove failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     Button(
                         onClick = { confirmRestartFailed = true },
@@ -352,7 +352,7 @@ internal fun TranslationL1Screen(
                     Button(
                         onClick = { confirmRemoveBenched = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                     ) { Text("Remove benched", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }

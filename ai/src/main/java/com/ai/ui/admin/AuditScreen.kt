@@ -251,7 +251,7 @@ fun AuditDetailScreen(
                             Toast.makeText(context, "Could not delete audit", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Delete", maxLines = 1, softWrap = false) }
             },
             dismissButton = {

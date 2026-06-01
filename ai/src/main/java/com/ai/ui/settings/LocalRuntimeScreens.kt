@@ -110,7 +110,7 @@ fun LocalLiteRtModelsScreen(
                         },
                         enabled = !working && !isInstalled,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                     ) {
                         Text(
                             if (isInstalled) "${spec.displayName} ${com.ai.data.MetadataIconsHolder.current.checkMark}"
@@ -126,7 +126,7 @@ fun LocalLiteRtModelsScreen(
                 onClick = { pickFile.launch(arrayOf("application/octet-stream", "*/*")) },
                 enabled = !working,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text("Add model from file…", maxLines = 1, softWrap = false) }
 
             if (installed.isNotEmpty()) {
@@ -241,7 +241,7 @@ fun LocalLlmsScreen(
                 },
                 enabled = !working && !runtimeInstalled,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) {
                 Text(
                     if (runtimeInstalled) "LLM runtime ${com.ai.data.MetadataIconsHolder.current.checkMark}"
@@ -273,7 +273,7 @@ fun LocalLlmsScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                     ) {
                         Text(
                             text = if (link.sizeHint != null) "${link.name} (${link.sizeHint})" else link.name,
@@ -288,7 +288,7 @@ fun LocalLlmsScreen(
                 onClick = { pickFile.launch(arrayOf("application/octet-stream", "*/*")) },
                 enabled = !working,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text("Add LLM from file…", maxLines = 1, softWrap = false) }
             Text(
                 "Accepts .task, .zip, .tar.gz, .tgz, .tar — the first .task entry inside an archive is extracted automatically.",

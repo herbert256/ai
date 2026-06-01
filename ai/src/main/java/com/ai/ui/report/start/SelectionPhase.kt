@@ -76,14 +76,14 @@ internal fun ColumnScope.SelectionPhase(
             onClick = onUpdateModelList,
             enabled = models.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Update model list", maxLines = 1, softWrap = false) }
     } else {
         Button(
             onClick = { onGenerate(ReportType.CLASSIC) },
             enabled = models.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Generate", maxLines = 1, softWrap = false) }
     }
     Spacer(modifier = Modifier.height(8.dp))

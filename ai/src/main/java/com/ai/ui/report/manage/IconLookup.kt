@@ -174,7 +174,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
             Button(
                 onClick = ctx.onFindAlternativeIcons,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) {
                 Text(
                     if (ctx.hasActiveFanOut) "View alternative icons"

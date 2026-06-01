@@ -142,7 +142,7 @@ internal fun ModelTestSelectScreen(
             onClick = { onStart(selected) },
             enabled = selected.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) {
             Text(
                 if (selected.isEmpty()) "Start test"

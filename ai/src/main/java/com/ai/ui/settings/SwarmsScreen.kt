@@ -138,7 +138,7 @@ fun SwarmEditScreen(
                 },
                 enabled = nameError == null && selectedMembers.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {
@@ -164,7 +164,7 @@ fun SwarmEditScreen(
                 fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
             Button(
                 onClick = { showModelPicker = true },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text("+ Add model", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
 

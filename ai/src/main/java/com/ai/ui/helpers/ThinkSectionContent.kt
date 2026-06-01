@@ -157,7 +157,7 @@ private fun ThinkSection(content: String) {
     Column {
         Button(
             onClick = { isExpanded = !isExpanded },
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SurfaceDark),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
             border = BorderStroke(1.dp, AppColors.TextDim),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
             modifier = Modifier.padding(vertical = 8.dp)

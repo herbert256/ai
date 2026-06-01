@@ -126,7 +126,7 @@ internal fun ManualModelTypeEditScreen(
             },
             enabled = canSave,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text(if (isAddMode) "Add" else "Save", maxLines = 1, softWrap = false, color = Color.White) }
         Spacer(modifier = Modifier.height(8.dp))
 

@@ -385,7 +385,7 @@ fun ReportGetInfoScreen(
             Button(
                 onClick = onRestartErrors,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text("Restart errors", maxLines = 1, softWrap = false) }
         }
     }

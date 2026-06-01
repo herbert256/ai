@@ -1670,7 +1670,7 @@ fun ImportExportScreen(
                         onNavigateToRefresh()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Refresh all", maxLines = 1, softWrap = false) }
                 Button(
                     onClick = {
@@ -1679,12 +1679,12 @@ fun ImportExportScreen(
                         onNavigateToRefresh()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Refresh providers, model lists & default agents", maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { restartApp(context) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Restart application", maxLines = 1, softWrap = false) }
             }
         }

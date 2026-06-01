@@ -227,7 +227,7 @@ internal fun ReportMetaScreen(
                         metaPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
                             Button(
                                 onClick = { onLaunchMetaPrompt(mp) },
-                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent),
+                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                             ) { Text(mp.name, fontSize = 11.sp, maxLines = 1, softWrap = false) }
                         }

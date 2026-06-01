@@ -290,14 +290,14 @@ internal fun ModelTestL1Screen(
                 Button(
                     onClick = { actions.onCheckRun() },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) {
                     Text("Check current test run", fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
                 Button(
                     onClick = { actions.onCancelRun() },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) {
                     Text("Cancel test", fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
@@ -305,7 +305,7 @@ internal fun ModelTestL1Screen(
                 Button(
                     onClick = onOpenSelect,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) {
                     Text("Test all models", fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
@@ -315,7 +315,7 @@ internal fun ModelTestL1Screen(
                     Button(
                         onClick = { actions.onRerunErrors() },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                     ) {
                         Text("Rerun Errors (${run.errorCount})", fontSize = 13.sp, maxLines = 1, softWrap = false)
                     }

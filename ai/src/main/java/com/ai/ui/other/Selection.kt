@@ -960,7 +960,7 @@ internal fun ReportOneTimePromptScreen(
             },
             enabled = text.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Run", maxLines = 1, softWrap = false) }
     }
 }

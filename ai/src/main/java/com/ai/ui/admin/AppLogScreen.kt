@@ -28,8 +28,10 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.copyToClipboard
 import com.ai.ui.shared.horizontalSwipeNavigation
+import com.ai.ui.shared.shareExportText
 import com.ai.ui.shared.shareText
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 // ===== App Log list =====
@@ -43,6 +45,7 @@ fun AppLogListScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     // Re-fetched on every screen-resume (covers the back-pop from
     // the detail view after a delete).
     val refreshTick = com.ai.ui.shared.resumeRefreshTick()
@@ -61,12 +64,17 @@ fun AppLogListScreen(
 
     var confirmClearAll by remember { mutableStateOf(false) }
     var confirmTrim by remember { mutableStateOf(false) }
+    // 📤 title-bar share opens this day-picker; tapping a row stages
+    // that file's bytes into cacheDir/exports and fires the Android
+    // share sheet (real .log attachment, not pasted text).
+    var showSharePicker by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "applog_list",
             title = "Application log", subject = "Daily app logs for diagnosing issues",
             onBackClick = onBack,
+            onShare = if (files.isNotEmpty()) { { showSharePicker = true } } else null,
             onDelete = if (files.isNotEmpty()) { { confirmClearAll = true } } else null,
             onStats = onStats,
             statsAfterDelete = true
@@ -574,7 +582,7 @@ fun AppLogDetailScreen(
                             Toast.makeText(context, "Could not delete log", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Delete", maxLines = 1, softWrap = false) }
             },
             dismissButton = {

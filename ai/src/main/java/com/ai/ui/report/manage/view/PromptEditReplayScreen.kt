@@ -142,7 +142,7 @@ internal fun PromptEditReplayScreen(
                 Button(
                     onClick = { onCallModel(promptText, selectedParamsIds, selectedSystemPromptId) },
                     enabled = promptText.isNotBlank() && !running,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (running) {
@@ -209,7 +209,7 @@ private fun PromptEditResultCard(
                 is PromptEditReplayResult.Success -> {
                     Button(
                         onClick = onUseResponse,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Use this response", maxLines = 1, softWrap = false) }
                     ContentWithThinkSections(analysis = result.response)

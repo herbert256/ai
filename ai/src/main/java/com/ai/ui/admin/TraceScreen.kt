@@ -810,7 +810,7 @@ fun TraceDetailScreen(
                             Toast.makeText(context, "Could not delete trace", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Delete", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -928,7 +928,7 @@ fun TraceDetailScreen(
             Spacer(modifier = Modifier.height(6.dp))
             Button(onClick = { onNavigateToEditAgent(matchingAgent.id) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                 contentPadding = PaddingValues(horizontal = 4.dp)
             ) { Text("Agent", fontSize = 11.sp, maxLines = 1, softWrap = false) }
         }
@@ -937,7 +937,7 @@ fun TraceDetailScreen(
             Button(
                 onClick = { showTranslationCompare = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text("Translation result", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
 

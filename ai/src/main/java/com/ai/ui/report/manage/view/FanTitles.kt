@@ -218,7 +218,7 @@ internal fun FanOutL2MetaScreen(
             )
             Button(
                 onClick = { onSwitchRole(if (role == "Responder") "Initiator" else "Responder") },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }

@@ -607,7 +607,7 @@ fun ProvidersScreen(
             Button(
                 onClick = { showAddDialog = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text("+ Add provider", maxLines = 1, softWrap = false) }
         }
     }

@@ -99,7 +99,7 @@ fun ExternalIntentConfirmScreen(
             Button(
                 onClick = onConfirm,
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text(if (intent.willAutoGenerate) "Generate" else "Continue") }
         }
     }

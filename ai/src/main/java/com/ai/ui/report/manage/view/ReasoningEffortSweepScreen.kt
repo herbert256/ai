@@ -112,7 +112,7 @@ internal fun ReasoningEffortSweepScreen(
                         onSubmit(selectedEfforts)
                     },
                     enabled = canSubmit,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (running) {
@@ -235,7 +235,7 @@ private fun ReasoningEffortCandidatePanel(
                 is ReasoningEffortCandidate.Success -> {
                     Button(
                         onClick = { onUseCandidate(index) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Use this response", maxLines = 1, softWrap = false) }
                     Card(colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)) {

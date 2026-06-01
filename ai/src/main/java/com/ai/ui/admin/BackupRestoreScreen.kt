@@ -108,7 +108,7 @@ fun BackupRestoreScreen(
                             )
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                 ) { Text("Restore", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showRestoreConfirm = null }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -168,7 +168,7 @@ fun BackupRestoreScreen(
                                 onClick = { runBackup() },
                                 enabled = busyLabel == null,
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
+                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                             ) { Text("Backup", maxLines = 1, softWrap = false) }
                         }
                         Button(
@@ -179,7 +179,7 @@ fun BackupRestoreScreen(
                             onClick = { restorePickLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
                             enabled = busyLabel == null,
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
                         ) { Text("Restore", maxLines = 1, softWrap = false) }
                     }
                 }

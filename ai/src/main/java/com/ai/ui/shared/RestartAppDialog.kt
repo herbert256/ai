@@ -55,7 +55,7 @@ fun RestartAppDialog(message: String, onConfirm: () -> Unit) {
             Button(
                 onClick = onConfirm,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text("OK", maxLines = 1, softWrap = false) }
         }
     )
@@ -74,7 +74,7 @@ fun RestartAppBanner(message: String, onConfirm: () -> Unit) {
         Button(
             onClick = onConfirm,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) {
             Text(
                 "Restart application",

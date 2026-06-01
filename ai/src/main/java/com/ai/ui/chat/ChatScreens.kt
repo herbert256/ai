@@ -155,7 +155,7 @@ fun ChatParametersScreen(
                     )
                 )
             },
-            modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+            modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Start Chat", fontSize = 16.sp, maxLines = 1, softWrap = false) }
     }
 }
@@ -918,7 +918,7 @@ fun ChatSessionScreen(
             Button(
                 onClick = { if ((userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating) trySend(userInput.trim()) },
                 enabled = (userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating,
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
             ) { Text("Send", maxLines = 1, softWrap = false) }
         }
     }

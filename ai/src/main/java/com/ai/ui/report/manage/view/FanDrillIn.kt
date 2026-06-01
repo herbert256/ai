@@ -253,7 +253,7 @@ internal fun ColumnScope.FanOutDrillInView(
         Button(
             onClick = { showPromptViewer = false },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Close", fontSize = 13.sp) }
         return
     }
@@ -647,7 +647,7 @@ internal fun ColumnScope.FanOutDrillInView(
                 modifier = Modifier.weight(1f))
             Button(
                 onClick = { selectedRole = if (selectedRole == "Responder") "Initiator" else "Responder" },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -673,7 +673,7 @@ internal fun ColumnScope.FanOutDrillInView(
             Button(
                 onClick = { onCreateReportFromFanOut?.invoke(activePid, activeMdl) },
                 enabled = onCreateReportFromFanOut != null && hasInitiatorRows,
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.weight(1f).heightIn(min = 32.dp)
             ) { Text("Create Report", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -843,7 +843,7 @@ internal fun ColumnScope.FanOutDrillInView(
         Button(
             onClick = { showOnePageView = true },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("One page view", fontSize = 13.sp, maxLines = 1, softWrap = false) }
 
         if (confirmModelDelete) {
@@ -978,7 +978,7 @@ internal fun ColumnScope.FanOutDrillInView(
         Button(
             onClick = { onRunFanIn() },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground)
         ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
     }
     // Per-failure controls — only visible when at least one pair row
@@ -1488,7 +1488,7 @@ private fun OnePageView(
                 modifier = Modifier.weight(1f))
             Button(
                 onClick = onSwitchRole,
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.ButtonBackground),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
