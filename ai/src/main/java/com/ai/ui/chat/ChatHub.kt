@@ -214,7 +214,7 @@ private fun LocalLlmChatCard(installed: List<String>, onPick: (String) -> Unit) 
 private fun UnfinishedChatPill(count: Int, onResume: () -> Unit) {
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onResume() },
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF1F3340))
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
@@ -284,7 +284,7 @@ private fun ChatHubCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.clickable { onClick() } else Modifier),
-        colors = CardDefaults.cardColors(containerColor = if (enabled) AppColors.CardBackgroundAlt else Color(0xFF3A3A3A))
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),

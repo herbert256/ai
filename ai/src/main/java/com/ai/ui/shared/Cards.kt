@@ -24,11 +24,70 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /** Reusable list / hub / report-row cards, extracted from SharedComponents.kt. */
+
+/** Monitor-style tappable card row: large icon, title/subtitle, chevron. */
+@Composable
+fun IconLinkCard(
+    icon: String,
+    title: String,
+    subtitle: String? = null,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val mi = LocalMetadataIcons.current
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+        modifier = modifier.fillMaxWidth().clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                mi.forFactoryGlyph(icon),
+                fontSize = 28.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(42.dp)
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                if (!subtitle.isNullOrBlank()) {
+                    Text(subtitle, fontSize = 11.sp, color = AppColors.TextTertiary)
+                }
+            }
+            Text("›", fontSize = 22.sp, color = AppColors.TextTertiary)
+        }
+    }
+}
+
+/** Standard card header for cards that previously had only a title line. */
+@Composable
+fun IconCardHeader(
+    icon: String,
+    title: String,
+    modifier: Modifier = Modifier,
+    trailing: (@Composable () -> Unit)? = null
+) {
+    val mi = LocalMetadataIcons.current
+    Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            mi.forFactoryGlyph(icon),
+            fontSize = 28.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.width(42.dp)
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+        trailing?.invoke()
+    }
+}
 
 /** Reusable list item card with title, subtitle, and delete button. */
 @Composable
@@ -85,6 +144,7 @@ fun SettingsListItemCard(
 @Composable
 fun CollapsibleCard(
     title: String,
+    icon: String? = null,
     defaultExpanded: Boolean = false,
     summary: String? = null,
     helpTopic: String? = null,
@@ -93,7 +153,7 @@ fun CollapsibleCard(
     var expanded by remember { mutableStateOf(defaultExpanded) }
     val navigateHelp = LocalNavigateToHelp.current
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
@@ -104,6 +164,15 @@ fun CollapsibleCard(
                 modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (icon != null) {
+                    Text(
+                        LocalMetadataIcons.current.forFactoryGlyph(icon),
+                        fontSize = 28.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.width(42.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                }
                 Text(
                     text = title, style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.weight(1f)

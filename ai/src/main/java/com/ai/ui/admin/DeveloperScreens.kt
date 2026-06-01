@@ -231,7 +231,7 @@ fun ApiTestScreen(
                 modifier = Modifier.fillMaxWidth(), minLines = 3, maxLines = 6, colors = AppColors.outlinedFieldColors())
 
             // Parameters card (collapsible)
-            CollapsibleCard(title = "API Parameters", defaultExpanded = showParamsCard) {
+            CollapsibleCard(title = "API Parameters", icon = MetadataDefaults.PARAMETERS, defaultExpanded = showParamsCard) {
                 OutlinedTextField(value = systemPrompt, onValueChange = { systemPrompt = it }, label = { Text("System Prompt") },
                     modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, colors = AppColors.outlinedFieldColors())
                 OutlinedTextField(value = temperature, onValueChange = { temperature = it }, label = { Text("Temperature") },

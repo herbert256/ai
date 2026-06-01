@@ -108,7 +108,7 @@ fun HistoryScreenNav(
                     Text(if (isSearchActive) "Search (active)" else "Search")
                 }
             } else {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(value = searchTitle, onValueChange = { searchTitle = it; currentPage = 0 },
                             label = { Text("Title") }, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())

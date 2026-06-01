@@ -13,9 +13,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
+import com.ai.data.MetadataDefaults
 import com.ai.data.PricingCache
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.IconCardHeader
 import com.ai.ui.shared.RestartAppBanner
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.restartApp
@@ -522,7 +524,7 @@ private fun RefreshAction(
     helpTopic: String? = null,
     onNavigateToHelpTopic: (String) -> Unit = {}
 ) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
             RefreshActionRow(label, description, enabled, onClick, helpTopic, onNavigateToHelpTopic)
         }
@@ -640,9 +642,9 @@ private fun RefreshAllProgressScreen(
 
             if (state.overallError != null) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Refresh aborted", fontSize = 13.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        IconCardHeader(MetadataDefaults.STATUS_FAILED, "Refresh aborted")
                         Text(state.overallError, fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
                     }
                 }
@@ -652,12 +654,9 @@ private fun RefreshAllProgressScreen(
             // model / endpoint and re-test.
             if (failedProviders.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    "Failed provider tests (${failedProviders.size})",
-                    fontSize = 13.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold
-                )
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        IconCardHeader(MetadataDefaults.STATUS_FAILED, "Failed provider tests (${failedProviders.size})")
                         failedProviders.forEach { svc ->
                             Row(
                                 modifier = Modifier.fillMaxWidth()
@@ -717,8 +716,9 @@ private fun RefreshResultScreen(
             if (!description.isNullOrBlank()) {
                 Text(description, fontSize = 13.sp, color = AppColors.TextSecondary)
             }
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconCardHeader(MetadataDefaults.RELOAD, "Results")
                     rows.forEach { r ->
                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Text(r.label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
@@ -728,9 +728,9 @@ private fun RefreshResultScreen(
                 }
             }
             if (!sampleHeader.isNullOrBlank() && sampleEntries.isNotEmpty()) {
-                Text(sampleHeader, fontSize = 13.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.SemiBold)
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        IconCardHeader(MetadataDefaults.DOCUMENT, sampleHeader)
                         sampleEntries.forEach { key ->
                             Text(key, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1)
                         }

@@ -118,7 +118,7 @@ private fun ShareCard(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (enabled) Modifier.clickable { onClick() } else Modifier),
-        colors = CardDefaults.cardColors(containerColor = if (enabled) AppColors.CardBackgroundAlt else Color(0xFF1A2A3A))
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),

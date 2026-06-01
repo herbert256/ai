@@ -22,7 +22,7 @@ import com.ai.ui.shared.*
 @Composable
 private fun SectionCard(content: @Composable ColumnScope.() -> Unit) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(

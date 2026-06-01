@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
+import com.ai.data.MetadataDefaults
 import com.ai.data.PricingCache
 import com.ai.model.Settings
 import com.ai.ui.shared.AppColors
@@ -141,7 +142,7 @@ fun CostsMaintenanceScreen(
 
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
-                CollapsibleCard("Cleanup") {
+                CollapsibleCard("Cleanup", icon = MetadataDefaults.CLEAR) {
                     Text(
                         "Drops every manual price override that is dormant or redundant: covered by a catalog tier (LiteLLM, models.dev, Helicone, llm-prices, Artificial Analysis, OpenRouter), equal to the built-in default, or equal to what the lookup would return without it.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
@@ -161,7 +162,7 @@ fun CostsMaintenanceScreen(
                 }
             }
             item {
-                CollapsibleCard("Layered costs") {
+                CollapsibleCard("Layered costs", icon = MetadataDefaults.COST) {
                     Text(
                         "CSV showing every catalog tier's \$/M-token price per (provider, model). Fill the two leading override columns and re-import — only rows with values apply. Filtered drops rows already covered by a catalog tier.",
                         fontSize = 11.sp, color = AppColors.TextTertiary

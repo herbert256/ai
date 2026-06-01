@@ -11,7 +11,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.MetadataDefaults
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.IconLinkCard
 import com.ai.ui.shared.TitleBar
 
 /** Test hub (Housekeeping → Test). A hub of diagnostic test flows —
@@ -29,24 +31,8 @@ fun TestScreen(
         TitleBar(helpTopic = "test", title = "Test", subject = "Diagnostic test flows for models", onBackClick = onBack, onSettings = onSettings)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            NavCard("Test all models", onClick = onOpenTestAllModels)
-            NavCard("Stress test", onClick = onOpenStressTest)
-        }
-    }
-}
-
-@Composable
-private fun NavCard(title: String, onClick: () -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
-            Text(">", color = AppColors.Blue, fontSize = 16.sp)
+            IconLinkCard(MetadataDefaults.TEST, "Test all models", "Probe every configured model and persist the results", onOpenTestAllModels)
+            IconLinkCard(MetadataDefaults.BOLT, "Stress test", "Submit a controlled burst of reports to exercise throttles", onOpenStressTest)
         }
     }
 }

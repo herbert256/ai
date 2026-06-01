@@ -15,7 +15,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.BackupManager
+import com.ai.data.MetadataDefaults
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.IconCardHeader
 import com.ai.ui.shared.RestartAppBanner
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.restartApp
@@ -134,11 +136,11 @@ fun BackupRestoreScreen(
         }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = if (restoreOnly) "Restore" else "Backup & Restore",
-                        fontWeight = FontWeight.Bold, color = Color.White
+                    IconCardHeader(
+                        icon = if (restoreOnly) MetadataDefaults.RELOAD else MetadataDefaults.SAVE,
+                        title = if (restoreOnly) "Restore" else "Backup & Restore"
                     )
                     Text(
                         text = if (restoreOnly) {

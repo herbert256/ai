@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
 import com.ai.data.ChatHistoryManager
 import com.ai.data.ChatSession
+import com.ai.data.MetadataDefaults
 import com.ai.data.PricingCache
 import com.ai.data.ProviderRegistry
 import com.ai.data.Report
@@ -1682,6 +1683,7 @@ fun ImportExportScreen(
             // even when the Export card below is hidden.
             ControlledCollapsibleCard(
                 title = "API keys",
+                icon = MetadataDefaults.KEY,
                 expanded = openCard == "keys",
                 onToggle = { toggle("keys") }
             ) {
@@ -1703,6 +1705,7 @@ fun ImportExportScreen(
             // filenames) so re-importing the same zip never clobbers.
             ControlledCollapsibleCard(
                 title = "Reports",
+                icon = MetadataDefaults.REPORT_ICON,
                 expanded = openCard == "ai_reports",
                 onToggle = { toggle("ai_reports") }
             ) {
@@ -1774,6 +1777,7 @@ fun ImportExportScreen(
             // buttons.
             ControlledCollapsibleCard(
                 title = "Configuration",
+                icon = MetadataDefaults.SETTINGS,
                 expanded = openCard == "config",
                 onToggle = { toggle("config") }
             ) {
@@ -1849,6 +1853,7 @@ fun ImportExportScreen(
             // activity log the user accumulated on the source phone.
             ControlledCollapsibleCard(
                 title = "Runtime data",
+                icon = MetadataDefaults.SAVE,
                 expanded = openCard == "runtime",
                 onToggle = { toggle("runtime") }
             ) {

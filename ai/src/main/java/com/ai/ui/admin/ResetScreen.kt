@@ -13,7 +13,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.MetadataDefaults
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.IconLinkCard
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.restartApp
 import com.ai.viewmodel.AppViewModel
@@ -36,11 +38,11 @@ fun ResetScreen(
         TitleBar(helpTopic = "reset", title = "Reset", subject = "Five ways to clear data, safe to drastic", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            NavCard("Clear runtime data", onClick = onOpenRuntimeData)
-            NavCard("Clear Info providers", onClick = onOpenInfoProviders)
-            NavCard("Clear all configuration", onClick = onOpenConfiguration)
-            NavCard("assets/*.json", onClick = onOpenAssets)
-            NavCard("Reset application", onClick = onOpenApplication)
+            IconLinkCard(MetadataDefaults.DELETE, "Clear runtime data", "Delete logs, chats, traces, reports, prompt history and usage", onOpenRuntimeData)
+            IconLinkCard(MetadataDefaults.INFO, "Clear Info providers", "Drop cached pricing catalogs and provider metadata", onOpenInfoProviders)
+            IconLinkCard(MetadataDefaults.SETTINGS, "Clear all configuration", "Wipe providers, agents, prompts, parameters and overrides", onOpenConfiguration)
+            IconLinkCard(MetadataDefaults.PACKAGE_BOX, "assets/*.json", "Reload bundled providers, prompts, examples and defaults", onOpenAssets)
+            IconLinkCard(MetadataDefaults.CLEAR, "Reset application", "Factory-style reset while preserving API keys", onOpenApplication)
         }
     }
 }
@@ -389,24 +391,6 @@ fun ResetApplicationScreen(
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
             ) { Text("Reset application", maxLines = 1, softWrap = false) }
-        }
-    }
-}
-
-/** Plain NavCard for the Reset hub. Mirrors the Housekeeping hub
- *  shape so the two levels read consistently. */
-@Composable
-private fun NavCard(title: String, onClick: () -> Unit) {
-    Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
-            Text(">", color = AppColors.Blue, fontSize = 16.sp)
         }
     }
 }

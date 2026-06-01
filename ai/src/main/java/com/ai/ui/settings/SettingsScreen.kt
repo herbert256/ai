@@ -10,11 +10,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
+import com.ai.data.MetadataDefaults
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.LocalMetadataIcons
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.GeneralSettings
 import kotlinx.coroutines.async
@@ -838,37 +841,37 @@ private fun SettingsMainScreen(
             // table-of-contents — every actual control lives one tap
             // deeper.
             SettingsNavCard(
-                icon = com.ai.data.MetadataIconsHolder.current.web,
+                icon = MetadataDefaults.WEB,
                 title = "Network settings",
                 description = "Read timeouts, per-provider throttling, 429 / 529 retry policy.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_NETWORK) }
             )
             SettingsNavCard(
-                icon = com.ai.data.MetadataIconsHolder.current.palette,
+                icon = MetadataDefaults.PALETTE,
                 title = "UI tweaks",
                 description = "Model name layout, full-screen, experimental features.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_UI) }
             )
             SettingsNavCard(
-                icon = com.ai.data.MetadataIconsHolder.current.appLog,
+                icon = MetadataDefaults.APP_LOG,
                 title = "Logging and tracing",
                 description = "API tracing master switch and application log level.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_LOGGING) }
             )
             SettingsNavCard(
-                icon = com.ai.data.MetadataIconsHolder.current.label,
+                icon = MetadataDefaults.LABEL,
                 title = "Metadata & icons",
                 description = "Master switch for all optional metadata — report icon / language / title, per-model icons / titles, fan & meta icons.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_METADATA) }
             )
             SettingsNavCard(
-                icon = com.ai.data.MetadataIconsHolder.current.palette,
+                icon = MetadataDefaults.PALETTE,
                 title = "Default icons",
                 description = "Edit the fallback emoji shown when a report or result has no generated icon of its own.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_DEFAULT_ICONS) }
             )
             SettingsNavCard(
-                icon = com.ai.data.MetadataIconsHolder.current.settings,
+                icon = MetadataDefaults.SETTINGS,
                 title = "Other settings",
                 description = "Identity (Name + Email), auto-create Rerank & Moderation.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_OTHER) }
@@ -887,6 +890,7 @@ private fun SettingsNavCard(
     description: String,
     onClick: () -> Unit
 ) {
+    val mi = LocalMetadataIcons.current
     Card(
         modifier = Modifier.fillMaxWidth().clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
@@ -895,7 +899,12 @@ private fun SettingsNavCard(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(icon, fontSize = 22.sp)
+            Text(
+                mi.forFactoryGlyph(icon),
+                fontSize = 28.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(42.dp)
+            )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
@@ -1004,7 +1013,7 @@ private fun NetworkSettingsSubScreen(
             // sits in visually with the other cards on this page —
             // tapping opens the deeper screen instead of expanding.
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1822,7 +1831,7 @@ private fun IconCategoryCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2160,7 +2169,7 @@ private fun SettingCard(
     // title-only list. Tap the header row to expand description + body.
     var expanded by remember { mutableStateOf(false) }
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -2194,7 +2203,7 @@ private fun ToggleSettingCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {

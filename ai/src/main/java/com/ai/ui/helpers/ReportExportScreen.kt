@@ -20,7 +20,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ai.data.MetadataDefaults
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.IconCardHeader
 import com.ai.ui.shared.TitleBar
 import kotlinx.coroutines.launch
 
@@ -198,9 +200,9 @@ internal fun ReportExportScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (hasLanguages) {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Language", fontWeight = FontWeight.Bold, color = Color.White)
+                        IconCardHeader(MetadataDefaults.LANGUAGE, "Language")
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             FilterChip(
                                 selected = languageScope == ExportLanguageScope.ALL_LANGUAGES,
@@ -234,9 +236,9 @@ internal fun ReportExportScreen(
                     }
                 }
             }
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Format", fontWeight = FontWeight.Bold, color = Color.White)
+                    IconCardHeader(MetadataDefaults.DOCUMENT, "Format")
                     // FlowRow so OpenDocument doesn't push the row off-screen on
                     // narrow phones — chips wrap to a second line if needed.
                     androidx.compose.foundation.layout.FlowRow(
@@ -257,9 +259,9 @@ internal fun ReportExportScreen(
             }
 
             if (format != ReportExportFormat.JSON && format != ReportExportFormat.ZIPPED_HTML) {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+                Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Detail", fontWeight = FontWeight.Bold, color = Color.White)
+                        IconCardHeader(MetadataDefaults.VIEW, "Detail")
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             ReportExportDetail.entries.forEach { d ->
                                 FilterChip(
@@ -284,9 +286,9 @@ internal fun ReportExportScreen(
             // the Detail card's FilterChip layout. The VIEW_APP chip
             // is omitted when the format isn't HTML (the in-app
             // viewer only renders HTML).
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Target", fontWeight = FontWeight.Bold, color = Color.White)
+                    IconCardHeader(MetadataDefaults.SHARE, "Target")
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         ReportExportTarget.entries
                             .filter { it != ReportExportTarget.VIEW_APP || showViewInApp }
@@ -314,4 +316,3 @@ internal fun ReportExportScreen(
         }
     }
 }
-

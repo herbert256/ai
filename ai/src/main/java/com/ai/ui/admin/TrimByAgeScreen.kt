@@ -16,8 +16,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.ApiTracer
 import com.ai.data.ChatHistoryManager
+import com.ai.data.MetadataDefaults
 import com.ai.data.ReportStorage
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.IconCardHeader
 import com.ai.ui.shared.TitleBar
 
 @Composable
@@ -87,9 +89,9 @@ fun TrimByAgeScreen(
         TitleBar(helpTopic = "trim_by_age", title = "Trim by age", subject = "Delete reports, chats & traces by age", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Trim by age", fontWeight = FontWeight.Bold, color = Color.White)
+                    IconCardHeader(MetadataDefaults.DELETE, "Trim by age")
                     Text(
                         "Deletes reports, chat sessions, and API trace files older than the cutoff. Configuration, API keys, knowledge bases, and prompt history stay. The confirmation dialog shows the exact per-kind count first.",
                         fontSize = 11.sp, color = AppColors.TextTertiary

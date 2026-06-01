@@ -25,6 +25,7 @@ import com.ai.data.ApiFormat
 import com.ai.data.AppService
 import com.ai.data.Endpoint
 import com.ai.data.MaxTokensRule
+import com.ai.data.MetadataDefaults
 import com.ai.data.ModelPattern
 import com.ai.data.ProviderRegistry
 import com.ai.data.createAppGson
@@ -32,6 +33,7 @@ import com.ai.model.*
 import com.ai.ui.shared.AppColors
 import com.google.gson.reflect.TypeToken
 import com.ai.ui.shared.CollapsibleCard
+import com.ai.ui.shared.IconCardHeader
 import com.ai.ui.shared.SelectModelScreen
 import com.ai.ui.shared.ReasoningBadge
 import com.ai.ui.shared.VisionBadge
@@ -922,8 +924,10 @@ fun ProviderSettingsScreen(
 
             // State toggle
             val navigateHelp = com.ai.ui.shared.LocalNavigateToHelp.current
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(com.ai.data.MetadataIconsHolder.current.sleep, fontSize = 28.sp, modifier = Modifier.width(42.dp))
+                    Spacer(Modifier.width(12.dp))
                     Text("Provider inactive", modifier = Modifier.weight(1f), color = Color.White)
                     Text(
                         text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.Blue,
@@ -970,9 +974,11 @@ fun ProviderSettingsScreen(
             // rows, then Test. Putting the catalog + bound-model rows
             // BETWEEN the key and the Test button keeps the
             // typing → picking → testing flow on one card, top to bottom.
-            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
+            Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                        Text(com.ai.data.MetadataIconsHolder.current.key, fontSize = 28.sp, modifier = Modifier.width(42.dp))
+                        Spacer(Modifier.width(12.dp))
                         Text("API Key", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                         Text(
                             text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.Blue,
@@ -1006,6 +1012,7 @@ fun ProviderSettingsScreen(
                             .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Text(com.ai.data.MetadataIconsHolder.current.reportModelIcon, fontSize = 18.sp, modifier = Modifier.width(30.dp))
                         Text("Models", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                         if (modelsCount > 0) {
                             Text("$modelsCount", fontSize = 14.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(horizontal = 8.dp))
@@ -1018,6 +1025,7 @@ fun ProviderSettingsScreen(
                             .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Text(com.ai.data.MetadataIconsHolder.current.reportModelIcon, fontSize = 18.sp, modifier = Modifier.width(30.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("Default Model", fontWeight = FontWeight.Bold, color = Color.White)
                             Text(
@@ -1092,6 +1100,7 @@ fun ProviderSettingsScreen(
 
             CollapsibleCard(
                 title = "Basics",
+                icon = MetadataDefaults.SETTINGS,
                 summary = null,
                 helpTopic = "provider_card_basics"
             ) {
@@ -1117,6 +1126,7 @@ fun ProviderSettingsScreen(
 
             CollapsibleCard(
                 title = "API",
+                icon = MetadataDefaults.PLUG,
                 summary = defApiFormat.name,
                 helpTopic = "provider_card_api"
             ) {
@@ -1162,6 +1172,7 @@ fun ProviderSettingsScreen(
 
             CollapsibleCard(
                 title = "Models",
+                icon = MetadataDefaults.MODEL_ICON,
                 summary = null,
                 helpTopic = "provider_card_models"
             ) {
@@ -1181,6 +1192,7 @@ fun ProviderSettingsScreen(
 
             CollapsibleCard(
                 title = "Pricing & cost",
+                icon = MetadataDefaults.COST,
                 summary = null,
                 helpTopic = "provider_card_pricing"
             ) {
@@ -1206,6 +1218,7 @@ fun ProviderSettingsScreen(
             // resolved per-host: this provider's baseUrl + auxHosts.
             CollapsibleCard(
                 title = "Throttle & retry overrides",
+                icon = MetadataDefaults.CONTROLS,
                 summary = null,
                 helpTopic = "provider_card_throttle"
             ) {
@@ -1255,6 +1268,7 @@ fun ProviderSettingsScreen(
 
             CollapsibleCard(
                 title = "Features",
+                icon = MetadataDefaults.PUZZLE,
                 summary = null,
                 helpTopic = "provider_card_features"
             ) {
@@ -1272,6 +1286,7 @@ fun ProviderSettingsScreen(
 
             CollapsibleCard(
                 title = "Native APIs",
+                icon = MetadataDefaults.CLOUD,
                 summary = null,
                 helpTopic = "provider_card_native"
             ) {
@@ -1327,6 +1342,7 @@ fun ProviderSettingsScreen(
 
             CollapsibleCard(
                 title = "Capability flags",
+                icon = MetadataDefaults.CHECKBOX_ON,
                 summary = null,
                 helpTopic = "provider_card_capability"
             ) {
@@ -1374,6 +1390,7 @@ fun ProviderSettingsScreen(
 
             CollapsibleCard(
                 title = "Model patterns",
+                icon = MetadataDefaults.SEARCH,
                 summary = null,
                 helpTopic = "provider_card_patterns"
             ) {
@@ -1457,6 +1474,7 @@ fun ProviderSettingsScreen(
 
             CollapsibleCard(
                 title = "Built-in endpoints",
+                icon = MetadataDefaults.CLOUD,
                 summary = null,
                 helpTopic = "provider_card_endpoints"
             ) {

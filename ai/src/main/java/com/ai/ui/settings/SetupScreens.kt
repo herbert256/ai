@@ -14,13 +14,16 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.AppService
+import com.ai.data.MetadataDefaults
 import com.ai.data.PricingCache
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.LocalMetadataIcons
 import com.ai.ui.shared.TitleBar
 
 @Composable
@@ -63,29 +66,29 @@ fun SetupScreen(
         TitleBar(helpTopic = "settings_setup", title = "Setup", subject = "Providers, models, workers & prompts", onBackClick = onBackToSettings)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SetupNavCard("\u2699\uFE0F", "Providers", "API key, state, and default model per provider", "${AppService.entries.size}",
+            SetupNavCard(MetadataDefaults.SETTINGS, "Providers", "API key, state, and default model per provider", "${AppService.entries.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_PROVIDERS) })
-            SetupNavCard("\uD83E\uDDE0", "Models", "Models, types, and manual overrides", "$modelCount",
+            SetupNavCard(MetadataDefaults.MODEL_ICON, "Models", "Models, types, and manual overrides", "$modelCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS_SETUP) })
             run {
                 val workersCount = agentCount + aiSettings.flocks.size + aiSettings.swarms.size
-                SetupNavCard("\uD83D\uDC65", "Workers", "Agents, Flocks, and Swarms", "$workersCount",
+                SetupNavCard(MetadataDefaults.WORKER, "Workers", "Agents, Flocks, and Swarms", "$workersCount",
                     onClick = { onNavigate(SettingsSubScreen.AI_WORKERS_SETUP) }, enabled = hasApiKey)
             }
             run {
                 val promptsCount = aiSettings.systemPrompts.size + aiSettings.internalPrompts.size
-                SetupNavCard("\uD83D\uDCDD", "Prompt management", "System, Meta, Fan-out/in, Other and Example prompts", "$promptsCount",
+                SetupNavCard(MetadataDefaults.DOCUMENT, "Prompt management", "System, Meta, Fan-out/in, Other and Example prompts", "$promptsCount",
                     onClick = { onNavigate(SettingsSubScreen.AI_PROMPTS_SETUP) })
             }
-            SetupNavCard("\uD83C\uDFDB\uFE0F", "Parameters", "Parameter presets", "${aiSettings.parameters.size}",
+            SetupNavCard(MetadataDefaults.PARAMETERS, "Parameters", "Parameter presets", "${aiSettings.parameters.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_PARAMETERS) })
-            SetupNavCard("\uD83D\uDCB0", "Costs", "Manual pricing overrides", "$costCount",
+            SetupNavCard(MetadataDefaults.COST, "Costs", "Manual pricing overrides", "$costCount",
                 onClick = onNavigateToCostConfig)
-            SetupNavCard("\uD83D\uDD11", "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
+            SetupNavCard(MetadataDefaults.KEY, "External Services", "HuggingFace, OpenRouter keys", "$externalCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXTERNAL_SERVICES) })
-            SetupNavCard("\uD83E\uDDE9", "App settings", "App-wide & report-model default system prompt / parameters", "",
+            SetupNavCard(MetadataDefaults.SETTINGS, "App settings", "App-wide & report-model default system prompt / parameters", "",
                 onClick = { onNavigate(SettingsSubScreen.AI_APP_SETTINGS) })
-            SetupNavCard("\uD83C\uDFAF", "Default meta items", "Meta prompts auto-run when a report finishes", "${aiSettings.defaultMetaItems.size}",
+            SetupNavCard(MetadataDefaults.FAN_IN, "Default meta items", "Meta prompts auto-run when a report finishes", "${aiSettings.defaultMetaItems.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_DEFAULT_META_ITEMS) })
             // Local Models / Model cooldowns / Blocked models /
             // Test-excluded models all live one level deeper under
@@ -96,15 +99,21 @@ fun SetupScreen(
 
 @Composable
 private fun SetupNavCard(icon: String, title: String, description: String, count: String, onClick: () -> Unit, enabled: Boolean = true) {
+    val mi = LocalMetadataIcons.current
     Card(
         modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.clickable { onClick() } else Modifier),
-        colors = CardDefaults.cardColors(containerColor = if (enabled) AppColors.CardBackgroundAlt else Color(0xFF1A2A3A))
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(icon, fontSize = 22.sp, modifier = if (enabled) Modifier else Modifier.alpha(0.4f))
+            Text(
+                mi.forFactoryGlyph(icon),
+                fontSize = 28.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(42.dp).then(if (enabled) Modifier else Modifier.alpha(0.4f))
+            )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (enabled) Color.White else AppColors.TextDim)
@@ -149,23 +158,23 @@ fun ModelsSetupScreen(
         TitleBar(helpTopic = "setup_models", title = "Models setup", subject = "Models, types and manual overrides", onBackClick = onBack, onHousekeeping = onHousekeeping)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.reportModelIcon, "Models", "Source and model list per active provider", "$modelCount",
+            ModelsSetupNavCard(MetadataDefaults.MODEL_ICON, "Models", "Source and model list per active provider", "$modelCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODELS) }, enabled = hasActiveProvider)
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.label, "Model Types", "Default API path per type (chat, embedding, ...)", "${com.ai.data.ModelType.ALL.size}",
+            ModelsSetupNavCard(MetadataDefaults.LABEL, "Model Types", "Default API path per type (chat, embedding, ...)", "${com.ai.data.ModelType.ALL.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_TYPES) })
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.addNote, "Manual model types overrides", "Per-model type assignments that win over autodetection", "${aiSettings.modelTypeOverrides.size}",
+            ModelsSetupNavCard(MetadataDefaults.ADD_NOTE, "Manual model types overrides", "Per-model type assignments that win over autodetection", "${aiSettings.modelTypeOverrides.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MANUAL_MODEL_TYPES) })
             if (experimentalFeatures) {
-                ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.computer, "Local Models", "On-device LLMs and LiteRT text embedders", "${liteRtCount + localLlmCount}",
+                ModelsSetupNavCard(MetadataDefaults.COMPUTER, "Local Models", "On-device LLMs and LiteRT text embedders", "${liteRtCount + localLlmCount}",
                     onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_MODELS_SETUP) })
             }
-            ModelsSetupNavCard("⏳", "Model cooldowns", "Rate-limited models benched on a >1h 429", "${cooldownCount.size}",
+            ModelsSetupNavCard(MetadataDefaults.STATUS_PENDING, "Model cooldowns", "Rate-limited models benched on a >1h 429", "${cooldownCount.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_MODEL_COOLDOWNS) })
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.statusBlocked, "Blocked models", "Provider/model pairs flagged as blocked — dimmed in every model picker", "${aiSettings.blockedModels.size}",
+            ModelsSetupNavCard(MetadataDefaults.STATUS_BLOCKED, "Blocked models", "Provider/model pairs flagged as blocked — dimmed in every model picker", "${aiSettings.blockedModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_BLOCKED_MODELS) })
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.spend, "Test-excluded models", "Skipped by Test all models — auto-added when a probe costs > 5¢", "${aiSettings.testExcludedModels.size}",
+            ModelsSetupNavCard(MetadataDefaults.SPEND, "Test-excluded models", "Skipped by Test all models — auto-added when a probe costs > 5¢", "${aiSettings.testExcludedModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_TEST_EXCLUDED_MODELS) })
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.statusLocked, "Inaccessible models", "Not reachable on this account — dimmed in every model picker", "${aiSettings.inaccessibleModels.size}",
+            ModelsSetupNavCard(MetadataDefaults.STATUS_LOCKED, "Inaccessible models", "Not reachable on this account — dimmed in every model picker", "${aiSettings.inaccessibleModels.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_INACCESSIBLE_MODELS) })
         }
     }
@@ -201,13 +210,13 @@ fun WorkersSetupScreen(
         TitleBar(helpTopic = "setup_workers", title = "Workers", subject = "Models, agents, flocks and swarms", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.reportModelIcon, "Models", "Browse every active provider's models", "$modelCount",
+            ModelsSetupNavCard(MetadataDefaults.MODEL_ICON, "Models", "Browse every active provider's models", "$modelCount",
                 onClick = { navRoute(com.ai.ui.navigation.NavRoutes.AI_MODEL_SEARCH) }, enabled = hasApiKey)
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.agent, "Agents", "Named model configurations", "$agentCount",
+            ModelsSetupNavCard(MetadataDefaults.AGENT, "Agents", "Named model configurations", "$agentCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_AGENTS) }, enabled = hasApiKey)
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.flock, "Flocks", "Groups of agents", "${aiSettings.flocks.size}",
+            ModelsSetupNavCard(MetadataDefaults.FLOCK, "Flocks", "Groups of agents", "${aiSettings.flocks.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_FLOCKS) }, enabled = hasApiKey)
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.swarm, "Swarms", "Groups of provider/model pairs", "${aiSettings.swarms.size}",
+            ModelsSetupNavCard(MetadataDefaults.SWARM, "Swarms", "Groups of provider/model pairs", "${aiSettings.swarms.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_SWARMS) }, enabled = hasApiKey)
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -356,11 +365,11 @@ fun PromptsSetupScreen(
             countByCategory("internal") + countByCategory("workers") + countByCategory("alt")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.speech, "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
+            ModelsSetupNavCard(MetadataDefaults.SPEECH, "System Prompts", "Reusable system prompts", "${aiSettings.systemPrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_SYSTEM_PROMPTS) })
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.reportModelIcon, "Internal prompts", "Meta, Fan out/in, Worker, and Other internal templates consumed by app features", "$internalTotal",
+            ModelsSetupNavCard(MetadataDefaults.MODEL_ICON, "Internal prompts", "Meta, Fan out/in, Worker, and Other internal templates consumed by app features", "$internalTotal",
                 onClick = onOpenInternalPromptsHub)
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.reportIcon, "Example prompts", "Curated (title, text) starters for the New Report flow", "${aiSettings.examplePrompts.size}",
+            ModelsSetupNavCard(MetadataDefaults.REPORT_ICON, "Example prompts", "Curated (title, text) starters for the New Report flow", "${aiSettings.examplePrompts.size}",
                 onClick = { onNavigate(SettingsSubScreen.AI_EXAMPLE_PROMPTS) })
         }
     }
@@ -391,17 +400,17 @@ fun InternalPromptsHubScreen(
         val fanTotal = countByCategory("fan_out") + countByCategory("fan_in")
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.puzzle, "Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report", "${countByCategory("meta")}",
+            ModelsSetupNavCard(MetadataDefaults.PUZZLE, "Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report", "${countByCategory("meta")}",
                 onClick = { onOpenInternalPrompts("meta") })
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.compare, "Compare prompts", "Worker-judged 'Compare with meta' prompts — score each answer's similarity to a meta result", "${countByCategory("meta_compare")}",
+            ModelsSetupNavCard(MetadataDefaults.COMPARE, "Compare prompts", "Worker-judged 'Compare with meta' prompts — score each answer's similarity to a meta result", "${countByCategory("meta_compare")}",
                 onClick = { onOpenInternalPrompts("meta_compare") })
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.shuffle, "Fan out/in prompts", "Templates for the Fan out / Fan in flow — across pairs and combined reports", "$fanTotal",
+            ModelsSetupNavCard(MetadataDefaults.SHUFFLE, "Fan out/in prompts", "Templates for the Fan out / Fan in flow — across pairs and combined reports", "$fanTotal",
                 onClick = onOpenFanInOutHub)
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.toolbox, "Other internal prompts", "Templates consumed by app features (Translate, Model info, Chat title, Rerank, Moderation)", "${countByCategory("internal")}",
+            ModelsSetupNavCard(MetadataDefaults.TOOLBOX, "Other internal prompts", "Templates consumed by app features (Translate, Model info, Chat title, Rerank, Moderation)", "${countByCategory("internal")}",
                 onClick = { onOpenInternalPrompts("internal") })
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.worker, "Worker prompts", "Prompts that run on an ordered list of workers (agent or provider+model) tried as a fallback chain. Edit-only — wiring comes later.", "${countByCategory("workers")}",
+            ModelsSetupNavCard(MetadataDefaults.WORKER, "Worker prompts", "Prompts that run on an ordered list of workers (agent or provider+model) tried as a fallback chain. Edit-only — wiring comes later.", "${countByCategory("workers")}",
                 onClick = { onOpenInternalPrompts("workers") })
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.sparkles, "Alternative prompts", "The *_alt variants the Find-alternative-icons / titles flows compose with their base prompt (distinct-emoji / no-flag nudges). Edit-only.", "${countByCategory("alt")}",
+            ModelsSetupNavCard(MetadataDefaults.SPARKLES, "Alternative prompts", "The *_alt variants the Find-alternative-icons / titles flows compose with their base prompt (distinct-emoji / no-flag nudges). Edit-only.", "${countByCategory("alt")}",
                 onClick = { onOpenInternalPrompts("alt") })
         }
     }
@@ -429,9 +438,9 @@ fun FanInOutPromptsHubScreen(
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.shuffle, "Fan Out", "Run across every pair of report-models", "${countByCategory("fan_out")}",
+            ModelsSetupNavCard(MetadataDefaults.SHUFFLE, "Fan Out", "Run across every pair of report-models", "${countByCategory("fan_out")}",
                 onClick = { onOpenInternalPrompts("fan_out") })
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.fanInKnot, "Fan in, total", "Combine all fan-out responses into a single report", "${countByCategory("fan_in")}",
+            ModelsSetupNavCard(MetadataDefaults.FAN_IN_KNOT, "Fan in, total", "Combine all fan-out responses into a single report", "${countByCategory("fan_in")}",
                 onClick = { onOpenInternalPrompts("fan_in") })
         }
     }
@@ -462,9 +471,9 @@ fun LocalModelsSetupScreen(
         TitleBar(helpTopic = "setup_local_models", title = "Local models", subject = "On-device LLMs and embedders", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.device, "Local LLMs", "On-device .task chat models that drive the synthetic Local provider", "$localLlmCount",
+            ModelsSetupNavCard(MetadataDefaults.DEVICE, "Local LLMs", "On-device .task chat models that drive the synthetic Local provider", "$localLlmCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_LLMS) })
-            ModelsSetupNavCard(com.ai.data.MetadataIconsHolder.current.ruler, "Local LiteRT models", "On-device .tflite text embedders for Local Semantic Search and Local-embedder Knowledge", "$liteRtCount",
+            ModelsSetupNavCard(MetadataDefaults.RULER, "Local LiteRT models", "On-device .tflite text embedders for Local Semantic Search and Local-embedder Knowledge", "$liteRtCount",
                 onClick = { onNavigate(SettingsSubScreen.AI_LOCAL_LITERT_MODELS) })
         }
     }
@@ -472,15 +481,21 @@ fun LocalModelsSetupScreen(
 
 @Composable
 private fun ModelsSetupNavCard(icon: String, title: String, description: String, count: String, onClick: () -> Unit, enabled: Boolean = true) {
+    val mi = LocalMetadataIcons.current
     Card(
         modifier = Modifier.fillMaxWidth().then(if (enabled) Modifier.clickable { onClick() } else Modifier),
-        colors = CardDefaults.cardColors(containerColor = if (enabled) AppColors.CardBackgroundAlt else Color(0xFF1A2A3A))
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)
     ) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(icon, fontSize = 22.sp, modifier = if (enabled) Modifier else Modifier.alpha(0.4f))
+            Text(
+                mi.forFactoryGlyph(icon),
+                fontSize = 28.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.width(42.dp).then(if (enabled) Modifier else Modifier.alpha(0.4f))
+            )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (enabled) Color.White else AppColors.TextDim)
@@ -548,8 +563,12 @@ fun ProvidersScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(scrollState), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             visibleProviders.forEach { provider ->
                 val state = aiSettings.getProviderState(provider)
+                val mi = LocalMetadataIcons.current
                 val stateEmoji = when (state) {
-                    "ok" -> "\uD83D\uDD11"; "error" -> "\u274C"; "inactive" -> "\uD83D\uDCA4"; else -> "\u2B55"
+                    "ok" -> mi.key
+                    "error" -> mi.statusFailed
+                    "inactive" -> mi.sleep
+                    else -> mi.whiteCircle
                 }
                 Card(
                     modifier = Modifier.fillMaxWidth().clickable { onProviderSelected(provider) },
@@ -760,7 +779,7 @@ private fun ExternalServiceCard(
     onNavigateToHelpTopic: (String) -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

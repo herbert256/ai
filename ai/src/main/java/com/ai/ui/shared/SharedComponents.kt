@@ -170,12 +170,13 @@ fun AnimatedHourglass(
 @Composable
 fun CollapsibleCard(
     title: String,
+    icon: String? = null,
     initiallyExpanded: Boolean = false,
     content: @Composable ColumnScope.() -> Unit
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded) }
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -183,6 +184,15 @@ fun CollapsibleCard(
                 modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (icon != null) {
+                    Text(
+                        LocalMetadataIcons.current.forFactoryGlyph(icon),
+                        fontSize = 28.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.width(42.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                }
                 Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                 Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
             }
@@ -198,12 +208,13 @@ fun CollapsibleCard(
 @Composable
 fun ControlledCollapsibleCard(
     title: String,
+    icon: String? = null,
     expanded: Boolean,
     onToggle: () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -211,6 +222,15 @@ fun ControlledCollapsibleCard(
                 modifier = Modifier.fillMaxWidth().clickable { onToggle() },
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (icon != null) {
+                    Text(
+                        LocalMetadataIcons.current.forFactoryGlyph(icon),
+                        fontSize = 28.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.width(42.dp)
+                    )
+                    Spacer(Modifier.width(12.dp))
+                }
                 Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                 Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
             }

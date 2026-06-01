@@ -374,7 +374,7 @@ internal fun FanOutConfirmScreen(
                 fontSize = 13.sp, color = AppColors.TextSecondary
             )
             Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -395,7 +395,8 @@ internal fun FanOutConfirmScreen(
             // before tweaking WHAT the prompt says.
             if (successful != null && successful.isNotEmpty()) {
                 com.ai.ui.shared.CollapsibleCard(
-                    title = "Initiator models for this Fan-Out (${selectedInitiators.size})"
+                    title = "Initiator models for this Fan-Out (${selectedInitiators.size})",
+                    icon = com.ai.data.MetadataDefaults.REPORT_ICON
                 ) {
                     successful.forEach { agent ->
                         val checked = agent.agentId in selectedInitiators
@@ -417,7 +418,8 @@ internal fun FanOutConfirmScreen(
                     }
                 }
                 com.ai.ui.shared.CollapsibleCard(
-                    title = "Responder models for this Fan-out (${selectedResponders.size})"
+                    title = "Responder models for this Fan-out (${selectedResponders.size})",
+                    icon = com.ai.data.MetadataDefaults.FAN_OUT
                 ) {
                     successful.forEach { agent ->
                         val checked = agent.agentId in selectedResponders

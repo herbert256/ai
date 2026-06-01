@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.MetadataDefaults
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.IconLinkCard
 import com.ai.ui.shared.LocalMetadataIcons
 import com.ai.ui.shared.TitleBar
 
@@ -75,16 +76,16 @@ fun HousekeepingScreen(
                 )
             }
             item {
-                HousekeepingLinkCard(
-                    emoji = MetadataDefaults.SAVE,
+                IconLinkCard(
+                    icon = MetadataDefaults.SAVE,
                     title = if (hasActiveProvider) "Backup & Restore" else "Restore",
                     subtitle = if (hasActiveProvider) "Create a full backup zip or restore one from storage" else "Restore an existing backup into this install",
                     onClick = onNavigateToBackupRestore
                 )
             }
             item {
-                HousekeepingLinkCard(
-                    emoji = MetadataDefaults.SHARE,
+                IconLinkCard(
+                    icon = MetadataDefaults.SHARE,
                     title = if (hasActiveProvider) "Export & Import" else "Import",
                     subtitle = if (hasActiveProvider) "Move reports, prompts, settings, or other portable app data" else "Import reports, prompts, settings, or other portable app data",
                     onClick = onNavigateToImportExport
@@ -92,8 +93,8 @@ fun HousekeepingScreen(
             }
             if (hasActiveProvider && hasTrimmable) {
                 item {
-                    HousekeepingLinkCard(
-                        emoji = MetadataDefaults.DELETE,
+                    IconLinkCard(
+                        icon = MetadataDefaults.DELETE,
                         title = "Trim by age",
                         subtitle = "Delete old reports, chats, traces, logs, and other local data",
                         onClick = onNavigateToTrimByAge
@@ -105,8 +106,8 @@ fun HousekeepingScreen(
             // system PackageInstaller. One-time setup picks the file;
             // every subsequent tap installs whatever's currently there.
             item {
-                HousekeepingLinkCard(
-                    emoji = MetadataDefaults.CLOUD,
+                IconLinkCard(
+                    icon = MetadataDefaults.CLOUD,
                     title = "Update from cloud",
                     subtitle = "Install the APK from a saved cloud or storage location",
                     onClick = onNavigateToUpdateFromCloud
@@ -118,8 +119,8 @@ fun HousekeepingScreen(
             // them on first run when there's nothing to act on.
             if (hasActiveProvider) {
                 item {
-                    HousekeepingLinkCard(
-                        emoji = MetadataDefaults.COST,
+                    IconLinkCard(
+                        icon = MetadataDefaults.COST,
                         title = "Costs",
                         subtitle = "Maintain manual pricing overrides and layered cost data",
                         onClick = onNavigateToCosts
@@ -127,8 +128,8 @@ fun HousekeepingScreen(
                 }
                 // Diagnostic test flows — currently "Test all models".
                 item {
-                    HousekeepingLinkCard(
-                        emoji = MetadataDefaults.TEST,
+                    IconLinkCard(
+                        icon = MetadataDefaults.TEST,
                         title = "Test",
                         subtitle = "Run diagnostics such as Test all models and stress test",
                         onClick = onNavigateToTest
@@ -139,16 +140,16 @@ fun HousekeepingScreen(
             // wholesale-state operations that finish with a forced app
             // restart popup.
             item {
-                HousekeepingLinkCard(
-                    emoji = MetadataDefaults.RELOAD,
+                IconLinkCard(
+                    icon = MetadataDefaults.RELOAD,
                     title = "Refresh",
                     subtitle = "Refresh providers, model lists, pricing catalogs, and defaults",
                     onClick = onNavigateToRefresh
                 )
             }
             item {
-                HousekeepingLinkCard(
-                    emoji = MetadataDefaults.CLEAR,
+                IconLinkCard(
+                    icon = MetadataDefaults.CLEAR,
                     title = "Reset",
                     subtitle = "Clear runtime data, configuration, caches, or reset app state",
                     onClick = onNavigateToReset
@@ -163,31 +164,3 @@ fun HousekeepingScreen(
 // — see ui/settings/LocalRuntimeScreens.kt. They're configuration of
 // on-device runtimes, not housekeeping, and naturally belong with
 // the rest of the AI configuration cards.
-
-/** Monitor-style navigation row for Housekeeping hub actions. */
-@Composable
-private fun HousekeepingLinkCard(emoji: String, title: String, subtitle: String, onClick: () -> Unit) {
-    val mi = LocalMetadataIcons.current
-    Card(
-        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
-        modifier = Modifier.fillMaxWidth().clickable { onClick() }
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                mi.forFactoryGlyph(emoji),
-                fontSize = 28.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                modifier = Modifier.width(42.dp)
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Text(subtitle, fontSize = 11.sp, color = AppColors.TextTertiary)
-            }
-            Text("›", fontSize = 22.sp, color = AppColors.TextTertiary)
-        }
-    }
-}
