@@ -358,6 +358,11 @@ internal fun ReportRunScreen(
         ) {
         TitleBar(
             helpTopic = "report_run",
+            // While the Translations layer is open it owns the bottom bar (just
+            // 🆕). The hub stays composed underneath and recomposes on every
+            // live update, so without this gate its SideEffect re-publishes the
+            // full Manage action set and clobbers the Translations bar.
+            publishBottomBar = !showTranslationsList,
             title = "Manage a report",
             costText = totalCostForBar.takeIf { it > 0.0 }?.let { com.ai.ui.shared.formatCents(it, 2) },
             onCostClick = generationHandlers.onViewCosts,
@@ -752,9 +757,10 @@ internal fun ReportRunScreen(
                 ReportTranslationsScreen(
                     reportTitle = uiState.genericPromptTitleLong.ifBlank { uiState.genericPromptTitle },
                     reportIcon = reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
+                    originalLanguage = languageName,
                     summaries = translationRunSummaries,
-                    liveRuns = translationRuns,
                     onOpenRun = { st.openTranslationRunId.value = it },
+                    onOpenOriginal = { showTranslationsList = false },
                     onNewTranslation = { generationHandlers.onTranslate() },
                     onBack = { showTranslationsList = false }
                 )
