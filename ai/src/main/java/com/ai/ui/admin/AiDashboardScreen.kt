@@ -2461,7 +2461,7 @@ private enum class SpendUsageMode(val label: String) {
     REPORTS("Reports")
 }
 
-private fun cents(v: Double, decimals: Int = 4): String = "${formatCents(v, decimals)} ¢"
+private fun cents(v: Double, decimals: Int = 2): String = "${formatCents(v, decimals)} ¢"
 
 /** "1:05", "12m", "3h 20m" — compact remaining/elapsed. */
 private fun fmtDuration(ms: Long): String {
