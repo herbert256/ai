@@ -91,12 +91,12 @@ private fun parseEndpoints(text: String): List<Endpoint>? {
 @Composable
 private fun ModelTypeChip(type: String) {
     val color = when (type) {
-        com.ai.data.ModelType.CHAT -> AppColors.Blue
-        com.ai.data.ModelType.EMBEDDING -> AppColors.Purple
-        com.ai.data.ModelType.RERANK -> AppColors.Indigo
-        com.ai.data.ModelType.IMAGE -> AppColors.Orange
-        com.ai.data.ModelType.TTS, com.ai.data.ModelType.STT -> AppColors.Green
-        com.ai.data.ModelType.MODERATION, com.ai.data.ModelType.CLASSIFY -> AppColors.Red
+        com.ai.data.ModelType.CHAT -> AppColors.InfoAccent
+        com.ai.data.ModelType.EMBEDDING -> AppColors.PrimaryAccent
+        com.ai.data.ModelType.RERANK -> AppColors.SecondaryAccent
+        com.ai.data.ModelType.IMAGE -> AppColors.WarningAccent
+        com.ai.data.ModelType.TTS, com.ai.data.ModelType.STT -> AppColors.SuccessAccent
+        com.ai.data.ModelType.MODERATION, com.ai.data.ModelType.CLASSIFY -> AppColors.DangerAccent
         else -> AppColors.TextDim
     }
     Text(
@@ -239,7 +239,7 @@ fun ModelsListScreen(
             },
             enabled = !refreshInProgress && activeProviders.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
         ) {
             Text(
                 if (refreshInProgress) "Refreshing…" else "Call all API retrieve models lists",
@@ -275,7 +275,7 @@ fun ModelsListScreen(
                             fontSize = 13.sp, color = AppColors.TextTertiary)
                     } else {
                         results.entries.sortedBy { it.key }.forEach { (name, count) ->
-                            val color = if (count > 0) AppColors.Green else AppColors.Red
+                            val color = if (count > 0) AppColors.SuccessAccent else AppColors.DangerAccent
                             Text("$name: ${if (count > 0) "$count models" else "failed"}",
                                 fontSize = 13.sp, color = color)
                         }
@@ -411,7 +411,7 @@ fun ProviderModelSettingsScreen(
                         Button(
                             onClick = { onFetchModels(apiKey) },
                             enabled = !isLoadingModels,
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                         ) { Text(if (isLoadingModels) "Fetching..." else "Fetch Models", maxLines = 1, softWrap = false) }
                     }
                     if (onTestSpecificModel != null && models.isNotEmpty()) {
@@ -452,7 +452,7 @@ fun ProviderModelSettingsScreen(
                                 }
                             },
                             enabled = !testInProgress,
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                         ) { Text(if (testInProgress) "Testing..." else "Test all models", maxLines = 1, softWrap = false) }
                     }
                     // Surface the prune affordance only after a Test all
@@ -474,7 +474,7 @@ fun ProviderModelSettingsScreen(
                                 models = models.filterNot { it in drop }
                                 testStatuses = testStatuses - drop
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
                         ) { Text("Remove ${failedModels.size} failed", maxLines = 1, softWrap = false) }
                     }
                 }
@@ -521,7 +521,7 @@ fun ProviderModelSettingsScreen(
                             editingOriginal = null
                         },
                         enabled = canSubmit,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                     ) { Text(if (isEditing) "Update" else "Add", maxLines = 1, softWrap = false) }
                     if (isEditing) {
                         TextButton(onClick = { manualInput = ""; editingOriginal = null }) {
@@ -530,9 +530,9 @@ fun ProviderModelSettingsScreen(
                     }
                 }
                 if (isDuplicate) {
-                    Text("Already in list", fontSize = 12.sp, color = AppColors.Red)
+                    Text("Already in list", fontSize = 12.sp, color = AppColors.DangerAccent)
                 } else if (hasWhitespace) {
-                    Text("Model id can't contain whitespace", fontSize = 12.sp, color = AppColors.Red)
+                    Text("Model id can't contain whitespace", fontSize = 12.sp, color = AppColors.DangerAccent)
                 }
             }
 
@@ -930,7 +930,7 @@ fun ProviderSettingsScreen(
                     Spacer(Modifier.width(12.dp))
                     Text("Provider inactive", modifier = Modifier.weight(1f), color = Color.White)
                     Text(
-                        text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.Blue,
+                        text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.InfoAccent,
                         modifier = Modifier
                             .padding(end = 12.dp)
                             .clickable { navigateHelp("provider_card_state") }
@@ -981,7 +981,7 @@ fun ProviderSettingsScreen(
                         Spacer(Modifier.width(12.dp))
                         Text("API Key", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
                         Text(
-                            text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.Blue,
+                            text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.InfoAccent,
                             modifier = Modifier.clickable { navigateHelp("provider_card_apikey") }
                         )
                     }
@@ -1017,7 +1017,7 @@ fun ProviderSettingsScreen(
                         if (modelsCount > 0) {
                             Text("$modelsCount", fontSize = 14.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(horizontal = 8.dp))
                         }
-                        Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                        Text(">", fontSize = 16.sp, color = AppColors.InfoAccent)
                     }
                     // Default Model — opens the shared SelectModelScreen overlay.
                     Row(
@@ -1031,11 +1031,11 @@ fun ProviderSettingsScreen(
                             Text(
                                 text = defaultModel.ifBlank { "Tap to select a model" },
                                 fontSize = 12.sp,
-                                color = if (defaultModel.isBlank()) AppColors.TextTertiary else AppColors.Blue,
+                                color = if (defaultModel.isBlank()) AppColors.TextTertiary else AppColors.InfoAccent,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
-                        Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                        Text(">", fontSize = 16.sp, color = AppColors.InfoAccent)
                     }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1067,7 +1067,7 @@ fun ProviderSettingsScreen(
                                         isTesting = false
                                     }
                                 },
-                                enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                                enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                             ) { Text(if (isTesting) "Testing..." else "Test", maxLines = 1, softWrap = false) }
                             Text(
                                 "Test uses the default model as set above",
@@ -1078,7 +1078,7 @@ fun ProviderSettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         testResult?.let {
                             Text(it,
-                                color = if (testSuccess) AppColors.Green else AppColors.Red,
+                                color = if (testSuccess) AppColors.SuccessAccent else AppColors.DangerAccent,
                                 fontSize = 12.sp, modifier = Modifier.weight(1f))
                         } ?: Spacer(modifier = Modifier.weight(1f))
                         val tf = testTraceFile
@@ -1295,7 +1295,7 @@ fun ProviderSettingsScreen(
                         "Leave blank when the provider has no such endpoint — the dispatcher will return an explanatory error to the user instead of routing the call.",
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
-                Text("Aux hosts (comma-separated)", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("Aux hosts (comma-separated)", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Alternate hostnames the provider's traffic lands on besides the baseUrl host (e.g. api.cohere.com for Cohere). Used by the trace list's Provider filter so calls hitting these hosts are still attributed to this provider. Example: api.cohere.com",
                     fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1306,7 +1306,7 @@ fun ProviderSettingsScreen(
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
 
-                Text("Native rerank URL", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("Native rerank URL", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Full URL of a Cohere v2/rerank-shaped endpoint. Set when the provider has a dedicated rerank API. Example: https://api.cohere.com/v2/rerank",
                     fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1317,7 +1317,7 @@ fun ProviderSettingsScreen(
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
 
-                Text("Native moderation URL", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("Native moderation URL", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Full URL of a Mistral v1/moderations-shaped endpoint. Set when the provider has a dedicated moderation API. Example: https://api.mistral.ai/v1/moderations",
                     fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1328,7 +1328,7 @@ fun ProviderSettingsScreen(
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
 
-                Text("Native capability URL", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("Native capability URL", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Full URL of a Cohere-shaped /v1/models capability listing (with `endpoints` / `supports_vision` / `context_length`). Set when the provider's compat shim strips that data but a separate native host returns it. Example: https://api.cohere.com/v1/models",
                     fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1399,7 +1399,7 @@ fun ProviderSettingsScreen(
                     fontSize = 11.sp, color = AppColors.TextTertiary
                 )
 
-                Text("Responses API patterns", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("Responses API patterns", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Models routed to OpenAI-style /v1/responses instead of /v1/chat/completions. Example: [{\"prefix\":\"gpt-5\"},{\"prefix\":\"o3\"}]",
                     fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1411,7 +1411,7 @@ fun ProviderSettingsScreen(
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
 
-                Text("Reasoning model patterns", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("Reasoning model patterns", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Models that gate the ${com.ai.data.MetadataIconsHolder.current.reportModelIcon} reasoning badge + thinking dispatch path. Example: [{\"contains\":\"opus-4\"},{\"contains\":\"sonnet-4\"}]",
                     fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1423,7 +1423,7 @@ fun ProviderSettingsScreen(
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
 
-                Text("Reasoning effort accept patterns (optional)", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("Reasoning effort accept patterns (optional)", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Models that accept the reasoning_effort request parameter. Leave BLANK to fall back to reasoningModelPatterns. Set to a narrower list when always-on reasoning variants reject the param. Example: [{\"prefix\":\"grok-3\"},{\"exact\":\"grok-4\"},{\"suffix\":\"-reasoning\"}]",
                     fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1435,7 +1435,7 @@ fun ProviderSettingsScreen(
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
 
-                Text("Web-search model patterns", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("Web-search model patterns", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Models that gate the ${com.ai.data.MetadataIconsHolder.current.web} web-search tool descriptor in the request body. Example: [{\"contains\":\"claude-3-5\"},{\"contains\":\"opus-4\"}]",
                     fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1447,7 +1447,7 @@ fun ProviderSettingsScreen(
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
 
-                Text("Adaptive thinking patterns", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("Adaptive thinking patterns", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Anthropic-only — Claude builds requiring the newer `thinking.type:adaptive` + `output_config.effort` request shape (Claude Opus 4.7+). Older 3.7 / 4.x models still use the budget_tokens shape and should not appear here. Example: [{\"contains\":\"claude-opus-4-7\"}]",
                     fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1459,7 +1459,7 @@ fun ProviderSettingsScreen(
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors()
                 )
 
-                Text("Max-tokens defaults", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("Max-tokens defaults", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Per-family default max_tokens used when the agent didn't set one. Anthropic-only — Anthropic requires max_tokens on every request and the cap differs by family. First matching rule wins (top-down). Example: [{\"pattern\":{\"contains\":\"opus-4\"},\"maxTokens\":32000},{\"pattern\":{\"contains\":\"sonnet-4\"},\"maxTokens\":8192}]",
                     fontSize = 11.sp, color = AppColors.TextTertiary

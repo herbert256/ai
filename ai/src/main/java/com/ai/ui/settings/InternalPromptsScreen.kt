@@ -249,7 +249,7 @@ fun InternalPromptEditScreen(
                 onClick = { onSave(buildPrompt(java.util.UUID.randomUUID().toString())); onBack() },
                 enabled = nameError == null,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {
@@ -271,7 +271,7 @@ fun InternalPromptEditScreen(
                     singleLine = true, colors = AppColors.outlinedFieldColors(),
                     enabled = !isFixedList,
                     isError = name.isNotBlank() && nameError != null,
-                    supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.Red) } } else null
+                    supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.DangerAccent) } } else null
                 )
                 OutlinedTextField(
                     value = title, onValueChange = { title = it },
@@ -341,13 +341,13 @@ fun InternalPromptEditScreen(
                         ) {
                             DropdownMenuItem(
                                 text = { Text(AGENT_SELECT, fontSize = 13.sp,
-                                    color = if (agent == AGENT_SELECT) AppColors.Blue else Color.White) },
+                                    color = if (agent == AGENT_SELECT) AppColors.InfoAccent else Color.White) },
                                 onClick = { agent = AGENT_SELECT; agentMenuOpen = false }
                             )
                             agentNames.sortedBy { it.lowercase() }.forEach { n ->
                                 DropdownMenuItem(
                                     text = { Text(n, fontSize = 13.sp,
-                                        color = if (agent == n) AppColors.Blue else Color.White) },
+                                        color = if (agent == n) AppColors.InfoAccent else Color.White) },
                                     onClick = { agent = n; agentMenuOpen = false }
                                 )
                             }
@@ -460,7 +460,7 @@ fun InternalPromptEditScreen(
                         fontFamily = FontFamily.Monospace
                     )
                     if (selectedParametersName != "*NONE") {
-                        Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.Red, fontSize = 16.sp,
+                        Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.DangerAccent, fontSize = 16.sp,
                             modifier = Modifier.clickable { selectedParametersName = "*NONE" }.padding(horizontal = 8.dp))
                     }
                 }
@@ -473,7 +473,7 @@ fun InternalPromptEditScreen(
                         fontFamily = FontFamily.Monospace
                     )
                     if (selectedSystemPromptName != "*NONE") {
-                        Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.Red, fontSize = 16.sp,
+                        Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.DangerAccent, fontSize = 16.sp,
                             modifier = Modifier.clickable { selectedSystemPromptName = "*NONE" }.padding(horizontal = 8.dp))
                     }
                 }
@@ -544,7 +544,7 @@ private fun WorkerRowEditor(
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Worker ${index + 1}", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
-                TextButton(onClick = onRemove) { Text("${com.ai.data.MetadataIconsHolder.current.closeMark} Remove", fontSize = 12.sp, color = AppColors.Red) }
+                TextButton(onClick = onRemove) { Text("${com.ai.data.MetadataIconsHolder.current.closeMark} Remove", fontSize = 12.sp, color = AppColors.DangerAccent) }
             }
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 SegmentedButton(
@@ -588,12 +588,12 @@ private fun WorkerRowEditor(
                         modifier = Modifier.background(Color(0xFF2D2D2D))
                     ) {
                         DropdownMenuItem(
-                            text = { Text(AGENT_SELECT, fontSize = 13.sp, color = if (worker.agent == AGENT_SELECT) AppColors.Blue else Color.White) },
+                            text = { Text(AGENT_SELECT, fontSize = 13.sp, color = if (worker.agent == AGENT_SELECT) AppColors.InfoAccent else Color.White) },
                             onClick = { onChange(Worker(agent = AGENT_SELECT)); agentMenuOpen = false }
                         )
                         agentNames.sortedBy { it.lowercase() }.forEach { n ->
                             DropdownMenuItem(
-                                text = { Text(n, fontSize = 13.sp, color = if (worker.agent == n) AppColors.Blue else Color.White) },
+                                text = { Text(n, fontSize = 13.sp, color = if (worker.agent == n) AppColors.InfoAccent else Color.White) },
                                 onClick = { onChange(Worker(agent = n)); agentMenuOpen = false }
                             )
                         }
@@ -623,7 +623,7 @@ private fun WorkerRowEditor(
                         }
                         aiSettings.flocks.sortedBy { it.name.lowercase() }.forEach { f ->
                             DropdownMenuItem(
-                                text = { Text(f.name, fontSize = 13.sp, color = if (worker.flock == f.name) AppColors.Blue else Color.White) },
+                                text = { Text(f.name, fontSize = 13.sp, color = if (worker.flock == f.name) AppColors.InfoAccent else Color.White) },
                                 onClick = { onChange(Worker(agent = "*N/A", flock = f.name)); flockMenuOpen = false }
                             )
                         }
@@ -653,7 +653,7 @@ private fun WorkerRowEditor(
                         }
                         aiSettings.swarms.sortedBy { it.name.lowercase() }.forEach { s ->
                             DropdownMenuItem(
-                                text = { Text(s.name, fontSize = 13.sp, color = if (worker.swarm == s.name) AppColors.Blue else Color.White) },
+                                text = { Text(s.name, fontSize = 13.sp, color = if (worker.swarm == s.name) AppColors.InfoAccent else Color.White) },
                                 onClick = { onChange(Worker(agent = "*N/A", swarm = s.name)); swarmMenuOpen = false }
                             )
                         }

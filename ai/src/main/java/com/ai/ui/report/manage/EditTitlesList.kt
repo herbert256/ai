@@ -182,7 +182,7 @@ internal fun ReportEditTitlesScreen(
                     )
                     Button(
                         onClick = item.onFindAlt,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                         modifier = Modifier.heightIn(min = 32.dp).padding(start = 4.dp)
                     ) { Text("Find", fontSize = 12.sp, maxLines = 1, softWrap = false) }

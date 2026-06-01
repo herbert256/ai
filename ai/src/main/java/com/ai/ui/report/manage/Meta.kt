@@ -227,7 +227,7 @@ internal fun ReportMetaScreen(
                         metaPrompts.sortedBy { it.name.lowercase() }.forEach { mp ->
                             Button(
                                 onClick = { onLaunchMetaPrompt(mp) },
-                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange),
+                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent),
                                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                             ) { Text(mp.name, fontSize = 11.sp, maxLines = 1, softWrap = false) }
                         }
@@ -278,7 +278,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
         }
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(kindLabel, fontSize = 11.sp, color = AppColors.Orange, fontWeight = FontWeight.Bold,
+                Text(kindLabel, fontSize = 11.sp, color = AppColors.WarningAccent, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(end = 6.dp))
                 Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = Color.White,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -295,7 +295,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
                 modifier = Modifier.padding(end = 4.dp))
         }
         IconButton(onClick = { confirmDelete = true }) {
-            Text(com.ai.data.MetadataIconsHolder.current.delete, fontSize = 16.sp, color = AppColors.Red)
+            Text(com.ai.data.MetadataIconsHolder.current.delete, fontSize = 16.sp, color = AppColors.DangerAccent)
         }
     }
 
@@ -309,7 +309,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
             text = { Text(com.ai.ui.shared.modelLabel(provider, r.model)) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete() }) {
-                    Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false)
+                    Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
                 }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }

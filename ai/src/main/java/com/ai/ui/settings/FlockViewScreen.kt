@@ -81,7 +81,7 @@ fun FlockViewScreen(
                         .padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text("Agents (${agents.size})", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                    Text("Agents (${agents.size})", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                     if (agents.isEmpty()) {
                         Text("No agents in this flock", fontSize = 12.sp, color = AppColors.TextTertiary)
                     } else {
@@ -126,12 +126,12 @@ private fun FlockHero(flock: Flock, agentCount: Int) {
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        AppColors.Purple.copy(alpha = 0.32f),
-                        AppColors.Indigo.copy(alpha = 0.08f)
+                        AppColors.PrimaryAccent.copy(alpha = 0.32f),
+                        AppColors.SecondaryAccent.copy(alpha = 0.08f)
                     )
                 )
             )
-            .border(1.dp, AppColors.Purple.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+            .border(1.dp, AppColors.PrimaryAccent.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),

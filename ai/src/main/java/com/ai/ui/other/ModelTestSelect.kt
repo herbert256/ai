@@ -118,7 +118,7 @@ internal fun ModelTestSelectScreen(
                                 selected = if (checked) selected - service.id
                                 else selected + service.id
                             },
-                            colors = CheckboxDefaults.colors(checkedColor = AppColors.Blue)
+                            colors = CheckboxDefaults.colors(checkedColor = AppColors.InfoAccent)
                         )
                         Text(
                             service.id,
@@ -142,7 +142,7 @@ internal fun ModelTestSelectScreen(
             onClick = { onStart(selected) },
             enabled = selected.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
         ) {
             Text(
                 if (selected.isEmpty()) "Start test"

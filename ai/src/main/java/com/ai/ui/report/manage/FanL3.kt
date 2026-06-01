@@ -536,7 +536,7 @@ internal fun FanOutL3Screen(
                         )
                     }
                     Text(
-                        sourceLabel, fontSize = 14.sp, color = AppColors.Blue,
+                        sourceLabel, fontSize = 14.sp, color = AppColors.InfoAccent,
                         fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -596,7 +596,7 @@ internal fun FanOutL3Screen(
                         )
                     }
                     Text(
-                        answererLabel, fontSize = 14.sp, color = AppColors.Green,
+                        answererLabel, fontSize = 14.sp, color = AppColors.SuccessAccent,
                         fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -628,7 +628,7 @@ internal fun FanOutL3Screen(
                 responseChangeLabel?.let { label ->
                     Text(
                         text = label,
-                        color = AppColors.Yellow,
+                        color = AppColors.CautionAccent,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier
@@ -641,11 +641,11 @@ internal fun FanOutL3Screen(
                     when (pair.status) {
                         PairStatus.ERROR -> Text(
                             "${com.ai.data.MetadataIconsHolder.current.statusFailed} ${pair.errorMessage}",
-                            color = AppColors.Red, fontSize = 13.sp
+                            color = AppColors.DangerAccent, fontSize = 13.sp
                         )
                         PairStatus.RUNNING -> Row(verticalAlignment = Alignment.CenterVertically) {
                             AnimatedHourglass(fontSize = 16.sp)
-                            Text("  Running…", color = AppColors.Orange, fontSize = 13.sp)
+                            Text("  Running…", color = AppColors.WarningAccent, fontSize = 13.sp)
                         }
                         PairStatus.PENDING -> Text(
                             "${com.ai.data.MetadataIconsHolder.current.clockQueued} Queued",
@@ -682,7 +682,7 @@ internal fun FanOutL3Screen(
                     },
                     enabled = prev != null,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
                 ) { Text("← Prev", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 Spacer(Modifier.padding(horizontal = 4.dp))
                 Button(
@@ -694,7 +694,7 @@ internal fun FanOutL3Screen(
                     },
                     enabled = next != null,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
                 ) { Text("Next →", fontSize = 12.sp, maxLines = 1, softWrap = false) }
             }
         }
@@ -710,7 +710,7 @@ internal fun FanOutL3Screen(
                     confirmDelete = false
                     actions.onCancelPair(run.key, pair.key)
                     onBack()
-                }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
@@ -823,7 +823,7 @@ internal fun FanOutL3MetaBody(
                 title ?: "(no title yet)",
                 fontSize = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (title != null) AppColors.Green else AppColors.TextTertiary,
+                color = if (title != null) AppColors.SuccessAccent else AppColors.TextTertiary,
                 textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(28.dp))
@@ -849,13 +849,13 @@ internal fun FanOutL3MetaBody(
         Button(
             onClick = { actions.onFindAlternativePairIcon(pair.id) },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
         ) { Text("Find alternative icon", maxLines = 1, softWrap = false) }
         Spacer(Modifier.height(8.dp))
         Button(
             onClick = { actions.onFindAlternativePairTitle(pair.id) },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
         ) { Text("Find alternative title", maxLines = 1, softWrap = false) }
 
         // Swipe ← / → steps through the L2-scoped pair list (the small
@@ -883,7 +883,7 @@ internal fun FanOutL3MetaBody(
                     confirmDelete = false
                     actions.onCancelPair(run.key, pair.key)
                     onBack()
-                }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) }

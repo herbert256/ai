@@ -254,7 +254,7 @@ internal fun TranslationL3Screen(
             Column(modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp)) {
                 Text(
                     sourceLabel,
-                    fontSize = 14.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.fillMaxWidth()
                         .modelInfoClickable(sourceProviderService, source.model.orEmpty())
@@ -274,7 +274,7 @@ internal fun TranslationL3Screen(
             Column(modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 8.dp)) {
                 Text(
                     translationLabel,
-                    fontSize = 14.sp, color = AppColors.Green, fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp, color = AppColors.SuccessAccent, fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier.fillMaxWidth()
                         .modelInfoClickable(translationProviderService, item.model.orEmpty())
@@ -283,7 +283,7 @@ internal fun TranslationL3Screen(
                 Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                     when (item.status) {
                         TranslationStatus.ERROR -> {
-                            Text("Error", fontSize = 14.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
+                            Text("Error", fontSize = 14.sp, color = AppColors.DangerAccent, fontWeight = FontWeight.SemiBold)
                             Text(
                                 item.errorMessage ?: "Unknown error",
                                 fontSize = 13.sp, color = AppColors.TextSecondary,
@@ -293,7 +293,7 @@ internal fun TranslationL3Screen(
                         TranslationStatus.RUNNING ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 AnimatedHourglass(fontSize = 16.sp)
-                                Text("  Running…", color = AppColors.Orange, fontSize = 13.sp)
+                                Text("  Running…", color = AppColors.WarningAccent, fontSize = 13.sp)
                             }
                         TranslationStatus.PENDING ->
                             Text("${com.ai.data.MetadataIconsHolder.current.clockQueued} Queued", color = AppColors.TextTertiary, fontSize = 13.sp)
@@ -347,7 +347,7 @@ internal fun TranslationL3Screen(
                     if (rowId != null) actions.onDeleteSecondaryRow(reportId, rowId)
                     else actions.onCancelItem(runId, item.id)
                     onBack()
-                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )

@@ -92,7 +92,7 @@ internal fun FindAltPromptEditorScreen(
             Button(
                 onClick = { onNext(null) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
             ) { Text("Continue", maxLines = 1, softWrap = false) }
             return
         }
@@ -119,7 +119,7 @@ internal fun FindAltPromptEditorScreen(
             },
             enabled = text.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Next — pick models", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
     }

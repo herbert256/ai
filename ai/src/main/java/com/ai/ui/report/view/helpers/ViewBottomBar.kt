@@ -110,7 +110,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
             Text(
                 text = mi.help,
                 fontSize = 28.sp,
-                color = AppColors.Blue,
+                color = AppColors.InfoAccent,
                 modifier = Modifier
                     .align(Alignment.CenterEnd)
                     .clickable { navigateHelp(spec.helpTopic) }

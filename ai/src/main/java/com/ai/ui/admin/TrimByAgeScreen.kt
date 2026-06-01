@@ -77,7 +77,7 @@ fun TrimByAgeScreen(
                                 Toast.LENGTH_LONG
                             ).show()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
                     ) { Text("Trim", maxLines = 1, softWrap = false) }
                 },
                 dismissButton = { TextButton(onClick = { showTrimConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -109,7 +109,7 @@ fun TrimByAgeScreen(
                         onClick = { showTrimConfirm = true },
                         enabled = daysToKeep != null && daysToKeep > 0,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
                     ) { Text("Clear Reports/Chats/Traces", maxLines = 1, softWrap = false) }
                 }
             }

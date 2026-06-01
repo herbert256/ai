@@ -225,7 +225,7 @@ internal fun AgentChatScreen(
         if (appliedTick > 0) {
             Text(
                 "${com.ai.data.MetadataIconsHolder.current.checkMark} Report response updated.",
-                fontSize = 11.sp, color = AppColors.Green,
+                fontSize = 11.sp, color = AppColors.SuccessAccent,
                 modifier = Modifier.padding(vertical = 4.dp)
             )
         }
@@ -246,7 +246,7 @@ internal fun AgentChatScreen(
                 val canSend = userInput.isNotBlank() && bridge != null
                 Text(
                     com.ai.data.MetadataIconsHolder.current.arrowSubmit, fontSize = 26.sp,
-                    color = if (canSend) AppColors.Green else AppColors.TextDim,
+                    color = if (canSend) AppColors.SuccessAccent else AppColors.TextDim,
                     modifier = Modifier.clickable(enabled = canSend) { sendTurn() }.padding(6.dp)
                 )
             }
@@ -264,7 +264,7 @@ private fun AgentChatBubble(msg: ChatMessage, onApply: (() -> Unit)?) {
         Box(
             modifier = Modifier.widthIn(max = 320.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (isUser) AppColors.Blue.copy(alpha = 0.20f) else AppColors.CardBackground)
+                .background(if (isUser) AppColors.InfoAccent.copy(alpha = 0.20f) else AppColors.CardBackground)
                 .padding(10.dp)
         ) {
             Text(msg.content, fontSize = 13.sp, color = Color.White)
@@ -272,7 +272,7 @@ private fun AgentChatBubble(msg: ChatMessage, onApply: (() -> Unit)?) {
         if (onApply != null) {
             Text(
                 "Apply ▶",
-                fontSize = 12.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold,
+                fontSize = 12.sp, color = AppColors.SuccessAccent, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.clickable { onApply() }.padding(top = 2.dp, start = 2.dp, end = 2.dp, bottom = 2.dp)
             )
         }

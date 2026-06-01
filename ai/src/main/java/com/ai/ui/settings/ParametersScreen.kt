@@ -86,7 +86,7 @@ fun ParametersEditScreen(
                 onClick = { onSave(buildParams(java.util.UUID.randomUUID().toString())); onBack() },
                 enabled = nameError == null,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {
@@ -103,7 +103,7 @@ fun ParametersEditScreen(
                 label = { Text("Preset name") }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, colors = AppColors.outlinedFieldColors(),
                 isError = name.isNotBlank() && nameError != null,
-                supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.Red) } } else null
+                supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.DangerAccent) } } else null
             )
 
             // Numeric fields surface a number-pad keyboard. Decimal

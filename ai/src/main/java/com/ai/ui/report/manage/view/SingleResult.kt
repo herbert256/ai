@@ -627,7 +627,7 @@ fun ReportModelScreen(
             when {
                 !errorMessage.isNullOrBlank() -> {
                     Column {
-                        Text("Error", fontSize = 16.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
+                        Text("Error", fontSize = 16.sp, color = AppColors.DangerAccent, fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(errorMessage, fontSize = 13.sp, color = AppColors.TextSecondary)
                     }
@@ -666,7 +666,7 @@ fun ReportModelScreen(
                                 horizontalArrangement = Arrangement.Center,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(mt, fontSize = 18.sp, color = AppColors.Green,
+                                Text(mt, fontSize = 18.sp, color = AppColors.SuccessAccent,
                                     fontWeight = FontWeight.Bold,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center)
                                 titleTraceFilename?.let { fn ->
@@ -684,7 +684,7 @@ fun ReportModelScreen(
                             ) {
                                 Text(
                                     text = label,
-                                    color = AppColors.Yellow,
+                                    color = AppColors.CautionAccent,
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier
@@ -709,13 +709,13 @@ fun ReportModelScreen(
                                 else rawBody
 
                                 if (conclusion != null) {
-                                    Text("Conclusion", fontSize = 18.sp, color = AppColors.Green, fontWeight = FontWeight.Bold)
+                                    Text("Conclusion", fontSize = 18.sp, color = AppColors.SuccessAccent, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(6.dp))
                                     ContentWithThinkSections(analysis = conclusion)
                                     Spacer(modifier = Modifier.height(16.dp))
                                 }
                                 if (motivation != null) {
-                                    Text("Motivation", fontSize = 18.sp, color = AppColors.Green, fontWeight = FontWeight.Bold)
+                                    Text("Motivation", fontSize = 18.sp, color = AppColors.SuccessAccent, fontWeight = FontWeight.Bold)
                                     Spacer(modifier = Modifier.height(6.dp))
                                     ContentWithThinkSections(analysis = motivation)
                                     Spacer(modifier = Modifier.height(16.dp))
@@ -749,7 +749,7 @@ fun ReportModelScreen(
                 Button(
                     onClick = { showTranslationCompare = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
                 ) { Text("Translation info", fontSize = 13.sp, maxLines = 1, softWrap = false) }
             }
         }
@@ -785,7 +785,7 @@ fun ReportModelScreen(
                     confirmRemove = false
                     onRemoveAgent(reportId, currentAgentId)
                     onBack()
-                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmRemove = false }) {
@@ -824,14 +824,14 @@ fun ReportModelScreen(
                             onBack()
                         }
                     }) {
-                        Text("Active language only", color = AppColors.Red, maxLines = 1, softWrap = false)
+                        Text("Active language only", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
                     }
                     TextButton(onClick = {
                         confirmLangChoice = false
                         onRemoveAgent(reportId, currentAgentId)
                         onBack()
                     }) {
-                        Text("All languages", color = AppColors.Red, maxLines = 1, softWrap = false)
+                        Text("All languages", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
                     }
                     TextButton(onClick = { confirmLangChoice = false }) {
                         Text("Cancel", maxLines = 1, softWrap = false)

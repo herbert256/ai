@@ -155,7 +155,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
             best?.let {
                 Text(
                     "${com.ai.data.MetadataIconsHolder.current.gem} Best value: ${it.provider} · ${it.modelShort} — score ${formatScore(it.quality)} at ${formatCents(it.costCents)}",
-                    color = AppColors.Green, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    color = AppColors.SuccessAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
             }
@@ -175,10 +175,10 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
 @Composable
 private fun ValueScatter(points: List<ValuePoint>, modifier: Modifier) {
     val axis = AppColors.TextTertiary
-    val frontier = AppColors.Blue
-    val bestC = AppColors.Green
+    val frontier = AppColors.InfoAccent
+    val bestC = AppColors.SuccessAccent
     val domC = AppColors.TextDim
-    val regC = AppColors.Orange
+    val regC = AppColors.WarningAccent
     val labelArgb = AppColors.TextSecondary.toArgb()
     Card(
         colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
@@ -266,8 +266,8 @@ private fun ValueRow(p: ValuePoint) {
                 )
             }
             val (badge, color) = when {
-                p.bestValue -> "${com.ai.data.MetadataIconsHolder.current.gem} Best value" to AppColors.Green
-                !p.dominated -> "Pareto" to AppColors.Blue
+                p.bestValue -> "${com.ai.data.MetadataIconsHolder.current.gem} Best value" to AppColors.SuccessAccent
+                !p.dominated -> "Pareto" to AppColors.InfoAccent
                 else -> "dominated" to AppColors.TextDim
             }
             Text(badge, color = color, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)

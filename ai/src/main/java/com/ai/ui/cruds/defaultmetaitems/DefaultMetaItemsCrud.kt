@@ -186,7 +186,7 @@ private fun DefaultMetaItemForm(
                     onClick = {})
                 metaNames.forEach { n ->
                     DropdownMenuItem(
-                        text = { Text(n, fontSize = 13.sp, color = if (metaName == n) AppColors.Blue else Color.White) },
+                        text = { Text(n, fontSize = 13.sp, color = if (metaName == n) AppColors.InfoAccent else Color.White) },
                         onClick = { metaName = n; metaMenuOpen = false })
                 }
             }
@@ -219,11 +219,11 @@ private fun DefaultMetaItemForm(
             DropdownMenu(expanded = agentMenuOpen, onDismissRequest = { agentMenuOpen = false },
                 modifier = Modifier.background(Color(0xFF2D2D2D))) {
                 DropdownMenuItem(
-                    text = { Text("(none)", fontSize = 13.sp, color = if (agentName.isBlank()) AppColors.Blue else Color.White) },
+                    text = { Text("(none)", fontSize = 13.sp, color = if (agentName.isBlank()) AppColors.InfoAccent else Color.White) },
                     onClick = { agentName = ""; agentMenuOpen = false })
                 agentNames.forEach { n ->
                     DropdownMenuItem(
-                        text = { Text(n, fontSize = 13.sp, color = if (agentName == n) AppColors.Blue else Color.White) },
+                        text = { Text(n, fontSize = 13.sp, color = if (agentName == n) AppColors.InfoAccent else Color.White) },
                         onClick = { agentName = n; agentMenuOpen = false })
                 }
             }

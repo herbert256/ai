@@ -53,7 +53,7 @@ internal fun ReportSelectProviderDialog(aiSettings: Settings, onSelectProvider: 
                         modifier = Modifier.fillMaxWidth().clickable { onSelectProvider(provider) }.padding(vertical = 8.dp, horizontal = 4.dp))
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.InfoAccent, maxLines = 1, softWrap = false) }
             }
         }
     }
@@ -127,17 +127,17 @@ internal fun ReportSelectModelDialog(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                             if (deprecation != null) {
-                                Text(com.ai.data.MetadataIconsHolder.current.statusWarning, fontSize = 12.sp, color = AppColors.Orange, modifier = Modifier.padding(end = 2.dp))
+                                Text(com.ai.data.MetadataIconsHolder.current.statusWarning, fontSize = 12.sp, color = AppColors.WarningAccent, modifier = Modifier.padding(end = 2.dp))
                             }
                             com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
                             com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
                             com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
-                            Text("${dlgFmtPrice(p.promptPrice)} / ${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.Red else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
+                            Text("${dlgFmtPrice(p.promptPrice)} / ${dlgFmtPrice(p.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace, color = if (real) AppColors.DangerAccent else AppColors.SurfaceDark, modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                         }
                         if (benchedUntil != null) {
                             Text(
                                 com.ai.data.ModelCooldownStore.cooldownCaption(benchedUntil),
-                                fontSize = 10.sp, color = AppColors.Orange, maxLines = 1
+                                fontSize = 10.sp, color = AppColors.WarningAccent, maxLines = 1
                             )
                         }
                     }
@@ -173,7 +173,7 @@ internal fun ReportSelectModelDialog(
                     }
                     items(filtered, key = { it }) { model -> ModelRow(model) }
                 }
-                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.Blue, maxLines = 1, softWrap = false) }
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) { Text("Back", color = AppColors.InfoAccent, maxLines = 1, softWrap = false) }
             }
         }
     }

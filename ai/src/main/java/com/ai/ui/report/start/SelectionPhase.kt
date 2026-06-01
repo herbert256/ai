@@ -76,14 +76,14 @@ internal fun ColumnScope.SelectionPhase(
             onClick = onUpdateModelList,
             enabled = models.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Update model list", maxLines = 1, softWrap = false) }
     } else {
         Button(
             onClick = { onGenerate(ReportType.CLASSIC) },
             enabled = models.isNotEmpty(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Generate", maxLines = 1, softWrap = false) }
     }
     Spacer(modifier = Modifier.height(8.dp))
@@ -177,14 +177,14 @@ internal fun ColumnScope.SelectionPhase(
                         com.ai.ui.shared.ModelAdvisoryCaptions(state)
                     }
                     Text(pricing.text, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
-                        color = if (pricing.isDefault) AppColors.SurfaceDark else AppColors.Red,
+                        color = if (pricing.isDefault) AppColors.SurfaceDark else AppColors.DangerAccent,
                         modifier = (if (pricing.isDefault) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
                             .alpha(state.rowAlpha))
                     Spacer(modifier = Modifier.width(8.dp))
                     // ✕ stays clickable independently and at full
                     // opacity so the user can always remove a dimmed
                     // model from the list.
-                    Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.Red, fontSize = 14.sp, modifier = Modifier.clickable { onRemoveModel(index) })
+                    Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.DangerAccent, fontSize = 14.sp, modifier = Modifier.clickable { onRemoveModel(index) })
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }

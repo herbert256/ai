@@ -202,7 +202,7 @@ internal fun FanOutL2Screen(
             Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
             Button(
                 onClick = { onSwitchRole(if (role == "Responder") "Initiator" else "Responder") },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -235,7 +235,7 @@ internal fun FanOutL2Screen(
             if (erroredHere > 0) {
                 Button(
                     onClick = { confirmRemoveFailed = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
                 ) { Text("Remove", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -248,7 +248,7 @@ internal fun FanOutL2Screen(
             if (rawRows.isNotEmpty()) {
                 Button(
                     onClick = onOpenOnePage,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
                 ) { Text("onepage", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -256,7 +256,7 @@ internal fun FanOutL2Screen(
             if (hasTitles) {
                 Button(
                     onClick = onOpenTitles,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent),
                     contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
                     modifier = Modifier.weight(1f).heightIn(min = 32.dp)
                 ) { Text("Fan Meta", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -341,13 +341,13 @@ internal fun FanOutL2Screen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                "Total", fontSize = 14.sp, color = AppColors.Blue,
+                                "Total", fontSize = 14.sp, color = AppColors.InfoAccent,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.weight(1f).padding(start = 8.dp)
                             )
                             Text(
                                 formatCents(rowsTotalCost), fontSize = 12.sp,
-                                color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                                color = AppColors.InfoAccent, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(end = 12.dp)
                             )
                         }
@@ -369,7 +369,7 @@ internal fun FanOutL2Screen(
                     // pair is DONE, empty otherwise. Mirrors the L1
                     // row-background progress bar.
                     val progressFraction = if (effStatus == PairStatus.DONE) 1f else 0f
-                    val progressColor = AppColors.Green.copy(alpha = 0.30f)
+                    val progressColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .drawBehind {
@@ -470,7 +470,7 @@ internal fun FanOutL2Screen(
                         ) {
                             Box(modifier = Modifier.width(20.dp))
                             Text(
-                                "Total", fontSize = 14.sp, color = AppColors.Blue,
+                                "Total", fontSize = 14.sp, color = AppColors.InfoAccent,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.weight(1f).padding(start = 4.dp)
                             )
@@ -479,7 +479,7 @@ internal fun FanOutL2Screen(
                             // pixel-perfect with the row costs.
                             Text(
                                 formatCents(rowsTotalCost), fontSize = 11.sp,
-                                color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                                color = AppColors.InfoAccent, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(end = 8.dp)
                             )
                         }
@@ -502,7 +502,7 @@ internal fun FanOutL2Screen(
                     confirmModelDelete = false
                     actions.onDeleteModelFromRun(run.key, activePid, activeMdl)
                     onBack()
-                }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmModelDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
@@ -532,7 +532,7 @@ internal fun FanOutL2Screen(
                 TextButton(onClick = {
                     confirmRemoveFailed = false
                     actions.onRemoveFailedPairsForModel(run.key, activePid, activeMdl)
-                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmRemoveFailed = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
@@ -631,13 +631,13 @@ internal fun FanOutL2MetaModelScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                "Total", fontSize = 14.sp, color = AppColors.Blue,
+                                "Total", fontSize = 14.sp, color = AppColors.InfoAccent,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.weight(1f).padding(start = 8.dp)
                             )
                             Text(
                                 formatCents(rowsTotalCost), fontSize = 12.sp,
-                                color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                                color = AppColors.InfoAccent, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(end = 12.dp)
                             )
                         }
@@ -725,7 +725,7 @@ internal fun FanOutL2OnePageScreen(
             Text("Role: $role", fontSize = 12.sp, color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
             Button(
                 onClick = { onSwitchRole(if (role == "Responder") "Initiator" else "Responder") },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -738,7 +738,7 @@ internal fun FanOutL2OnePageScreen(
                     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                         Text(
                             "$canonPid / $activeMdl — original response",
-                            fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold
+                            fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
@@ -756,7 +756,7 @@ internal fun FanOutL2OnePageScreen(
                     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                         Text(
                             resolveModelLabel("${p.providerId}|${p.model}"),
-                            fontSize = 12.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold
+                            fontSize = 12.sp, color = AppColors.SuccessAccent, fontWeight = FontWeight.SemiBold
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
@@ -779,7 +779,7 @@ internal fun FanOutL2OnePageScreen(
                     Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                         Text(
                             agentLabels[p.sourceAgentId] ?: p.sourceAgentId,
-                            fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold
+                            fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
@@ -789,7 +789,7 @@ internal fun FanOutL2OnePageScreen(
                         Spacer(Modifier.height(8.dp))
                         Text(
                             "↳ $canonPid / $activeMdl",
-                            fontSize = 12.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold
+                            fontSize = 12.sp, color = AppColors.SuccessAccent, fontWeight = FontWeight.SemiBold
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(

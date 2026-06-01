@@ -254,7 +254,7 @@ fun NewReportScreen(
                         modifier = Modifier.weight(1f)
                     )
                     TextButton(onClick = { userTagBlock = "" }) {
-                        Text("Remove", color = AppColors.Red, fontSize = 12.sp)
+                        Text("Remove", color = AppColors.DangerAccent, fontSize = 12.sp)
                     }
                 }
             }
@@ -317,7 +317,7 @@ fun NewReportScreen(
             enabled = (uiState.generalSettings.reportTitleAiOn() || title.isNotBlank())
                 && prompt.isNotBlank() && !isModerating,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) {
             if (isModerating) {
                 CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
@@ -329,13 +329,13 @@ fun NewReportScreen(
         // bottom-bar icons (wired on the TitleBar above). 🚩 is grayed until
         // a moderation model is picked.
         if (moderationError != null) {
-            Text("Moderation: ${moderationError}", fontSize = 11.sp, color = AppColors.Orange,
+            Text("Moderation: ${moderationError}", fontSize = 11.sp, color = AppColors.WarningAccent,
                 modifier = Modifier.padding(top = 4.dp))
         }
 
         attachError?.let {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(it, color = AppColors.Red, fontSize = 12.sp)
+            Text(it, color = AppColors.DangerAccent, fontSize = 12.sp)
         }
 
         attachedImage?.let { (mime, b64) ->
@@ -355,7 +355,7 @@ fun NewReportScreen(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Image attached (${mime.substringAfter('/')})", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
-                TextButton(onClick = { attachedImage = null }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
+                TextButton(onClick = { attachedImage = null }) { Text("Remove", color = AppColors.DangerAccent, fontSize = 12.sp) }
             }
         }
 
@@ -440,7 +440,7 @@ fun NewReportScreen(
                         webSearchTool = useWebSearch,
                         reasoningEffort = reasoningEffort.ifBlank { null }
                     )
-                }) { Text("Proceed anyway", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Proceed anyway", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { pendingFlagged = null }) {
@@ -494,21 +494,21 @@ private fun SharedKbBanner(
             Text(
                 text = if (nFiles == 1) "1 file shared — attach as a knowledge base?"
                     else "$nFiles files shared — attach as a knowledge base?",
-                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Green
+                fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppColors.SuccessAccent
             )
             embedderLabel?.let {
                 Text("Embedder: $it", fontSize = 11.sp, color = AppColors.TextTertiary)
             } ?: Text(
                 "No embedder available — install a local .tflite under Housekeeping → Local Models, or activate a provider with an embedding model.",
-                fontSize = 11.sp, color = AppColors.Red
+                fontSize = 11.sp, color = AppColors.DangerAccent
             )
             when (state) {
                 is SharedKbBannerState.Working -> Text(state.message, fontSize = 12.sp, color = AppColors.TextSecondary)
                 is SharedKbBannerState.Done -> Text(
                     "Indexed ${state.sources} source(s), ${state.chunks} chunk(s). Attached as ${com.ai.data.MetadataIconsHolder.current.library}.",
-                    fontSize = 12.sp, color = AppColors.Green
+                    fontSize = 12.sp, color = AppColors.SuccessAccent
                 )
-                is SharedKbBannerState.Failed -> Text("Failed: ${state.message}", fontSize = 12.sp, color = AppColors.Red)
+                is SharedKbBannerState.Failed -> Text("Failed: ${state.message}", fontSize = 12.sp, color = AppColors.DangerAccent)
                 else -> { /* Idle — nothing extra */ }
             }
             if (state !is SharedKbBannerState.Done) {
@@ -517,7 +517,7 @@ private fun SharedKbBanner(
                         onClick = onAttach,
                         enabled = canAttach,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
                     ) { Text("Attach as KB", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     OutlinedButton(
                         onClick = onSkip,

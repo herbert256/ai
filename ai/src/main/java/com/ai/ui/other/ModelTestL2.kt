@@ -133,13 +133,13 @@ internal fun ModelTestL2Screen(
                         ) {
                             Box(modifier = Modifier.width(20.dp))
                             Text(
-                                "Total", fontSize = 14.sp, color = AppColors.Blue,
+                                "Total", fontSize = 14.sp, color = AppColors.InfoAccent,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.weight(1f).padding(start = 4.dp)
                             )
                             Text(
                                 formatCents(rowsTotalCost), fontSize = 11.sp,
-                                color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                                color = AppColors.InfoAccent, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(end = 8.dp)
                             )
                         }

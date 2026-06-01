@@ -264,10 +264,10 @@ fun CostsViewScreen(
                 .clip(RoundedCornerShape(18.dp))
                 .background(
                     Brush.verticalGradient(
-                        listOf(AppColors.Yellow.copy(alpha = 0.32f), AppColors.Yellow.copy(alpha = 0.06f))
+                        listOf(AppColors.CautionAccent.copy(alpha = 0.32f), AppColors.CautionAccent.copy(alpha = 0.06f))
                     )
                 )
-                .border(1.dp, AppColors.Yellow.copy(alpha = 0.55f), RoundedCornerShape(18.dp))
+                .border(1.dp, AppColors.CautionAccent.copy(alpha = 0.55f), RoundedCornerShape(18.dp))
                 .padding(horizontal = 18.dp, vertical = 16.dp),
             horizontalAlignment = Alignment.Start
         ) {
@@ -292,7 +292,7 @@ fun CostsViewScreen(
             // request.
             Text(
                 text = formatCentsValue(totalCents, decimals = 4),
-                color = AppColors.Yellow,
+                color = AppColors.CautionAccent,
                 fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -338,7 +338,7 @@ private fun CostsModeToggle(mode: CostsMode, onPick: (CostsMode) -> Unit) {
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(22.dp))
             .background(AppColors.CardBackground)
-            .border(1.dp, AppColors.Yellow.copy(alpha = 0.35f), RoundedCornerShape(22.dp))
+            .border(1.dp, AppColors.CautionAccent.copy(alpha = 0.35f), RoundedCornerShape(22.dp))
             .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -355,7 +355,7 @@ private fun CostsModeChip(
     modifier: Modifier = Modifier, onClick: () -> Unit
 ) {
     val bg = if (selected) Brush.horizontalGradient(
-        listOf(AppColors.Yellow.copy(alpha = 0.95f), AppColors.Orange.copy(alpha = 0.65f))
+        listOf(AppColors.CautionAccent.copy(alpha = 0.95f), AppColors.WarningAccent.copy(alpha = 0.65f))
     ) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Transparent))
     Box(
         modifier = modifier
@@ -414,7 +414,7 @@ private fun BucketBar(bucket: BucketTotal, totalCents: Double, onClick: (() -> U
             )
             Text(
                 text = "${(pct * 100).toInt()}%",
-                color = AppColors.Yellow, fontSize = 13.sp, fontWeight = FontWeight.Bold,
+                color = AppColors.CautionAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(end = 8.dp)
             )
             Text(
@@ -438,7 +438,7 @@ private fun BucketBar(bucket: BucketTotal, totalCents: Double, onClick: (() -> U
                     .clip(RoundedCornerShape(5.dp))
                     .background(
                         Brush.horizontalGradient(
-                            listOf(AppColors.Yellow.copy(alpha = 0.95f), AppColors.Orange.copy(alpha = 0.65f))
+                            listOf(AppColors.CautionAccent.copy(alpha = 0.95f), AppColors.WarningAccent.copy(alpha = 0.65f))
                         )
                     )
             )
@@ -551,11 +551,11 @@ private fun CostsDrillL3Screen(
         // Bucket + model named once, as two green lines — every card
         // below shares them, so they're not repeated per card.
         Text(
-            text = bucketKey, color = AppColors.Green, fontSize = 18.sp,
+            text = bucketKey, color = AppColors.SuccessAccent, fontSize = 18.sp,
             fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis
         )
         Text(
-            text = modelKey, color = AppColors.Green, fontSize = 15.sp,
+            text = modelKey, color = AppColors.SuccessAccent, fontSize = 15.sp,
             fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(bottom = 6.dp)
         )
@@ -619,7 +619,7 @@ private fun CostEntryRow(row: CostRow) {
         )
         Text(
             text = formatCentsValue(row.inputCents + row.outputCents, 4),
-            color = AppColors.Yellow, fontSize = 13.sp, fontWeight = FontWeight.Bold
+            color = AppColors.CautionAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold
         )
     }
 }

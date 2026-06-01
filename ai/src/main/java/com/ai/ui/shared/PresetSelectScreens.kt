@@ -205,7 +205,7 @@ private fun PresetRow(
 ) {
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) AppColors.IndigoHighlight else AppColors.CardBackgroundAlt
+            containerColor = if (selected) AppColors.SelectionHighlight else AppColors.CardBackgroundAlt
         ),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {

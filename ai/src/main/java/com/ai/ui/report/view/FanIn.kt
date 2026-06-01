@@ -201,7 +201,7 @@ fun FanInViewScreen(
                 text = modelLabel,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = AppColors.Green,
+                color = AppColors.SuccessAccent,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -287,10 +287,10 @@ private fun SynthesisBodyCard(
             .clip(RoundedCornerShape(16.dp))
             .background(
                 Brush.verticalGradient(
-                    listOf(AppColors.Green.copy(alpha = 0.28f), AppColors.Green.copy(alpha = 0.05f))
+                    listOf(AppColors.SuccessAccent.copy(alpha = 0.28f), AppColors.SuccessAccent.copy(alpha = 0.05f))
                 )
             )
-            .border(1.dp, AppColors.Green.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
+            .border(1.dp, AppColors.SuccessAccent.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()

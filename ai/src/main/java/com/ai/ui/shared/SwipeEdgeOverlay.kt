@@ -111,7 +111,7 @@ fun SwipeEdgeNoMoreOverlay(
                     .padding(top = 8.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
-                    .border(1.dp, AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+                    .border(1.dp, AppColors.InfoAccent.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             )
         }

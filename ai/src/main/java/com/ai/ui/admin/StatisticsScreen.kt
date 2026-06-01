@@ -62,7 +62,7 @@ internal fun UsageProviderCard(
                     Text(group.provider.id, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                     Text("${group.totalCalls} calls", fontSize = 12.sp, color = AppColors.TextTertiary)
                 }
-                Text(formatCurrency(group.totalCost), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.Green)
+                Text(formatCurrency(group.totalCost), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.SuccessAccent)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(if (isExpanded) "▾" else "▸", color = AppColors.TextTertiary)
             }
@@ -95,11 +95,11 @@ private fun UsageModelRow(swc: StatWithCost, onClick: () -> Unit) {
                 val kind = (swc.stat.kind as String?) ?: "report"
                 if (kind != "report") {
                     val kindColor = when (kind) {
-                        "rerank" -> AppColors.Orange
-                        "summarize" -> AppColors.Indigo
-                        "compare" -> AppColors.Purple
-                        "moderation" -> AppColors.Red
-                        "translate" -> AppColors.Blue
+                        "rerank" -> AppColors.WarningAccent
+                        "summarize" -> AppColors.SecondaryAccent
+                        "compare" -> AppColors.PrimaryAccent
+                        "moderation" -> AppColors.DangerAccent
+                        "translate" -> AppColors.InfoAccent
                         else -> AppColors.TextDim
                     }
                     Text(
@@ -118,9 +118,9 @@ private fun UsageModelRow(swc: StatWithCost, onClick: () -> Unit) {
             Text(secondaryLine, fontSize = 11.sp, color = AppColors.TextTertiary)
         }
         Column(horizontalAlignment = Alignment.End) {
-            Text(formatCurrency(swc.totalCost), fontSize = 13.sp, color = AppColors.Green)
+            Text(formatCurrency(swc.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent)
             val sourceColor = when (swc.pricingSource) {
-                "OVERRIDE" -> AppColors.Orange; "OPENROUTER" -> AppColors.Blue; "LITELLM" -> AppColors.Purple
+                "OVERRIDE" -> AppColors.WarningAccent; "OPENROUTER" -> AppColors.InfoAccent; "LITELLM" -> AppColors.PrimaryAccent
                 else -> AppColors.TextDim
             }
             Text(swc.pricingSource, fontSize = 10.sp, color = sourceColor)
@@ -249,7 +249,7 @@ internal fun AddManualOverrideScreen(
             if (inp != null && outp != null && selectedProvider != null && model.isNotBlank()) onSave(selectedProvider!!, model, inp, outp, isAddMode)
         }, enabled = selectedProvider != null && model.isNotBlank() && inputPrice.toDoubleOrNull() != null && outputPrice.toDoubleOrNull() != null &&
             !(isAddMode && keyMatchesOriginal),
-            modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text(if (isAddMode) "Add" else "Save", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 

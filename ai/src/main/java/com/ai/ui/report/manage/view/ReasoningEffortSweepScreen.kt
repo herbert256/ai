@@ -112,7 +112,7 @@ internal fun ReasoningEffortSweepScreen(
                         onSubmit(selectedEfforts)
                     },
                     enabled = canSubmit,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (running) {
@@ -127,7 +127,7 @@ internal fun ReasoningEffortSweepScreen(
                     )
                 }
                 displayState?.unavailableMessage?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, color = AppColors.Red, fontSize = 12.sp)
+                    Text(it, color = AppColors.DangerAccent, fontSize = 12.sp)
                 }
             }
         }
@@ -168,7 +168,7 @@ private fun ReasoningEffortOptionPill(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val container = if (selected) AppColors.Indigo else AppColors.SurfaceDark
+    val container = if (selected) AppColors.SecondaryAccent else AppColors.SurfaceDark
     val textColor = if (selected) AppColors.TextPrimary else AppColors.TextSecondary
     Card(
         colors = CardDefaults.cardColors(containerColor = container),
@@ -205,7 +205,7 @@ private fun ReasoningEffortCandidatePanel(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${com.ai.ui.shared.LocalMetadataIcons.current.reasoningSweep} ${reasoningEffortLabel(candidate.effort)}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AppColors.Indigo)
+                Text("${com.ai.ui.shared.LocalMetadataIcons.current.reasoningSweep} ${reasoningEffortLabel(candidate.effort)}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = AppColors.SecondaryAccent)
                 Spacer(modifier = Modifier.width(8.dp))
                 if (candidate is ReasoningEffortCandidate.Running) {
                     CircularProgressIndicator(modifier = Modifier.height(14.dp).width(14.dp), strokeWidth = 2.dp)
@@ -214,7 +214,7 @@ private fun ReasoningEffortCandidatePanel(
                 Text(reasoningCandidateStatus(candidate), fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(modifier = Modifier.weight(1f))
                 (candidate as? ReasoningEffortCandidate.Success)?.cost?.let { cost ->
-                    Text("${formatCents(cost)} ¢", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("${formatCents(cost)} ¢", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
                 val traceFile = when (candidate) {
                     is ReasoningEffortCandidate.Success -> candidate.traceFile
@@ -230,12 +230,12 @@ private fun ReasoningEffortCandidatePanel(
                 is ReasoningEffortCandidate.Pending -> Unit
                 is ReasoningEffortCandidate.Running -> Unit
                 is ReasoningEffortCandidate.Error -> {
-                    Text(candidate.message, color = AppColors.Red, fontSize = 14.sp)
+                    Text(candidate.message, color = AppColors.DangerAccent, fontSize = 14.sp)
                 }
                 is ReasoningEffortCandidate.Success -> {
                     Button(
                         onClick = { onUseCandidate(index) },
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Use this response", maxLines = 1, softWrap = false) }
                     Card(colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)) {

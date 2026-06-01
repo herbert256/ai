@@ -151,7 +151,7 @@ fun RefreshScreen(
             // rather than null, so we look up "openrouter" via
             // previousCacheInfo to surface what's still on disk.
             PricingCache.previousCacheInfo(context, "openrouter")?.let {
-                RefreshResultRow("Kept previous", "${it.entryCount} from ${it.ageString()}", AppColors.Orange)
+                RefreshResultRow("Kept previous", "${it.entryCount} from ${it.ageString()}", AppColors.WarningAccent)
             }
         } else null
         RefreshResultScreen(
@@ -162,9 +162,9 @@ fun RefreshScreen(
                 else -> "Failed to fetch the OpenRouter catalog. Check the OpenRouter key and connectivity."
             },
             rows = listOfNotNull(
-                RefreshResultRow("Pricing entries", "$pricing models", if (pricing > 0) AppColors.Green else AppColors.Red),
-                RefreshResultRow("Spec pricing", "$specPricing", if (specPricing > 0) AppColors.Green else AppColors.TextTertiary),
-                RefreshResultRow("Spec parameters", "$specParams", if (specParams > 0) AppColors.Green else AppColors.TextTertiary),
+                RefreshResultRow("Pricing entries", "$pricing models", if (pricing > 0) AppColors.SuccessAccent else AppColors.DangerAccent),
+                RefreshResultRow("Spec pricing", "$specPricing", if (specPricing > 0) AppColors.SuccessAccent else AppColors.TextTertiary),
+                RefreshResultRow("Spec parameters", "$specParams", if (specParams > 0) AppColors.SuccessAccent else AppColors.TextTertiary),
                 RefreshResultRow("Cache age", PricingCache.getOpenRouterCacheAge(context), AppColors.TextTertiary),
                 kept
             ),
@@ -183,7 +183,7 @@ fun RefreshScreen(
     // still usable.
     fun keptPreviousRow(source: String): RefreshResultRow? {
         val info = PricingCache.previousCacheInfo(context, source) ?: return null
-        return RefreshResultRow("Kept previous", "${info.entryCount} from ${info.ageString()}", AppColors.Orange)
+        return RefreshResultRow("Kept previous", "${info.entryCount} from ${info.ageString()}", AppColors.WarningAccent)
     }
 
     if (showLiteLLMDialog) {
@@ -200,9 +200,9 @@ fun RefreshScreen(
             rows = listOfNotNull(
                 RefreshResultRow(
                     "Status", if (n == null) "failed" else "loaded",
-                    if (n == null) AppColors.Red else AppColors.Green
+                    if (n == null) AppColors.DangerAccent else AppColors.SuccessAccent
                 ),
-                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary),
+                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.SuccessAccent else AppColors.TextTertiary),
                 kept
             ),
             sampleHeader = if (ok) "Sample model entries" else null,
@@ -227,9 +227,9 @@ fun RefreshScreen(
             rows = listOfNotNull(
                 RefreshResultRow(
                     "Status", if (n == null) "failed" else "loaded",
-                    if (n == null) AppColors.Red else AppColors.Green
+                    if (n == null) AppColors.DangerAccent else AppColors.SuccessAccent
                 ),
-                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary),
+                RefreshResultRow("Priced models", "${n ?: 0}", if (ok) AppColors.SuccessAccent else AppColors.TextTertiary),
                 kept
             ),
             onBack = { showModelsDevDialog = false },
@@ -252,9 +252,9 @@ fun RefreshScreen(
             rows = listOfNotNull(
                 RefreshResultRow(
                     "Status", if (n == null) "failed" else "loaded",
-                    if (n == null) AppColors.Red else AppColors.Green
+                    if (n == null) AppColors.DangerAccent else AppColors.SuccessAccent
                 ),
-                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary),
+                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.SuccessAccent else AppColors.TextTertiary),
                 kept
             ),
             onBack = { showHeliconeDialog = false },
@@ -277,9 +277,9 @@ fun RefreshScreen(
             rows = listOfNotNull(
                 RefreshResultRow(
                     "Status", if (n == null) "failed" else "loaded",
-                    if (n == null) AppColors.Red else AppColors.Green
+                    if (n == null) AppColors.DangerAccent else AppColors.SuccessAccent
                 ),
-                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary),
+                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.SuccessAccent else AppColors.TextTertiary),
                 RefreshResultRow("Vendors", "10", AppColors.TextTertiary),
                 kept
             ),
@@ -305,9 +305,9 @@ fun RefreshScreen(
             rows = listOfNotNull(
                 RefreshResultRow(
                     "Status", if (n == null) "failed" else "loaded",
-                    if (n == null) AppColors.Red else AppColors.Green
+                    if (n == null) AppColors.DangerAccent else AppColors.SuccessAccent
                 ),
-                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.Green else AppColors.TextTertiary),
+                RefreshResultRow("Entries", "${n ?: 0}", if (ok) AppColors.SuccessAccent else AppColors.TextTertiary),
                 kept
             ),
             onBack = { showAaDialog = false },
@@ -600,7 +600,7 @@ private fun RefreshAllProgressScreen(
         LinearProgressIndicator(
             progress = { if (totalSteps == 0) 0f else done.toFloat() / totalSteps },
             modifier = Modifier.fillMaxWidth().height(6.dp),
-            color = AppColors.Orange,
+            color = AppColors.WarningAccent,
             trackColor = AppColors.DividerDark
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -616,9 +616,9 @@ private fun RefreshAllProgressScreen(
             state.catalogSteps.forEach { step ->
                 val (icon, statusText, color) = when (val s = step.status) {
                     RefreshStepStatus.Pending -> Triple("⏳", "queued", AppColors.TextTertiary)
-                    is RefreshStepStatus.Running -> Triple("▶", s.detail ?: "running", AppColors.Orange)
-                    is RefreshStepStatus.Done -> Triple(com.ai.data.MetadataIconsHolder.current.checkMark, s.detail ?: "done", AppColors.Green)
-                    is RefreshStepStatus.Failed -> Triple(com.ai.data.MetadataIconsHolder.current.crossMark, s.detail ?: "failed", AppColors.Red)
+                    is RefreshStepStatus.Running -> Triple("▶", s.detail ?: "running", AppColors.WarningAccent)
+                    is RefreshStepStatus.Done -> Triple(com.ai.data.MetadataIconsHolder.current.checkMark, s.detail ?: "done", AppColors.SuccessAccent)
+                    is RefreshStepStatus.Failed -> Triple(com.ai.data.MetadataIconsHolder.current.crossMark, s.detail ?: "failed", AppColors.DangerAccent)
                     RefreshStepStatus.Skipped -> Triple("—", "skipped", AppColors.TextTertiary)
                 }
                 CatalogProgressRow(label = step.label, icon = icon, statusText = statusText, color = color, isPending = step.status is RefreshStepStatus.Pending)
@@ -630,11 +630,11 @@ private fun RefreshAllProgressScreen(
                 state.workerRows.forEach { row ->
                     val (icon, statusText, color, isPending) = when (val stage = row.stage) {
                         WorkerStage.Pending -> WorkerStageView("⏳", "queued", AppColors.TextTertiary, true)
-                        WorkerStage.TestingKey -> WorkerStageView("▶", "testing key", AppColors.Orange, false)
-                        WorkerStage.FetchingModels -> WorkerStageView("▶", "fetching models", AppColors.Orange, false)
-                        WorkerStage.WritingAgent -> WorkerStageView("▶", "writing agent", AppColors.Orange, false)
-                        WorkerStage.Done -> WorkerStageView(com.ai.data.MetadataIconsHolder.current.checkMark, "done", AppColors.Green, false)
-                        is WorkerStage.Failed -> WorkerStageView(com.ai.data.MetadataIconsHolder.current.crossMark, stage.reason.take(60).ifBlank { "failed" }, AppColors.Red, false)
+                        WorkerStage.TestingKey -> WorkerStageView("▶", "testing key", AppColors.WarningAccent, false)
+                        WorkerStage.FetchingModels -> WorkerStageView("▶", "fetching models", AppColors.WarningAccent, false)
+                        WorkerStage.WritingAgent -> WorkerStageView("▶", "writing agent", AppColors.WarningAccent, false)
+                        WorkerStage.Done -> WorkerStageView(com.ai.data.MetadataIconsHolder.current.checkMark, "done", AppColors.SuccessAccent, false)
+                        is WorkerStage.Failed -> WorkerStageView(com.ai.data.MetadataIconsHolder.current.crossMark, stage.reason.take(60).ifBlank { "failed" }, AppColors.DangerAccent, false)
                     }
                     CatalogProgressRow(label = row.serviceId, icon = icon, statusText = statusText, color = color, isPending = isPending)
                 }
@@ -664,9 +664,9 @@ private fun RefreshAllProgressScreen(
                                     .padding(horizontal = 12.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(com.ai.data.MetadataIconsHolder.current.crossMark, fontSize = 14.sp, color = AppColors.Red, modifier = Modifier.width(20.dp))
+                                Text(com.ai.data.MetadataIconsHolder.current.crossMark, fontSize = 14.sp, color = AppColors.DangerAccent, modifier = Modifier.width(20.dp))
                                 Text(svc.id, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
-                                Text("Open ›", fontSize = 12.sp, color = AppColors.Blue)
+                                Text("Open ›", fontSize = 12.sp, color = AppColors.InfoAccent)
                             }
                             HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
                         }

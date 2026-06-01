@@ -138,7 +138,7 @@ fun SwarmEditScreen(
                 },
                 enabled = nameError == null && selectedMembers.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {
@@ -164,7 +164,7 @@ fun SwarmEditScreen(
                 fontSize = 13.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
             Button(
                 onClick = { showModelPicker = true },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
             ) { Text("+ Add model", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
 
@@ -186,7 +186,7 @@ fun SwarmEditScreen(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(member.provider.id, fontSize = 13.sp, color = AppColors.Blue,
+                                Text(member.provider.id, fontSize = 13.sp, color = AppColors.InfoAccent,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(com.ai.ui.shared.shortModelName(member.model), fontSize = 12.sp, color = Color.White,
@@ -200,7 +200,7 @@ fun SwarmEditScreen(
                                 selectedMembers = selectedMembers.filterNot {
                                     it.provider.id == member.provider.id && it.model == member.model
                                 }
-                            }) { Text(com.ai.data.MetadataIconsHolder.current.closeMark, fontSize = 16.sp, color = AppColors.Red) }
+                            }) { Text(com.ai.data.MetadataIconsHolder.current.closeMark, fontSize = 16.sp, color = AppColors.DangerAccent) }
                         }
                     }
                 }

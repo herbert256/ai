@@ -90,7 +90,7 @@ internal fun TranslationCompareScreen(
                     if (!originalIcon.isNullOrBlank()) append(originalIcon).append("  ")
                     append(originalLabel)
                 },
-                fontSize = 14.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold
+                fontSize = 14.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(6.dp))
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
@@ -116,7 +116,7 @@ internal fun TranslationCompareScreen(
                     if (!translatedIcon.isNullOrBlank()) append(translatedIcon).append("  ")
                     append(translatedLabel)
                 },
-                fontSize = 14.sp, color = AppColors.Green, fontWeight = FontWeight.Bold
+                fontSize = 14.sp, color = AppColors.SuccessAccent, fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(6.dp))
             Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {

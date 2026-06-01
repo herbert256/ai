@@ -157,7 +157,7 @@ fun CostsMaintenanceScreen(
                             ).show()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
                     ) { Text("Cleanup redundant overrides", maxLines = 1, softWrap = false) }
                 }
             }

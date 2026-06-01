@@ -268,7 +268,7 @@ private fun PodiumCard(row: RerankRow, label: AgentLabel?, spec: MedalSpec, onCl
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = formatRerankScore(row.score),
-                color = AppColors.Yellow,
+                color = AppColors.CautionAccent,
                 fontSize = 14.sp, fontWeight = FontWeight.Bold,
                 maxLines = 1, softWrap = false
             )
@@ -291,7 +291,7 @@ private fun RankRow(row: RerankRow, label: AgentLabel?) {
         ) {
             Text(
                 text = "${row.rank ?: "-"}",
-                color = AppColors.Yellow,
+                color = AppColors.CautionAccent,
                 fontSize = 14.sp, fontWeight = FontWeight.Bold
             )
         }
@@ -316,7 +316,7 @@ private fun RankRow(row: RerankRow, label: AgentLabel?) {
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = formatRerankScore(row.score),
-                color = AppColors.Yellow,
+                color = AppColors.CautionAccent,
                 fontSize = 14.sp, fontWeight = FontWeight.Bold,
                 maxLines = 1, softWrap = false
             )

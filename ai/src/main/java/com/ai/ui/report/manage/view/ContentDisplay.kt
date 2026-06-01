@@ -178,7 +178,7 @@ internal fun LanguagePickerRow(
             } else {
                 Button(
                     onClick = { onSelect(lang.key) },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Green else Color(0xFF3A3A4A)),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.SuccessAccent else Color(0xFF3A3A4A)),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                     modifier = Modifier.heightIn(min = 36.dp)
                 ) {
@@ -505,7 +505,7 @@ private fun OnePageReportView(
             modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp)
         ) {
             item(key = "prompt") {
-                Text("Prompt", fontSize = 14.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("Prompt", fontSize = 14.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(4.dp))
                 if (displayPrompt.isBlank()) {
                     Text("(no prompt recorded)", color = AppColors.TextTertiary, fontSize = 13.sp)
@@ -527,16 +527,16 @@ private fun OnePageReportView(
                     rawBody.replace(conclusionTagRegex, "").replace(motivationTagRegex, "").trim()
                 else rawBody
 
-                Text(label, fontSize = 14.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold)
+                Text(label, fontSize = 14.sp, color = AppColors.SuccessAccent, fontWeight = FontWeight.SemiBold)
                 Spacer(modifier = Modifier.height(4.dp))
                 if (conclusion != null) {
-                    Text("Conclusion", fontSize = 13.sp, color = AppColors.Green, fontWeight = FontWeight.Bold)
+                    Text("Conclusion", fontSize = 13.sp, color = AppColors.SuccessAccent, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(2.dp))
                     ContentWithThinkSections(analysis = conclusion)
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 if (motivation != null) {
-                    Text("Motivation", fontSize = 13.sp, color = AppColors.Green, fontWeight = FontWeight.Bold)
+                    Text("Motivation", fontSize = 13.sp, color = AppColors.SuccessAccent, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(2.dp))
                     ContentWithThinkSections(analysis = motivation)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -970,7 +970,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
 @Composable
 fun ReportCostTable(report: Report, onShowAllApi: () -> Unit = {}) {
     val data = rememberReportCostData(report) ?: return
-    val tColor = AppColors.Blue
+    val tColor = AppColors.InfoAccent
     var popup by remember { mutableStateOf<CostPopup?>(null) }
 
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1013,7 +1013,7 @@ fun ReportCostTable(report: Report, onShowAllApi: () -> Unit = {}) {
             onClick = onShowAllApi,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("All API calls (${data.rows.size})", color = AppColors.Blue, fontSize = 14.sp)
+            Text("All API calls (${data.rows.size})", color = AppColors.InfoAccent, fontSize = 14.sp)
         }
     }
 
@@ -1027,7 +1027,7 @@ fun ReportCostTable(report: Report, onShowAllApi: () -> Unit = {}) {
 fun ReportApiCallsScreen(report: Report, onBack: () -> Unit, onNavigateToTraceFile: (String) -> Unit = {}) {
     BackHandler { onBack() }
     val data = rememberReportCostData(report)
-    val tColor = AppColors.Blue
+    val tColor = AppColors.InfoAccent
     var popup by remember { mutableStateOf<CostPopup?>(null) }
     // Filter dropdowns for the two non-cost columns. "All" leaves the
     // list unfiltered. Filters compose (Type AND Model must match);
@@ -1158,7 +1158,7 @@ private fun FilterDropdown(
                             opt,
                             fontSize = 13.sp,
                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSel) AppColors.Blue else Color.White,
+                            color = if (isSel) AppColors.InfoAccent else Color.White,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     },
@@ -1222,13 +1222,13 @@ private sealed class CostPopup {
 // only a row tint — the label always shows the full literal type, so this
 // doesn't translate or group anything.
 private fun costTypeColor(type: String): Color = when (type.substringBefore('/')) {
-    "workers", "alt" -> AppColors.Brown
-    "meta" -> AppColors.Indigo
-    "fan_out" -> AppColors.Indigo
-    "fan_in" -> AppColors.Green
-    "internal" -> AppColors.Orange
-    "after" -> AppColors.Orange
-    "translate" -> AppColors.Orange
+    "workers", "alt" -> AppColors.QueueAccent
+    "meta" -> AppColors.SecondaryAccent
+    "fan_out" -> AppColors.SecondaryAccent
+    "fan_in" -> AppColors.SuccessAccent
+    "internal" -> AppColors.WarningAccent
+    "after" -> AppColors.WarningAccent
+    "translate" -> AppColors.WarningAccent
     else -> AppColors.TextSecondary
 }
 
@@ -1258,7 +1258,7 @@ private fun <T> CostRowSection(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             "$label · ${rows.size}",
-            fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(bottom = 2.dp)
         )
         Row(
@@ -1271,7 +1271,7 @@ private fun <T> CostRowSection(
                 Text(
                     text = lbl + arrow,
                     fontSize = 11.sp,
-                    color = if (active) AppColors.Blue else AppColors.TextSecondary,
+                    color = if (active) AppColors.InfoAccent else AppColors.TextSecondary,
                     fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold,
                     textAlign = if (i == 0) androidx.compose.ui.text.style.TextAlign.Start
                                 else androidx.compose.ui.text.style.TextAlign.End,
@@ -1308,7 +1308,7 @@ private fun <T> CostRowSection(
                 ) {
                     Text(
                         "deleted",
-                        fontSize = 11.sp, color = AppColors.Orange,
+                        fontSize = 11.sp, color = AppColors.WarningAccent,
                         fontStyle = FontStyle.Italic,
                         modifier = Modifier.weight(columnWeights.first())
                     )
@@ -1316,7 +1316,7 @@ private fun <T> CostRowSection(
                     if (middleSum > 0f) Spacer(modifier = Modifier.weight(middleSum))
                     Text(
                         "+%.2f ¢".format(deletedCents),
-                        fontSize = 11.sp, color = AppColors.Orange,
+                        fontSize = 11.sp, color = AppColors.WarningAccent,
                         fontFamily = FontFamily.Monospace,
                         textAlign = androidx.compose.ui.text.style.TextAlign.End,
                         modifier = Modifier.weight(columnWeights.last())
@@ -1357,7 +1357,7 @@ private fun CostTypeGroupedSection(
     onMemberTap: (GroupTotal) -> Unit,
 ) {
     if (byType.isEmpty()) return
-    val tColor = AppColors.Blue
+    val tColor = AppColors.InfoAccent
     val weights = listOf(1.7f, 0.8f, 1.3f, 1.2f)
     val groups = remember(byType) {
         byType.groupBy { it.key.substringBefore('/') }
@@ -1377,7 +1377,7 @@ private fun CostTypeGroupedSection(
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             "By type · ${groups.size}",
-            fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+            fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(bottom = 2.dp)
         )
         // Static column headers — grouping replaces the per-column sort here.
@@ -1427,9 +1427,9 @@ private fun CostTypeGroupedSection(
         // Deleted-items line (dropped cost) + grand total.
         if (deletedCents > 0.0) {
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("deleted", fontSize = 11.sp, color = AppColors.Orange, fontStyle = FontStyle.Italic, modifier = Modifier.weight(weights[0]))
+                Text("deleted", fontSize = 11.sp, color = AppColors.WarningAccent, fontStyle = FontStyle.Italic, modifier = Modifier.weight(weights[0]))
                 Spacer(modifier = Modifier.weight(weights[1] + weights[2]))
-                Text("+%.2f ¢".format(deletedCents), fontSize = 11.sp, color = AppColors.Orange, fontFamily = FontFamily.Monospace,
+                Text("+%.2f ¢".format(deletedCents), fontSize = 11.sp, color = AppColors.WarningAccent, fontFamily = FontFamily.Monospace,
                     textAlign = androidx.compose.ui.text.style.TextAlign.End, modifier = Modifier.weight(weights[3]))
             }
         }
@@ -1478,7 +1478,7 @@ private fun CostDetailDialog(
         }
         is CostPopup.ModelGroup -> {
             titleText = listOfNotNull(popup.g.provider, popup.g.model).joinToString(" / ")
-            titleColor = AppColors.Blue
+            titleColor = AppColors.InfoAccent
             titleMono = true
             body = buildGroupBody(popup.g)
         }
@@ -1537,7 +1537,7 @@ private fun CostDetailDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("Close", color = AppColors.Blue)
+                Text("Close", color = AppColors.InfoAccent)
             }
         },
     )
@@ -1583,7 +1583,7 @@ private fun buildCallBody(r: CostRow): String {
 private fun CitationsSection(citations: List<String>) {
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF252525), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)) {
-        Text("Sources", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppColors.Purple, modifier = Modifier.padding(bottom = 12.dp))
+        Text("Sources", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppColors.PrimaryAccent, modifier = Modifier.padding(bottom = 12.dp))
         citations.forEachIndexed { i, url ->
             Row(modifier = Modifier.padding(vertical = 4.dp).clickable {
                 try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, url.toUri())) } catch (_: Exception) {}
@@ -1599,7 +1599,7 @@ private fun CitationsSection(citations: List<String>) {
 private fun SearchResultsSection(searchResults: List<SearchResult>) {
     val context = LocalContext.current
     Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF252525), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)) {
-        Text("Search Results", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppColors.Orange, modifier = Modifier.padding(bottom = 12.dp))
+        Text("Search Results", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppColors.WarningAccent, modifier = Modifier.padding(bottom = 12.dp))
         searchResults.forEachIndexed { i, result ->
             if (result.url != null) {
                 Column(modifier = Modifier.padding(vertical = 6.dp).clickable {
@@ -1620,7 +1620,7 @@ private fun SearchResultsSection(searchResults: List<SearchResult>) {
 @Composable
 private fun RelatedQuestionsSection(relatedQuestions: List<String>) {
     Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF252525), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)) {
-        Text("Related Questions", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppColors.Green, modifier = Modifier.padding(bottom = 12.dp))
+        Text("Related Questions", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppColors.SuccessAccent, modifier = Modifier.padding(bottom = 12.dp))
         relatedQuestions.forEachIndexed { i, q ->
             Row(modifier = Modifier.padding(vertical = 4.dp)) {
                 Text("${i + 1}. ", color = AppColors.TextSecondary, fontSize = 14.sp)

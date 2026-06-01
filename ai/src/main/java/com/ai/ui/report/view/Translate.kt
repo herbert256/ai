@@ -163,7 +163,7 @@ fun TranslateViewScreen(
                 text = targetLanguage,
                 fontSize = 28.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = AppColors.Orange,
+                color = AppColors.WarningAccent,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -171,7 +171,7 @@ fun TranslateViewScreen(
             if (rows.isNotEmpty()) {
                 Text(
                     text = "${rows.size}",
-                    color = AppColors.Orange, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                    color = AppColors.WarningAccent, fontSize = 14.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .background(AppColors.SurfaceDark)
@@ -283,10 +283,10 @@ private fun TranslatePair(
             expanded = expanded
         )
         SidePanel(
-            tint = AppColors.Orange.copy(alpha = 0.18f),
-            borderColor = AppColors.Orange.copy(alpha = 0.55f),
+            tint = AppColors.WarningAccent.copy(alpha = 0.18f),
+            borderColor = AppColors.WarningAccent.copy(alpha = 0.55f),
             badge = "${mi.world} ${row.targetLanguageNative ?: row.targetLanguage ?: ""}",
-            badgeColor = AppColors.Orange,
+            badgeColor = AppColors.WarningAccent,
             body = translatedBody,
             expansionKey = "tr:${row.id}",
             expanded = expanded
@@ -339,7 +339,7 @@ private fun SidePanel(
             if (isLong) {
                 Text(
                     text = if (isExpanded) "Show less" else "Read more",
-                    color = AppColors.Blue,
+                    color = AppColors.InfoAccent,
                     fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier
                         .clickable { expanded.put(expansionKey, !isExpanded) }

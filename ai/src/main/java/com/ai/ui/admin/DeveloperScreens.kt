@@ -123,7 +123,7 @@ fun ApiTestScreen(
                             Text(m, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(priceText, fontSize = 11.sp,
-                                color = if (real) AppColors.Green else AppColors.TextDim,
+                                color = if (real) AppColors.SuccessAccent else AppColors.TextDim,
                                 fontFamily = FontFamily.Monospace)
                         }
                         HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
@@ -255,7 +255,7 @@ fun ApiTestScreen(
                 remove("last_test_raw_json") // clear any previous raw JSON
             }.apply()
             onNavigateToEditRequest()
-        }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+        }, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Build Request", maxLines = 1, softWrap = false) }
     }
 }
@@ -358,7 +358,7 @@ fun EditApiRequestScreen(
                 } finally { isLoading = false }
             }
         }, enabled = !isLoading, modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text(if (isLoading) "Sending..." else "Submit", maxLines = 1, softWrap = false) }
     }
 }

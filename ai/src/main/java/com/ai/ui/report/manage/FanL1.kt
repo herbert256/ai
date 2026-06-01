@@ -267,14 +267,14 @@ internal fun FanOutL1Screen(
             // zero) so columns don't shift as pairs wait on a cap;
             // Costs is the run's total spend in cents, 2 decimals.
             val stats = buildList {
-                add(Triple("Total", run.totalPairs.toString(), AppColors.Blue))
-                add(Triple("Done", doneCount.toString(), AppColors.Green))
-                add(Triple("Errors", errorCount.toString(), AppColors.Red))
-                add(Triple("Bench", benchCount.toString(), AppColors.Purple))
-                add(Triple("Run", runningCount.toString(), AppColors.Orange))
-                add(Triple("Throttled", throttledHere.toString(), AppColors.Yellow))
-                add(Triple("Queue", queuedCount.toString(), AppColors.Brown))
-                add(Triple("Costs", formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2), AppColors.Blue))
+                add(Triple("Total", run.totalPairs.toString(), AppColors.InfoAccent))
+                add(Triple("Done", doneCount.toString(), AppColors.SuccessAccent))
+                add(Triple("Errors", errorCount.toString(), AppColors.DangerAccent))
+                add(Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent))
+                add(Triple("Run", runningCount.toString(), AppColors.WarningAccent))
+                add(Triple("Throttled", throttledHere.toString(), AppColors.CautionAccent))
+                add(Triple("Queue", queuedCount.toString(), AppColors.QueueAccent))
+                add(Triple("Costs", formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2), AppColors.InfoAccent))
             }
             Row(modifier = Modifier.fillMaxWidth()) {
                 stats.forEach { (label, _, color) ->
@@ -347,7 +347,7 @@ internal fun FanOutL1Screen(
                     Button(
                         onClick = { confirmRemoveFailed = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground)
                     ) { Text("Remove failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     Button(
                         onClick = { confirmRestartFailed = true },
@@ -358,7 +358,7 @@ internal fun FanOutL1Screen(
                     Button(
                         onClick = { confirmRemoveBenched = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                     ) { Text("Remove benched", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
@@ -389,7 +389,7 @@ internal fun FanOutL1Screen(
                     onClick = { actions.onClearFanMetaErrors(run.key) },
                     modifier = Modifier.weight(1f),
                     contentPadding = tightPadding,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground)
                 ) { Text("Remove errors", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { actions.onRestartFanMetaErrors(run.key) },
@@ -422,7 +422,7 @@ internal fun FanOutL1Screen(
                         errored.forEach { p ->
                             Text(
                                 "${p.providerId} / ${com.ai.ui.shared.shortModelName(p.model)}",
-                                fontSize = 13.sp, color = AppColors.Blue,
+                                fontSize = 13.sp, color = AppColors.InfoAccent,
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
@@ -453,7 +453,7 @@ internal fun FanOutL1Screen(
             LinearProgressIndicator(
                 progress = { finished },
                 modifier = Modifier.fillMaxWidth().height(6.dp),
-                color = AppColors.Orange,
+                color = AppColors.WarningAccent,
                 trackColor = AppColors.DividerDark
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -464,7 +464,7 @@ internal fun FanOutL1Screen(
         // detail screen via actions.onOpenSecondary.
         if (run.combinedReports.isNotEmpty()) {
             Text(
-                "Combined reports", fontSize = 13.sp, color = AppColors.Blue,
+                "Combined reports", fontSize = 13.sp, color = AppColors.InfoAccent,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
@@ -512,7 +512,7 @@ internal fun FanOutL1Screen(
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                "Models", fontSize = 13.sp, color = AppColors.Blue,
+                "Models", fontSize = 13.sp, color = AppColors.InfoAccent,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
@@ -602,7 +602,7 @@ internal fun FanOutL1Screen(
                 // them the row would stall at < 100 % when every
                 // remaining pair errored out.
                 val progressFraction = if (total > 0) (ok + err).toFloat() / total else 0f
-                val progressColor = AppColors.Green.copy(alpha = 0.30f)
+                val progressColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
                 Row(
                     modifier = Modifier.fillMaxWidth()
                         .drawBehind {
@@ -683,13 +683,13 @@ internal fun FanOutL1Screen(
                 Button(
                     onClick = onShowResponses,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                 ) { Text("Fan-Out", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 if (hasTitles) {
                     Button(
                         onClick = onOpenTitles,
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                     ) { Text("Show all", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             } else {
@@ -700,7 +700,7 @@ internal fun FanOutL1Screen(
                     Button(
                         onClick = { if (hasFanMeta) onShowFanMeta() else confirmStartTitles = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                     ) { Text("Fan Meta", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
@@ -712,7 +712,7 @@ internal fun FanOutL1Screen(
             Button(
                 onClick = { actions.onRunFanIn(run.key) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
             ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
         }
     }
@@ -792,7 +792,7 @@ internal fun FanOutL1Screen(
                         deleting = false
                         onBack()
                     }
-                }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
@@ -850,7 +850,7 @@ internal fun FanOutL1Screen(
                 TextButton(onClick = {
                     confirmRemoveFailed = false
                     actions.onRemoveFailedPairs(run.key)
-                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmRemoveFailed = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
@@ -867,7 +867,7 @@ internal fun FanOutL1Screen(
                 TextButton(onClick = {
                     confirmRemoveBenched = false
                     actions.onRemoveBenchedPairs(run.key)
-                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmRemoveBenched = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
@@ -905,7 +905,7 @@ private fun FanMetaModelsL1Row(
     showBar: Boolean,
     onClick: () -> Unit
 ) {
-    val barColor = AppColors.Green.copy(alpha = 0.30f)
+    val barColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
     Row(
         modifier = Modifier.fillMaxWidth()
             .drawBehind {

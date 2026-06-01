@@ -107,7 +107,7 @@ internal fun ReportSelectAgentScreen(
                         Text(
                             "${dlgFmtPrice(p.promptPrice)} / ${dlgFmtPrice(p.completionPrice)}",
                             fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                            color = if (real) AppColors.Red else AppColors.SurfaceDark,
+                            color = if (real) AppColors.DangerAccent else AppColors.SurfaceDark,
                             modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
                         )
                     }
@@ -278,11 +278,11 @@ internal fun ReportSelectModelsScreen(
                 Text("\u25be", color = AppColors.TextTertiary)
             }
             DropdownMenu(expanded = providerDropdownExpanded, onDismissRequest = { providerDropdownExpanded = false }, modifier = Modifier.background(Color(0xFF2D2D2D))) {
-                DropdownMenuItem(text = { Text("All Providers", color = if (providerFilter == null) AppColors.Blue else Color.White, fontSize = 13.sp) },
+                DropdownMenuItem(text = { Text("All Providers", color = if (providerFilter == null) AppColors.InfoAccent else Color.White, fontSize = 13.sp) },
                     onClick = { providerFilter = null; providerDropdownExpanded = false })
                 remember(effectiveServices) { effectiveServices.sortedBy { it.id.lowercase() } }.forEach { provider ->
                     val mc = if (provider.id == AppService.LOCAL.id) localModelsForFilter.size else aiSettings.getModels(provider).size
-                    DropdownMenuItem(text = { Text("${provider.id} ($mc)", color = if (providerFilter == provider) AppColors.Blue else Color.White, fontSize = 13.sp) },
+                    DropdownMenuItem(text = { Text("${provider.id} ($mc)", color = if (providerFilter == provider) AppColors.InfoAccent else Color.White, fontSize = 13.sp) },
                         onClick = { providerFilter = provider; providerDropdownExpanded = false })
                 }
             }
@@ -344,7 +344,7 @@ internal fun ReportSelectModelsScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f).alpha(rowAlpha)) {
-                    Text(provider.id, fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(provider.id, fontSize = 12.sp, color = AppColors.InfoAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
@@ -356,7 +356,7 @@ internal fun ReportSelectModelsScreen(
                     com.ai.ui.shared.ModelAdvisoryCaptions(state)
                 }
                 Text("${dlgFmtPrice(pricing.promptPrice)} / ${dlgFmtPrice(pricing.completionPrice)}", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
-                    color = if (real) AppColors.Red else AppColors.SurfaceDark,
+                    color = if (real) AppColors.DangerAccent else AppColors.SurfaceDark,
                     modifier = (if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier).alpha(rowAlpha))
             }
             HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
@@ -514,7 +514,7 @@ internal fun ReportSelectFlockScreen(
                         // tap target so the user can preview members
                         // without accidentally adding the flock.
                         Text(
-                            com.ai.data.MetadataIconsHolder.current.info, fontSize = 18.sp, color = AppColors.Blue,
+                            com.ai.data.MetadataIconsHolder.current.info, fontSize = 18.sp, color = AppColors.InfoAccent,
                             modifier = Modifier
                                 .clickable { infoFlock = flock }
                                 .padding(end = 12.dp, start = 2.dp)
@@ -532,7 +532,7 @@ internal fun ReportSelectFlockScreen(
                                 Text(
                                     "${dlgFmtPriceM(tIn)} / ${dlgFmtPriceM(tOut)}",
                                     fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                                    color = if (realPrice) AppColors.Red else AppColors.SurfaceDark,
+                                    color = if (realPrice) AppColors.DangerAccent else AppColors.SurfaceDark,
                                     modifier = if (!realPrice) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
                                 )
                             }
@@ -631,7 +631,7 @@ internal fun ReportSelectSwarmScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            com.ai.data.MetadataIconsHolder.current.info, fontSize = 18.sp, color = AppColors.Blue,
+                            com.ai.data.MetadataIconsHolder.current.info, fontSize = 18.sp, color = AppColors.InfoAccent,
                             modifier = Modifier
                                 .clickable { infoSwarm = swarm }
                                 .padding(end = 12.dp, start = 2.dp)
@@ -649,7 +649,7 @@ internal fun ReportSelectSwarmScreen(
                                 Text(
                                     "${dlgFmtPriceM(tIn)} / ${dlgFmtPriceM(tOut)}",
                                     fontSize = 11.sp, fontFamily = FontFamily.Monospace,
-                                    color = if (realPrice) AppColors.Red else AppColors.SurfaceDark,
+                                    color = if (realPrice) AppColors.DangerAccent else AppColors.SurfaceDark,
                                     modifier = if (!realPrice) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
                                 )
                             }
@@ -775,7 +775,7 @@ internal fun ReportSelectInternalPromptScreen(
                             modifier = Modifier.fillMaxWidth(), maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                         if (p.title.isNotBlank()) {
-                            Text(p.title, fontSize = 12.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(p.title, fontSize = 12.sp, color = AppColors.InfoAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         previewLines.forEach { line ->
                             Text(line, fontSize = 11.sp, color = AppColors.TextDim,
@@ -833,7 +833,7 @@ internal fun ReportActionPickerScreen(
                     Text(opt.label, style = MaterialTheme.typography.bodyLarge, color = Color.White,
                         fontWeight = FontWeight.SemiBold)
                     if (!opt.detail.isNullOrBlank()) {
-                        Text(opt.detail, fontSize = 12.sp, color = AppColors.Blue,
+                        Text(opt.detail, fontSize = 12.sp, color = AppColors.InfoAccent,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     if (!opt.secondary.isNullOrBlank()) {
@@ -918,7 +918,7 @@ internal fun ReportOneTimePromptScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Available placeholders", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    Text("Available placeholders", fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                     Text(
                         "Substituted at run time. Tap a placeholder to copy it into the template body at the cursor end.",
                         fontSize = 11.sp, color = AppColors.TextTertiary
@@ -932,7 +932,7 @@ internal fun ReportOneTimePromptScreen(
                         ) {
                             Text(
                                 token, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
-                                color = AppColors.Orange, modifier = Modifier.padding(end = 8.dp)
+                                color = AppColors.WarningAccent, modifier = Modifier.padding(end = 8.dp)
                             )
                             Text(desc, fontSize = 11.sp, color = AppColors.TextDim,
                                 modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -960,7 +960,7 @@ internal fun ReportOneTimePromptScreen(
             },
             enabled = text.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Run", maxLines = 1, softWrap = false) }
     }
 }
@@ -1055,7 +1055,7 @@ internal fun ReportSelectFromReportScreen(
                             onOpenManage = { onOpenReportManage(report.id) },
                             onOpenView = { onOpenReportView(report.id) }
                         )
-                        Text(">", color = AppColors.Blue, fontSize = 14.sp,
+                        Text(">", color = AppColors.InfoAccent, fontSize = 14.sp,
                             modifier = Modifier.padding(start = 8.dp))
                     }
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
@@ -1088,7 +1088,7 @@ private fun ModelInfoRow(
         .padding(vertical = 8.dp, horizontal = 4.dp)
     Column(modifier = rowMod,
         verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(provider.id, fontSize = 12.sp, color = AppColors.Blue,
+        Text(provider.id, fontSize = 12.sp, color = AppColors.InfoAccent,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(model, fontSize = 13.sp, color = Color.White,
@@ -1099,7 +1099,7 @@ private fun ModelInfoRow(
             com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
             Text("${dlgFmtPrice(pricing.promptPrice)} / ${dlgFmtPrice(pricing.completionPrice)}",
                 fontSize = 10.sp, fontFamily = FontFamily.Monospace,
-                color = if (real) AppColors.Red else AppColors.SurfaceDark,
+                color = if (real) AppColors.DangerAccent else AppColors.SurfaceDark,
                 modifier = if (!real) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier)
         }
         if (paramsLabels.isNotEmpty()) {

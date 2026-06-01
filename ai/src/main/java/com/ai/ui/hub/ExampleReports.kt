@@ -145,7 +145,7 @@ internal fun ExampleReportsCard(
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Example AI Reports", fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                    color = AppColors.Purple, modifier = Modifier.weight(1f)
+                    color = AppColors.PrimaryAccent, modifier = Modifier.weight(1f)
                 )
             }
             examples.forEach { entry ->

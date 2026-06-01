@@ -167,7 +167,7 @@ internal fun ReportExportScreen(
                 },
                 enabled = progress == null,
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
             ) { Text("Export", maxLines = 1, softWrap = false) }
             Button(
                 onClick = {
@@ -190,7 +190,7 @@ internal fun ReportExportScreen(
                 },
                 enabled = progress == null,
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
             ) { Text("Export all (zip)", maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(8.dp))

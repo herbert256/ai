@@ -161,7 +161,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
                 Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
                     modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Error", fontSize = 11.sp, color = AppColors.Red,
+                        Text("Error", fontSize = 11.sp, color = AppColors.DangerAccent,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(bottom = 4.dp))
                         Text(ctx.errorMessage, fontSize = 12.sp, color = AppColors.TextTertiary,
@@ -174,7 +174,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
             Button(
                 onClick = ctx.onFindAlternativeIcons,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
             ) {
                 Text(
                     if (ctx.hasActiveFanOut) "View alternative icons"

@@ -434,7 +434,7 @@ fun TraceListScreen(
                     TextButton(onClick = {
                         confirmClearAll = false
                         onClearTraces(); allTraceFiles = emptyList(); currentPage = 0
-                    }) { Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                    }) { Text("Clear", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
                 },
                 dismissButton = {
                     TextButton(onClick = { confirmClearAll = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
@@ -548,9 +548,9 @@ private fun TraceModelPickerOverlay(
         ) {
             Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("(All models)", fontSize = 13.sp,
-                    color = if (current == null) AppColors.Blue else Color.White,
+                    color = if (current == null) AppColors.InfoAccent else Color.White,
                     modifier = Modifier.weight(1f))
-                if (current == null) Text(mi.checkMark, color = AppColors.Blue, fontSize = 13.sp)
+                if (current == null) Text(mi.checkMark, color = AppColors.InfoAccent, fontSize = 13.sp)
             }
         }
         Spacer(modifier = Modifier.height(6.dp))
@@ -564,15 +564,15 @@ private fun TraceModelPickerOverlay(
                     Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f).alpha(state.rowAlpha)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(provider, fontSize = 11.sp, color = AppColors.Blue, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(provider, fontSize = 11.sp, color = AppColors.InfoAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 com.ai.ui.shared.ModelAdvisoryBadges(state)
                             }
                             Text(com.ai.ui.shared.shortModelName(model), fontSize = 13.sp,
-                                color = if (selected) AppColors.Blue else Color.White,
+                                color = if (selected) AppColors.InfoAccent else Color.White,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             com.ai.ui.shared.ModelAdvisoryCaptions(state)
                         }
-                        if (selected) Text(mi.checkMark, color = AppColors.Blue, fontSize = 13.sp)
+                        if (selected) Text(mi.checkMark, color = AppColors.InfoAccent, fontSize = 13.sp)
                     }
                 }
             }
@@ -584,9 +584,9 @@ private fun TraceModelPickerOverlay(
 private fun TraceListItem(trace: TraceFileInfo, onClick: () -> Unit) {
     val dateFormat = remember { DateTimeFormatter.ofPattern("MM/dd HH:mm:ss", Locale.US).withZone(ZoneId.systemDefault()) }
     val statusColor = when {
-        trace.statusCode in 200..299 -> AppColors.Green
-        trace.statusCode in 400..499 -> AppColors.Orange
-        trace.statusCode >= 500 -> AppColors.Red
+        trace.statusCode in 200..299 -> AppColors.SuccessAccent
+        trace.statusCode in 400..499 -> AppColors.WarningAccent
+        trace.statusCode >= 500 -> AppColors.DangerAccent
         else -> AppColors.TextTertiary
     }
 
@@ -810,7 +810,7 @@ fun TraceDetailScreen(
                             Toast.makeText(context, "Could not delete trace", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
                 ) { Text("Delete", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -904,7 +904,7 @@ fun TraceDetailScreen(
         // can leak API keys and live in the dedicated Get view below).
         Text(
             text = "$statusCode - ${baseUrl.ifBlank { t?.hostname ?: "(unknown)" }}",
-            fontSize = 14.sp, color = AppColors.Green,
+            fontSize = 14.sp, color = AppColors.SuccessAccent,
             fontWeight = FontWeight.SemiBold,
             maxLines = 2, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
@@ -928,7 +928,7 @@ fun TraceDetailScreen(
             Spacer(modifier = Modifier.height(6.dp))
             Button(onClick = { onNavigateToEditAgent(matchingAgent.id) },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent),
                 contentPadding = PaddingValues(horizontal = 4.dp)
             ) { Text("Agent", fontSize = 11.sp, maxLines = 1, softWrap = false) }
         }
@@ -937,7 +937,7 @@ fun TraceDetailScreen(
             Button(
                 onClick = { showTranslationCompare = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
             ) { Text("Translation result", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
 
@@ -1026,7 +1026,7 @@ fun TraceDetailScreen(
                     items(headerEntries.size) { index ->
                         val (name, value) = headerEntries[index]
                         Row(modifier = Modifier.padding(vertical = 1.dp)) {
-                            Text("$name: ", fontSize = 11.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+                            Text("$name: ", fontSize = 11.sp, color = AppColors.InfoAccent, fontFamily = FontFamily.Monospace)
                             Text(value, fontSize = 11.sp, color = Color(0xFF6A8759), fontFamily = FontFamily.Monospace)
                         }
                     }
@@ -1168,17 +1168,17 @@ private fun highlightJsonLine(line: String): AnnotatedString = buildAnnotatedStr
                 var j = i
                 while (j < line.length && line[j] == ' ') j++
                 val isKey = j < line.length && line[j] == ':'
-                withStyle(SpanStyle(color = if (isKey) AppColors.Blue else green)) {
+                withStyle(SpanStyle(color = if (isKey) AppColors.InfoAccent else green)) {
                     append(line.substring(start, i))
                 }
             }
             c.isDigit() || (c == '-' && i + 1 < line.length && line[i + 1].isDigit()) -> {
                 val start = i; i++
                 while (i < line.length && (line[i].isDigit() || line[i] in ".eE+-")) i++
-                withStyle(SpanStyle(color = AppColors.Orange)) { append(line.substring(start, i)) }
+                withStyle(SpanStyle(color = AppColors.WarningAccent)) { append(line.substring(start, i)) }
             }
-            line.startsWith("true", i) -> { withStyle(SpanStyle(color = AppColors.Purple)) { append("true") }; i += 4 }
-            line.startsWith("false", i) -> { withStyle(SpanStyle(color = AppColors.Purple)) { append("false") }; i += 5 }
+            line.startsWith("true", i) -> { withStyle(SpanStyle(color = AppColors.PrimaryAccent)) { append("true") }; i += 4 }
+            line.startsWith("false", i) -> { withStyle(SpanStyle(color = AppColors.PrimaryAccent)) { append("false") }; i += 5 }
             line.startsWith("null", i) -> { withStyle(SpanStyle(color = AppColors.TextDim)) { append("null") }; i += 4 }
             else -> {
                 val start = i
@@ -1207,7 +1207,7 @@ private fun JsonTreeNodeView(node: JsonTreeNode, depth: Int) {
         }
 
         if (node.key != null) {
-            Text("${node.key}: ", fontSize = 11.sp, color = AppColors.Blue, fontFamily = FontFamily.Monospace)
+            Text("${node.key}: ", fontSize = 11.sp, color = AppColors.InfoAccent, fontFamily = FontFamily.Monospace)
         }
 
         when {
@@ -1218,8 +1218,8 @@ private fun JsonTreeNodeView(node: JsonTreeNode, depth: Int) {
             else -> {
                 val valueColor = when (node.type) {
                     JsonNodeType.STRING -> Color(0xFF6A8759) // green
-                    JsonNodeType.NUMBER -> AppColors.Orange
-                    JsonNodeType.BOOLEAN -> AppColors.Purple
+                    JsonNodeType.NUMBER -> AppColors.WarningAccent
+                    JsonNodeType.BOOLEAN -> AppColors.PrimaryAccent
                     JsonNodeType.NULL -> AppColors.TextDim
                     else -> Color.White
                 }

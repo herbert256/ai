@@ -47,7 +47,7 @@ fun ModelSelectionScreen(
     title: String = "Find icons",
     subject: String? = null,
     actionLabel: String = "Find Icons",
-    actionColor: Color = AppColors.Green,
+    actionColor: Color = AppColors.SuccessAccent,
     helpTopic: String = "find_icons_selection",
     /** When set, the screen shows 🌡️ / 🎭 for a per-launch Parameters /
      *  System-prompt pick and routes the action button to THIS callback
@@ -160,12 +160,12 @@ fun ModelSelectionScreen(
                     }
                     androidx.compose.material3.Text(
                         pricing.text, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
-                        color = if (pricing.isDefault) AppColors.SurfaceDark else AppColors.Red,
+                        color = if (pricing.isDefault) AppColors.SurfaceDark else AppColors.DangerAccent,
                         modifier = if (pricing.isDefault) Modifier.background(AppColors.TextDim, MaterialTheme.shapes.extraSmall).padding(horizontal = 4.dp, vertical = 1.dp) else Modifier
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     androidx.compose.material3.Text(
-                        com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.Red, fontSize = 14.sp,
+                        com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.DangerAccent, fontSize = 14.sp,
                         modifier = Modifier.clickable { onRemoveModel(index) }
                     )
                 }

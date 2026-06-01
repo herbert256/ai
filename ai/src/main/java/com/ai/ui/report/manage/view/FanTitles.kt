@@ -126,7 +126,7 @@ internal fun FanOutL1MetaScreen(
                             Text(srcIcon, fontSize = 18.sp, modifier = Modifier.padding(end = 6.dp))
                         }
                         Text(
-                            srcTitle, fontSize = 13.sp, color = AppColors.Blue,
+                            srcTitle, fontSize = 13.sp, color = AppColors.InfoAccent,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 2, overflow = TextOverflow.Ellipsis
                         )
@@ -218,7 +218,7 @@ internal fun FanOutL2MetaScreen(
             )
             Button(
                 onClick = { onSwitchRole(if (role == "Responder") "Initiator" else "Responder") },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }

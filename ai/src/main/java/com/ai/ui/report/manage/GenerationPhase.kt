@@ -618,11 +618,11 @@ internal fun ColumnScope.GenerationPhase(
             "parameters".takeIf { pendingParams }
         )
         Card(
-            colors = CardDefaults.cardColors(containerColor = AppColors.Orange.copy(alpha = 0.18f)),
+            colors = CardDefaults.cardColors(containerColor = AppColors.WarningAccent.copy(alpha = 0.18f)),
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
         ) {
             Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(com.ai.data.MetadataIconsHolder.current.statusWarning, fontSize = 16.sp, color = AppColors.Orange, modifier = Modifier.padding(end = 8.dp))
+                Text(com.ai.data.MetadataIconsHolder.current.statusWarning, fontSize = 16.sp, color = AppColors.WarningAccent, modifier = Modifier.padding(end = 8.dp))
                 Text(
                     "Changes pending: ${parts.joinToString(", ")}. Tap Regenerate to apply.",
                     fontSize = 12.sp, color = AppColors.TextSecondary
@@ -640,7 +640,7 @@ internal fun ColumnScope.GenerationPhase(
         LinearProgressIndicator(
             progress = { if (reportsTotal > 0) reportsProgress.toFloat() / reportsTotal else 0f },
             modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            color = AppColors.Purple
+            color = AppColors.PrimaryAccent
         )
     }
 
@@ -1436,7 +1436,7 @@ internal fun LanguageRow(
                 running -> "Detecting…"
                 else -> snapshot.name ?: "(unknown)"
             }
-            val color = if (snapshot.error != null) AppColors.Red else Color.White
+            val color = if (snapshot.error != null) AppColors.DangerAccent else Color.White
             Text(
                 text, fontSize = 13.sp, color = color,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -1500,7 +1500,7 @@ internal fun TitleRow(
                 running -> "Generating…"
                 else -> snapshot.title ?: "(no title)"
             }
-            val color = if (snapshot.error != null) AppColors.Red else Color.White
+            val color = if (snapshot.error != null) AppColors.DangerAccent else Color.White
             Text(
                 text, fontSize = 13.sp, color = color,
                 maxLines = 1, overflow = TextOverflow.Ellipsis

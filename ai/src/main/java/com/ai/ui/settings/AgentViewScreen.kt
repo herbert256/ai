@@ -96,12 +96,12 @@ private fun AgentHeroCard(agent: Agent) {
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        AppColors.Purple.copy(alpha = 0.32f),
-                        AppColors.Indigo.copy(alpha = 0.08f)
+                        AppColors.PrimaryAccent.copy(alpha = 0.32f),
+                        AppColors.SecondaryAccent.copy(alpha = 0.08f)
                     )
                 )
             )
-            .border(1.dp, AppColors.Purple.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+            .border(1.dp, AppColors.PrimaryAccent.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
@@ -136,7 +136,7 @@ private fun AgentDetailsCard(agent: Agent) {
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text("Details", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+        Text("Details", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Provider", fontSize = 13.sp, color = AppColors.TextTertiary)
             Text(agent.provider.id, fontSize = 13.sp, color = Color.White)
@@ -146,7 +146,7 @@ private fun AgentDetailsCard(agent: Agent) {
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text("Model", fontSize = 13.sp, color = AppColors.TextTertiary)
-            Text(shortModelName(agent.model), fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            Text(shortModelName(agent.model), fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
         }
         if (!agent.endpointId.isNullOrBlank()) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

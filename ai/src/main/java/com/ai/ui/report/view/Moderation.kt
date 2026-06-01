@@ -267,13 +267,13 @@ private fun ResponseCard(body: String) {
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
-            .border(1.dp, AppColors.Blue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .border(1.dp, AppColors.InfoAccent.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         Text(
             text = "Response",
-            color = AppColors.Blue, fontSize = 12.sp,
+            color = AppColors.InfoAccent, fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold
         )
         if (body.isBlank()) {
@@ -287,7 +287,7 @@ private fun ResponseCard(body: String) {
 @Composable
 private fun VerdictHero(total: Int, flagged: Int) {
     val clean = total - flagged
-    val accent = if (flagged > 0) AppColors.Red else AppColors.Green
+    val accent = if (flagged > 0) AppColors.DangerAccent else AppColors.SuccessAccent
     Row(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
@@ -317,7 +317,7 @@ private fun VerdictHero(total: Int, flagged: Int) {
         if (clean > 0 && flagged > 0) {
             Text(
                 text = "$clean clean",
-                color = AppColors.Green, fontSize = 12.sp, fontWeight = FontWeight.Medium
+                color = AppColors.SuccessAccent, fontSize = 12.sp, fontWeight = FontWeight.Medium
             )
         }
     }
@@ -330,7 +330,7 @@ private fun AgentModerationCard(
     label: String,
     categories: List<String>
 ) {
-    val borderColor = if (row.flagged) AppColors.Red.copy(alpha = 0.55f) else AppColors.Green.copy(alpha = 0.4f)
+    val borderColor = if (row.flagged) AppColors.DangerAccent.copy(alpha = 0.55f) else AppColors.SuccessAccent.copy(alpha = 0.4f)
     Column(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
@@ -343,7 +343,7 @@ private fun AgentModerationCard(
             Text(
                 text = if (row.flagged) com.ai.data.MetadataIconsHolder.current.validatePrompt else com.ai.data.MetadataIconsHolder.current.checkMark,
                 fontSize = 18.sp,
-                color = if (row.flagged) AppColors.Red else AppColors.Green,
+                color = if (row.flagged) AppColors.DangerAccent else AppColors.SuccessAccent,
                 modifier = Modifier.padding(end = 8.dp)
             )
             Text(
@@ -357,7 +357,7 @@ private fun AgentModerationCard(
         if (row.flagged && row.firedCategories.isNotEmpty()) {
             Text(
                 text = "${com.ai.data.MetadataIconsHolder.current.validatePrompt} Fired: ${row.firedCategories.joinToString(", ")}",
-                color = AppColors.Red, fontSize = 12.sp, fontWeight = FontWeight.Medium
+                color = AppColors.DangerAccent, fontSize = 12.sp, fontWeight = FontWeight.Medium
             )
         }
         FlowRow(
@@ -380,9 +380,9 @@ private fun CategoryChip(cat: String, fired: Boolean, score: Double) {
     // green (clean). Score baked into the label so the user reads the
     // intensity without tapping.
     val color = when {
-        fired -> AppColors.Red
-        score >= 0.3 -> AppColors.Orange
-        else -> AppColors.Green
+        fired -> AppColors.DangerAccent
+        score >= 0.3 -> AppColors.WarningAccent
+        else -> AppColors.SuccessAccent
     }
     val text = "$cat ${"%.2f".format(score)}"
     Row(

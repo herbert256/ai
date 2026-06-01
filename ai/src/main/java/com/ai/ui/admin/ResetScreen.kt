@@ -73,7 +73,7 @@ fun ResetRuntimeDataScreen(
                             Toast.LENGTH_LONG
                         ).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
                 ) { Text("Clear", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -91,7 +91,7 @@ fun ResetRuntimeDataScreen(
             Button(
                 onClick = { showConfirm = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
             ) { Text("Clear runtime data", maxLines = 1, softWrap = false) }
         }
     }
@@ -119,7 +119,7 @@ fun ResetInfoProvidersScreen(
                         showConfirm = false
                         Toast.makeText(context, "Info-provider caches cleared", Toast.LENGTH_SHORT).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
                 ) { Text("Clear", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -137,7 +137,7 @@ fun ResetInfoProvidersScreen(
             Button(
                 onClick = { showConfirm = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
             ) { Text("Clear Info providers", maxLines = 1, softWrap = false) }
         }
     }
@@ -169,7 +169,7 @@ fun ResetConfigurationScreen(
                             Toast.LENGTH_LONG
                         ).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
                 ) { Text("Clear all", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showConfirm = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -187,7 +187,7 @@ fun ResetConfigurationScreen(
             Button(
                 onClick = { showConfirm = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground)
             ) { Text("Clear all configuration", maxLines = 1, softWrap = false) }
         }
     }
@@ -230,7 +230,7 @@ fun ResetAssetsScreen(
                         }
                         Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
                 ) { Text("Restore", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { pending = null }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -248,27 +248,27 @@ fun ResetAssetsScreen(
             Button(
                 onClick = { pending = AssetReset.PROVIDERS },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
             ) { Text("back to assets/providers.json", maxLines = 1, softWrap = false) }
             Button(
                 onClick = { pending = AssetReset.PROMPTS },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
             ) { Text("back to assets/internal-prompts/", maxLines = 1, softWrap = false) }
             Button(
                 onClick = { pending = AssetReset.EXAMPLES },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
             ) { Text("back to assets/examples.json", maxLines = 1, softWrap = false) }
             Button(
                 onClick = { pending = AssetReset.SYSTEM_PROMPTS },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
             ) { Text("back to assets/system-prompts.json", maxLines = 1, softWrap = false) }
             Button(
                 onClick = { pending = AssetReset.DEFAULT_META },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
             ) { Text("back to assets/meta.json", maxLines = 1, softWrap = false) }
         }
     }
@@ -337,7 +337,7 @@ fun ResetApplicationScreen(
                         }
                     },
                     enabled = !busy,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground)
                 ) { Text("Reset", maxLines = 1, softWrap = false) }
             },
             dismissButton = {
@@ -360,22 +360,22 @@ fun ResetApplicationScreen(
                 Button(
                     onClick = { restartMessage = null; onStartRefreshAll() },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                 ) { Text("Refresh all", maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { restartMessage = null; onStartRefreshWorkers() },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                 ) { Text("Refresh providers, model lists & default agents", maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { restartApp(context) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                 ) { Text("Restart application", maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { restartMessage = null; onNavigateToImportExport() },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                 ) { Text("Import API keys", maxLines = 1, softWrap = false) }
             }
         }
@@ -389,7 +389,7 @@ fun ResetApplicationScreen(
                 onClick = { showConfirm = true },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground)
             ) { Text("Reset application", maxLines = 1, softWrap = false) }
         }
     }

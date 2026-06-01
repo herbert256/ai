@@ -276,14 +276,14 @@ internal fun TranslationL1Screen(
         Spacer(modifier = Modifier.height(8.dp))
         Column(modifier = Modifier.fillMaxWidth()) {
             val stats = buildList {
-                add(Triple("Total", total.toString(), AppColors.Blue))
-                add(Triple("Done", doneCount.toString(), AppColors.Green))
-                add(Triple("Errors", errorCount.toString(), AppColors.Red))
-                add(Triple("Bench", benchCount.toString(), AppColors.Purple))
-                add(Triple("Run", runningCount.toString(), AppColors.Orange))
-                add(Triple("Throttled", throttledCount.toString(), AppColors.Yellow))
-                add(Triple("Queue", queuedCount.toString(), AppColors.Brown))
-                add(Triple("Costs", formatCents(run.totalCostDollars, decimals = 2), AppColors.Blue))
+                add(Triple("Total", total.toString(), AppColors.InfoAccent))
+                add(Triple("Done", doneCount.toString(), AppColors.SuccessAccent))
+                add(Triple("Errors", errorCount.toString(), AppColors.DangerAccent))
+                add(Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent))
+                add(Triple("Run", runningCount.toString(), AppColors.WarningAccent))
+                add(Triple("Throttled", throttledCount.toString(), AppColors.CautionAccent))
+                add(Triple("Queue", queuedCount.toString(), AppColors.QueueAccent))
+                add(Triple("Costs", formatCents(run.totalCostDollars, decimals = 2), AppColors.InfoAccent))
             }
             Row(modifier = Modifier.fillMaxWidth()) {
                 stats.forEach { (label, _, color) ->
@@ -341,7 +341,7 @@ internal fun TranslationL1Screen(
                     Button(
                         onClick = { confirmRemoveFailed = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground)
                     ) { Text("Remove failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                     Button(
                         onClick = { confirmRestartFailed = true },
@@ -352,7 +352,7 @@ internal fun TranslationL1Screen(
                     Button(
                         onClick = { confirmRemoveBenched = true },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                     ) { Text("Remove benched", fontSize = 12.sp, maxLines = 1, softWrap = false) }
                 }
             }
@@ -373,7 +373,7 @@ internal fun TranslationL1Screen(
             LinearProgressIndicator(
                 progress = { finished },
                 modifier = Modifier.fillMaxWidth().height(6.dp),
-                color = AppColors.Orange,
+                color = AppColors.WarningAccent,
                 trackColor = AppColors.DividerDark
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -495,7 +495,7 @@ internal fun TranslationL1Screen(
                     confirmRemoveFailed = false
                     actions.onRemoveFailed(reportId, runId)
                     onBumpRefresh()
-                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { confirmRemoveFailed = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )
@@ -513,7 +513,7 @@ internal fun TranslationL1Screen(
                     confirmRemoveBenched = false
                     actions.onRemoveBenched(reportId, runId)
                     onBumpRefresh()
-                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { confirmRemoveBenched = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )
@@ -542,7 +542,7 @@ internal fun TranslationL1Screen(
                         deleting = false
                         onBack()
                     }
-                }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
         )
@@ -580,7 +580,7 @@ private fun TranslationL1Row(
     showBar: Boolean,
     onClick: () -> Unit
 ) {
-    val barColor = AppColors.Green.copy(alpha = 0.30f)
+    val barColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
     Row(
         modifier = Modifier.fillMaxWidth()
             .drawBehind {

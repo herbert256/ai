@@ -44,7 +44,7 @@ internal fun WorkerSharedCards(
                     .padding(horizontal = 14.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text("System prompt", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                Text("System prompt", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                 Text(sp.name, fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                 if (sp.prompt.isNotBlank()) {
                     Text(
@@ -66,7 +66,7 @@ internal fun WorkerSharedCards(
                 .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text("Parameters", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Text("Parameters", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
             presets.forEach { preset ->
                 Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(preset.name, fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.SemiBold)

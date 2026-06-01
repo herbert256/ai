@@ -369,7 +369,7 @@ fun ReportGetInfoScreen(
                         modifier = Modifier.width(96.dp).padding(start = 8.dp, end = 6.dp)
                     )
                     Column(modifier = Modifier.weight(1f)) {
-                        val color = if (job.state == InfoJobState.FAILED) AppColors.Red else Color.White
+                        val color = if (job.state == InfoJobState.FAILED) AppColors.DangerAccent else Color.White
                         Text(job.label, fontSize = 13.sp, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     if (job.cost > 0.0) {
@@ -385,7 +385,7 @@ fun ReportGetInfoScreen(
             Button(
                 onClick = onRestartErrors,
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.RedDark)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.DestructiveActionBackground)
             ) { Text("Restart errors", maxLines = 1, softWrap = false) }
         }
     }

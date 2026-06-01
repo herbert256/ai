@@ -421,11 +421,11 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
     }
     val importedCardBackgroundArgb = int("uiCardBackgroundArgb")
     val importedButtonBackgroundArgb = int("uiButtonBackgroundArgb")
-    val mergedUiColorOverrides = current.uiColorOverrides.toMutableMap().apply {
+    val mergedUiColorOverrides = AppColors.normalizeUiColorOverrides(current.uiColorOverrides.toMutableMap().apply {
         uiColorOverrides?.let { putAll(it) }
         importedCardBackgroundArgb?.let { put("CardBackgroundAlt", it) }
         importedButtonBackgroundArgb?.let { put("ButtonBackground", it) }
-    }
+    })
     return current.copy(
         userName = str("userName") ?: current.userName,
         defaultEmail = str("defaultEmail") ?: current.defaultEmail,
@@ -1670,7 +1670,7 @@ fun ImportExportScreen(
                         onNavigateToRefresh()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                 ) { Text("Refresh all", maxLines = 1, softWrap = false) }
                 Button(
                     onClick = {
@@ -1679,12 +1679,12 @@ fun ImportExportScreen(
                         onNavigateToRefresh()
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                 ) { Text("Refresh providers, model lists & default agents", maxLines = 1, softWrap = false) }
                 Button(
                     onClick = { restartApp(context) },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                 ) { Text("Restart application", maxLines = 1, softWrap = false) }
             }
         }

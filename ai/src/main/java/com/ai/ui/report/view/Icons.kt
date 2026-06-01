@@ -299,7 +299,7 @@ private fun FanOutSection(
                 Text(text = com.ai.data.MetadataIconsHolder.current.cyclone, fontSize = 24.sp, modifier = Modifier.padding(end = 8.dp))
                 Text(
                     text = metaPromptName,
-                    color = AppColors.Green,
+                    color = AppColors.SuccessAccent,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2, overflow = TextOverflow.Ellipsis,

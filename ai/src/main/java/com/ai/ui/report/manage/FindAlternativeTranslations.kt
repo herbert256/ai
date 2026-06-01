@@ -79,7 +79,7 @@ private fun TranslationCandidateRow(candidate: TranslationCandidate, onPick: (Tr
                 Text(providerModel, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 when (candidate) {
                     is TranslationCandidate.Done -> Text(candidate.text, fontSize = 14.sp, color = Color.White, maxLines = 6, overflow = TextOverflow.Ellipsis)
-                    is TranslationCandidate.Error -> Text(candidate.reason, fontSize = 11.sp, color = AppColors.Red, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    is TranslationCandidate.Error -> Text(candidate.reason, fontSize = 11.sp, color = AppColors.DangerAccent, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     is TranslationCandidate.Running -> Text("Translating…", fontSize = 11.sp, color = AppColors.TextTertiary)
                 }
             }

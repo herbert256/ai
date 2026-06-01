@@ -79,12 +79,12 @@ fun KnowledgeListScreen(
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
                         text = if (pendingUris.size == 1) "1 shared item ready to import" else "${pendingUris.size} shared items ready to import",
-                        fontSize = 13.sp, color = AppColors.Green, fontWeight = FontWeight.SemiBold
+                        fontSize = 13.sp, color = AppColors.SuccessAccent, fontWeight = FontWeight.SemiBold
                     )
                     Text("Pick a knowledge base below — or create a new one — to ingest the shared file(s) or URL(s).",
                         fontSize = 11.sp, color = AppColors.TextTertiary)
                     TextButton(onClick = onConsumePending) {
-                        Text("Discard share", fontSize = 11.sp, color = AppColors.Red)
+                        Text("Discard share", fontSize = 11.sp, color = AppColors.DangerAccent)
                     }
                 }
             }
@@ -94,7 +94,7 @@ fun KnowledgeListScreen(
         Button(
             onClick = onCreateKb,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("+ New knowledge base", maxLines = 1, softWrap = false) }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -247,7 +247,7 @@ fun NewKnowledgeBaseScreen(
             },
             enabled = selected != null,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Create", maxLines = 1, softWrap = false) }
     }
 }
@@ -392,7 +392,7 @@ fun KnowledgeDetailScreen(
                     "*/*"
                 )) },
                 enabled = !working, modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
             ) { Text("+ File", fontSize = 12.sp, maxLines = 1, softWrap = false) }
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -426,7 +426,7 @@ fun KnowledgeDetailScreen(
             },
             enabled = !working && urlInput.trim().isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
         ) { Text("+ Web page", maxLines = 1, softWrap = false) }
 
         status?.let {
@@ -452,7 +452,7 @@ fun KnowledgeDetailScreen(
                                 append(" · ").append(src.chunkCount).append(" chunks")
                                 src.errorMessage?.let { append(" · ").append(it) }
                             }
-                            Text(sub, fontSize = 11.sp, color = if (src.errorMessage != null) AppColors.Red else AppColors.TextTertiary)
+                            Text(sub, fontSize = 11.sp, color = if (src.errorMessage != null) AppColors.DangerAccent else AppColors.TextTertiary)
                         }
                         TextButton(
                             onClick = {
@@ -473,7 +473,7 @@ fun KnowledgeDetailScreen(
                                 }
                             },
                             enabled = !working
-                        ) { Text("Re-index", fontSize = 11.sp, color = AppColors.Blue) }
+                        ) { Text("Re-index", fontSize = 11.sp, color = AppColors.InfoAccent) }
                         TextButton(onClick = {
                             // Off the main thread — deleting a source with many
                             // chunks rewrites the KB index and would block the UI.
@@ -481,7 +481,7 @@ fun KnowledgeDetailScreen(
                                 withContext(Dispatchers.IO) { KnowledgeStore.deleteSource(context, kbId, src.id) }
                                 refreshTick++
                             }
-                        }) { Text("Delete", fontSize = 11.sp, color = AppColors.Red) }
+                        }) { Text("Delete", fontSize = 11.sp, color = AppColors.DangerAccent) }
                     }
                 }
             }
@@ -506,7 +506,7 @@ fun KnowledgeDetailScreen(
                         }
                         onBack()
                     }
-                }) { Text("Delete", color = AppColors.Red) }
+                }) { Text("Delete", color = AppColors.DangerAccent) }
             },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") } }
         )

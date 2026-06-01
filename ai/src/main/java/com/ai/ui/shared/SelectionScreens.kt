@@ -134,7 +134,7 @@ fun SelectModelScreen(
                 modifier = Modifier.weight(1f)
             )
             if (isRefreshing) {
-                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = AppColors.Blue, strokeWidth = 2.dp)
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = AppColors.InfoAccent, strokeWidth = 2.dp)
                 Spacer(modifier = Modifier.width(6.dp))
                 Text("Refreshing…", fontSize = 11.sp, color = AppColors.TextTertiary)
             }
@@ -143,7 +143,7 @@ fun SelectModelScreen(
                 Button(
                     onClick = onNavigateToProviderModels,
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                 ) { Text("Open Models", fontSize = 11.sp, maxLines = 1, softWrap = false) }
             }
         }
@@ -171,7 +171,7 @@ fun SelectModelScreen(
         if (!initialRefreshDone) {
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = AppColors.Blue)
+                    CircularProgressIndicator(color = AppColors.InfoAccent)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("Refreshing model list…", color = AppColors.TextTertiary, fontSize = 12.sp)
                 }
@@ -195,12 +195,12 @@ fun SelectModelScreen(
                     val isSelected = currentModel.isBlank()
                     Row(
                         modifier = Modifier.fillMaxWidth()
-                            .background(if (isSelected) AppColors.Indigo.copy(alpha = 0.2f) else Color.Transparent)
+                            .background(if (isSelected) AppColors.SecondaryAccent.copy(alpha = 0.2f) else Color.Transparent)
                             .clickable { onSelectModel("") }.padding(vertical = 10.dp, horizontal = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Default (use provider setting)", style = MaterialTheme.typography.bodyMedium, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                            Text("Default (use provider setting)", style = MaterialTheme.typography.bodyMedium, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                             Text(aiSettings.getModel(provider), style = MaterialTheme.typography.bodySmall, color = AppColors.TextDim)
                         }
                     }
@@ -212,11 +212,11 @@ fun SelectModelScreen(
                 val pricing = aiSettings.getModelPricing(provider, modelName)
                     ?: PricingCache.getPricing(context, provider, modelName)
                 val isSelected = modelName == currentModel
-                val priceColor = if (pricing.source.equals("DEFAULT", ignoreCase = true)) AppColors.TextDim else AppColors.Red
+                val priceColor = if (pricing.source.equals("DEFAULT", ignoreCase = true)) AppColors.TextDim else AppColors.DangerAccent
                 val state = advisory.stateFor(provider.id, modelName)
                 Column(
                     modifier = Modifier.fillMaxWidth()
-                        .background(if (isSelected) AppColors.Indigo.copy(alpha = 0.2f) else Color.Transparent)
+                        .background(if (isSelected) AppColors.SecondaryAccent.copy(alpha = 0.2f) else Color.Transparent)
                         .clickable { onSelectModel(modelName) }
                         .padding(vertical = 10.dp, horizontal = 4.dp)
                         .alpha(state.rowAlpha)
@@ -382,7 +382,7 @@ fun SelectAgentScreen(
                 val effectiveModel = aiSettings.getEffectiveModelForAgent(agent)
                 val pricing = aiSettings.getModelPricing(agent.provider, effectiveModel)
                     ?: PricingCache.getPricing(context, agent.provider, effectiveModel)
-                val priceColor = if (pricing.source.equals("DEFAULT", ignoreCase = true)) AppColors.TextDim else AppColors.Red
+                val priceColor = if (pricing.source.equals("DEFAULT", ignoreCase = true)) AppColors.TextDim else AppColors.DangerAccent
 
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable { onSelectAgent(agent) }
@@ -422,7 +422,7 @@ fun FetchModelsErrorRow(
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
             "Fetch failed: ${error.message}",
-            color = AppColors.Red,
+            color = AppColors.DangerAccent,
             fontSize = 12.sp,
             modifier = Modifier.weight(1f)
         )

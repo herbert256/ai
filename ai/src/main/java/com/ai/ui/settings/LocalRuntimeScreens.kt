@@ -110,7 +110,7 @@ fun LocalLiteRtModelsScreen(
                         },
                         enabled = !working && !isInstalled,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
                     ) {
                         Text(
                             if (isInstalled) "${spec.displayName} ${com.ai.data.MetadataIconsHolder.current.checkMark}"
@@ -126,7 +126,7 @@ fun LocalLiteRtModelsScreen(
                 onClick = { pickFile.launch(arrayOf("application/octet-stream", "*/*")) },
                 enabled = !working,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
             ) { Text("Add model from file…", maxLines = 1, softWrap = false) }
 
             if (installed.isNotEmpty()) {
@@ -151,7 +151,7 @@ fun LocalLiteRtModelsScreen(
                             // either way, leaving the file on disk and
                             // misleading the user about the state.
                             status = if (deleted) "Removed $name" else "Could not remove $name (file in use?)"
-                        }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
+                        }) { Text("Remove", color = AppColors.DangerAccent, fontSize = 12.sp) }
                     }
                 }
             }
@@ -241,7 +241,7 @@ fun LocalLlmsScreen(
                 },
                 enabled = !working && !runtimeInstalled,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
             ) {
                 Text(
                     if (runtimeInstalled) "LLM runtime ${com.ai.data.MetadataIconsHolder.current.checkMark}"
@@ -259,7 +259,7 @@ fun LocalLlmsScreen(
                         runtimeInstalled = false
                         status = "Runtime file removed (restart the app to free in-memory copy)."
                     } else status = "Could not remove runtime."
-                }) { Text("Remove runtime", color = AppColors.Red, fontSize = 12.sp) }
+                }) { Text("Remove runtime", color = AppColors.DangerAccent, fontSize = 12.sp) }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
@@ -273,7 +273,7 @@ fun LocalLlmsScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
                     ) {
                         Text(
                             text = if (link.sizeHint != null) "${link.name} (${link.sizeHint})" else link.name,
@@ -288,7 +288,7 @@ fun LocalLlmsScreen(
                 onClick = { pickFile.launch(arrayOf("application/octet-stream", "*/*")) },
                 enabled = !working,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
             ) { Text("Add LLM from file…", maxLines = 1, softWrap = false) }
             Text(
                 "Accepts .task, .zip, .tar.gz, .tgz, .tar — the first .task entry inside an archive is extracted automatically.",
@@ -301,7 +301,7 @@ fun LocalLlmsScreen(
                 if (!runtimeInstalled) {
                     Text(
                         "Models below are imported but not usable until the runtime is downloaded.",
-                        fontSize = 11.sp, color = AppColors.Red
+                        fontSize = 11.sp, color = AppColors.DangerAccent
                     )
                 }
                 installed.forEach { name ->
@@ -317,7 +317,7 @@ fun LocalLlmsScreen(
                             File(LocalLlm.localLlmsDir(context), "$name.task").delete()
                             installed = LocalLlm.installedTaskFiles(context)
                             status = "Removed $name"
-                        }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
+                        }) { Text("Remove", color = AppColors.DangerAccent, fontSize = 12.sp) }
                     }
                 }
             }

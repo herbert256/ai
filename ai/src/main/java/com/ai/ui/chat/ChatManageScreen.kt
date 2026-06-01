@@ -76,7 +76,7 @@ fun ChatManageScreen(
                     onClick = { confirmDelete = true },
                     enabled = !working && daysText.toIntOrNull()?.let { it > 0 } == true,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
                 ) { Text("Delete", maxLines = 1, softWrap = false) }
             }
         }
@@ -112,7 +112,7 @@ fun ChatManageScreen(
                     },
                     enabled = !working,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                 ) { Text(if (working) "Working…" else "Export all", maxLines = 1, softWrap = false) }
             }
         }
@@ -167,7 +167,7 @@ fun ChatManageScreen(
                             working = false
                         }
                     }
-                ) { Text("Delete", color = AppColors.Red) }
+                ) { Text("Delete", color = AppColors.DangerAccent) }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
         )

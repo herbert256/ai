@@ -213,7 +213,7 @@ private fun LanguageRow(lang: TargetLanguage, onClick: () -> Unit) {
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
-        Text(">", color = AppColors.Blue, fontSize = 14.sp,
+        Text(">", color = AppColors.InfoAccent, fontSize = 14.sp,
             modifier = Modifier.padding(start = 8.dp))
     }
     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)

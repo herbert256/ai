@@ -1102,7 +1102,7 @@ fun ReportsScreen(
                 subject = "${pickingTranslateModelFor.name} (${pickingTranslateModelFor.native})",
                 actionLabel = if (translationModels.size <= 1) "Start translation"
                               else "Start translation — ${translationModels.size} models",
-                actionColor = AppColors.Green,
+                actionColor = AppColors.SuccessAccent,
                 helpTopic = "translation_models",
                 onAddAgent = { pickerTarget = PickerTarget.TRANSLATION; showSelectAgent = true },
                 onAddFlock = { pickerTarget = PickerTarget.TRANSLATION; showSelectFlock = true },
@@ -1392,7 +1392,7 @@ fun ReportsScreen(
                 subject = "${altTgt.targetLanguageName} - ${translationTypeLabel(altTgt.traceType)}",
                 actionLabel = if (translationModels.size <= 1) "Find translation"
                               else "Find translation — ${translationModels.size} models",
-                actionColor = AppColors.Green,
+                actionColor = AppColors.SuccessAccent,
                 helpTopic = "alternative_translations",
                 onAddAgent = { pickerTarget = PickerTarget.TRANSLATION; showSelectAgent = true },
                 onAddFlock = { pickerTarget = PickerTarget.TRANSLATION; showSelectFlock = true },

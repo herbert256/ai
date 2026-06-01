@@ -123,18 +123,18 @@ internal fun ModelTestL3Screen(
 
             // Status line.
             when (item.status) {
-                TestStatus.PASS -> Text("${mi.statusDone} Passed", color = AppColors.Green, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                TestStatus.FAIL -> Text("${mi.statusFailed} Failed", color = AppColors.Red, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                TestStatus.PASS -> Text("${mi.statusDone} Passed", color = AppColors.SuccessAccent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                TestStatus.FAIL -> Text("${mi.statusFailed} Failed", color = AppColors.DangerAccent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 TestStatus.RUNNING -> Row(verticalAlignment = Alignment.CenterVertically) {
                     AnimatedHourglass(fontSize = 16.sp)
-                    Text("  Running…", color = AppColors.Orange, fontSize = 15.sp)
+                    Text("  Running…", color = AppColors.WarningAccent, fontSize = 15.sp)
                 }
                 TestStatus.PENDING -> Text("${mi.clockQueued} Queued", color = AppColors.TextTertiary, fontSize = 15.sp)
             }
 
             if (!item.errorMessage.isNullOrBlank()) {
                 Spacer(Modifier.height(8.dp))
-                Text(item.errorMessage, color = AppColors.Red, fontSize = 13.sp)
+                Text(item.errorMessage, color = AppColors.DangerAccent, fontSize = 13.sp)
             }
 
             Spacer(Modifier.height(8.dp))
@@ -149,7 +149,7 @@ internal fun ModelTestL3Screen(
             }
 
             Spacer(Modifier.height(12.dp))
-            Text("Prompt", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            Text("Prompt", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(4.dp))
             Text(
                 com.ai.data.AnalysisRepository.TEST_PROMPT,
@@ -158,7 +158,7 @@ internal fun ModelTestL3Screen(
 
             if (!item.responseText.isNullOrBlank()) {
                 Spacer(Modifier.height(12.dp))
-                Text("Response", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text("Response", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Text(item.responseText, fontSize = 13.sp, color = Color.White)
             }

@@ -182,7 +182,7 @@ fun HistoryScreenNav(
                         val reportsToDelete = allReports.map { it.id }
                         allReports = emptyList(); currentPage = 0
                         onDeleteReports(reportsToDelete)
-                    }) { Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                    }) { Text("Clear", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
                 },
                 dismissButton = {
                     TextButton(onClick = { confirmClearAll = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
@@ -216,7 +216,7 @@ private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onOpenView: () 
             Text(report.title, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             com.ai.ui.shared.ReportRowActionIcons(onOpenManage = onOpen, onOpenView = onOpenView)
             TextButton(onClick = { showDeleteConfirm = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                Text(com.ai.data.MetadataIconsHolder.current.closeMark, fontSize = 14.sp, color = AppColors.Red, maxLines = 1, softWrap = false)
+                Text(com.ai.data.MetadataIconsHolder.current.closeMark, fontSize = 14.sp, color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
             }
         }
     }

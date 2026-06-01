@@ -108,7 +108,7 @@ fun BackupRestoreScreen(
                             )
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
                 ) { Text("Restore", maxLines = 1, softWrap = false) }
             },
             dismissButton = { TextButton(onClick = { showRestoreConfirm = null }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -159,7 +159,7 @@ fun BackupRestoreScreen(
                     Text(
                         text = "${com.ai.data.MetadataIconsHolder.current.statusWarning} The backup contains every API key in plain text. Don't share it — anyone with the file can call the APIs on your accounts. Store the file like a password.",
                         fontSize = 12.sp,
-                        color = AppColors.Red,
+                        color = AppColors.DangerAccent,
                         fontWeight = FontWeight.SemiBold
                     )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -168,7 +168,7 @@ fun BackupRestoreScreen(
                                 onClick = { runBackup() },
                                 enabled = busyLabel == null,
                                 modifier = Modifier.weight(1f),
-                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
                             ) { Text("Backup", maxLines = 1, softWrap = false) }
                         }
                         Button(
@@ -179,7 +179,7 @@ fun BackupRestoreScreen(
                             onClick = { restorePickLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
                             enabled = busyLabel == null,
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                         ) { Text("Restore", maxLines = 1, softWrap = false) }
                     }
                 }

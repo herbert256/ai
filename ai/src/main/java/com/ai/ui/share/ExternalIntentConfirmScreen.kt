@@ -99,7 +99,7 @@ fun ExternalIntentConfirmScreen(
             Button(
                 onClick = onConfirm,
                 modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
             ) { Text(if (intent.willAutoGenerate) "Generate" else "Continue") }
         }
     }
@@ -160,7 +160,7 @@ private fun ActionCard(intent: PendingExternalReport) {
 private fun SideEffectsCard(intent: PendingExternalReport) {
     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF3A2A2A))) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("After generation", fontSize = 11.sp, color = AppColors.RedBright, fontWeight = FontWeight.SemiBold)
+            Text("After generation", fontSize = 11.sp, color = AppColors.ErrorAccent, fontWeight = FontWeight.SemiBold)
             if (!intent.email.isNullOrBlank()) {
                 Text("• Email the report to ${intent.email}", fontSize = 12.sp, color = AppColors.TextSecondary)
             }

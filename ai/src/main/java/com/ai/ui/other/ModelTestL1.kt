@@ -138,15 +138,15 @@ internal fun ModelTestL1Screen(
                 val topTotal = run.inaccessibleAtStart + run.excludedAtStart +
                     run.noChatAtStart + forTesting
                 val topStats = listOf(
-                    Triple("Total", topTotal.toString(), AppColors.Blue),
-                    Triple("Inaccessible", run.inaccessibleAtStart.toString(), AppColors.Purple),
-                    Triple("Excluded", run.excludedAtStart.toString(), AppColors.Yellow),
-                    Triple("No chat", run.noChatAtStart.toString(), AppColors.Orange),
-                    Triple("For testing", forTesting.toString(), AppColors.Blue),
+                    Triple("Total", topTotal.toString(), AppColors.InfoAccent),
+                    Triple("Inaccessible", run.inaccessibleAtStart.toString(), AppColors.PrimaryAccent),
+                    Triple("Excluded", run.excludedAtStart.toString(), AppColors.CautionAccent),
+                    Triple("No chat", run.noChatAtStart.toString(), AppColors.WarningAccent),
+                    Triple("For testing", forTesting.toString(), AppColors.InfoAccent),
                     // Costs replaces the standalone "Total costs" header
                     // row that used to live above the provider list — same
                     // value, just hoisted into the top stats grid.
-                    Triple("Costs", formatCents(run.totalCost, decimals = 2), AppColors.Blue)
+                    Triple("Costs", formatCents(run.totalCost, decimals = 2), AppColors.InfoAccent)
                 )
                 Row(modifier = Modifier.fillMaxWidth()) {
                     topStats.forEach { (label, _, color) ->
@@ -164,12 +164,12 @@ internal fun ModelTestL1Screen(
                 // list owns that, aligned with the per-provider cost
                 // column).
                 val stats = listOf(
-                    Triple("Done", run.doneCount.toString(), AppColors.Green),
-                    Triple("Errors", errorCount.toString(), AppColors.Red),
-                    Triple("Bench", benchCount.toString(), AppColors.Blue),
-                    Triple("Running", run.runningCount.toString(), AppColors.Orange),
-                    Triple("Throttled", throttledHere.toString(), AppColors.Yellow),
-                    Triple("Queued", queuedCount.toString(), AppColors.Purple)
+                    Triple("Done", run.doneCount.toString(), AppColors.SuccessAccent),
+                    Triple("Errors", errorCount.toString(), AppColors.DangerAccent),
+                    Triple("Bench", benchCount.toString(), AppColors.InfoAccent),
+                    Triple("Running", run.runningCount.toString(), AppColors.WarningAccent),
+                    Triple("Throttled", throttledHere.toString(), AppColors.CautionAccent),
+                    Triple("Queued", queuedCount.toString(), AppColors.PrimaryAccent)
                 )
                 Row(modifier = Modifier.fillMaxWidth()) {
                     stats.forEach { (label, _, color) ->
@@ -192,7 +192,7 @@ internal fun ModelTestL1Screen(
                 LinearProgressIndicator(
                     progress = { finished },
                     modifier = Modifier.fillMaxWidth().height(6.dp),
-                    color = AppColors.Orange,
+                    color = AppColors.WarningAccent,
                     trackColor = AppColors.DividerDark
                 )
             }
@@ -229,7 +229,7 @@ internal fun ModelTestL1Screen(
                     // (pass + fail), i.e. progress — not the pass rate.
                     val tested = ok + err
                     val progressFraction = if (total > 0) tested / total.toFloat() else 0f
-                    val progressColor = AppColors.Green.copy(alpha = 0.30f)
+                    val progressColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
                     Row(
                         modifier = Modifier.fillMaxWidth()
                             .drawBehind {
@@ -290,14 +290,14 @@ internal fun ModelTestL1Screen(
                 Button(
                     onClick = { actions.onCheckRun() },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                 ) {
                     Text("Check current test run", fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
                 Button(
                     onClick = { actions.onCancelRun() },
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
                 ) {
                     Text("Cancel test", fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
@@ -305,7 +305,7 @@ internal fun ModelTestL1Screen(
                 Button(
                     onClick = onOpenSelect,
                     modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                 ) {
                     Text("Test all models", fontSize = 13.sp, maxLines = 1, softWrap = false)
                 }
@@ -315,7 +315,7 @@ internal fun ModelTestL1Screen(
                     Button(
                         onClick = { actions.onRerunErrors() },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
                     ) {
                         Text("Rerun Errors (${run.errorCount})", fontSize = 13.sp, maxLines = 1, softWrap = false)
                     }

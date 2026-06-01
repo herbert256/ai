@@ -94,7 +94,7 @@ internal fun RerankTable(
      *  Null → the default trim-trailing-zeros [formatRerankScore]. */
     scoreDecimals: Int? = null
 ) {
-    val hColor = AppColors.Blue
+    val hColor = AppColors.InfoAccent
     val hSize = 12.sp
     Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
         Column(modifier = Modifier.padding(horizontal = 4.dp)) {
@@ -122,7 +122,7 @@ internal fun RerankTable(
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         r.score?.let { s -> scoreDecimals?.let { "%.${it}f".format(s) } ?: formatRerankScore(s) } ?: "",
-                        fontSize = 12.sp, color = AppColors.Green,
+                        fontSize = 12.sp, color = AppColors.SuccessAccent,
                         fontFamily = FontFamily.Monospace,
                         modifier = Modifier.width(56.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
                     if (showReason) Text(r.reason.orEmpty(), fontSize = 12.sp, color = AppColors.TextTertiary,

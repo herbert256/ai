@@ -114,7 +114,7 @@ internal fun ModerationTable(
     agentLabels: Map<Int, String>,
     onRowClick: (ModerationRow) -> Unit = {}
 ) {
-    val hColor = AppColors.Blue
+    val hColor = AppColors.InfoAccent
     val hSize = 12.sp
     Row(modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
         Column(modifier = Modifier.padding(horizontal = 4.dp)) {
@@ -143,13 +143,13 @@ internal fun ModerationTable(
                 val scoresText = r.topScores.joinToString(", ") { (k, v) -> "$k=${"%.3f".format(v)}" }
                 Row(modifier = Modifier.clickable { onRowClick(r) }.padding(vertical = 6.dp)) {
                     Text(if (r.flagged) com.ai.data.MetadataIconsHolder.current.validatePrompt else com.ai.data.MetadataIconsHolder.current.checkMark, fontSize = 13.sp,
-                        color = if (r.flagged) AppColors.Red else AppColors.Green,
+                        color = if (r.flagged) AppColors.DangerAccent else AppColors.SuccessAccent,
                         modifier = Modifier.width(40.dp))
                     Text(label, fontSize = 12.sp, color = Color.White,
                         modifier = Modifier.width(220.dp).padding(start = 8.dp),
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(firedText, fontSize = 12.sp,
-                        color = if (r.flagged) AppColors.Red else AppColors.TextTertiary,
+                        color = if (r.flagged) AppColors.DangerAccent else AppColors.TextTertiary,
                         modifier = Modifier.width(220.dp).padding(start = 8.dp))
                     Text(scoresText, fontSize = 11.sp, color = AppColors.TextTertiary,
                         fontFamily = FontFamily.Monospace,
@@ -178,7 +178,7 @@ internal fun ModerationCallDetailScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    val flagColor = if (row.flagged) AppColors.Red else AppColors.Green
+    val flagColor = if (row.flagged) AppColors.DangerAccent else AppColors.SuccessAccent
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
@@ -218,7 +218,7 @@ internal fun ModerationCallDetailScreen(
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 "Categories",
-                fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold
+                fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(4.dp))
             val categoryOrder = remember(row.allCategories, row.allScores) {
@@ -241,19 +241,19 @@ internal fun ModerationCallDetailScreen(
                     ) {
                         Text(
                             if (fired) com.ai.data.MetadataIconsHolder.current.validatePrompt else "·",
-                            fontSize = 13.sp, color = if (fired) AppColors.Red else AppColors.TextTertiary,
+                            fontSize = 13.sp, color = if (fired) AppColors.DangerAccent else AppColors.TextTertiary,
                             modifier = Modifier.width(24.dp)
                         )
                         Text(
                             cat,
                             fontSize = 13.sp,
-                            color = if (fired) AppColors.Red else Color.White,
+                            color = if (fired) AppColors.DangerAccent else Color.White,
                             modifier = Modifier.weight(1f)
                         )
                         Text(
                             score?.let { "%.4f".format(it) } ?: "—",
                             fontSize = 12.sp,
-                            color = if (fired) AppColors.Red else AppColors.TextTertiary,
+                            color = if (fired) AppColors.DangerAccent else AppColors.TextTertiary,
                             fontFamily = FontFamily.Monospace,
                             modifier = Modifier.padding(start = 8.dp)
                         )
@@ -268,7 +268,7 @@ internal fun ModerationCallDetailScreen(
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 "Moderated text",
-                fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold
+                fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold
             )
             Spacer(modifier = Modifier.height(4.dp))
             if (agentResponse.isBlank()) {

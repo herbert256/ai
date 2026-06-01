@@ -299,7 +299,7 @@ fun DualChatSetupScreen(
                 )
             },
             enabled = canStart, modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
         ) { Text("Go", fontSize = 16.sp, maxLines = 1, softWrap = false) }
     }
 }
@@ -592,7 +592,7 @@ fun DualChatSessionScreen(
                         }
                     },
                     enabled = extraCount > 0,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                 ) { Text("Chat $extraCount more", maxLines = 1, softWrap = false) }
             }
         }

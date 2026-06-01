@@ -180,7 +180,7 @@ fun AgentEditScreen(
                 },
                 enabled = nameError == null,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
             ) { Text("Create", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(8.dp))
         } else {
@@ -197,7 +197,7 @@ fun AgentEditScreen(
                 label = { Text("Agent name") }, modifier = Modifier.fillMaxWidth(),
                 singleLine = true, colors = AppColors.outlinedFieldColors(),
                 isError = name.isNotBlank() && nameError != null,
-                supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.Red) } } else null
+                supportingText = if (name.isNotBlank() && nameError != null) { { Text(nameError!!, color = AppColors.DangerAccent) } } else null
             )
 
             // Provider selection
@@ -298,7 +298,7 @@ fun AgentEditScreen(
                 if (supportsSystem == false) {
                     Text(
                         "${com.ai.data.MetadataIconsHolder.current.warningPlain} ${selectedProvider.id} / $effectiveModel does not accept system messages — the system prompt may be ignored or folded into the user message at dispatch time.",
-                        fontSize = 11.sp, color = AppColors.Red
+                        fontSize = 11.sp, color = AppColors.DangerAccent
                     )
                 }
             }
@@ -335,7 +335,7 @@ fun AgentEditScreen(
                                 isTesting = false
                             }
                         },
-                        enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                        enabled = !isTesting, colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                     ) { Text(if (isTesting) "Testing..." else "Test Agent", maxLines = 1, softWrap = false) }
 
                     val traceFile = lastTraceFile
@@ -346,7 +346,7 @@ fun AgentEditScreen(
                                 .clickable { onNavigateToTrace(traceFile) })
                     }
                 }
-                testResult?.let { Text(it, color = if (testSuccess) AppColors.Green else AppColors.Red, fontSize = 12.sp) }
+                testResult?.let { Text(it, color = if (testSuccess) AppColors.SuccessAccent else AppColors.DangerAccent, fontSize = 12.sp) }
             }
         }
     }

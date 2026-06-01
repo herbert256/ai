@@ -489,7 +489,7 @@ internal fun MetaDetailScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(com.ai.ui.shared.shortModelName(result.model), fontSize = 13.sp, color = AppColors.Blue,
+            Text(com.ai.ui.shared.shortModelName(result.model), fontSize = 13.sp, color = AppColors.InfoAccent,
                 fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
         }
@@ -497,7 +497,7 @@ internal fun MetaDetailScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = label,
-                color = AppColors.Yellow,
+                color = AppColors.CautionAccent,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
@@ -510,7 +510,7 @@ internal fun MetaDetailScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             when {
                 result.errorMessage != null -> {
-                    Text("Error", fontSize = 14.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
+                    Text("Error", fontSize = 14.sp, color = AppColors.DangerAccent, fontWeight = FontWeight.SemiBold)
                     Text(result.errorMessage, fontSize = 13.sp, color = AppColors.TextSecondary, modifier = Modifier.padding(top = 4.dp))
                 }
                 displayContent.isNullOrBlank() -> {
@@ -533,7 +533,7 @@ internal fun MetaDetailScreen(
             text = { Text(com.ai.ui.shared.modelLabel(provider, result.model)) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete() }) {
-                    Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false)
+                    Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
                 }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
@@ -562,13 +562,13 @@ internal fun MetaDetailScreen(
                             onDelete()
                         }
                     }) {
-                        Text("Active language only", color = AppColors.Red, maxLines = 1, softWrap = false)
+                        Text("Active language only", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
                     }
                     TextButton(onClick = {
                         confirmLangChoice = false
                         onDelete()
                     }) {
-                        Text("All languages", color = AppColors.Red, maxLines = 1, softWrap = false)
+                        Text("All languages", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
                     }
                     TextButton(onClick = { confirmLangChoice = false }) {
                         Text("Cancel", maxLines = 1, softWrap = false)

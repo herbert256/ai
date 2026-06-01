@@ -263,7 +263,7 @@ internal fun ReportRunScreen(
             confirmButton = {
                 androidx.compose.material3.TextButton(
                     onClick = { showCopyConfirm = false; generationHandlers.onCopy() }
-                ) { androidx.compose.material3.Text("Duplicate", color = com.ai.ui.shared.AppColors.Blue) }
+                ) { androidx.compose.material3.Text("Duplicate", color = com.ai.ui.shared.AppColors.InfoAccent) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(
@@ -591,7 +591,7 @@ internal fun ReportRunScreen(
                     .padding(top = 24.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(com.ai.ui.shared.AppColors.SurfaceDark.copy(alpha = 0.95f))
-                    .border(1.dp, com.ai.ui.shared.AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+                    .border(1.dp, com.ai.ui.shared.AppColors.InfoAccent.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             )
         }

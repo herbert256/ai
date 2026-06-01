@@ -125,7 +125,7 @@ fun SettingsListItemCard(
             trailing?.invoke()
             if (onDelete != null) {
                 IconButton(onClick = onDelete) {
-                    Text("X", color = AppColors.Red, fontWeight = FontWeight.Bold)
+                    Text("X", color = AppColors.DangerAccent, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -185,7 +185,7 @@ fun CollapsibleCard(
                 }
                 if (helpTopic != null) {
                     Text(
-                        text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.Blue,
+                        text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.InfoAccent,
                         modifier = Modifier
                             .padding(end = 8.dp)
                             .clickable { navigateHelp(helpTopic) }

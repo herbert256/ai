@@ -862,7 +862,7 @@ internal fun DeleteReportConfirmDialog(
         text = { Text("This permanently removes the saved report from disk.") },
         confirmButton = {
             TextButton(onClick = { onDelete(ridAtOpen) }) {
-                Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false)
+                Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
             }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) } }

@@ -158,7 +158,7 @@ fun LocalSemanticSearchScreen(
             },
             enabled = !running && picked != null && query.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
         ) { Text(if (running) "Searching…" else "Search reports", maxLines = 1, softWrap = false) }
 
         status?.let {
@@ -189,7 +189,7 @@ fun LocalSemanticSearchScreen(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(hit.timestamp, fontSize = 11.sp, color = AppColors.TextTertiary)
                         }
-                        Text("%.3f".format(hit.score), fontSize = 11.sp, color = AppColors.Blue,
+                        Text("%.3f".format(hit.score), fontSize = 11.sp, color = AppColors.InfoAccent,
                             modifier = Modifier.padding(start = 8.dp))
                         com.ai.ui.shared.ReportRowActionIcons(
                             onOpenManage = { onOpenReport(hit.reportId) },

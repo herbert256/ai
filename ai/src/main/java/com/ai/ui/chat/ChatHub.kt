@@ -98,7 +98,7 @@ fun ChatsHubScreen(
             Spacer(modifier = Modifier.height(12.dp))
         }
         photoError?.let {
-            Text(it, color = AppColors.Red, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
+            Text(it, color = AppColors.DangerAccent, fontSize = 12.sp, modifier = Modifier.padding(bottom = 8.dp))
         }
         StartChatGroup(
             hasAgents = hasAgents,
@@ -228,7 +228,7 @@ private fun UnfinishedChatPill(count: Int, onResume: () -> Unit) {
             val label = if (count == 1) "1 chat awaiting reply" else "$count chats awaiting reply"
             Text(label, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
-            Text("Resume", fontSize = 12.sp, color = AppColors.Blue, fontWeight = FontWeight.Bold)
+            Text("Resume", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -326,7 +326,7 @@ private fun ChatHubCard(
                 )
             }
             if (enabled) {
-                Text(text = ">", fontSize = 18.sp, color = AppColors.Blue, modifier = Modifier.padding(start = 8.dp))
+                Text(text = ">", fontSize = 18.sp, color = AppColors.InfoAccent, modifier = Modifier.padding(start = 8.dp))
             }
         }
     }

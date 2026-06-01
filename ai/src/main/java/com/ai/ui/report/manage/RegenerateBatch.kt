@@ -147,7 +147,7 @@ fun RegenerateBatchScreen(
                     showDeleteConfirm = false
                     engine.deleteJob(context, reportId)
                     onBack()
-                }) { Text("Delete", color = AppColors.Red) }
+                }) { Text("Delete", color = AppColors.DangerAccent) }
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { showDeleteConfirm = false }) {
@@ -173,9 +173,9 @@ private fun StatusBanner(job: RegenerateJob) {
         RegenerateJobStatus.CANCELLED -> "Cancelled"
     }
     val statusColor = when (job.status) {
-        RegenerateJobStatus.RUNNING -> AppColors.Blue
-        RegenerateJobStatus.PAUSED_ON_ERROR -> AppColors.Red
-        RegenerateJobStatus.DONE -> AppColors.Green
+        RegenerateJobStatus.RUNNING -> AppColors.InfoAccent
+        RegenerateJobStatus.PAUSED_ON_ERROR -> AppColors.DangerAccent
+        RegenerateJobStatus.DONE -> AppColors.SuccessAccent
         RegenerateJobStatus.CANCELLED -> AppColors.TextTertiary
     }
     Column(
@@ -255,7 +255,7 @@ private fun TaskList(job: RegenerateJob) {
             item(key = "phase-${phase.name}") {
                 Text(
                     text = phase.label,
-                    color = AppColors.Blue,
+                    color = AppColors.InfoAccent,
                     fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
                 )
@@ -268,9 +268,9 @@ private fun TaskList(job: RegenerateJob) {
 @Composable
 private fun TaskCard(t: RegenerateTask) {
     val accent = when (t.state) {
-        RegenerateTaskState.SUCCESS -> AppColors.Green
-        RegenerateTaskState.ERROR -> AppColors.Red
-        RegenerateTaskState.RUNNING -> AppColors.Blue
+        RegenerateTaskState.SUCCESS -> AppColors.SuccessAccent
+        RegenerateTaskState.ERROR -> AppColors.DangerAccent
+        RegenerateTaskState.RUNNING -> AppColors.InfoAccent
         RegenerateTaskState.WAITING -> AppColors.TextTertiary
         RegenerateTaskState.CANCELLED -> AppColors.TextTertiary
     }
@@ -295,7 +295,7 @@ private fun TaskCard(t: RegenerateTask) {
             if (!t.errorMessage.isNullOrBlank()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
-                    t.errorMessage, color = AppColors.Red, fontSize = 11.sp,
+                    t.errorMessage, color = AppColors.DangerAccent, fontSize = 11.sp,
                     maxLines = 2, overflow = TextOverflow.Ellipsis
                 )
             }

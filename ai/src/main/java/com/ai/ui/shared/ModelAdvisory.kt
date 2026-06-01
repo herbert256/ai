@@ -87,13 +87,13 @@ fun ModelAdvisoryCaptions(
     if (state.benchedUntil != null) {
         Text(
             ModelCooldownStore.cooldownCaption(state.benchedUntil),
-            fontSize = fontSize, color = AppColors.Orange, maxLines = 1
+            fontSize = fontSize, color = AppColors.WarningAccent, maxLines = 1
         )
     }
     if (state.blockReason != null) {
         Text(
             if (state.blockReason.isBlank()) "${com.ai.data.MetadataIconsHolder.current.statusBlocked} Blocked" else "${com.ai.data.MetadataIconsHolder.current.statusBlocked} Blocked: ${state.blockReason}",
-            fontSize = fontSize, color = AppColors.Red,
+            fontSize = fontSize, color = AppColors.DangerAccent,
             maxLines = 1, overflow = TextOverflow.Ellipsis
         )
     }

@@ -155,7 +155,7 @@ fun ChatParametersScreen(
                     )
                 )
             },
-            modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
         ) { Text("Start Chat", fontSize = 16.sp, maxLines = 1, softWrap = false) }
     }
 }
@@ -692,7 +692,7 @@ fun ChatSessionScreen(
                 val kbLabel = if (attachedKnowledgeBaseIds.isEmpty()) "${mi.library} Knowledge"
                     else "${mi.library} ${attachedKnowledgeBaseIds.size}"
                 Text(kbLabel, fontSize = 11.sp,
-                    color = if (attachedKnowledgeBaseIds.isNotEmpty()) AppColors.Green else AppColors.TextTertiary,
+                    color = if (attachedKnowledgeBaseIds.isNotEmpty()) AppColors.SuccessAccent else AppColors.TextTertiary,
                     modifier = Modifier
                         .clickable { showKbDialog = true }
                         .padding(horizontal = 8.dp, vertical = 2.dp))
@@ -700,7 +700,7 @@ fun ChatSessionScreen(
             Text(
                 if (pinned) "${mi.pin} Pinned" else "${mi.pin} Pin",
                 fontSize = 11.sp,
-                color = if (pinned) AppColors.Orange else AppColors.TextTertiary,
+                color = if (pinned) AppColors.WarningAccent else AppColors.TextTertiary,
                 modifier = Modifier
                     .clickable {
                         pinned = !pinned
@@ -765,7 +765,7 @@ fun ChatSessionScreen(
                             val content = streamingContentState.value
                             if (content.isEmpty()) {
                                 Row(modifier = Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = AppColors.Blue, strokeWidth = 2.dp)
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), color = AppColors.InfoAccent, strokeWidth = 2.dp)
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("Thinking...", color = AppColors.TextTertiary, fontSize = 13.sp)
                                 }
@@ -779,7 +779,7 @@ fun ChatSessionScreen(
         }
 
         if (error != null) {
-            Text(error!!, color = AppColors.Red, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp))
+            Text(error!!, color = AppColors.DangerAccent, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp))
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -791,8 +791,8 @@ fun ChatSessionScreen(
                 onClick = { useWebSearch = !useWebSearch },
                 label = { Text("${mi.web} Web search", fontSize = 12.sp) },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = AppColors.Blue.copy(alpha = 0.2f),
-                    selectedLabelColor = AppColors.Blue
+                    selectedContainerColor = AppColors.InfoAccent.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.InfoAccent
                 )
             )
             // Reasoning-effort pulldown — only on models that LiteLLM /
@@ -809,8 +809,8 @@ fun ChatSessionScreen(
                         onClick = { reasoningMenuExpanded = true },
                         label = { Text("${mi.reportModelIcon} $levelLabel", fontSize = 12.sp) },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = AppColors.Purple.copy(alpha = 0.2f),
-                            selectedLabelColor = AppColors.Purple
+                            selectedContainerColor = AppColors.PrimaryAccent.copy(alpha = 0.2f),
+                            selectedLabelColor = AppColors.PrimaryAccent
                         )
                     )
                     DropdownMenu(
@@ -834,7 +834,7 @@ fun ChatSessionScreen(
                             DropdownMenuItem(
                                 text = {
                                     Text(label, fontSize = 13.sp,
-                                        color = if (reasoningEffort == value) AppColors.Blue else Color.White)
+                                        color = if (reasoningEffort == value) AppColors.InfoAccent else Color.White)
                                 },
                                 onClick = { reasoningEffort = value; reasoningMenuExpanded = false }
                             )
@@ -856,18 +856,18 @@ fun ChatSessionScreen(
                     Text(label, fontSize = 12.sp, maxLines = 1)
                 },
                 colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = AppColors.Orange.copy(alpha = 0.2f),
-                    selectedLabelColor = AppColors.Orange
+                    selectedContainerColor = AppColors.WarningAccent.copy(alpha = 0.2f),
+                    selectedLabelColor = AppColors.WarningAccent
                 )
             )
             if (isModerating) {
-                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = AppColors.Orange, strokeWidth = 2.dp)
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = AppColors.WarningAccent, strokeWidth = 2.dp)
             }
         }
         if (moderationError != null) {
             Text(
                 "Moderation: ${moderationError}",
-                fontSize = 11.sp, color = AppColors.Orange,
+                fontSize = 11.sp, color = AppColors.WarningAccent,
                 modifier = Modifier.padding(bottom = 4.dp)
             )
         }
@@ -893,12 +893,12 @@ fun ChatSessionScreen(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text("Image attached (${mime.substringAfter('/')})", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f))
-                TextButton(onClick = { attachedImage = null }) { Text("Remove", color = AppColors.Red, fontSize = 12.sp) }
+                TextButton(onClick = { attachedImage = null }) { Text("Remove", color = AppColors.DangerAccent, fontSize = 12.sp) }
             }
             if (!isVisionCapable) {
                 Text(
                     "${mi.warningPlain} Model is not flagged vision-capable in Model Info. The request may fail.",
-                    fontSize = 11.sp, color = AppColors.Red, modifier = Modifier.padding(bottom = 4.dp)
+                    fontSize = 11.sp, color = AppColors.DangerAccent, modifier = Modifier.padding(bottom = 4.dp)
                 )
             }
         }
@@ -918,7 +918,7 @@ fun ChatSessionScreen(
             Button(
                 onClick = { if ((userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating) trySend(userInput.trim()) },
                 enabled = (userInput.isNotBlank() || attachedImage != null) && !isStreaming && !isModerating,
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
             ) { Text("Send", maxLines = 1, softWrap = false) }
         }
     }
@@ -984,7 +984,7 @@ fun ChatSessionScreen(
                     val s = flagged
                     pendingFlagged = null
                     actuallySend(s.input, s.img)
-                }) { Text("Proceed anyway", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Proceed anyway", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { pendingFlagged = null }) {
@@ -1025,7 +1025,7 @@ private fun ChatMessageBubble(
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isUser) AppColors.Purple.copy(alpha = 0.15f) else AppColors.SurfaceDark
+            containerColor = if (isUser) AppColors.PrimaryAccent.copy(alpha = 0.15f) else AppColors.SurfaceDark
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -1034,7 +1034,7 @@ private fun ChatMessageBubble(
                 Text(
                     text = if (isUser) userName else "Assistant",
                     fontSize = 11.sp, fontWeight = FontWeight.Medium,
-                    color = if (isUser) AppColors.Purple else AppColors.Blue,
+                    color = if (isUser) AppColors.PrimaryAccent else AppColors.InfoAccent,
                     modifier = Modifier.weight(1f)
                 )
                 // 🐞 button — opens the trace for this assistant turn.
@@ -1089,9 +1089,9 @@ private fun StreamingMessageBubble(content: String) {
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Assistant", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = AppColors.Blue)
+                Text("Assistant", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = AppColors.InfoAccent)
                 Spacer(modifier = Modifier.width(8.dp))
-                CircularProgressIndicator(modifier = Modifier.size(10.dp), color = AppColors.Blue, strokeWidth = 1.5.dp)
+                CircularProgressIndicator(modifier = Modifier.size(10.dp), color = AppColors.InfoAccent, strokeWidth = 1.5.dp)
             }
             Spacer(modifier = Modifier.height(4.dp))
             AnimatedTextLines(content)

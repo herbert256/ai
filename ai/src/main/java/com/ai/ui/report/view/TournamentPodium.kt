@@ -203,7 +203,7 @@ fun TournamentPodiumViewScreen(
                 item {
                     Text(
                         "Leaderboard",
-                        color = AppColors.Blue,
+                        color = AppColors.InfoAccent,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(top = 2.dp)
@@ -446,7 +446,7 @@ private fun TournamentMethodChip(label: String, selected: Boolean, onClick: () -
         color = if (selected) Color.Black else Color.White,
         maxLines = 1,
         modifier = Modifier.clip(RoundedCornerShape(8.dp))
-            .background(if (selected) AppColors.Green else AppColors.CardBackground)
+            .background(if (selected) AppColors.SuccessAccent else AppColors.CardBackground)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp)
     )
@@ -458,9 +458,9 @@ private fun TournamentStatsStrip(models: Int, done: Int, total: Int, ties: Int) 
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        StatTile("Models", models.toString(), AppColors.Blue, Modifier.weight(1f))
-        StatTile("Matches", "$done/$total", AppColors.Green, Modifier.weight(1f))
-        StatTile("Ties", ties.toString(), AppColors.Orange, Modifier.weight(1f))
+        StatTile("Models", models.toString(), AppColors.InfoAccent, Modifier.weight(1f))
+        StatTile("Matches", "$done/$total", AppColors.SuccessAccent, Modifier.weight(1f))
+        StatTile("Ties", ties.toString(), AppColors.WarningAccent, Modifier.weight(1f))
     }
 }
 
@@ -528,7 +528,7 @@ private fun TournamentRankCard(
         }
         Text(
             scoreText(ranking.score, method),
-            color = AppColors.Green,
+            color = AppColors.SuccessAccent,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
@@ -647,9 +647,9 @@ private fun TournamentHeadToHeadSummary(won: Int, drew: Int, lost: Int) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        StatTile("Won", won.toString(), AppColors.Green, Modifier.weight(1f))
-        StatTile("Drawn", drew.toString(), AppColors.Blue, Modifier.weight(1f))
-        StatTile("Lost", lost.toString(), AppColors.Red, Modifier.weight(1f))
+        StatTile("Won", won.toString(), AppColors.SuccessAccent, Modifier.weight(1f))
+        StatTile("Drawn", drew.toString(), AppColors.InfoAccent, Modifier.weight(1f))
+        StatTile("Lost", lost.toString(), AppColors.DangerAccent, Modifier.weight(1f))
     }
 }
 
@@ -676,7 +676,7 @@ private fun TournamentHeadToHeadCard(match: TournamentViewMatch, agentId: String
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(AppColors.CardBackground)
-            .border(1.dp, AppColors.Blue.copy(alpha = 0.28f), RoundedCornerShape(12.dp))
+            .border(1.dp, AppColors.InfoAccent.copy(alpha = 0.28f), RoundedCornerShape(12.dp))
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
@@ -780,10 +780,10 @@ private fun tournamentResultFor(agentId: String, side: TournamentViewSide): Stri
 }
 
 private fun tournamentResultStyle(result: String): Pair<String, Color> = when (result) {
-    "won" -> "won" to AppColors.Green
-    "lost" -> "lost" to AppColors.Red
-    "draw" -> "draw" to AppColors.Blue
-    "error" -> "error" to AppColors.Red
+    "won" -> "won" to AppColors.SuccessAccent
+    "lost" -> "lost" to AppColors.DangerAccent
+    "draw" -> "draw" to AppColors.InfoAccent
+    "error" -> "error" to AppColors.DangerAccent
     else -> "pending" to AppColors.TextTertiary
 }
 
@@ -795,9 +795,9 @@ private fun tournamentResponseColor(match: TournamentViewMatch, agentId: String)
     }
     val draws = sides.count { it.error.isNullOrBlank() && it.tie }
     return when {
-        wins > losses -> AppColors.Green
-        losses > wins -> AppColors.Red
-        wins > 0 || draws > 0 -> AppColors.Blue
+        wins > losses -> AppColors.SuccessAccent
+        losses > wins -> AppColors.DangerAccent
+        wins > 0 || draws > 0 -> AppColors.InfoAccent
         else -> AppColors.TextSecondary
     }
 }
@@ -863,5 +863,5 @@ private fun medalColor(rank: Int?): Color = when (rank) {
     1 -> Color(0xFFFFD54F)
     2 -> Color(0xFFB0BEC5)
     3 -> Color(0xFFCD7F32)
-    else -> AppColors.Blue
+    else -> AppColors.InfoAccent
 }

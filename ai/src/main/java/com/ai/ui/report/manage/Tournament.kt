@@ -329,13 +329,13 @@ private fun TournamentL1(
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
             val stats = listOf(
-                Triple("Total", run.totalMatches.toString(), AppColors.Blue),
-                Triple("Done", run.doneCount.toString(), AppColors.Green),
-                Triple("Run", run.runningCount.toString(), AppColors.Orange),
-                Triple("Wait", throttledCount.toString(), AppColors.Yellow),
-                Triple("Queue", run.queuedCount.toString(), AppColors.Brown),
-                Triple("Err", run.errorCount.toString(), AppColors.Red),
-                Triple("Cost", "${formatCents(run.totalCost, 2)} ¢", AppColors.Blue)
+                Triple("Total", run.totalMatches.toString(), AppColors.InfoAccent),
+                Triple("Done", run.doneCount.toString(), AppColors.SuccessAccent),
+                Triple("Run", run.runningCount.toString(), AppColors.WarningAccent),
+                Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
+                Triple("Queue", run.queuedCount.toString(), AppColors.QueueAccent),
+                Triple("Err", run.errorCount.toString(), AppColors.DangerAccent),
+                Triple("Cost", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
             )
             Row(Modifier.fillMaxWidth()) {
                 stats.forEach { (label, _, color) ->
@@ -413,7 +413,7 @@ private fun TournamentL1(
                 Spacer(Modifier.height(8.dp))
                 Button(
                     onClick = onRestartFailed, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
                 ) { Text("Restart ${run.errorCount} failed", fontSize = 14.sp) }
             }
             Spacer(Modifier.height(24.dp))
@@ -428,7 +428,7 @@ private fun TournamentJudgeModelRow(
     showBar: Boolean,
     onClick: () -> Unit
 ) {
-    val barColor = AppColors.Green.copy(alpha = 0.30f)
+    val barColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
     Row(
         modifier = Modifier.fillMaxWidth()
             .drawBehind {
@@ -467,7 +467,7 @@ private fun TournamentJudgeModelRow(
 private fun TournamentReportModelRow(group: GroupRow, allDone: Boolean, onClick: () -> Unit) {
     val finished = group.done + group.errored
     val progressFraction = if (group.total > 0) finished.toFloat() / group.total else 0f
-    val barColor = AppColors.Green.copy(alpha = 0.30f)
+    val barColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
     Row(
         modifier = Modifier.fillMaxWidth()
             .drawBehind {
@@ -559,7 +559,7 @@ private fun TournamentL2(
 private fun TournamentGreenSubject(text: String) {
     Text(
         text = text,
-        color = AppColors.Green,
+        color = AppColors.SuccessAccent,
         fontSize = 20.sp,
         fontWeight = FontWeight.Bold,
         maxLines = 1,
@@ -582,7 +582,7 @@ private fun TournamentL2Header(groupMode: TournamentGroupMode) {
         labels.forEachIndexed { index, label ->
             TournamentL2Cell(
                 text = label,
-                color = AppColors.Blue,
+                color = AppColors.InfoAccent,
                 fontWeight = FontWeight.SemiBold,
                 columnIndex = index
             )
@@ -661,12 +661,12 @@ private fun MatchRowItem(
             TournamentGroupMode.REPORT_MODELS -> {
                 val opponent = if (m.responseAId == activeReportAgentId) labelB else labelA
                 val judge = m.judgeModel?.let { shortModelName(it.substringAfterLast('/')) } ?: "..."
-                TournamentL2Cell(scoreText(m, activeReportAgentId), color = AppColors.Green, columnIndex = 0)
+                TournamentL2Cell(scoreText(m, activeReportAgentId), color = AppColors.SuccessAccent, columnIndex = 0)
                 TournamentL2Cell(opponent, columnIndex = 1)
                 TournamentL2Cell(judge, color = AppColors.TextSecondary, columnIndex = 2)
             }
             TournamentGroupMode.TOURNAMENT_MODELS -> {
-                TournamentL2Cell(resultText(m), color = AppColors.Green, columnIndex = 0)
+                TournamentL2Cell(resultText(m), color = AppColors.SuccessAccent, columnIndex = 0)
                 TournamentL2Cell(labelA, columnIndex = 1)
                 TournamentL2Cell(labelB, columnIndex = 2)
             }
@@ -744,7 +744,7 @@ private fun TournamentL3(
                 if (!m.reason.isNullOrBlank()) Text(m.reason!!, color = AppColors.TextSecondary, fontSize = 12.sp)
                 Text("Orientation: ${if (m.orientation == 0) "A-vs-B" else "B-vs-A (swapped)"}", color = AppColors.TextTertiary, fontSize = 11.sp)
                 m.judgeModel?.let { Text("Judged by: ${it}", color = AppColors.TextTertiary, fontSize = 11.sp) }
-                m.errorMessage?.let { Text("${com.ai.data.MetadataIconsHolder.current.warningPlain} $it", color = AppColors.Red, fontSize = 11.sp) }
+                m.errorMessage?.let { Text("${com.ai.data.MetadataIconsHolder.current.warningPlain} $it", color = AppColors.DangerAccent, fontSize = 11.sp) }
             }
             Spacer(Modifier.height(12.dp))
             ResponsePane("A - $labelA", colorA, agents[m.responseAId]?.responseBody)
@@ -756,9 +756,9 @@ private fun TournamentL3(
 }
 
 private fun sideColor(verdict: String?, side: String): Color = when (verdict) {
-    "tie" -> AppColors.Blue
-    side -> AppColors.Green
-    "A", "B" -> AppColors.Red
+    "tie" -> AppColors.InfoAccent
+    side -> AppColors.SuccessAccent
+    "A", "B" -> AppColors.DangerAccent
     else -> AppColors.TextSecondary
 }
 

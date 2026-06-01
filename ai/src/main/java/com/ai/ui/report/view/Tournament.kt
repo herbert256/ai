@@ -236,7 +236,7 @@ private fun MethodChip(label: String, selected: Boolean, onClick: () -> Unit) {
         color = if (selected) Color.Black else Color.White,
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) AppColors.Purple else AppColors.CardBackground)
+            .background(if (selected) AppColors.PrimaryAccent else AppColors.CardBackground)
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 8.dp)
     )
@@ -312,10 +312,10 @@ private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBac
 @Composable
 private fun HeadToHeadRow(opponent: String, result: String, reason: String?, error: String?, trace: String?, judge: String?, orientation: String) {
     val (label, color) = when (result) {
-        "won" -> "won" to AppColors.Green
-        "lost" -> "lost" to AppColors.Red
-        "draw" -> "draw" to AppColors.Orange
-        "error" -> "error" to AppColors.Red
+        "won" -> "won" to AppColors.SuccessAccent
+        "lost" -> "lost" to AppColors.DangerAccent
+        "draw" -> "draw" to AppColors.WarningAccent
+        "error" -> "error" to AppColors.DangerAccent
         else -> "…" to AppColors.TextTertiary
     }
     Row(
@@ -337,7 +337,7 @@ private fun HeadToHeadRow(opponent: String, result: String, reason: String?, err
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(top = 2.dp)
             ) {
-                Text("Judge: ${judge ?: "—"}", color = AppColors.Blue, fontSize = 11.sp)
+                Text("Judge: ${judge ?: "—"}", color = AppColors.InfoAccent, fontSize = 11.sp)
                 TraceBug(orientation, trace)
             }
         }

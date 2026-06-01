@@ -542,7 +542,7 @@ internal fun SecondaryResultsScreen(
                         pickerConfirmDelete = false
                         onDelete(sel.id)
                         refreshTick++
-                    }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                    }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
                 },
                 dismissButton = { TextButton(onClick = { pickerConfirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
             )
@@ -804,7 +804,7 @@ private fun ColumnScope.MetaResultsPickerView(
             val provider = AppService.findById(r.providerId)?.id ?: r.providerId
             Button(
                 onClick = { selectedId = r.id },
-                colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.Orange else Color(0xFF3A3A4A)),
+                colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.WarningAccent else Color(0xFF3A3A4A)),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 36.dp)
             ) {
@@ -833,7 +833,7 @@ private fun ColumnScope.MetaResultsPickerView(
                 // "No data yet" so the user no longer sees system
                 // language on a row that just hasn't been re-run yet.
                 val msg = com.ai.ui.shared.friendlyErrorMessage(selected.errorMessage)
-                Text("Error", fontSize = 14.sp, color = AppColors.Red, fontWeight = FontWeight.SemiBold)
+                Text("Error", fontSize = 14.sp, color = AppColors.DangerAccent, fontWeight = FontWeight.SemiBold)
                 Text(msg, fontSize = 13.sp, color = AppColors.TextSecondary,
                     modifier = Modifier.padding(top = 4.dp))
             }
@@ -881,7 +881,7 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
             Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         IconButton(onClick = { confirmDelete = true }) {
-            Text(com.ai.data.MetadataIconsHolder.current.delete, fontSize = 16.sp, color = AppColors.Red)
+            Text(com.ai.data.MetadataIconsHolder.current.delete, fontSize = 16.sp, color = AppColors.DangerAccent)
         }
     }
 
@@ -894,7 +894,7 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
             text = { Text(com.ai.ui.shared.modelLabel(provider, r.model)) },
             confirmButton = {
                 TextButton(onClick = { confirmDelete = false; onDelete() }) {
-                    Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false)
+                    Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
                 }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }

@@ -1539,7 +1539,7 @@ internal fun AppTopBarChrome(
                             }
                         }
                     Text(
-                        text = secondLine, color = AppColors.Orange,
+                        text = secondLine, color = AppColors.WarningAccent,
                         fontSize = 15.3.sp, fontWeight = FontWeight.SemiBold,
                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center, modifier = textMod
@@ -1551,7 +1551,7 @@ internal fun AppTopBarChrome(
             // Green 3rd line — full screen width.
             if (!thirdLine.isNullOrBlank()) {
                 Text(
-                    text = thirdLine, color = AppColors.Green,
+                    text = thirdLine, color = AppColors.SuccessAccent,
                     fontSize = 20.4.sp, fontWeight = FontWeight.Bold,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()
@@ -1565,7 +1565,7 @@ internal fun AppTopBarChrome(
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
-                    .border(1.dp, AppColors.Blue.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+                    .border(1.dp, AppColors.InfoAccent.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
                     .padding(horizontal = 16.dp, vertical = 6.dp)
             )
         }
@@ -1689,7 +1689,7 @@ fun HardcodedSubjectRow(
         }
         Text(
             text = text,
-            fontSize = 32.sp, color = AppColors.Green,
+            fontSize = 32.sp, color = AppColors.SuccessAccent,
             fontWeight = FontWeight.SemiBold,
             maxLines = maxLines,
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -1748,7 +1748,7 @@ private fun buildBottomBarIcons(icons: TitleBarIcons, mi: com.ai.data.MetadataIc
     // Chat slot — normally 💬 chat; when swapped (Model response) the 🔄
     // reload glyph takes this early position instead.
     if (icons.swapChatAndReload) {
-        icons.onReload?.let { add(BottomBarIcon(mi.reload, AppColors.Orange, it, 28, legendKey = D.RELOAD)) }
+        icons.onReload?.let { add(BottomBarIcon(mi.reload, AppColors.WarningAccent, it, 28, legendKey = D.RELOAD)) }
     } else {
         icons.onChat?.let { add(BottomBarIcon(mi.chat, Color.Unspecified, it, 28, legendKey = D.CHAT)) }
     }
@@ -1799,9 +1799,9 @@ private fun buildBottomBarIcons(icons: TitleBarIcons, mi: com.ai.data.MetadataIc
     if (icons.swapChatAndReload) {
         icons.onChat?.let { add(BottomBarIcon(mi.chat, Color.Unspecified, it, 28, legendKey = D.CHAT)) }
     } else {
-        icons.onReload?.let { add(BottomBarIcon(mi.reload, AppColors.Orange, it, 28, legendKey = D.RELOAD)) }
+        icons.onReload?.let { add(BottomBarIcon(mi.reload, AppColors.WarningAccent, it, 28, legendKey = D.RELOAD)) }
     }
-    icons.onDelete?.let { add(BottomBarIcon(mi.delete, AppColors.Red, it, 22, legendKey = D.DELETE)) }
+    icons.onDelete?.let { add(BottomBarIcon(mi.delete, AppColors.DangerAccent, it, 22, legendKey = D.DELETE)) }
     // 📈 statistics trailing the 🗑 delete, when the screen opted in
     // (Application log — its App-log-statistics jump sits after clear-all).
     if (icons.statsAfterDelete) icons.onStats?.let { add(BottomBarIcon(mi.statistics, Color.Unspecified, it, 28, legendKey = D.STATISTICS)) }
@@ -2017,7 +2017,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                     if (isFirst && costText != null) {
                         Text(
                             text = costText,
-                            color = AppColors.Blue,
+                            color = AppColors.InfoAccent,
                             fontSize = (costBaseSp * scale).sp,
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-0.5).sp,
@@ -2033,13 +2033,13 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                     if (isLast) {
                         if (showLegendHelp) {
                             // White ❔ → live "<screen> - icons" overlay.
-                            TitleBarIcon(barIcons.helpLegend, AppColors.Blue, { showLegend = true }, width = 18.dp, heightDp = rowCellH, scale = scale)
+                            TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { showLegend = true }, width = 18.dp, heightDp = rowCellH, scale = scale)
                         } else if (showIconPageHelp && iconTopic != null) {
                             // White ❔ → static icon-table help page.
-                            TitleBarIcon(barIcons.helpLegend, AppColors.Blue, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale)
+                            TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale)
                         }
                         // Red ❓ → the screen's help page (unchanged).
-                        TitleBarIcon(barIcons.help, AppColors.Blue, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
+                        TitleBarIcon(barIcons.help, AppColors.InfoAccent, onHelp, width = 18.dp, heightDp = rowCellH, scale = scale)
                     }
                 }
             }
@@ -2157,7 +2157,7 @@ private fun IconLegendOverlay(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
-                            Text(mi.help, fontSize = 30.sp, color = AppColors.Red)
+                            Text(mi.help, fontSize = 30.sp, color = AppColors.DangerAccent)
                         }
                         Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                             Text(
@@ -2181,7 +2181,7 @@ private fun IconLegendOverlay(
                     // already covers the icons, so it no longer points to the
                     // standalone icon-table page). Match the bottom bar's help
                     // glyph size (scales to the 2.1× ceiling) so it isn't tiny.
-                    TitleBarIcon(mi.help, AppColors.Red, {
+                    TitleBarIcon(mi.help, AppColors.DangerAccent, {
                         onClose()
                         navigateHelp(icons.helpTopic)
                     }, width = 18.dp, heightDp = 32, scale = 2.1f)

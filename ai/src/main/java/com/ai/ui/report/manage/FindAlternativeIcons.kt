@@ -167,7 +167,7 @@ private fun CandidateRow(
                 androidx.compose.material3.Text(iconModel, fontSize = 13.sp, color = Color.White)
                 when (candidate) {
                     is IconCandidate.Error -> androidx.compose.material3.Text(
-                        candidate.reason, fontSize = 11.sp, color = AppColors.Red,
+                        candidate.reason, fontSize = 11.sp, color = AppColors.DangerAccent,
                         maxLines = 2, overflow = TextOverflow.Ellipsis
                     )
                     is IconCandidate.Done -> androidx.compose.material3.Text(

@@ -20,7 +20,7 @@ fun DeleteConfirmationDialog(
         title = { Text("Delete $entityType") },
         text = { Text("Are you sure you want to delete \"$entityName\"?") },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+            TextButton(onClick = onConfirm) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) }
@@ -53,7 +53,7 @@ fun ReloadConfirmationDialog(
         title = { Text(title) },
         text = { Text(message) },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text(confirmLabel, color = AppColors.Blue, maxLines = 1, softWrap = false) }
+            TextButton(onClick = onConfirm) { Text(confirmLabel, color = AppColors.InfoAccent, maxLines = 1, softWrap = false) }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) { Text("Cancel", maxLines = 1, softWrap = false) }

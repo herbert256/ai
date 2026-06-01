@@ -130,8 +130,8 @@ internal fun TranslationL2Screen(
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rows, key = { it.id }) { item ->
                     val fillColor = when (item.status) {
-                        TranslationStatus.DONE -> AppColors.Green.copy(alpha = 0.30f)
-                        TranslationStatus.ERROR -> AppColors.Red.copy(alpha = 0.30f)
+                        TranslationStatus.DONE -> AppColors.SuccessAccent.copy(alpha = 0.30f)
+                        TranslationStatus.ERROR -> AppColors.DangerAccent.copy(alpha = 0.30f)
                         else -> null
                     }
                     Row(

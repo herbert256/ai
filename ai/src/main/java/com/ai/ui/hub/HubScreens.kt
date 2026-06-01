@@ -409,10 +409,10 @@ fun ReportsHubScreen(
         // Section cards, with empty ones (e.g. Running / Problems) sunk to
         // the bottom so the populated buckets lead. Examples stays last.
         val hubCards = listOf(
-            Triple(MetadataDefaults.STATUS_PENDING, AppColors.Orange, "Running AI reports") to homeReportLists.running,
-            Triple(MetadataDefaults.STATUS_WARNING, AppColors.Red, "Reports with problems") to homeReportLists.problems,
-            Triple(MetadataDefaults.PIN, AppColors.Yellow, "Pinned AI Reports") to pinnedReports,
-            Triple(MetadataDefaults.CLOCK_RECENT, AppColors.Blue, "Latest AI Reports") to latestReports,
+            Triple(MetadataDefaults.STATUS_PENDING, AppColors.WarningAccent, "Running AI reports") to homeReportLists.running,
+            Triple(MetadataDefaults.STATUS_WARNING, AppColors.DangerAccent, "Reports with problems") to homeReportLists.problems,
+            Triple(MetadataDefaults.PIN, AppColors.CautionAccent, "Pinned AI Reports") to pinnedReports,
+            Triple(MetadataDefaults.CLOCK_RECENT, AppColors.InfoAccent, "Latest AI Reports") to latestReports,
         ).sortedBy { it.second.isEmpty() }
         hubCards.forEachIndexed { i, (meta, reports) ->
             if (i > 0) Spacer(modifier = Modifier.height(10.dp))

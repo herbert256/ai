@@ -387,7 +387,7 @@ fun ReportsViewScreen(
                     ) {
                         Text(
                             text = activeAgent?.let { shortModelName(it.model) }.orEmpty(),
-                            color = AppColors.Green,
+                            color = AppColors.SuccessAccent,
                             fontSize = 22.sp,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -474,7 +474,7 @@ private fun CollapsedPromptRow(report: Report, preview: String, onExpand: () -> 
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(AppColors.CardBackground)
-            .border(1.dp, AppColors.Purple.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .border(1.dp, AppColors.PrimaryAccent.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
             .clickable { onExpand() }
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -526,7 +526,7 @@ private fun PromptCard(
             .wrapContentHeight()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
-            .border(1.dp, AppColors.Purple.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .border(1.dp, AppColors.PrimaryAccent.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
     ) {
         // verticalScroll on the body so a long prompt scrolls
         // inside the card's height cap instead of pushing the
@@ -620,7 +620,7 @@ private fun AgentResponseCard(
             .wrapContentHeight()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
-            .border(1.dp, AppColors.Blue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .border(1.dp, AppColors.InfoAccent.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()
@@ -631,7 +631,7 @@ private fun AgentResponseCard(
             overrideTitle?.takeIf { it.isNotBlank() }?.let { t ->
                 Text(
                     text = t,
-                    color = AppColors.Orange,
+                    color = AppColors.WarningAccent,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -688,7 +688,7 @@ private fun ModelReportCard(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
-            .border(1.dp, AppColors.Blue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .border(1.dp, AppColors.InfoAccent.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
             .clickable { expanded = !expanded }
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
@@ -706,7 +706,7 @@ private fun ModelReportCard(
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = shortModelName(agent.model),
-                color = AppColors.Green, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                color = AppColors.SuccessAccent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.modelInfoViewClickable(provider, agent.model)
             )

@@ -466,7 +466,7 @@ fun ModelInfoViewScreen(
                                 "Cost: " + if (it < 0.01 && it > 0)
                                     String.format(Locale.US, "$%.6f", it)
                                 else String.format(Locale.US, "$%.4f", it),
-                                fontSize = 13.sp, color = AppColors.Green
+                                fontSize = 13.sp, color = AppColors.SuccessAccent
                             )
                         }
                     }
@@ -511,7 +511,7 @@ fun ModelInfoViewScreen(
                                         Text(
                                             text = "Ask again",
                                             fontSize = 12.sp,
-                                            color = AppColors.Blue,
+                                            color = AppColors.InfoAccent,
                                             fontWeight = FontWeight.SemiBold,
                                             modifier = Modifier.clickable { requestIntroduction() }
                                         )
@@ -540,12 +540,12 @@ private fun HeroCard(provider: AppService, modelName: String, onOpenProvider: ((
             .background(
                 Brush.verticalGradient(
                     listOf(
-                        AppColors.Purple.copy(alpha = 0.32f),
-                        AppColors.Indigo.copy(alpha = 0.08f)
+                        AppColors.PrimaryAccent.copy(alpha = 0.32f),
+                        AppColors.SecondaryAccent.copy(alpha = 0.08f)
                     )
                 )
             )
-            .border(1.dp, AppColors.Purple.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+            .border(1.dp, AppColors.PrimaryAccent.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
     ) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
@@ -570,7 +570,7 @@ private fun HeroCard(provider: AppService, modelName: String, onOpenProvider: ((
             Text(
                 text = if (onOpenProvider != null) "${provider.id}  ›" else provider.id,
                 fontSize = 13.sp,
-                color = if (onOpenProvider != null) AppColors.Blue else AppColors.TextSecondary,
+                color = if (onOpenProvider != null) AppColors.InfoAccent else AppColors.TextSecondary,
                 fontWeight = if (onOpenProvider != null) FontWeight.SemiBold else FontWeight.Normal,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = providerModifier
@@ -588,7 +588,7 @@ private fun SectionCard(title: String, content: @Composable androidx.compose.fou
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+        Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
         content()
     }
 }
@@ -619,7 +619,7 @@ private fun CapabilitiesCard(aiSettings: Settings, provider: AppService, modelNa
         cfg.modelCapabilities[modelName]?.deprecationDate?.let { date ->
             val replacement = cfg.modelCapabilities[modelName]?.deprecationReplacement
             val msg = if (replacement.isNullOrBlank()) "${mi.warningPlain} Deprecated $date" else "${mi.warningPlain} Deprecated $date ${mi.arrowRight} use $replacement"
-            Text(msg, fontSize = 13.sp, color = AppColors.Orange)
+            Text(msg, fontSize = 13.sp, color = AppColors.WarningAccent)
         }
         cfg.modelCapabilities[modelName]?.defaultTemperature?.let {
             KeyValueRow("Default temperature", it.toString())
@@ -693,7 +693,7 @@ private fun SourceRow(icon: String, label: String, raw: String?, isLast: Boolean
         )
         Text(
             text = if (hasData) com.ai.data.MetadataIconsHolder.current.checkMark else "·",
-            color = if (hasData) AppColors.Green else AppColors.TextTertiary,
+            color = if (hasData) AppColors.SuccessAccent else AppColors.TextTertiary,
             fontSize = 14.sp, fontWeight = FontWeight.SemiBold
         )
         // 🐞 trace-link — present when this source has been fetched at
@@ -741,7 +741,7 @@ private fun CostsCard(provider: AppService, modelName: String) {
                     Text(label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
                     Text(
                         "${"%.4f".format(Locale.US, p.promptPrice * 1_000_000)} / ${"%.4f".format(Locale.US, p.completionPrice * 1_000_000)}",
-                        fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.Green
+                        fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.SuccessAccent
                     )
                 }
                 if (p.perQueryPrice > 0.0) {
@@ -753,7 +753,7 @@ private fun CostsCard(provider: AppService, modelName: String) {
                         )
                         Text(
                             "${"%.2f".format(Locale.US, p.perQueryPrice * 1000)}",
-                            fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.Green
+                            fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.SuccessAccent
                         )
                     }
                 }
@@ -785,7 +785,7 @@ private fun WorkerRow(label: String, name: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            "$label:", fontSize = 12.sp, color = AppColors.Blue,
+            "$label:", fontSize = 12.sp, color = AppColors.InfoAccent,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.width(80.dp)
         )
@@ -808,7 +808,7 @@ private fun LastUsageCard(entries: List<ViewUsageEntry>) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    e.typeLabel, fontSize = 12.sp, color = AppColors.Orange,
+                    e.typeLabel, fontSize = 12.sp, color = AppColors.WarningAccent,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
@@ -940,7 +940,7 @@ private fun ParsedJsonValue(element: JsonElement, depth: Int) {
                             Text(
                                 "[$idx]:",
                                 fontSize = 12.sp,
-                                color = AppColors.Indigo,
+                                color = AppColors.SecondaryAccent,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(end = 6.dp)
                             )
@@ -965,7 +965,7 @@ private fun ParsedJsonValue(element: JsonElement, depth: Int) {
                             Text(
                                 "$key:",
                                 fontSize = 12.sp,
-                                color = AppColors.Blue,
+                                color = AppColors.InfoAccent,
                                 fontWeight = FontWeight.SemiBold,
                                 modifier = Modifier.padding(end = 6.dp)
                             )
@@ -988,9 +988,9 @@ private fun primitiveDisplay(p: JsonPrimitive): String = when {
 }
 
 private fun primitiveColor(p: JsonPrimitive): Color = when {
-    p.isBoolean -> AppColors.Orange
-    p.isNumber -> AppColors.Yellow
-    p.isString -> AppColors.Green
+    p.isBoolean -> AppColors.WarningAccent
+    p.isNumber -> AppColors.CautionAccent
+    p.isString -> AppColors.SuccessAccent
     else -> Color.White
 }
 

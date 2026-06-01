@@ -54,7 +54,7 @@ fun StressTestScreen(
                 StressTestEngine.Phase.DONE -> {
                     Text(
                         "Submitted ${s.total} report${if (s.total == 1) "" else "s"} — generating in the background.",
-                        color = AppColors.Green, fontWeight = FontWeight.SemiBold
+                        color = AppColors.SuccessAccent, fontWeight = FontWeight.SemiBold
                     )
                     Text(
                         "Open the reports list to watch them fill in. They run concurrently — this is the stress load.",
@@ -62,7 +62,7 @@ fun StressTestScreen(
                     )
                 }
                 StressTestEngine.Phase.ERROR -> {
-                    Text("Stress test could not run", color = AppColors.Red, fontWeight = FontWeight.SemiBold)
+                    Text("Stress test could not run", color = AppColors.DangerAccent, fontWeight = FontWeight.SemiBold)
                     Text(s.errorMessage ?: "Unknown error", color = AppColors.TextSecondary, fontSize = 13.sp)
                 }
                 null -> {
@@ -84,7 +84,7 @@ fun StressTestScreen(
                 Button(
                     onClick = { showConfirm = true },
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
                 ) {
                     Text(
                         if (s?.phase == StressTestEngine.Phase.DONE || s?.phase == StressTestEngine.Phase.ERROR)
@@ -108,7 +108,7 @@ fun StressTestScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showConfirm = false; engine.start(context); onStarted() }) {
-                    Text("Start", color = AppColors.Green, maxLines = 1, softWrap = false)
+                    Text("Start", color = AppColors.SuccessAccent, maxLines = 1, softWrap = false)
                 }
             },
             dismissButton = {

@@ -255,7 +255,7 @@ internal fun MetaRunScreen(
             onClick = { onContinue(metaPrompt.copy(text = editablePrompt)) },
             enabled = editablePrompt.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Continue", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
         Column(
@@ -266,7 +266,7 @@ internal fun MetaRunScreen(
                 "Tweak the prompt for this run if you want; the saved Internal Prompt template stays untouched. Tap Continue to pick which model the meta runs on.",
                 fontSize = 13.sp, color = AppColors.TextSecondary
             )
-            Text("Prompt (edit for this run)", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            Text("Prompt (edit for this run)", fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
             OutlinedTextField(
                 value = editablePrompt,
                 onValueChange = { editablePrompt = it },
@@ -361,7 +361,7 @@ internal fun FanOutConfirmScreen(
             },
             enabled = pairCount > 0,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Run", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
         Column(
@@ -445,7 +445,7 @@ internal fun FanOutConfirmScreen(
             // Editable prompt at the bottom of the scroll body — the
             // edit lives only for this Run; the stored InternalPrompt
             // isn't touched.
-            Text("Fan-out prompt (edit for this run)", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+            Text("Fan-out prompt (edit for this run)", fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
             OutlinedTextField(
                 value = editablePrompt,
                 onValueChange = { editablePrompt = it },

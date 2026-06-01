@@ -388,13 +388,13 @@ private fun JudgeEvalL1(
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
             val stats = listOf(
-                Triple("Total", run.totalCells.toString(), AppColors.Blue),
-                Triple("Done", run.doneCount.toString(), AppColors.Green),
-                Triple("Run", run.runningCount.toString(), AppColors.Orange),
-                Triple("Wait", throttledCount.toString(), AppColors.Yellow),
-                Triple("Queue", run.queuedCount.toString(), AppColors.Brown),
-                Triple("Err", run.errorCount.toString(), AppColors.Red),
-                Triple("Cost", "${formatCents(run.totalCost, 2)} ¢", AppColors.Blue)
+                Triple("Total", run.totalCells.toString(), AppColors.InfoAccent),
+                Triple("Done", run.doneCount.toString(), AppColors.SuccessAccent),
+                Triple("Run", run.runningCount.toString(), AppColors.WarningAccent),
+                Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
+                Triple("Queue", run.queuedCount.toString(), AppColors.QueueAccent),
+                Triple("Err", run.errorCount.toString(), AppColors.DangerAccent),
+                Triple("Cost", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
             )
             Row(Modifier.fillMaxWidth()) {
                 stats.forEach { (label, _, color) ->
@@ -439,7 +439,7 @@ private fun JudgeEvalL1(
                     val stats2 = analyzeJudges(run.cells.values.toList())
                     Text(
                         "Consensus strength  ${pct(stats2.consensusStrength())}",
-                        color = AppColors.Green, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        color = AppColors.SuccessAccent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
                     )
                     Spacer(Modifier.height(8.dp))
@@ -447,11 +447,11 @@ private fun JudgeEvalL1(
                     // API time / Agreement-with-consensus.
                     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground)) {
                         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("#", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(22.dp))
-                            Text("Model", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                            Text("¢", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
-                            Text("Time", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(50.dp))
-                            Text("Cons.", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+                            Text("#", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(22.dp))
+                            Text("Model", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text("¢", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
+                            Text("Time", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(50.dp))
+                            Text("Cons.", color = AppColors.InfoAccent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
                             Spacer(Modifier.width(28.dp))   // aligns with the per-row ✗ remove column
                         }
                         HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.35f), thickness = 0.5.dp)
@@ -490,7 +490,7 @@ private fun JudgeEvalL1(
             if (run.errorCount > 0) {
                 Button(
                     onClick = onRestartFailed, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
                 ) { Text("Restart ${run.errorCount} failed", fontSize = 14.sp) }
             }
             Spacer(Modifier.height(24.dp))
@@ -500,7 +500,7 @@ private fun JudgeEvalL1(
 
 @Composable
 private fun JudgeProgressRow(label: String, done: Int, total: Int, barFrac: Float, onClick: () -> Unit) {
-    val barColor = AppColors.Green.copy(alpha = 0.30f)
+    val barColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
     Row(
         modifier = Modifier.fillMaxWidth()
             .drawBehind {
@@ -539,7 +539,7 @@ private fun JudgeLeaderRow(rank: Int, s: JudgeStats, onDelete: () -> Unit, onCli
         // A plain glyph (not emoji) so it honours the red tint.
         Text(
             com.ai.data.MetadataIconsHolder.current.crossMark,
-            color = AppColors.Red, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+            color = AppColors.DangerAccent, fontSize = 16.sp, fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
             modifier = Modifier.width(28.dp).clickable { onDelete() }.padding(vertical = 2.dp)
         )
@@ -571,16 +571,16 @@ private fun JudgeEvalL2(
         )
         Text(
             shortModelName(judgeKey.substringAfterLast('/')),
-            color = AppColors.Green, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+            color = AppColors.SuccessAccent, fontSize = 20.sp, fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)
         )
         LazyColumn(Modifier.fillMaxSize()) {
             item(key = "header") {
                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                    Text("Match", color = AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text("Verdict", color = AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp), textAlign = TextAlign.Center)
-                    Text("Cons.", color = AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                    Text("Match", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text("Verdict", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp), textAlign = TextAlign.Center)
+                    Text("Cons.", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
                     Spacer(Modifier.width(30.dp))
                 }
                 HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.45f), thickness = 0.5.dp)
@@ -601,7 +601,7 @@ private fun JudgeEvalL2(
                         textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
                     Text(
                         if (c.verdict == null) "—" else if (agree) com.ai.data.MetadataIconsHolder.current.checkMark else com.ai.data.MetadataIconsHolder.current.crossMark,
-                        color = if (c.verdict == null) AppColors.TextTertiary else if (agree) AppColors.Green else AppColors.Red,
+                        color = if (c.verdict == null) AppColors.TextTertiary else if (agree) AppColors.SuccessAccent else AppColors.DangerAccent,
                         fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.width(56.dp)
                     )
                     JudgeTraceBug(c.traceFile)
@@ -653,7 +653,7 @@ private fun JudgeEvalL3(
             Spacer(Modifier.height(4.dp))
             Text(
                 "Judge: ${shortModelName(judgeKey.substringAfterLast('/'))}",
-                color = AppColors.Green, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                color = AppColors.SuccessAccent, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
             )
             Spacer(Modifier.height(8.dp))
@@ -676,7 +676,7 @@ private fun JudgeEvalL3(
                 }
                 cell.errorMessage?.let {
                     Spacer(Modifier.height(6.dp))
-                    Text(it, color = AppColors.Red, fontSize = 12.sp)
+                    Text(it, color = AppColors.DangerAccent, fontSize = 12.sp)
                 }
             }
             Spacer(Modifier.height(12.dp))
@@ -694,10 +694,10 @@ private fun JudgeEvalL3(
 private fun ResponsePane(header: String, body: String, highlight: Boolean) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
-            .background(if (highlight) AppColors.Green.copy(alpha = 0.12f) else AppColors.CardBackground)
+            .background(if (highlight) AppColors.SuccessAccent.copy(alpha = 0.12f) else AppColors.CardBackground)
             .padding(12.dp)
     ) {
-        Text(header, color = if (highlight) AppColors.Green else AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Text(header, color = if (highlight) AppColors.SuccessAccent else AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
         Text(body.ifBlank { "(empty)" }, color = Color.White, fontSize = 13.sp)
     }
@@ -714,9 +714,9 @@ private fun fmtSecs(ms: Long): String {
 }
 
 private fun agreementColor(v: Double): Color = when {
-    v >= 0.7 -> AppColors.Green
-    v >= 0.5 -> AppColors.Yellow
-    else -> AppColors.Orange
+    v >= 0.7 -> AppColors.SuccessAccent
+    v >= 0.5 -> AppColors.CautionAccent
+    else -> AppColors.WarningAccent
 }
 
 private fun verdictGlyph(verdict: String?, status: JudgeCellStatus): String = when {
@@ -774,7 +774,7 @@ private fun MatchSummaryRow(m: MatchSummary, allDone: Boolean, onClick: () -> Un
     // Green progress fill = this match's judged fraction, like Fan Meta's
     // "Report models" rows. Hidden once the whole run is done.
     val progressFraction = if (m.total > 0) m.done.toFloat() / m.total else 0f
-    val barColor = AppColors.Green.copy(alpha = 0.30f)
+    val barColor = AppColors.SuccessAccent.copy(alpha = 0.30f)
     Row(
         modifier = Modifier.fillMaxWidth()
             .drawBehind {
@@ -817,7 +817,7 @@ private fun JudgeEvalMatchScreen(
             helpTopic = "judge_eval_match", title = "Match",
             subject = reportTitle, reportIcon = reportIcon, onBackClick = onBack
         )
-        Text(pairLabel, color = AppColors.Green, fontSize = 18.sp, fontWeight = FontWeight.Bold,
+        Text(pairLabel, color = AppColors.SuccessAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
         Text("Consensus: ${verdictLabel(cons)}", color = AppColors.TextTertiary, fontSize = 12.sp,
@@ -825,9 +825,9 @@ private fun JudgeEvalMatchScreen(
         LazyColumn(Modifier.fillMaxSize()) {
             item(key = "header") {
                 Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                    Text("Judge", color = AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    Text("Verdict", color = AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp), textAlign = TextAlign.Center)
-                    Text("Cons.", color = AppColors.Blue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
+                    Text("Judge", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text("Verdict", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(64.dp), textAlign = TextAlign.Center)
+                    Text("Cons.", color = AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(56.dp), textAlign = TextAlign.Center)
                     Spacer(Modifier.width(30.dp))
                 }
                 HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.45f), thickness = 0.5.dp)
@@ -844,7 +844,7 @@ private fun JudgeEvalMatchScreen(
                         textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
                     Text(
                         if (c.verdict == null) "—" else if (agree) com.ai.data.MetadataIconsHolder.current.checkMark else com.ai.data.MetadataIconsHolder.current.crossMark,
-                        color = if (c.verdict == null) AppColors.TextTertiary else if (agree) AppColors.Green else AppColors.Red,
+                        color = if (c.verdict == null) AppColors.TextTertiary else if (agree) AppColors.SuccessAccent else AppColors.DangerAccent,
                         fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.width(56.dp)
                     )
                     JudgeTraceBug(c.traceFile)

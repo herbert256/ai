@@ -153,17 +153,17 @@ internal fun ReportEditOverviewScreen(
             Button(
                 onClick = onEditModels,
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
             ) { Text("Edit models", maxLines = 1, softWrap = false) }
             Button(
                 onClick = { st.showEditIconsList.value = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
             ) { Text("Edit icons", maxLines = 1, softWrap = false) }
             Button(
                 onClick = { st.showEditTitlesList.value = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
             ) { Text("Edit titles", maxLines = 1, softWrap = false) }
             Spacer(modifier = Modifier.height(16.dp))
         }

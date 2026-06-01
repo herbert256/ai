@@ -230,7 +230,7 @@ private fun HelpFooter(
     val mi = LocalMetadataIcons.current
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("More information", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
+            Text("More information", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.WarningAccent)
             Spacer(modifier = Modifier.height(8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (onNavigateToHelpHome != null) {
@@ -243,7 +243,7 @@ private fun HelpFooter(
                             contentDescription = "Help home",
                             modifier = Modifier.size(40.dp).padding(end = 6.dp)
                         )
-                        Text("Help home", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                        Text("Help home", fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                     }
                 }
                 Row(
@@ -251,7 +251,7 @@ private fun HelpFooter(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(mi.info, fontSize = 24.sp, modifier = Modifier.width(40.dp))
-                    Text("About", fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    Text("About", fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable {
@@ -267,7 +267,7 @@ private fun HelpFooter(
                     Text(mi.github, fontSize = 24.sp, modifier = Modifier.width(40.dp))
                     Text(
                         "GitHub: herbert256/ai",
-                        fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold,
                         textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
                     )
                 }
@@ -290,7 +290,7 @@ private fun HomeSubpageLink(icon: String, title: String, blurb: String, onClick:
         ) {
             Text(icon, fontSize = 14.sp, modifier = Modifier.width(24.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(mi.iconizedText(title), fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                Text(mi.iconizedText(title), fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Text(mi.iconizedText(blurb), fontSize = 12.sp, color = AppColors.TextSecondary)
             }
         }
@@ -484,7 +484,7 @@ private fun SearchResults(query: String, onNavigateToTopic: (String) -> Unit) {
     if (hits.isEmpty()) {
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(14.dp)) {
-                Text("No matches", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
+                Text("No matches", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.WarningAccent)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     "Nothing in any help topic matched \"$query\". Try a shorter or differently-spelled term.",
@@ -509,7 +509,7 @@ private fun SearchResults(query: String, onNavigateToTopic: (String) -> Unit) {
             ) {
                     Text(mi.search, fontSize = 14.sp, modifier = Modifier.width(24.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(mi.iconizedText(hit.topicTitle), fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold)
+                    Text(mi.iconizedText(hit.topicTitle), fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                     if (hit.matchedCardTitle != null) {
                         Text(mi.iconizedText(hit.matchedCardTitle), fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
                     }
@@ -535,7 +535,7 @@ private fun RelevantHelpPagesCard(
     val mi = LocalMetadataIcons.current
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("Relevant Help pages", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
+            Text("Relevant Help pages", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.WarningAccent)
             Spacer(modifier = Modifier.height(6.dp))
             related.forEach { (id, title) ->
                 Row(
@@ -544,8 +544,8 @@ private fun RelevantHelpPagesCard(
                         .clickable { onNavigateToTopic(id) }
                         .padding(vertical = 5.dp)
                 ) {
-                    Text(mi.arrowRight, fontSize = 13.sp, color = AppColors.Blue, modifier = Modifier.width(24.dp))
-                    Text(mi.iconizedText(title), fontSize = 13.sp, color = AppColors.Blue, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                    Text(mi.arrowRight, fontSize = 13.sp, color = AppColors.InfoAccent, modifier = Modifier.width(24.dp))
+                    Text(mi.iconizedText(title), fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -557,7 +557,7 @@ private fun HelpSection(title: String, content: String) {
     val mi = LocalMetadataIcons.current
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(mi.iconizedText(title), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
+            Text(mi.iconizedText(title), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.WarningAccent)
             Spacer(modifier = Modifier.height(6.dp))
             Text(mi.iconizedText(content), fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp)
         }
@@ -575,7 +575,7 @@ private fun IconHelpTable(rows: List<Triple<String, String, String>>, title: Str
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 10.dp, bottom = 10.dp)) {
             if (title != null) {
-                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange,
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.WarningAccent,
                     modifier = Modifier.padding(start = 10.dp, bottom = 4.dp))
             }
             rows.forEach { (icon, name, desc) ->
@@ -607,7 +607,7 @@ private fun HelpIconTable() {
     )
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("Title bar icons", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
+            Text("Title bar icons", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.WarningAccent)
             Spacer(modifier = Modifier.height(8.dp))
             rows.forEach { (icon, name, desc) ->
                 Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 3.dp)) {
@@ -641,7 +641,7 @@ private fun InfoProviderTable(onNavigateToTopic: (String) -> Unit) {
     )
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("Info providers", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
+            Text("Info providers", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.WarningAccent)
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 "Third-party services the app reads model metadata + pricing from. Same seven that appear on Model Info → Sources. Tap a row for the details.",
@@ -660,7 +660,7 @@ private fun InfoProviderTable(onNavigateToTopic: (String) -> Unit) {
                     Text(taglines[ref.topicId].orEmpty(), fontSize = 12.sp,
                         color = Color(0xFFCCCCCC), lineHeight = 16.sp,
                         modifier = Modifier.weight(1f))
-                    Text(">", color = AppColors.Blue, fontSize = 14.sp)
+                    Text(">", color = AppColors.InfoAccent, fontSize = 14.sp)
                 }
             }
         }
@@ -776,7 +776,7 @@ private fun CloudProviderTable(onNavigateToTopic: (String) -> Unit) {
     if (services.isEmpty()) return
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text("Cloud providers", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Orange)
+            Text("Cloud providers", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.WarningAccent)
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 "AI services the app dispatches chat / report / embedding calls to. Tap a row for setup, models, pricing, and pitfalls specific to that provider.",
@@ -796,7 +796,7 @@ private fun CloudProviderTable(onNavigateToTopic: (String) -> Unit) {
                     Text(CLOUD_PROVIDER_TAGLINES[topicId].orEmpty(), fontSize = 12.sp,
                         color = Color(0xFFCCCCCC), lineHeight = 16.sp,
                         modifier = Modifier.weight(1f))
-                    Text(">", color = AppColors.Blue, fontSize = 14.sp)
+                    Text(">", color = AppColors.InfoAccent, fontSize = 14.sp)
                 }
             }
         }

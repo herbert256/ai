@@ -142,7 +142,7 @@ internal fun PromptEditReplayScreen(
                 Button(
                     onClick = { onCallModel(promptText, selectedParamsIds, selectedSystemPromptId) },
                     enabled = promptText.isNotBlank() && !running,
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     if (running) {
@@ -152,7 +152,7 @@ internal fun PromptEditReplayScreen(
                     Text(if (running) "Running…" else "Call model API", maxLines = 1, softWrap = false)
                 }
                 state?.unavailableMessage?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, color = AppColors.Red, fontSize = 12.sp)
+                    Text(it, color = AppColors.DangerAccent, fontSize = 12.sp)
                 }
             }
         }
@@ -182,7 +182,7 @@ private fun PromptEditResultCard(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${com.ai.ui.shared.LocalMetadataIcons.current.edit} Edit", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AppColors.Indigo)
+                Text("${com.ai.ui.shared.LocalMetadataIcons.current.edit} Edit", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = AppColors.SecondaryAccent)
                 Spacer(modifier = Modifier.width(8.dp))
                 if (result is PromptEditReplayResult.Running) {
                     CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
@@ -191,7 +191,7 @@ private fun PromptEditResultCard(
                 Text(promptEditStatus(result), color = AppColors.TextTertiary, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Spacer(modifier = Modifier.weight(1f))
                 (result as? PromptEditReplayResult.Success)?.cost?.let { cost ->
-                    Text("${formatCents(cost)} ¢", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("${formatCents(cost)} ¢", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
                 durationMs(result)?.let { ms ->
                     Spacer(modifier = Modifier.width(8.dp))
@@ -205,11 +205,11 @@ private fun PromptEditResultCard(
             when (result) {
                 PromptEditReplayResult.Pending -> Text("No result yet.", color = AppColors.TextTertiary, fontSize = 13.sp)
                 PromptEditReplayResult.Running -> Text("Running model call…", color = AppColors.TextTertiary, fontSize = 13.sp)
-                is PromptEditReplayResult.Error -> Text(result.message, color = AppColors.Red, fontSize = 14.sp)
+                is PromptEditReplayResult.Error -> Text(result.message, color = AppColors.DangerAccent, fontSize = 14.sp)
                 is PromptEditReplayResult.Success -> {
                     Button(
                         onClick = onUseResponse,
-                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green),
+                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent),
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Use this response", maxLines = 1, softWrap = false) }
                     ContentWithThinkSections(analysis = result.response)

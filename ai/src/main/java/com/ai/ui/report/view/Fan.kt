@@ -420,7 +420,7 @@ fun FanOutViewScreen(
                             FanOutBodyCard(
                                 reportIcon = agent?.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon,
                                 body = body,
-                                borderColor = AppColors.Purple.copy(alpha = 0.35f),
+                                borderColor = AppColors.PrimaryAccent.copy(alpha = 0.35f),
                                 overrideTitle = initiatorTitle,
                                 languageIcon = initiatorFlag,
                                 onLanguageClick = advanceLanguage
@@ -529,7 +529,7 @@ fun FanOutViewScreen(
                             FanOutBodyCard(
                                 reportIcon = pair.icon?.takeIf { it.isNotBlank() } ?: com.ai.ui.shared.LocalMetadataIcons.current.reportModelIcon,
                                 body = responderBody(pair),
-                                borderColor = AppColors.Blue.copy(alpha = 0.35f),
+                                borderColor = AppColors.InfoAccent.copy(alpha = 0.35f),
                                 overrideTitle = responderTitle(pair)
                             )
                         }
@@ -576,7 +576,7 @@ private fun CounterRow(
     ) {
         Text(
             text = modelLabel,
-            color = AppColors.Green,
+            color = AppColors.SuccessAccent,
             fontSize = 22.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -612,7 +612,7 @@ private fun CollapsedInitiatorRow(icon: String, preview: String, onToggle: () ->
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(10.dp))
             .background(AppColors.CardBackground)
-            .border(1.dp, AppColors.Purple.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
+            .border(1.dp, AppColors.PrimaryAccent.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
             .clickable { onToggle() }
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -670,7 +670,7 @@ private fun FanOutBodyCard(
             overrideTitle?.takeIf { it.isNotBlank() }?.let { t ->
                 Text(
                     text = t,
-                    color = AppColors.Orange,
+                    color = AppColors.WarningAccent,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -722,7 +722,7 @@ private fun FanOutResponderCard(pair: SecondaryResult, body: String, overrideTit
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
-            .border(1.dp, AppColors.Blue.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
+            .border(1.dp, AppColors.InfoAccent.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
             .clickable { expanded = !expanded }
             .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
@@ -740,7 +740,7 @@ private fun FanOutResponderCard(pair: SecondaryResult, body: String, overrideTit
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = shortModelName(pair.model),
-                color = AppColors.Green, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                color = AppColors.SuccessAccent, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.modelInfoViewClickable(provider, pair.model)
             )

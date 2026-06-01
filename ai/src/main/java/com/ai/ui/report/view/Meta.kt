@@ -229,7 +229,7 @@ fun MetaViewScreen(
                 text = modelLabel,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = AppColors.Green,
+                color = AppColors.SuccessAccent,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -350,7 +350,7 @@ private fun AnswerCard(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
             .background(AppColors.CardBackground)
-            .border(1.dp, AppColors.Purple.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
+            .border(1.dp, AppColors.PrimaryAccent.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
     ) {
         Column(
             modifier = Modifier.fillMaxWidth()

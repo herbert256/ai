@@ -161,7 +161,7 @@ internal fun SecondaryScopeScreen(
             },
             enabled = canContinue,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Continue", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -259,7 +259,7 @@ internal fun SecondaryScopeScreen(
                                         text = {
                                             Text(
                                                 rerankLabel(r),
-                                                color = if (r.id == selectedRerank) AppColors.Blue else Color.White,
+                                                color = if (r.id == selectedRerank) AppColors.InfoAccent else Color.White,
                                                 fontSize = 13.sp
                                             )
                                         },

@@ -117,7 +117,7 @@ fun CompareSelectMetaScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(if (checked) com.ai.data.MetadataIconsHolder.current.checkboxOn else com.ai.data.MetadataIconsHolder.current.checkboxOff, fontSize = 18.sp,
-                            color = if (checked) AppColors.Green else AppColors.TextSecondary,
+                            color = if (checked) AppColors.SuccessAccent else AppColors.TextSecondary,
                             modifier = Modifier.padding(end = 10.dp))
                         Column(Modifier.weight(1f)) {
                             Text(name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
@@ -139,7 +139,7 @@ fun CompareSelectMetaScreen(
             onClick = { onNext(selected.toList()) },
             enabled = selected.isNotEmpty(),
             modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
         ) { Text("Next — pick a prompt (${selected.size})", fontSize = 14.sp) }
     }
 }
@@ -379,9 +379,9 @@ private fun agentLabel(agents: Map<String, ReportAgent>, agentId: String?): Stri
 
 private fun pctColor(p: Int?): Color = when {
     p == null -> AppColors.TextSecondary
-    p >= 67 -> AppColors.Green
-    p >= 34 -> AppColors.Yellow
-    else -> AppColors.Red
+    p >= 67 -> AppColors.SuccessAccent
+    p >= 34 -> AppColors.CautionAccent
+    else -> AppColors.DangerAccent
 }
 
 private fun pctText(p: Int?): String = p?.let { "$it%" } ?: "…"
@@ -449,13 +449,13 @@ private fun CompareL1(
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
             val stats = listOf(
-                Triple("Total", run.totalCells.toString(), AppColors.Blue),
-                Triple("Done", run.doneCount.toString(), AppColors.Green),
-                Triple("Run", run.runningCount.toString(), AppColors.Orange),
-                Triple("Wait", throttledCount.toString(), AppColors.Yellow),
-                Triple("Queue", run.queuedCount.toString(), AppColors.Brown),
-                Triple("Err", run.errorCount.toString(), AppColors.Red),
-                Triple("Cost", "${formatCents(run.totalCost, 2)} ¢", AppColors.Blue)
+                Triple("Total", run.totalCells.toString(), AppColors.InfoAccent),
+                Triple("Done", run.doneCount.toString(), AppColors.SuccessAccent),
+                Triple("Run", run.runningCount.toString(), AppColors.WarningAccent),
+                Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
+                Triple("Queue", run.queuedCount.toString(), AppColors.QueueAccent),
+                Triple("Err", run.errorCount.toString(), AppColors.DangerAccent),
+                Triple("Cost", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
             )
             Row(Modifier.fillMaxWidth()) {
                 stats.forEach { (label, _, color) ->
@@ -498,7 +498,7 @@ private fun CompareL1(
             if (run.errorCount > 0) {
                 Button(
                     onClick = onRestartFailed, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
                 ) { Text("Restart ${run.errorCount} failed", fontSize = 14.sp) }
             }
             Spacer(Modifier.height(24.dp))
@@ -577,7 +577,7 @@ private fun CompareL2(
 @Composable
 private fun CompareGreenSubject(text: String) {
     Text(
-        text = text, color = AppColors.Green, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+        text = text, color = AppColors.SuccessAccent, fontSize = 20.sp, fontWeight = FontWeight.Bold,
         maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp)
     )
@@ -667,12 +667,12 @@ private fun CompareL3(
                     Text(c.reason!!, color = AppColors.TextSecondary, fontSize = 12.sp)
                 }
                 c.judgeModel?.let { Text("Scored by: $it", color = AppColors.TextTertiary, fontSize = 11.sp) }
-                c.errorMessage?.let { Text("${com.ai.data.MetadataIconsHolder.current.warningPlain} $it", color = AppColors.Red, fontSize = 11.sp) }
+                c.errorMessage?.let { Text("${com.ai.data.MetadataIconsHolder.current.warningPlain} $it", color = AppColors.DangerAccent, fontSize = 11.sp) }
             }
             Spacer(Modifier.height(12.dp))
-            ComparePane("Answer — $answerLabel", AppColors.Green, agents[c.agentId]?.responseBody)
+            ComparePane("Answer — $answerLabel", AppColors.SuccessAccent, agents[c.agentId]?.responseBody)
             Spacer(Modifier.height(12.dp))
-            ComparePane("Meta — $metaLabel", AppColors.Blue,
+            ComparePane("Meta — $metaLabel", AppColors.InfoAccent,
                 metaRowsById[c.metaResultId]?.content?.let { com.ai.data.stripMetaReferenceLegend(it) })
             Spacer(Modifier.height(24.dp))
         }

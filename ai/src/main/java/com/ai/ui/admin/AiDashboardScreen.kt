@@ -397,54 +397,54 @@ fun AiTraceStatsScreen(
             else -> LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { Spacer(Modifier.height(4.dp)) }
                 item {
-                    SectionCard("🐞", "Overview", AppColors.Indigo) {
-                        KeyVal("Tracing", if (s.tracingEnabled) "on" else "off", if (s.tracingEnabled) AppColors.Green else AppColors.Orange)
+                    SectionCard("🐞", "Overview", AppColors.SecondaryAccent) {
+                        KeyVal("Tracing", if (s.tracingEnabled) "on" else "off", if (s.tracingEnabled) AppColors.SuccessAccent else AppColors.WarningAccent)
                         KeyVal("Total traces", "${s.total}")
                         KeyVal("Distinct runs", "${s.runs}")
                         if (s.partial > 0) KeyVal("Partial (streaming)", "${s.partial}", AppColors.TextSecondary)
                     }
                 }
                 item {
-                    SectionCard("📡", "Status", AppColors.Blue) {
-                        StatRow("✅ 2xx", "${s.ok2xx}", AppColors.Green) { onOpenTraceFilter("status", "2xx") }
-                        StatRow("🚧 429", "${s.rate429}", if (s.rate429 > 0) AppColors.Orange else AppColors.TextDim) { onOpenTraceFilter("status", "429") }
-                        StatRow("⚠️ 4xx", "${s.client4xx}", if (s.client4xx > 0) AppColors.Orange else AppColors.TextDim) { onOpenTraceFilter("status", "4xx") }
-                        StatRow("🔥 5xx", "${s.server5xx}", if (s.server5xx > 0) AppColors.Red else AppColors.TextDim) { onOpenTraceFilter("status", "5xx") }
-                        StatRow("💥 Failed", "${s.failed0}", if (s.failed0 > 0) AppColors.Red else AppColors.TextDim) { onOpenTraceFilter("status", "0") }
+                    SectionCard("📡", "Status", AppColors.InfoAccent) {
+                        StatRow("✅ 2xx", "${s.ok2xx}", AppColors.SuccessAccent) { onOpenTraceFilter("status", "2xx") }
+                        StatRow("🚧 429", "${s.rate429}", if (s.rate429 > 0) AppColors.WarningAccent else AppColors.TextDim) { onOpenTraceFilter("status", "429") }
+                        StatRow("⚠️ 4xx", "${s.client4xx}", if (s.client4xx > 0) AppColors.WarningAccent else AppColors.TextDim) { onOpenTraceFilter("status", "4xx") }
+                        StatRow("🔥 5xx", "${s.server5xx}", if (s.server5xx > 0) AppColors.DangerAccent else AppColors.TextDim) { onOpenTraceFilter("status", "5xx") }
+                        StatRow("💥 Failed", "${s.failed0}", if (s.failed0 > 0) AppColors.DangerAccent else AppColors.TextDim) { onOpenTraceFilter("status", "0") }
                         StatRow("▫️ Other", "${s.other}", AppColors.TextDim) { onOpenTraceFilter("status", "other") }
                     }
                 }
                 if (s.byHost.isNotEmpty()) item {
-                    SectionCard("🌐", "Top hosts", AppColors.Green, onClick = { onOpenBreakdown("host") }) {
+                    SectionCard("🌐", "Top hosts", AppColors.SuccessAccent, onClick = { onOpenBreakdown("host") }) {
                         s.byHost.take(5).forEach { (h, c) -> KeyVal(h, "$c") }
                         if (s.byHost.size > 5) KeyVal("+${s.byHost.size - 5} more", "→", AppColors.TextTertiary)
                     }
                 }
                 if (s.byModel.isNotEmpty()) item {
-                    SectionCard("🧠", "Top models", AppColors.Purple, onClick = { onOpenBreakdown("model") }) {
+                    SectionCard("🧠", "Top models", AppColors.PrimaryAccent, onClick = { onOpenBreakdown("model") }) {
                         s.byModel.take(5).forEach { (m, c) -> KeyVal(com.ai.ui.shared.shortModelName(m), "$c") }
                         if (s.byModel.size > 5) KeyVal("+${s.byModel.size - 5} more", "→", AppColors.TextTertiary)
                     }
                 }
                 if (s.byCategory.isNotEmpty()) item {
-                    SectionCard("🏷️", "Top categories", AppColors.Indigo, onClick = { onOpenBreakdown("category") }) {
+                    SectionCard("🏷️", "Top categories", AppColors.SecondaryAccent, onClick = { onOpenBreakdown("category") }) {
                         s.byCategory.take(5).forEach { (cat, c) -> KeyVal(cat, "$c") }
                         if (s.byCategory.size > 5) KeyVal("+${s.byCategory.size - 5} more", "→", AppColors.TextTertiary)
                     }
                 }
                 item {
-                    SectionCard("🗓️", "Activity", AppColors.Blue) {
+                    SectionCard("🗓️", "Activity", AppColors.InfoAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("☀️", "Today", s.today, AppColors.Green)
-                            StatChip("📅", "7 days", s.last7d, AppColors.Blue)
-                            StatChip("🗓️", "30 days", s.last30d, AppColors.Indigo)
+                            StatChip("☀️", "Today", s.today, AppColors.SuccessAccent)
+                            StatChip("📅", "7 days", s.last7d, AppColors.InfoAccent)
+                            StatChip("🗓️", "30 days", s.last30d, AppColors.SecondaryAccent)
                         }
                         s.newest?.let { Spacer(Modifier.height(4.dp)); KeyVal("Newest", fmtFetched(it)) }
                         s.oldest?.let { KeyVal("Oldest", fmtFetched(it)) }
                     }
                 }
                 item {
-                    SectionCard("📋", "Reports", AppColors.Orange) {
+                    SectionCard("📋", "Reports", AppColors.WarningAccent) {
                         KeyVal("Traces tied to a report", "${s.withReport}")
                         KeyVal("Distinct reports", "${s.distinctReports}")
                         val avg = if (s.distinctReports > 0) s.withReport.toDouble() / s.distinctReports else 0.0
@@ -473,9 +473,9 @@ fun AiTraceBreakdownScreen(
     val refreshTick = resumeRefreshTick()
     val d by produceState<TraceStatsData?>(null, refreshTick) { value = computeTraceStats() }
     val (emoji, title, accent) = when (dim) {
-        "host" -> Triple(com.ai.data.MetadataDefaults.WEB, "Trace hosts", AppColors.Green)
-        "model" -> Triple(com.ai.data.MetadataDefaults.MODEL_ICON, "Trace models", AppColors.Purple)
-        else -> Triple(com.ai.data.MetadataDefaults.LABEL, "Trace categories", AppColors.Indigo)
+        "host" -> Triple(com.ai.data.MetadataDefaults.WEB, "Trace hosts", AppColors.SuccessAccent)
+        "model" -> Triple(com.ai.data.MetadataDefaults.MODEL_ICON, "Trace models", AppColors.PrimaryAccent)
+        else -> Triple(com.ai.data.MetadataDefaults.LABEL, "Trace categories", AppColors.SecondaryAccent)
     }
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
@@ -534,20 +534,20 @@ fun AiLogStatsScreen(
             else -> LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { Spacer(Modifier.height(4.dp)) }
                 item {
-                    SectionCard("🩺", "Health", AppColors.Green) {
+                    SectionCard("🩺", "Health", AppColors.SuccessAccent) {
                         KeyVal("Log level", s.level)
-                        KeyVal("Writer", if (s.writerError == null) "OK" else "ERROR", if (s.writerError == null) AppColors.Green else AppColors.Red)
-                        if (s.writerError != null) Text(s.writerError, fontSize = 11.sp, color = AppColors.Red)
-                        KeyVal("Dropped lines", "${s.droppedLines}", if (s.droppedLines > 0) AppColors.Orange else Color.White)
+                        KeyVal("Writer", if (s.writerError == null) "OK" else "ERROR", if (s.writerError == null) AppColors.SuccessAccent else AppColors.DangerAccent)
+                        if (s.writerError != null) Text(s.writerError, fontSize = 11.sp, color = AppColors.DangerAccent)
+                        KeyVal("Dropped lines", "${s.droppedLines}", if (s.droppedLines > 0) AppColors.WarningAccent else Color.White)
                     }
                 }
                 item {
-                    SectionCard("📊", "By level", AppColors.Indigo) {
+                    SectionCard("📊", "By level", AppColors.SecondaryAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("❌", "Error", s.byLevel["ERROR"] ?: 0, if ((s.byLevel["ERROR"] ?: 0) > 0) AppColors.Red else AppColors.TextDim)
-                            StatChip("⚠️", "Warn", s.byLevel["WARN"] ?: 0, if ((s.byLevel["WARN"] ?: 0) > 0) AppColors.Orange else AppColors.TextDim)
-                            StatChip("ℹ️", "Info", s.byLevel["INFO"] ?: 0, AppColors.Green)
-                            StatChip("🔧", "Debug", s.byLevel["DEBUG"] ?: 0, AppColors.Blue)
+                            StatChip("❌", "Error", s.byLevel["ERROR"] ?: 0, if ((s.byLevel["ERROR"] ?: 0) > 0) AppColors.DangerAccent else AppColors.TextDim)
+                            StatChip("⚠️", "Warn", s.byLevel["WARN"] ?: 0, if ((s.byLevel["WARN"] ?: 0) > 0) AppColors.WarningAccent else AppColors.TextDim)
+                            StatChip("ℹ️", "Info", s.byLevel["INFO"] ?: 0, AppColors.SuccessAccent)
+                            StatChip("🔧", "Debug", s.byLevel["DEBUG"] ?: 0, AppColors.InfoAccent)
                             StatChip("🔬", "Trace", s.byLevel["TRACE"] ?: 0, AppColors.TextSecondary)
                         }
                         Spacer(Modifier.height(4.dp))
@@ -555,10 +555,10 @@ fun AiLogStatsScreen(
                     }
                 }
                 if (s.topTags.isNotEmpty()) item {
-                    SectionCard("🏷️", "Top tags", AppColors.Purple) { s.topTags.forEach { (tag, c) -> KeyVal(tag, "$c") } }
+                    SectionCard("🏷️", "Top tags", AppColors.PrimaryAccent) { s.topTags.forEach { (tag, c) -> KeyVal(tag, "$c") } }
                 }
                 item {
-                    SectionCard("🗂️", "Files", AppColors.Blue) {
+                    SectionCard("🗂️", "Files", AppColors.InfoAccent) {
                         KeyVal("Log files", "${s.fileCount}")
                         KeyVal("Total size", fmtBytes(s.totalBytes))
                         if (s.oldestDate != null && s.newestDate != null) KeyVal("Date range", "${s.oldestDate} → ${s.newestDate}", AppColors.TextSecondary)
@@ -624,33 +624,33 @@ fun AiStatReportsScreen(
                 item { ReportsSection(d.reports) }
 
                 item {
-                    SectionCard("🤖", "Agent calls", AppColors.Blue) {
+                    SectionCard("🤖", "Agent calls", AppColors.InfoAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("✅", "Success", d.agentSuccess, AppColors.Green)
-                            StatChip("❌", "Error", d.reports.erroredCalls, if (d.reports.erroredCalls > 0) AppColors.Red else AppColors.TextDim)
+                            StatChip("✅", "Success", d.agentSuccess, AppColors.SuccessAccent)
+                            StatChip("❌", "Error", d.reports.erroredCalls, if (d.reports.erroredCalls > 0) AppColors.DangerAccent else AppColors.TextDim)
                             StatChip("⏹️", "Stopped", d.reports.stopped, AppColors.TextSecondary)
-                            StatChip("⏳", "In flight", d.agentPending, if (d.agentPending > 0) AppColors.Orange else AppColors.TextDim)
+                            StatChip("⏳", "In flight", d.agentPending, if (d.agentPending > 0) AppColors.WarningAccent else AppColors.TextDim)
                         }
                         Spacer(Modifier.height(6.dp))
                         val errRate = if (d.reports.agentCalls > 0) d.reports.erroredCalls * 100.0 / d.reports.agentCalls else 0.0
                         KeyVal("Error rate", String.format(Locale.US, "%.1f%%", errRate),
-                            if (errRate >= 10.0) AppColors.Red else if (errRate > 0) AppColors.Orange else AppColors.Green)
-                        Bar(if (d.reports.agentCalls > 0) d.reports.erroredCalls.toFloat() / d.reports.agentCalls else 0f, AppColors.Red)
+                            if (errRate >= 10.0) AppColors.DangerAccent else if (errRate > 0) AppColors.WarningAccent else AppColors.SuccessAccent)
+                        Bar(if (d.reports.agentCalls > 0) d.reports.erroredCalls.toFloat() / d.reports.agentCalls else 0f, AppColors.DangerAccent)
                         val avgAgents = if (d.reports.total > 0) d.reports.agentCalls.toDouble() / d.reports.total else 0.0
                         KeyVal("Avg models / report", String.format(Locale.US, "%.1f", avgAgents))
                     }
                 }
 
                 item {
-                    SectionCard("💵", "Tokens & spend", AppColors.Green) {
+                    SectionCard("💵", "Tokens & spend", AppColors.SuccessAccent) {
                         KeyVal("Input tokens", formatCompactNumber(d.inputTokens))
                         KeyVal("Output tokens", formatCompactNumber(d.outputTokens))
                         KeyVal("Total tokens", formatCompactNumber(d.inputTokens + d.outputTokens))
                         KeyVal("Secondary tokens", formatCompactNumber(d.secondaryTokens), AppColors.TextSecondary)
                         Spacer(Modifier.height(4.dp))
-                        KeyVal("Report spend", money(d.reports.spend), AppColors.Green)
-                        KeyVal("Secondary spend", money(d.secondaryCost), AppColors.Green)
-                        KeyVal("Total spend", money(d.reports.spend + d.secondaryCost), AppColors.Green)
+                        KeyVal("Report spend", money(d.reports.spend), AppColors.SuccessAccent)
+                        KeyVal("Secondary spend", money(d.secondaryCost), AppColors.SuccessAccent)
+                        KeyVal("Total spend", money(d.reports.spend + d.secondaryCost), AppColors.SuccessAccent)
                         val avgPerReport = if (d.reports.total > 0) d.reports.spend / d.reports.total else 0.0
                         val avgPerCall = if (d.reports.agentCalls > 0) d.reports.spend / d.reports.agentCalls else 0.0
                         KeyVal("Avg / report", money(avgPerReport), AppColors.TextSecondary)
@@ -660,12 +660,12 @@ fun AiStatReportsScreen(
                 }
 
                 item {
-                    SectionCard("🗓️", "Activity", AppColors.Indigo) {
+                    SectionCard("🗓️", "Activity", AppColors.SecondaryAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("☀️", "Today", d.createdToday, AppColors.Green)
-                            StatChip("📅", "7 days", d.created7d, AppColors.Blue)
-                            StatChip("🗓️", "30 days", d.created30d, AppColors.Indigo)
-                            StatChip("📌", "Pinned", d.pinned, AppColors.Yellow)
+                            StatChip("☀️", "Today", d.createdToday, AppColors.SuccessAccent)
+                            StatChip("📅", "7 days", d.created7d, AppColors.InfoAccent)
+                            StatChip("🗓️", "30 days", d.created30d, AppColors.SecondaryAccent)
+                            StatChip("📌", "Pinned", d.pinned, AppColors.CautionAccent)
                         }
                         d.oldestCreatedAt?.let {
                             Spacer(Modifier.height(4.dp))
@@ -675,25 +675,25 @@ fun AiStatReportsScreen(
                 }
 
                 item {
-                    SectionCard("✨", "Features used", AppColors.Purple) {
+                    SectionCard("✨", "Features used", AppColors.PrimaryAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("👁", "Vision", d.withImage, AppColors.Blue)
-                            StatChip("🌐", "Web search", d.withWebSearch, AppColors.Green)
-                            StatChip("🧠", "Reasoning", d.withReasoning, AppColors.Purple)
-                            StatChip("📚", "Knowledge", d.withKnowledge, AppColors.Yellow)
-                            StatChip("🌍", "Translated", d.translated, AppColors.Blue)
+                            StatChip("👁", "Vision", d.withImage, AppColors.InfoAccent)
+                            StatChip("🌐", "Web search", d.withWebSearch, AppColors.SuccessAccent)
+                            StatChip("🧠", "Reasoning", d.withReasoning, AppColors.PrimaryAccent)
+                            StatChip("📚", "Knowledge", d.withKnowledge, AppColors.CautionAccent)
+                            StatChip("🌍", "Translated", d.translated, AppColors.InfoAccent)
                             StatChip("📊", "Table", d.tableReports, AppColors.TextSecondary)
                         }
                     }
                 }
 
                 if (d.topModels.isNotEmpty()) item {
-                    SectionCard("🏆", "Top models (by calls)", AppColors.Orange) {
+                    SectionCard("🏆", "Top models (by calls)", AppColors.WarningAccent) {
                         d.topModels.forEach { (model, calls) -> KeyVal(com.ai.ui.shared.shortModelName(model), "$calls") }
                     }
                 }
                 if (d.topProviders.isNotEmpty()) item {
-                    SectionCard("🔌", "Top providers (by calls)", AppColors.Blue) {
+                    SectionCard("🔌", "Top providers (by calls)", AppColors.InfoAccent) {
                         d.topProviders.forEach { (provider, calls) -> KeyVal(provider, "$calls") }
                     }
                 }
@@ -744,49 +744,49 @@ fun AiStatProvidersScreen(
                 item { Spacer(Modifier.height(4.dp)) }
 
                 item {
-                    SectionCard("🔌", "Providers", AppColors.Indigo) {
+                    SectionCard("🔌", "Providers", AppColors.SecondaryAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             StatChip("🔢", "Configured", d.providersConfigured, Color.White)
-                            StatChip("🟢", "Active", d.providersActive, AppColors.Green)
-                            StatChip("🔑", "With key", d.providersWithKey, AppColors.Blue)
+                            StatChip("🟢", "Active", d.providersActive, AppColors.SuccessAccent)
+                            StatChip("🔑", "With key", d.providersWithKey, AppColors.InfoAccent)
                             StatChip("⚪", "Inactive", d.providersConfigured - d.providersActive, AppColors.TextDim)
                         }
                     }
                 }
                 item {
-                    SectionCard("🔣", "API formats", AppColors.Blue) {
+                    SectionCard("🔣", "API formats", AppColors.InfoAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("🤝", "OpenAI-compatible", d.byFormat["OPENAI_COMPATIBLE"] ?: 0, AppColors.Green)
-                            StatChip("🅰️", "Anthropic", d.byFormat["ANTHROPIC"] ?: 0, AppColors.Orange)
-                            StatChip("🔷", "Google", d.byFormat["GOOGLE"] ?: 0, AppColors.Blue)
+                            StatChip("🤝", "OpenAI-compatible", d.byFormat["OPENAI_COMPATIBLE"] ?: 0, AppColors.SuccessAccent)
+                            StatChip("🅰️", "Anthropic", d.byFormat["ANTHROPIC"] ?: 0, AppColors.WarningAccent)
+                            StatChip("🔷", "Google", d.byFormat["GOOGLE"] ?: 0, AppColors.InfoAccent)
                         }
                     }
                 }
                 item {
-                    SectionCard("🗂️", "Catalog cache", AppColors.Green) {
+                    SectionCard("🗂️", "Catalog cache", AppColors.SuccessAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("✅", "Cached", d.cached, AppColors.Green)
-                            StatChip("⏳", "Stale >7d", d.stale, if (d.stale > 0) AppColors.Orange else AppColors.TextDim)
+                            StatChip("✅", "Cached", d.cached, AppColors.SuccessAccent)
+                            StatChip("⏳", "Stale >7d", d.stale, if (d.stale > 0) AppColors.WarningAccent else AppColors.TextDim)
                             StatChip("➖", "Never", d.neverCached, AppColors.TextDim)
                         }
                     }
                 }
                 item {
-                    SectionCard("👥", "Workers", AppColors.Blue) {
+                    SectionCard("👥", "Workers", AppColors.InfoAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("🤖", "Agents", d.agents, AppColors.Blue)
-                            StatChip("🐦", "Flocks", d.flocks, AppColors.Green)
-                            StatChip("🐝", "Swarms", d.swarms, AppColors.Orange)
+                            StatChip("🤖", "Agents", d.agents, AppColors.InfoAccent)
+                            StatChip("🐦", "Flocks", d.flocks, AppColors.SuccessAccent)
+                            StatChip("🐝", "Swarms", d.swarms, AppColors.WarningAccent)
                         }
                     }
                 }
                 d.lastTest?.let { t ->
                     item {
-                        SectionCard("🧪", "Last test-all-models", AppColors.Purple) {
+                        SectionCard("🧪", "Last test-all-models", AppColors.PrimaryAccent) {
                             KeyVal("For testing", "${t.forTesting}")
-                            KeyVal("Passed", "${t.passed}", AppColors.Green)
-                            KeyVal("Failed", "${t.failed}", if (t.failed > 0) AppColors.Red else Color.White)
-                            KeyVal("Cost", money(t.cost), AppColors.Green)
+                            KeyVal("Passed", "${t.passed}", AppColors.SuccessAccent)
+                            KeyVal("Failed", "${t.failed}", if (t.failed > 0) AppColors.DangerAccent else Color.White)
+                            KeyVal("Cost", money(t.cost), AppColors.SuccessAccent)
                             KeyVal("When", fmtFetched(t.startedAt))
                         }
                     }
@@ -840,36 +840,36 @@ fun AiStatModelsScreen(
             LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { Spacer(Modifier.height(4.dp)) }
                 item {
-                    SectionCard("🧠", "Models", AppColors.Purple) {
+                    SectionCard("🧠", "Models", AppColors.PrimaryAccent) {
                         KeyVal("Total configured", "${d.totalModels}")
                         Spacer(Modifier.height(6.dp))
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("👁", "Vision", d.vision, AppColors.Blue)
-                            StatChip("🌐", "Web search", d.webSearch, AppColors.Green)
-                            StatChip("🧠", "Reasoning", d.reasoning, AppColors.Purple)
-                            StatChip("🔢", "Embedding", d.embedding, AppColors.Indigo)
+                            StatChip("👁", "Vision", d.vision, AppColors.InfoAccent)
+                            StatChip("🌐", "Web search", d.webSearch, AppColors.SuccessAccent)
+                            StatChip("🧠", "Reasoning", d.reasoning, AppColors.PrimaryAccent)
+                            StatChip("🔢", "Embedding", d.embedding, AppColors.SecondaryAccent)
                         }
                     }
                 }
                 item {
-                    SectionCard("🛠️", "Capabilities", AppColors.Blue) {
+                    SectionCard("🛠️", "Capabilities", AppColors.InfoAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("🧰", "Function calling", d.fnCalling, AppColors.Green)
-                            StatChip("📄", "PDF input", d.pdfInput, AppColors.Blue)
-                            StatChip("🎚️", "Reasoning levels", d.reasoningLevels, AppColors.Purple)
+                            StatChip("🧰", "Function calling", d.fnCalling, AppColors.SuccessAccent)
+                            StatChip("📄", "PDF input", d.pdfInput, AppColors.InfoAccent)
+                            StatChip("🎚️", "Reasoning levels", d.reasoningLevels, AppColors.PrimaryAccent)
                             StatChip("🗒️", "With metadata", d.withCaps, AppColors.TextSecondary)
                         }
                     }
                 }
                 if (d.modelsByType.isNotEmpty()) item {
-                    SectionCard("🏷️", "By type", AppColors.Indigo) {
+                    SectionCard("🏷️", "By type", AppColors.SecondaryAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             d.modelsByType.forEach { (type, count) -> StatChip("•", type, count, AppColors.TextSecondary) }
                         }
                     }
                 }
                 item {
-                    SectionCard("📏", "Context length", AppColors.Green) {
+                    SectionCard("📏", "Context length", AppColors.SuccessAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             d.contextBuckets.forEach { (bucket, count) -> StatChip("•", bucket, count, AppColors.TextSecondary) }
                         }
@@ -880,22 +880,22 @@ fun AiStatModelsScreen(
                     }
                 }
                 item {
-                    SectionCard("🚦", "States", AppColors.Orange) {
+                    SectionCard("🚦", "States", AppColors.WarningAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("⛔", "Blocked", d.blocked, if (d.blocked > 0) AppColors.Red else AppColors.TextDim)
-                            StatChip("🚫", "Inaccessible", d.inaccessible, if (d.inaccessible > 0) AppColors.Orange else AppColors.TextDim)
+                            StatChip("⛔", "Blocked", d.blocked, if (d.blocked > 0) AppColors.DangerAccent else AppColors.TextDim)
+                            StatChip("🚫", "Inaccessible", d.inaccessible, if (d.inaccessible > 0) AppColors.WarningAccent else AppColors.TextDim)
                             StatChip("⏭️", "Test-excluded", d.testExcluded, AppColors.TextSecondary)
-                            StatChip("❄️", "Cooling", d.cooling, if (d.cooling > 0) AppColors.Orange else AppColors.TextDim)
+                            StatChip("❄️", "Cooling", d.cooling, if (d.cooling > 0) AppColors.WarningAccent else AppColors.TextDim)
                         }
                     }
                 }
                 if (d.deprecated > 0) item {
-                    SectionCard("⚰️", "Deprecated", AppColors.Red) {
-                        KeyVal("Models flagged deprecated", "${d.deprecated}", AppColors.Orange)
+                    SectionCard("⚰️", "Deprecated", AppColors.DangerAccent) {
+                        KeyVal("Models flagged deprecated", "${d.deprecated}", AppColors.WarningAccent)
                     }
                 }
                 item {
-                    SectionCard("🔌", "Models per provider", AppColors.Blue) {
+                    SectionCard("🔌", "Models per provider", AppColors.InfoAccent) {
                         val withModels = d.providers.filter { it.models > 0 }
                         val avg = if (withModels.isNotEmpty()) withModels.sumOf { it.models }.toDouble() / withModels.size else 0.0
                         KeyVal("Avg per provider", String.format(Locale.US, "%.1f", avg))
@@ -942,7 +942,7 @@ private fun ProviderStatCard(row: ProviderRow, isExpanded: Boolean, onToggle: ()
             if (signals.isNotEmpty() || !row.hasKey) {
                 Spacer(Modifier.height(4.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (!row.hasKey) Text("no key", fontSize = 11.sp, color = AppColors.Orange)
+                    if (!row.hasKey) Text("no key", fontSize = 11.sp, color = AppColors.WarningAccent)
                     signals.forEach { (e, n) -> Text("$e $n", fontSize = 11.sp, color = AppColors.TextSecondary) }
                 }
             }
@@ -950,7 +950,7 @@ private fun ProviderStatCard(row: ProviderRow, isExpanded: Boolean, onToggle: ()
                 HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.padding(vertical = 8.dp))
                 KeyVal("Default model", row.defaultModel.ifBlank { "—" })
                 KeyVal("Host", row.host.ifBlank { "—" })
-                KeyVal("API key", if (row.hasKey) "yes" else "no", if (row.hasKey) AppColors.Green else AppColors.Orange)
+                KeyVal("API key", if (row.hasKey) "yes" else "no", if (row.hasKey) AppColors.SuccessAccent else AppColors.WarningAccent)
                 KeyVal("Concurrency cap", capLabel(row.concCap, NetworkSettings.maxConcurrentCallsPerProvider))
                 KeyVal("Per-minute cap", capLabel(row.perMinCap, NetworkSettings.maxCallsPerProviderPerMinute))
                 KeyVal("Catalog", row.cacheAgeMs?.let { fmtDuration(it) + " ago" } ?: "never fetched")
@@ -965,16 +965,16 @@ private fun ProviderStatCard(row: ProviderRow, isExpanded: Boolean, onToggle: ()
                     Spacer(Modifier.height(6.dp))
                     Text("States", fontSize = 10.sp, color = AppColors.TextTertiary)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        if (row.blocked > 0) StatChip("⛔", "Blocked", row.blocked, AppColors.Red)
-                        if (row.inaccessible > 0) StatChip("🚫", "Inaccessible", row.inaccessible, AppColors.Orange)
+                        if (row.blocked > 0) StatChip("⛔", "Blocked", row.blocked, AppColors.DangerAccent)
+                        if (row.inaccessible > 0) StatChip("🚫", "Inaccessible", row.inaccessible, AppColors.WarningAccent)
                         if (row.testExcluded > 0) StatChip("⏭️", "Excluded", row.testExcluded, AppColors.TextSecondary)
-                        if (row.cooling > 0) StatChip("❄️", "Cooling", row.cooling, AppColors.Orange)
+                        if (row.cooling > 0) StatChip("❄️", "Cooling", row.cooling, AppColors.WarningAccent)
                     }
                 }
                 if (row.testPassed + row.testFailed > 0) {
                     Spacer(Modifier.height(4.dp))
                     KeyVal("Last test", "${row.testPassed} passed · ${row.testFailed} failed",
-                        if (row.testFailed > 0) AppColors.Orange else AppColors.Green)
+                        if (row.testFailed > 0) AppColors.WarningAccent else AppColors.SuccessAccent)
                 }
             }
         }
@@ -1067,7 +1067,7 @@ fun AiSpendUsageScreen(
                 Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(14.dp)) {
                         Text("Total: ${d.totalCalls} calls, ${formatCompactNumber(d.totalTokens)} tokens", fontSize = 13.sp, color = Color.White)
-                        Text("Cost: ${money4(d.totalCost)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = AppColors.Green)
+                        Text("Cost: ${money4(d.totalCost)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = AppColors.SuccessAccent)
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -1123,7 +1123,7 @@ fun AiSpendUsageScreen(
                             Text("${group.totalCalls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
                             Text(formatCompactNumber(tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
                             Spacer(Modifier.width(cGap))
-                            Text(money4(group.totalCost), fontSize = 13.sp, color = AppColors.Green, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
+                            Text(money4(group.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
                             Spacer(Modifier.width(cBugGap))
                             Box(Modifier.width(cBug), contentAlignment = Alignment.Center) {
                                 if (hasTrace) Text(com.ai.ui.shared.LocalMetadataIcons.current.traces, fontSize = 13.sp, modifier = Modifier.clickable { onNavigateToTraceProvider(group.provider.id) })
@@ -1148,7 +1148,7 @@ fun AiSpendUsageScreen(
                     settingsPrefs.clearUsageStats()
                     reloadTick++
                     Toast.makeText(context, "Statistics cleared", Toast.LENGTH_SHORT).show()
-                }) { Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Clear", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmClear = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
@@ -1203,17 +1203,17 @@ fun AiSpendUsageProviderScreen(
             LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { Spacer(Modifier.height(4.dp)) }
                 item {
-                    SectionCard("💰", "Totals", AppColors.Green) {
+                    SectionCard("💰", "Totals", AppColors.SuccessAccent) {
                         KeyVal("Calls", "${g.totalCalls}")
                         KeyVal("Tokens", formatCompactNumber(tokens))
-                        KeyVal("Cost", money(g.totalCost), AppColors.Green)
+                        KeyVal("Cost", money(g.totalCost), AppColors.SuccessAccent)
                         val avg = if (g.totalCalls > 0) g.totalCost / g.totalCalls else 0.0
                         KeyVal("Avg / call", money(avg), AppColors.TextSecondary)
                         KeyVal("Distinct models", "${g.models.size}")
                     }
                 }
                 item {
-                    SectionCard("🏷️", "By type", AppColors.Indigo) {
+                    SectionCard("🏷️", "By type", AppColors.SecondaryAccent) {
                         byKind.entries.sortedByDescending { e -> e.value.sumOf { it.totalCost } }.forEach { (kind, rows) ->
                             val calls = rows.sumOf { it.stat.callCount }
                             val cost = rows.sumOf { it.totalCost }
@@ -1222,7 +1222,7 @@ fun AiSpendUsageProviderScreen(
                     }
                 }
                 item {
-                    SectionCard("📐", "By pricing source", AppColors.Purple) {
+                    SectionCard("📐", "By pricing source", AppColors.PrimaryAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             bySource.entries.sortedByDescending { it.value }.forEach { (src, count) ->
                                 StatChip("•", tierLabel(src), count, AppColors.TextSecondary)
@@ -1245,7 +1245,7 @@ fun AiSpendUsageProviderScreen(
                                 Text(swc.stat.kind, fontSize = 9.sp, color = AppColors.TextSecondary,
                                     modifier = Modifier.padding(end = 6.dp).clip(RoundedCornerShape(4.dp)).background(AppColors.SurfaceDark).padding(horizontal = 4.dp, vertical = 1.dp))
                             }
-                            Text(money(swc.totalCost), fontSize = 13.sp, color = AppColors.Green)
+                            Text(money(swc.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent)
                         }
                         Text(
                             "${swc.stat.callCount} calls · ${formatCompactNumber(swc.stat.totalTokens)} tokens · ${tierLabel(swc.pricingSource)}",
@@ -1413,19 +1413,19 @@ private fun CollapsibleCard(
  *  the user's saved order over it. */
 private data class CardMeta(val emoji: String, val title: String, val accent: Color)
 private val DASH_CARD_META: Map<String, CardMeta> = linkedMapOf(
-    "live" to CardMeta("🟢", "Live activity", AppColors.Green),
-    "active" to CardMeta("🏃", "Active runs", AppColors.Green),
-    "spend" to CardMeta("💸", "Spend & tokens", AppColors.Green),
-    "http" to CardMeta("📊", "HTTP responses", AppColors.Indigo),
-    "errors" to CardMeta("⚠️", "Recent errors", AppColors.Red),
-    "times" to CardMeta("⏱️", "Response times", AppColors.Indigo),
-    "slow" to CardMeta("🐌", "Slowest calls", AppColors.Orange),
-    "throttle" to CardMeta("🌐", "Provider throttle", AppColors.Blue),
-    "cooldowns" to CardMeta("❄️", "Model cooldowns", AppColors.Orange),
-    "test" to CardMeta("🧪", "Test all models", AppColors.Purple),
-    "stress" to CardMeta("🔥", "Stress test", AppColors.Red),
-    "local" to CardMeta("🧠", "Local runtime", AppColors.Purple),
-    "health" to CardMeta("🩺", "System health", AppColors.Green),
+    "live" to CardMeta("🟢", "Live activity", AppColors.SuccessAccent),
+    "active" to CardMeta("🏃", "Active runs", AppColors.SuccessAccent),
+    "spend" to CardMeta("💸", "Spend & tokens", AppColors.SuccessAccent),
+    "http" to CardMeta("📊", "HTTP responses", AppColors.SecondaryAccent),
+    "errors" to CardMeta("⚠️", "Recent errors", AppColors.DangerAccent),
+    "times" to CardMeta("⏱️", "Response times", AppColors.SecondaryAccent),
+    "slow" to CardMeta("🐌", "Slowest calls", AppColors.WarningAccent),
+    "throttle" to CardMeta("🌐", "Provider throttle", AppColors.InfoAccent),
+    "cooldowns" to CardMeta("❄️", "Model cooldowns", AppColors.WarningAccent),
+    "test" to CardMeta("🧪", "Test all models", AppColors.PrimaryAccent),
+    "stress" to CardMeta("🔥", "Stress test", AppColors.DangerAccent),
+    "local" to CardMeta("🧠", "Local runtime", AppColors.PrimaryAccent),
+    "health" to CardMeta("🩺", "System health", AppColors.SuccessAccent),
 )
 private val DEFAULT_DASH_ORDER: List<String> = DASH_CARD_META.keys.toList()
 
@@ -1469,8 +1469,8 @@ private fun LiveActivityBody(appViewModel: AppViewModel) {
     val thrMeta by appViewModel.throttledFanMetaPairs.collectAsState()
     val (statusWord, statusColor) = when {
         caps.globalInFlight == 0 -> "Idle" to AppColors.TextDim
-        caps.globalInFlight >= caps.globalMax -> "Saturated" to AppColors.Red
-        else -> "Active" to AppColors.Green
+        caps.globalInFlight >= caps.globalMax -> "Saturated" to AppColors.DangerAccent
+        else -> "Active" to AppColors.SuccessAccent
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text("${caps.globalInFlight}", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = statusColor)
@@ -1492,10 +1492,10 @@ private fun LiveActivityBody(appViewModel: AppViewModel) {
     val throttled = thrFanOut.size + thrMeta.size
     if (throttled > 0) {
         Spacer(Modifier.height(8.dp))
-        Text("Throttled — waiting on a provider rate-limit", fontSize = 11.sp, color = AppColors.Orange)
+        Text("Throttled — waiting on a provider rate-limit", fontSize = 11.sp, color = AppColors.WarningAccent)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (thrFanOut.isNotEmpty()) StatChip("🌫️", "Fan-out", thrFanOut.size, AppColors.Orange)
-            if (thrMeta.isNotEmpty()) StatChip("🪄", "Fan-meta", thrMeta.size, AppColors.Orange)
+            if (thrFanOut.isNotEmpty()) StatChip("🌫️", "Fan-out", thrFanOut.size, AppColors.WarningAccent)
+            if (thrMeta.isNotEmpty()) StatChip("🪄", "Fan-meta", thrMeta.size, AppColors.WarningAccent)
         }
     }
 }
@@ -1557,13 +1557,13 @@ private fun ActiveRunsBody(appViewModel: AppViewModel, reportViewModel: ReportVi
                         fontSize = 12.sp, color = AppColors.TextSecondary
                     )
                 }
-                if (r.total > 0) Bar(r.done.toFloat() / r.total, AppColors.Green)
+                if (r.total > 0) Bar(r.done.toFloat() / r.total, AppColors.SuccessAccent)
             }
         }
     }
     if (parked > 0) {
         Spacer(Modifier.height(4.dp))
-        Text("Parked on a provider gate: $parked", fontSize = 11.sp, color = AppColors.Orange)
+        Text("Parked on a provider gate: $parked", fontSize = 11.sp, color = AppColors.WarningAccent)
     }
 }
 
@@ -1596,7 +1596,7 @@ private fun ThrottleBody(
         Text(
             "Parked $parked · retries 1m $retries1m · backing off $retryInFlight",
             fontSize = 11.sp,
-            color = if (retryInFlight > 0 || parked > 0) AppColors.Orange else AppColors.TextSecondary
+            color = if (retryInFlight > 0 || parked > 0) AppColors.WarningAccent else AppColors.TextSecondary
         )
         Spacer(Modifier.height(6.dp))
     }
@@ -1606,9 +1606,9 @@ private fun ThrottleBody(
         val windowCap = NetworkSettings.maxCallsPerProviderPerMinute
         hosts.forEach { h ->
             val concColor = when {
-                h.free == 0 -> AppColors.Red
-                h.inUse > 0 -> AppColors.Orange
-                else -> AppColors.Green
+                h.free == 0 -> AppColors.DangerAccent
+                h.inUse > 0 -> AppColors.WarningAccent
+                else -> AppColors.SuccessAccent
             }
             Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -1651,7 +1651,7 @@ private fun SpendTokensBody(context: android.content.Context) {
         Text("1m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
         Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
     }
-    SpendRow("Spend", money(cost1), money(cost5), AppColors.Green)
+    SpendRow("Spend", money(cost1), money(cost5), AppColors.SuccessAccent)
     SpendRow("Tokens in", fmtTokens(tok1.inTok), fmtTokens(tok5.inTok), Color.White)
     SpendRow("Tokens out", fmtTokens(tok1.outTok), fmtTokens(tok5.outTok), Color.White)
 }
@@ -1680,7 +1680,7 @@ private fun HttpCodesBody(onOpenTraceFilter: (String, String) -> Unit) {
     val okPct = if (total1 > 0) 100 * min1.ok2xx / total1 else 0
     Text(
         if (total1 > 0) "$total1 calls/min · $okPct% ok" else "idle — no calls in the last minute",
-        fontSize = 11.sp, color = if (total1 > 0 && okPct < 90) AppColors.Orange else AppColors.TextSecondary
+        fontSize = 11.sp, color = if (total1 > 0 && okPct < 90) AppColors.WarningAccent else AppColors.TextSecondary
     )
     Spacer(Modifier.height(6.dp))
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -1691,10 +1691,10 @@ private fun HttpCodesBody(onOpenTraceFilter: (String, String) -> Unit) {
         Spacer(Modifier.width(16.dp))
         Spacer(Modifier.width(22.dp))
     }
-    HttpCodeRow("✅ 2xx", min1.ok2xx, min5.ok2xx, AppColors.Green) { onOpenTraceFilter("status", "2xx") }
-    HttpCodeRow("🚧 429", min1.r429, min5.r429, AppColors.Orange) { onOpenTraceFilter("status", "429") }
-    HttpCodeRow("⚠️ 4xx", min1.c4xx, min5.c4xx, AppColors.Orange) { onOpenTraceFilter("status", "4xx") }
-    HttpCodeRow("🔥 5xx", min1.s5xx, min5.s5xx, AppColors.Red) { onOpenTraceFilter("status", "5xx") }
+    HttpCodeRow("✅ 2xx", min1.ok2xx, min5.ok2xx, AppColors.SuccessAccent) { onOpenTraceFilter("status", "2xx") }
+    HttpCodeRow("🚧 429", min1.r429, min5.r429, AppColors.WarningAccent) { onOpenTraceFilter("status", "429") }
+    HttpCodeRow("⚠️ 4xx", min1.c4xx, min5.c4xx, AppColors.WarningAccent) { onOpenTraceFilter("status", "4xx") }
+    HttpCodeRow("🔥 5xx", min1.s5xx, min5.s5xx, AppColors.DangerAccent) { onOpenTraceFilter("status", "5xx") }
     HttpCodeRow("▫️ other", min1.other, min5.other, AppColors.TextDim) { onOpenTraceFilter("status", "other") }
 }
 
@@ -1774,7 +1774,7 @@ private fun RecentErrorsBody() {
         return
     }
     errors.forEach { e ->
-        val codeColor = if (e.code == 0 || e.code >= 500) AppColors.Red else AppColors.Orange
+        val codeColor = if (e.code == 0 || e.code >= 500) AppColors.DangerAccent else AppColors.WarningAccent
         Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(errCodeLabel(e.code), fontSize = 12.sp, color = codeColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp))
@@ -1807,7 +1807,7 @@ private fun SlowestCallsBody() {
                 Spacer(Modifier.width(6.dp))
                 Text("· ${com.ai.ui.shared.shortModelName(it)}", fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             } ?: Spacer(Modifier.weight(1f))
-            Text(fmtMs(s.durationMs.toInt()), fontSize = 12.sp, color = AppColors.Orange, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
+            Text(fmtMs(s.durationMs.toInt()), fontSize = 12.sp, color = AppColors.WarningAccent, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
         }
     }
 }
@@ -1827,7 +1827,7 @@ private fun CooldownBody() {
         val model = key.substringAfter(":")
         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("$provider · $model", fontSize = 12.sp, color = Color.White, maxLines = 1)
-            Text(fmtDuration(until - now) + " left", fontSize = 12.sp, color = AppColors.Orange, fontWeight = FontWeight.Medium)
+            Text(fmtDuration(until - now) + " left", fontSize = 12.sp, color = AppColors.WarningAccent, fontWeight = FontWeight.Medium)
         }
     }
     if (active.size > 12) {
@@ -1851,14 +1851,14 @@ private fun TestRunBody(reportViewModel: ReportViewModel, context: android.conte
         return
     }
     val finished = r.doneCount + r.errorCount
-    Bar(if (r.total > 0) finished.toFloat() / r.total else 0f, AppColors.Purple)
+    Bar(if (r.total > 0) finished.toFloat() / r.total else 0f, AppColors.PrimaryAccent)
     Spacer(Modifier.height(6.dp))
     KeyVal("Progress", "$finished / ${r.total}")
-    KeyVal("Passed", "${r.doneCount}", AppColors.Green)
-    KeyVal("Failed", "${r.errorCount}", if (r.errorCount > 0) AppColors.Red else Color.White)
-    KeyVal("Running", "${r.runningCount}", AppColors.Orange)
+    KeyVal("Passed", "${r.doneCount}", AppColors.SuccessAccent)
+    KeyVal("Failed", "${r.errorCount}", if (r.errorCount > 0) AppColors.DangerAccent else Color.White)
+    KeyVal("Running", "${r.runningCount}", AppColors.WarningAccent)
     KeyVal("Queued", "${r.queuedCount}")
-    KeyVal("Cost", money(r.totalCost), AppColors.Green)
+    KeyVal("Cost", money(r.totalCost), AppColors.SuccessAccent)
     KeyVal("Elapsed", fmtDuration(now - r.startedAt))
 }
 
@@ -1881,12 +1881,12 @@ private fun StressTestBody(reportViewModel: ReportViewModel) {
     }
     val isError = state?.phase == com.ai.viewmodel.StressTestEngine.Phase.ERROR
     val (statusWord, statusColor) = when {
-        running -> "submitting" to AppColors.Orange
-        isError -> "error" to AppColors.Red
-        else -> "submitted — generating in background" to AppColors.Green
+        running -> "submitting" to AppColors.WarningAccent
+        isError -> "error" to AppColors.DangerAccent
+        else -> "submitted — generating in background" to AppColors.SuccessAccent
     }
     KeyVal("Status", statusWord, statusColor)
-    if (isError) state?.errorMessage?.let { Text(it, fontSize = 11.sp, color = AppColors.Red) }
+    if (isError) state?.errorMessage?.let { Text(it, fontSize = 11.sp, color = AppColors.DangerAccent) }
     KeyVal("Runs this session", "${tracked.runCount}")
     KeyVal("Reports launched", "${tracked.reportIds.size}")
     if (tracked.firstStartedAt > 0L) KeyVal("Since first run", fmtDuration(now - tracked.firstStartedAt))
@@ -1908,13 +1908,13 @@ private fun HealthBody(context: android.content.Context) {
     val disk by produceState(DiskUsageStats.Snapshot(), slowTick) {
         value = withContext(Dispatchers.IO) { DiskUsageStats.snapshot(context) }
     }
-    KeyVal("Log writer", if (logErr == null) "OK" else "ERROR", if (logErr == null) AppColors.Green else AppColors.Red)
-    if (logErr != null) Text(logErr, fontSize = 11.sp, color = AppColors.Red)
-    KeyVal("Dropped log lines", "$droppedLines", if (droppedLines > 0) AppColors.Orange else Color.White)
+    KeyVal("Log writer", if (logErr == null) "OK" else "ERROR", if (logErr == null) AppColors.SuccessAccent else AppColors.DangerAccent)
+    if (logErr != null) Text(logErr, fontSize = 11.sp, color = AppColors.DangerAccent)
+    KeyVal("Dropped log lines", "$droppedLines", if (droppedLines > 0) AppColors.WarningAccent else Color.White)
     KeyVal("Trace files", "$traceCount (${fmtBytes(disk.traceBytes)})")
     KeyVal("Embeddings on disk", fmtBytes(disk.embeddingsBytes))
     KeyVal("Knowledge on disk", fmtBytes(disk.knowledgeBytes))
-    KeyVal("API activity", if (busy) "active" else "idle", if (busy) AppColors.Green else AppColors.TextDim)
+    KeyVal("API activity", if (busy) "active" else "idle", if (busy) AppColors.SuccessAccent else AppColors.TextDim)
     KeyVal("Streaming timeout", "${NetworkSettings.streamingReadTimeoutSec} s")
     KeyVal("Non-streaming timeout", "${NetworkSettings.nonStreamingReadTimeoutSec} s")
     KeyVal("Per-minute cap / host", "${NetworkSettings.maxCallsPerProviderPerMinute}")
@@ -1939,18 +1939,18 @@ private fun LocalRuntimeBody(context: android.content.Context) {
     }
     if (installedLlms.isNotEmpty() || rt.llmGenerating != null) {
         KeyVal("LLM runtime", if (runtimeInstalled) "installed" else "not installed",
-            if (runtimeInstalled) AppColors.Green else AppColors.Orange)
+            if (runtimeInstalled) AppColors.SuccessAccent else AppColors.WarningAccent)
         KeyVal("LLMs imported", installedLlms.joinToString(", ").ifBlank { "—" })
         KeyVal("Loaded in memory", rt.llmLoaded.joinToString(", ").ifBlank { "none" })
         KeyVal("Generating", rt.llmGenerating ?: "idle",
-            if (rt.llmGenerating != null) AppColors.Green else AppColors.TextDim)
+            if (rt.llmGenerating != null) AppColors.SuccessAccent else AppColors.TextDim)
     }
     if (installedEmbedders.isNotEmpty() || rt.embedding != null) {
         if (installedLlms.isNotEmpty() || rt.llmGenerating != null) Spacer(Modifier.height(6.dp))
         KeyVal("Embedders installed", installedEmbedders.joinToString(", ").ifBlank { "—" })
         KeyVal("Loaded in memory", rt.embedderLoaded.joinToString(", ").ifBlank { "none" })
         KeyVal("Embedding", rt.embedding ?: "idle",
-            if (rt.embedding != null) AppColors.Green else AppColors.TextDim)
+            if (rt.embedding != null) AppColors.SuccessAccent else AppColors.TextDim)
     }
 }
 
@@ -1960,35 +1960,35 @@ private fun LocalRuntimeBody(context: android.content.Context) {
 
 @Composable
 private fun ReportsSection(rs: ReportStats) {
-    SectionCard("📋", "Reports", AppColors.Blue) {
+    SectionCard("📋", "Reports", AppColors.InfoAccent) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             StatChip("📄", "Total", rs.total, Color.White)
-            StatChip("⏳", "Running", rs.running, AppColors.Orange)
-            StatChip("⚠️", "Problems", rs.problems, AppColors.Red)
-            StatChip("✅", "Completed", rs.completed, AppColors.Green)
+            StatChip("⏳", "Running", rs.running, AppColors.WarningAccent)
+            StatChip("⚠️", "Problems", rs.problems, AppColors.DangerAccent)
+            StatChip("✅", "Completed", rs.completed, AppColors.SuccessAccent)
         }
         Spacer(Modifier.height(8.dp))
         KeyVal("Agent calls", "${rs.agentCalls}")
         val errRate = if (rs.agentCalls > 0) rs.erroredCalls * 100.0 / rs.agentCalls else 0.0
         KeyVal(
             "Error rate", String.format(Locale.US, "%.1f%%  (%d)", errRate, rs.erroredCalls),
-            if (errRate >= 10.0) AppColors.Red else if (errRate > 0) AppColors.Orange else AppColors.Green
+            if (errRate >= 10.0) AppColors.DangerAccent else if (errRate > 0) AppColors.WarningAccent else AppColors.SuccessAccent
         )
-        Bar(if (rs.agentCalls > 0) (rs.erroredCalls.toFloat() / rs.agentCalls) else 0f, AppColors.Red)
+        Bar(if (rs.agentCalls > 0) (rs.erroredCalls.toFloat() / rs.agentCalls) else 0f, AppColors.DangerAccent)
         if (rs.stopped > 0) KeyVal("Stopped agents", "${rs.stopped}", AppColors.TextSecondary)
         Spacer(Modifier.height(4.dp))
-        KeyVal("Report spend", money(rs.spend), AppColors.Green)
+        KeyVal("Report spend", money(rs.spend), AppColors.SuccessAccent)
     }
 }
 
 @Composable
 private fun SecondariesSection(byKind: Map<SecondaryKind, Int>, metaByName: Map<String, Int>) {
-    SectionCard("🔗", "Secondary results", AppColors.Indigo) {
+    SectionCard("🔗", "Secondary results", AppColors.SecondaryAccent) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            StatChip("🔀", "Rerank", byKind[SecondaryKind.RERANK] ?: 0, AppColors.Orange)
-            StatChip("🧩", "Meta", byKind[SecondaryKind.META] ?: 0, AppColors.Purple)
-            StatChip("🛡️", "Moderation", byKind[SecondaryKind.MODERATION] ?: 0, AppColors.Red)
-            StatChip("🌐", "Translate", byKind[SecondaryKind.TRANSLATE] ?: 0, AppColors.Blue)
+            StatChip("🔀", "Rerank", byKind[SecondaryKind.RERANK] ?: 0, AppColors.WarningAccent)
+            StatChip("🧩", "Meta", byKind[SecondaryKind.META] ?: 0, AppColors.PrimaryAccent)
+            StatChip("🛡️", "Moderation", byKind[SecondaryKind.MODERATION] ?: 0, AppColors.DangerAccent)
+            StatChip("🌐", "Translate", byKind[SecondaryKind.TRANSLATE] ?: 0, AppColors.InfoAccent)
         }
         if (metaByName.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
@@ -2000,11 +2000,11 @@ private fun SecondariesSection(byKind: Map<SecondaryKind, Int>, metaByName: Map<
 
 @Composable
 private fun KnowledgeSection(d: KnowledgeData) {
-    SectionCard("📚", "Knowledge", AppColors.Yellow) {
+    SectionCard("📚", "Knowledge", AppColors.CautionAccent) {
         KeyVal("Knowledge bases", "${d.kbCount}")
         KeyVal("Chunks", formatCompactNumber(d.kbChunks.toLong()))
         KeyVal("Indexed text", "${formatCompactNumber(d.kbChars)} chars")
-        if (d.kbFailed > 0) KeyVal("Failed sources", "${d.kbFailed}", AppColors.Red)
+        if (d.kbFailed > 0) KeyVal("Failed sources", "${d.kbFailed}", AppColors.DangerAccent)
         if (d.kbSourcesByType.isNotEmpty()) {
             Spacer(Modifier.height(6.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -2018,7 +2018,7 @@ private fun KnowledgeSection(d: KnowledgeData) {
 
 @Composable
 private fun CostTierSection(config: Map<String, Int>, runtime: Map<String, Int>) {
-    SectionCard("🧮", "Costs tiers", AppColors.Blue) {
+    SectionCard("🧮", "Costs tiers", AppColors.InfoAccent) {
         // Header
         Row(Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
             Text("Tier", fontSize = 10.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1.6f))
@@ -2069,7 +2069,7 @@ private fun PricingSection(
     tracedCategories: Set<String> = emptySet(),
     onNavigateToTraceCategory: (String) -> Unit = {},
 ) {
-    SectionCard("🏷️", "Pricing cache", AppColors.Purple) {
+    SectionCard("🏷️", "Pricing cache", AppColors.PrimaryAccent) {
         // Header
         Row(Modifier.fillMaxWidth().padding(bottom = 2.dp)) {
             Text("Source", fontSize = 10.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1.5f))
@@ -2165,9 +2165,9 @@ private fun SectionCard(emoji: String, title: String, accent: Color, onClick: ((
 private fun CapBar(label: String, inFlight: Int, max: Int) {
     val frac = if (max > 0) (inFlight.toFloat() / max).coerceIn(0f, 1f) else 0f
     val color = when {
-        max > 0 && inFlight >= max -> AppColors.Red
-        frac >= 0.6f -> AppColors.Orange
-        inFlight > 0 -> AppColors.Green
+        max > 0 && inFlight >= max -> AppColors.DangerAccent
+        frac >= 0.6f -> AppColors.WarningAccent
+        inFlight > 0 -> AppColors.SuccessAccent
         else -> AppColors.TextDim
     }
     Column(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {

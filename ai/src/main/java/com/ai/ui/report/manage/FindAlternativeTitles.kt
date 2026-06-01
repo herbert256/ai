@@ -78,7 +78,7 @@ private fun TitleCandidateRow(candidate: TitleCandidate, onPickTitle: (String) -
                 Text(iconModel, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 when (candidate) {
                     is TitleCandidate.Done -> Text(candidate.title, fontSize = 14.sp, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    is TitleCandidate.Error -> Text(candidate.reason, fontSize = 11.sp, color = AppColors.Red, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    is TitleCandidate.Error -> Text(candidate.reason, fontSize = 11.sp, color = AppColors.DangerAccent, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     is TitleCandidate.Running -> Text("Generating…", fontSize = 11.sp, color = AppColors.TextTertiary)
                 }
             }

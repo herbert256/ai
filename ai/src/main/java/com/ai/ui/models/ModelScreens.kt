@@ -519,17 +519,17 @@ fun ModelInfoScreen(
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text("Actions", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                Text("Actions", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(
                                         onClick = { onStartChat(provider, modelName) },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                                     ) { Text("Start Chat", maxLines = 1, softWrap = false) }
                                     Button(
                                         onClick = { showAgentEdit = true },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                                     ) { Text("Create Agent", maxLines = 1, softWrap = false) }
                                     if (isProviderActive) {
                                         Button(
@@ -547,7 +547,7 @@ fun ModelInfoScreen(
                                             },
                                             enabled = !testRunning,
                                             modifier = Modifier.weight(1f),
-                                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                                            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
                                         ) { Text(if (testRunning) "Testing…" else "Test", maxLines = 1, softWrap = false) }
                                     }
                                 }
@@ -557,7 +557,7 @@ fun ModelInfoScreen(
                                     Text(
                                         text = if (passed) "${mi.statusDone} $r" else "${mi.statusFailed} $r",
                                         fontSize = 12.sp,
-                                        color = if (passed) AppColors.Green else AppColors.Red
+                                        color = if (passed) AppColors.SuccessAccent else AppColors.DangerAccent
                                     )
                                 }
                             }
@@ -575,7 +575,7 @@ fun ModelInfoScreen(
                                     Text(
                                         "Model in AI configuration",
                                         fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                                        color = AppColors.Blue
+                                        color = AppColors.InfoAccent
                                     )
                                     if (hasTypeOverride) {
                                         ModelConfigRow(
@@ -626,7 +626,7 @@ fun ModelInfoScreen(
                                     Text(
                                         "Workers",
                                         fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
-                                        color = AppColors.Blue
+                                        color = AppColors.InfoAccent
                                     )
                                     matchedAgents.forEach { a ->
                                         ModelConfigRow(
@@ -688,7 +688,7 @@ fun ModelInfoScreen(
                         // pricing tiers (Helicone / llm-prices.com / AA).
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Sources", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                Text("Sources", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Button(
                                         onClick = {
@@ -700,7 +700,7 @@ fun ModelInfoScreen(
                                             )
                                         },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasHF) AppColors.Green else AppColors.Red),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasHF) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("HuggingFace", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                     Button(
@@ -713,7 +713,7 @@ fun ModelInfoScreen(
                                             )
                                         },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasOR) AppColors.Green else AppColors.Red),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasOR) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("OpenRouter", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                     Button(
@@ -725,7 +725,7 @@ fun ModelInfoScreen(
                                             )
                                         },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasLiteLLM) AppColors.Green else AppColors.Red),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasLiteLLM) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("LiteLLM", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                     Button(
@@ -737,7 +737,7 @@ fun ModelInfoScreen(
                                             )
                                         },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasModelsDev) AppColors.Green else AppColors.Red),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasModelsDev) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("models.dev", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                 }
@@ -751,7 +751,7 @@ fun ModelInfoScreen(
                                             )
                                         },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasHelicone) AppColors.Green else AppColors.Red),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasHelicone) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("Helicone", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                     Button(
@@ -763,7 +763,7 @@ fun ModelInfoScreen(
                                             )
                                         },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasLLMPrices) AppColors.Green else AppColors.Red),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasLLMPrices) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("llm-prices", fontSize = 11.sp, maxLines = 1, softWrap = false) }
                                     Button(
@@ -775,7 +775,7 @@ fun ModelInfoScreen(
                                             )
                                         },
                                         modifier = Modifier.weight(1f),
-                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasAa) AppColors.Green else AppColors.Red),
+                                        colors = ButtonDefaults.buttonColors(containerColor = if (hasAa) AppColors.SuccessAccent else AppColors.DangerAccent),
                                         contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp)
                                     ) { Text("Artificial Analysis", fontSize = 10.sp, maxLines = 1, softWrap = false) }
                                 }
@@ -800,7 +800,7 @@ fun ModelInfoScreen(
                                         rawView = RawView(title = "All sources · $modelName", body = body)
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                                 ) { Text("Show all", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                             }
                         }
@@ -826,7 +826,7 @@ fun ModelInfoScreen(
                         )
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Costs (per million tokens)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                Text("Costs (per million tokens)", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                                 if (rows.isEmpty()) {
                                     Text("No LiteLLM / models.dev / OpenRouter / Override entry — lookup falls back to the built-in default.",
                                         fontSize = 12.sp, color = AppColors.TextTertiary)
@@ -845,7 +845,7 @@ fun ModelInfoScreen(
                                             )
                                             Text(
                                                 "${"%.4f".format(Locale.US, p.promptPrice * 1_000_000)} / ${"%.4f".format(Locale.US, p.completionPrice * 1_000_000)}",
-                                                fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.Green
+                                                fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.SuccessAccent
                                             )
                                         }
                                         // Rerank-mode models bill per
@@ -861,7 +861,7 @@ fun ModelInfoScreen(
                                                     modifier = Modifier.weight(1f).padding(start = 12.dp))
                                                 Text(
                                                     "${"%.2f".format(Locale.US, p.perQueryPrice * 1000)}",
-                                                    fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.Green
+                                                    fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.SuccessAccent
                                                 )
                                             }
                                         }
@@ -871,7 +871,7 @@ fun ModelInfoScreen(
                                 Button(
                                     onClick = { onNavigateToAddCostOverride(provider, modelName) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                                 ) { Text("Add manual cost override", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                             }
                         }
@@ -936,7 +936,7 @@ fun ModelInfoScreen(
                         val (reasoningLabel, reasoningSrcText) = reasoningSrc
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Capabilities", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                Text("Capabilities", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                                 Row {
                                     Text(visionLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
                                     InfoProviderName(
@@ -976,7 +976,7 @@ fun ModelInfoScreen(
                                     val msg = if (replacement.isNullOrBlank()) "${mi.warningPlain} Deprecated $date"
                                         else "${mi.warningPlain} Deprecated $date ${mi.arrowRight} use $replacement"
                                     Row {
-                                        Text(msg, fontSize = 13.sp, color = AppColors.Orange, modifier = Modifier.weight(1f))
+                                        Text(msg, fontSize = 13.sp, color = AppColors.WarningAccent, modifier = Modifier.weight(1f))
                                         Text("Provider", fontSize = 12.sp, color = AppColors.TextTertiary)
                                     }
                                 }
@@ -1008,7 +1008,7 @@ fun ModelInfoScreen(
                                 Button(
                                     onClick = { onNavigateToAddManualOverride(provider, modelName) },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+                                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
                                 ) { Text("Add manual override", fontSize = 14.sp, maxLines = 1, softWrap = false) }
                             }
                         }
@@ -1024,7 +1024,7 @@ fun ModelInfoScreen(
                             modifier = Modifier.fillMaxWidth().clickable { onNavigateToProviderEdit(provider) }
                         ) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Provider", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                Text("Provider", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                                 Text(provider.id, fontSize = 14.sp, color = Color.White)
                             }
                         }
@@ -1038,7 +1038,7 @@ fun ModelInfoScreen(
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                Text("Usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                                 val ue = usageEntry
                                 if (ue == null) {
                                     Text("No usage recorded yet for this model", fontSize = 12.sp, color = AppColors.TextTertiary)
@@ -1050,7 +1050,7 @@ fun ModelInfoScreen(
                                     usageCost?.let {
                                         Text(
                                             "Cost: " + if (it < 0.01 && it > 0) String.format(Locale.US, "$%.6f", it) else String.format(Locale.US, "$%.4f", it),
-                                            fontSize = 13.sp, color = AppColors.Green
+                                            fontSize = 13.sp, color = AppColors.SuccessAccent
                                         )
                                     }
                                 }
@@ -1133,7 +1133,7 @@ fun ModelInfoScreen(
                                     else -> Button(
                                         onClick = requestIntroduction,
                                         modifier = Modifier.fillMaxWidth(),
-                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.Blue)
+                                        colors = ButtonDefaults.buttonColors(containerColor = AppColors.InfoAccent)
                                     ) { Text("Ask the model to introduce itself", fontSize = 13.sp, maxLines = 1, softWrap = false) }
                                 }
                             }
@@ -1164,7 +1164,7 @@ fun ModelInfoScreen(
                         item {
                             Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
                                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    Text("Last usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+                                    Text("Last usage", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                                     val dateFormat = remember { java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.US) }
                                     recentUsages.forEach { entry ->
                                         Row(
@@ -1174,7 +1174,7 @@ fun ModelInfoScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                entry.typeLabel, fontSize = 12.sp, color = AppColors.Orange,
+                                                entry.typeLabel, fontSize = 12.sp, color = AppColors.WarningAccent,
                                                 fontWeight = FontWeight.SemiBold,
                                                 modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
                                             )
@@ -1200,7 +1200,7 @@ fun ModelInfoScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                "AI Usage", fontSize = 12.sp, color = AppColors.Orange,
+                                                "AI Usage", fontSize = 12.sp, color = AppColors.WarningAccent,
                                                 fontWeight = FontWeight.SemiBold,
                                                 modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
                                             )
@@ -1230,7 +1230,7 @@ private fun ModelInfoSection(
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.Blue)
+            Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
             content()
             if (source != null) {
                 val ref = com.ai.ui.admin.infoProviderForDisplayName(source)
@@ -1239,7 +1239,7 @@ private fun ModelInfoSection(
                     // the entire "Source: …" line is the affordance.
                     Text(
                         "Source: $source",
-                        fontSize = 10.sp, color = AppColors.Blue,
+                        fontSize = 10.sp, color = AppColors.InfoAccent,
                         modifier = Modifier.padding(top = 4.dp).clickable { onNavigateToHelpTopic(ref.topicId) }
                     )
                 } else {
@@ -1266,7 +1266,7 @@ private fun InfoProviderName(
     val ref = com.ai.ui.admin.infoProviderForDisplayName(name)
     if (ref != null) {
         Text(
-            name, fontSize = fontSize, color = AppColors.Blue,
+            name, fontSize = fontSize, color = AppColors.InfoAccent,
             modifier = modifier.clickable { onNavigateToHelpTopic(ref.topicId) }
         )
     } else {
@@ -1372,10 +1372,10 @@ private fun ModelRawInfoScreen(
  * non-JSON inputs (e.g. the "(no LiteLLM data)" placeholder).
  */
 private fun colorizeJson(json: String): androidx.compose.ui.text.AnnotatedString {
-    val keyStyle = SpanStyle(color = AppColors.Blue)
-    val stringStyle = SpanStyle(color = AppColors.Green)
-    val numStyle = SpanStyle(color = AppColors.Orange)
-    val boolStyle = SpanStyle(color = AppColors.Purple)
+    val keyStyle = SpanStyle(color = AppColors.InfoAccent)
+    val stringStyle = SpanStyle(color = AppColors.SuccessAccent)
+    val numStyle = SpanStyle(color = AppColors.WarningAccent)
+    val boolStyle = SpanStyle(color = AppColors.PrimaryAccent)
     val nullStyle = SpanStyle(color = AppColors.TextTertiary)
     val punctStyle = SpanStyle(color = Color.White)
     return buildAnnotatedString {
@@ -1435,7 +1435,7 @@ private fun ModelConfigRow(label: String, value: String, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            "$label:", fontSize = 12.sp, color = AppColors.Blue,
+            "$label:", fontSize = 12.sp, color = AppColors.InfoAccent,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.width(128.dp)
         )

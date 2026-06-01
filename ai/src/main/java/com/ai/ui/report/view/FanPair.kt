@@ -212,8 +212,8 @@ fun FanOutPairViewScreen(
                     PairBubble(
                         label = answererLabel,
                         body = pair.content.orEmpty(),
-                        color = AppColors.IndigoHighlight,
-                        borderColor = AppColors.Indigo
+                        color = AppColors.SelectionHighlight,
+                        borderColor = AppColors.SecondaryAccent
                     )
                 }
             }
@@ -259,7 +259,7 @@ private fun PairBubble(
         if (isLong) {
             Text(
                 text = if (isExpanded) "Show less" else "Read more",
-                color = AppColors.Blue,
+                color = AppColors.InfoAccent,
                 fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .clickable { isExpanded = !isExpanded }

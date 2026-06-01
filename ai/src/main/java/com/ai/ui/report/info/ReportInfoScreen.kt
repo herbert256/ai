@@ -215,7 +215,7 @@ fun ReportInfoScreen(
 @Composable
 private fun Section(title: String) {
     Spacer(Modifier.height(14.dp))
-    Text(title, color = AppColors.Orange, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    Text(title, color = AppColors.WarningAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
     Spacer(Modifier.height(4.dp))
 }
 
@@ -309,7 +309,7 @@ private fun ReportInfoTableLine(
     ) {
         Text(
             first,
-            color = if (onFirstClick != null) AppColors.Blue else color,
+            color = if (onFirstClick != null) AppColors.InfoAccent else color,
             fontSize = if (header) 11.sp else 13.sp,
             fontWeight = weight,
             maxLines = 1,
@@ -339,7 +339,7 @@ private fun ReportInfoTableLine(
         )
         Text(
             costs,
-            color = if (header) AppColors.TextTertiary else AppColors.Blue,
+            color = if (header) AppColors.TextTertiary else AppColors.InfoAccent,
             fontSize = if (header) 11.sp else 13.sp,
             fontWeight = weight,
             textAlign = TextAlign.End,

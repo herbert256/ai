@@ -91,11 +91,11 @@ fun AppLogListScreen(
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             "Log writer failed",
-                            color = AppColors.Red,
+                            color = AppColors.DangerAccent,
                             fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(writerError ?: "", color = AppColors.Red, fontSize = 12.sp)
+                        Text(writerError ?: "", color = AppColors.DangerAccent, fontSize = 12.sp)
                         if (droppedLines > 0L) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
@@ -177,7 +177,7 @@ fun AppLogListScreen(
                     AppLog.i("Housekeeping", "Cleared $n log file(s)")
                     files = AppLog.getLogFiles()
                     Toast.makeText(context, "Deleted $n log file(s)", Toast.LENGTH_SHORT).show()
-                }) { Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Clear", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmClearAll = false }) {
@@ -200,7 +200,7 @@ fun AppLogListScreen(
                     AppLog.i("Housekeeping", "Deleted $n log file(s) older than 7 days")
                     files = AppLog.getLogFiles()
                     Toast.makeText(context, "Deleted $n log file(s)", Toast.LENGTH_SHORT).show()
-                }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmTrim = false }) {
@@ -271,10 +271,10 @@ private fun parseLogEntries(content: String): List<LogEntry> {
 
 /** Pick a render colour per entry based on its level token. */
 private fun colorForEntry(header: String): Color = when {
-    " ERROR " in header -> AppColors.Red
-    " WARN " in header -> AppColors.Orange
-    " INFO " in header -> AppColors.Green
-    " DEBUG " in header -> AppColors.Blue
+    " ERROR " in header -> AppColors.DangerAccent
+    " WARN " in header -> AppColors.WarningAccent
+    " INFO " in header -> AppColors.SuccessAccent
+    " DEBUG " in header -> AppColors.InfoAccent
     " TRACE " in header -> AppColors.TextTertiary
     else -> Color(0xFFCCCCCC)
 }
@@ -574,7 +574,7 @@ fun AppLogDetailScreen(
                             Toast.makeText(context, "Could not delete log", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
                 ) { Text("Delete", maxLines = 1, softWrap = false) }
             },
             dismissButton = {
@@ -810,7 +810,7 @@ private fun TimeFilterButton(
             dismissButton = {
                 Row {
                     TextButton(onClick = { onChange(""); open = false }) {
-                        Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false)
+                        Text("Clear", color = AppColors.DangerAccent, maxLines = 1, softWrap = false)
                     }
                     TextButton(onClick = { open = false }) {
                         Text("Cancel", maxLines = 1, softWrap = false)

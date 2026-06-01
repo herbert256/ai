@@ -929,7 +929,7 @@ private fun SettingsNavCard(
                 Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                 Text(description, fontSize = 12.sp, color = AppColors.TextTertiary)
             }
-            Text(">", fontSize = 16.sp, color = AppColors.Blue)
+            Text(">", fontSize = 16.sp, color = AppColors.InfoAccent)
         }
     }
 }
@@ -1448,9 +1448,7 @@ private data class UiColorPickerSpec(
 )
 
 private fun currentUiColorMap(generalSettings: GeneralSettings): Map<String, Int> {
-    val defaults = AppColors.defaultUiColorMap()
-    return defaults.toMutableMap().apply {
-        putAll(generalSettings.uiColorOverrides.filterKeys { it in defaults })
+    return AppColors.normalizeUiColorOverrides(generalSettings.uiColorOverrides).toMutableMap().apply {
         put("CardBackgroundAlt", generalSettings.uiColorOverrides["CardBackgroundAlt"] ?: generalSettings.uiCardBackgroundArgb)
         put("ButtonBackground", generalSettings.uiColorOverrides["ButtonBackground"] ?: generalSettings.uiButtonBackgroundArgb)
     }
@@ -1470,12 +1468,22 @@ private fun readableUiColorName(key: String): String =
     key.replace(Regex("(?<=[a-z])(?=[A-Z])"), " ")
 
 private fun uiColorDescription(key: String): String = when (key) {
+    "PrimaryAccent" -> "Primary action and user-side accent."
+    "SecondaryAccent" -> "Secondary action and detail accent."
+    "InfoAccent" -> "Headings, links, selected states, totals, and focused fields."
+    "SuccessAccent" -> "Passed, available, active, and positive states."
+    "DangerAccent" -> "Errors, delete/remove actions, problems, and danger text."
+    "ErrorAccent" -> "Strong error and urgent-state accent."
+    "DestructiveActionBackground" -> "Filled background for destructive action buttons."
+    "WarningAccent" -> "Running, reload, warning, and in-progress states."
+    "CautionAccent" -> "Pinned, throttled, cost, and caution highlights."
+    "QueueAccent" -> "Queued and alternate worker/category highlights."
     "CardBackgroundAlt" -> "Monitor and Housekeeping gray-blue card surface."
     "ButtonBackground" -> "Neutral outlined button fill."
     "CardBackground" -> "Darker card surface used by older dense panels."
     "SurfaceDark" -> "Primary dark app surface."
     "DisabledBackground" -> "Disabled or unavailable surface fill."
-    "IndigoHighlight" -> "Muted highlight strip and selected-state accent."
+    "SelectionHighlight" -> "Muted highlight strip and selected-state background."
     "TextPrimary" -> "Primary text color."
     "TextSecondary" -> "Secondary text color."
     "TextTertiary" -> "Muted helper text color."
@@ -1487,11 +1495,19 @@ private fun uiColorDescription(key: String): String = when (key) {
     "BorderUnfocused" -> "Unfocused field and swatch border."
     "PricingBadgeBackground" -> "Pricing badge background."
     "PricingBadgeText" -> "Pricing badge text."
-    "CountGreen" -> "Success count highlight."
+    "SuccessCountAccent" -> "Success count highlight."
     else -> "AppColors.$key accent."
 }
 
 private fun uiColorIcon(key: String): String = when {
+    key == "PrimaryAccent" -> MetadataDefaults.SPARKLES
+    key == "SecondaryAccent" -> MetadataDefaults.GEM
+    key == "InfoAccent" -> MetadataDefaults.INFO
+    key == "SuccessAccent" || key == "SuccessCountAccent" -> MetadataDefaults.STATUS_DONE
+    key == "DangerAccent" || key == "ErrorAccent" || key == "DestructiveActionBackground" -> MetadataDefaults.STATUS_FAILED
+    key == "WarningAccent" || key == "CautionAccent" -> MetadataDefaults.STATUS_WARNING
+    key == "QueueAccent" -> MetadataDefaults.CLOCK_QUEUED
+    key == "SelectionHighlight" -> MetadataDefaults.CHECKBOX_ON
     key == "ButtonBackground" -> MetadataDefaults.CONTROLS
     key.contains("Card") -> MetadataDefaults.BLUE_DIAMOND
     key.contains("Surface") || key.contains("Background") -> MetadataDefaults.BENTO
@@ -1499,12 +1515,6 @@ private fun uiColorIcon(key: String): String = when {
     key.contains("Border") || key.contains("Divider") -> MetadataDefaults.RULER_STRAIGHT
     key.contains("Pricing") -> MetadataDefaults.COST
     key.contains("Count") -> MetadataDefaults.NUMBER_INPUT
-    key.contains("Green") -> MetadataDefaults.GREEN_CIRCLE
-    key.contains("Red") -> MetadataDefaults.RED_CIRCLE
-    key.contains("Orange") -> MetadataDefaults.ORANGE_CIRCLE
-    key.contains("Blue") || key.contains("Indigo") || key.contains("Purple") -> MetadataDefaults.BLUE_CIRCLE
-    key.contains("Yellow") -> MetadataDefaults.SUN
-    key.contains("Brown") -> MetadataDefaults.PACKAGE_BOX
     else -> MetadataDefaults.PALETTE
 }
 
@@ -2310,7 +2320,7 @@ private fun DefaultIconAiFinderScreen(
             } else {
                 Button(
                     onClick = { run() }, enabled = !running, modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Orange)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.WarningAccent)
                 ) { Text(if (running) "Finding…" else "Find (${models.size} model${if (models.size == 1) "" else "s"})", fontSize = 14.sp) }
             }
             candidates.values.sortedBy { "${it.provider.id}/${it.model}" }.forEach { c ->
@@ -2421,10 +2431,10 @@ private fun AppDefaultRow(label: String, selectedName: String?, onClick: () -> U
         Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.width(110.dp))
         Text(
             selectedName ?: "Tap to select", fontSize = 13.sp,
-            color = if (selectedName == null) AppColors.TextTertiary else AppColors.Blue,
+            color = if (selectedName == null) AppColors.TextTertiary else AppColors.InfoAccent,
             modifier = Modifier.weight(1f), maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
-        Text(">", fontSize = 16.sp, color = AppColors.Blue)
+        Text(">", fontSize = 16.sp, color = AppColors.InfoAccent)
     }
 }
 

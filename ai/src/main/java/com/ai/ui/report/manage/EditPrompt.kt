@@ -79,7 +79,7 @@ fun ReportEditPromptScreen(
             onClick = { onUpdate(prompt.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Update prompt", maxLines = 1, softWrap = false) }
 
         if (history.isNotEmpty()) {
@@ -118,7 +118,7 @@ private fun PreviousPromptCard(rev: PromptRevision, onRestore: () -> Unit) {
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(whenLabel, fontSize = 11.sp, color = AppColors.TextTertiary)
-            Text("↩ Tap to restore", fontSize = 11.sp, color = AppColors.Green)
+            Text("↩ Tap to restore", fontSize = 11.sp, color = AppColors.SuccessAccent)
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -253,7 +253,7 @@ private fun SingleTitleEditScreen(
             onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Update title", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -310,7 +310,7 @@ fun ReportEditModelTitleScreen(
             onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Update title", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -370,7 +370,7 @@ fun ReportEditPairTitleScreen(
             onClick = { onUpdate(title.trim()) },
             enabled = canUpdate,
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text("Update title", maxLines = 1, softWrap = false) }
         Spacer(modifier = Modifier.height(8.dp))
 

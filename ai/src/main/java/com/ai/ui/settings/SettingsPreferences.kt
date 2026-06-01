@@ -142,10 +142,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun saveGeneralSettings(settings: GeneralSettings) {
-        val uiColorOverrides = AppColors.defaultUiColorMap().toMutableMap().apply {
-            val knownKeys = keys
-            putAll(settings.uiColorOverrides.filterKeys { it in knownKeys })
-        }
+        val uiColorOverrides = AppColors.normalizeUiColorOverrides(settings.uiColorOverrides).toMutableMap()
         val cardBackgroundArgb = uiColorOverrides["CardBackgroundAlt"] ?: settings.uiCardBackgroundArgb
         val buttonBackgroundArgb = uiColorOverrides["ButtonBackground"] ?: settings.uiButtonBackgroundArgb
         prefs.edit {
@@ -568,14 +565,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     private fun loadUiColorOverrides(): Map<String, Int> {
-        val knownDefaults = AppColors.defaultUiColorMap()
-        val colors = knownDefaults.toMutableMap()
         val stored = prefs.getString(KEY_UI_COLOR_OVERRIDES, null)?.let {
             try { gson.fromJson<Map<String, Int>>(it, TypeTokens.mapStringIntType) } catch (_: Exception) { null }
         }.orEmpty()
-        stored.forEach { (key, value) ->
-            if (key in knownDefaults) colors[key] = value
-        }
+        val colors = AppColors.normalizeUiColorOverrides(stored).toMutableMap()
         if ("CardBackgroundAlt" !in stored) {
             colors["CardBackgroundAlt"] = prefs.getInt(KEY_UI_CARD_BACKGROUND_ARGB, DEFAULT_UI_CARD_BACKGROUND_ARGB)
         }

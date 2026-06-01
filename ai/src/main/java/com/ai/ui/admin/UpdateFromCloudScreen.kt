@@ -157,7 +157,7 @@ fun UpdateFromCloudScreen(
             },
             enabled = apkUriString != null && !isInstalling,
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 8.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
         ) { Text(if (isInstalling) "Preparing…" else "Update", maxLines = 1, softWrap = false) }
 
         Column(
@@ -178,10 +178,10 @@ fun UpdateFromCloudScreen(
             if (!driveInstalled) {
                 Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("Google Drive app", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text("Google Drive app", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                         Text(
                             "${com.ai.data.MetadataIconsHolder.current.crossMark} not installed",
-                            color = AppColors.Orange, fontSize = 13.sp
+                            color = AppColors.WarningAccent, fontSize = 13.sp
                         )
                         Text(
                             "Drive isn't required — the picker can browse any storage. " +
@@ -197,7 +197,7 @@ fun UpdateFromCloudScreen(
             // (re-reads are <1 ms via ContentResolver.query).
             Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Source file", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Source file", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     val uriStr = apkUriString
                     if (uriStr == null) {
                         Text("(none picked yet)", color = AppColors.TextTertiary, fontSize = 13.sp)
@@ -206,7 +206,7 @@ fun UpdateFromCloudScreen(
                         if (info == null) {
                             Text(
                                 "(source no longer accessible — re-pick required)",
-                                color = AppColors.Orange, fontSize = 13.sp
+                                color = AppColors.WarningAccent, fontSize = 13.sp
                             )
                         } else {
                             Text(info.displayName, color = Color.White, fontSize = 13.sp)
@@ -224,7 +224,7 @@ fun UpdateFromCloudScreen(
             // installing would change anything.
             Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Installed version", color = AppColors.Blue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Installed version", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     Text(installedVersion, color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                     // Two columns so the timestamps line up despite
                     // the different label widths ("built" / "installed").
@@ -261,7 +261,7 @@ fun UpdateFromCloudScreen(
             lastStatus?.let { msg ->
                 Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
                     Text(
-                        msg, color = AppColors.Green, fontSize = 12.sp,
+                        msg, color = AppColors.SuccessAccent, fontSize = 12.sp,
                         modifier = Modifier.padding(12.dp)
                     )
                 }

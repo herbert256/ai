@@ -81,7 +81,7 @@ fun LocalSearchScreen(
             },
             enabled = !running && query.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
         ) { Text(if (running) "Searching…" else "Search reports", maxLines = 1, softWrap = false) }
 
         status?.let {
@@ -112,7 +112,7 @@ fun LocalSearchScreen(
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(hit.timestamp, fontSize = 11.sp, color = AppColors.TextTertiary)
                         }
-                        Text(hit.score.toString(), fontSize = 11.sp, color = AppColors.Blue,
+                        Text(hit.score.toString(), fontSize = 11.sp, color = AppColors.InfoAccent,
                             modifier = Modifier.padding(start = 8.dp))
                         com.ai.ui.shared.ReportRowActionIcons(
                             onOpenManage = { onOpenReport(hit.reportId) },

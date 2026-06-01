@@ -122,7 +122,7 @@ private fun SetupNavCard(icon: String, title: String, description: String, count
             if (count.isNotBlank()) {
                 Text(count, fontSize = 14.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(horizontal = 8.dp))
             }
-            if (enabled) Text(">", fontSize = 16.sp, color = AppColors.Blue)
+            if (enabled) Text(">", fontSize = 16.sp, color = AppColors.InfoAccent)
         }
     }
 }
@@ -252,20 +252,20 @@ fun WorkersSetupScreen(
 private fun WorkersDiagram() {
     val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Column(modifier = Modifier.fillMaxWidth()) {
-        DiagramEntity(mi.settings, "Provider", AppColors.Blue, "has many models") {
+        DiagramEntity(mi.settings, "Provider", AppColors.InfoAccent, "has many models") {
             DiagramChipRow(listOf("${mi.reportModelIcon} Model", "${mi.reportModelIcon} Model", "${mi.reportModelIcon} Model", "${mi.reportModelIcon} Model"))
         }
         DiagramArrow("one model becomes an…")
-        DiagramEntity(mi.agent, "Agent", AppColors.Green, "a model with a system prompt and parameters") {
+        DiagramEntity(mi.agent, "Agent", AppColors.SuccessAccent, "a model with a system prompt and parameters") {
             DiagramChipRow(listOf("${mi.reportModelIcon} Model", "${mi.systemPrompt} System prompt", "${mi.sliders} Parameters"), separator = "+")
         }
         DiagramArrow("agents grouped into a…")
-        DiagramEntity(mi.flock, "Flock", AppColors.Orange, "a collection of agents") {
+        DiagramEntity(mi.flock, "Flock", AppColors.WarningAccent, "a collection of agents") {
             DiagramChipRow(listOf("${mi.agent} Agent", "${mi.agent} Agent", "${mi.agent} Agent"))
         }
 
         Spacer(modifier = Modifier.height(14.dp))
-        DiagramEntity(mi.swarm, "Swarm", AppColors.Purple, "a collection of models") {
+        DiagramEntity(mi.swarm, "Swarm", AppColors.PrimaryAccent, "a collection of models") {
             DiagramChipRow(listOf("${mi.reportModelIcon} Model", "${mi.reportModelIcon} Model", "${mi.reportModelIcon} Model"))
         }
     }
@@ -504,7 +504,7 @@ private fun ModelsSetupNavCard(icon: String, title: String, description: String,
             if (count.isNotBlank()) {
                 Text(count, fontSize = 14.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(horizontal = 8.dp))
             }
-            if (enabled) Text(">", fontSize = 16.sp, color = AppColors.Blue)
+            if (enabled) Text(">", fontSize = 16.sp, color = AppColors.InfoAccent)
         }
     }
 }
@@ -607,7 +607,7 @@ fun ProvidersScreen(
             Button(
                 onClick = { showAddDialog = true },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent)
             ) { Text("+ Add provider", maxLines = 1, softWrap = false) }
         }
     }
@@ -669,8 +669,8 @@ private fun AddProviderNameDialog(
                 colors = AppColors.outlinedFieldColors(),
                 supportingText = {
                     when {
-                        reserved -> Text("Local is reserved for the on-device provider", color = AppColors.Red, fontSize = 11.sp)
-                        taken -> Text("Already in use", color = AppColors.Red, fontSize = 11.sp)
+                        reserved -> Text("Local is reserved for the on-device provider", color = AppColors.DangerAccent, fontSize = 11.sp)
+                        taken -> Text("Already in use", color = AppColors.DangerAccent, fontSize = 11.sp)
                         name.contains(" ") -> Text("Spaces will be stripped — saved as \"$normalized\"", color = AppColors.TextTertiary, fontSize = 11.sp)
                     }
                 }

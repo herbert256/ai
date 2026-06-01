@@ -89,7 +89,7 @@ fun AboutScreen(
             // so it sits unobtrusively under the build stamp.
             Text(
                 "github.com/herbert256/ai",
-                fontSize = 13.sp, color = AppColors.Blue,
+                fontSize = 13.sp, color = AppColors.InfoAccent,
                 textDecoration = TextDecoration.Underline,
                 modifier = Modifier.clickable {
                     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/herbert256/ai")))

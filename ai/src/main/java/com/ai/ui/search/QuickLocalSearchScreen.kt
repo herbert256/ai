@@ -80,7 +80,7 @@ fun QuickLocalSearchScreen(
             },
             enabled = !running && query.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent)
         ) { Text(if (running) "Searching…" else "Search reports", maxLines = 1, softWrap = false) }
 
         status?.let {

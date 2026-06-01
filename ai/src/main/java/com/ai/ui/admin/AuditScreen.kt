@@ -105,7 +105,7 @@ fun AuditListScreen(
                     val n = AuditLog.clearAll()
                     rows = AuditLog.auditReports().map { AuditRow(it, ReportStorage.getReport(context, it.reportId)?.title) }
                     Toast.makeText(context, "Deleted $n audit file(s)", Toast.LENGTH_SHORT).show()
-                }) { Text("Clear", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Clear", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmClearAll = false }) { Text("Cancel", maxLines = 1, softWrap = false) }
@@ -251,7 +251,7 @@ fun AuditDetailScreen(
                             Toast.makeText(context, "Could not delete audit", Toast.LENGTH_SHORT).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Red)
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
                 ) { Text("Delete", maxLines = 1, softWrap = false) }
             },
             dismissButton = {
@@ -293,10 +293,10 @@ private fun isApiLine(body: String): Boolean =
 private fun colorForAuditLine(line: String): Color {
     val body = bodyOf(line)
     return when {
-        body.startsWith("API ") && " · ERROR " in body -> AppColors.Red
+        body.startsWith("API ") && " · ERROR " in body -> AppColors.DangerAccent
         body.startsWith("API ") -> AppColors.TextTertiary
-        body.startsWith("Start ") || body.startsWith("End ") -> AppColors.Blue
-        body.startsWith("Deleted ") || body == "Report deleted" -> AppColors.Orange
+        body.startsWith("Start ") || body.startsWith("End ") -> AppColors.InfoAccent
+        body.startsWith("Deleted ") || body == "Report deleted" -> AppColors.WarningAccent
         else -> Color(0xFFCCCCCC)
     }
 }

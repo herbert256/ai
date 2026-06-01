@@ -239,7 +239,7 @@ internal fun ColumnScope.FanOutDrillInView(
 
     // Read-only prompt viewer overlay
     if (showPromptViewer && fanOutPrompt != null) {
-        Text(fanOutPrompt.name, fontSize = 16.sp, color = AppColors.Blue,
+        Text(fanOutPrompt.name, fontSize = 16.sp, color = AppColors.InfoAccent,
             fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold)
         if (fanOutPrompt.title.isNotBlank()) {
             Text(fanOutPrompt.title, fontSize = 12.sp, color = AppColors.TextSecondary)
@@ -253,7 +253,7 @@ internal fun ColumnScope.FanOutDrillInView(
         Button(
             onClick = { showPromptViewer = false },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
         ) { Text("Close", fontSize = 13.sp) }
         return
     }
@@ -434,7 +434,7 @@ internal fun ColumnScope.FanOutDrillInView(
                         onDelete(pairResult.id)
                         l3AnswererKey = null
                         l3SourceAgentId = null
-                    }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                    }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
                 },
                 dismissButton = {
                     TextButton(onClick = { confirmPairDelete = false }) {
@@ -508,7 +508,7 @@ internal fun ColumnScope.FanOutDrillInView(
                     modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(answererLabel, fontSize = 13.sp, color = AppColors.Green,
+                        Text(answererLabel, fontSize = 13.sp, color = AppColors.SuccessAccent,
                             fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace,
                             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         val tf by produceState<String?>(initialValue = null, pairResult?.id, pairResult?.model, pairResult?.traceFile) {
@@ -536,7 +536,7 @@ internal fun ColumnScope.FanOutDrillInView(
                     when {
                         pairResult == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
                         pairResult.errorMessage != null -> {
-                            Text("${com.ai.data.MetadataIconsHolder.current.statusFailed} ${pairResult.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
+                            Text("${com.ai.data.MetadataIconsHolder.current.statusFailed} ${pairResult.errorMessage}", fontSize = 13.sp, color = AppColors.DangerAccent)
                         }
                         !pairResult.content.isNullOrBlank() -> ContentWithThinkSections(analysis = pairResult.content)
                         // durationMs is stamped on every successful and errored
@@ -647,7 +647,7 @@ internal fun ColumnScope.FanOutDrillInView(
                 modifier = Modifier.weight(1f))
             Button(
                 onClick = { selectedRole = if (selectedRole == "Responder") "Initiator" else "Responder" },
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -673,7 +673,7 @@ internal fun ColumnScope.FanOutDrillInView(
             Button(
                 onClick = { onCreateReportFromFanOut?.invoke(activePid, activeMdl) },
                 enabled = onCreateReportFromFanOut != null && hasInitiatorRows,
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.SuccessAccent),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.weight(1f).heightIn(min = 32.dp)
             ) { Text("Create Report", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -742,7 +742,7 @@ internal fun ColumnScope.FanOutDrillInView(
                     TextButton(onClick = {
                         confirmRemoveFailedL2 = false
                         onRemoveFailedFanOutForModel(fanOutPrompt, activePid, activeMdl)
-                    }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                    }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
                 },
                 dismissButton = {
                     TextButton(onClick = { confirmRemoveFailedL2 = false }) {
@@ -808,7 +808,7 @@ internal fun ColumnScope.FanOutDrillInView(
                                 color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(end = 8.dp))
                         }
-                        Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                        Text(">", fontSize = 16.sp, color = AppColors.InfoAccent)
                     }
                     HorizontalDivider(color = AppColors.DividerDark)
                 }
@@ -824,10 +824,10 @@ internal fun ColumnScope.FanOutDrillInView(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Box(modifier = Modifier.padding(end = 8.dp).width(20.dp))
-                            Text("Total", fontSize = 14.sp, color = AppColors.Blue,
+                            Text("Total", fontSize = 14.sp, color = AppColors.InfoAccent,
                                 fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                             Text(formatCents(totalCost), fontSize = 11.sp,
-                                color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                                color = AppColors.InfoAccent, fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(end = 8.dp))
                             // Match the ">" tap chevron's slot on
                             // the data rows so the cost column lines
@@ -843,7 +843,7 @@ internal fun ColumnScope.FanOutDrillInView(
         Button(
             onClick = { showOnePageView = true },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
         ) { Text("One page view", fontSize = 13.sp, maxLines = 1, softWrap = false) }
 
         if (confirmModelDelete) {
@@ -872,7 +872,7 @@ internal fun ColumnScope.FanOutDrillInView(
                                 selectedModelKey = null
                             }
                         }
-                    ) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                    ) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
                 },
                 dismissButton = {
                     TextButton(onClick = { confirmModelDelete = false }) {
@@ -978,7 +978,7 @@ internal fun ColumnScope.FanOutDrillInView(
         Button(
             onClick = { onRunFanIn() },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Indigo)
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.SecondaryAccent)
         ) { Text("Run a Fan in prompt", fontSize = 13.sp, maxLines = 1, softWrap = false) }
     }
     // Per-failure controls — only visible when at least one pair row
@@ -1008,7 +1008,7 @@ internal fun ColumnScope.FanOutDrillInView(
         LinearProgressIndicator(
             progress = { finished },
             modifier = Modifier.fillMaxWidth().height(6.dp),
-            color = AppColors.Orange,
+            color = AppColors.WarningAccent,
             trackColor = AppColors.DividerDark
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -1078,7 +1078,7 @@ internal fun ColumnScope.FanOutDrillInView(
         if (combinedRows.isNotEmpty()) {
             item(key = "ac-header") {
                 Text("Combined reports", fontSize = 12.sp,
-                    color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                    color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 4.dp))
             }
             val sortedCombined = combinedRows.sortedByDescending { it.timestamp }
@@ -1121,14 +1121,14 @@ internal fun ColumnScope.FanOutDrillInView(
                             color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace,
                             modifier = Modifier.padding(end = 8.dp))
                     }
-                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                    Text(">", fontSize = 16.sp, color = AppColors.InfoAccent)
                 }
                 HorizontalDivider(color = AppColors.DividerDark)
             }
             item(key = "ac-section-gap") {
                 Spacer(modifier = Modifier.height(12.dp))
                 Text("Models", fontSize = 12.sp,
-                    color = AppColors.Blue, fontWeight = FontWeight.SemiBold,
+                    color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(bottom = 4.dp))
             }
         }
@@ -1170,7 +1170,7 @@ internal fun ColumnScope.FanOutDrillInView(
                         LinearProgressIndicator(
                             progress = { rowFinished.toFloat() / rs.totalSources },
                             modifier = Modifier.fillMaxWidth().padding(top = 2.dp).height(4.dp),
-                            color = AppColors.Orange,
+                            color = AppColors.WarningAccent,
                             trackColor = AppColors.DividerDark
                         )
                     } else if (rs.err > 0) {
@@ -1188,7 +1188,7 @@ internal fun ColumnScope.FanOutDrillInView(
                 // (which renders an empty 16dp Box in this column)
                 // lines its cost up exactly under the per-row costs.
                 Box(modifier = Modifier.width(16.dp), contentAlignment = Alignment.Center) {
-                    Text(">", fontSize = 16.sp, color = AppColors.Blue)
+                    Text(">", fontSize = 16.sp, color = AppColors.InfoAccent)
                 }
             }
             HorizontalDivider(color = AppColors.DividerDark)
@@ -1204,10 +1204,10 @@ internal fun ColumnScope.FanOutDrillInView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(modifier = Modifier.padding(end = 8.dp).width(20.dp))
-                    Text("Total", fontSize = 14.sp, color = AppColors.Blue,
+                    Text("Total", fontSize = 14.sp, color = AppColors.InfoAccent,
                         fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     Text(formatCents(totalAnswerersCost), fontSize = 11.sp,
-                        color = AppColors.Blue, fontFamily = FontFamily.Monospace,
+                        color = AppColors.InfoAccent, fontFamily = FontFamily.Monospace,
                         modifier = Modifier.padding(end = 8.dp))
                     // Spacer matching the ">" tap chevron on data rows
                     // so the totals line up vertically with the
@@ -1224,11 +1224,11 @@ internal fun ColumnScope.FanOutDrillInView(
     if (totalPairs != doneCount) {
         Spacer(modifier = Modifier.height(8.dp))
         Column(modifier = Modifier.fillMaxWidth()) {
-            StatRow("Total API calls", totalPairs.toString(), AppColors.Blue)
-            StatRow("Done", doneCount.toString(), AppColors.Green)
+            StatRow("Total API calls", totalPairs.toString(), AppColors.InfoAccent)
+            StatRow("Done", doneCount.toString(), AppColors.SuccessAccent)
             StatRow("Errored", erroredCount.toString(),
-                if (erroredCount > 0) AppColors.Red else AppColors.TextTertiary)
-            StatRow("Running", runningCount.toString(), AppColors.Orange)
+                if (erroredCount > 0) AppColors.DangerAccent else AppColors.TextTertiary)
+            StatRow("Running", runningCount.toString(), AppColors.WarningAccent)
             StatRow("Queued", queuedCount.toString(), AppColors.TextTertiary)
         }
     }
@@ -1265,7 +1265,7 @@ internal fun ColumnScope.FanOutDrillInView(
                 TextButton(onClick = {
                     confirmRemoveFailedL1 = false
                     fanOutPrompt?.let { onRemoveFailedFanOut(it) }
-                }) { Text("Remove", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmRemoveFailedL1 = false }) {
@@ -1287,7 +1287,7 @@ internal fun ColumnScope.FanOutDrillInView(
                 TextButton(onClick = {
                     confirmRerunComplete = false
                     fanOutPrompt?.let { onRerunCompleteFanOut(it) }
-                }) { Text("Rerun", color = AppColors.Orange, maxLines = 1, softWrap = false) }
+                }) { Text("Rerun", color = AppColors.WarningAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmRerunComplete = false }) {
@@ -1316,7 +1316,7 @@ internal fun ColumnScope.FanOutDrillInView(
                     // now-empty screen so the parent (which re-derives
                     // its row counts from storage) refreshes on resume.
                     onBack()
-                }) { Text("Delete", color = AppColors.Red, maxLines = 1, softWrap = false) }
+                }) { Text("Delete", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmFanOutDelete = false }) {
@@ -1488,7 +1488,7 @@ private fun OnePageView(
                 modifier = Modifier.weight(1f))
             Button(
                 onClick = onSwitchRole,
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Purple),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.PrimaryAccent),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 32.dp)
             ) { Text("Switch role", fontSize = 12.sp, maxLines = 1, softWrap = false) }
@@ -1500,7 +1500,7 @@ private fun OnePageView(
                 when (item) {
                     is OnePageItem.SourceHeader -> {
                         Text("${com.ai.ui.shared.modelLabel(item.provName, item.model, separator = " / ")} — report response",
-                            fontSize = 13.sp, color = AppColors.Blue,
+                            fontSize = 13.sp, color = AppColors.InfoAccent,
                             fontWeight = FontWeight.SemiBold)
                         Spacer(modifier = Modifier.height(4.dp))
                         val body = item.responseBody
@@ -1514,10 +1514,10 @@ private fun OnePageView(
                     is OnePageItem.Response -> {
                         if (item.showAnswererHeader) {
                             Text("${com.ai.ui.shared.modelLabel(item.ansProv, item.ansMdl, separator = " / ")} — response",
-                                fontSize = 13.sp, color = AppColors.Green,
+                                fontSize = 13.sp, color = AppColors.SuccessAccent,
                                 fontWeight = FontWeight.SemiBold)
                         } else {
-                            Text("Response", fontSize = 13.sp, color = AppColors.Green,
+                            Text("Response", fontSize = 13.sp, color = AppColors.SuccessAccent,
                                 fontWeight = FontWeight.SemiBold)
                         }
                         Spacer(modifier = Modifier.height(4.dp))
@@ -1525,7 +1525,7 @@ private fun OnePageView(
                         when {
                             pair == null -> Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
                             pair.errorMessage != null ->
-                                Text("${com.ai.data.MetadataIconsHolder.current.statusFailed} ${pair.errorMessage}", fontSize = 13.sp, color = AppColors.Red)
+                                Text("${com.ai.data.MetadataIconsHolder.current.statusFailed} ${pair.errorMessage}", fontSize = 13.sp, color = AppColors.DangerAccent)
                             !pair.content.isNullOrBlank() -> ContentWithThinkSections(analysis = pair.content)
                             pair.durationMs != null ->
                                 Text("(empty response)", fontSize = 13.sp, color = AppColors.TextTertiary)
