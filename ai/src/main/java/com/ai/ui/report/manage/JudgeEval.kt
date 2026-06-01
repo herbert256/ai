@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -180,6 +181,7 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
     var awaitingEditReturn by rememberSaveable { mutableStateOf(false) }
     var confirmRerun by rememberSaveable { mutableStateOf(false) }
     var confirmRedo by rememberSaveable { mutableStateOf(false) }
+    var l1Mode by rememberSaveable { mutableStateOf(JudgeEvalL1Mode.JUDGES) }
     LaunchedEffect(Unit) {
         if (awaitingEditReturn) {
             awaitingEditReturn = false
@@ -237,6 +239,7 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
         else -> JudgeEvalL1(run, agents, throttled, reportTitle, reportIcon,
             openJudge = { jk -> if (navOk()) { judgeKey = jk; byMatch = false; level = 2 } },
             openMatch = { mk -> if (navOk()) { matchKey = mk; byMatch = true; level = 2 } },
+            mode = l1Mode, setMode = { l1Mode = it },
             onEditSwarm = {
                 engine.activeSwarmId()?.let {
                     awaitingEditReturn = true
@@ -316,6 +319,9 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
 
 // ---------- L1 ----------
 
+/** L1 view modes, switched by the top toggle (like Fan Meta). */
+enum class JudgeEvalL1Mode { JUDGES, MATCHES }
+
 @Composable
 private fun JudgeEvalL1(
     run: JudgeEvalRunState,
@@ -325,6 +331,8 @@ private fun JudgeEvalL1(
     reportIcon: String,
     openJudge: (String) -> Unit,
     openMatch: (String) -> Unit,
+    mode: JudgeEvalL1Mode,
+    setMode: (JudgeEvalL1Mode) -> Unit,
     onEditSwarm: () -> Unit,
     onRedo: () -> Unit,
     onRestartFailed: () -> Unit,
@@ -370,55 +378,71 @@ private fun JudgeEvalL1(
             )
             Spacer(Modifier.height(12.dp))
 
-            if (run.allTerminal) {
-                val stats2 = analyzeJudges(run.cells.values.toList())
-                Text(
-                    "Consensus strength  ${pct(stats2.consensusStrength())}",
-                    color = AppColors.Green, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+            // Mode toggle — Judges (default) vs Matches, like Fan Meta.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = mode == JudgeEvalL1Mode.JUDGES,
+                    onClick = { setMode(JudgeEvalL1Mode.JUDGES) },
+                    label = { Text("Judges", fontSize = 12.sp) },
+                    modifier = Modifier.weight(1f)
                 )
-                Spacer(Modifier.height(8.dp))
-                // One-line-per-judge table, in a card: # / Model / Cost(¢) /
-                // API time / Agreement-with-consensus.
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground)) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("#", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(22.dp))
-                        Text("Model", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                        Text("¢", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
-                        Text("Time", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(50.dp))
-                        Text("Cons.", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+                FilterChip(
+                    selected = mode == JudgeEvalL1Mode.MATCHES,
+                    onClick = { setMode(JudgeEvalL1Mode.MATCHES) },
+                    label = { Text("Matches", fontSize = 12.sp) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Spacer(Modifier.height(10.dp))
+
+            if (mode == JudgeEvalL1Mode.JUDGES) {
+                if (run.allTerminal) {
+                    val stats2 = analyzeJudges(run.cells.values.toList())
+                    Text(
+                        "Consensus strength  ${pct(stats2.consensusStrength())}",
+                        color = AppColors.Green, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    // One-line-per-judge table, in a card: # / Model / Cost(¢) /
+                    // API time / Agreement-with-consensus.
+                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground)) {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("#", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(22.dp))
+                            Text("Model", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
+                            Text("¢", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
+                            Text("Time", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(50.dp))
+                            Text("Cons.", color = AppColors.Blue, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
+                        }
+                        HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.35f), thickness = 0.5.dp)
+                        stats2.forEachIndexed { i, s ->
+                            JudgeLeaderRow(rank = i + 1, s = s) { openJudge(s.judgeKey) }
+                            if (i < stats2.lastIndex) HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.2f), thickness = 0.5.dp)
+                        }
                     }
-                    HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.35f), thickness = 0.5.dp)
-                    stats2.forEachIndexed { i, s ->
-                        JudgeLeaderRow(rank = i + 1, s = s) { openJudge(s.judgeKey) }
-                        if (i < stats2.lastIndex) HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.2f), thickness = 0.5.dp)
+                } else {
+                    // Per-judge progress while running — the green bar fills to the
+                    // judge's own percentage done (DONE + ERROR) / total, like Fan Out.
+                    val byJudge = run.cells.values.groupBy { it.judgeKey }
+                        .toList().sortedBy { it.first }
+                    byJudge.forEach { (jk, cells) ->
+                        val done = cells.count { it.status == JudgeCellStatus.DONE || it.status == JudgeCellStatus.ERROR }
+                        JudgeProgressRow(
+                            label = shortModelName(jk.substringAfterLast('/')),
+                            done = done, total = cells.size,
+                            barFrac = if (cells.isNotEmpty()) done.toFloat() / cells.size else 0f
+                        ) { openJudge(jk) }
                     }
                 }
             } else {
-                // Per-judge progress while running — the green bar fills to the
-                // judge's own percentage done (DONE + ERROR) / total, like Fan Out.
-                val byJudge = run.cells.values.groupBy { it.judgeKey }
-                    .toList().sortedBy { it.first }
-                byJudge.forEach { (jk, cells) ->
-                    val done = cells.count { it.status == JudgeCellStatus.DONE || it.status == JudgeCellStatus.ERROR }
-                    JudgeProgressRow(
-                        label = shortModelName(jk.substringAfterLast('/')),
-                        done = done, total = cells.size,
-                        barFrac = if (cells.isNotEmpty()) done.toFloat() / cells.size else 0f
-                    ) { openJudge(jk) }
-                }
-            }
-
-            // Second table: the 25 matches, in a card. Each row → the per-match
-            // list of judges (JudgeEvalMatchScreen → L3).
-            Spacer(Modifier.height(18.dp))
-            Text("Matches", color = AppColors.Blue, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(6.dp))
-            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground)) {
-                val matches = buildMatchSummaries(run, agents)
-                matches.forEachIndexed { i, m ->
-                    MatchSummaryRow(m) { openMatch(m.matchKey) }
-                    if (i < matches.lastIndex) HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.2f), thickness = 0.5.dp)
+                // Matches mode: one row per match in a card; each → the per-match
+                // list of judges (JudgeEvalMatchScreen → L3).
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground)) {
+                    val matches = buildMatchSummaries(run, agents)
+                    matches.forEachIndexed { i, m ->
+                        MatchSummaryRow(m) { openMatch(m.matchKey) }
+                        if (i < matches.lastIndex) HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.2f), thickness = 0.5.dp)
+                    }
                 }
             }
 

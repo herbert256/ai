@@ -235,7 +235,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         title = "Help - Judge the judges",
         cards = listOf(
             HelpCard("What it is", "This batch evaluates the JUDGES. It takes the same judge models the Tournament uses (the worker models in your 'tournament' swarm) and gives EVERY judge the SAME 25 random head-to-head pairs from this report's answers, so their verdicts can be compared. Start it from the report's 🆕 Create launcher → Judge the judges."),
-            HelpCard("Statistics", "The counters show Total cells (judges × matches) / Done / Running / Wait (throttled) / Queue / Errors / Cost, with the judge and match counts below. While running, one row per judge shows its progress."),
+            HelpCard("Statistics", "The counters show Total cells (judges × matches) / Done / Running / Wait (throttled) / Queue / Errors / Cost, with the judge and match counts below. The 'Judges' / 'Matches' toggle switches the table below between the judge leaderboard (default) and the per-match list. While running, the Judges view shows one progress row per judge."),
             HelpCard("The analysis", "When every cell is judged, the judges are ranked by CONSENSUS AGREEMENT — how often each judge matched the majority verdict across the 25 matches. 'Consensus strength' is the average agreement (high = the judges broadly agree). Each judge row also shows its cost, total API time, and agreement. Tap a judge to see its verdict on each match next to the consensus; the ✏️ opens the judge swarm for editing, the 🔄 redoes the whole batch from scratch, the 🗑 deletes the whole run, 'Restart failed' re-judges errored cells.")
         )
     ),
