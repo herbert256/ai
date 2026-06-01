@@ -91,6 +91,7 @@ internal fun ReportRunScreen(
     languageIconCost: Double,
     languageDetectCost: Double,
     languageName: String?,
+    languageIcon: String?,
     agentIconRows: Map<String, AgentIconRow>,
     agentModelTitles: Map<String, AgentModelTitle> = emptyMap(),
     agentRecordsByAgentId: Map<String, ReportAgent> = emptyMap(),
@@ -758,6 +759,8 @@ internal fun ReportRunScreen(
                     reportTitle = uiState.genericPromptTitleLong.ifBlank { uiState.genericPromptTitle },
                     reportIcon = reportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon,
                     originalLanguage = languageName,
+                    originalLanguageIcon = languageIcon?.takeIf { it.isNotBlank() }
+                        ?: com.ai.data.MetadataIconsHolder.current.languageIcon,
                     summaries = translationRunSummaries,
                     onOpenRun = { st.openTranslationRunId.value = it },
                     onOpenOriginal = { showTranslationsList = false },

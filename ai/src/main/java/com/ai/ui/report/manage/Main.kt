@@ -379,6 +379,7 @@ fun ReportsScreen(
     val reportIconTraceFile = runtime.reportIconTraceFile
     val languageIconCost = runtime.languageIconCost
     val languageName = runtime.languageName
+    val languageIcon = runtime.languageIcon
     val agentIconRows = runtime.agentIconRows
     val agentModelTitles = runtime.agentModelTitles
     val infoEnabled = runtime.infoEnabled
@@ -1602,6 +1603,7 @@ fun ReportsScreen(
             languageIconCost = languageIconCost,
             languageDetectCost = languageDetectCost,
             languageName = languageName,
+            languageIcon = languageIcon,
             agentIconRows = agentIconRows,
             agentModelTitles = agentModelTitles,
             agentRecordsByAgentId = agentRecordsByAgentId,

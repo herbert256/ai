@@ -46,6 +46,7 @@ internal fun ReportTranslationsScreen(
     reportTitle: String,
     reportIcon: String,
     originalLanguage: String?,
+    originalLanguageIcon: String,
     summaries: List<TranslationRunSummary>,
     onOpenRun: (String) -> Unit,
     onOpenOriginal: () -> Unit,
@@ -73,9 +74,10 @@ internal fun ReportTranslationsScreen(
         )
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             // Original — always the first row, returns to the managed report.
+            // Uses the report's detected language icon (not the report icon).
             item(key = "tr-original") {
                 TranslationLanguageRow(
-                    icon = reportIcon,
+                    icon = originalLanguageIcon,
                     label = originalLanguage?.takeIf { it.isNotBlank() } ?: "Original",
                     onClick = onOpenOriginal
                 )
