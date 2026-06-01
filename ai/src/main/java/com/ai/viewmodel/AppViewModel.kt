@@ -1026,10 +1026,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 // Persist the reset Settings synchronously before the
                 // import step reads _uiState — updateSettings's IO save
                 // is fire-and-forget but the StateFlow update is sync.
-                // 7. Reload internal-prompts/ + system-prompts.json + meta.json from assets
-                loadBundledInternalPrompts()
-                loadBundledSystemPrompts()
-                loadBundledDefaultMetaItems()
+                // 7. Reset internal-prompts/ + system-prompts.json + meta.json
+                //    from assets — FULL REPLACE (drop every existing row and
+                //    reload the bundled set), not the add-only merge. A factory
+                //    reset must not leave a user-customized internal prompt
+                //    behind, so we don't rely on step 6's clear having emptied
+                //    the list first.
+                resetInternalPromptsFromAssets()
+                resetSystemPromptsFromAssets()
+                resetDefaultMetaItemsFromAssets()
                 // 8. Re-import keys from temp file
                 val readBack = tempFile.readText()
                 val result = com.ai.ui.settings.applyApiKeysJson(readBack, _uiState.value.aiSettings)
