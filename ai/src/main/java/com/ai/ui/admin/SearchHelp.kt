@@ -4,8 +4,8 @@ internal val searchHelp: Map<String, HelpContent> = mapOf(
     "search_ai_reports_screen" to HelpContent(
         title = "Help - Search reports",
         cards = listOf(
-            HelpCard("What you see", "Three search modes in escalating-cost order: 🔍 Quick local search (substring), 📂 Extended local search (tokenised), 🌐 Remote semantic search (cloud embeddings)."),
-            HelpCard("How to use it", "Pick the mode that suits the question — local-quick is fast and free; remote-semantic uses an embedding provider and bills accordingly. Each mode shows matching reports with the same per-row 🔧 / 👁 icons as the dashboard.")
+            HelpCard("What you see", "Search modes in escalating setup/cost order: 🔍 Quick local search (substring), 📂 Extended local search (tokenised), 🌐 Remote semantic search (cloud embeddings), and — when Experimental features is on — 🧭 Local semantic search (on-device embeddings)."),
+            HelpCard("How to use it", "Pick the mode that suits the question. Quick and Extended run locally with no model call; Remote semantic uses an embedding provider and bills accordingly; Local semantic needs an installed LiteRT embedder but keeps the embedding work on device. Each mode shows matching reports with the same per-row 🔧 / 👁 icons as the dashboard.")
         )
     ),
     "search_local" to HelpContent(

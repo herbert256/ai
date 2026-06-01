@@ -408,7 +408,7 @@ fun InternalPromptsHubScreen(
                 onClick = onOpenFanInOutHub)
             ModelsSetupNavCard(MetadataDefaults.TOOLBOX, "Other internal prompts", "Templates consumed by app features (Translate, Model info, Chat title, Rerank, Moderation)", "${countByCategory("internal")}",
                 onClick = { onOpenInternalPrompts("internal") })
-            ModelsSetupNavCard(MetadataDefaults.WORKER, "Worker prompts", "Prompts that run on an ordered list of workers (agent or provider+model) tried as a fallback chain. Edit-only — wiring comes later.", "${countByCategory("workers")}",
+            ModelsSetupNavCard(MetadataDefaults.WORKER, "Worker prompts", "Prompts that run on an ordered worker fallback chain for app-owned jobs.", "${countByCategory("workers")}",
                 onClick = { onOpenInternalPrompts("workers") })
             ModelsSetupNavCard(MetadataDefaults.SPARKLES, "Alternative prompts", "The *_alt variants the Find-alternative-icons / titles flows compose with their base prompt (distinct-emoji / no-flag nudges). Edit-only.", "${countByCategory("alt")}",
                 onClick = { onOpenInternalPrompts("alt") })

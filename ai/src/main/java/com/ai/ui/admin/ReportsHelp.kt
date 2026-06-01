@@ -44,7 +44,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Dashboard for everything to do with reports. Two top buttons jump into the creation and search wrappers; four list cards summarise what's already on disk; one bottom button opens the paginated browser."),
             HelpCard("In-flight pill", "When at least one report has unfinished agents (PENDING / RUNNING and no completedAt), an orange ⏳ pill appears at the top — tap it to resume the most recent in-flight run without going through History."),
-            HelpCard("Top buttons", "New AI report opens the three creation entry points (blank, previous prompt, example prompt). Search AI reports opens the three search modes (Quick local, Extended local, Remote semantic)."),
+            HelpCard("Top buttons", "New AI report opens the creation entry points (blank, previous prompt, example prompt). Search AI reports opens Quick local, Extended local, Remote semantic, and — when Experimental features is enabled — Local semantic search."),
             HelpCard("Problems / Running / Pinned / Latest", "Four list cards, each showing up to five rows. ⚠️ Problems collects reports with an errored agent or a stuck/failed secondary; ⏳ Running collects reports with at least one PENDING / RUNNING agent or an active translation run; 📌 Pinned mirrors every report flagged on Manage; 🕘 Latest shows the five newest. An empty card stays on screen at reduced opacity with an italic '(none)' line so the layout doesn't shift."),
             HelpCard("Per-row icons", "Tap a row to open at Manage. 🔧 jumps to Manage explicitly, 👁 jumps to the View tile grid, 🗑 prompts a delete confirmation that removes the report from disk."),
             HelpCard("All AI reports", "Bottom button opens the paginated swipe-through of every saved report — same per-row icons as the dashboard cards.")
@@ -78,7 +78,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("What you see", "A list of the report's metadata-generation jobs, each with a status: ⏰ clock (can't run yet), ⏳ hourglass (running), ❌ red cross (failed), ✅ green (done). Report-level jobs are the icon, the detected language, and the AI title; per-model jobs are each model's icon and its model-title."),
             HelpCard("When jobs run", "Icon / language / title start as soon as the report runs. A model's icon and model-title wait (⏰) until that model's own response finishes, then run. A model whose response failed leaves its icon/title rows on the clock — they can't be produced without a response."),
-            HelpCard("Which rows appear", "Only enabled jobs are listed: report icon/language need 'Generate report icons' on, the title needs report-title mode = AI, and the per-model icon/title rows need their 'Generate per model icons' / 'Generate per model titles' settings on."),
+            HelpCard("Which rows appear", "Only enabled jobs are listed: report icon, report language, report title, per-model icons, and per-model titles each follow their own Settings -> Metadata & icons toggle. Report title also requires title mode = AI."),
             HelpCard("Costs", "Each row shows its own cost; the screen total is in the bottom bar. The single info row on Manage report mirrors this total, and its status aggregates these jobs (❌ if any failed, else ⏳ if any are still clock/running, else ✅). Tap a row to open its detail (icon / language / title / per-model icon).")
         )
     ),
@@ -110,7 +110,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "report_edit_icons" to HelpContent(
         title = "Help - Edit icons",
         cards = listOf(
-            HelpCard("What you see", "One row for every icon in this report: the report icon, the report-language icon, each model's report icon, the Meta icons, the Ranking and Moderation icons, a per-language Translation icon, and each fan-out response's icon. The leading glyph is the current icon (⬜ when none yet)."),
+            HelpCard("What you see", "One row for every editable icon in this report: the report icon, report-language icon, each model's report icon, Meta/Compare icons, Rerank and Moderation icons, Tournament and Judge-the-Judges icons, per-language Translation icons, and fan-out/fan-in response icons. The leading glyph is the current icon (⬜ when none yet)."),
             HelpCard("How it works", "Tap any row to open that icon's Icon lookup screen, where Find alternative icons fans the icon prompt out across the models you pick and lets you choose a replacement. Picks save straight to that icon and the row refreshes."),
             HelpCard("Reached from", "Edit report (✏️ on Manage report) → Edit icons.")
         )
@@ -159,11 +159,11 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "The post-Generate page in the report flow. Per-agent rows stream in as each model returns; the Action row at the bottom exposes the operations you can apply to the finished run. Sibling of the pre-Generate Report - select models — a Generate (or opening a saved report from History) lands you here."),
             HelpCard("Subject row", "Green strip below the title bar carrying the prompt title + the running 💰 cost in cents. Updates live as each call settles. Tapping the title bar's title text drills into the per-agent results viewer."),
-            HelpCard("Per-agent rows", "One card per dispatched model. While the call is in flight the row shows progress; on completion it carries the response, token + cost cell, optional 🐞 trace icon, and the auto-generated per-agent emoji once the icon chain finishes."),
+            HelpCard("Per-agent rows", "One card per dispatched model. While the call is in flight the row shows progress; on completion it carries the response, token + cost cell, optional 🐞 trace icon, and the auto-generated per-model emoji once the icon worker finishes."),
             HelpCard("Row labels", "Report rows show generated per-model titles by default. Tap 🔤 in the icon bar to switch those rows to raw provider/model names; tap it again to return to titles."),
             HelpCard("Action row — while running", "STOP cancels every in-flight call (rows mid-stream complete what they've received, then mark CANCELLED). Background drops you back to Hub while the run continues; reopening the report shows the in-flight rows still streaming."),
             HelpCard("Action row — when complete", "View, Edit, Copy, Pin/Unpin, Create, Fan Out, Tournament. Regenerate / Delete / Export live as title-bar icons (🔄 / 🗑 / 📤) rather than action-row buttons to avoid duplicating the same tap target."),
-            HelpCard("Per-model icons (auto-run, per-task)", "The 3-tier per-agent icon chain (chat continuation → one-shot icons/report template → fixed-agent icons/report_3 fallback) fires automatically when Settings → Generate per model icons is on. Each agent's chain kicks off the moment THAT agent's primary call settles to SUCCESS, so a fast row's emoji can appear before a slow row in the same report has finished generating. Tier 1 = chat (the model emoji-fies its own previous answer). Tier 2 = one-shot with @PROMPT@/@RESPONSE@. Tier 3 = bundled DeepSeek on @RESPONSE@ only. All three fail → 📝. Costs from every tier call accumulate on the row's cost cell, post to global Usage statistics with kind=\"icon\", and appear as their own rows in the export's per-call All tab. Regenerating the report re-fires the chain per regenerated agent."),
+            HelpCard("Per-model icons (auto-run)", "When Settings -> Metadata & icons -> Generate per model icons is on, each successful response schedules the workers/model-icons flow. The worker derives an emoji from the generated model title and response context, stores it on that report row, and falls back to the Default icons report-model glyph if no usable emoji is produced. Icon costs appear on the row/report cost breakdown and in AI Usage."),
             HelpCard("View popup", "Reports / Prompt / Costs plus one row per Meta-prompt name with at least one persisted secondary on this report. Edit popup is Prompt / Title / Models / Parameters — picking Models lands on Report - select models in edit mode."),
             HelpCard("Pending-changes banner", "Orange banner appears when the user edited prompt / models / parameters since the last run — Regenerate is required for the new values to take effect. Until then the displayed rows reflect the old configuration."),
             HelpCard("Stuck rows", "On reopen, any row left in PENDING / RUNNING by a force-quit is recovered: a one-shot sweep marks blank-content / null-error / null-duration secondaries as errored, and a 150 ms tick refreshes the inline meta list. If a row still spins, tap Regenerate."),
@@ -207,7 +207,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "view_ai_report" to HelpContent(
         title = "Help - View report",
         cards = listOf(
-            HelpCard("What you see", "The View home for a report — a grid of tiles, one per thing this report has to look at: the original prompt, the per-model responses, the cost breakdown, the in-app HTML preview, plus one tile for each kind of post-run result the report carries (Meta, Rerank, Tournament, Moderation, Fan-out, Fan-in, Translate). The title bar carries the AI logo (taps go to the app home), the report's own title centred in white, and the help icon."),
+            HelpCard("What you see", "The View home for a report — a grid of tiles, one per thing this report has to look at: the original prompt, the per-model responses, the cost breakdown, the in-app HTML preview, plus one tile for each kind of post-run result the report carries (Meta, Compare, Rerank, Tournament, Judge the Judges, Moderation, Fan-out, Fan-in, Translate). The title bar carries the AI logo (taps go to the app home), the report's own title centred in white, and the help icon."),
             HelpCard("How to read it", "Each tile shows an emoji, a label, and — when a kind has more than one item — a small count badge in the top-right. Tiles you can tap are at full colour; tiles for kinds this report doesn't have yet aren't shown at all. Tap a tile to open the matching View screen. Long-press a tile and drag it onto another to swap their positions — your order persists across reports, so once you've arranged the grid the way you like it, it stays that way. When the report has translations, a row of large flag-style icons at the top picks the active language; that language is carried into every tile you open.")
         )
     ),
@@ -221,7 +221,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "tournament_l1" to HelpContent(
         title = "Help - Tournament",
         cards = listOf(
-            HelpCard("What it is", "A tournament ranks the report's answers by pairwise head-to-head judging. Every unordered pair of responses is judged twice — once each way (A-vs-B and B-vs-A) — to cancel first-position bias, so for N answers there are N(N-1) matches. Each match is judged by the WORKER engine (the round-robin chain of cheap models in your 'tournament' swarm), so judging spreads across many models rather than one. Start a tournament from the report's 🆕 Create launcher → Tournament."),
+            HelpCard("What it is", "A tournament ranks the report's answers by pairwise head-to-head judging. Every unordered pair of responses is judged twice — once each way (A-vs-B and B-vs-A) — to cancel first-position bias, so for N answers there are N(N-1) matches. Each match is judged by the worker engine using the configured tournament workers, so judging can spread across many models rather than one. Start a tournament from the report's 🆕 Create launcher → Tournament."),
             HelpCard("Statistics + grouping", "The counters show Total / Done / Running / Wait (throttled) / Queue / Errors / Cost. The two chips switch how the matches below are grouped: 'Judge models' groups by the worker model that judged each match; 'Report models' groups by the report answer being compared. The green row fill shows progress for the active grouping. Tap a group to drill into its matches, then a match to see the two responses and the verdict."),
             HelpCard("Viewing the ranking", "The 👁 view icon at the bottom opens the View Tournament screen — the 1..N ranking with the tournament method switch. The 🗑 in the title bar deletes the whole tournament; 'Restart failed' re-judges any errored matches.")
         )
@@ -310,37 +310,37 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "icon_lookup_main" to HelpContent(
         title = "Help - Icon lookup — main report icon",
         cards = listOf(
-            HelpCard("Overview", "Detail view for the main report icon — the emoji shown next to the report title. Reached by tapping the 📝 icon on the report's result screen. Produced by the bundled `icons/main` one-shot prompt with `@PROMPT@` substituted to the report's prompt text."),
-            HelpCard("Subject (green row)", "Always `main` (or `main_alt` after a Find-alt pick). Legacy rows whose `iconPromptUsed` is null fall back to `main`."),
+            HelpCard("Overview", "Detail view for the main report icon — the emoji shown next to the report title. Reached by tapping the report icon from Manage/Edit. Initial generation uses the workers/report-icon flow; alternative searches use alt/main."),
+            HelpCard("Subject (green row)", "Shows the stored icon prompt subject, normally `main` for the initial icon and `main_alt` after an alternative pick. Legacy rows whose prompt field is empty fall back to `main`."),
             HelpCard("Title-bar icons", "💬 Continue in chat (preseeds a chat with the prompt + emoji). ℹ️ Model info for the model that ran the call. 📋 Copy the API-interaction body. 📤 Share via the system sheet. 🐞 jumps to the captured API trace (only when tracing was on at call time)."),
             HelpCard("Model / API interaction / Emoji cards", "Standard layout — the same shape for every Icon-lookup scope: provider + model + cumulative cost, plain `[user] … [assistant] …` 2-message transcript, big centred glyph (⏳ pending, ❌ on error)."),
-            HelpCard("Find alternative icons", "Runs the bundled `icons/main_alt` variant across user-picked (provider, model) pairs. Composed at runtime as `alt.text + \"\\n\\n\" + base.text` — alt nudge first so the model reads the 'pick something distinct' constraint before the template body. Pick a returned emoji to commit it on the report."),
+            HelpCard("Find alternative icons", "Runs the self-contained alt/main prompt across user-picked provider/model pairs. Pick a returned emoji to commit it to the report icon."),
             HelpCard("Cost attribution", "Initial call + every alt attempt is bumped on `Report.iconInputCost / iconOutputCost`. On the Report → API cost table the alt calls surface as per-call `icon_main_alt` rows; the initial generation as `icon_main`. By-type collapses every `icon_*` row into one `icons` group."),
-            HelpCard("Trace category", "`icon_main` for the initial generation, `icon_main_alt` for every Find-alt call.")
+            HelpCard("Trace category", "`report/icon` for the initial generation, `alt/main` for Find alternative icons.")
         )
     ),
     "icon_lookup_agent" to HelpContent(
         title = "Help - Icon lookup — per-agent icon",
         cards = listOf(
-            HelpCard("Overview", "Detail view for one agent's per-model icon (one icon per agent on a report). Reached by tapping the agent's emoji cell on the result / manage screen. Produced by the bundled 3-tier chain `report_2` (chat-continuation) → `report` (one-shot) → `report_3` (fixed-agent fallback). The first tier that returns a usable emoji wins."),
-            HelpCard("Subject (green row)", "The bundled prompt name that won — `report_2`, `report`, or `report_3`. After a Find-alt pick the subject flips to `report_alt`. Legacy rows fall back to deriving the name from `iconWinningTier`."),
+            HelpCard("Overview", "Detail view for one response row's model icon. Reached by tapping the row emoji on Manage. Initial generation uses the workers/model-icons flow and stores one icon on that report agent."),
+            HelpCard("Subject (green row)", "Shows the stored prompt subject, normally `report_title_icon` for generated row icons or `report_alt` after an alternative pick."),
             HelpCard("Title-bar icons", "ℹ️ Model info / 📋 Copy / 📤 Share / 🐞 trace. Continue-in-chat is intentionally NOT wired here — the agent's response already lives on the result screen's row, not here."),
-            HelpCard("API interaction card", "Tier-aware — tier 1 (`report_2`) shows the 4-message chat-continuation exchange (`[user] report.prompt → [assistant] agent.response → [user] icon prompt → [assistant] emoji`). Tier 2 and 3 show a 2-message one-shot exchange with the relevant template substituted."),
-            HelpCard("Find alternative icons", "Runs the bundled `icons/report_alt` variant across picked models — composed as `alt.text + \"\\n\\n\" + report.text`. Pick lands on `ReportAgent.icon` for this agent only."),
-            HelpCard("Cost attribution", "Bumped on `ReportAgent.iconInputCost / iconOutputCost`. Per-call audit rows are `icon_report` / `icon_report_2` / `icon_report_3` / `icon_report_alt`."),
-            HelpCard("Trace category", "`icon_report` (tier 2), `icon_report_2` (tier 1), `icon_report_3` (tier 3), `icon_report_alt` (Find-alt).")
+            HelpCard("API interaction card", "Shows the worker prompt/response transcript used for the stored row icon, including report prompt and response context when available."),
+            HelpCard("Find alternative icons", "Runs alt/report across picked models. Pick lands on `ReportAgent.icon` for this agent only."),
+            HelpCard("Cost attribution", "Bumped on `ReportAgent.iconInputCost / iconOutputCost` and surfaced in the report cost table under the model-icons / alternative-icon call types."),
+            HelpCard("Trace category", "`model/icons` for initial generation, `alt/report` for Find alternative icons.")
         )
     ),
     "icon_lookup_meta" to HelpContent(
         title = "Help - Icon lookup — meta-prompt icon",
         cards = listOf(
             HelpCard("Overview", "Detail view for the cached icon on a Meta-prompt row (Compare / Summarize / Critique / Rerank / Moderation / fan-in / fan-out summary). Reached by tapping the emoji on a Meta row. The icon is keyed `(prompt.name, prompt.title)` on the cross-report `InternalPromptIconCache`, so every report that uses the same prompt sees the same icon."),
-            HelpCard("Subject (green row)", "The cached `promptName` field on the cache entry — defaults to `meta`. Find-alt picks flip it to `meta_alt`."),
-            HelpCard("Title-bar icons", "ℹ️ is NOT wired (the cache entry doesn't track a specific model). 📋 / 📤 work on the 2-message transcript. 🐞 looks up the most recent `icon_meta` / `icon_meta_alt` trace for the cache's stored model — cross-report (the cache itself is cross-report)."),
-            HelpCard("API interaction card", "2-message one-shot exchange: the resolved `icons/meta` prompt with `@NAME@ @TITLE@` substituted, then the returned emoji."),
-            HelpCard("Find alternative icons", "Runs `icons/meta_alt` (composed as `alt.text + \"\\n\\n\" + meta.text`) across picked models. The picked emoji is committed via `InternalPromptIconCache.pickAlternative` with `promptName = meta_alt`."),
-            HelpCard("Cost attribution", "Each call bumps the cache entry's cumulative `inputCost / outputCost`. Per-row attribution: when the prompt has a matching SecondaryResult on the current report, the call also bumps that SR's `inputCost / outputCost` so the Report → Manage row total includes the alt spend. Per-call audit rows are `icon_meta` / `icon_meta_alt`."),
-            HelpCard("Trace category", "`icon_meta` (initial), `icon_meta_alt` (Find-alt).")
+            HelpCard("Subject (green row)", "The cached `promptName` field on the cache entry — normally `second-meta`. Find-alt picks use `meta_alt`."),
+            HelpCard("Title-bar icons", "ℹ️ is NOT wired (the cache entry doesn't track a specific model). 📋 / 📤 work on the transcript. 🐞 looks up the most recent second/meta or alt/meta trace for the cache's stored model — cross-report because the cache itself is cross-report."),
+            HelpCard("API interaction card", "One-shot exchange from the resolved second/meta prompt with the prompt name/title substituted, then the returned emoji."),
+            HelpCard("Find alternative icons", "Runs alt/meta across picked models. The picked emoji is committed via `InternalPromptIconCache.pickAlternative`."),
+            HelpCard("Cost attribution", "Each call bumps the cache entry's cumulative `inputCost / outputCost`. Per-row attribution: when the prompt has a matching SecondaryResult on the current report, the call also bumps that SR's `inputCost / outputCost` so the Report → Manage row total includes the alt spend."),
+            HelpCard("Trace category", "`second/meta` for initial generation, `alt/meta` for Find alternative icons.")
         )
     ),
     "icon_lookup_translation" to HelpContent(
@@ -348,47 +348,47 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Detail view for the cached icon on a per-target-language translation row (one per language the report has been translated into). Reached by tapping the emoji on a Translate row. Keyed `(\"translation_icon\", language)` on the cross-report `InternalPromptIconCache`."),
             HelpCard("Subject (green row)", "`translation` (or `translation_alt` after a Find-alt pick)."),
-            HelpCard("Title-bar icons", "ℹ️ NOT wired. 📋 / 📤 work on the 2-message transcript. 🐞 looks up the most recent `icon_translation` / `icon_translation_alt` trace for the cache's stored model — cross-report."),
-            HelpCard("API interaction card", "2-message one-shot exchange: bundled `icons/translation` prompt with `@LANGUAGE@` substituted, then the returned emoji."),
-            HelpCard("Find alternative icons", "Runs `icons/translation_alt` (composed as `alt.text + \"\\n\\n\" + translation.text`) across picked models. The picked emoji is committed via `InternalPromptIconCache.pickAlternative` with `promptName = translation_alt`."),
-            HelpCard("Cost attribution", "Each call bumps the cache entry's cumulative cost; per-row attribution into the first TRANSLATE SR for the language. Per-call audit rows are `icon_translation` / `icon_translation_alt`."),
-            HelpCard("Trace category", "`icon_translation` (initial), `icon_translation_alt` (Find-alt). The `_alt` variant is for picking a different country / language emoji.")
+            HelpCard("Title-bar icons", "ℹ️ NOT wired. 📋 / 📤 work on the transcript. 🐞 looks up the most recent translation/icon or alt/translation trace for the cache's stored model — cross-report."),
+            HelpCard("API interaction card", "One-shot exchange from translation/icon with `@LANGUAGE@` substituted, then the returned emoji."),
+            HelpCard("Find alternative icons", "Runs alt/translation across picked models. The picked emoji is committed via `InternalPromptIconCache.pickAlternative` with `promptName = translation_alt`."),
+            HelpCard("Cost attribution", "Each call bumps the cache entry's cumulative cost; per-row attribution goes into the first TRANSLATE secondary result for the language when one exists."),
+            HelpCard("Trace category", "`translation/icon` for initial generation, `alt/translation` for Find alternative icons.")
         )
     ),
     "icon_lookup_language" to HelpContent(
         title = "Help - Icon lookup — detected-language icon",
         cards = listOf(
-            HelpCard("Overview", "Detail view for the report's detected-language icon — the emoji rendered next to a translated report header. Produced by the 2-step `language-detect` → `language` flow: detect first (returns the language NAME), then run the bundled `icons/language` prompt with `@LANGUAGE@` substituted to that name."),
+            HelpCard("Overview", "Detail view for the report's detected-language icon — the emoji rendered next to language-aware report headers. Initial generation uses workers/report-language to detect the language and produce the icon."),
             HelpCard("Subject (green row)", "`language` (or `language_alt` after a Find-alt pick). Legacy rows fall back to `language`."),
             HelpCard("Title-bar icons", "💬 Continue in chat (preseeds a chat about the language). ℹ️ Model info / 📋 / 📤 / 🐞."),
-            HelpCard("API interaction card", "2-message one-shot exchange: bundled `icons/language` prompt with `@LANGUAGE@` substituted, then the returned emoji."),
-            HelpCard("Find alternative icons", "Runs `icons/language_alt` (composed as `alt.text + \"\\n\\n\" + language.text`) across picked models. Pick commits onto `Report.languageIcon`."),
+            HelpCard("API interaction card", "Shows the report-language worker transcript, including the detected language and returned emoji when available."),
+            HelpCard("Find alternative icons", "Runs alt/language across picked models. Pick commits onto `Report.languageIcon`."),
             HelpCard("Cost attribution", "Bumped on `Report.languageIconInputCost / languageIconOutputCost`. Per-call audit rows are `icon_language` / `icon_language_alt`."),
-            HelpCard("Trace category", "`icon_language` (initial), `icon_language_alt` (Find-alt). The `_alt` nudge says 'do not use a country flag emoji' — picks a more abstract glyph.")
+            HelpCard("Trace category", "`report/language` for initial generation, `alt/language` for Find alternative icons.")
         )
     ),
     "icon_lookup_pair" to HelpContent(
         title = "Help - Icon lookup — fan-out pair icon",
         cards = listOf(
-            HelpCard("Overview", "Detail view for one fan-out pair's icon — the emoji on a single (source × responder) cell in a fan-out run. Optional — only present once you've tapped *Run Fan Meta* on the L1 of a Fan Out drill-in. Produced by the single `fan/meta` call per pair, which returns both the title and the icon."),
-            HelpCard("Subject (green row)", "The bundled prompt name that won — `fan_out_2`, `fan_out`, or `fan_out_3`. After a Find-alt pick the subject flips to `fan_out_alt`."),
-            HelpCard("Title-bar icons", "ℹ️ NOT wired. 📋 / 📤 work on the tier-aware transcript. 🐞 looks up the most recent `icon_fan_out*` trace for the pair's model under this report."),
-            HelpCard("API interaction card", "Tier-aware. Tier 1 shows the 6-message chat-continuation transcript (`[user] report.prompt → [assistant] source.response → [user] meta.prompt → [assistant] pair.response → [user] icon prompt → [assistant] emoji`) matching `runFanOutTier1`. Tiers 2/3 show a 2-message one-shot exchange with the relevant template substituted."),
-            HelpCard("Find alternative icons", "Runs `icons/fan_out_alt` (composed as `alt.text + \"\\n\\n\" + fan_out.text`) across picked models. The picked emoji is committed to the pair via `setFanOutIconAndTier` with `promptUsed = fan_out_alt`."),
+            HelpCard("Overview", "Detail view for one fan-out pair's icon — the emoji on a single source/responder cell in a fan-out run. It is produced by Fan Meta, which generates both title and icon for each pair."),
+            HelpCard("Subject (green row)", "Normally `fan-meta` for the Fan Meta generation and `fan_out_alt` after a Find-alt pick."),
+            HelpCard("Title-bar icons", "ℹ️ NOT wired. 📋 / 📤 work on the transcript. 🐞 looks up the most recent fan/meta or alt/fan_out trace for the pair's model under this report."),
+            HelpCard("API interaction card", "Shows the Fan Meta worker prompt/response for this pair, using report prompt, source response, and pair response context."),
+            HelpCard("Find alternative icons", "Runs alt/fan_out across picked models. The picked emoji is committed to the pair via `setFanOutIconAndTier` with `promptUsed = fan_out_alt`."),
             HelpCard("Cost attribution", "Bumped on the pair's `SecondaryResult.iconInputCost / iconOutputCost` (visible in the Cost line here and in the L2/L3 row totals). On Report → Manage → Costs the Fan Meta spend has its own `fan/meta` row (separate from the pair's `meta/<prompt>` response row). Find-alt picks trace under `alt/fan_out`."),
-            HelpCard("Trace category", "`icon_fan_out_2` (tier 1), `icon_fan_out` (tier 2), `icon_fan_out_3` (tier 3), `icon_fan_out_alt` (Find-alt)."),
+            HelpCard("Trace category", "`fan/meta` for Fan Meta generation, `alt/fan_out` for Find alternative icons."),
             HelpCard("How to reach this screen", "Fan Out → L2 (MAIN mode) — tap the pair's icon on its row (the icon replaces the leading ✅ when present). Fan Out → L3 (MAIN mode) — tap the small icon in the answerer pane's header row (just before the model name).")
         )
     ),
     "find_icons_selection" to HelpContent(
         title = "Help - Find icons",
         cards = listOf(
-            HelpCard("Overview", "Model picker that fans the bundled internal/icon prompt across whatever (provider, model) pairs you choose. Reached from the Icon detail screen's 'Find alternative icons' button."),
+            HelpCard("Overview", "Model picker that fans the current icon scope's alternative prompt across whatever provider/model pairs you choose. Reached from an Icon detail screen's Find alternative icons button."),
             HelpCard("+Add chips", "Same five chips as the New-Report flow: Agent (saved Agents), Flock (named groups of agents), Swarm (named groups of provider/model pairs), Report (copy the model list from a finished report), Model (free-form (provider, model) picker)."),
             HelpCard("Selected list", "Rows are sorted alphabetically by model id. Each row shows model id + capability badges + provider id + pricing per million tokens. The ✕ on the right drops a single row; the Clear button at the bottom wipes the whole list."),
             HelpCard("Stripped affordances", "Params and Sys prompt are intentionally absent — an icon is a one-shot @PROMPT@ → emoji round-trip; parameter presets don't apply."),
-            HelpCard("Find Icons", "Kicks off one analyzeWithAgent call per (provider, model) pair against the bundled internal/icon prompt with @PROMPT@ replaced by the report's prompt text. Per-provider throttle (ProviderThrottle) caps concurrency. Pops you straight to the Alternative icons live list."),
-            HelpCard("Cost note", "Each call's tokens × pricing tier is added to the Report's icon cost as soon as the response lands — regardless of whether you later pick that result."),
+            HelpCard("Find Icons", "Kicks off one call per selected provider/model using the relevant alt category: alt/main, alt/report, alt/meta, alt/language, alt/translation, or alt/fan_out. Per-provider throttles and global API-call caps still apply. The screen then opens the Alternative icons live list."),
+            HelpCard("Cost note", "Each call's tokens and cost are attributed to the icon scope that launched it: report icon, report row icon, meta cache, translation cache, detected-language icon, or fan-out pair."),
             HelpCard("Pitfalls", "Models with no API key set won't run — the call lands as ❌ on the Alternative icons screen. Pricing tiers stuck on DEFAULT show a Red bracket on the picker row.")
         )
     ),
@@ -409,7 +409,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Row meanings", "⏳ = the call is still running. A title shown = the call returned one; the row is tappable. ❌ = the call failed; the reason shows in red."),
             HelpCard("Tap to pick", "Tapping a candidate fills that title into the Edit-title field and returns you to the editor — nothing is saved until you tap Update there, so you can tweak it first."),
             HelpCard("Restart", "Drops the current candidates and re-opens the model picker so you can fan out across a different set of models."),
-            HelpCard("Cost", "Each candidate call's spend posts to Usage statistics (kind=\"title\"); since the flow is transient it is not added to the report's stored title cost.")
+            HelpCard("Cost", "Each candidate call posts to AI Usage with a title/alternative-title kind. Because the flow is exploratory, only the selected result is written back to the edited report field.")
         )
     ),
     "alternative_translations" to HelpContent(
@@ -419,7 +419,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Row meanings", "⏳ = the call is still running. A translation shown = the call returned one; the row is tappable. ❌ = the call failed; the reason shows in red."),
             HelpCard("Tap to pick", "Tapping a candidate replaces this entry's translation in place — its text, model and cost overwrite the stored row — and returns you to the translation detail."),
             HelpCard("Restart", "Drops the current candidates and re-opens the model picker so you can fan out across a different set of models."),
-            HelpCard("Cost", "Each candidate call's spend posts to Usage statistics; only the candidate you pick has its cost written onto the stored translation row.")
+            HelpCard("Cost", "Each candidate call posts to AI Usage; only the candidate you pick has its cost written onto the stored translation row.")
         )
     ),
     "alternative_icons" to HelpContent(
@@ -428,7 +428,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Live progress list for an in-flight or completed icon fan-out. One row per (provider, model) pair you picked on the previous screen. State sits in AppViewModel.iconFanOutByReport — survives navigating away and back into the screen for the same report."),
             HelpCard("Row meanings", "⏳ = the icon call is still running (or queued behind the per-provider throttle). The emoji shown big = the call returned a usable response and the row is tappable. ❌ = the call failed or returned an empty body; the error reason renders underneath in red. The row is non-tappable."),
             HelpCard("Tap to pick", "Tapping a Done row commits its emoji as the Report's icon and records the model label on the Report. All three icon overlays (Alternative icons, Find icons picker, Icon detail) close together — you land back on the Report result screen."),
-            HelpCard("Cost", "Every call's tokens × pricing tier is bumped onto the Report's icon cost as the response lands, so the icon row's cost reflects the total search cost regardless of which (if any) icon you eventually pick."),
+            HelpCard("Cost", "Every call's tokens × pricing tier is attributed to the icon scope that launched the search as the response lands, so the icon row/cache/pair cost reflects the search cost regardless of which candidate you pick."),
             HelpCard("Backing out mid-flight", "Calls keep running. Re-entering the Icon detail screen for the same report shows a 'View alternative icons' button (instead of 'Find alternative icons') — tapping it jumps straight back here with the same live list."),
             HelpCard("Pitfalls", "If the app process dies mid-run, the in-memory candidate map is lost — costs already bumped survive on the Report, but the screen will be empty on next launch.")
         )
@@ -937,7 +937,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Per-row content", "English name in white on top, native name in tertiary grey underneath when it differs (e.g. 'Mandarin Chinese' / '中文 (普通话)'). A '>' chevron sits at the right."),
             HelpCard("Tap to confirm", "Single-select — tapping a row fires onConfirm and the caller closes the picker."),
             HelpCard("Pitfalls", "Translate runs against many languages multiply call cost linearly with language count — pick deliberately."),
-            HelpCard("Curation", "Not exhaustive. The translation prompt itself can be edited in AI Setup → Prompts → Internal to use a more specific dialect."),
+            HelpCard("Curation", "Not exhaustive. The translation prompt itself can be edited under Settings -> AI Setup -> Prompt management -> Internal prompts if you need a more specific dialect or style instruction."),
             HelpCard("Tips", "Search for native script directly works — typing '中文' jumps to Mandarin without remembering the English name."),
         )
     ),
@@ -1021,10 +1021,10 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Full-screen editor for the meta prompt's text body, shown between the Scope screen and the model picker. Lets you tweak the template for this run only — the stored InternalPrompt is left untouched."),
             HelpCard("Title bar — Back", "Cancels and returns to the Scope screen. The state survives the trip so re-entering the Run page shows your unedited starting text again (the editor reseeds from the prompt's stored body)."),
-            HelpCard("Prompt editor", "OutlinedTextField (min 8 lines) seeded with `metaPrompt.text`. Edits are local — they don't write back to Settings → Internal prompts. If you want the changes to stick, copy them into the prompt definition by hand after the run."),
+            HelpCard("Prompt editor", "OutlinedTextField (min 8 lines) seeded with `metaPrompt.text`. Edits are local — they don't write back to Settings → AI Setup → Prompt management → Internal prompts. If you want the changes to stick, copy them into the prompt definition by hand after the run."),
             HelpCard("Continue button", "Hoisted to the top of the page so it's reachable without scrolling past a long template. Passes a copy of the meta prompt with the edited text to the model picker; the original stays unchanged."),
             HelpCard("Variables", "Substitution placeholders (`@PROMPT@`, `@RESPONSE@`, `@NAME@`, `@TITLE@`, etc.) remain literal in the editor — they're resolved at call time by the engine. Don't expand them by hand."),
-            HelpCard("Reached from", "Settings → Internal prompts → run a meta-category prompt, OR from a report's Run → Meta → pick a prompt → Continue (after the Scope screen).")
+            HelpCard("Reached from", "Settings → AI Setup → Prompt management → Internal prompts → run a meta-category prompt, OR from a report's Manage screen → Meta/Create → pick a prompt → Continue (after the Scope screen).")
         )
     ),
 )

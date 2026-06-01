@@ -17,6 +17,7 @@ internal val HELP_TOPICS: Map<String, HelpContent> =
     glossaryHelp +
     reportsHelp +
     searchHelp +
+    localKnowledgeHelp +
     settingsAdminHelp +
     developerHelp +
     chatHelp +
@@ -225,6 +226,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "settings_network" to listOf("concepts", "help_about"),
     "settings_network_api_calls" to listOf("concepts", "help_costs"),
     "settings_ui" to listOf("help_about"),
+    "settings_ui_colors" to listOf("help_about"),
     "settings_logging" to listOf("help_privacy", "concepts"),
     "settings_setup" to listOf("help_about", "help_getting_started"),
 
@@ -258,6 +260,20 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "setup_models" to listOf("help_home_ai_providers", "help_getting_started"),
     "setup_workers" to listOf("help_glossary_blocks", "help_glossary_groupings"),
     "setup_prompts" to listOf("help_glossary_operations"),
+    "setup_local_models" to listOf("help_privacy", "help_glossary_blocks"),
+    "local_litert_models" to listOf("help_privacy", "help_glossary_operations"),
+    "local_llms" to listOf("help_privacy", "help_glossary_blocks"),
+
+    // ===== Knowledge / local search / view screens =====
+    "search_local_semantic" to listOf("help_privacy", "help_glossary_operations"),
+    "knowledge_list" to listOf("help_privacy", "help_glossary_operations"),
+    "knowledge_new" to listOf("help_privacy", "help_glossary_blocks"),
+    "knowledge_detail" to listOf("help_privacy", "help_glossary_operations"),
+    "agent_view" to listOf("help_glossary_blocks"),
+    "flock_view" to listOf("help_glossary_groupings", "help_glossary_blocks"),
+    "swarm_view" to listOf("help_glossary_groupings", "help_glossary_blocks"),
+    "provider_view" to listOf("help_home_ai_providers", "help_home_info_providers"),
+    "model_info_view" to listOf("help_glossary_blocks", "help_costs", "help_home_info_providers"),
 
     // ===== Prompts / examples / history =====
     "example_prompts_list" to listOf("help_glossary_operations"),
@@ -305,4 +321,3 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     "help_backup" to listOf("help_privacy"),
     "help_translations" to listOf("concepts", "help_glossary_operations", "help_costs")
 ) + crudRelatedHelp
-

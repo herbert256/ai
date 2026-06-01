@@ -44,14 +44,11 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "settings_main" to HelpContent(
         title = "Help - Settings",
         cards = listOf(
-            HelpCard("Overview", "Settings is a pure table of contents. Every editable preference lives one tap deeper inside one of the four sub-screens. Edits autosave on each sub-screen with a 400 ms debounce, so you don't need a Save button — just type and back out."),
-            HelpCard("Network settings", "Read timeouts, per-provider throttling, and 429 / 529 retry policies. Tap the row to open the dedicated sub-screen."),
-            HelpCard("UI tweaks", "Experimental features master toggle, model name layout, full-screen, back-arrow visibility. Tap the row to open the dedicated sub-screen."),
-            HelpCard("Logging and tracing", "API tracing master switch and application log level. Tap the row to open the dedicated sub-screen."),
-            HelpCard("Metadata & icons", "Grand-master switch for every optional AI-generated extra — report icon / language / title, per-model icons & titles, Fan & meta icons — plus the per-item toggles it gates."),
-            HelpCard("Default icons", "Edit the fallback emoji shown when a report or result has no generated icon of its own (report, model, rerank, moderate, language, translation, meta, fan-out / fan-in rows)."),
-            HelpCard("Other settings", "Identity (Name + Email) used for outbound prompts and email exports."),
-            HelpCard("Tips", "Each sub-screen has no Save button on purpose — every keystroke restarts a 400 ms debounce timer. If you tap Back fast, the latest values still flush to disk via a DisposableEffect."),
+            HelpCard("Overview", "Settings is a table of contents grouped into Appearance, Generation & behaviour, and Network & logging. Every editable preference lives one tap deeper. Most sub-screens autosave after a short debounce, so there is no Save button."),
+            HelpCard("Appearance", "UI tweaks controls experimental/visibility options such as model-name layout, report card visibility, knowledge card visibility, and full-screen mode. UI Colors edits AppColors roles. Default icons edits the fallback glyphs used across cards, navigation rows, status rows, and report results."),
+            HelpCard("Generation & behaviour", "Metadata & icons governs optional AI-generated titles, icons, language detection, and internal prompt row icons. Autostart controls the automatic post-report work. App settings sets app-wide prompt and parameter fallbacks. Other settings stores identity fields."),
+            HelpCard("Network & logging", "Network settings covers timeouts, per-provider throttling, and 429/529 retry policy. Maximal API calls caps global and per-kind concurrency. Logging and tracing controls trace capture, ladybug visibility, audit logging, and AppLog verbosity."),
+            HelpCard("Tips", "Open the specific card for the setting you want. If you back out quickly, the screen still flushes the latest state through its dispose handler.")
         )
     ),
     "settings_other" to HelpContent(
@@ -74,12 +71,12 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "settings_metadata" to HelpContent(
         title = "Help - Metadata & icons",
         cards = listOf(
-            HelpCard("Overview", "One screen for every optional, AI-generated extra a report can carry — its icon, detected language, AI title, per-model icons & titles, Fan Out icons & titles, and the meta / rerank / moderate / translate row icons. A single grand-master toggle at the top turns the whole category on or off; the per-item toggles below it appear only while the master is on. Everything autosaves with a 400 ms debounce."),
-            HelpCard("Generate metadata & icons (master)", "The grand-master switch. When OFF: no metadata LLM calls fire, the per-item toggles are hidden, the Fan Out Icons / Titles buttons and the Manage report 'info' row disappear, and a new report must be given a manual title (the AI-title option is suppressed). When ON: each per-item toggle governs its own item exactly as before. Default ON."),
-            HelpCard("View screens are never gated", "The master switch only affects generation and the controls that trigger it. Screens that display a finished report always show whatever that report already holds, and fall back to fixed defaults when it holds nothing — 📝 report, 🧠 model, 🏆 rerank, 🚦 moderate, 🌐 translate, 🔗 meta, 🔱 Fan Out, 🎯 Fan In. So switching the master off never blanks out icons on reports that already have them."),
-            HelpCard("Report title", "Manual keeps the Title field on the New AI Report screen; AI (default) hides it and fills the title from a background call after report start. With the master off the title is always Manual."),
-            HelpCard("Report icon / Report language", "Two independent toggles (previously one). Report icon runs a small call to pick a fitting emoji shown in title bars, the hub list, history, and search hits. Report language detects the language and picks a flag emoji shown on the info screen and the language picker."),
-            HelpCard("Per-model icons / titles, internal-prompt icons, Autostart Fan Meta", "Per-model icons derive an emoji from the model title; per-model titles add a ≤4-word title per response. Internal-prompt icons add a leading emoji to secondary-result rows. Autostart Fan Meta kicks the Fan Meta batch off automatically when a clean Fan Out finishes."),
+            HelpCard("Overview", "One screen for optional AI-generated report metadata: report icon, detected language, AI title, per-model icons, per-model titles, and internal-prompt row icons. A master switch gates the generation work; the per-item switches appear only while the master is on."),
+            HelpCard("Generate metadata & icons (master)", "When OFF, the app stops scheduling metadata LLM calls and hides the generation controls they enable. Existing generated metadata remains stored and visible. New reports use a manual title when AI title generation is unavailable."),
+            HelpCard("View screens are never gated", "The master switch only affects future generation. Finished report screens always show stored metadata when present and otherwise fall back to Default icons, so turning the master off never blanks existing reports."),
+            HelpCard("Report title", "Manual keeps the Title field on New Report. AI hides the field and fills title/long title from a background call after the report starts. With the master off, title mode behaves as Manual."),
+            HelpCard("Report icon / Report language", "Report icon uses the workers/report-icon prompt chain. Report language uses workers/report-language to detect the language and choose its display icon. Both can be edited from report metadata screens later."),
+            HelpCard("Per-model icons / titles", "Per-model icons use the model-title/icon worker flow, driven from the model response title rather than a hard-coded icon. Per-model titles generate a short label for each response. Internal-prompt icons add leading glyphs to secondary-result rows such as Meta, Rerank, Moderation, Fan-out, Fan-in, Tournament, Compare, and Translate."),
         )
     ),
     "settings_default_icons" to HelpContent(
@@ -89,7 +86,8 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("🔎 Lookup", "The 🔎 beside each field opens the system emoji picker (search, categories, recents); the pick is written straight into the field."),
             HelpCard("🤖 AI", "The 🤖 beside each field opens Find icon — an editable prompt (pre-seeded for that entry) and a Find button that asks every icon-worker model for a fitting emoji. Tap any returned candidate to drop it into the field. Works like the report \"Find alternative icons\" flow."),
             HelpCard("When defaults show", "View screens always render whatever a report actually holds; these defaults fill in only when that value is missing. So changing a default updates every report that never had its own icon, and never overrides one that does. The defaults are independent of the Metadata & icons master switch — they apply even when metadata generation is off."),
-            HelpCard("The 9 entries", "Report (📝) and Report model (🧠) are the title-bar / per-model fallbacks. Rerank (🏆), Moderate (🚦), Translation row (🌐) and Meta (🔗) are the leading glyphs on secondary-result rows. Language icon (🌐) is the report's detected-language flag. Fan Out row (🔱) and Fan In row (🎯) are the leading glyphs of those rows on the Manage report screen."),
+            HelpCard("Groups", "The screen is organized by role: app/navigation actions, report/model fallbacks, secondary-result kinds, status glyphs, setup cards, maintenance actions, and feature-specific rows. These icons are referenced through MetadataIcons / LocalMetadataIcons rather than hard-coded at the call site."),
+            HelpCard("Scope", "Defaults cover cards and rows throughout the app: Monitor, Housekeeping, Settings, AI Setup hubs, provider/model views, report tiles, Rerank, Moderation, Meta, Compare, Tournament, Judge the Judges, Fan-out/Fan-in, Translate, language rows, local models, and common actions."),
             HelpCard("Reset", "The 🧽 in the title bar returns every entry to its factory emoji."),
         )
     ),
@@ -117,12 +115,13 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "settings_network_api_calls" to HelpContent(
         title = "Help - Maximal API calls",
         cards = listOf(
-            HelpCard("Overview", "Four caps on how many API calls the app keeps in flight at once. Stack as nested suspending semaphores — every coroutine-level call goes through the global cap first, then through its matching per-kind cap, then through the existing per-provider cap (Network settings → Per-provider throttling). When a cap is full, further calls suspend until a permit frees up; no calls are dropped or errored. Defaults: 100 / 50 / 50 / 50."),
-            HelpCard("Concurrent API calls at the same time", "Hard global ceiling, applies to every API call the app keeps in flight — reports, translations, fan-out. Set lower if you're hitting provider rate limits across the board or your device is thermal-throttling. Default 100."),
-            HelpCard("Concurrent Model reports API calls", "Cap on the primary per-agent calls fired during a new-report run (the boxes you see filling in on the report result page). Replaces the legacy hardcoded ceiling of 4. Bumping this past your global cap has no effect — the global wins. Default 50."),
-            HelpCard("Concurrent Translations API calls", "Cap on per-item translation calls (prompt + each agent response + each chat-type Meta result). With a multi-model translation run, the cap is on the total across models, not per model. Default 50."),
-            HelpCard("Concurrent Fan Out API calls", "Cap on per-pair fan-out calls. A 6-agent fan out has 30 pairs and the run would top at 30 simultaneously with this default. Bump higher for fast providers that handle parallel load gracefully; drop lower if you regularly see 529s during fan-out. Default 50."),
-            HelpCard("Concurrent Fan Meta API calls", "Cap on the Fan Meta batch — the title+icon generation launched via the Fan Meta button on a fan-out detail screen. Separate cap so a parallel fan-out + Fan Meta run doesn't halve each other's budget. Default 50."),
+            HelpCard("Overview", "Caps on how many model/API jobs the app keeps in flight at once. Calls pass through the global cap, the matching per-kind cap, and then the per-provider throttle. When a cap is full, work waits; it is not dropped."),
+            HelpCard("Concurrent API calls at the same time", "Hard global ceiling for cloud API work across reports, chat, translations, fan-out, metadata, tests, and background jobs. Lower it if the device or providers are overloaded."),
+            HelpCard("Concurrent Model reports API calls", "Cap on primary report-answer calls: the rows that fill in while a new report is running."),
+            HelpCard("Concurrent Translations API calls", "Cap on translation calls. A multi-model translation run shares this budget across all selected models and translated items."),
+            HelpCard("Concurrent Fan Out API calls", "Cap on per-pair fan-out calls. Large reports can create many answerer/source pairs, so this setting protects providers from a burst."),
+            HelpCard("Concurrent Fan Meta API calls", "Cap on Fan Meta title+icon jobs for fan-out pairs. This keeps Fan Meta from consuming the same budget as the original fan-out calls."),
+            HelpCard("Concurrent Test all models calls", "Cap on the batch tester under Housekeeping -> Test. It lets you validate many models without starving normal report/chat work."),
             HelpCard("Per-kind ≠ per-host", "These caps don't replace the per-provider concurrency cap (Network settings → Per-provider throttling) — they sit on top of it. A run with 20 fan-out pairs going to the same provider with a 5-per-host cap will still bottleneck at 5 in flight even with a 50 fan-out cap."),
             HelpCard("Live updates", "Changing a cap takes effect immediately for any new dispatch — calls already in flight keep running on their original permit and release it normally. No restart needed.")
         )
@@ -131,28 +130,33 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         title = "Help - UI tweaks",
         cards = listOf(
             HelpCard("Overview", "Visual / layout preferences that don't affect how the app talks to providers. Pick what's most legible for you — every option autosaves with a 400 ms debounce."),
-            HelpCard("Experimental features", "Reveals in-progress UI surfaces that aren't ready for general use yet. Off by default — leave it off unless you specifically know what you're enabling."),
-            HelpCard("Model name layout", "Two radios. Model name only is the dense default — useful when you mostly run different models. Provider and model name joins the provider's display name and the model id with \" · \" — useful when you run the same model id on multiple providers.")
+            HelpCard("Experimental features", "Reveals feature-gated surfaces such as local semantic search and Knowledge bases. Leave it off for the smaller stable navigation set."),
+            HelpCard("Model name layout", "Two radios. Model name only is the dense default. Provider and model name joins the provider display name and model id with \" · \", useful when the same model id appears under several providers."),
+            HelpCard("Home and report visibility", "The report-card and knowledge-card toggles control whether those entry points appear on the main app surface. Hidden cards do not delete data; they only reduce visible navigation."),
+            HelpCard("Full screen", "Hides the Android status bar so the app can use the full screen height. Swipe down from the top edge to reveal the system bar transiently.")
         )
     ),
     "settings_logging" to HelpContent(
         title = "Help - Logging and tracing",
         cards = listOf(
-            HelpCard("Overview", "Two diagnostic preferences. Both flow to background subsystems on save — the next traced call and the next log line pick up the change immediately."),
-            HelpCard("API tracing", "Master switch for ApiTracer. Off → no new trace files are written, the Hub's AI API Traces card and every 🐞 ladybug icon across the result / detail screens disappear. On → every API request and response (headers + body) gets captured to disk under filesDir/trace/."),
+            HelpCard("Overview", "Diagnostic preferences for API trace capture, ladybug links, audit logging, and AppLog verbosity. Changes apply to the next trace/log event without restarting the app."),
+            HelpCard("API tracing", "Master switch for ApiTracer. Off -> no new trace files are written. On -> API requests and responses are captured under filesDir/trace/ when a call path supplies trace tags."),
+            HelpCard("Show Ladybug icons", "Controls whether 🐞 trace shortcuts appear in the UI. You can keep tracing enabled while hiding the icons, or show them only when you are actively debugging."),
+            HelpCard("Audit log", "Records higher-level app events such as setting changes, imports, exports, resets, and maintenance actions. Audit entries are separate from raw API traces and AppLog files."),
             HelpCard("Application log level", "Severity threshold for the in-app file logger AppLog. Calls at or above this level are appended to a daily-rotating file under filesDir/applog/applog_<yyyyMMdd>.log. Defaults to INFO. Use DEBUG / TRACE when troubleshooting — they flood the file quickly but capture per-call detail. OFF disables the file appender entirely (logcat still works during dev)."),
-            HelpCard("Tips", "View / share / clear logs under Housekeeping → Application log. Increase the level when sharing a log with Claude Code for diagnostics; drop back to INFO afterwards.")
+            HelpCard("Tips", "View traces from Monitor, view audit entries from the Audit log screen, and view/share/clear AppLog files from the Application log screens. Drop verbose logging back to INFO or OFF after troubleshooting.")
         )
     ),
     "settings_setup" to HelpContent(
         title = "Help - Setup",
         cards = listOf(
             HelpCard("Overview", "Top-level hub for AI configuration. Each card opens a sub-hub or list — counts on the right show how many entries you have so you can tell at a glance what is configured."),
-            HelpCard("Providers", "Per-provider API keys, state, default model, and the catalog editor. Count = number of registered providers (39 ship by default plus any you have added)."),
+            HelpCard("Providers", "Per-provider API keys, state, default model, endpoints, pricing, and throttle/retry overrides. Count = number of registered providers (42 ship by default plus any you add)."),
             HelpCard("Models", "Sub-hub: per-provider Models, Model Types (default API paths), and Manual model types overrides. Count = total models across active providers only."),
             HelpCard("Workers", "Sub-hub for Agents, Flocks, Swarms. Disabled until at least one provider has an API key. Count = active agents + flocks + swarms."),
-            HelpCard("Prompt management", "Sub-hub: System Prompts, Meta prompts, Fan out/in prompts, Other internal prompts, and Example prompts. Count = system prompts + internal prompts."),
+            HelpCard("Prompt management", "Sub-hub: System prompts, Internal prompts, Fan out/in prompts, Worker prompts, Alternative prompts, Compare prompts, and Example prompts. Count = reusable prompt entries."),
             HelpCard("Parameters", "Direct CRUD for parameter presets (temperature, max tokens, system prompt, web-search flags, reasoning effort)."),
+            HelpCard("Local models", "Sub-hub for on-device LLM and LiteRT embedder assets. These drive the synthetic Local provider, Local semantic search, and local-embedder Knowledge bases."),
             HelpCard("Costs", "Opens the manual cost-override list. Count = number of manual override entries currently saved."),
             HelpCard("External Services", "HuggingFace, OpenRouter, Artificial Analysis API keys. Count = number of those keys that are non-blank."),
         )
@@ -322,12 +326,12 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "internal_prompts_hub" to HelpContent(
         title = "Help - Internal prompts (hub)",
         cards = listOf(
-            HelpCard("Overview", "Sub-hub one level under AI Setup → Prompt management → Internal prompts. Groups the categories the app's internal flows consume: Meta, Fan out/in, Other internal, Worker, and Alternative. Each card opens the matching CRUD list (or, for Fan out/in, a deeper sub-hub)."),
-            HelpCard("Meta prompts", "category=\"meta\". Rerank, Summarize, Compare, Moderation — run on the full report from the View → Actions card."),
+            HelpCard("Overview", "Sub-hub one level under AI Setup → Prompt management → Internal prompts. Groups the categories consumed by report secondary results, icon/title metadata, tournament judging, comparison, translation, model info, and other app-owned flows."),
+            HelpCard("Meta prompts", "category=\"meta\". Compare, Critique, Synthesize, Summarize, and similar one-shot report-wide prompts. Compare-with-meta prompts live in category=\"meta_compare\"."),
             HelpCard("Fan out/in prompts", "Opens the dedicated sub-hub with the fan_out / fan_in categories."),
-            HelpCard("Other internal prompts", "category=\"internal\". Templates consumed by app features (Translate, Model info, Intro). Last on the page so the more commonly-edited buckets sit at the top."),
-            HelpCard("Worker prompts", "category=\"workers\". Prompts that carry an ordered list of workers (each an Agent or a Provider+Model) tried as a fallback chain. Edit-only; the chain isn't executed yet — wiring comes later."),
-            HelpCard("Alternative prompts", "category=\"alt\". The *_alt variants the Find-alternative-icons / titles flows compose with their base prompt (the distinct-emoji / no-country-flag nudges). Edit-only."),
+            HelpCard("Other internal prompts", "category=\"internal\". Templates consumed by app features such as Translate, Model info, Model intro, chat titles, model tests, and built-in secondary helpers."),
+            HelpCard("Worker prompts", "category=\"workers\". Prompts that carry an ordered list of workers, each an Agent or Provider+Model. These chains are active for app-owned jobs such as report icons, report language/title, per-model icons, Fan Meta, tournaments, Judge the Judges, and user-note titles."),
+            HelpCard("Alternative prompts", "category=\"alt\". Prompt fragments used by Find alternative icons/titles/translations to nudge a second pass away from the current result."),
             HelpCard("Counts", "Each card's badge is the live count of prompts in that category (or the sum across the three fan-* categories for Fan out/in)."),
         )
     ),
@@ -343,7 +347,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "internal_prompts" to HelpContent(
         title = "Help - Internal prompts (list)",
         cards = listOf(
-            HelpCard("Overview", "CRUD list pinned to one category (meta / fan_out / fan_in / internal). The screen title and Add label adapt — Add meta prompt vs. Add fan-out prompt etc. Other internal is a fixed list — no Add / Delete."),
+            HelpCard("Overview", "CRUD list pinned to one internal category. The screen title and Add label adapt to categories such as meta, meta_compare, fan_out, fan_in, workers, alt, and internal. Some bundled internal categories are edit-only."),
             HelpCard("Item rows", "Show name plus a chip line: ref · agent (omitted when *select), then \"— title or first 60 chars of body\". Tap to edit; trash to delete (hidden for Other internal)."),
             HelpCard("Add", "The button label reflects the active category (e.g. \"Add meta prompt\"). Hidden for Other internal."),
             HelpCard("Tips", "Sorted alphabetically by name. Edits stay scoped to this category — saving in the editor pushes back into the same bucket."),
@@ -352,7 +356,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "internal_prompts_list" to HelpContent(
         title = "Help - Internal prompts list",
         cards = listOf(
-            HelpCard("Overview", "List of every internal prompt within one category — one of meta / fan_out / fan_in / rerank / internal. The screen title carries the category name."),
+            HelpCard("Overview", "List of every internal prompt within one category — for example meta, meta_compare, fan_out, fan_in, workers, alt, or internal. The screen title carries the category name."),
             HelpCard("Add", "When the category is editable, the top button opens a blank prompt editor pre-set to this category. The 'Other internal' bucket is fixed-list (no Add, no per-row 🗑) because those entries are bundled defaults."),
             HelpCard("Row tap", "Opens the prompt editor — change name, title, body. The category is locked to the screen's category."),
             HelpCard("Row subtitle", "Prompt title (or first body line when title is blank)."),
@@ -366,7 +370,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Name / Title", "Name is unique within the category. Title is a short tag shown alongside the name on Fan out; optional. For Other internal the Name is read-only."),
             HelpCard("Append reference legend", "Switch — adds a [N] = Provider / Model footer to the response."),
             HelpCard("Agent dropdown", "*select = ask the user at run time (legacy default). *n/a = no agent applies (fan_out only). Anything else = the named agent in Settings.agents resolved at run time."),
-            HelpCard("Worker prompts", "For the Workers category the single Agent / Provider+Model picker is replaced by an ordered list of workers — each row is one Agent OR one Provider+Model pick. They're intended as a fallback chain (try worker 1, then 2, …). Add / remove rows with the buttons; the running of the chain is not wired yet."),
+            HelpCard("Worker prompts", "For the Workers category the single Agent / Provider+Model picker is replaced by an ordered list of workers. Runtime jobs try worker 1, then worker 2, and so on until a usable answer is produced or the chain is exhausted."),
             HelpCard("Template body", "8–22 visible lines. Helper text lists the placeholders allowed: @QUESTION@, @RESULTS@, @COUNT@, @TITLE@, @DATE@ (meta); @RESPONSE@/@QUESTION@/@TITLE@/@DATE@/@COUNT@ (fan_out); @COUNT@, @FAN_OUT_COUNT@, the iterable @REPORT@@RESPONSES@ block with @RESPONSE@ inside (fan_in)."),
             HelpCard("Pitfalls", "If you deep-link into edit before aiSettings has bootstrapped, the screen shows a \"Loading…\" placeholder and re-keys when the prompt id resolves — saving an empty form there would silently create a duplicate, so it is blocked.")
         )
@@ -491,21 +495,23 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "setup_prompts" to HelpContent(
         title = "Help - Prompt management (setup)",
         cards = listOf(
-            HelpCard("Overview", "Five NavCards: System Prompts, Meta prompts, Fan out/in prompts, Other internal prompts, and Example prompts."),
+            HelpCard("Overview", "Prompt-management hub. Cards open reusable System prompts, grouped Internal prompts, Fan out/in prompt groups, Worker prompts, Alternative prompts, Compare prompts, and Example prompts."),
             HelpCard("System Prompts", "Direct CRUD list. Count = number of system prompts."),
-            HelpCard("Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report (one final call). category=\"meta\"."),
-            HelpCard("Fan out/in prompts", "Forwards to a sub-hub holding the two fan-* category CRUDs (fan_out, fan_in). The badge count is the sum across both buckets."),
-            HelpCard("Other internal prompts", "Fixed list — chat-title, model-info, model-intro, translate-text, translate-title, second-rerank, second-moderation, test-model. Editable but not addable / deletable. category=\"internal\"."),
-            HelpCard("Example prompts", "Two-field CRUD (title, text). Pure data the user curates; no placeholder substitution, no agent dispatch, no app feature consumes them automatically."),
-            HelpCard("Tips", "System Prompts are referenced by id from Agents/Flocks/Swarms/Providers; Internal Prompts are referenced by name + category by app features. Example prompts are referenced by nothing — they're just a personal library."),
+            HelpCard("Internal prompts", "App-owned templates referenced by name + category. Categories include meta, meta_compare, fan_out, fan_in, workers, alt, and internal."),
+            HelpCard("Fan out/in prompts", "Forwards to a sub-hub holding fan_out and fan_in CRUDs. Fan out is per answerer/source pair; Fan in combines fan-out responses into a larger result."),
+            HelpCard("Worker prompts", "Worker-chain templates used by automated jobs: report icon/language/title, per-model icons, Fan Meta, tournaments, Judge the Judges, user-note titles, and similar background tasks."),
+            HelpCard("Alternative prompts", "Prompt fragments used by alternative title/icon/translation flows. They compose with the base prompt so candidate searches stay focused but distinct."),
+            HelpCard("Example prompts", "Two-field CRUD (title, text). Pure user-curated prompts that appear as report-start shortcuts."),
+            HelpCard("Tips", "System prompts are assigned by id to providers, agents, flocks, swarms, and report calls. Internal prompts are app feature templates and may use placeholders."),
             HelpCard("Pitfalls", "System and Internal prompts are NOT interchangeable — Internal use placeholder substitution that System does not.")
         )
     ),
     "housekeeping" to HelpContent(
         title = "Help - Housekeeping",
         cards = listOf(
-            HelpCard("Overview", "Maintenance hub. Each row is a NavCard that drills into its own full screen with its own help text — tap the row to enter, ℹ️ for the per-screen detail."),
-            HelpCard("The six rows", "Backup & Restore · Export & Import · Refresh · Trim by age · Usage statistics · Reset. Order is roughly safe → destructive. Prompt-bundle maintenance and manual-cost-overrides cleanup live under AI Setup → Prompt management / Costs — those screens already host the per-row CRUD they're paired with."),
+            HelpCard("Overview", "Maintenance hub using the same icon-card layout as Monitor. Each card opens a full screen with its own help topic."),
+            HelpCard("Cards", "Backup & Restore, Export & Import, Refresh, Update from cloud, Costs, Test, Trim by age, and Reset. The list moves from safe/inspectable actions toward more destructive cleanup actions."),
+            HelpCard("Related maintenance", "Prompt-bundle editing lives under Settings -> AI Setup -> Prompt management. Manual pricing cleanup lives under Settings -> AI Setup -> Costs. Usage and spend inspection lives under Monitor."),
             HelpCard("Tips", "Backup before any of the destructive screens — Reset, Clear runtime data, and Clear all configuration are not undoable."),
         )
     ),
@@ -529,10 +535,10 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "usage_statistics" to HelpContent(
-        title = "Help - Usage statistics",
+        title = "Help - Clear usage counters",
         cards = listOf(
-            HelpCard("Overview", "One purple button that empties the per-(provider, model) call counts, token totals, and accumulated cost. The AI Usage screen empties out; reports, chats, traces, configuration, and pricing tiers stay intact."),
-            HelpCard("Confirmation", "None — the action is one tap, confirmed via toast (\"Usage statistics cleared\")."),
+            HelpCard("Overview", "Legacy clear action for accumulated usage counters. The active usage/spend views now live under Monitor, but this topic still describes the clearing behavior when reached from older flows."),
+            HelpCard("Confirmation", "None — the action is one tap, confirmed via toast."),
             HelpCard("Tips", "Stats are accumulated lazily from API calls — they'll start filling back in the next time you run a report or chat."),
         )
     ),
@@ -758,7 +764,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("API-reported", "First row: models whose provider ships the per-call cost in the response (OpenRouter, Together, Perplexity, xAI — anything with Extract API cost or a cost-ticks divisor). Their real cost is read off the body, so no pricing tier applies and they're counted here instead of in a tier."),
             HelpCard("Tiers", "The rest, by the source tag the lookup returns: Manual override, LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Together, Helicone, then the 25/75 default fallback for models no catalog covers."),
             HelpCard("25/75 default", "A big default count means those models have no real catalog price and would bill at the $25/$75-per-million placeholder. Add a manual override or refresh catalogs to fix."),
-            HelpCard("🏷️ Pricing cache", "Below the tiers: a table of the six external pricing info-providers (LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Helicone) with each catalog's entry count and when it was last retrieved ('never' if not yet fetched). A 🐞 after the timestamp opens the API Traces for that source's retrieve (shown only when the retrieve was captured). These catalogs are exactly what feeds the tier resolution above. Refresh them from Housekeeping → Costs maintenance."),
+            HelpCard("🏷️ Pricing cache", "Below the tiers: a table of the six external pricing info-providers (LiteLLM, models.dev, llm-prices, Artificial Analysis, OpenRouter, Helicone) with each catalog's entry count and when it was last retrieved ('never' if not yet fetched). A 🐞 after the timestamp opens the API Traces for that source's retrieve (shown only when the retrieve was captured). These catalogs are exactly what feeds the tier resolution above. Refresh or export them from Housekeeping → Costs."),
             HelpCard("Pitfalls", "Tier resolution reflects the catalogs currently loaded — a model can shift tiers after a refresh. Runtime depends on tracing having been enabled when the calls were made; with no traces it shows zeros."),
         )
     ),
@@ -772,7 +778,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Layered costs · Export filtered", "Same shape but drops rows already covered by any catalog tier — surfaces only the (provider, model) pairs the user would actually need to override manually."),
             HelpCard("Layered costs · Import manual changed costs", "Reads the same CSV back. Only rows where the user filled in the two leading override columns are applied via PricingCache.setManualPricing. Blank rows are silently ignored."),
             HelpCard("Per-row card", "Provider name (blue), model id, current input/output prices in $/1M tokens. Two buttons in view mode: Remove (red) / Edit. Edit mode shows two input fields plus Cancel / Save."),
-            HelpCard("Pricing precedence", "From PricingCache.getPricing: provider self-report → LiteLLM → models.dev → llm-prices → Artificial Analysis → manual override → OpenRouter cross-provider fallback → Helicone → DEFAULT."),
+            HelpCard("Pricing precedence", "From PricingCache.getPricing: provider self-report → manual override → LiteLLM → models.dev → llm-prices → Artificial Analysis → OpenRouter cross-provider fallback → Helicone → DEFAULT."),
             HelpCard("Tips", "Stored as $/token internally — the form takes $/1M tokens and divides by 1,000,000 on save (and multiplies by it on edit-load)."),
             HelpCard("Pitfalls", "Manual override comes AFTER the curated tiers — if LiteLLM has a price, your override may not actually win. Cleanup drops those redundant entries."),
         )

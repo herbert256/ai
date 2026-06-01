@@ -849,7 +849,7 @@ private fun SettingsMainScreen(
     onOpenSubScreen: (SettingsSubScreen) -> Unit = {}
 ) {
     // No local preference state on the main screen any more — every
-    // editable card lives in one of the four sub-screens reached via
+    // editable card lives in one of the topic sub-screens reached via
     // the nav rows below.
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
@@ -1861,7 +1861,7 @@ private fun MetadataSettingsSubScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ToggleSettingCard(
                 title = "Generate metadata & icons",
-                description = "Grand-master switch for every optional metadata item: report icon, report language, AI report title, per-model icons & titles, Fan Out icons & titles, and the meta / rerank / moderate / translate row icons. When off, none of it is generated and all of its UI disappears — the Fan Out Icons / Titles buttons, the Manage report 'info' row — and a new report must be given a manual title. View screens are unaffected: a report that already has icons keeps showing them. Turn it on to reveal the per-item toggles below.",
+                description = "Grand-master switch for every optional metadata item: report icon, report language, AI report title, per-model icons & titles, and internal-prompt row icons. When off, none of it is generated and the related UI disappears, including the Manage report info row; a new report must be given a manual title. View screens are unaffected: a report that already has icons keeps showing them. Turn it on to reveal the per-item toggles below.",
                 icon = MetadataDefaults.PALETTE,
                 checked = metadataEnabled,
                 onCheckedChange = { metadataEnabled = it }
@@ -1890,21 +1890,21 @@ private fun MetadataSettingsSubScreen(
                 )
                 ToggleSettingCard(
                     title = "Generate report language",
-                    description = "Detect the report's language and pick a flag emoji for it (a two-step LLM call after report start). Surfaces as the 'language' row on the info screen and as a flag on the language picker. Independent of the report icon.",
+                    description = "Detect the report's language and pick a matching language icon after report start. Surfaces as the language row on the info screen and in language-aware report headers. Independent of the report icon.",
                     icon = MetadataDefaults.LANGUAGE,
                     checked = reportLanguageGenEnabled,
                     onCheckedChange = { reportLanguageGenEnabled = it }
                 )
                 ToggleSettingCard(
                     title = "Generate per model icons",
-                    description = "Auto-run the 3-tier per-agent icon chain (chat continuation → one-shot template → fixed-agent fallback) at the end of every report run. Each successful agent's leftmost ${com.ai.data.MetadataIconsHolder.current.statusDone} flips to a returned emoji once the chain finishes for that row. Costs accumulate on the row's cost cell and post to Usage statistics with kind=\"icon\".",
+                    description = "Auto-run the workers/model-icons flow after each successful report response. Each row's leftmost ${com.ai.data.MetadataIconsHolder.current.statusDone} flips to a returned emoji once the worker finishes. Costs accumulate on the row's cost cell and in AI Usage.",
                     icon = MetadataDefaults.MODEL_ICON,
                     checked = perModelIconGenEnabled,
                     onCheckedChange = { perModelIconGenEnabled = it }
                 )
                 ToggleSettingCard(
                     title = "Generate per model titles",
-                    description = "After each model response, run a short Anthropic call (internal/model_title) to title that response in ≤4 words. The title replaces the model name on the Manage report 'report' row; its cost folds into that row and into a 'Model titles' category on the Costs screen. Off by default — it's one extra LLM call per model.",
+                    description = "After each model response, run the configured model-title worker to title that response in ≤4 words. The title replaces the model name on the Manage report row; its cost folds into that row and the report cost table. Off by default — it's one extra LLM call per model.",
                     icon = MetadataDefaults.LABEL,
                     checked = perModelTitleGenEnabled,
                     onCheckedChange = { perModelTitleGenEnabled = it }
