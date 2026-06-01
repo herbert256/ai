@@ -7,7 +7,7 @@ internal val localKnowledgeHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Color overrides for the app shell and shared UI roles. The screen is fed from AppColors defaults, so every row starts with the current factory value and updates the live palette as soon as you pick a color."),
             HelpCard("Color rows", "Rows are grouped by function rather than old color names: app background, title text, subtitle text, primary text, secondary text, dim text, card background, button background, accents, minor surfaces, and borders."),
             HelpCard("Combined rows", "Some rows intentionally write one value to several AppColors keys. Accent also drives InfoAccent; Card Background drives both CardBackgroundAlt and CardBackground; Text Secondary also drives tertiary text; Text Dim also drives disabled and very dim text."),
-            HelpCard("Persistence", "Changes autosave after a short debounce and are flushed again when you leave the screen. Resetting a row returns that role to the AppColors factory value."),
+            HelpCard("Persistence", "Changes autosave after a short debounce and are flushed again when you leave the screen. A row's Default button returns that one role to the AppColors factory value; the 🧽 icon in the bottom bar clears every override at once, restoring the whole palette to factory."),
             HelpCard("Scope", "This affects app UI colors, including cards, buttons, title text, subtitles, status accents, borders, and the Android status/navigation bar background. It does not change provider/model-generated content or report icons.")
         )
     ),

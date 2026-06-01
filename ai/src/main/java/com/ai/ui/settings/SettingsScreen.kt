@@ -1429,7 +1429,9 @@ private fun UiColorsSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_ui_colors", title = "UI Colors", subject = "App palette", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_ui_colors", title = "UI Colors", subject = "App palette", onBackClick = onBack,
+            // 🧽 restores every color to its factory default (clears all overrides).
+            onClear = { colorOverrides = emptyMap() })
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
                 "These are the simple AppColors definitions used by shared cards, buttons, text, borders, badges, and status accents.",
