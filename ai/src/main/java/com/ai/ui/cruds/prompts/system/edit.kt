@@ -12,8 +12,9 @@ internal fun SystemPromptEdit(
     aiSettings: Settings,
     onSaved: (SystemPrompt) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
-) = SystemPromptEditForm(item, aiSettings, onSaved, onBack, onNavigateHome)
+    onNavigateHome: () -> Unit,
+    onDelete: (() -> Unit)? = null
+) = SystemPromptEditForm(item, aiSettings, onSaved, onBack, onNavigateHome, onDelete)
 
 @Composable
 internal fun SystemPromptEditForm(
@@ -21,7 +22,8 @@ internal fun SystemPromptEditForm(
     aiSettings: Settings,
     onSaved: (SystemPrompt) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     SystemPromptEditScreen(
         systemPrompt = item,
@@ -30,6 +32,7 @@ internal fun SystemPromptEditForm(
             .map { it.name.lowercase(Locale.ROOT) }.toSet(),
         onSave = onSaved,
         onBack = onBack,
-        onNavigateHome = onNavigateHome
+        onNavigateHome = onNavigateHome,
+        onDelete = onDelete
     )
 }

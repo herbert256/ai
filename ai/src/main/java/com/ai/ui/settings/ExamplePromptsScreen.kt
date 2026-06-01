@@ -16,7 +16,9 @@ fun ExamplePromptEditScreen(
     examplePrompt: ExamplePrompt?,
     onSave: (ExamplePrompt) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    /** 🗑 delete this example prompt (Prompt management → Example prompts edit). */
+    onDelete: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val isEditing = examplePrompt != null
@@ -41,7 +43,9 @@ fun ExamplePromptEditScreen(
             title = if (isAddMode) "Add example prompt" else "Edit example prompt",
             subject = title,
             onBackClick = onBack,
-            onCopyReport = null,
+            // 👯 duplicate into a new prompt, 🗑 delete — both hidden in add/copy mode.
+            onCopyReport = dup.copyTrigger,
+            onDelete = if (isAddMode) null else onDelete,
             onClear = { resetTick++ }
         )
         Spacer(modifier = Modifier.height(8.dp))

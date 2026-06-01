@@ -18,7 +18,9 @@ fun SystemPromptEditScreen(
     existingNames: Set<String>,
     onSave: (SystemPrompt) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    /** 🗑 delete this system prompt (Prompt management → System prompts edit). */
+    onDelete: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val isEditing = systemPrompt != null
@@ -50,7 +52,9 @@ fun SystemPromptEditScreen(
             title = if (isAddMode) "Add System Prompt" else "Edit System Prompt",
             subject = name,
             onBackClick = onBack,
-            onCopyReport = null,
+            // 👯 duplicate into a new prompt, 🗑 delete — both hidden in add/copy mode.
+            onCopyReport = dup.copyTrigger,
+            onDelete = if (isAddMode) null else onDelete,
             onClear = { resetTick++ }
         )
         Spacer(modifier = Modifier.height(8.dp))

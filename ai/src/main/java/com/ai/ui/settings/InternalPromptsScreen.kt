@@ -101,7 +101,9 @@ fun InternalPromptEditScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
     /** 🐞 bottom-bar trace-link — non-null when this prompt has ≥1 trace. */
-    onTrace: (() -> Unit)? = null
+    onTrace: (() -> Unit)? = null,
+    /** 🗑 delete this prompt (non-fixed categories only). Null hides it. */
+    onDelete: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val isEditing = internalPrompt != null
@@ -216,7 +218,10 @@ fun InternalPromptEditScreen(
             title = if (isAddMode) "Add $singular" else "Edit $singular",
             subject = name,
             onBackClick = onBack,
-            onCopyReport = null,
+            // 👯 duplicate + 🗑 delete — only for non-fixed categories, and
+            // hidden once the screen flips into copy/add mode.
+            onCopyReport = if (isFixedList) null else dup.copyTrigger,
+            onDelete = if (isAddMode || isFixedList) null else onDelete,
             onClear = { resetTick++ },
             onParameters = { showParamsDialog = true },
             onSystemPrompt = { showSysPromptDialog = true },

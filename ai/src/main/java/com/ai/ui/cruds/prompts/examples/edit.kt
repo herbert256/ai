@@ -9,20 +9,23 @@ internal fun ExamplePromptEdit(
     item: ExamplePrompt,
     onSaved: (ExamplePrompt) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
-) = ExamplePromptEditForm(item, onSaved, onBack, onNavigateHome)
+    onNavigateHome: () -> Unit,
+    onDelete: (() -> Unit)? = null
+) = ExamplePromptEditForm(item, onSaved, onBack, onNavigateHome, onDelete)
 
 @Composable
 internal fun ExamplePromptEditForm(
     item: ExamplePrompt?,
     onSaved: (ExamplePrompt) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     ExamplePromptEditScreen(
         examplePrompt = item,
         onSave = onSaved,
         onBack = onBack,
-        onNavigateHome = onNavigateHome
+        onNavigateHome = onNavigateHome,
+        onDelete = onDelete
     )
 }
