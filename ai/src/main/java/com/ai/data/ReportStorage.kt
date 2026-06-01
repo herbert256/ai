@@ -21,6 +21,12 @@ object ReportDataVersion {
     fun bump() { _version.update { it + 1 } }
 }
 
+data class ReportApiCallAppendResult(
+    val reportId: String,
+    val title: String,
+    val timestamp: Long
+)
+
 /**
  * Thread-safe report persistence. Stores each report as JSON file in /files/reports/.
  */
@@ -1248,13 +1254,13 @@ object ReportStorage {
      *  path intentionally takes filesDir instead of Context because it is
      *  called from SettingsPreferences, the same low-level persistence
      *  layer that owns the global usage ledger. */
-    fun appendApiCallCost(filesDir: File?, reportId: String?, record: ReportApiCallCost): Boolean {
-        val root = filesDir ?: return false
-        val id = reportId?.takeIf { isSafeFlatId(it) } ?: return false
+    fun appendApiCallCost(filesDir: File?, reportId: String?, record: ReportApiCallCost): ReportApiCallAppendResult? {
+        val root = filesDir ?: return null
+        val id = reportId?.takeIf { isSafeFlatId(it) } ?: return null
         initFromFilesDir(root)
         return lock.withLock {
-            val report = loadReport(id) ?: return@withLock false
-            if (report.apiCallCosts.any { it.id == record.id }) return@withLock true
+            val report = loadReport(id) ?: return@withLock null
+            if (report.apiCallCosts.any { it.id == record.id }) return@withLock report.apiCallAppendResult()
             val updated = report.copy(
                 apiCallCosts = (report.apiCallCosts + record).toMutableList(),
                 timestamp = System.currentTimeMillis()
@@ -1263,9 +1269,16 @@ object ReportStorage {
                 updated.totalCost = ledgerTotalCost(updated)
             }
             saveReport(updated)
-            true
+            updated.apiCallAppendResult()
         }
     }
+
+    private fun Report.apiCallAppendResult(): ReportApiCallAppendResult =
+        ReportApiCallAppendResult(
+            reportId = id,
+            title = barTitle.takeIf { it.isNotBlank() } ?: prompt.take(80),
+            timestamp = if (createdAt > 0L) createdAt else timestamp
+        )
 
     /** Best-effort one-time migration for legacy reports. New reports do
      *  not need traces: their ledger is written directly at call

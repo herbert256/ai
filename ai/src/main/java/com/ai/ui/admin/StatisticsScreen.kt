@@ -31,21 +31,24 @@ internal data class StatWithCost(val stat: UsageStats, val inputCost: Double, va
 internal data class ProviderCostGroup(val provider: AppService, val models: List<StatWithCost>, val totalCost: Double, val totalCalls: Int)
 
 /** Pure (no-Compose) resolution of raw [UsageStats] into per-provider
- *  cost groups, sorted by spend. Reused by the AI Dashboard's
- *  "Spend & usage" section. Calls [PricingCache.getPricing] per row,
- *  so run it off the main thread (Dispatchers.IO). Rerank rows bill
- *  per search-unit, not per token — the per-query cost lands in the
- *  input column so the two-column row layout surfaces it. */
+ *  cost groups, sorted by spend. New rows carry persisted call-time
+ *  cost, so this is a cheap grouping pass; only legacy rows written
+ *  before cost caching fall back to [PricingCache.getPricing]. */
 internal fun buildProviderCostGroups(context: Context, stats: Map<String, UsageStats>): List<ProviderCostGroup> =
     stats.values.groupBy { it.provider }.map { (provider, providerStats) ->
         val models = providerStats.map { stat ->
-            val pricing = PricingCache.getPricing(context, stat.provider, stat.model)
-            val isRerank = stat.kind == "rerank"
-            val ic = if (isRerank) stat.searchUnits * pricing.perQueryPrice
-                     else stat.inputTokens * pricing.promptPrice
-            val oc = if (isRerank) 0.0
-                     else stat.outputTokens * pricing.completionPrice
-            StatWithCost(stat, ic, oc, ic + oc, pricing.source)
+            if (stat.inputCost != null || stat.outputCost != null) {
+                val ic = stat.inputCost ?: 0.0
+                val oc = stat.outputCost ?: 0.0
+                StatWithCost(stat, ic, oc, ic + oc, stat.pricingSource ?: "")
+            } else {
+                val pricing = PricingCache.getPricing(context, stat.provider, stat.model)
+                val ic = if (stat.searchUnits > 0) stat.searchUnits * pricing.perQueryPrice
+                         else stat.inputTokens * pricing.promptPrice
+                val oc = if (stat.searchUnits > 0) 0.0
+                         else stat.outputTokens * pricing.completionPrice
+                StatWithCost(stat, ic, oc, ic + oc, pricing.source)
+            }
         }.sortedByDescending { it.totalCost }
         ProviderCostGroup(provider, models, models.sumOf { it.totalCost }, models.sumOf { it.stat.callCount })
     }.sortedByDescending { it.totalCost }

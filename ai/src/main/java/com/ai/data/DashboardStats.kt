@@ -2,6 +2,8 @@ package com.ai.data
 
 import android.content.Context
 import com.ai.model.Settings
+import com.ai.model.UsageCategoryStats
+import com.ai.model.UsageReportStats
 import com.ai.ui.admin.ProviderCostGroup
 import com.ai.ui.admin.buildProviderCostGroups
 import com.ai.ui.hub.reportHasProblems
@@ -158,8 +160,14 @@ internal suspend fun computeUsageGroups(
 ): UsageGroupsResult = withContext(Dispatchers.IO) {
     val stats = settingsPrefs.loadUsageStats()
     val groups = buildProviderCostGroups(context, stats)
-    val typeGroups = buildUsageTypeGroups(groups)
-    val reportRows = buildUsageReportRows(context)
+    val categoryStats = settingsPrefs.loadUsageCategoryStats()
+    val reportStats = settingsPrefs.loadUsageReportStats(context)
+    val typeGroups = if (categoryStats.isNotEmpty()) {
+        buildUsageTypeGroups(categoryStats)
+    } else {
+        buildUsageTypeGroups(groups)
+    }
+    val reportRows = buildUsageReportRows(context, reportStats)
     UsageGroupsResult(
         groups = groups,
         typeGroups = typeGroups,
@@ -170,6 +178,17 @@ internal suspend fun computeUsageGroups(
         pricingStats = PricingCache.getPricingStats(context),
     )
 }
+
+private fun buildUsageTypeGroups(stats: Map<String, UsageCategoryStats>): List<UsageTypeGroup> =
+    stats.values.map { row ->
+        UsageTypeGroup(
+            category = row.category,
+            calls = row.callCount,
+            tokens = row.totalTokens,
+            searchUnits = row.searchUnits,
+            totalCost = row.totalCost,
+        )
+    }.sortedByDescending { it.totalCost }
 
 private fun buildUsageTypeGroups(groups: List<ProviderCostGroup>): List<UsageTypeGroup> =
     groups.flatMap { it.models }
@@ -185,32 +204,17 @@ private fun buildUsageTypeGroups(groups: List<ProviderCostGroup>): List<UsageTyp
         }
         .sortedByDescending { it.totalCost }
 
-private fun buildUsageReportRows(context: Context): List<UsageReportRow> =
-    ReportStorage.getAllReports(context)
-        .map { report ->
-            val currentReport = if (!report.apiCallCostsComplete &&
-                ReportStorage.ensureApiCallCostLedger(context, report.id)
-            ) {
-                ReportStorage.getReport(context, report.id) ?: report
-            } else {
-                report
-            }
-            val secondaries = if (currentReport.apiCallCostsComplete && currentReport.apiCallCosts.isNotEmpty()) {
-                emptyList()
-            } else {
-                SecondaryResultStorage.listForReport(context, currentReport.id)
-            }
-            val totals = summarizeReportUsage(context, currentReport, secondaries)
-            UsageReportRow(
-                reportId = currentReport.id,
-                title = currentReport.barTitle.takeIf { it.isNotBlank() } ?: currentReport.prompt.take(80),
-                calls = totals.calls,
-                tokens = totals.tokens,
-                totalCost = totals.cost,
-                timestamp = if (currentReport.createdAt > 0L) currentReport.createdAt else currentReport.timestamp,
-            )
-        }
-        .sortedByDescending { it.totalCost }
+private fun buildUsageReportRows(context: Context, stats: Map<String, UsageReportStats>): List<UsageReportRow> =
+    stats.values.filter { row -> ReportStorage.reportLastModified(context, row.reportId) > 0L }.map { row ->
+        UsageReportRow(
+            reportId = row.reportId,
+            title = row.title,
+            calls = row.callCount,
+            tokens = row.totalTokens,
+            totalCost = row.totalCost,
+            timestamp = row.timestamp,
+        )
+    }.sortedByDescending { it.totalCost }
 
 private data class ReportUsageTotals(
     val calls: Int,

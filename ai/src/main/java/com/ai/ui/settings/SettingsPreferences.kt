@@ -8,6 +8,7 @@ import com.ai.data.PricingCache
 import com.ai.data.ReportApiCallCost
 import com.ai.data.ReportStorage
 import com.ai.data.TokenUsage
+import com.ai.data.barTitle
 import com.ai.data.createAppGson
 import com.ai.data.normalizeUsageKind
 import com.ai.data.writeTextAtomic
@@ -45,6 +46,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         val listTestExcludedModelType: Type = object : TypeToken<List<TestExcludedModel>>() {}.type
         val listInaccessibleModelType: Type = object : TypeToken<List<InaccessibleModel>>() {}.type
         val listDefaultMetaItemType: Type = object : TypeToken<List<DefaultMetaItem>>() {}.type
+        val listUsageCategoryStatsType: Type = object : TypeToken<List<UsageCategoryStats>>() {}.type
+        val listUsageReportStatsType: Type = object : TypeToken<List<UsageReportStats>>() {}.type
         val mapEndpointsType: Type = object : TypeToken<Map<String, List<Endpoint>>>() {}.type
         val mapStringStringType: Type = object : TypeToken<Map<String, String>>() {}.type
         val mapStringIntType: Type = object : TypeToken<Map<String, Int>>() {}.type
@@ -469,6 +472,113 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         file.writeTextAtomic(gson.toJson(stats.values.toList()))
     }
 
+    fun loadUsageCategoryStats(): Map<String, UsageCategoryStats> {
+        val fileExists = filesDir?.let { File(it, FILE_USAGE_CATEGORY_STATS).exists() } == true
+        val cache = ensureUsageCategoryStatsCache()
+        if (cache.isEmpty() && !fileExists) {
+            rebuildUsageCategoryStatsFromUsageStats()
+        }
+        return HashMap(ensureUsageCategoryStatsCache())
+    }
+
+    private fun ensureUsageCategoryStatsCache(): java.util.concurrent.ConcurrentHashMap<String, UsageCategoryStats> {
+        usageCategoryStatsCache?.let { return it }
+        return synchronized(usageStatsLock) {
+            usageCategoryStatsCache?.let { return@synchronized it }
+            val file = filesDir?.let { File(it, FILE_USAGE_CATEGORY_STATS) }
+            val cache = java.util.concurrent.ConcurrentHashMap<String, UsageCategoryStats>()
+            if (file == null || !file.exists()) {
+                usageCategoryStatsCache = cache
+                return@synchronized cache
+            }
+            val list = try {
+                gson.fromJson<List<UsageCategoryStats>>(file.readText(), TypeTokens.listUsageCategoryStatsType)
+            } catch (_: Exception) {
+                null
+            }.orEmpty()
+            list.forEach { row ->
+                val category = normalizeUsageKind(row.category)
+                cache.compute(category) { _, existing ->
+                    mergeUsageCategoryStats(existing, row.copy(category = category))
+                }
+            }
+            usageCategoryStatsCache = cache
+            cache
+        }
+    }
+
+    private fun saveUsageCategoryStats(stats: Map<String, UsageCategoryStats>) {
+        val file = filesDir?.let { File(it, FILE_USAGE_CATEGORY_STATS) } ?: return
+        file.writeTextAtomic(gson.toJson(stats.values.toList()))
+    }
+
+    fun loadUsageReportStats(context: android.content.Context): Map<String, UsageReportStats> {
+        val fileExists = filesDir?.let { File(it, FILE_USAGE_REPORT_STATS).exists() } == true
+        val cache = ensureUsageReportStatsCache()
+        if (cache.isEmpty() && !fileExists) {
+            rebuildUsageReportStatsFromReports(context)
+        }
+        return HashMap(ensureUsageReportStatsCache())
+    }
+
+    private fun ensureUsageReportStatsCache(): java.util.concurrent.ConcurrentHashMap<String, UsageReportStats> {
+        usageReportStatsCache?.let { return it }
+        return synchronized(usageStatsLock) {
+            usageReportStatsCache?.let { return@synchronized it }
+            val file = filesDir?.let { File(it, FILE_USAGE_REPORT_STATS) }
+            val cache = java.util.concurrent.ConcurrentHashMap<String, UsageReportStats>()
+            if (file == null || !file.exists()) {
+                usageReportStatsCache = cache
+                return@synchronized cache
+            }
+            val list = try {
+                gson.fromJson<List<UsageReportStats>>(file.readText(), TypeTokens.listUsageReportStatsType)
+            } catch (_: Exception) {
+                null
+            }.orEmpty()
+            list.forEach { row ->
+                if (row.reportId.isNotBlank()) {
+                    cache.compute(row.reportId) { _, existing -> mergeUsageReportStats(existing, row) }
+                }
+            }
+            usageReportStatsCache = cache
+            cache
+        }
+    }
+
+    private fun saveUsageReportStats(stats: Map<String, UsageReportStats>) {
+        val file = filesDir?.let { File(it, FILE_USAGE_REPORT_STATS) } ?: return
+        file.writeTextAtomic(gson.toJson(stats.values.toList()))
+    }
+
+    private data class UsageCostSnapshot(
+        val inputCost: Double,
+        val outputCost: Double,
+        val pricingSource: String
+    )
+
+    private fun computeUsageCostSnapshot(
+        provider: AppService,
+        model: String,
+        inputTokens: Int,
+        outputTokens: Int,
+        searchUnits: Int
+    ): UsageCostSnapshot {
+        val pricing = PricingCache.lookupPricing(provider, model)
+        val usage = TokenUsage(inputTokens = inputTokens, outputTokens = outputTokens)
+        val (tokenInputCost, tokenOutputCost) = PricingCache.computeInOutCost(usage, pricing)
+        val searchCost = if (searchUnits > 0 && pricing.perQueryPrice > 0.0) {
+            searchUnits * pricing.perQueryPrice
+        } else {
+            0.0
+        }
+        return UsageCostSnapshot(
+            inputCost = tokenInputCost + searchCost,
+            outputCost = tokenOutputCost,
+            pricingSource = if (provider.extractApiCost || provider.costTicksDivisor != null) "API_REPORTED" else pricing.source
+        )
+    }
+
     /**
      * updateUsageStats used to hold a lock, re-read the whole JSON file, mutate, and re-write
      * on every API call. Under concurrent report generation that serialized every worker and
@@ -480,19 +590,46 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         // window) — this is the single chokepoint every token site funnels through.
         com.ai.data.ApiUsageRates.record(provider, model, inputTokens, outputTokens)
         val normalizedKind = normalizeUsageKind(kind)
+        val category = normalizeUsageKind(ApiTracer.currentCategory ?: normalizedKind)
+        val costs = computeUsageCostSnapshot(provider, model, inputTokens, outputTokens, searchUnits)
         val stats = ensureUsageStatsCache()
-        val key = "${provider.id}::$model::$normalizedKind"
+        val key = "${provider.id}::$model::$category"
         stats.compute(key) { _, existing ->
-            val base = existing ?: UsageStats(provider, model, kind = normalizedKind)
+            val base = existing ?: UsageStats(provider, model, kind = category)
             base.copy(
                 callCount = base.callCount + 1,
                 inputTokens = base.inputTokens + inputTokens,
                 outputTokens = base.outputTokens + outputTokens,
-                searchUnits = base.searchUnits + searchUnits
+                searchUnits = base.searchUnits + searchUnits,
+                inputCost = (base.inputCost ?: 0.0) + costs.inputCost,
+                outputCost = (base.outputCost ?: 0.0) + costs.outputCost,
+                pricingSource = costs.pricingSource
             )
         }
-        recordReportApiCallCost(provider, model, inputTokens, outputTokens, normalizedKind, searchUnits)
+        recordUsageCategoryStats(category, inputTokens, outputTokens, searchUnits, costs)
+        recordReportApiCallCost(provider, model, inputTokens, outputTokens, category, searchUnits, costs)
         scheduleUsageStatsFlush()
+    }
+
+    private fun recordUsageCategoryStats(
+        category: String,
+        inputTokens: Int,
+        outputTokens: Int,
+        searchUnits: Int,
+        costs: UsageCostSnapshot
+    ) {
+        val categories = ensureUsageCategoryStatsCache()
+        categories.compute(category) { _, existing ->
+            val base = existing ?: UsageCategoryStats(category)
+            base.copy(
+                callCount = base.callCount + 1,
+                inputTokens = base.inputTokens + inputTokens,
+                outputTokens = base.outputTokens + outputTokens,
+                searchUnits = base.searchUnits + searchUnits,
+                inputCost = base.inputCost + costs.inputCost,
+                outputCost = base.outputCost + costs.outputCost
+            )
+        }
     }
 
     private fun recordReportApiCallCost(
@@ -500,35 +637,45 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         model: String,
         inputTokens: Int,
         outputTokens: Int,
-        kind: String,
-        searchUnits: Int
+        category: String,
+        searchUnits: Int,
+        costs: UsageCostSnapshot
     ) {
         val reportId = ApiTracer.currentReportId?.takeIf { it.isNotBlank() } ?: return
         if (inputTokens <= 0 && outputTokens <= 0 && searchUnits <= 0) return
-        val pricing = PricingCache.lookupPricing(provider, model)
-        val usage = TokenUsage(inputTokens = inputTokens, outputTokens = outputTokens)
-        val (tokenInputCost, tokenOutputCost) = PricingCache.computeInOutCost(usage, pricing)
-        val searchCost = if (searchUnits > 0 && pricing.perQueryPrice > 0.0) {
-            searchUnits * pricing.perQueryPrice
-        } else {
-            0.0
-        }
-        val category = normalizeUsageKind(ApiTracer.currentCategory ?: kind)
-        ReportStorage.appendApiCallCost(
+        val appended = ReportStorage.appendApiCallCost(
             filesDir = filesDir,
             reportId = reportId,
             record = ReportApiCallCost(
                 type = category,
                 provider = provider.id,
                 model = model,
-                pricingTier = if (provider.extractApiCost || provider.costTicksDivisor != null) "API_REPORTED" else pricing.source,
+                pricingTier = costs.pricingSource,
                 inputTokens = inputTokens,
                 outputTokens = outputTokens,
-                inputCost = tokenInputCost + searchCost,
-                outputCost = tokenOutputCost,
+                inputCost = costs.inputCost,
+                outputCost = costs.outputCost,
                 searchUnits = searchUnits
             )
-        )
+        ) ?: return
+        val reports = ensureUsageReportStatsCache()
+        reports.compute(appended.reportId) { _, existing ->
+            val base = existing ?: UsageReportStats(
+                reportId = appended.reportId,
+                title = appended.title,
+                timestamp = appended.timestamp
+            )
+            base.copy(
+                title = appended.title.takeIf { it.isNotBlank() } ?: base.title,
+                timestamp = if (appended.timestamp > 0L) appended.timestamp else base.timestamp,
+                callCount = base.callCount + 1,
+                inputTokens = base.inputTokens + inputTokens,
+                outputTokens = base.outputTokens + outputTokens,
+                searchUnits = base.searchUnits + searchUnits,
+                inputCost = base.inputCost + costs.inputCost,
+                outputCost = base.outputCost + costs.outputCost
+            )
+        }
     }
 
     private fun mergeUsageStats(existing: UsageStats?, incoming: UsageStats): UsageStats =
@@ -536,8 +683,95 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             callCount = existing.callCount + incoming.callCount,
             inputTokens = existing.inputTokens + incoming.inputTokens,
             outputTokens = existing.outputTokens + incoming.outputTokens,
-            searchUnits = existing.searchUnits + incoming.searchUnits
+            searchUnits = existing.searchUnits + incoming.searchUnits,
+            inputCost = mergeNullableCosts(existing.inputCost, incoming.inputCost),
+            outputCost = mergeNullableCosts(existing.outputCost, incoming.outputCost),
+            pricingSource = incoming.pricingSource ?: existing.pricingSource
         ) ?: incoming
+
+    private fun mergeUsageCategoryStats(existing: UsageCategoryStats?, incoming: UsageCategoryStats): UsageCategoryStats =
+        existing?.copy(
+            callCount = existing.callCount + incoming.callCount,
+            inputTokens = existing.inputTokens + incoming.inputTokens,
+            outputTokens = existing.outputTokens + incoming.outputTokens,
+            searchUnits = existing.searchUnits + incoming.searchUnits,
+            inputCost = existing.inputCost + incoming.inputCost,
+            outputCost = existing.outputCost + incoming.outputCost
+        ) ?: incoming
+
+    private fun mergeUsageReportStats(existing: UsageReportStats?, incoming: UsageReportStats): UsageReportStats =
+        existing?.copy(
+            title = incoming.title.takeIf { it.isNotBlank() } ?: existing.title,
+            timestamp = if (incoming.timestamp > 0L) incoming.timestamp else existing.timestamp,
+            callCount = existing.callCount + incoming.callCount,
+            inputTokens = existing.inputTokens + incoming.inputTokens,
+            outputTokens = existing.outputTokens + incoming.outputTokens,
+            searchUnits = existing.searchUnits + incoming.searchUnits,
+            inputCost = existing.inputCost + incoming.inputCost,
+            outputCost = existing.outputCost + incoming.outputCost
+        ) ?: incoming
+
+    private fun mergeNullableCosts(a: Double?, b: Double?): Double? =
+        if (a == null && b == null) null else (a ?: 0.0) + (b ?: 0.0)
+
+    private fun rebuildUsageCategoryStatsFromUsageStats() {
+        val rebuilt = java.util.concurrent.ConcurrentHashMap<String, UsageCategoryStats>()
+        ensureUsageStatsCache().values.forEach { stat ->
+            val costs = if (stat.inputCost != null || stat.outputCost != null) {
+                UsageCostSnapshot(stat.inputCost ?: 0.0, stat.outputCost ?: 0.0, stat.pricingSource ?: "")
+            } else {
+                computeUsageCostSnapshot(
+                    stat.provider,
+                    stat.model,
+                    stat.inputTokens.toInt(),
+                    stat.outputTokens.toInt(),
+                    stat.searchUnits.toInt()
+                )
+            }
+            rebuilt.compute(stat.kind) { _, existing ->
+                val row = UsageCategoryStats(
+                    category = stat.kind,
+                    callCount = stat.callCount,
+                    inputTokens = stat.inputTokens,
+                    outputTokens = stat.outputTokens,
+                    searchUnits = stat.searchUnits,
+                    inputCost = costs.inputCost,
+                    outputCost = costs.outputCost
+                )
+                mergeUsageCategoryStats(existing, row)
+            }
+        }
+        usageCategoryStatsCache = rebuilt
+        saveUsageCategoryStats(rebuilt)
+    }
+
+    private fun rebuildUsageReportStatsFromReports(context: android.content.Context) {
+        val rebuilt = java.util.concurrent.ConcurrentHashMap<String, UsageReportStats>()
+        ReportStorage.getAllReports(context).forEach { report ->
+            val currentReport = if (!report.apiCallCostsComplete &&
+                ReportStorage.ensureApiCallCostLedger(context, report.id)
+            ) {
+                ReportStorage.getReport(context, report.id) ?: report
+            } else {
+                report
+            }
+            val calls = currentReport.apiCallCosts
+            if (calls.isEmpty()) return@forEach
+            rebuilt[currentReport.id] = UsageReportStats(
+                reportId = currentReport.id,
+                title = currentReport.barTitle.takeIf { it.isNotBlank() } ?: currentReport.prompt.take(80),
+                timestamp = if (currentReport.createdAt > 0L) currentReport.createdAt else currentReport.timestamp,
+                callCount = calls.size,
+                inputTokens = calls.sumOf { it.inputTokens.toLong() },
+                outputTokens = calls.sumOf { it.outputTokens.toLong() },
+                searchUnits = calls.sumOf { it.searchUnits.toLong() },
+                inputCost = calls.sumOf { it.inputCost },
+                outputCost = calls.sumOf { it.outputCost }
+            )
+        }
+        usageReportStatsCache = rebuilt
+        saveUsageReportStats(rebuilt)
+    }
 
     private fun scheduleUsageStatsFlush() {
         val now = System.currentTimeMillis()
@@ -548,6 +782,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             lastUsageStatsFlush = System.currentTimeMillis()
             val snapshot = usageStatsCache?.let { HashMap(it) } ?: return
             saveUsageStats(snapshot)
+            usageCategoryStatsCache?.let { saveUsageCategoryStats(HashMap(it)) }
+            usageReportStatsCache?.let { saveUsageReportStats(HashMap(it)) }
         }
     }
 
@@ -556,6 +792,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             val snapshot = usageStatsCache?.let { HashMap(it) } ?: return
             lastUsageStatsFlush = System.currentTimeMillis()
             saveUsageStats(snapshot)
+            usageCategoryStatsCache?.let { saveUsageCategoryStats(HashMap(it)) }
+            usageReportStatsCache?.let { saveUsageReportStats(HashMap(it)) }
         }
     }
 
@@ -564,6 +802,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
 
     fun clearUsageStats() {
         usageStatsCache?.clear()
+        usageCategoryStatsCache?.clear()
+        usageReportStatsCache?.clear()
         // Reset the flush timestamp so the next updateUsageStats
         // doesn't skip the disk flush against a 2-second debounce
         // window inherited from a recent pre-clear write — that
@@ -571,6 +811,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         // on disk for the rest of the debounce period.
         lastUsageStatsFlush = 0L
         filesDir?.let { File(it, FILE_USAGE_STATS) }?.let { if (it.exists()) it.delete() }
+        filesDir?.let { File(it, FILE_USAGE_CATEGORY_STATS) }?.let { if (it.exists()) it.delete() }
+        filesDir?.let { File(it, FILE_USAGE_REPORT_STATS) }?.let { if (it.exists()) it.delete() }
     }
 
     // ===== Model Lists Cache =====
@@ -631,6 +873,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     companion object {
         private val usageStatsLock = Any()
         @Volatile private var usageStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageStats>? = null
+        @Volatile private var usageCategoryStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageCategoryStats>? = null
+        @Volatile private var usageReportStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageReportStats>? = null
         @Volatile private var lastUsageStatsFlush: Long = 0L
         private const val USAGE_STATS_FLUSH_MS = 2_000L
         const val PREFS_NAME = "eval_prefs"
@@ -703,6 +947,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         const val KEY_LAST_AI_REPORT_TITLE = "last_ai_report_title"
         const val KEY_LAST_AI_REPORT_PROMPT = "last_ai_report_prompt"
         private const val FILE_USAGE_STATS = "usage-stats.json"
+        private const val FILE_USAGE_CATEGORY_STATS = "usage-category-stats.json"
+        private const val FILE_USAGE_REPORT_STATS = "usage-report-stats.json"
         private const val FILE_PROMPT_HISTORY = "prompt-history.json"
         private const val KEY_MODEL_LIST_TIMESTAMP_PREFIX = "model_list_timestamp_"
         private const val MODEL_LISTS_CACHE_DURATION_MS = 24 * 60 * 60 * 1000L

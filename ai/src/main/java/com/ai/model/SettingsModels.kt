@@ -1047,8 +1047,42 @@ data class UsageStats(
      *  100 documents), not per token, so the input/output token columns
      *  are zero for these and AI Usage uses searchUnits × perQueryPrice
      *  to surface the actual cost. Always 0 for non-rerank rows. */
-    val searchUnits: Long = 0
+    val searchUnits: Long = 0,
+    /** Persisted USD cost at call time. Null on legacy rows written
+     *  before cost caching; readers fall back to PricingCache only for
+     *  those rows. */
+    val inputCost: Double? = null,
+    val outputCost: Double? = null,
+    val pricingSource: String? = null
 ) {
     val totalTokens: Long get() = inputTokens + outputTokens
     val key: String get() = "${provider.id}::$model::$kind"
+}
+
+data class UsageCategoryStats(
+    val category: String,
+    val callCount: Int = 0,
+    val inputTokens: Long = 0,
+    val outputTokens: Long = 0,
+    val searchUnits: Long = 0,
+    val inputCost: Double = 0.0,
+    val outputCost: Double = 0.0
+) {
+    val totalTokens: Long get() = inputTokens + outputTokens
+    val totalCost: Double get() = inputCost + outputCost
+}
+
+data class UsageReportStats(
+    val reportId: String,
+    val title: String,
+    val timestamp: Long,
+    val callCount: Int = 0,
+    val inputTokens: Long = 0,
+    val outputTokens: Long = 0,
+    val searchUnits: Long = 0,
+    val inputCost: Double = 0.0,
+    val outputCost: Double = 0.0
+) {
+    val totalTokens: Long get() = inputTokens + outputTokens
+    val totalCost: Double get() = inputCost + outputCost
 }
