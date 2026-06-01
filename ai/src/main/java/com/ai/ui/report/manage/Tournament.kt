@@ -181,6 +181,7 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     var level by rememberSaveable { mutableStateOf(1) }       // 1 = L1, 2 = L2, 3 = L3
     var groupKey by rememberSaveable { mutableStateOf("") }
     var matchKey by rememberSaveable { mutableStateOf("") }
+    var confirmRedo by rememberSaveable { mutableStateOf(false) }
     // The 👁 view icon opens the real View Tournament podium. We can't set
     // LocalPendingViewOverManage and have it observed while this overlay is up
     // (it early-returns above ReportsScreen), so we stage the jump AND close
@@ -231,10 +232,31 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
         else -> TournamentL1(run, agents, reportTitle, reportIcon, groupMode, throttled,
             setGroupMode = { groupMode = it },
             openGroup = { gk -> groupKey = gk; level = 2 },
+            onRedo = { confirmRedo = true },
             onRestartFailed = { scope.launch { engine.restartFailedMatches(context, reportId) } },
             onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
             onOpenView = onOpenTournamentView,
             onBack = onBack)
+    }
+
+    if (confirmRedo) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmRedo = false },
+            title = { androidx.compose.material3.Text("Redo the tournament?") },
+            text = {
+                androidx.compose.material3.Text("Delete the current results and re-judge every head-to-head from scratch?")
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmRedo = false
+                    level = 1
+                    engine.rerunBatch(context, reportId)
+                }) { androidx.compose.material3.Text("Redo") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmRedo = false }) { androidx.compose.material3.Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -287,6 +309,7 @@ private fun TournamentL1(
     throttled: Set<String>,
     setGroupMode: (TournamentGroupMode) -> Unit,
     openGroup: (String) -> Unit,
+    onRedo: () -> Unit,
     onRestartFailed: () -> Unit,
     onDeleteRun: () -> Unit,
     onOpenView: (() -> Unit)?,
@@ -300,6 +323,7 @@ private fun TournamentL1(
             reportIcon = reportIcon,
             onBackClick = onBack,
             onOpenView = onOpenView,
+            onReload = onRedo,
             onDelete = onDeleteRun
         )
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {

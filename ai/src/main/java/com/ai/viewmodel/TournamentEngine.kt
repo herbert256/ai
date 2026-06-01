@@ -486,6 +486,14 @@ class TournamentEngine internal constructor(
             ReportStorage.bumpReportTimestamp(context, reportId)
         }
 
+    /** Delete the current tournament and immediately start a fresh one — the
+     *  L1 🔄 redo. */
+    fun rerunBatch(context: Context, reportId: String): Job =
+        appViewModel.viewModelScope.launch {
+            deleteRun(context, reportId).join()
+            startRun(context, reportId)
+        }
+
     /** Best-effort cancel of every in-flight match for [reportId] (called
      *  from the synchronous report-delete path). */
     fun cancelAllForReport(reportId: String) {
