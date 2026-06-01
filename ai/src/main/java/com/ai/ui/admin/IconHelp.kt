@@ -234,6 +234,9 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
     "report_meta" to listOf(
         Triple("👁", "View", "Open this meta result in the View screen."),
     ),
+    "report_translations" to listOf(
+        Triple("🆕", "New translation", "Start a new translation — pick a target language, then the model(s)."),
+    ),
     "translation_run_l2" to listOf(
         Triple("ℹ️", "Information", "Open the translating model's info."),
         Triple("👁", "View", "Open this translation in the View screen."),

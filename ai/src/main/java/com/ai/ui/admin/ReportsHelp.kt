@@ -174,6 +174,13 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             // background resume sweep" live in the "concepts" topic.
         )
     ),
+    "report_translations" to HelpContent(
+        title = "Help - Translations",
+        cards = listOf(
+            HelpCard("What you see", "Every translation on this report — one row per run, newest first. Live runs show a spinning ⏳ with their progress (done / total); finished runs show the language flag (or ✅), the language and item count, and the cost. Reached from the 🌐 icon on Manage report once at least one translation exists (with none, 🌐 starts a new translation directly)."),
+            HelpCard("How it works", "Tap a row to open that translation run's detail (its per-call list). The 🆕 icon starts a new translation — pick a target language, then the model(s) — and drops you on the new run.")
+        )
+    ),
     // Per-screen icon legend reached from the ❔ bottom-bar glyph on
     // "Manage an AI report". Ordered: icons specific to this screen, then
     // general icons with screen-specific behaviour, then standard icons.

@@ -125,6 +125,10 @@ internal fun ReportRunScreen(
     var confirmTournament by rememberSaveable { mutableStateOf(false) }
     var confirmJudgeJudges by rememberSaveable { mutableStateOf(false) }
     var showTournamentOverview by rememberSaveable { mutableStateOf(false) }
+    // 🌐 Translate icon → when the report already has translations, show the
+    // Translations list (drill into a run, or 🆕 a new one); with none, the
+    // icon opens the create flow directly.
+    var showTranslationsList by rememberSaveable { mutableStateOf(false) }
     // Open-state for the Tournament L1 overlay — set on Run so the user lands
     // on the batch screen immediately instead of staying on Manage.
     val tournamentOpenState = com.ai.ui.shared.LocalTournamentOpenState.current
@@ -418,10 +422,19 @@ internal fun ReportRunScreen(
             tournamentIcon = com.ai.ui.shared.LocalMetadataIcons.current.tournament
                 .takeIf { it.isNotBlank() }
                 ?: com.ai.data.MetadataDefaults.TOURNAMENT,
-            // 🌐 Translate — opens the existing language→model picker flow
-            // (which auto-opens its own Translation run screen).
+            // 🌐 Translate — with existing translations, open the Translations
+            // list (drill in / 🆕 a new one); with none, go straight to the
+            // create flow (language→model picker → its own run screen).
             onTranslate = if (currentReportId != null) {
-                { generationHandlers.onTranslate() }
+                {
+                    st.showCreateOverview.value = false
+                    showTournamentOverview = false
+                    if (translationRunSummaries.isNotEmpty() || translationRuns.isNotEmpty()) {
+                        showTranslationsList = true
+                    } else {
+                        generationHandlers.onTranslate()
+                    }
+                }
             } else null,
             translateIcon = com.ai.ui.shared.LocalMetadataIcons.current.translationRow
                 .takeIf { it.isNotBlank() }
@@ -722,6 +735,27 @@ internal fun ReportRunScreen(
                         confirmJudgeJudges = true
                     },
                     onBack = { showTournamentOverview = false }
+                )
+            }
+        }
+
+        // Translations list — opened by the 🌐 icon when the report already has
+        // translations. Drill into a run (opens its detail via openTranslationRunId,
+        // a layer above this hub) or 🆕 a new one (the create flow).
+        if (showTranslationsList && currentReportId != null) {
+            androidx.compose.runtime.CompositionLocalProvider(
+                com.ai.ui.shared.LocalReportIcon provides (reportIcon?.takeIf { it.isNotBlank() } ?: "📝"),
+                com.ai.ui.shared.LocalReportTitle provides uiState.genericPromptTitle,
+                com.ai.ui.shared.LocalNavigateToCurrentReport provides { showTranslationsList = false }
+            ) {
+                ReportTranslationsScreen(
+                    reportTitle = uiState.genericPromptTitleLong.ifBlank { uiState.genericPromptTitle },
+                    reportIcon = reportIcon?.takeIf { it.isNotBlank() } ?: "📝",
+                    summaries = translationRunSummaries,
+                    liveRuns = translationRuns,
+                    onOpenRun = { st.openTranslationRunId.value = it },
+                    onNewTranslation = { generationHandlers.onTranslate() },
+                    onBack = { showTranslationsList = false }
                 )
             }
         }
