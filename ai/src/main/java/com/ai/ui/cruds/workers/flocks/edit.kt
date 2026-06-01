@@ -12,8 +12,9 @@ internal fun FlockEdit(
     aiSettings: Settings,
     onSaved: (Flock) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
-) = FlockEditForm(flock, aiSettings, onSaved, onBack, onNavigateHome)
+    onNavigateHome: () -> Unit,
+    onDelete: (() -> Unit)? = null
+) = FlockEditForm(flock, aiSettings, onSaved, onBack, onNavigateHome, onDelete)
 
 @Composable
 internal fun FlockEditForm(
@@ -21,7 +22,8 @@ internal fun FlockEditForm(
     aiSettings: Settings,
     onSaved: (Flock) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     FlockEditScreen(
         flock = flock,
@@ -32,6 +34,7 @@ internal fun FlockEditForm(
         onSave = onSaved,
         onBack = onBack,
         onNavigateHome = onNavigateHome,
-        onOpenView = null
+        onOpenView = null,
+        onDelete = onDelete
     )
 }

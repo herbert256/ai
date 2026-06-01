@@ -26,8 +26,9 @@ internal fun AgentEdit(
     deps: AgentEditDeps,
     onSaved: (Agent) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
-) = AgentEditForm(agent, aiSettings, deps, onSaved, onBack, onNavigateHome)
+    onNavigateHome: () -> Unit,
+    onDelete: (() -> Unit)? = null
+) = AgentEditForm(agent, aiSettings, deps, onSaved, onBack, onNavigateHome, onDelete)
 
 /** Reuses the existing rich [AgentEditScreen] for both add and edit;
  *  [agent] null = add. */
@@ -38,7 +39,8 @@ internal fun AgentEditForm(
     deps: AgentEditDeps,
     onSaved: (Agent) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onDelete: (() -> Unit)? = null
 ) {
     AgentEditScreen(
         agent = agent,
@@ -55,6 +57,7 @@ internal fun AgentEditForm(
         fetchModelsErrors = deps.fetchModelsErrors,
         onNavigateToTrace = deps.onNavigateToTrace,
         onAddEndpoint = deps.onAddEndpoint,
-        onOpenView = null
+        onOpenView = null,
+        onDelete = onDelete
     )
 }

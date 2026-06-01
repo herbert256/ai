@@ -1,5 +1,8 @@
 package com.ai.ui.cruds.workers.flocks
 
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -8,11 +11,9 @@ import androidx.compose.runtime.setValue
 import com.ai.model.Flock
 import com.ai.model.Settings
 import com.ai.ui.cruds.framework.CrudListPage
-import java.util.UUID
 
 private sealed interface Mode {
     data object List : Mode
-    data class View(val item: Flock) : Mode
     data class Edit(val item: Flock) : Mode
     data object Add : Mode
 }
@@ -25,6 +26,7 @@ fun FlocksCrud(
     onNavigateHome: () -> Unit
 ) {
     var mode by remember { mutableStateOf<Mode>(Mode.List) }
+    var confirmDelete by remember { mutableStateOf<Flock?>(null) }
     val toList = { mode = Mode.List }
     val upsert: (Flock) -> Unit = { saved ->
         val list = aiSettings.flocks
@@ -42,27 +44,37 @@ fun FlocksCrud(
             items = aiSettings.flocks.sortedBy { it.name.lowercase() },
             line = { "${it.name} · ${aiSettings.getAgentsForFlock(it).size} agents" },
             itemKey = { it.id },
-            onView = { mode = Mode.View(it) },
+            // Tapping a flock jumps straight to the edit screen — the read-only
+            // view is skipped; 👯 copy + 🗑 delete live on the edit bar.
+            onView = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add },
             onBack = onBack,
             emptyMessage = "No flocks configured"
         )
-        is Mode.View -> FlockView(
-            flock = m.item, aiSettings = aiSettings,
-            onEdit = { mode = Mode.Edit(m.item) },
-            onCopy = { mode = Mode.Edit(m.item.copy(id = UUID.randomUUID().toString(), name = "${m.item.name}-copy")) },
-            onDelete = { remove(m.item); toList() },
-            onBack = toList
-        )
         is Mode.Edit -> FlockEdit(
             flock = m.item, aiSettings = aiSettings,
             onSaved = { saved -> upsert(saved); toList() },
+            onDelete = { confirmDelete = m.item },
             onBack = toList, onNavigateHome = onNavigateHome
         )
         Mode.Add -> FlockAdd(
             aiSettings = aiSettings,
             onSaved = { saved -> upsert(saved); toList() },
             onBack = toList, onNavigateHome = onNavigateHome
+        )
+    }
+
+    confirmDelete?.let { fl ->
+        AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text("Delete flock?") },
+            text = { Text("Delete “${fl.name}”? This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = null; remove(fl); toList() }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = null }) { Text("Cancel") }
+            }
         )
     }
 }

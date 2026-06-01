@@ -1,5 +1,8 @@
 package com.ai.ui.cruds.workers.agents
 
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -8,19 +11,17 @@ import androidx.compose.runtime.setValue
 import com.ai.model.Agent
 import com.ai.model.Settings
 import com.ai.ui.cruds.framework.CrudListPage
-import java.util.UUID
 
 private sealed interface Mode {
     data object List : Mode
-    data class View(val item: Agent) : Mode
     data class Edit(val item: Agent) : Mode
     data object Add : Mode
 }
 
 /**
  * Agents CRUD. Reuses the rich AgentEditScreen form (via [AgentEdit] /
- * [AgentAdd]); copy clones the agent (new id, "-copy" name) and opens it
- * for editing, where Save appends it.
+ * [AgentAdd]); tapping an agent opens the edit screen directly (the read-only
+ * view is skipped), where the 👯 copy and 🗑 delete icons live.
  */
 @Composable
 fun AgentsCrud(
@@ -31,22 +32,13 @@ fun AgentsCrud(
     deps: AgentEditDeps
 ) {
     var mode by remember { mutableStateOf<Mode>(Mode.List) }
+    var confirmDelete by remember { mutableStateOf<Agent?>(null) }
     val toList = { mode = Mode.List }
     val upsert: (Agent) -> Unit = { saved ->
         val list = aiSettings.agents
         val updated = if (list.any { it.id == saved.id }) list.map { if (it.id == saved.id) saved else it }
                       else list + saved
         onSave(aiSettings.copy(agents = updated))
-    }
-    // Resolve a copy name that doesn't already exist up front ("-copy",
-    // then "-copy 2", …) so the user lands on a save-able form rather than
-    // discovering the collision only at Save time.
-    val uniqueCopyName: (String) -> String = { base ->
-        val taken = aiSettings.agents.map { it.name.lowercase() }.toSet()
-        var candidate = "$base-copy"
-        var n = 2
-        while (candidate.lowercase() in taken) { candidate = "$base-copy $n"; n++ }
-        candidate
     }
 
     when (val m = mode) {
@@ -61,27 +53,37 @@ fun AgentsCrud(
                 "${agent.name} · ${agent.provider.id}/$model${if (active) "" else " · (inactive)"}"
             },
             itemKey = { it.id },
-            onView = { mode = Mode.View(it) },
+            // Tapping an agent jumps straight to the edit screen — the read-only
+            // view is skipped; 👯 copy + 🗑 delete live on the edit bar.
+            onView = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add },
             onBack = onBack,
             emptyMessage = "No agents configured"
         )
-        is Mode.View -> AgentView(
-            agent = m.item, aiSettings = aiSettings,
-            onEdit = { mode = Mode.Edit(m.item) },
-            onCopy = { mode = Mode.Edit(m.item.copy(id = UUID.randomUUID().toString(), name = uniqueCopyName(m.item.name))) },
-            onDelete = { onSave(aiSettings.removeAgent(m.item.id)); toList() },
-            onBack = toList
-        )
         is Mode.Edit -> AgentEdit(
             agent = m.item, aiSettings = aiSettings, deps = deps,
             onSaved = { saved -> upsert(saved); toList() },
+            onDelete = { confirmDelete = m.item },
             onBack = toList, onNavigateHome = onNavigateHome
         )
         Mode.Add -> AgentAdd(
             aiSettings = aiSettings, deps = deps,
             onSaved = { saved -> upsert(saved); toList() },
             onBack = toList, onNavigateHome = onNavigateHome
+        )
+    }
+
+    confirmDelete?.let { ag ->
+        AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            title = { Text("Delete agent?") },
+            text = { Text("Delete “${ag.name}”? This can't be undone.") },
+            confirmButton = {
+                TextButton(onClick = { confirmDelete = null; onSave(aiSettings.removeAgent(ag.id)); toList() }) { Text("Delete") }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDelete = null }) { Text("Cancel") }
+            }
         )
     }
 }

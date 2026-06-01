@@ -42,7 +42,9 @@ fun AgentEditScreen(
     /** Optional 👁 view-screen hook. AppNavHost wires it to
      *  navController.navigate(NavRoutes.aiAgentView(agentId)); back
      *  pops back to this Edit screen via Jetpack Nav. */
-    onOpenView: (() -> Unit)? = null
+    onOpenView: (() -> Unit)? = null,
+    /** 🗑 delete this agent (Setup → Workers → Agents edit). Null hides it. */
+    onDelete: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val scope = rememberCoroutineScope()
@@ -152,7 +154,10 @@ fun AgentEditScreen(
             // 👁 only visible on Edit (the View screen needs an
             // existing agent id) — null in Add mode.
             onOpenView = if (!isAddMode) onOpenView else null,
-            onCopyReport = null,
+            // 👯 duplicate into a new agent (copy-on-edit flow), 🗑 delete it —
+            // both hidden once the screen flips into copy/add mode.
+            onCopyReport = dup.copyTrigger,
+            onDelete = if (isAddMode) null else onDelete,
             onClear = { resetTick++ },
             onParameters = { showParamsDialog = true },
             onSystemPrompt = { showSystemPromptDialog = true }

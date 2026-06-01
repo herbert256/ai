@@ -27,7 +27,9 @@ fun FlockEditScreen(
     onSave: (Flock) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit,
-    onOpenView: (() -> Unit)? = null
+    onOpenView: (() -> Unit)? = null,
+    /** 🗑 delete this flock (Setup → Workers → Flocks edit). Null hides it. */
+    onDelete: (() -> Unit)? = null
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
@@ -98,7 +100,10 @@ fun FlockEditScreen(
             subject = name,
             onBackClick = onBack,
             onOpenView = if (!isAddMode) onOpenView else null,
-            onCopyReport = null,
+            // 👯 duplicate into a new flock (copy-on-edit flow), 🗑 delete it —
+            // both hidden once the screen flips into copy/add mode.
+            onCopyReport = dup.copyTrigger,
+            onDelete = if (isAddMode) null else onDelete,
             onClear = { resetTick++ },
             onParameters = { showParamsDialog = true },
             onSystemPrompt = { showSystemPromptDialog = true }
