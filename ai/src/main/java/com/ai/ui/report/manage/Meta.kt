@@ -118,6 +118,19 @@ internal fun ReportMetaScreen(
                     refreshTick++
                 }
             )
+        } else if (openResult.kind == SecondaryKind.RERANK) {
+            com.ai.ui.report.manage.view.RerankDetailScreen(
+                result = openResult,
+                onDelete = {
+                    onDelete(openResult.id)
+                    openId = null
+                    refreshTick++
+                },
+                onBack = { openId = null },
+                onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToModelInfo = onNavigateToModelInfo
+            )
         } else {
             SecondaryResultDetailScreen(
                 result = openResult,

@@ -190,6 +190,7 @@ internal fun FanOutL1Screen(
             onTrace = if (l1RunId != null && com.ai.data.ApiTracer.isTracingEnabled)
                 { { actions.onNavigateToTraceRunList(l1RunId) } } else null,
             onDelete = { confirmDelete = true },
+            onAdd = if (isMainMode) actions.onCreateNewFanOut else null,
             onAddNote = if (isMainMode) { { noteEdit = NoteEdit.Add } } else null
         )
         if (isMainMode) {

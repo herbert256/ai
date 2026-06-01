@@ -77,6 +77,7 @@ internal fun SecondaryResultsListMount(
     onCloseList: () -> Unit,
     onShowResponses: () -> Unit,
     onShowFanMeta: () -> Unit = {},
+    onCreateNewFanOut: () -> Unit = {},
     onSecondaryRefresh: () -> Unit,
     onCreateReportFromFanOut: (String, String, String) -> Unit,
     onDeleteSecondaryWithRefresh: (String, String) -> Unit,
@@ -164,6 +165,7 @@ internal fun SecondaryResultsListMount(
             fanRuntime = fanRuntime,
             onShowResponses = onShowResponses,
             onShowFanMeta = onShowFanMeta,
+            onCreateNewFanOut = onCreateNewFanOut,
             isFanMetaDrillIn = listIsFanMeta,
             fanOutEngine = fanOutEngine,
             fanInPrompts = fanInList,
@@ -462,4 +464,3 @@ internal fun FanOutConfirmScreen(
 // ReportsScreen pushes it past the JVM 64 KB per-method bytecode
 // limit. Returns true when the overlay rendered (caller early-
 // returns); false when prompt / agent isn't configured.
-

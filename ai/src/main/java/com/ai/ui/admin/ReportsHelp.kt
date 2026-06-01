@@ -102,9 +102,9 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "report_create_overview" to HelpContent(
         title = "Help - Create",
         cards = listOf(
-            HelpCard("What you see", "A full-screen launcher (the 🆕 icon on Manage report) for adding a secondary result to the report: Meta, Rerank, Moderation, Fan out, Translate — each a big icon with a one-line explanation."),
-            HelpCard("The options", "Meta runs a Compare / Critique / Synthesize prompt over the answers. Rerank ranks the answers best-first. Moderation safety-checks them. Fan out fans one answer out to every model. Translate renders the report into other languages."),
-            HelpCard("How it works", "Tapping a row opens that kind's model/prompt picker — exactly what the old pop-up did. Meta and Fan out are disabled when no Meta / Fan-out prompts are configured; Rerank and Moderation are single-shot and grey out once one exists on the report.")
+            HelpCard("What you see", "A full-screen launcher (the 🆕 icon on Manage report) for adding a secondary result to the report: Meta, Rerank, Moderation, Compare, Translate — each a big icon with a one-line explanation."),
+            HelpCard("The options", "Meta runs a Compare / Critique / Synthesize prompt over the answers. Rerank ranks the answers best-first. Moderation safety-checks them. Compare scores each answer against a meta result. Translate renders the report into other languages."),
+            HelpCard("How it works", "Tapping a row opens that kind's model/prompt picker — exactly what the old pop-up did. Meta is disabled when no Meta prompts are configured; Rerank and Moderation are single-shot and grey out once one exists on the report. Fan Out has its own 🔱 icon on Manage report.")
         )
     ),
     "report_edit_icons" to HelpContent(
@@ -162,7 +162,7 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Per-agent rows", "One card per dispatched model. While the call is in flight the row shows progress; on completion it carries the response, token + cost cell, optional 🐞 trace icon, and the auto-generated per-agent emoji once the icon chain finishes."),
             HelpCard("Row labels", "Report rows show generated per-model titles by default. Tap 🔤 in the icon bar to switch those rows to raw provider/model names; tap it again to return to titles."),
             HelpCard("Action row — while running", "STOP cancels every in-flight call (rows mid-stream complete what they've received, then mark CANCELLED). Background drops you back to Hub while the run continues; reopening the report shows the in-flight rows still streaming."),
-            HelpCard("Action row — when complete", "View, Edit, Copy, Pin/Unpin, Translate, Meta (disabled when no Meta prompts exist), Fan out (disabled when no Fan-out prompts exist). Regenerate / Delete / Export live as title-bar icons (🔄 / 🗑 / 📤) rather than action-row buttons to avoid duplicating the same tap target."),
+            HelpCard("Action row — when complete", "View, Edit, Copy, Pin/Unpin, Create, Fan Out, Tournament. Regenerate / Delete / Export live as title-bar icons (🔄 / 🗑 / 📤) rather than action-row buttons to avoid duplicating the same tap target."),
             HelpCard("Per-model icons (auto-run, per-task)", "The 3-tier per-agent icon chain (chat continuation → one-shot icons/report template → fixed-agent icons/report_3 fallback) fires automatically when Settings → Generate per model icons is on. Each agent's chain kicks off the moment THAT agent's primary call settles to SUCCESS, so a fast row's emoji can appear before a slow row in the same report has finished generating. Tier 1 = chat (the model emoji-fies its own previous answer). Tier 2 = one-shot with @PROMPT@/@RESPONSE@. Tier 3 = bundled DeepSeek on @RESPONSE@ only. All three fail → 📝. Costs from every tier call accumulate on the row's cost cell, post to global Usage statistics with kind=\"icon\", and appear as their own rows in the export's per-call All tab. Regenerating the report re-fires the chain per regenerated agent."),
             HelpCard("View popup", "Reports / Prompt / Costs plus one row per Meta-prompt name with at least one persisted secondary on this report. Edit popup is Prompt / Title / Models / Parameters — picking Models lands on Report - select models in edit mode."),
             HelpCard("Pending-changes banner", "Orange banner appears when the user edited prompt / models / parameters since the last run — Regenerate is required for the new values to take effect. Until then the displayed rows reflect the old configuration."),
@@ -489,6 +489,15 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Title bar — 🗑", "Wired. Opens 'Delete this <kindLabel>?' confirm; confirming calls onDelete and pops back."),
             HelpCard("Title bar — 🐞", "Wired when tracing is on and a matching trace exists (reportId + this row's model, max-by-timestamp)."),
             HelpCard("Translation info", "Shown only for META rows that have a translateSourceTargetId resolving to a non-blank source — opens TranslationCompareScreen.")
+        )
+    ),
+    "rerank_detail" to HelpContent(
+        title = "Help - Rerank result — detail",
+        cards = listOf(
+            HelpCard("Overview", "Dedicated detail screen for a rerank result — the 1..N best-first ranking of the report's answers. Errors render as a red Error block; blank content shows '(no content)'."),
+            HelpCard("Ranking table", "Parses the structured JSON ([{id, rank, score, reason}, ...]) the rerank flow produces (chat-prompt path or the native rerank API) and renders a sorted Rank / Model / Score / Reason table, resolving each bracketed [N] to its real provider / model. Falls back to raw markdown when the model deviated from the schema."),
+            HelpCard("Title bar", "👁 opens the View Rerank screen, ℹ️ jumps to Model Info for this row's (provider, model), 🐞 opens the captured trace when tracing was on, 🗑 deletes the rerank, and Copy / Share export the raw ranking JSON. ✍️ adds a note."),
+            HelpCard("Re-running", "Not wired here — re-run a rerank by deleting it and re-firing from the report's 🆕 Create launcher.")
         )
     ),
     "meta_detail" to HelpContent(

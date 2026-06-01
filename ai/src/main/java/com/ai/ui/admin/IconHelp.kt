@@ -31,7 +31,8 @@ internal val SCREEN_ICON_HELP: Map<String, List<Triple<String, String, String>>>
 
     // ===== Report flow (top level) =====
     "report_run" to listOf(
-        Triple("🆕", "Create", "Add an operation to this report: Meta, Rerank, Moderation, Fan out or Translate."),
+        Triple("🆕", "Create", "Add an operation to this report: Meta, Rerank, Moderation, Compare or Translate."),
+        Triple("🔱", "Fan Out", "Open this report's Fan Out, or start a new Fan Out when none exists yet."),
         Triple("💬", "Chat", "Start a chat seeded with this report's prompt."),
         Triple("🗂️", "Switch report", "Pick another report to manage."),
         Triple("ℹ️", "Information", "The per-report info screen."),

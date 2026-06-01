@@ -368,6 +368,24 @@ internal fun ReportRunScreen(
                 { showModelNamesInReportRows = !showModelNamesInReportRows }
             } else null,
             modelRowLabelsShowModelNames = showModelNamesInReportRows,
+            onFanOut = if (currentReportId != null) {
+                {
+                    st.showCreateOverview.value = false
+                    showTournamentOverview = false
+                    val existingFanOut = fanOutSummaries.firstOrNull()
+                    if (existingFanOut != null) {
+                        generationHandlers.onViewSecondaryName(
+                            existingFanOut.metaPromptName,
+                            existingFanOut.kind
+                        )
+                    } else {
+                        generationHandlers.onOpenFanOutPicker()
+                    }
+                }
+            } else null,
+            fanOutIcon = com.ai.ui.shared.LocalMetadataIcons.current.fanOutRow
+                .takeIf { it.isNotBlank() }
+                ?: com.ai.data.MetadataDefaults.FAN_OUT,
             onTournament = if (currentReportId != null) {
                 {
                     st.showCreateOverview.value = false
@@ -607,7 +625,6 @@ internal fun ReportRunScreen(
                     metaEnabled = aiSettings.internalPrompts.any { it.category.equals("meta", ignoreCase = true) },
                     rerankEnabled = secondaryCounts.rerank == 0,
                     moderationEnabled = secondaryCounts.moderation == 0,
-                    fanOutEnabled = aiSettings.internalPrompts.any { it.category == "fan_out" },
                     compareEnabled = compareEnabled,
                     onMeta = {
                         st.showCreateOverview.value = false
@@ -622,10 +639,6 @@ internal fun ReportRunScreen(
                         st.showCreateOverview.value = false
                         android.widget.Toast.makeText(context, "Loading moderation models…", android.widget.Toast.LENGTH_SHORT).show()
                         generationHandlers.onOpenModerationPicker()
-                    },
-                    onFanOut = {
-                        st.showCreateOverview.value = false
-                        generationHandlers.onOpenFanOutPicker()
                     },
                     onTranslate = {
                         st.showCreateOverview.value = false

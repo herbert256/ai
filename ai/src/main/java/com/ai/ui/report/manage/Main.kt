@@ -1220,6 +1220,22 @@ fun ReportsScreen(
                     forcedLanguage = secondaryLockedLanguage,
                     onDeleteRowById = { resultId -> onDeleteSecondaryWithRefresh(rid, resultId) }
                 )
+            } else if (openMetaResult.kind == com.ai.data.SecondaryKind.RERANK) {
+                com.ai.ui.report.manage.view.RerankDetailScreen(
+                    result = openMetaResult,
+                    onDelete = {
+                        onDeleteSecondaryWithRefresh(rid, openMetaResult.id)
+                        openMetaResultId = null
+                        secondaryLockedLanguage = null
+                    },
+                    onBack = {
+                        openMetaResultId = null
+                        secondaryLockedLanguage = null
+                    },
+                    onNavigateHome = onNavigateHome,
+                    onNavigateToTraceFile = onNavigateToTraceFile,
+                    onNavigateToModelInfo = onNavigateToModelInfo
+                )
             } else {
                 SecondaryResultDetailScreen(
                     result = openMetaResult,
@@ -1437,6 +1453,13 @@ fun ReportsScreen(
             },
             onShowResponses = { listIsFanMeta = false },
             onShowFanMeta = { listIsFanMeta = true },
+            onCreateNewFanOut = {
+                listKind = null
+                listFilterByName = null
+                listIsFanMeta = false
+                listLockedLanguage = null
+                showFanOutPicker = true
+            },
             onSecondaryRefresh = onSecondaryRefresh,
             onCreateReportFromFanOut = onCreateReportFromFanOut,
             onDeleteSecondaryWithRefresh = onDeleteSecondaryWithRefresh,

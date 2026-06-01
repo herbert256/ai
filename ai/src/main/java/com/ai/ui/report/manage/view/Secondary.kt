@@ -60,6 +60,8 @@ internal fun SecondaryResultsScreen(
     onShowResponses: () -> Unit = {},
     /** Flip the drill-in into META mode — the L1 "Fan Meta" toggle. */
     onShowFanMeta: () -> Unit = {},
+    /** Start another Fan Out from the Fan Out L1 title-bar 🆕 icon. */
+    onCreateNewFanOut: () -> Unit = {},
     /** When true, the fan-out drill-in mounts in META mode. */
     isFanMetaDrillIn: Boolean = false,
     /** Authoritative Fan Out runtime. When non-null and the screen
@@ -405,6 +407,19 @@ internal fun SecondaryResultsScreen(
                     refreshTick++
                 }
             )
+        } else if (openResult.kind == SecondaryKind.RERANK) {
+            RerankDetailScreen(
+                result = openResult,
+                onDelete = {
+                    onDelete(openResult.id)
+                    openId = null
+                    refreshTick++
+                },
+                onBack = { openId = null },
+                onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToModelInfo = onNavigateToModelInfo
+            )
         } else {
             SecondaryResultDetailScreen(
                 result = openResult,
@@ -623,6 +638,7 @@ internal fun SecondaryResultsScreen(
                     refreshTick++
                 },
                 onRunFanIn = { _ -> onRunFanIn?.invoke() },
+                onCreateNewFanOut = onCreateNewFanOut,
                 onCreateReportFromFanOut = { _, prov, mdl -> onCreateReportFromFanOut?.invoke(prov, mdl) },
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToTraceRunList = onNavigateToTraceRunList,
@@ -872,4 +888,3 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
         )
     }
 }
-

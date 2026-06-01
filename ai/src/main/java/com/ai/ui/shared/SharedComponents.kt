@@ -818,6 +818,10 @@ data class TitleBarIcons(
      *  bar carries the "add new entry" action (replacing the old top-of-
      *  list Add button). Null → glyph hidden. */
     val onAdd: (() -> Unit)? = null,
+    /** Optional Fan Out launcher hook. Wired from Manage report to open an
+     *  existing Fan Out or start a new one. Null → glyph hidden. */
+    val onFanOut: (() -> Unit)? = null,
+    val fanOutIcon: String = "🔱",
     /** Optional tournament launcher hook. Wired from Manage report to open
      *  the dedicated Tournament creation screen. Null → glyph hidden. */
     val onTournament: (() -> Unit)? = null,
@@ -1100,6 +1104,9 @@ fun TitleBar(
     onSwipeNext: (() -> Boolean)? = null,
     /** Optional 🆕 add hook (CRUD list pages). Null → glyph hidden. */
     onAdd: (() -> Unit)? = null,
+    /** Optional Fan Out launcher hook. Null → glyph hidden. */
+    onFanOut: (() -> Unit)? = null,
+    fanOutIcon: String = "🔱",
     /** Optional tournament launcher hook. Null → glyph hidden. */
     onTournament: (() -> Unit)? = null,
     tournamentIcon: String = "🥊",
@@ -1204,6 +1211,8 @@ fun TitleBar(
         onToggleModelRowLabels = onToggleModelRowLabels,
         modelRowLabelsShowModelNames = modelRowLabelsShowModelNames,
         onAdd = onAdd,
+        onFanOut = onFanOut,
+        fanOutIcon = fanOutIcon,
         onTournament = onTournament,
         tournamentIcon = tournamentIcon,
         addFirst = addFirst,
@@ -1668,6 +1677,9 @@ private fun buildBottomBarIcons(icons: TitleBarIcons): List<BottomBarIcon> = bui
     // 🆕 leads when the screen opts in (Manage report); otherwise it
     // stays in the trailing copy/edit/delete/new group below.
     if (icons.addFirst) icons.onAdd?.let { add(BottomBarIcon("🆕", Color.Unspecified, it, 28)) }
+    icons.onFanOut?.let {
+        add(BottomBarIcon(icons.fanOutIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🔱", Color.Unspecified, it, 28))
+    }
     icons.onTournament?.let {
         add(BottomBarIcon(icons.tournamentIcon.takeIf { glyph -> glyph.isNotBlank() } ?: "🥊", Color.Unspecified, it, 28))
     }

@@ -123,6 +123,7 @@ data class FanOutActions(
     val onCancelPair: (FanOutRunKey, String) -> Unit = { _, _ -> },       // (runKey, pairKey)
     val onDeleteModelFromRun: (FanOutRunKey, String, String) -> Unit = { _, _, _ -> },
     val onRunFanIn: (FanOutRunKey) -> Unit = {},                          // opens fan-in picker
+    val onCreateNewFanOut: () -> Unit = {},
     val onCreateReportFromFanOut: (FanOutRunKey, String, String) -> Unit = { _, _, _ -> },
     val onNavigateToTraceFile: (String) -> Unit = {},
     /** Open the trace list filtered to one batch's runId. Wired
