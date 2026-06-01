@@ -174,6 +174,21 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
     var judgeKey by rememberSaveable { mutableStateOf("") }
     var matchKey by rememberSaveable { mutableStateOf("") }
     var confirmDeleteJudge by rememberSaveable { mutableStateOf<String?>(null) }
+    // Set when the user taps ✏️ to edit the swarm; checked on the way back
+    // (the overlay is disposed on nav-out and recomposed on nav-in) to offer a
+    // rerun if the swarm's judges no longer match this batch's judges.
+    var awaitingEditReturn by rememberSaveable { mutableStateOf(false) }
+    var confirmRerun by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        if (awaitingEditReturn) {
+            awaitingEditReturn = false
+            val active = engine.activeJudgeKeys()
+            val batch = engine.runByKey(reportId)?.cells?.values?.map { it.judgeKey }?.toSet()
+            if (active != null && batch != null && batch.isNotEmpty() && active != batch) {
+                confirmRerun = true
+            }
+        }
+    }
     // Debounce navigation: a single tap whose target navigates away can have
     // its release land on the freshly-composed destination's clickable at the
     // same spot (the L1 match row → by-match list "tap-through"). Ignore any
@@ -221,7 +236,12 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
         else -> JudgeEvalL1(run, agents, throttled, reportTitle, reportIcon,
             openJudge = { jk -> if (navOk()) { judgeKey = jk; byMatch = false; level = 2 } },
             openMatch = { mk -> if (navOk()) { matchKey = mk; byMatch = true; level = 2 } },
-            onEditSwarm = { engine.activeSwarmId()?.let { navigateToRoute(com.ai.ui.navigation.NavRoutes.settingsSwarmEdit(it)) } },
+            onEditSwarm = {
+                engine.activeSwarmId()?.let {
+                    awaitingEditReturn = true
+                    navigateToRoute(com.ai.ui.navigation.NavRoutes.settingsSwarmEdit(it))
+                }
+            },
             onRestartFailed = { scope.launch { engine.restartFailedCells(context, reportId) } },
             onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
             onBack = onBack)
@@ -247,6 +267,26 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
             },
             dismissButton = {
                 androidx.compose.material3.TextButton(onClick = { confirmDeleteJudge = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (confirmRerun) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmRerun = false },
+            title = { Text("Rerun the batch?") },
+            text = {
+                Text("The judge swarm changed and no longer matches this batch's judges. Rerun the batch with the current swarm? The existing run is replaced.")
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    confirmRerun = false
+                    level = 1
+                    engine.rerunBatch(context, reportId)
+                }) { Text("Rerun") }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { confirmRerun = false }) { Text("Keep") }
             }
         )
     }

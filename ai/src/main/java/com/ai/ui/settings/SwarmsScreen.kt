@@ -31,10 +31,13 @@ fun SwarmEditScreen(
 ) {
     BackHandler { onBack() }
     val isEditing = swarm != null
+    // Member rows are always kept sorted by provider id, then model (both
+    // case-insensitive) so the list reads predictably regardless of add order.
+    val memberOrder = compareBy<SwarmMember>({ it.provider.id.lowercase() }, { it.model.lowercase() })
 
     var resetTick by remember { mutableStateOf(0) }
     var name by remember(resetTick) { mutableStateOf(swarm?.name ?: "") }
-    var selectedMembers by remember(resetTick) { mutableStateOf(swarm?.members ?: emptyList()) }
+    var selectedMembers by remember(resetTick) { mutableStateOf((swarm?.members ?: emptyList()).sortedWith(memberOrder)) }
     var selectedParamsIds by remember(resetTick) { mutableStateOf(swarm?.paramsIds ?: emptyList()) }
     var selectedSystemPromptId by remember(resetTick) { mutableStateOf(swarm?.systemPromptId) }
     var showParamsDialog by remember { mutableStateOf(false) }
@@ -79,7 +82,7 @@ fun SwarmEditScreen(
                     it.provider.id == provider.id &&
                         it.model.equals(model, ignoreCase = true)
                 }) {
-                    selectedMembers = selectedMembers + candidate
+                    selectedMembers = (selectedMembers + candidate).sortedWith(memberOrder)
                 }
                 showModelPicker = false
             },

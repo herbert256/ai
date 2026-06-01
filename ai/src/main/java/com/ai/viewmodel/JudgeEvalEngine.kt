@@ -410,6 +410,23 @@ class JudgeEvalEngine internal constructor(
         return aiSettings.getSwarmByName(swarmName)?.id
     }
 
+    /** The set of judge keys ("providerId/model") the active swarm currently
+     *  resolves to — for comparing against a finished run's judges after the
+     *  user edits the swarm. Null when the prompt/judges can't be resolved. */
+    fun activeJudgeKeys(): Set<String>? {
+        val aiSettings = appViewModel.uiState.value.aiSettings
+        val prompt = judgePrompt(aiSettings) ?: return null
+        return resolveJudges(aiSettings, prompt).map { it.key }.toSet()
+    }
+
+    /** Delete the current run and immediately start a fresh one — used when the
+     *  user edits the judge swarm and chooses to re-judge with the new set. */
+    fun rerunBatch(context: Context, reportId: String): Job =
+        appViewModel.viewModelScope.launch {
+            deleteRun(context, reportId).join()
+            startRun(context, reportId)
+        }
+
     /** Remove a judge (provider/model) from the prompt's worker swarm, so
      *  future runs (and the Tournament) no longer use it. Persists settings.
      *  No-op if the swarm or member can't be found. */
