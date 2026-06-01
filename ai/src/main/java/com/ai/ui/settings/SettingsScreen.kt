@@ -1731,29 +1731,22 @@ private fun DefaultIconsSubScreen(
             onClear = { icons = com.ai.data.MetadataIcons() }
         )
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "Every emoji the app draws — report/result fallbacks on the view screens and every action icon in the bottom bars. Editing one updates it everywhere; a blank field falls back to the factory default, and 🧽 resets them all.",
-                        fontSize = 11.sp, color = AppColors.TextTertiary
-                    )
-                    DEFAULT_ICON_SECTIONS.forEach { (section, rows) ->
-                        Text(
-                            section, fontSize = 12.sp,
-                            color = AppColors.TextSecondary,
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-                            modifier = Modifier.padding(top = 6.dp)
-                        )
-                        rows.forEach { row ->
-                            IconDefaultRow(row.label, row.get(icons), { icons = row.set(icons, it) }) {
-                                aiFindFor = IconAiTarget(row.label) { picked -> icons = row.set(icons, picked) }
-                            }
+            Text(
+                "Every emoji the app draws — report/result fallbacks on the view screens and every action icon in the bottom bars. Editing one updates it everywhere; a blank field falls back to the factory default, and 🧽 resets them all. Tap a category to expand it.",
+                fontSize = 11.sp, color = AppColors.TextTertiary,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+            )
+            // One collapsible card per category, all collapsed at start (reuses
+            // the Settings [SettingCard] pattern so this screen matches the rest
+            // of Settings). The header shows the category name + its icon count;
+            // tap it to reveal the editable rows. "Reset all" lives on 🧽.
+            DEFAULT_ICON_SECTIONS.forEach { (section, rows) ->
+                SettingCard(title = "$section  ·  ${rows.size}") {
+                    rows.forEach { row ->
+                        IconDefaultRow(row.label, row.get(icons), { icons = row.set(icons, it) }) {
+                            aiFindFor = IconAiTarget(row.label) { picked -> icons = row.set(icons, picked) }
                         }
                     }
-                    // "Reset all to defaults" lives on the 🧽 bottom-bar icon.
                 }
             }
         }
