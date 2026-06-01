@@ -397,6 +397,7 @@ internal fun ColumnScope.GenerationPhase(
     infoEnabled: Boolean = false,
     infoState: InfoJobState = InfoJobState.DONE,
     infoMetaTotal: Double = 0.0,
+    metadataCostTotal: Double = 0.0,
     hasPrevReport: Boolean = false,
     hasNextReport: Boolean = false,
     /** True while a full-screen overlay (e.g. Get-info) is layered on top
@@ -584,11 +585,13 @@ internal fun ColumnScope.GenerationPhase(
     val totalInputTokens = agentInputTokens + secondaryTotals.inputTokens + liveTranslationInputTokens
     val totalOutputTokens = agentOutputTokens + secondaryTotals.outputTokens + liveTranslationOutputTokens
     // All metadata-job costs (report icon/language/title + per-model
-    // icon/model-title) are now summed once as `infoMetaTotal` (the same
-    // value the info row + Get-info screen show), folded into the grand
-    // total here so the bottom-bar total stays the true full total.
+    // icon/model-title + alt-title lookups) are folded into the grand total via
+    // `metadataCostTotal` — the UNCONDITIONAL spend (report.totalCost − agents),
+    // NOT the toggle-gated `infoMetaTotal` used for the live info row. Using the
+    // gated value dropped already-spent metadata from the headline whenever a
+    // metadata toggle was off, so the bar disagreed with the Report-costs screen.
     val totalCost = agentCost + secondaryTotals.inputCost + secondaryTotals.outputCost +
-        liveTranslationCost + costsFromDeletedItems + secondaryTotals.fanOutMetaCost + infoMetaTotal
+        liveTranslationCost + costsFromDeletedItems + secondaryTotals.fanOutMetaCost + metadataCostTotal
     val showTotals = totalInputTokens > 0 || totalOutputTokens > 0 || totalCost > 0.0
 
     // Report the running total up to the host (ReportRunScreen) so it can

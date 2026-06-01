@@ -98,6 +98,7 @@ internal fun ReportRunScreen(
     infoEnabled: Boolean = false,
     infoState: InfoJobState = InfoJobState.DONE,
     infoMetaTotal: Double = 0.0,
+    metadataCostTotal: Double = 0.0,
     hasPrevReport: Boolean,
     hasNextReport: Boolean,
     onDismiss: () -> Unit,
@@ -571,6 +572,7 @@ internal fun ReportRunScreen(
             infoEnabled = infoEnabled,
             infoState = infoState,
             infoMetaTotal = infoMetaTotal,
+            metadataCostTotal = metadataCostTotal,
             hasPrevReport = hasPrevReport,
             hasNextReport = hasNextReport,
             // Pause the hub's background effects while any full-screen layer

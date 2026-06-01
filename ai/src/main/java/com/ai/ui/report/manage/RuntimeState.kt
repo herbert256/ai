@@ -77,6 +77,12 @@ internal data class ReportRuntimeState(
     val infoEnabled: Boolean,
     val infoState: InfoJobState,
     val infoMetaTotal: Double,
+    /** Unconditional metadata spend (report icon / language / titles / per-model
+     *  icons + titles / alt-title lookups) for the grand TOTAL. Unlike
+     *  [infoMetaTotal] — which is toggle-gated for the live info-row display —
+     *  this counts money actually spent regardless of the current toggle state,
+     *  so the Manage bar headline matches the Report-costs screen. */
+    val metadataCostTotal: Double,
     val agentRecordsByAgentId: Map<String, com.ai.data.ReportAgent>,
     val loadedReportPrompt: String,
     val loadedReportTitle: String?,
@@ -129,6 +135,7 @@ internal fun rememberReportRuntimeState(
     var infoEnabled by remember { mutableStateOf(false) }
     var infoState by remember { mutableStateOf(InfoJobState.DONE) }
     var infoMetaTotal by remember { mutableStateOf(0.0) }
+    var metadataCostTotal by remember { mutableStateOf(0.0) }
     var agentRecordsByAgentId by remember { mutableStateOf<Map<String, com.ai.data.ReportAgent>>(emptyMap()) }
     var loadedReportPrompt by remember { mutableStateOf("") }
     var loadedReportTitle by remember { mutableStateOf<String?>(null) }
@@ -156,6 +163,7 @@ internal fun rememberReportRuntimeState(
             infoEnabled = false
             infoState = InfoJobState.DONE
             infoMetaTotal = 0.0
+            metadataCostTotal = 0.0
             agentRecordsByAgentId = emptyMap()
             loadedReportPrompt = ""
             loadedReportTitle = null
@@ -189,6 +197,18 @@ internal fun rememberReportRuntimeState(
             infoEnabled = infoJobs.isNotEmpty()
             infoState = aggregateInfoState(infoJobs)
             infoMetaTotal = infoJobs.sumOf { it.cost }
+            // Same metadata costs buildInfoJobs sums for infoMetaTotal, but
+            // WITHOUT the toggle gate — money actually spent always counts in
+            // the grand total. (buildInfoJobs drops a category's cost when its
+            // toggle is off, which silently shrank the headline below the
+            // Report-costs screen. These are the identical per-field costs the
+            // info jobs use: report icon, language detect + icon, report title
+            // short + long, per-model title, per-model icon.)
+            metadataCostTotal = reportIconCost + languageDetectCost + languageIconCost +
+                ((r?.titleInputCost ?: 0.0) + (r?.titleOutputCost ?: 0.0) +
+                    (r?.titleLongInputCost ?: 0.0) + (r?.titleLongOutputCost ?: 0.0)) +
+                agentModelTitles.values.sumOf { it.cost } +
+                agentIconRows.values.sumOf { it.cost }
             loadedReportPrompt = r?.prompt.orEmpty()
             loadedReportTitle = r?.barTitle
             loadedReportTimestamp = r?.timestamp ?: 0L
@@ -347,6 +367,7 @@ internal fun rememberReportRuntimeState(
         infoEnabled = infoEnabled,
         infoState = infoState,
         infoMetaTotal = infoMetaTotal,
+        metadataCostTotal = metadataCostTotal,
         agentRecordsByAgentId = agentRecordsByAgentId,
         loadedReportPrompt = loadedReportPrompt,
         loadedReportTitle = loadedReportTitle,
