@@ -60,7 +60,7 @@ internal fun InaccessibleModelForm(
         title = if (isAdd) "Add inaccessible model" else "Edit inaccessible model",
         subject = "Mark one model as unreachable",
         isAdd = isAdd,
-        saveEnabled = hasModel,
+        current = if (hasModel) InaccessibleModel(providerId, model, reason.trim().ifBlank { "Manually added" }) else null,
         onSave = { onSaved(InaccessibleModel(providerId, model, reason.trim().ifBlank { "Manually added" })) },
         onBack = onBack,
         helpTopic = "crud_inaccessible_models",

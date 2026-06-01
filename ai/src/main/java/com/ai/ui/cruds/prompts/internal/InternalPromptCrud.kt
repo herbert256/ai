@@ -85,7 +85,7 @@ fun InternalPromptCrud(
             agentNames = aiSettings.agents.map { it.name },
             aiSettings = aiSettings,
             fixedCategory = category,
-            onSave = { saved -> upsert(saved); toList() },
+            onSave = { saved -> upsert(saved) },
             onBack = toList,
             onNavigateHome = onNavigateHome,
             onTrace = initial?.takeIf { hasTrace(it) }?.let { ip -> { onNavigateToTraceCategory(traceCat(ip)) } },

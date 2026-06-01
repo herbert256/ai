@@ -51,13 +51,13 @@ fun SystemPromptsCrud(
         )
         is Mode.Edit -> SystemPromptEdit(
             item = m.item, aiSettings = aiSettings,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onDelete = { confirmDelete = m.item },
             onBack = toList, onNavigateHome = onNavigateHome
         )
         Mode.Add -> SystemPromptAdd(
             aiSettings = aiSettings,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onBack = toList, onNavigateHome = onNavigateHome
         )
     }

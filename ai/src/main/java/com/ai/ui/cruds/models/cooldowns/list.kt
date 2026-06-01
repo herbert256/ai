@@ -60,23 +60,26 @@ fun ModelCooldownsCrud(
             onBack = toList,
             onNavigateToTrace = onNavigateToTrace
         )
-        is Mode.Edit -> CooldownEdit(
-            item = m.item, aiSettings = aiSettings,
-            onSaved = { providerId, model, untilMs ->
-                // Edit may re-point the key — drop the old one first.
-                if (providerId != m.item.providerId || model != m.item.model) {
-                    ModelCooldownStore.remove(m.item.providerId, m.item.model)
-                }
-                ModelCooldownStore.markUnavailable(providerId, model, untilMs)
-                toList()
-            },
-            onBack = toList
-        )
+        is Mode.Edit -> {
+            // Track the last-saved key so an auto-save that re-points the
+            // (provider, model) prunes the PREVIOUS save, not just the original.
+            var lastKey by remember(m.item) { mutableStateOf(m.item.providerId to m.item.model) }
+            CooldownEdit(
+                item = m.item, aiSettings = aiSettings,
+                onSaved = { providerId, model, untilMs ->
+                    if (providerId != lastKey.first || model != lastKey.second) {
+                        ModelCooldownStore.remove(lastKey.first, lastKey.second)
+                    }
+                    ModelCooldownStore.markUnavailable(providerId, model, untilMs)
+                    lastKey = providerId to model
+                },
+                onBack = toList
+            )
+        }
         is Mode.Add -> CooldownAdd(
             prefill = m.prefill, aiSettings = aiSettings,
             onSaved = { providerId, model, untilMs ->
                 ModelCooldownStore.markUnavailable(providerId, model, untilMs)
-                toList()
             },
             onBack = toList
         )

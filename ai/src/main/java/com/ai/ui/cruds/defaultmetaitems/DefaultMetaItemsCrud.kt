@@ -105,10 +105,10 @@ fun DefaultMetaItemsCrud(
         }
         is Mode.Edit -> key(m.item.id) {
             DefaultMetaItemForm(m.item, aiSettings, isAdd = false,
-                onSaved = { upsert(it); toList() }, onBack = toList, onNavigateHome = onNavigateHome)
+                onSaved = { upsert(it) }, onBack = toList, onNavigateHome = onNavigateHome)
         }
         Mode.Add -> DefaultMetaItemForm(null, aiSettings, isAdd = true,
-            onSaved = { upsert(it); toList() }, onBack = toList, onNavigateHome = onNavigateHome)
+            onSaved = { upsert(it) }, onBack = toList, onNavigateHome = onNavigateHome)
     }
 }
 
@@ -153,7 +153,7 @@ private fun DefaultMetaItemForm(
         title = if (isAdd) "Add default meta item" else "Edit default meta item",
         subject = "Auto-run a meta prompt on report completion",
         isAdd = isAdd,
-        saveEnabled = saveEnabled,
+        current = if (saveEnabled) DefaultMetaItem(id = initial?.id ?: "", metaName = metaName.trim(), agentName = agentName.trim(), providerName = providerName.trim(), modelName = modelName.trim()) else null,
         onSave = {
             onSaved(
                 DefaultMetaItem(

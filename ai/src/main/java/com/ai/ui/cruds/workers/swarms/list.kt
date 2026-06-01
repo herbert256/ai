@@ -53,13 +53,13 @@ fun SwarmsCrud(
         )
         is Mode.Edit -> SwarmEdit(
             swarm = m.item, aiSettings = aiSettings,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onDelete = { confirmDelete = m.item },
             onBack = toList, onNavigateHome = onNavigateHome
         )
         Mode.Add -> SwarmAdd(
             aiSettings = aiSettings,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onBack = toList, onNavigateHome = onNavigateHome
         )
     }

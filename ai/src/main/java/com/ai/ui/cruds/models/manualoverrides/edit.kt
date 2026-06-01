@@ -73,7 +73,7 @@ internal fun ManualOverrideForm(
         title = if (isAdd) "Add override" else "Edit override",
         subject = "Assign one model's API type",
         isAdd = isAdd,
-        saveEnabled = canSave,
+        current = if (canSave) ModelTypeOverride(id = initial?.id ?: "", providerId = providerId, modelId = modelId.trim(), type = type, supportsVision = supportsVision, supportsWebSearch = supportsWebSearch, supportsReasoning = supportsReasoning) else null,
         onSave = {
             onSaved(
                 ModelTypeOverride(

@@ -73,12 +73,12 @@ fun ManualOverridesCrud(
         )
         is Mode.Edit -> ManualOverrideEdit(
             item = m.item, aiSettings = aiSettings,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onBack = toList
         )
         is Mode.Add -> ManualOverrideAdd(
             prefill = m.prefill, aiSettings = aiSettings,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onBack = toList
         )
     }

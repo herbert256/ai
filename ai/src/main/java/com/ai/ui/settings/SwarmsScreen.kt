@@ -131,16 +131,24 @@ fun SwarmEditScreen(
             onSystemPrompt = { showSystemPromptDialog = true }
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                val id = if (isAddMode) java.util.UUID.randomUUID().toString() else swarm!!.id
-                onSave(Swarm(id, name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId))
-            },
-            enabled = nameError == null && selectedMembers.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
-        Spacer(modifier = Modifier.height(8.dp))
+        if (isAddMode) {
+            Button(
+                onClick = {
+                    onSave(Swarm(java.util.UUID.randomUUID().toString(), name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId)); onBack()
+                },
+                enabled = nameError == null && selectedMembers.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Create", maxLines = 1, softWrap = false) }
+            Spacer(modifier = Modifier.height(8.dp))
+        } else {
+            // Edit: no Save button — auto-persist while editing and on leave.
+            com.ai.ui.shared.AutoSaveOnChange(
+                current = if (nameError == null && selectedMembers.isNotEmpty())
+                    Swarm(swarm!!.id, name.trim(), selectedMembers, selectedParamsIds.distinct(), selectedSystemPromptId) else null,
+                onSave = onSave
+            )
+        }
 
         OutlinedTextField(
             value = name, onValueChange = { name = it },

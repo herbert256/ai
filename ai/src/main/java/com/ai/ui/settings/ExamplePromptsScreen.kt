@@ -49,16 +49,24 @@ fun ExamplePromptEditScreen(
             onClear = { resetTick++ }
         )
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                val id = if (isAddMode) java.util.UUID.randomUUID().toString() else examplePrompt!!.id
-                onSave(ExamplePrompt(id = id, title = title.trim(), text = text))
-            },
-            enabled = titleError == null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
-        Spacer(modifier = Modifier.height(8.dp))
+        if (isAddMode) {
+            Button(
+                onClick = {
+                    onSave(ExamplePrompt(id = java.util.UUID.randomUUID().toString(), title = title.trim(), text = text)); onBack()
+                },
+                enabled = titleError == null,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Create", maxLines = 1, softWrap = false) }
+            Spacer(modifier = Modifier.height(8.dp))
+        } else {
+            // Edit: no Save button — auto-persist while editing and on leave.
+            com.ai.ui.shared.AutoSaveOnChange(
+                current = if (titleError == null)
+                    ExamplePrompt(id = examplePrompt!!.id, title = title.trim(), text = text) else null,
+                onSave = onSave
+            )
+        }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(

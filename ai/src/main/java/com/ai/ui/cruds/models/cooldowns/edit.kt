@@ -66,7 +66,9 @@ internal fun CooldownForm(
         title = if (isAdd) "Add cooldown" else "Edit cooldown",
         subject = "Pause a model until a given time",
         isAdd = isAdd,
-        saveEnabled = canSave,
+        // Change-detection keys off the inputs, not the computed expiry (which
+        // is time-dependent — keying on it would re-save every recomposition).
+        current = if (canSave) Triple(providerId, model.trim(), hoursText.trim()) else null,
         onSave = {
             val h = hoursText.trim().toLongOrNull() ?: return@CrudFormScaffold
             // When editing and the (ceiling-rounded) hours field wasn't

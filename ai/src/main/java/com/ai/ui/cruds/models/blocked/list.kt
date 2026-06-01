@@ -59,14 +59,20 @@ fun BlockedModelsCrud(
             onDelete = { remove(m.item); toList() },
             onBack = toList
         )
-        is Mode.Edit -> BlockedModelEdit(
-            item = m.item, aiSettings = aiSettings,
-            onSaved = { saved -> upsert(m.item, saved); toList() },
-            onBack = toList, onNavigateHome = onNavigateHome
-        )
+        is Mode.Edit -> {
+            // Track the last-saved entry so an auto-save that re-points the
+            // (provider, model) key prunes the PREVIOUS save, not just the
+            // original — otherwise rapid model changes orphan intermediates.
+            var lastSaved by remember(m.item) { mutableStateOf(m.item) }
+            BlockedModelEdit(
+                item = m.item, aiSettings = aiSettings,
+                onSaved = { saved -> upsert(lastSaved, saved); lastSaved = saved },
+                onBack = toList, onNavigateHome = onNavigateHome
+            )
+        }
         is Mode.Add -> BlockedModelAdd(
             prefill = m.prefill, aiSettings = aiSettings,
-            onSaved = { saved -> upsert(null, saved); toList() },
+            onSaved = { saved -> upsert(null, saved) },
             onBack = toList, onNavigateHome = onNavigateHome
         )
     }

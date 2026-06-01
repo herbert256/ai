@@ -61,12 +61,12 @@ fun ParametersCrud(
         )
         is Mode.Edit -> ParametersEdit(
             item = m.item, aiSettings = aiSettings,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onBack = toList, onNavigateHome = onNavigateHome
         )
         Mode.Add -> ParametersAdd(
             aiSettings = aiSettings,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onBack = toList, onNavigateHome = onNavigateHome
         )
     }

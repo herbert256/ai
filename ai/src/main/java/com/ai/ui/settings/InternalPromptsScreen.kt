@@ -230,32 +230,35 @@ fun InternalPromptEditScreen(
         // Save / Create CTA hoisted to the top — these forms can be
         // long (especially with the prompt-text editor) so a bottom
         // button gets scrolled out of view.
+        // Provider+Model mode wins when both are set; otherwise the prompt is
+        // bound to the agent (provider/model cleared) — mutually exclusive on disk.
+        val pmActive = useProviderModel && providerId.isNotBlank() && model.isNotBlank()
+        fun buildPrompt(id: String) = InternalPrompt(
+            id = id, name = name.trim(), reference = reference, category = category,
+            agent = if (isWorkers) AGENT_SELECT else if (pmActive) AGENT_SELECT else agent,
+            text = text, title = title.trim(),
+            provider = if (!isWorkers && pmActive) providerId else null,
+            model = if (!isWorkers && pmActive) model else null,
+            parameters = selectedParametersName,
+            systemPrompt = selectedSystemPromptName,
+            workers = if (isWorkers) workers else emptyList()
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                val id = if (isAddMode) java.util.UUID.randomUUID().toString() else internalPrompt!!.id
-                // Provider+Model mode wins when both are set; otherwise
-                // the prompt is bound to the agent (and provider/model
-                // cleared) so the two are mutually exclusive on disk.
-                val pmActive = useProviderModel && providerId.isNotBlank() && model.isNotBlank()
-                onSave(
-                    InternalPrompt(
-                        id = id, name = name.trim(), reference = reference, category = category,
-                        agent = if (isWorkers) AGENT_SELECT else if (pmActive) AGENT_SELECT else agent,
-                        text = text, title = title.trim(),
-                        provider = if (!isWorkers && pmActive) providerId else null,
-                        model = if (!isWorkers && pmActive) model else null,
-                        parameters = selectedParametersName,
-                        systemPrompt = selectedSystemPromptName,
-                        workers = if (isWorkers) workers else emptyList()
-                    )
-                )
-            },
-            enabled = nameError == null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
-        Spacer(modifier = Modifier.height(8.dp))
+        if (isAddMode) {
+            Button(
+                onClick = { onSave(buildPrompt(java.util.UUID.randomUUID().toString())); onBack() },
+                enabled = nameError == null,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Create", maxLines = 1, softWrap = false) }
+            Spacer(modifier = Modifier.height(8.dp))
+        } else {
+            // Edit: no Save button — auto-persist while editing and on leave.
+            com.ai.ui.shared.AutoSaveOnChange(
+                current = if (nameError == null) buildPrompt(internalPrompt!!.id) else null,
+                onSave = onSave
+            )
+        }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             // Name + Title belong together: both are display fields on

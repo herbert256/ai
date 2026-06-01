@@ -53,13 +53,13 @@ fun FlocksCrud(
         )
         is Mode.Edit -> FlockEdit(
             flock = m.item, aiSettings = aiSettings,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onDelete = { confirmDelete = m.item },
             onBack = toList, onNavigateHome = onNavigateHome
         )
         Mode.Add -> FlockAdd(
             aiSettings = aiSettings,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onBack = toList, onNavigateHome = onNavigateHome
         )
     }

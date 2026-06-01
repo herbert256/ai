@@ -68,31 +68,34 @@ fun ParametersEditScreen(
             onCopyReport = null,
             onClear = { resetTick++ }
         )
+        // Preserve stopSequences from the existing preset (no editor UI yet,
+        // but the data model carries them — saving null dropped imported lists).
+        fun buildParams(id: String) = Parameters(
+            id, name.trim(), temperature.toFloatOrNull(), maxTokens.toIntOrNull(),
+            topP.toFloatOrNull(), topK.toIntOrNull(), frequencyPenalty.toFloatOrNull(),
+            presencePenalty.toFloatOrNull(), systemPrompt.takeIf { it.isNotBlank() },
+            params?.stopSequences,
+            seed.toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
+            searchRecency.takeIf { it.isNotBlank() },
+            webSearchTool,
+            reasoningEffort.takeIf { it.isNotBlank() }
+        )
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                val id = if (isAddMode) java.util.UUID.randomUUID().toString() else params!!.id
-                onSave(Parameters(
-                    id, name.trim(), temperature.toFloatOrNull(), maxTokens.toIntOrNull(),
-                    topP.toFloatOrNull(), topK.toIntOrNull(), frequencyPenalty.toFloatOrNull(),
-                    presencePenalty.toFloatOrNull(), systemPrompt.takeIf { it.isNotBlank() },
-                    // Preserve stopSequences from the existing preset if
-                    // any — the editor has no UI for them yet, but the
-                    // data model carries them. Saving null here silently
-                    // dropped a stopSequences list that came from import
-                    // / a hand-edited setup.json.
-                    params?.stopSequences,
-                    seed.toIntOrNull(), responseFormatJson, searchEnabled, returnCitations,
-                    searchRecency.takeIf { it.isNotBlank() },
-                    webSearchTool,
-                    reasoningEffort.takeIf { it.isNotBlank() }
-                ))
-            },
-            enabled = nameError == null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
-        Spacer(modifier = Modifier.height(8.dp))
+        if (isAddMode) {
+            Button(
+                onClick = { onSave(buildParams(java.util.UUID.randomUUID().toString())); onBack() },
+                enabled = nameError == null,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Create", maxLines = 1, softWrap = false) }
+            Spacer(modifier = Modifier.height(8.dp))
+        } else {
+            // Edit: no Save button — auto-persist while editing and on leave.
+            com.ai.ui.shared.AutoSaveOnChange(
+                current = if (nameError == null) buildParams(params!!.id) else null,
+                onSave = onSave
+            )
+        }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(

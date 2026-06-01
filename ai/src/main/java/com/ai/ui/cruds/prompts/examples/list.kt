@@ -51,12 +51,12 @@ fun ExamplePromptsCrud(
         )
         is Mode.Edit -> ExamplePromptEdit(
             item = m.item,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onDelete = { confirmDelete = m.item },
             onBack = toList, onNavigateHome = onNavigateHome
         )
         Mode.Add -> ExamplePromptAdd(
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onBack = toList, onNavigateHome = onNavigateHome
         )
     }

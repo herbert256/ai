@@ -164,23 +164,32 @@ fun AgentEditScreen(
         )
         // Save / Create CTA hoisted to the top — the form below can
         // be long enough to push a bottom button out of reach.
+        fun buildAgent(id: String) = Agent(id, name.trim(), selectedProvider, model, apiKey, selectedEndpointId, selectedParamsIds, selectedSystemPromptId)
+        // Persist the LiteLLM endpoint picked this session (only the selected
+        // one) as part of saving — runs on each auto-save and on Create.
+        fun persistSelectedEndpoint() {
+            pendingEndpoints.firstOrNull { it.second.id == selectedEndpointId }
+                ?.let { (provider, ep) -> onAddEndpoint(provider, ep) }
+        }
         Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                val id = if (isAddMode) java.util.UUID.randomUUID().toString() else agent!!.id
-                // Persist any LiteLLM endpoints picked this session only now
-                // that the agent is being saved (and only the one actually
-                // selected, to avoid persisting endpoints the user picked then
-                // changed away from).
-                pendingEndpoints.firstOrNull { it.second.id == selectedEndpointId }
-                    ?.let { (provider, ep) -> onAddEndpoint(provider, ep) }
-                onSave(Agent(id, name.trim(), selectedProvider, model, apiKey, selectedEndpointId, selectedParamsIds, selectedSystemPromptId))
-            },
-            enabled = nameError == null,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isAddMode) "Create" else "Save", maxLines = 1, softWrap = false) }
-        Spacer(modifier = Modifier.height(8.dp))
+        if (isAddMode) {
+            Button(
+                onClick = {
+                    persistSelectedEndpoint()
+                    onSave(buildAgent(java.util.UUID.randomUUID().toString())); onBack()
+                },
+                enabled = nameError == null,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Create", maxLines = 1, softWrap = false) }
+            Spacer(modifier = Modifier.height(8.dp))
+        } else {
+            // Edit: no Save button — auto-persist while editing and on leave.
+            com.ai.ui.shared.AutoSaveOnChange(
+                current = if (nameError == null) buildAgent(agent!!.id) else null,
+                onSave = { saved -> persistSelectedEndpoint(); onSave(saved) }
+            )
+        }
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             OutlinedTextField(

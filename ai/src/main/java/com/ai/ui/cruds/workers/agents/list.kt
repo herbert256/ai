@@ -62,13 +62,13 @@ fun AgentsCrud(
         )
         is Mode.Edit -> AgentEdit(
             agent = m.item, aiSettings = aiSettings, deps = deps,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onDelete = { confirmDelete = m.item },
             onBack = toList, onNavigateHome = onNavigateHome
         )
         Mode.Add -> AgentAdd(
             aiSettings = aiSettings, deps = deps,
-            onSaved = { saved -> upsert(saved); toList() },
+            onSaved = { saved -> upsert(saved) },
             onBack = toList, onNavigateHome = onNavigateHome
         )
     }

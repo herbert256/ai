@@ -63,7 +63,7 @@ internal fun BlockedModelForm(
         title = if (isAdd) "Add blocked model" else "Edit blocked model",
         subject = "Block one model from being called",
         isAdd = isAdd,
-        saveEnabled = hasModel,
+        current = if (hasModel) BlockedModel(providerId, model, reason.trim()) else null,
         onSave = { onSaved(BlockedModel(providerId, model, reason.trim())) },
         onBack = onBack,
         helpTopic = "crud_blocked_models",

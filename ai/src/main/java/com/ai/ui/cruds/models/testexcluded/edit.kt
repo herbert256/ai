@@ -54,7 +54,7 @@ internal fun TestExcludedModelForm(
         title = if (isAdd) "Add test-excluded model" else "Edit test-excluded model",
         subject = "Exclude one model from Test all",
         isAdd = isAdd,
-        saveEnabled = hasModel,
+        current = if (hasModel) TestExcludedModel(providerId, model) else null,
         onSave = { onSaved(TestExcludedModel(providerId, model)) },
         onBack = onBack,
         helpTopic = "crud_test_excluded",

@@ -21,16 +21,21 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 
 /**
- * Uniform CRUD add/edit form scaffold: TitleBar + a top Create/Save
- * button (gated by [saveEnabled]) + the scrollable form [content]. Both
- * add.kt (isAdd=true → "Create") and edit.kt (isAdd=false → "Save")
- * delegate here.
+ * Uniform CRUD add/edit form scaffold: TitleBar + the scrollable form
+ * [content]. Both add.kt (isAdd=true) and edit.kt (isAdd=false) delegate here.
+ *
+ * Adding keeps an explicit "Create" button (enabled when [current] is non-null,
+ * i.e. the form is valid); on tap it persists via [onSave] then navigates back.
+ * Editing has NO button — it auto-persists [current] (via [AutoSaveOnChange])
+ * while the user types and once more when they leave the screen by any means
+ * (Android back, or a top-/bottom-bar icon or title). [current] is the built
+ * entity, or `null` when the form is invalid (a null [current] never saves).
  */
 @Composable
 fun CrudFormScaffold(
     title: String,
     isAdd: Boolean,
-    saveEnabled: Boolean,
+    current: Any?,
     onSave: () -> Unit,
     onBack: () -> Unit,
     subject: String? = null,
@@ -49,13 +54,17 @@ fun CrudFormScaffold(
             .padding(16.dp)
     ) {
         TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack, onClear = onReset)
-        Button(
-            onClick = onSave,
-            enabled = saveEnabled,
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
-        ) { Text(if (isAdd) "Create" else "Save", maxLines = 1, softWrap = false) }
-        Spacer(modifier = Modifier.height(12.dp))
+        if (isAdd) {
+            Button(
+                onClick = { onSave(); onBack() },
+                enabled = current != null,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Green)
+            ) { Text("Create", maxLines = 1, softWrap = false) }
+            Spacer(modifier = Modifier.height(12.dp))
+        } else {
+            com.ai.ui.shared.AutoSaveOnChange(current = current, onSave = { onSave() })
+        }
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             content()
         }
