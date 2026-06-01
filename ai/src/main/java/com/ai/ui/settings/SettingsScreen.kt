@@ -852,30 +852,28 @@ private fun SettingsMainScreen(
             // help topic. The main Settings page is now purely a
             // table-of-contents — every actual control lives one tap
             // deeper.
+            // ----- Appearance: how the app looks -----
+            SettingsSectionLabel("Appearance")
             SettingsNavCard(
-                icon = MetadataDefaults.WEB,
-                title = "Network settings",
-                description = "Read timeouts, per-provider throttling, 429 / 529 retry policy.",
-                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_NETWORK) }
-            )
-            SettingsNavCard(
-                icon = MetadataDefaults.PALETTE,
+                icon = MetadataDefaults.CONTROLS,
                 title = "UI tweaks",
                 description = "Model name layout, full-screen, experimental features.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_UI) }
             )
             SettingsNavCard(
-                icon = MetadataDefaults.BLUE_DIAMOND,
+                icon = MetadataDefaults.PALETTE,
                 title = "UI Colors",
-                description = "Customize card and neutral button backgrounds.",
+                description = "Customize the app palette — backgrounds, text, accents, borders.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_UI_COLORS) }
             )
             SettingsNavCard(
-                icon = MetadataDefaults.APP_LOG,
-                title = "Logging and tracing",
-                description = "API tracing master switch and application log level.",
-                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_LOGGING) }
+                icon = MetadataDefaults.SPARKLES,
+                title = "Default icons",
+                description = "Edit the fallback emoji shown when a report or result has no generated icon of its own.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_DEFAULT_ICONS) }
             )
+            // ----- Generation & behaviour: what the app does automatically -----
+            SettingsSectionLabel("Generation & behaviour")
             SettingsNavCard(
                 icon = MetadataDefaults.LABEL,
                 title = "Metadata & icons",
@@ -883,19 +881,40 @@ private fun SettingsMainScreen(
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_METADATA) }
             )
             SettingsNavCard(
-                icon = MetadataDefaults.PALETTE,
-                title = "Default icons",
-                description = "Edit the fallback emoji shown when a report or result has no generated icon of its own.",
-                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_DEFAULT_ICONS) }
-            )
-            SettingsNavCard(
                 icon = MetadataDefaults.SETTINGS,
                 title = "Other settings",
                 description = "Identity (Name + Email), auto-create Rerank & Moderation.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_OTHER) }
             )
+            // ----- Network & logging: connectivity and diagnostics -----
+            SettingsSectionLabel("Network & logging")
+            SettingsNavCard(
+                icon = MetadataDefaults.WEB,
+                title = "Network settings",
+                description = "Read timeouts, per-provider throttling, 429 / 529 retry policy.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_NETWORK) }
+            )
+            SettingsNavCard(
+                icon = MetadataDefaults.APP_LOG,
+                title = "Logging and tracing",
+                description = "API tracing master switch and application log level.",
+                onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_LOGGING) }
+            )
         }
     }
+}
+
+/** Small group heading on the main Settings screen — separates the nav
+ *  cards into Appearance / Generation & behaviour / Network & logging. */
+@Composable
+private fun SettingsSectionLabel(text: String) {
+    Text(
+        text,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = AppColors.TextTertiary,
+        modifier = Modifier.padding(start = 4.dp, top = 4.dp)
+    )
 }
 
 /** Tap-target row used on the main Settings screen to drill into a
