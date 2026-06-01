@@ -225,13 +225,16 @@ internal fun readReportZip(context: Context, input: InputStream): ReportImportSu
         val rekeyed = parsed.copy(
             id = secIdMap.getValue(parsed.id),
             reportId = newReportId,
-            // AGENT-sourced target is an agent id (kept — agents keep their
-            // ids); PROMPT is the "prompt" literal. Otherwise it's a
-            // secondary ref (META / fan-out source): remap, and null it when
-            // the source wasn't in the bundle so the drill-in doesn't chase
-            // a dead id.
+            // Pass through the targets that are NOT secondary ids: AGENT /
+            // AGENT_TITLE carry an agent id (agents keep their ids on import),
+            // PROMPT / TITLE / TITLE_LONG carry a literal sentinel
+            // ("prompt"/"title"/"titleLong"). Only META and FANOUT_TITLE point
+            // at a secondary id → remap via secIdMap (null when the source
+            // wasn't in the bundle so the drill-in doesn't chase a dead id).
+            // Previously the else-branch ran secIdMap on the sentinels /
+            // agent ids and nulled them, destroying title-translation links.
             translateSourceTargetId = when (parsed.translateSourceKind) {
-                "AGENT", "PROMPT" -> parsed.translateSourceTargetId
+                "AGENT", "AGENT_TITLE", "PROMPT", "TITLE", "TITLE_LONG" -> parsed.translateSourceTargetId
                 else -> parsed.translateSourceTargetId?.let { secIdMap[it] }
             },
             traceFile = remapTrace(parsed.traceFile)
