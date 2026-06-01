@@ -279,6 +279,11 @@ class SecondaryRunManager(
         context: Context,
         reportId: String
     ): Job = appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
+      // Fire-and-forget on viewModelScope; there's no global coroutine
+      // exception handler, so an uncaught throw here (the startup sweep only
+      // join()s this Job, it can't catch it) crashes the app. Contain the
+      // whole orchestrator — a failed pass just retries on the next sweep/open.
+      try {
         // Single-secondary in-flight ids so a slow-but-running auto
         // Meta/Rerank/Moderation isn't re-dispatched + terminalized as
         // stale. Fan-out pairs are owned by the engine (step 2 delegates
@@ -438,6 +443,11 @@ class SecondaryRunManager(
             // Anything still standing here is unrecoverable — mark ❌.
             markRowAsInterrupted(context, reportId, row.id, "No data yet")
         }
+      } catch (e: kotlinx.coroutines.CancellationException) {
+          throw e
+      } catch (e: Exception) {
+          AppLog.w("SecondaryResume", "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
+      }
     }
 
     /** App-wide background resume sweep. Walks every report whose

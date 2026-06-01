@@ -521,7 +521,17 @@ class TournamentEngine internal constructor(
      *  + no duration), so an interrupted-after-worker row is still found. */
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            hydrate(context, reportId)
+            // hydrate runs before the scan guard (so the body try's finally
+            // only fires for the invocation that added the marker), so it
+            // needs its own guard — an uncaught throw here would crash the app.
+            try {
+                hydrate(context, reportId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Tournament", "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
+                return@launch
+            }
             if (!resumeScans.add(reportId)) return@launch
             try {
                 val run = _runs.value[reportId] ?: return@launch

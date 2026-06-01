@@ -371,8 +371,12 @@ fun List<RankRow>.toRerankJson(): String {
             addProperty("id", row.id)
             addProperty("rank", row.rank)
             // Integer-valued scores serialise clean; fractional keep 2dp.
+            // Round numerically — NOT via "%.2f".format(x).toDouble(): the
+            // format step honours the device locale, so on a comma-decimal
+            // locale (e.g. nl-NL) it yields "72,14", which toDouble() can't
+            // parse → NumberFormatException (the real tournament crash).
             val s = if (safeScore == Math.floor(safeScore)) safeScore.toInt() else
-                "%.2f".format(safeScore).toDouble()
+                Math.round(safeScore * 100.0) / 100.0
             addProperty("score", s)
             addProperty("reason", row.reason)
         })

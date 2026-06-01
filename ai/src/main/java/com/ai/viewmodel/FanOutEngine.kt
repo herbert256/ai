@@ -1740,6 +1740,10 @@ class FanOutEngine internal constructor(
      *  spinning. */
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
+          // Fire-and-forget on viewModelScope with no global exception
+          // handler — an uncaught throw here crashes the app (the startup
+          // resume sweep only join()s this Job, it can't catch it). Contain.
+          try {
             hydrate(context, reportId)
             val diskStale = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
                 .filter {
@@ -1786,6 +1790,10 @@ class FanOutEngine internal constructor(
                 appViewModel.viewModelScope.launch(Dispatchers.IO) {
                     try {
                         rerunPairsBlocking(context, rk, retryKeys)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        AppLog.w("FanOut", "rerun pairs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
                     } finally {
                         resumeScans.remove(rk)
                     }
@@ -1796,6 +1804,11 @@ class FanOutEngine internal constructor(
             diskStale.filter { it.id !in locatedIds }.forEach {
                 markRowInterrupted(context, reportId, it.id, "Interrupted — fan-out can't be resumed")
             }
+          } catch (e: kotlinx.coroutines.CancellationException) {
+              throw e
+          } catch (e: Exception) {
+              AppLog.w("FanOut", "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
+          }
         }
 
     // -----------------------------------------------------------------

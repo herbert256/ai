@@ -624,7 +624,18 @@ class JudgeEvalEngine internal constructor(
 
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            hydrate(context, reportId)
+            // No global coroutine exception handler exists, so an uncaught
+            // throw on this viewModelScope launch crashes the app (the startup
+            // resume sweep only join()s it). hydrate runs before the scan
+            // guard, so guard it on its own; the body try below covers the rest.
+            try {
+                hydrate(context, reportId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("JudgeEval", "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
+                return@launch
+            }
             if (!resumeScans.add(reportId)) return@launch
             try {
                 val run = _runs.value[reportId] ?: return@launch
@@ -657,6 +668,10 @@ class JudgeEvalEngine internal constructor(
                     dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
                 }
                 recomputeAndPersistAggregate(context, reportId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("JudgeEval", "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
             } finally {
                 resumeScans.remove(reportId)
             }
