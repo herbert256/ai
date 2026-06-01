@@ -18,7 +18,6 @@ import com.ai.data.AppService
 import com.ai.data.MetadataDefaults
 import com.ai.model.*
 import com.ai.ui.shared.AppColors
-import com.ai.ui.shared.IconCardHeader
 import com.ai.ui.shared.LocalMetadataIcons
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.DEFAULT_UI_BUTTON_BACKGROUND_ARGB
@@ -1416,26 +1415,6 @@ private fun UiColorsSubScreen(
                     }
                 )
             }
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = AppColors.colorFromArgb(colorOverrides["CardBackgroundAlt"] ?: DEFAULT_UI_CARD_BACKGROUND_ARGB)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    IconCardHeader(icon = MetadataDefaults.VIEW, title = "Preview")
-                    Text("Card background preview", fontSize = 12.sp, color = AppColors.TextTertiary)
-                    OutlinedButton(
-                        onClick = {},
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = AppColors.outlinedButtonColors(
-                            containerColor = AppColors.colorFromArgb(colorOverrides["ButtonBackground"] ?: DEFAULT_UI_BUTTON_BACKGROUND_ARGB)
-                        )
-                    ) {
-                        Text("Button background preview", maxLines = 1, softWrap = false)
-                    }
-                }
-            }
         }
     }
 }
@@ -1458,11 +1437,22 @@ private fun uiColorPickerSpecs(): List<UiColorPickerSpec> =
     AppColors.defaultUiColorMap().keys.map { key ->
         UiColorPickerSpec(
             key = key,
-            title = readableUiColorName(key),
+            title = uiColorTitle(key),
             description = uiColorDescription(key),
             icon = uiColorIcon(key)
         )
     }
+
+private fun uiColorTitle(key: String): String = when (key) {
+    "InfoAccent" -> "Secondary / Info Accent"
+    "SuccessAccent" -> "Success / Success Count Accent"
+    "DangerAccent" -> "Danger / Error / Destructive Action Background"
+    "WarningAccent" -> "Warning / Caution Accent"
+    "TextSecondary" -> "Text Secondary / Tertiary"
+    "TextDim" -> "Text Dim / Disabled / Very Dim / Darkest"
+    "BorderUnfocused" -> "Divider Dark / Border Unfocused"
+    else -> readableUiColorName(key)
+}
 
 private fun readableUiColorName(key: String): String =
     key.replace(Regex("(?<=[a-z])(?=[A-Z])"), " ")
@@ -1472,14 +1462,10 @@ private fun uiColorDescription(key: String): String = when (key) {
     "MainTitle" -> "Top title text in the shared screen title bar."
     "SubTitle" -> "Subtitle text below the main title in the shared title bar."
     "PrimaryAccent" -> "Primary action and user-side accent."
-    "SecondaryAccent" -> "Secondary action and detail accent."
-    "InfoAccent" -> "Headings, links, selected states, totals, and focused fields."
-    "SuccessAccent" -> "Passed, available, active, and positive states."
-    "DangerAccent" -> "Errors, delete/remove actions, problems, and danger text."
-    "ErrorAccent" -> "Strong error and urgent-state accent."
-    "DestructiveActionBackground" -> "Filled background for destructive action buttons."
-    "WarningAccent" -> "Running, reload, warning, and in-progress states."
-    "CautionAccent" -> "Pinned, throttled, cost, and caution highlights."
+    "InfoAccent" -> "Shared by secondary/detail accents, headings, links, selected states, totals, and focused fields."
+    "SuccessAccent" -> "Shared by success states and success count highlights."
+    "DangerAccent" -> "Shared by danger, error, and destructive action colors."
+    "WarningAccent" -> "Shared by warning, caution, running, reload, and throttled highlights."
     "QueueAccent" -> "Queued and alternate worker/category highlights."
     "CardBackgroundAlt" -> "Monitor and Housekeeping gray-blue card surface."
     "ButtonBackground" -> "Neutral outlined button fill."
@@ -1488,17 +1474,9 @@ private fun uiColorDescription(key: String): String = when (key) {
     "DisabledBackground" -> "Disabled or unavailable surface fill."
     "SelectionHighlight" -> "Muted highlight strip and selected-state background."
     "TextPrimary" -> "Primary text color."
-    "TextSecondary" -> "Secondary text color."
-    "TextTertiary" -> "Muted helper text color."
-    "TextDim" -> "Dim metadata text color."
-    "TextDisabled" -> "Disabled text color."
-    "TextVeryDim" -> "Very low emphasis text color."
-    "TextDarkest" -> "Darkest text/badge contrast color."
-    "DividerDark" -> "Subtle divider line color."
-    "BorderUnfocused" -> "Unfocused field and swatch border."
-    "PricingBadgeBackground" -> "Pricing badge background."
-    "PricingBadgeText" -> "Pricing badge text."
-    "SuccessCountAccent" -> "Success count highlight."
+    "TextSecondary" -> "Shared by secondary and tertiary helper text."
+    "TextDim" -> "Shared by dim, disabled, very dim, and darkest low-emphasis text."
+    "BorderUnfocused" -> "Shared by subtle dividers, unfocused fields, and swatch borders."
     else -> "AppColors.$key accent."
 }
 
@@ -1507,11 +1485,10 @@ private fun uiColorIcon(key: String): String = when {
     key == "MainTitle" -> MetadataDefaults.TOGGLE_LABELS
     key == "SubTitle" -> MetadataDefaults.LABEL
     key == "PrimaryAccent" -> MetadataDefaults.SPARKLES
-    key == "SecondaryAccent" -> MetadataDefaults.GEM
     key == "InfoAccent" -> MetadataDefaults.INFO
-    key == "SuccessAccent" || key == "SuccessCountAccent" -> MetadataDefaults.STATUS_DONE
-    key == "DangerAccent" || key == "ErrorAccent" || key == "DestructiveActionBackground" -> MetadataDefaults.STATUS_FAILED
-    key == "WarningAccent" || key == "CautionAccent" -> MetadataDefaults.STATUS_WARNING
+    key == "SuccessAccent" -> MetadataDefaults.STATUS_DONE
+    key == "DangerAccent" -> MetadataDefaults.STATUS_FAILED
+    key == "WarningAccent" -> MetadataDefaults.STATUS_WARNING
     key == "QueueAccent" -> MetadataDefaults.CLOCK_QUEUED
     key == "SelectionHighlight" -> MetadataDefaults.CHECKBOX_ON
     key == "ButtonBackground" -> MetadataDefaults.CONTROLS
