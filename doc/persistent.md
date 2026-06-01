@@ -32,7 +32,7 @@ By far the largest. Loaded by `SettingsPreferences`.
 | `ui_button_background_argb` | Int | legacy mirror for the button color override (`ButtonBackground`) |
 | `ui_color_overrides` | JSON Map<String,Int> | functional `AppColors` role overrides edited in Settings → UI Colors |
 | `metadata_enabled` | Boolean (default true) | grand-master switch for optional metadata generation |
-| `icon_gen_enabled` | Boolean (default true) | master switch for the per-report icon-gen feature (background `internal/icon` call on every new report — see [report-icons.md](report-icons.md)) |
+| `icon_gen_enabled` | Boolean (default true) | master switch for the per-report icon-gen feature (background `workers/report-icon` call on every new report — see [report-icons.md](report-icons.md)) |
 | `report_language_gen_enabled` | Boolean (default true) | gates automatic report language + flag generation |
 | `report_title_mode` | String | enum name (`Manual` / `AI`) |
 | `per_model_icon_gen_enabled` | Boolean (default true) | master switch for per-model icons (derives each model's icon from its title via the worker engine `workers/model-icons` on every successful agent call) |

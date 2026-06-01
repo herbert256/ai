@@ -457,9 +457,11 @@ Get-style preview, with an ℹ️ icon that falls back to the provider
 help when no per-model help exists.
 
 API tracing is **on by default** but can be toggled off under
-Settings → Privacy & backup → API tracing — when off, no new
-traces are written, the Hub's AI API Traces card is hidden, and
-every 🐞 ladybug icon disappears from result screens.
+Settings → Logging and tracing → API tracing. When tracing is off,
+no new traces are written and the Hub's AI API Traces card is hidden.
+The same Logging screen also has **Show Ladybug icons**: turning that
+off keeps trace capture active but hides every 🐞 shortcut, so traces
+are reached from the API Traces screen instead.
 
 ## AI App log
 
@@ -493,14 +495,11 @@ visual customization under dedicated UI screens.
   `MetadataIcons`, so overrides apply globally.
 - **Metadata & icons** — master metadata switch plus per-feature
   toggles for report icons/language/title, per-model icons/titles,
-  internal-prompt icons, Fan Meta, and automatic Rerank/Moderation.
+  and internal-prompt icons.
   See [report-icons.md](report-icons.md).
-- **Other settings** — identity (name + email), report automation,
-  and app-wide/report-model default prompt/parameter fallbacks.
-
-### Privacy & backup
-
-- **API tracing** — master switch for `ApiTracer`.
+- **Autostart** — report-completion automation: automatic
+  Rerank/Moderation, Fan Meta, and default Meta items.
+- **Other settings** — identity (name + email).
 
 ### Network
 
@@ -529,6 +528,11 @@ inherits these values when left blank.
 
 ### Logging
 
+- **API tracing** — master switch for `ApiTracer`.
+- **Show Ladybug icons** — hides the per-screen 🐞 links while keeping
+  trace files enabled.
+- **Audit log** — records report-level mutating actions, batches, and
+  API calls.
 - **Log level** — threshold for the in-app file logger
   (`AppLog`). One of `TRACE` / `DEBUG` / `INFO` / `WARN` /
   `ERROR` / `OFF`. Default `INFO`. See [applog.md](applog.md).

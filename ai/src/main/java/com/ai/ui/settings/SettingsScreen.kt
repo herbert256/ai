@@ -255,7 +255,6 @@ fun SettingsScreen(
             SettingsSubScreen.AI_PARAMETERS,
             SettingsSubScreen.AI_EXTERNAL_SERVICES,
             SettingsSubScreen.AI_APP_SETTINGS,
-            SettingsSubScreen.AI_DEFAULT_META_ITEMS,
             SettingsSubScreen.AI_MODEL_COOLDOWNS,
             SettingsSubScreen.AI_BLOCKED_MODELS,
             SettingsSubScreen.AI_TEST_EXCLUDED_MODELS,
@@ -271,7 +270,10 @@ fun SettingsScreen(
             SettingsSubScreen.SETTINGS_UI,
             SettingsSubScreen.SETTINGS_UI_COLORS,
             SettingsSubScreen.SETTINGS_LOGGING,
+            SettingsSubScreen.SETTINGS_AUTOSTART,
             SettingsSubScreen.SETTINGS_OTHER -> currentSubScreen = SettingsSubScreen.MAIN
+            // Default meta items now lives under Autostart — back returns there.
+            SettingsSubScreen.AI_DEFAULT_META_ITEMS -> currentSubScreen = SettingsSubScreen.SETTINGS_AUTOSTART
             SettingsSubScreen.SETTINGS_METADATA -> currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.SETTINGS_DEFAULT_ICONS -> currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.SETTINGS_NETWORK_API_CALLS ->

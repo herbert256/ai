@@ -217,11 +217,11 @@ contract.
 Two master switches drive icon generation:
 
 - `iconGenEnabled` (default true) — kicks off the per-report
-  `internal/icon` call on every new report. Its result populates
-  `Report.icon`; result page, AI Reports hub, history rows, and
-  the title bar's leftmost icon all key off this. Toggling it
-  off hides the icon row and the 📝 memo it mirrors; existing
-  icons stay on disk for re-enable.
+  `workers/report-icon` call on every new report. Its result
+  populates `Report.icon`; result page, AI Reports hub, history
+  rows, and report-scoped title bars all key off this. Toggling it
+  off skips generation while existing icons stay on disk for
+  re-enable.
 - `perModelIconGenEnabled` (default true) — auto-derives each
   model's icon from its title via the worker engine
   (`workers/model-icons`) whenever an agent's primary call settles to

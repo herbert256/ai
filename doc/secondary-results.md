@@ -298,12 +298,12 @@ A separate code path under `ReportViewModel.runFanOutPrompt` /
 - **Fan-out** runs the chosen `category="fan_out"` Internal
   Prompt once per (answerer × source) pair. Each `@RESPONSE@`
   in the template is replaced by the source agent's response
-  body. Concurrency is gated by a per-provider `Semaphore(3)` —
-  6 reports against one provider keeps three in flight, but
-  against 6 different providers all 18 run concurrently. The
-  hot per-pair `runningFanOutPairs: StateFlow<Set<String>>`
-  state lives outside `UiState` so 5–15 Hz updates don't ripple
-  through the rest of the composition.
+  body. Concurrency is gated first by `ApiCallCaps.fanOut`, then
+  by the per-provider throttle, so global/per-flow limits and
+  provider-host limits both apply. The hot per-pair
+  `runningFanOutPairs: StateFlow<Set<String>>` state lives outside
+  `UiState` so 5–15 Hz updates don't ripple through the rest of
+  the composition.
 
 ### Fan-out runtime model (redesign)
 
