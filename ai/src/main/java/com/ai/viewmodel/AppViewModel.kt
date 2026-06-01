@@ -136,6 +136,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _throttledJudgeEvalCells.update(block)
     }
 
+    /** "Compare with meta" cell row ids whose worker call is actively in
+     *  flight — the batch L1 "Run" stat (parallel to
+     *  [runningTournamentMatches]). */
+    private val _runningCompareCells = MutableStateFlow<Set<String>>(emptySet())
+    val runningCompareCells: StateFlow<Set<String>> = _runningCompareCells.asStateFlow()
+    internal fun updateRunningCompareCells(block: (Set<String>) -> Set<String>) {
+        _runningCompareCells.update(block)
+    }
+
+    /** Compare cell row ids parked on a provider's rate/concurrency gate —
+     *  the batch L1 "Wait" counter (parallel to [throttledTournamentMatches]). */
+    private val _throttledCompareCells = MutableStateFlow<Set<String>>(emptySet())
+    val throttledCompareCells: StateFlow<Set<String>> = _throttledCompareCells.asStateFlow()
+    internal fun updateThrottledCompareCells(block: (Set<String>) -> Set<String>) {
+        _throttledCompareCells.update(block)
+    }
+
     /** Translation item ids currently parked on a provider's rate /
      *  concurrency gate (the dispatcher's [acquireOrRequeue] wait). Surfaces
      *  as the Translation L1 "Throttled" column — same role as

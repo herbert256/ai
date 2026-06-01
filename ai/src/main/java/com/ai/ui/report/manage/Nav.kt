@@ -290,6 +290,10 @@ fun ReportsScreenNav(
         stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
     ) { mutableStateOf<String?>(null) }
     val openJudgeEvalId = openJudgeEvalReportId.value
+    val openCompareReportId = rememberSaveable(
+        stateSaver = androidx.compose.runtime.saveable.autoSaver<String?>()
+    ) { mutableStateOf<String?>(null) }
+    val openCompareId = openCompareReportId.value
     CompositionLocalProvider(
         com.ai.ui.shared.LocalReportListIconBundle provides com.ai.ui.shared.ReportListIconBundle(
             onOpenManage = onOpenReportManage,
@@ -326,6 +330,8 @@ fun ReportsScreenNav(
         com.ai.ui.shared.LocalTournamentOpenState provides openTournamentReportId,
         com.ai.ui.shared.LocalJudgeEvalEngine provides reportViewModel.judgeEvalEngine,
         com.ai.ui.shared.LocalJudgeEvalOpenState provides openJudgeEvalReportId,
+        com.ai.ui.shared.LocalCompareEngine provides reportViewModel.compareEngine,
+        com.ai.ui.shared.LocalCompareOpenState provides openCompareReportId,
         com.ai.ui.shared.LocalMetaEditManager provides reportViewModel.metaEditManager
     ) {
     // Regenerate-batch overlay — layered here (inside the provider) so it
@@ -354,6 +360,14 @@ fun ReportsScreenNav(
             reportId = openJudgeEvalId,
             engine = reportViewModel.judgeEvalEngine,
             onClose = { openJudgeEvalReportId.value = null }
+        )
+        return@CompositionLocalProvider
+    }
+    if (openCompareId != null) {
+        CompareOverlay(
+            reportId = openCompareId,
+            engine = reportViewModel.compareEngine,
+            onClose = { openCompareReportId.value = null }
         )
         return@CompositionLocalProvider
     }
@@ -692,6 +706,8 @@ fun ReportsScreenNav(
             reportViewModel.tournamentEngine.resumeStaleRunsForReport(context, rid)
             // Judge-the-judges runs too.
             reportViewModel.judgeEvalEngine.resumeStaleRunsForReport(context, rid)
+            // Compare-with-meta runs too.
+            reportViewModel.compareEngine.resumeStaleRunsForReport(context, rid)
         },
         onResumeStaleRuns = { rid ->
             reportViewModel.secondary.resumeStaleRunsForReport(context, rid)

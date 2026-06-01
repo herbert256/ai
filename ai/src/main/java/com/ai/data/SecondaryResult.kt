@@ -725,6 +725,73 @@ object SecondaryResultStorage {
         SecondaryDataVersion.bump()
     }
 
+    /** Commit a "Compare with meta" CELL worker call: overwrite the row's
+     *  provider/model (was the pre-judge sentinel) with the winning worker,
+     *  plus the percentage [content], cost and duration — atomically. No-op
+     *  when the row was deleted mid-call. Generic body identical to
+     *  [recordTournamentMatch]; kept separate for call-site clarity. Used by
+     *  [com.ai.viewmodel.CompareEngine]. */
+    fun recordCompareCell(
+        context: Context, reportId: String, resultId: String,
+        providerId: String, model: String, content: String,
+        inputTokens: Int, outputTokens: Int,
+        inputCost: Double, outputCost: Double, durationMs: Long,
+        traceFile: String? = null
+    ) {
+        init(context)
+        lock.withLock {
+            val dir = resolveReportDirForRead(reportId) ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                providerId = providerId,
+                model = model,
+                agentName = "$providerId / $model",
+                content = content,
+                errorMessage = null,
+                tokenUsage = TokenUsage(inputTokens = inputTokens, outputTokens = outputTokens),
+                inputCost = inputCost,
+                outputCost = outputCost,
+                durationMs = durationMs,
+                traceFile = traceFile ?: current.traceFile
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+        SecondaryDataVersion.bump()
+    }
+
+    /** Reset a Compare CELL row back to its pre-judge placeholder shape
+     *  (sentinel provider/model, blank content/cost) so a re-score starts
+     *  clean. No-op when the row is gone. */
+    fun resetCompareCell(context: Context, reportId: String, resultId: String) {
+        init(context)
+        lock.withLock {
+            val dir = resolveReportDirForRead(reportId) ?: return
+            val target = File(dir, "$resultId.json")
+            if (!target.exists()) return
+            val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
+                catch (_: Exception) { return }
+            val updated = current.copy(
+                providerId = COMPARE_PENDING_PROVIDER,
+                model = COMPARE_PENDING_MODEL,
+                agentName = "$COMPARE_PENDING_PROVIDER / $COMPARE_PENDING_MODEL",
+                content = null,
+                errorMessage = null,
+                inputCost = null,
+                outputCost = null,
+                tokenUsage = null,
+                durationMs = null,
+                timestamp = System.currentTimeMillis()
+            )
+            target.writeTextAtomic(gson.toJson(updated))
+            listCache[reportId]?.remove(target.name)
+        }
+        SecondaryDataVersion.bump()
+    }
+
     /** Reset a tournament MATCH row back to its pre-judge placeholder shape
      *  (sentinel provider/model, blank content/cost) so a re-judge starts
      *  clean. No-op when the row is gone. */
@@ -782,7 +849,7 @@ object SecondaryResultStorage {
     /** Counts persisted across all kinds for a report. Used by the Report
      *  result screen for the Translate / legacy buckets. The redesigned
      *  Meta card uses [countByMetaName] instead. */
-    data class Counts(val rerank: Int, val meta: Int, val moderation: Int, val translate: Int, val tournament: Int = 0, val judges: Int = 0)
+    data class Counts(val rerank: Int, val meta: Int, val moderation: Int, val translate: Int, val tournament: Int = 0, val judges: Int = 0, val compare: Int = 0)
     fun countForReport(context: Context, reportId: String): Counts {
         // Delegate to listForReport so we share its fingerprint cache —
         // the previous implementation re-parsed every JSON file on
@@ -791,7 +858,7 @@ object SecondaryResultStorage {
         // 500 ms while batching, so the redundant parses scaled with
         // (file count × poll rate) for no benefit.
         val rows = listForReport(context, reportId)
-        var rerank = 0; var meta = 0; var moderation = 0; var translate = 0; var tournament = 0; var judges = 0
+        var rerank = 0; var meta = 0; var moderation = 0; var translate = 0; var tournament = 0; var judges = 0; var compare = 0
         for (r in rows) {
             when (r.kind) {
                 SecondaryKind.RERANK -> rerank++
@@ -803,9 +870,12 @@ object SecondaryResultStorage {
                 // results the result-screen buckets care about.
                 SecondaryKind.TOURNAMENT -> if (r.tournamentRole == "AGGREGATE") tournament++
                 SecondaryKind.JUDGES -> if (r.tournamentRole == "AGGREGATE") judges++
+                // Compare cells collapse into the single CompareManageRow
+                // drill-in; count them flat for parity with the other kinds.
+                SecondaryKind.COMPARE -> compare++
             }
         }
-        return Counts(rerank, meta, moderation, translate, tournament, judges)
+        return Counts(rerank, meta, moderation, translate, tournament, judges, compare)
     }
 
     /** Group non-translate Meta results on a report by the user-given
@@ -821,7 +891,7 @@ object SecondaryResultStorage {
             // Tournament rows carry their own View tab; keep them out of
             // the Meta-name grouping (they'd otherwise bucket under
             // "tournament" via the shared prompt name).
-            if (r.kind == SecondaryKind.TRANSLATE || r.kind == SecondaryKind.TOURNAMENT || r.kind == SecondaryKind.JUDGES) continue
+            if (r.kind == SecondaryKind.TRANSLATE || r.kind == SecondaryKind.TOURNAMENT || r.kind == SecondaryKind.JUDGES || r.kind == SecondaryKind.COMPARE) continue
             val name = r.metaPromptName?.takeIf { it.isNotBlank() } ?: legacyKindDisplayName(r.kind)
             tally[name] = (tally[name] ?: 0) + 1
         }
@@ -839,6 +909,7 @@ fun legacyKindDisplayName(kind: SecondaryKind): String = when (kind) {
     SecondaryKind.TRANSLATE -> "Translate"
     SecondaryKind.TOURNAMENT -> "Tournament"
     SecondaryKind.JUDGES -> "Judge the judges"
+    SecondaryKind.COMPARE -> "Compare"
 }
 
 /** Display label for a secondary's prompt name. The built-in rerank /

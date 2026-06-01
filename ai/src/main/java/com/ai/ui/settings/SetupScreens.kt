@@ -348,7 +348,8 @@ fun PromptsSetupScreen(
         TitleBar(helpTopic = "setup_prompts", title = "Prompt management", subject = "System, internal and example prompts", onBackClick = onBack)
 
         fun countByCategory(c: String) = aiSettings.internalPrompts.count { it.category == c }
-        val internalTotal = countByCategory("meta") + countByCategory("fan_out") +
+        val internalTotal = countByCategory("meta") + countByCategory("meta_compare") +
+            countByCategory("fan_out") +
             countByCategory("fan_in") +
             countByCategory("internal") + countByCategory("workers") + countByCategory("alt")
 
@@ -390,6 +391,8 @@ fun InternalPromptsHubScreen(
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             ModelsSetupNavCard("🧩", "Meta prompts", "Rerank, Summarize, Compare, Moderation — run on the full report", "${countByCategory("meta")}",
                 onClick = { onOpenInternalPrompts("meta") })
+            ModelsSetupNavCard("🧮", "Compare prompts", "Worker-judged 'Compare with meta' prompts — score each answer's similarity to a meta result", "${countByCategory("meta_compare")}",
+                onClick = { onOpenInternalPrompts("meta_compare") })
             ModelsSetupNavCard("🔀", "Fan out/in prompts", "Templates for the Fan out / Fan in flow — across pairs and combined reports", "$fanTotal",
                 onClick = onOpenFanInOutHub)
             ModelsSetupNavCard("🧰", "Other internal prompts", "Templates consumed by app features (Translate, Model info, Chat title, Rerank, Moderation)", "${countByCategory("internal")}",

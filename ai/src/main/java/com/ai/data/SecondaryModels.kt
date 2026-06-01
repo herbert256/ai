@@ -6,7 +6,7 @@ import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 
-enum class SecondaryKind { RERANK, META, MODERATION, TRANSLATE, TOURNAMENT, JUDGES }
+enum class SecondaryKind { RERANK, META, MODERATION, TRANSLATE, TOURNAMENT, JUDGES, COMPARE }
 
 /** Per-kind "Type" for a TRANSLATE call — drives the trace category, the
  *  report cost-table Type column, and the AI Usage `kind`, so each kind of
@@ -226,7 +226,20 @@ data class SecondaryResult(
      *  screen recompute every ranking method locally and re-persist
      *  [content] on a method toggle without re-reading every match row.
      *  Null until the aggregate is first computed. */
-    val tournamentMatrix: String? = null
+    val tournamentMatrix: String? = null,
+    // -------- COMPARE (kind == COMPARE) --------
+    /** Shared by every CELL row of one "Compare with meta" run on this
+     *  report — hydration groups rows into a run by it. Null on
+     *  non-compare rows. */
+    val compareRunId: String? = null,
+    /** agentId of the report answer scored in this cell (its similarity
+     *  to [compareToResultId]'s meta content). The cell's own
+     *  (providerId, model) is the worker that judged it. Null on
+     *  non-compare rows. */
+    val compareAgentId: String? = null,
+    /** SecondaryResult.id of the meta result this cell's answer was
+     *  scored against. Null on non-compare rows. */
+    val compareToResultId: String? = null
 )
 
 /** Total USD spend captured on this row: the primary in/out cost PLUS

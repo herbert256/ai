@@ -273,6 +273,9 @@ internal fun rememberReportRuntimeState(
                     // Judge-the-judges cells + aggregate collapse into the single
                     // JudgeEvalManageRow drill-in — same as tournament above.
                     .filter { it.kind != SecondaryKind.JUDGES }
+                    // Compare-with-meta cells collapse into the single
+                    // CompareManageRow drill-in — same as tournament above.
+                    .filter { it.kind != SecondaryKind.COMPARE }
                     .filter { it.fanOutSourceAgentId == null }
                     .sortedByDescending { it.timestamp }
                 translateRows = all.filter { it.kind == SecondaryKind.TRANSLATE }

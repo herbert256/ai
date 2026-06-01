@@ -57,6 +57,7 @@ private const val AGENT_NA = "*n/a"
  *  separate CRUD card on Prompt Management. */
 fun categoryDisplayName(category: String): String = when (category) {
     "meta" -> "Meta prompts"
+    "meta_compare" -> "Compare prompts"
     "fan_out" -> "Fan-out prompts"
     "fan_in" -> "Fan-in prompts"
     "internal" -> "Other internal prompts"
@@ -77,6 +78,7 @@ fun isFixedListCategory(category: String): Boolean =
  *  produced awkward singulars like "Icons prompt" → "Icons prompt"). */
 fun categorySingularName(category: String): String = when (category) {
     "meta" -> "Meta prompt"
+    "meta_compare" -> "Compare prompt"
     "fan_out" -> "Fan-out prompt"
     "fan_in" -> "Fan-in prompt"
     "internal" -> "Internal prompt"
@@ -143,7 +145,11 @@ fun InternalPromptEditScreen(
     var modelDialogOpen by remember { mutableStateOf(false) }
     // "workers" category: an ordered list of worker rows replaces the
     // single agent / provider+model picker. Execution is not wired yet.
-    val isWorkers = category.equals("workers", ignoreCase = true)
+    // The "workers" category — and "meta_compare" (Compare-with-meta prompts,
+    // which are worker-judged) — expose the ordered worker-row editor in place
+    // of the single agent / provider+model picker, and persist the chain.
+    val isWorkers = category.equals("workers", ignoreCase = true) ||
+        category.equals("meta_compare", ignoreCase = true)
     var workers by remember(resetTick) { mutableStateOf(internalPrompt?.workers ?: emptyList()) }
     // Per-prompt Parameters / System-prompt preset NAMES ("*NONE" = unset).
     var selectedParametersName by remember(resetTick) { mutableStateOf(internalPrompt?.parameters ?: "*NONE") }

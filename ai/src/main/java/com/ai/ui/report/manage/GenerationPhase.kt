@@ -786,6 +786,11 @@ internal fun ColumnScope.GenerationPhase(
         item(key = "judge-eval-batch-row") {
             JudgeEvalManageRow()
         }
+        // Compare-with-meta batch — single self-hiding row; opens the L1
+        // grid (answers × meta items) drill-in overlay.
+        item(key = "compare-batch-row") {
+            CompareManageRow()
+        }
         // Meta runs — one row per individual rerank / summarize /
         // compare / moderation result on this report, sharing the
         // agent rows' layout (status icon + label + cost). Status
@@ -912,6 +917,7 @@ internal fun ColumnScope.GenerationPhase(
                             SecondaryKind.TRANSLATE -> "translate"
                             SecondaryKind.TOURNAMENT -> "tournament"
                             SecondaryKind.JUDGES -> "judges"
+                            SecondaryKind.COMPARE -> "compare"
                         }
                     }
                     RowTypeCell(typeLabel)

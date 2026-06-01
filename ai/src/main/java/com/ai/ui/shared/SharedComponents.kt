@@ -604,6 +604,14 @@ val LocalMetaEditManager = compositionLocalOf<com.ai.viewmodel.MetaEditManager?>
 val LocalJudgeEvalOpenState =
     compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
 
+/** [LocalTournamentEngine] analog for the "Compare with meta" drill-in. */
+val LocalCompareEngine = compositionLocalOf<com.ai.viewmodel.CompareEngine?> { null }
+
+/** Shared "Compare L1 is open for reportId X" state slot, shared by the
+ *  selection flow's Run handler and the overlay-mount site. */
+val LocalCompareOpenState =
+    compositionLocalOf<androidx.compose.runtime.MutableState<String?>?> { null }
+
 /** Per-row 🔧 / 👁 callbacks surfaced to nested report-list
  *  pickers (the +Report previous-report picker on the report
  *  screen) and the first-composition seed for the View tile-grid

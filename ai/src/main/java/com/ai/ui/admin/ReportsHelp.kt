@@ -257,6 +257,41 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("What you see", "One of the 25 matches and how EVERY judge scored it: each judge's verdict (A / B / tie), whether it agreed (✓) or disagreed (✗) with the consensus, and a 🐞 to open that judging call's API trace. Tap a judge to see the full match detail from that judge's perspective.")
         )
     ),
+    "compare_select_meta" to HelpContent(
+        title = "Help - Compare with meta",
+        cards = listOf(
+            HelpCard("What it is", "Compare with meta scores how closely each report answer matches a meta result you already have on the report — a Compare / Summarize / Synthesize prose — as a percentage 0–100. It reads as 'alignment to the synthesized view': which models land closest to the consensus."),
+            HelpCard("Pick meta items", "Tick one or more meta results to score the answers against. Every successful answer is scored against every ticked item (a grid of answers × meta items). The scoring is done by the WORKER engine (your 'tournament' swarm), so there's no model to pick."),
+            HelpCard("Which meta to pick", "Similarity reads best against a Summarize / Synthesize meta — those are answers in the same genre. A Compare meta is an analysis of agreements/disagreements, so scoring an answer against it is fuzzier. Next moves on to pick the comparison prompt.")
+        )
+    ),
+    "compare_select_prompt" to HelpContent(
+        title = "Help - Compare prompt",
+        cards = listOf(
+            HelpCard("What you see", "Every prompt in the meta_compare category. Tap one to launch the run — it scores each answer against each chosen meta item and opens the results grid. The bundled 'equivalent' prompt asks the worker for a single 0–100 percentage plus a one-line reason."),
+            HelpCard("Editing prompts", "Add or edit comparison prompts under AI Setup → Prompt management → Compare prompts. A comparison prompt uses @RESPONSE@ for the answer and @META_RESPONSE@ for the meta result, and should ask for a parseable 'percentage: <0-100>' line.")
+        )
+    ),
+    "compare_l1" to HelpContent(
+        title = "Help - Compare with meta",
+        cards = listOf(
+            HelpCard("What it is", "The results grid for a Compare-with-meta run: each report answer scored 0–100 for how closely it matches each chosen meta result, judged by the worker engine. Start one from the report's 🆕 Create launcher → Compare with meta."),
+            HelpCard("Statistics + grouping", "The counters show Total cells (answers × meta items) / Done / Running / Wait (throttled) / Queue / Errors / Cost. The two chips switch grouping: 'Report models' lists each answer with its average score across the meta items; 'Meta items' lists each meta item with the average score across answers. Tap a group to drill into its cells, then a cell for the full detail."),
+            HelpCard("Actions", "🔄 redoes the whole comparison from scratch, 🗑 deletes the run, 'Restart failed' re-scores any errored cells.")
+        )
+    ),
+    "compare_l2" to HelpContent(
+        title = "Help - Compare group",
+        cards = listOf(
+            HelpCard("What you see", "Every cell in the chosen group, best score first. In a Report-models group each row is a meta item with this answer's score against it; in a Meta-items group each row is an answer with its score against this meta item. Tap a row for the full cell detail.")
+        )
+    ),
+    "compare_l3" to HelpContent(
+        title = "Help - Compare cell",
+        cards = listOf(
+            HelpCard("What you see", "One score: the big percentage, the answer model vs the meta item, the worker's one-line reason, which worker scored it, and the two full texts (the answer and the meta result). Swipe horizontally to step through the other cells in this group; the 🔄 in the title bar re-scores this cell.")
+        )
+    ),
     // Per-scope Icon-lookup help — one topic for each of the six
     // adapters (main / agent / meta / translation / language /
     // fan-out pair). IconLookupContext.helpTopic carries the right

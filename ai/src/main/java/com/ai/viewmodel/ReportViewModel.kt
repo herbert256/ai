@@ -279,6 +279,11 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
      *  matches and scores their inter-judge agreement. See [JudgeEvalEngine]. */
     val judgeEvalEngine: JudgeEvalEngine = JudgeEvalEngine(appViewModel, this)
 
+    /** Runtime owner for the "Compare with meta" batch — scores how closely
+     *  each report answer matches each chosen meta result, on a grid judged by
+     *  the worker engine. Sibling of [tournamentEngine]; see [CompareEngine]. */
+    val compareEngine: CompareEngine = CompareEngine(appViewModel, this)
+
     /** The "Change response"-style edit flows (regenerate / prompt-edit / chat /
      *  temperature / reasoning / web-search) for a plain META secondary result,
      *  surfaced by the dedicated Meta detail screen. See [MetaEditManager]. */
@@ -2420,6 +2425,8 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
         tournamentEngine.cancelAllForReport(reportId)
         // Judge-the-judges runs + per-cell coroutines likewise.
         judgeEvalEngine.cancelAllForReport(reportId)
+        // Compare-with-meta runs + per-cell coroutines likewise.
+        compareEngine.cancelAllForReport(reportId)
         // Plain-meta edit sweeps / replays (MetaDetailScreen ✏️) likewise.
         metaEditManager.cancelAllForReport(reportId)
         // Translation runs + the regenerate-batch orchestrator are also

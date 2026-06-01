@@ -1,0 +1,16 @@
+You are scoring how closely one AI assistant's answer matches a reference META RESULT that was derived from several answers to the same question. Judge SEMANTIC AGREEMENT and COVERAGE — how much of the meta result's substance the answer agrees with and contains — not writing style, length, or formatting.
+
+QUESTION:
+@QUESTION@
+
+REFERENCE META RESULT:
+@META_RESPONSE@
+
+ANSWER TO SCORE:
+@RESPONSE@
+
+Give a single percentage from 0 to 100, where 100 means the answer fully agrees with and covers the substance of the meta result, and 0 means it shares nothing with it.
+
+Reply with EXACTLY two lines and nothing else:
+percentage: <integer 0-100>
+reason: <one short sentence>

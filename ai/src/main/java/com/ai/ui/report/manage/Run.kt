@@ -129,6 +129,20 @@ internal fun ReportRunScreen(
     val tournamentOpenState = com.ai.ui.shared.LocalTournamentOpenState.current
     val judgeEvalOpenState = com.ai.ui.shared.LocalJudgeEvalOpenState.current
     val tournamentResponseCount = reportsAgentResults.values.count { it.error == null && !it.analysis.isNullOrBlank() }
+    // "Compare with meta" — two-page selection flow (meta items → prompt) then
+    // the worker-judged grid. compareStep: 0 = none, 1 = select meta, 2 = select
+    // prompt. Enabled only when the report has plain-meta prose to compare
+    // against and at least one successful answer.
+    val compareEngine = com.ai.ui.shared.LocalCompareEngine.current
+    val compareOpenState = com.ai.ui.shared.LocalCompareOpenState.current
+    val compareMetaItems = secondaryRuns.filter {
+        it.kind == com.ai.data.SecondaryKind.META &&
+            it.fanInOf == null && it.fanOutSourceAgentId == null &&
+            !it.content.isNullOrBlank()
+    }
+    val compareEnabled = compareMetaItems.isNotEmpty() && tournamentResponseCount >= 1
+    var compareStep by rememberSaveable { mutableStateOf(0) }
+    var compareSelectedMeta by remember { mutableStateOf<List<String>>(emptyList()) }
     val navigateToReportInfo = com.ai.ui.shared.LocalNavigateToReportInfo.current
     // Bumped every time the user taps the bottom-bar 📌 icon so the
     // isPinned produceState re-reads from disk and the 📌 tint flips
@@ -154,6 +168,36 @@ internal fun ReportRunScreen(
             selectedId = uiState.reportSystemPromptId,
             onSelect = systemPromptChange,
             onBack = { showEditSystemPrompt = false }, onNavigateHome = onDismiss
+        )
+        return
+    }
+    // "Compare with meta" selection flow — full-screen overlays layered over
+    // the still-remembered hub state (early return preserves the values
+    // declared above). Page 1 picks the meta items, page 2 the prompt; Run
+    // launches the engine and lands on the L1 grid.
+    if (compareStep == 1 && currentReportId != null) {
+        CompareSelectMetaScreen(
+            metaItems = compareMetaItems,
+            aiSettings = aiSettings,
+            preselected = compareSelectedMeta,
+            onNext = { ids -> compareSelectedMeta = ids; compareStep = 2 },
+            onBack = { compareStep = 0 },
+            onNavigateHome = onDismiss
+        )
+        return
+    }
+    if (compareStep == 2 && currentReportId != null) {
+        CompareSelectPromptScreen(
+            prompts = aiSettings.internalPrompts.filter { it.category == "meta_compare" },
+            onRun = { promptId ->
+                val rid = currentReportId
+                compareEngine?.startRun(context, rid, compareSelectedMeta, promptId)
+                compareOpenState?.value = rid
+                compareStep = 0
+                compareSelectedMeta = emptyList()
+            },
+            onBack = { compareStep = 1 },
+            onNavigateHome = onDismiss
         )
         return
     }
@@ -558,6 +602,7 @@ internal fun ReportRunScreen(
                     tournamentEnabled = tournamentResponseCount >= 2,
                     // Judge-the-judges needs ≥2 responses to form a head-to-head pair.
                     judgeJudgesEnabled = tournamentResponseCount >= 2,
+                    compareEnabled = compareEnabled,
                     onMeta = {
                         st.showCreateOverview.value = false
                         generationHandlers.onOpenMetaPicker()
@@ -587,6 +632,10 @@ internal fun ReportRunScreen(
                     onJudgeJudges = {
                         st.showCreateOverview.value = false
                         confirmJudgeJudges = true
+                    },
+                    onCompare = {
+                        st.showCreateOverview.value = false
+                        compareStep = 1
                     },
                     onBack = { st.showCreateOverview.value = false }
                 )

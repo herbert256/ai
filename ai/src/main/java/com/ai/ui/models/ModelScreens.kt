@@ -115,6 +115,7 @@ private fun computeModelUsages(
                     SecondaryKind.TRANSLATE -> "Translate"
                     SecondaryKind.TOURNAMENT -> "Tournament"
                     SecondaryKind.JUDGES -> "Judges"
+                    SecondaryKind.COMPARE -> "Compare"
                 }
                 out += ModelUsageEntry(
                     timestamp = sec.timestamp, typeLabel = typeLabel,
