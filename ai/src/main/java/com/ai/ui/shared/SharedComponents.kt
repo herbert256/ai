@@ -2038,7 +2038,28 @@ private fun IconLegendOverlay(
                                 "Icons help", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                "Opens this list of every icon on the screen. The red ❓ below opens the full help page.",
+                                "Opens this list of the icons on the screen",
+                                color = AppColors.TextTertiary, fontSize = 13.sp, lineHeight = 16.sp
+                            )
+                        }
+                    }
+                    HorizontalDivider(color = AppColors.DividerDark)
+                    // The red ❓ screen-help glyph that also sits in the bottom bar.
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable { onClose(); navigateHelp(icons.helpTopic) }
+                            .padding(vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
+                            Text("❓", fontSize = 30.sp, color = AppColors.Red)
+                        }
+                        Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
+                            Text(
+                                "Screen help", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                "Opens the help for the screen",
                                 color = AppColors.TextTertiary, fontSize = 13.sp, lineHeight = 16.sp
                             )
                         }
