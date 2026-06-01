@@ -188,15 +188,26 @@ private fun buildUsageTypeGroups(groups: List<ProviderCostGroup>): List<UsageTyp
 private fun buildUsageReportRows(context: Context): List<UsageReportRow> =
     ReportStorage.getAllReports(context)
         .map { report ->
-            val secondaries = SecondaryResultStorage.listForReport(context, report.id)
-            val totals = summarizeReportUsage(context, report, secondaries)
+            val currentReport = if (!report.apiCallCostsComplete &&
+                ReportStorage.ensureApiCallCostLedger(context, report.id)
+            ) {
+                ReportStorage.getReport(context, report.id) ?: report
+            } else {
+                report
+            }
+            val secondaries = if (currentReport.apiCallCostsComplete && currentReport.apiCallCosts.isNotEmpty()) {
+                emptyList()
+            } else {
+                SecondaryResultStorage.listForReport(context, currentReport.id)
+            }
+            val totals = summarizeReportUsage(context, currentReport, secondaries)
             UsageReportRow(
-                reportId = report.id,
-                title = report.barTitle.takeIf { it.isNotBlank() } ?: report.prompt.take(80),
+                reportId = currentReport.id,
+                title = currentReport.barTitle.takeIf { it.isNotBlank() } ?: currentReport.prompt.take(80),
                 calls = totals.calls,
                 tokens = totals.tokens,
                 totalCost = totals.cost,
-                timestamp = if (report.createdAt > 0L) report.createdAt else report.timestamp,
+                timestamp = if (currentReport.createdAt > 0L) currentReport.createdAt else currentReport.timestamp,
             )
         }
         .sortedByDescending { it.totalCost }
@@ -212,6 +223,14 @@ private fun summarizeReportUsage(
     report: Report,
     secondaries: List<SecondaryResult>,
 ): ReportUsageTotals {
+    if (report.apiCallCostsComplete && report.apiCallCosts.isNotEmpty()) {
+        return ReportUsageTotals(
+            calls = report.apiCallCosts.size,
+            tokens = report.apiCallCosts.sumOf { (it.inputTokens + it.outputTokens).toLong() },
+            cost = report.apiCallCosts.sumOf { it.inputCost + it.outputCost },
+        )
+    }
+
     var calls = 0
     var tokens = 0L
     var cost = 0.0

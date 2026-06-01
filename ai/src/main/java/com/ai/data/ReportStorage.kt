@@ -1,6 +1,9 @@
 package com.ai.data
 
 import android.content.Context
+import com.google.gson.JsonElement
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.locks.ReentrantLock
@@ -44,6 +47,16 @@ object ReportStorage {
         }
     }
 
+    private fun initFromFilesDir(filesDir: File) {
+        if (reportsDir == null) lock.withLock {
+            if (reportsDir == null) {
+                val dir = File(filesDir, REPORTS_DIR)
+                if (!dir.exists()) dir.mkdirs()
+                reportsDir = dir
+            }
+        }
+    }
+
     fun createReport(
         context: Context, title: String, prompt: String, agents: List<ReportAgent>,
         rapportText: String? = null, reportType: ReportType = ReportType.CLASSIC, closeText: String? = null,
@@ -73,7 +86,8 @@ object ReportStorage {
             reasoningEffort = reasoningEffort, sourceReportId = sourceReportId,
             knowledgeBaseIds = knowledgeBaseIds, runId = runId,
             parameterPresetIds = parameterPresetIds, advancedParameters = advancedParameters,
-            selectionParamsById = selectionParamsById, reportSystemPromptId = reportSystemPromptId)
+            selectionParamsById = selectionParamsById, reportSystemPromptId = reportSystemPromptId,
+            apiCallCostsComplete = true)
         lock.withLock { saveReport(report) }
         AuditLog.start(report.id)
         AuditLog.append(report.id, buildString {
@@ -446,7 +460,10 @@ object ReportStorage {
         if ((res.selectionParamsById as Map<String, List<String>>?) == null) {
             res = res.copy(selectionParamsById = emptyMap())
         }
-        // iconCalls / userNotes are declared MutableList, but the
+        if ((res.apiCallCosts as List<ReportApiCallCost>?) == null) {
+            res = res.copy(apiCallCosts = mutableListOf())
+        }
+        // iconCalls / userNotes / apiCallCosts are declared MutableList, but the
         // NullSafeFieldAdapterFactory coerces a *missing* field to the
         // IMMUTABLE emptyList() singleton (reflection bypasses the type).
         // An `as MutableList` cast on that throws ClassCastException
@@ -457,7 +474,8 @@ object ReportStorage {
         // is safe even when the field holds an immutable empty.
         res = res.copy(
             iconCalls = res.iconCalls.toMutableList(),
-            userNotes = res.userNotes.toMutableList()
+            userNotes = res.userNotes.toMutableList(),
+            apiCallCosts = res.apiCallCosts.toMutableList()
         )
         return res
     }
@@ -1223,6 +1241,329 @@ object ReportStorage {
             updated.totalCost = computeReportTotalCost(updated)
             saveReport(updated)
             true
+        }
+    }
+
+    /** Append one durable API-cost ledger row to the report JSON. This
+     *  path intentionally takes filesDir instead of Context because it is
+     *  called from SettingsPreferences, the same low-level persistence
+     *  layer that owns the global usage ledger. */
+    fun appendApiCallCost(filesDir: File?, reportId: String?, record: ReportApiCallCost): Boolean {
+        val root = filesDir ?: return false
+        val id = reportId?.takeIf { isSafeFlatId(it) } ?: return false
+        initFromFilesDir(root)
+        return lock.withLock {
+            val report = loadReport(id) ?: return@withLock false
+            if (report.apiCallCosts.any { it.id == record.id }) return@withLock true
+            val updated = report.copy(
+                apiCallCosts = (report.apiCallCosts + record).toMutableList(),
+                timestamp = System.currentTimeMillis()
+            )
+            if (updated.apiCallCostsComplete) {
+                updated.totalCost = ledgerTotalCost(updated)
+            }
+            saveReport(updated)
+            true
+        }
+    }
+
+    /** Best-effort one-time migration for legacy reports. New reports do
+     *  not need traces: their ledger is written directly at call
+     *  completion. For reports created before the ledger existed, trace
+     *  files are the only complete per-call source, so we read them once
+     *  when Spend & Usage needs report totals and then persist the result
+     *  back into the report JSON. */
+    fun ensureApiCallCostLedger(context: Context, reportId: String): Boolean {
+        init(context)
+        if (!isSafeFlatId(reportId)) return false
+        val initial = lock.withLock { loadReport(reportId) } ?: return false
+        if (initial.apiCallCostsComplete) return false
+
+        ApiTracer.init(context)
+        val traceInfos = ApiTracer.getTraceFilesForReport(reportId).sortedBy { it.timestamp }
+        if (traceInfos.isEmpty()) return false
+
+        val rows = LinkedHashMap<String, ReportApiCallCost>()
+        initial.apiCallCosts.forEach { rows[it.id] = it }
+        val parsedTraceFiles = HashSet<String>()
+        val traceInfoByFile = traceInfos.associateBy { it.filename }
+
+        traceInfos.forEach { info ->
+            val trace = ApiTracer.readTraceFile(info.filename) ?: return@forEach
+            val record = apiCallCostFromTrace(context, info, trace) ?: return@forEach
+            parsedTraceFiles += info.filename
+            rows.putIfAbsent(record.id, record)
+        }
+
+        val secondaries = SecondaryResultStorage.listForReport(context, reportId)
+        addStructuredTraceBackfillRows(
+            context = context,
+            report = initial,
+            secondaries = secondaries,
+            traceInfoByFile = traceInfoByFile,
+            parsedTraceFiles = parsedTraceFiles,
+            rows = rows
+        )
+
+        return lock.withLock {
+            val current = loadReport(reportId) ?: return@withLock false
+            if (current.apiCallCostsComplete) return@withLock false
+            current.apiCallCosts.forEach { rows[it.id] = it }
+            val updated = current.copy(
+                apiCallCosts = rows.values.sortedBy { it.timestamp }.toMutableList(),
+                apiCallCostsComplete = true
+            )
+            updated.totalCost = ledgerTotalCost(updated)
+            saveReport(updated)
+            true
+        }
+    }
+
+    private fun ledgerTotalCost(report: Report): Double =
+        report.apiCallCosts.sumOf { it.inputCost + it.outputCost }
+
+    private fun apiCallCostFromTrace(
+        context: Context,
+        info: TraceFileInfo,
+        trace: ApiTrace
+    ): ReportApiCallCost? {
+        val provider = ProviderRegistry.findByHost(trace.hostname) ?: return null
+        val model = trace.model?.takeIf { it.isNotBlank() } ?: info.model?.takeIf { it.isNotBlank() } ?: return null
+        val usage = extractTokenUsageFromTrace(trace, provider) ?: return null
+        val hasUsage = usage.inputTokens > 0 || usage.outputTokens > 0 ||
+            usage.cachedInputTokens > 0 || usage.cacheCreationTokens > 0 ||
+            usage.reasoningTokens > 0 || usage.apiCost != null
+        if (!hasUsage) return null
+        val pricing = PricingCache.getPricing(context, provider, model)
+        val (inputCost, outputCost) = PricingCache.computeInOutCost(usage, pricing)
+        return ReportApiCallCost(
+            id = "trace:${info.filename}",
+            timestamp = trace.timestamp,
+            type = normalizeUsageKind(trace.category ?: info.category),
+            provider = provider.id,
+            model = model,
+            pricingTier = if (provider.reportsApiCost() || usage.apiCost != null) "API_REPORTED" else pricing.source,
+            inputTokens = usage.inputTokens,
+            outputTokens = usage.outputTokens,
+            inputCost = inputCost,
+            outputCost = outputCost,
+            traceFile = info.filename
+        )
+    }
+
+    private fun extractTokenUsageFromTrace(trace: ApiTrace, provider: AppService): TokenUsage? {
+        val root = parseTraceResponseObject(trace.response.body) ?: return null
+        val usage = root.objectMember("usage")
+            ?: root.objectMember("usageMetadata")
+            ?: root.objectMember("response")?.objectMember("usage")
+            ?: return null
+        return try {
+            when (provider.apiFormat) {
+                ApiFormat.ANTHROPIC -> gson.fromJson(usage, ClaudeUsage::class.java).toTokenUsage()
+                ApiFormat.GOOGLE -> gson.fromJson(usage, GeminiUsageMetadata::class.java).toTokenUsage()
+                ApiFormat.OPENAI_COMPATIBLE -> gson.fromJson(usage, OpenAiUsage::class.java).toTokenUsage(provider)
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun parseTraceResponseObject(body: String?): JsonObject? {
+        if (body.isNullOrBlank()) return null
+        parseJsonObject(body)?.let { return it }
+        body.lineSequence()
+            .map { it.trim().removePrefix("data:").trim() }
+            .filter { it.startsWith("{") }
+            .forEach { line -> parseJsonObject(line)?.let { return it } }
+        return null
+    }
+
+    private fun parseJsonObject(text: String): JsonObject? =
+        try {
+            val parsed: JsonElement = JsonParser.parseString(text)
+            parsed.takeIf { it.isJsonObject }?.asJsonObject
+        } catch (_: Exception) {
+            null
+        }
+
+    private fun JsonObject.objectMember(name: String): JsonObject? =
+        get(name)?.takeIf { it.isJsonObject }?.asJsonObject
+
+    private fun AppService.reportsApiCost(): Boolean = extractApiCost || costTicksDivisor != null
+
+    private fun addStructuredTraceBackfillRows(
+        context: Context,
+        report: Report,
+        secondaries: List<SecondaryResult>,
+        traceInfoByFile: Map<String, TraceFileInfo>,
+        parsedTraceFiles: Set<String>,
+        rows: LinkedHashMap<String, ReportApiCallCost>
+    ) {
+        fun addIfTraceWasNotParsed(
+            traceFile: String?,
+            type: String,
+            providerId: String?,
+            model: String?,
+            inputTokens: Int,
+            outputTokens: Int,
+            inputCost: Double,
+            outputCost: Double,
+            durationMs: Long?
+        ) {
+            val file = traceFile?.takeIf { it.isNotBlank() } ?: return
+            if (file in parsedTraceFiles) return
+            if (inputTokens <= 0 && outputTokens <= 0 && inputCost <= 0.0 && outputCost <= 0.0) return
+            val info = traceInfoByFile[file]
+            val provider = info?.hostname?.let { ProviderRegistry.findByHost(it) }
+                ?: providerId?.let { AppService.findById(it) }
+                ?: return
+            val resolvedModel = info?.model?.takeIf { it.isNotBlank() } ?: model?.takeIf { it.isNotBlank() } ?: return
+            val pricing = PricingCache.getPricing(context, provider, resolvedModel)
+            rows.putIfAbsent(
+                "trace:$file",
+                ReportApiCallCost(
+                    id = "trace:$file",
+                    timestamp = info?.timestamp ?: System.currentTimeMillis(),
+                    type = normalizeUsageKind(info?.category ?: type),
+                    provider = provider.id,
+                    model = resolvedModel,
+                    pricingTier = if (provider.reportsApiCost()) "API_REPORTED" else pricing.source,
+                    inputTokens = inputTokens,
+                    outputTokens = outputTokens,
+                    inputCost = inputCost.coerceAtLeast(0.0),
+                    outputCost = outputCost.coerceAtLeast(0.0),
+                    durationMs = durationMs,
+                    traceFile = file
+                )
+            )
+        }
+
+        fun splitProviderModel(value: String?): Pair<String?, String?> {
+            val parts = value?.split("/", limit = 2)
+            return parts?.getOrNull(0) to parts?.getOrNull(1)
+        }
+
+        report.agents.forEach { agent ->
+            val usage = agent.tokenUsage ?: return@forEach
+            val inputCost = agent.inputCost ?: 0.0
+            val outputCost = agent.outputCost ?: ((agent.cost ?: 0.0) - inputCost).coerceAtLeast(0.0)
+            addIfTraceWasNotParsed(
+                traceFile = agent.traceFile,
+                type = "report/prompt",
+                providerId = agent.provider,
+                model = agent.model,
+                inputTokens = usage.inputTokens,
+                outputTokens = usage.outputTokens,
+                inputCost = inputCost,
+                outputCost = outputCost,
+                durationMs = agent.durationMs
+            )
+
+            val (modelTitleProvider, modelTitleModel) = splitProviderModel(agent.modelTitleModel)
+            addIfTraceWasNotParsed(
+                traceFile = agent.modelTitleTraceFile,
+                type = "model/titles",
+                providerId = modelTitleProvider,
+                model = modelTitleModel,
+                inputTokens = agent.modelTitleInputTokens,
+                outputTokens = agent.modelTitleOutputTokens,
+                inputCost = agent.modelTitleInputCost,
+                outputCost = agent.modelTitleOutputCost,
+                durationMs = agent.modelTitleDurationMs
+            )
+        }
+
+        val (iconProvider, iconModel) = splitProviderModel(report.iconModel)
+        addIfTraceWasNotParsed(
+            traceFile = report.iconTraceFile,
+            type = "report/icon",
+            providerId = iconProvider,
+            model = iconModel,
+            inputTokens = report.iconInputTokens,
+            outputTokens = report.iconOutputTokens,
+            inputCost = report.iconInputCost,
+            outputCost = report.iconOutputCost,
+            durationMs = report.iconDurationMs
+        )
+        addIfTraceWasNotParsed(
+            traceFile = report.languageTraceFile,
+            type = "report/language",
+            providerId = null,
+            model = null,
+            inputTokens = report.languageInputTokens,
+            outputTokens = report.languageOutputTokens,
+            inputCost = report.languageInputCost,
+            outputCost = report.languageOutputCost,
+            durationMs = report.languageDurationMs
+        )
+        val (languageIconProvider, languageIconModel) = splitProviderModel(report.languageIconModel)
+        addIfTraceWasNotParsed(
+            traceFile = report.languageIconTraceFile,
+            type = "report/language-icon",
+            providerId = languageIconProvider,
+            model = languageIconModel,
+            inputTokens = report.languageIconInputTokens,
+            outputTokens = report.languageIconOutputTokens,
+            inputCost = report.languageIconInputCost,
+            outputCost = report.languageIconOutputCost,
+            durationMs = report.languageIconDurationMs
+        )
+        val (titleProvider, titleModel) = splitProviderModel(report.titleModel)
+        addIfTraceWasNotParsed(
+            traceFile = report.titleTraceFile,
+            type = "report/title-short",
+            providerId = titleProvider,
+            model = titleModel,
+            inputTokens = report.titleInputTokens,
+            outputTokens = report.titleOutputTokens,
+            inputCost = report.titleInputCost,
+            outputCost = report.titleOutputCost,
+            durationMs = report.titleDurationMs
+        )
+        val (titleLongProvider, titleLongModel) = splitProviderModel(report.titleLongModel)
+        addIfTraceWasNotParsed(
+            traceFile = report.titleLongTraceFile,
+            type = "report/title-long",
+            providerId = titleLongProvider,
+            model = titleLongModel,
+            inputTokens = report.titleLongInputTokens,
+            outputTokens = report.titleLongOutputTokens,
+            inputCost = report.titleLongInputCost,
+            outputCost = report.titleLongOutputCost,
+            durationMs = report.titleLongDurationMs
+        )
+
+        val secById = secondaries.associateBy { it.id }
+        secondaries.forEach { s ->
+            val usage = s.tokenUsage ?: return@forEach
+            val source = s.translateSourceTargetId?.let { secById[it] }
+            val type = when (s.kind) {
+                SecondaryKind.RERANK -> "after/rerank"
+                SecondaryKind.MODERATION -> "after/moderation"
+                SecondaryKind.TRANSLATE -> translateTraceType(
+                    s.translateSourceKind,
+                    sourceIsFanOut = source?.fanOutSourceAgentId != null,
+                    sourceIsFanIn = source?.fanInOf != null
+                )
+                SecondaryKind.META -> when {
+                    !s.metaPromptName.isNullOrBlank() -> "meta/${s.metaPromptName}"
+                    else -> "meta/meta"
+                }
+                SecondaryKind.TOURNAMENT -> "after/tournament"
+                SecondaryKind.JUDGES -> "after/judges"
+                SecondaryKind.COMPARE -> "meta/compare"
+            }
+            addIfTraceWasNotParsed(
+                traceFile = s.traceFile,
+                type = type,
+                providerId = s.providerId,
+                model = s.model,
+                inputTokens = usage.inputTokens,
+                outputTokens = usage.outputTokens,
+                inputCost = s.inputCost ?: 0.0,
+                outputCost = s.outputCost ?: 0.0,
+                durationMs = s.durationMs
+            )
         }
     }
 

@@ -1004,6 +1004,8 @@ fun AiSpendUsageScreen(
     onBack: () -> Unit,
     @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
     onOpenProvider: (String) -> Unit = {},
+    /** Types tab row → the per-type-prefix usage detail screen. */
+    onOpenType: (String) -> Unit = {},
     onNavigateToStatistics: () -> Unit = {},
     /** 🐞 on a provider row → the API Traces scoped to that provider. */
     onNavigateToTraceProvider: (String) -> Unit = {},
@@ -1095,6 +1097,7 @@ fun AiSpendUsageScreen(
                         },
                         tracedCategories = tracedCategories,
                         onNavigateToTraceCategory = onNavigateToTraceCategory,
+                        onOpenType = onOpenType,
                     )
                     SpendUsageMode.REPORTS -> SpendUsageReportsTab(
                         data = d,
@@ -1235,6 +1238,19 @@ private fun ColumnScope.SpendUsageProvidersTab(
     }
 }
 
+/** One Types-tab row: the per-kind usage groups rolled up by the part
+ *  of the type name before the first "/". */
+private data class TypePrefixRow(
+    val prefix: String,
+    val calls: Int,
+    val tokens: Long,
+    val searchUnits: Long,
+    val totalCost: Double,
+    /** First underlying full kind that has a captured trace, or null —
+     *  drives the row's 🐞 (a prefix can span several trace categories). */
+    val traceCategory: String?,
+)
+
 @Composable
 private fun ColumnScope.SpendUsageTypesTab(
     data: UsageGroupsResult,
@@ -1243,6 +1259,7 @@ private fun ColumnScope.SpendUsageTypesTab(
     onSort: (UsageSort) -> Unit,
     tracedCategories: Set<String>,
     onNavigateToTraceCategory: (String) -> Unit,
+    onOpenType: (String) -> Unit,
 ) {
     if (data.typeGroups.isEmpty()) {
         Text(
@@ -1257,29 +1274,52 @@ private fun ColumnScope.SpendUsageTypesTab(
     val cName = 184.dp; val cCalls = 56.dp; val cTok = 78.dp
     val cGap = 18.dp; val cCost = 92.dp; val cBugGap = 12.dp; val cBug = 28.dp
     val tableWidth = cName + cCalls + cTok + cGap + cCost + cBugGap + cBug
-    val rows = remember(data.typeGroups, sortCol, sortAsc) {
-        val cmp: Comparator<UsageTypeGroup> = when (sortCol) {
-            UsageSort.PROVIDER -> compareBy { it.category.lowercase() }
+    // Roll the per-kind groups up by the part before the first "/" so
+    // e.g. meta / meta/temperature / meta/reasoning collapse into "meta"
+    // and fan/out/* collapses into "fan". Tapping a row drills into the
+    // per-entry detail for that prefix.
+    val rows = remember(data.typeGroups, sortCol, sortAsc, tracedCategories) {
+        val grouped = data.typeGroups
+            .groupBy { it.category.substringBefore("/") }
+            .map { (prefix, gs) ->
+                TypePrefixRow(
+                    prefix = prefix,
+                    calls = gs.sumOf { it.calls },
+                    tokens = gs.sumOf { it.tokens },
+                    searchUnits = gs.sumOf { it.searchUnits },
+                    totalCost = gs.sumOf { it.totalCost },
+                    traceCategory = gs.map { it.category }.firstOrNull { it in tracedCategories },
+                )
+            }
+        val cmp: Comparator<TypePrefixRow> = when (sortCol) {
+            UsageSort.PROVIDER -> compareBy { it.prefix.lowercase() }
             UsageSort.CALLS -> compareBy { it.calls }
             UsageSort.TOKENS -> compareBy { it.tokens + it.searchUnits }
             UsageSort.COST -> compareBy { it.totalCost }
         }
-        data.typeGroups.sortedWith(if (sortAsc) cmp else cmp.reversed())
+        grouped.sortedWith(if (sortAsc) cmp else cmp.reversed())
     }
 
     Column(modifier = Modifier.align(Alignment.CenterHorizontally).weight(1f).verticalScroll(rememberScrollState())) {
         SpendUsageTableHeader("Type", cName, cCalls, cTok, cGap, cCost, cBugGap, cBug, sortCol, sortAsc, onSort)
-        rows.forEach { group ->
-            val hasTrace = group.category in tracedCategories
-            Row(modifier = Modifier.padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(group.category, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
-                Text("${group.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
-                Text(usageTypeUnits(group), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
+        rows.forEach { row ->
+            Row(
+                modifier = Modifier.clickable { onOpenType(row.prefix) }.padding(vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(row.prefix, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
+                Text("${row.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
+                Text(
+                    if (row.searchUnits > 0 && row.tokens == 0L) "${formatCompactNumber(row.searchUnits)} su" else formatCompactNumber(row.tokens),
+                    fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok)
+                )
                 Spacer(Modifier.width(cGap))
-                Text(cents(group.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
+                Text(cents(row.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
                 Spacer(Modifier.width(cBugGap))
                 Box(Modifier.width(cBug), contentAlignment = Alignment.Center) {
-                    if (hasTrace) Text(com.ai.ui.shared.LocalMetadataIcons.current.traces, fontSize = 13.sp, modifier = Modifier.clickable { onNavigateToTraceCategory(group.category) })
+                    row.traceCategory?.let { cat ->
+                        Text(com.ai.ui.shared.LocalMetadataIcons.current.traces, fontSize = 13.sp, modifier = Modifier.clickable { onNavigateToTraceCategory(cat) })
+                    }
                 }
             }
             HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.width(tableWidth))
@@ -1366,10 +1406,6 @@ private fun SpendUsageTableHeader(
         Spacer(Modifier.width(cBug))
     }
 }
-
-private fun usageTypeUnits(group: UsageTypeGroup): String =
-    if (group.searchUnits > 0 && group.tokens == 0L) "${formatCompactNumber(group.searchUnits)} su"
-    else formatCompactNumber(group.tokens)
 
 /** Per-provider usage detail — opened by tapping a row on Spend & usage.
  *  By type / by pricing source / by model, all for one provider. */
@@ -1469,6 +1505,124 @@ fun AiSpendUsageProviderScreen(
                     HorizontalDivider(color = AppColors.DividerDark)
                 }
                 item { Spacer(Modifier.height(24.dp)) }
+            }
+        }
+    }
+}
+
+/** One usage entry inside a type-prefix detail: a (provider, model,
+ *  kind) row paired with its provider for the Model-Info tap. */
+private data class TypeEntry(val provider: AppService, val swc: StatWithCost)
+
+/** Per-type-prefix usage detail — opened by tapping a row on the
+ *  Spend & usage Types tab. Lists every (provider, model, kind) entry
+ *  whose kind's first path segment (before the first "/") matches
+ *  [typePrefix]. */
+@Composable
+fun AiSpendUsageTypeScreen(
+    typePrefix: String,
+    onBack: () -> Unit,
+    @Suppress("UNUSED_PARAMETER") onNavigateHome: () -> Unit,
+    onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
+    onNavigateToStatistics: () -> Unit = {},
+) {
+    BackHandler { onBack() }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(SettingsPreferences.PREFS_NAME, Context.MODE_PRIVATE) }
+    val settingsPrefs = remember { SettingsPreferences(prefs, context.filesDir) }
+    val refreshTick = resumeRefreshTick()
+    val entries by produceState<List<TypeEntry>?>(null, refreshTick, typePrefix) {
+        val groups = computeUsageGroups(context, settingsPrefs).groups
+        value = groups.flatMap { g -> g.models.map { TypeEntry(g.provider, it) } }
+            .filter { it.swc.stat.kind.substringBefore("/") == typePrefix }
+            .sortedByDescending { it.swc.totalCost }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "ai_usage_type",
+            title = typePrefix,
+            subject = "Usage detail by entry",
+            onBackClick = onBack,
+            reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
+            onReportIconClick = onNavigateToStatistics,
+            onTitleClick = onNavigateToStatistics
+        )
+        val list = entries
+        when {
+            list == null -> Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            list.isEmpty() -> Text("No usage for this type.", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
+            else -> {
+                val totalCalls = list.sumOf { it.swc.stat.callCount }
+                val totalTokens = list.sumOf { it.swc.stat.totalTokens }
+                val totalCost = list.sumOf { it.swc.totalCost }
+                val byKind = list.groupBy { it.swc.stat.kind }
+                val byProvider = list.groupBy { it.provider.id }
+
+                LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    item { Spacer(Modifier.height(4.dp)) }
+                    item {
+                        SectionCard("💰", "Totals", AppColors.SuccessAccent) {
+                            KeyVal("Calls", "$totalCalls")
+                            KeyVal("Tokens", formatCompactNumber(totalTokens))
+                            KeyVal("Cost", cents(totalCost), AppColors.SuccessAccent)
+                            val avg = if (totalCalls > 0) totalCost / totalCalls else 0.0
+                            KeyVal("Avg / call", cents(avg), AppColors.TextSecondary)
+                            KeyVal("Entries", "${list.size}")
+                        }
+                    }
+                    if (byKind.size > 1) {
+                        item {
+                            SectionCard("🏷️", "By type", AppColors.SecondaryAccent) {
+                                byKind.entries.sortedByDescending { e -> e.value.sumOf { it.swc.totalCost } }.forEach { (kind, rows) ->
+                                    val calls = rows.sumOf { it.swc.stat.callCount }
+                                    val cost = rows.sumOf { it.swc.totalCost }
+                                    KeyVal(kind, "$calls calls · ${cents(cost)}")
+                                }
+                            }
+                        }
+                    }
+                    item {
+                        SectionCard("🏢", "By provider", AppColors.PrimaryAccent) {
+                            byProvider.entries.sortedByDescending { e -> e.value.sumOf { it.swc.totalCost } }.forEach { (pid, rows) ->
+                                val calls = rows.sumOf { it.swc.stat.callCount }
+                                val cost = rows.sumOf { it.swc.totalCost }
+                                KeyVal(pid, "$calls calls · ${cents(cost)}")
+                            }
+                        }
+                    }
+                    item {
+                        Text("Entries — tap for Model Info", fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(top = 4.dp, start = 2.dp))
+                    }
+                    items(list, key = { it.provider.id + "|" + it.swc.stat.model + "|" + it.swc.stat.kind }) { e ->
+                        val swc = e.swc
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                                .clickable { onNavigateToModelInfo(e.provider, swc.stat.model) }
+                                .padding(horizontal = 4.dp, vertical = 8.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(com.ai.ui.shared.shortModelName(swc.stat.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                if (swc.stat.kind != typePrefix) {
+                                    Text(swc.stat.kind, fontSize = 9.sp, color = AppColors.TextSecondary,
+                                        modifier = Modifier.padding(end = 6.dp).clip(RoundedCornerShape(4.dp)).background(AppColors.SurfaceDark).padding(horizontal = 4.dp, vertical = 1.dp))
+                                }
+                                Text(cents(swc.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent)
+                            }
+                            val units = if (swc.stat.searchUnits > 0 && swc.stat.totalTokens == 0L) "${formatCompactNumber(swc.stat.searchUnits)} su" else "${formatCompactNumber(swc.stat.totalTokens)} tokens"
+                            Text(
+                                "${e.provider.id} · ${swc.stat.callCount} calls · $units · ${tierLabel(swc.pricingSource)}",
+                                fontSize = 11.sp, color = AppColors.TextTertiary
+                            )
+                        }
+                        HorizontalDivider(color = AppColors.DividerDark)
+                    }
+                    item { Spacer(Modifier.height(24.dp)) }
+                }
             }
         }
     }

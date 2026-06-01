@@ -154,6 +154,25 @@ data class IconCallRecord(
     val attributedToSecondaryId: String? = null
 )
 
+/** Durable per-report API cost ledger. Unlike traces, this is part of
+ *  the report JSON itself and is appended whenever a report-scoped API
+ *  call records usage. Trace fields are optional debug links only. */
+data class ReportApiCallCost(
+    val id: String = UUID.randomUUID().toString(),
+    val timestamp: Long = System.currentTimeMillis(),
+    val type: String,
+    val provider: String,
+    val model: String,
+    val pricingTier: String,
+    val inputTokens: Int,
+    val outputTokens: Int,
+    val inputCost: Double,
+    val outputCost: Double,
+    val searchUnits: Int = 0,
+    val durationMs: Long? = null,
+    val traceFile: String? = null
+)
+
 /** A free-text note the user attaches to something in a report. The
  *  note's [targetKind] + [targetId] identify what it's pinned to:
  *  - "REPORT"     → the whole report ([targetId] = reportId)
@@ -357,6 +376,13 @@ data class Report(
      *  call All-tab pulls from this list so every attempt (failed
      *  earlier tiers + the one that won) surfaces as its own row. */
     var iconCalls: MutableList<IconCallRecord> = mutableListOf(),
+    /** Append-only API cost ledger for this report. New reports write
+     *  every report-scoped usage event here directly, so report cost
+     *  totals do not depend on optional trace files or on visible rows
+     *  still being present. Legacy reports start incomplete and are
+     *  upgraded best-effort from traces/structured cost fields. */
+    var apiCallCosts: MutableList<ReportApiCallCost> = mutableListOf(),
+    var apiCallCostsComplete: Boolean = false,
     /** UUID shared by every API trace produced during the initial
      *  generation of this report — the L1 🐞 icon in the title bar
      *  deep-links the trace list to this id so the user sees only

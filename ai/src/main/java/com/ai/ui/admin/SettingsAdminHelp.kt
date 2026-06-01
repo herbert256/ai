@@ -741,11 +741,21 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         cards = listOf(
             HelpCard("Overview", "Calls, tokens and cost across every model you've actually called. Reached from the Statistics hub. Computed only when opened (it runs getPricing per used model), and on entry it refreshes OpenRouter pricing once if a key is set."),
             HelpCard("Summary", "Top card: total calls, total tokens, and total cost in cents (green)."),
-            HelpCard("Tabs", "Providers groups by provider, Types groups by the stored Trace/Costs category, and Reports lists saved reports by report-scoped spend."),
+            HelpCard("Tabs", "Providers groups by provider, Types groups by the first part of the call kind (the bit before the first / — so meta, meta/temperature and meta/reasoning all roll into \"meta\", and fan/out/* into \"fan\"), and Reports lists saved reports by report-scoped spend. Tap a Types row to see every entry for that type."),
             HelpCard("Provider table", "Columns Provider · Calls · Tokens · Cost, one row per provider, sorted by spend. Tap a row to open that provider's usage detail."),
             HelpCard("Provider detail", "The detail page shows totals + avg/call, a By type breakdown (report / meta / rerank / translate / …), a By pricing source breakdown, and a per-model list (tap a model → Model Info). All costs are shown in cents."),
             HelpCard("Clear", "The 🧹 in the title bar clears every usage counter back to zero (confirm dialog). Cannot be undone."),
             HelpCard("Pitfalls", "Rerank rows bill per search-unit, not per token. A model never called won't appear; costs need pricing data loaded."),
+        )
+    ),
+    "ai_usage_type" to HelpContent(
+        title = "Help - Type usage",
+        cards = listOf(
+            HelpCard("Overview", "Every usage entry for one type, opened by tapping a row on the Spend & usage Types tab. A \"type\" is the first part of the call kind — the bit before the first / — so meta, meta/temperature and meta/reasoning all roll into \"meta\", and fan/out/* into \"fan\"."),
+            HelpCard("💰 Totals", "Calls, tokens, cost in cents, average cost per call, and how many distinct entries make up this type."),
+            HelpCard("🏷️ By type", "When the prefix spans several full kinds (e.g. meta + meta/temperature), each full kind's call count and cost. Hidden when there's only one."),
+            HelpCard("🏢 By provider", "Spend for this type split by provider, with each provider's call count and cost."),
+            HelpCard("Entries", "Every (provider, model, kind) row that fed this type, with its cost, calls, tokens (or search units) and winning pricing tier. A pill shows the full kind when it differs from the type. Tap an entry to open Model Info."),
         )
     ),
     "ai_usage_provider" to HelpContent(

@@ -2,7 +2,12 @@ package com.ai.ui.settings
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
+import com.ai.data.ApiTracer
 import com.ai.data.AppService
+import com.ai.data.PricingCache
+import com.ai.data.ReportApiCallCost
+import com.ai.data.ReportStorage
+import com.ai.data.TokenUsage
 import com.ai.data.createAppGson
 import com.ai.data.normalizeUsageKind
 import com.ai.data.writeTextAtomic
@@ -486,7 +491,44 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
                 searchUnits = base.searchUnits + searchUnits
             )
         }
+        recordReportApiCallCost(provider, model, inputTokens, outputTokens, normalizedKind, searchUnits)
         scheduleUsageStatsFlush()
+    }
+
+    private fun recordReportApiCallCost(
+        provider: AppService,
+        model: String,
+        inputTokens: Int,
+        outputTokens: Int,
+        kind: String,
+        searchUnits: Int
+    ) {
+        val reportId = ApiTracer.currentReportId?.takeIf { it.isNotBlank() } ?: return
+        if (inputTokens <= 0 && outputTokens <= 0 && searchUnits <= 0) return
+        val pricing = PricingCache.lookupPricing(provider, model)
+        val usage = TokenUsage(inputTokens = inputTokens, outputTokens = outputTokens)
+        val (tokenInputCost, tokenOutputCost) = PricingCache.computeInOutCost(usage, pricing)
+        val searchCost = if (searchUnits > 0 && pricing.perQueryPrice > 0.0) {
+            searchUnits * pricing.perQueryPrice
+        } else {
+            0.0
+        }
+        val category = normalizeUsageKind(ApiTracer.currentCategory ?: kind)
+        ReportStorage.appendApiCallCost(
+            filesDir = filesDir,
+            reportId = reportId,
+            record = ReportApiCallCost(
+                type = category,
+                provider = provider.id,
+                model = model,
+                pricingTier = if (provider.extractApiCost || provider.costTicksDivisor != null) "API_REPORTED" else pricing.source,
+                inputTokens = inputTokens,
+                outputTokens = outputTokens,
+                inputCost = tokenInputCost + searchCost,
+                outputCost = tokenOutputCost,
+                searchUnits = searchUnits
+            )
+        )
     }
 
     private fun mergeUsageStats(existing: UsageStats?, incoming: UsageStats): UsageStats =

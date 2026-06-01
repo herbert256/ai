@@ -565,6 +565,23 @@ internal data class ReportCostData(
     val deletedCents: Double,
 )
 
+private fun buildReportCostDataFromRows(rows: List<CostRow>, deletedCents: Double): ReportCostData {
+    val sortedRows = rows.sortedByDescending { it.inputCents + it.outputCents }
+    val byType = sortedRows.groupBy { it.type }.map { (k, gs) ->
+        var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+        gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inputCents; oC += it.outputCents }
+        GroupTotal(k, null, null, gs.size, iT, oT, iC, oC)
+    }.sortedByDescending { it.inputCents + it.outputCents }
+    val byModel = sortedRows.groupBy { it.providerDisplay to it.model }.map { (k, gs) ->
+        var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
+        gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inputCents; oC += it.outputCents }
+        GroupTotal("${k.first} / ${k.second}", k.first, k.second, gs.size, iT, oT, iC, oC)
+    }.sortedByDescending { it.inputCents + it.outputCents }
+    var totalInC = 0.0; var totalOutC = 0.0
+    sortedRows.forEach { totalInC += it.inputCents; totalOutC += it.outputCents }
+    return ReportCostData(sortedRows, byType, byModel, totalInC, totalOutC, deletedCents)
+}
+
 /** Loads + groups every call recorded against [report] (agents +
  *  secondaries + icon-gen + fan-out / fan-in icon chain). Returns
  *  null when no usage has been recorded — caller renders an empty
@@ -572,6 +589,25 @@ internal data class ReportCostData(
 @Composable
 internal fun rememberReportCostData(report: Report): ReportCostData? {
     val context = LocalContext.current
+    if (report.apiCallCostsComplete && report.apiCallCosts.isNotEmpty()) {
+        val rows = remember(report.apiCallCosts) {
+            report.apiCallCosts.map { c ->
+                CostRow(
+                    type = c.type,
+                    providerDisplay = c.provider,
+                    model = c.model,
+                    tier = c.pricingTier,
+                    durationMs = c.durationMs,
+                    inputTokens = c.inputTokens,
+                    outputTokens = c.outputTokens,
+                    inputCents = c.inputCost * 100,
+                    outputCents = c.outputCost * 100,
+                    traceFile = c.traceFile
+                )
+            }
+        }
+        return buildReportCostDataFromRows(rows, deletedCents = 0.0)
+    }
     val agentsWithCosts = remember(report) {
         report.agents.filter { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
     }
@@ -933,38 +969,15 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
             s.titleInputCost * 100, s.titleOutputCost * 100
         )
     }
-    val rows = (agentRows + secondaryRows + fanMetaRows + listOfNotNull(iconRow, languageDetectRow, languageIconRow, titleShortRow, titleLongRow) + modelTitleRows + iconCallRows).sortedByDescending { it.inputCents + it.outputCents }
-
-    // GroupTotal carries an optional (provider, model) split so the
-    // "By model" table can render the two as separate columns (same
-    // shape as the All-calls list below); "By type" keeps the single
-    // key column. (GroupTotal hoisted to top-level — see below.)
-    fun groupByType(): List<GroupTotal> =
-        // Each row groups strictly by its literal `<category>/<prompt>`
-        // type — no translation, no lumping (e.g. icons are NOT collapsed
-        // into one bucket). Every distinct prompt gets its own line.
-        rows.groupBy { it.type }.map { (k, gs) ->
-            var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
-            gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inputCents; oC += it.outputCents }
-            GroupTotal(k, null, null, gs.size, iT, oT, iC, oC)
-        }.sortedByDescending { it.inputCents + it.outputCents }
-    fun groupByModel(): List<GroupTotal> =
-        rows.groupBy { it.providerDisplay to it.model }.map { (k, gs) ->
-            var iT = 0; var oT = 0; var iC = 0.0; var oC = 0.0
-            gs.forEach { iT += it.inputTokens; oT += it.outputTokens; iC += it.inputCents; oC += it.outputCents }
-            GroupTotal("${k.first} / ${k.second}", k.first, k.second, gs.size, iT, oT, iC, oC)
-        }.sortedByDescending { it.inputCents + it.outputCents }
-    val byType = groupByType()
-    val byModel = groupByModel()
-
-    var totalInC = 0.0; var totalOutC = 0.0
-    rows.forEach { totalInC += it.inputCents; totalOutC += it.outputCents }
+    val rows = agentRows + secondaryRows + fanMetaRows +
+        listOfNotNull(iconRow, languageDetectRow, languageIconRow, titleShortRow, titleLongRow) +
+        modelTitleRows + iconCallRows
     // Costs the user dropped from the report via Delete actions —
     // surfaces as its own row above the Total, same pattern as
     // the result-page footer + the HTML export's cost view.
     val deletedCents = report.costsFromDeletedItems * 100
 
-    return ReportCostData(rows, byType, byModel, totalInC, totalOutC, deletedCents)
+    return buildReportCostDataFromRows(rows, deletedCents)
 }
 
 @Composable
