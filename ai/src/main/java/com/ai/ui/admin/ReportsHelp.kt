@@ -500,6 +500,16 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Re-running", "Not wired here — re-run a rerank by deleting it and re-firing from the report's 🆕 Create launcher.")
         )
     ),
+    "moderation_detail" to HelpContent(
+        title = "Help - Moderation result — detail",
+        cards = listOf(
+            HelpCard("Overview", "Dedicated detail screen for a moderation result — the per-response policy classification of the report's answers. Errors render as a red Error block; blank content shows '(no content)'."),
+            HelpCard("Classification table", "Parses the structured JSON ([{id, flagged, categories, scores}, ...]) the moderation flow produces (chat-prompt path or the native moderation API) into a table with 🚩 / ✓ flags, fired categories and the top scores, resolving each bracketed [N] to its real provider / model. Falls back to raw markdown when the model deviated from the schema."),
+            HelpCard("Per-response detail", "Tap a row to drill into that response's full classification — every category (fired or not) with its score, plus the exact text that was moderated."),
+            HelpCard("Title bar", "👁 opens the View Moderation screen, ℹ️ jumps to Model Info for this row's (provider, model), 🐞 opens the captured trace when tracing was on, 🗑 deletes the moderation, and Copy / Share export the raw classification JSON. ✍️ adds a note."),
+            HelpCard("Re-running", "Not wired here — re-run a moderation by deleting it and re-firing from the report's 🆕 Create launcher.")
+        )
+    ),
     "meta_detail" to HelpContent(
         title = "Help - Meta result — detail",
         cards = listOf(

@@ -420,6 +420,19 @@ internal fun SecondaryResultsScreen(
                 onNavigateToTraceFile = onNavigateToTraceFile,
                 onNavigateToModelInfo = onNavigateToModelInfo
             )
+        } else if (openResult.kind == SecondaryKind.MODERATION) {
+            ModerationDetailScreen(
+                result = openResult,
+                onDelete = {
+                    onDelete(openResult.id)
+                    openId = null
+                    refreshTick++
+                },
+                onBack = { openId = null },
+                onNavigateHome = onNavigateHome,
+                onNavigateToTraceFile = onNavigateToTraceFile,
+                onNavigateToModelInfo = onNavigateToModelInfo
+            )
         } else {
             SecondaryResultDetailScreen(
                 result = openResult,

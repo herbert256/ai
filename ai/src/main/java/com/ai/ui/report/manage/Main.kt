@@ -1236,6 +1236,22 @@ fun ReportsScreen(
                     onNavigateToTraceFile = onNavigateToTraceFile,
                     onNavigateToModelInfo = onNavigateToModelInfo
                 )
+            } else if (openMetaResult.kind == com.ai.data.SecondaryKind.MODERATION) {
+                com.ai.ui.report.manage.view.ModerationDetailScreen(
+                    result = openMetaResult,
+                    onDelete = {
+                        onDeleteSecondaryWithRefresh(rid, openMetaResult.id)
+                        openMetaResultId = null
+                        secondaryLockedLanguage = null
+                    },
+                    onBack = {
+                        openMetaResultId = null
+                        secondaryLockedLanguage = null
+                    },
+                    onNavigateHome = onNavigateHome,
+                    onNavigateToTraceFile = onNavigateToTraceFile,
+                    onNavigateToModelInfo = onNavigateToModelInfo
+                )
             } else {
                 SecondaryResultDetailScreen(
                     result = openMetaResult,
