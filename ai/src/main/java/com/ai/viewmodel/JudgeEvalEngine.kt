@@ -418,6 +418,31 @@ class JudgeEvalEngine internal constructor(
         AppLog.i("JudgeEval", "Removed judge $providerId/$model from swarm '$swarmName'")
     }
 
+    /** Drop a judge (provider/model) from the current run on [reportId]:
+     *  cancel its in-flight cells, delete its rows, roll their spend into the
+     *  deleted-items tally, drop them from the run state, and recompute the
+     *  agreement aggregate over the remaining judges. */
+    fun deleteJudgeFromRun(context: Context, reportId: String, providerId: String, model: String): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[reportId] ?: return@launch
+            val judgeKey = "$providerId/$model"
+            val cells = run.cells.values.filter { it.judgeKey == judgeKey }
+            if (cells.isEmpty()) return@launch
+            val costDelta = cells.sumOf { it.totalCost }
+            cells.forEach { c ->
+                cellJobs[c.id]?.cancelAndJoin()
+                SecondaryResultStorage.delete(context, reportId, c.id)
+            }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+            _runs.update { runs ->
+                val r = runs[reportId] ?: return@update runs
+                runs + (reportId to r.copy(cells = r.cells.filterValues { it.judgeKey != judgeKey }))
+            }
+            recomputeAndPersistAggregate(context, reportId)
+            ReportStorage.bumpReportTimestamp(context, reportId)
+            AppLog.i("JudgeEval", "Removed judge $judgeKey from run on $reportId (${cells.size} cells)")
+        }
+
     // -----------------------------------------------------------------
     // Failure / rerun / delete
     // -----------------------------------------------------------------

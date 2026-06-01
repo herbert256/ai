@@ -231,13 +231,14 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
         val mdl = cell?.judgeModel ?: jk.substringAfterLast('/')
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmDeleteJudge = null },
-            title = { Text("Remove judge from swarm?") },
+            title = { Text("Remove judge?") },
             text = {
-                Text("Remove ${shortModelName(mdl)} from the workers swarm? Future Judge-the-judges runs and Tournaments will no longer use it. This run's data is kept.")
+                Text("Remove ${shortModelName(mdl)} from this batch AND from the judges' swarm? Its verdicts are deleted from this run, and future Tournaments / Judge-the-judges runs will no longer use it.")
             },
             confirmButton = {
                 androidx.compose.material3.TextButton(onClick = {
                     engine.removeJudgeFromSwarm(prov, mdl)
+                    engine.deleteJudgeFromRun(context, reportId, prov, mdl)
                     confirmDeleteJudge = null
                     level = 1
                 }) { Text("Remove") }
