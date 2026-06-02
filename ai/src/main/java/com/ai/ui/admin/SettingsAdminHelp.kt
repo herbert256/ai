@@ -126,6 +126,14 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Live updates", "Changing a cap takes effect immediately for any new dispatch — calls already in flight keep running on their original permit and release it normally. No restart needed.")
         )
     ),
+    "settings_network_per_provider" to HelpContent(
+        title = "Help - Per provider",
+        cards = listOf(
+            HelpCard("Overview", "One row per registered provider with the same two throttle overrides that live on each provider's own edit screen: max calls per minute and max concurrent calls. This screen just gathers them in one place so you can tune the whole fleet without opening every provider."),
+            HelpCard("Blank = inherit", "A blank field inherits the global default from the Network settings screen. Type a number to override that default for the one provider; clear it with the ✕ at the field's right to fall back to the global value."),
+            HelpCard("Autosave", "Every edit writes straight into the provider registry — there's no save button. The per-host rate limiter and semaphore pick up the new caps on the next API call.")
+        )
+    ),
     "settings_ui" to HelpContent(
         title = "Help - UI tweaks",
         cards = listOf(

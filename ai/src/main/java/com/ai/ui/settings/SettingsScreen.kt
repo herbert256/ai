@@ -62,6 +62,7 @@ enum class SettingsSubScreen {
     // its own help topic and renders only the cards from its bucket.
     SETTINGS_NETWORK,
     SETTINGS_NETWORK_API_CALLS,
+    SETTINGS_NETWORK_PER_PROVIDER,
     SETTINGS_UI,
     SETTINGS_UI_COLORS,
     SETTINGS_LOGGING,
@@ -276,7 +277,8 @@ fun SettingsScreen(
             SettingsSubScreen.AI_DEFAULT_META_ITEMS -> currentSubScreen = SettingsSubScreen.SETTINGS_AUTOSTART
             SettingsSubScreen.SETTINGS_METADATA -> currentSubScreen = SettingsSubScreen.MAIN
             SettingsSubScreen.SETTINGS_DEFAULT_ICONS -> currentSubScreen = SettingsSubScreen.MAIN
-            SettingsSubScreen.SETTINGS_NETWORK_API_CALLS ->
+            SettingsSubScreen.SETTINGS_NETWORK_API_CALLS,
+            SettingsSubScreen.SETTINGS_NETWORK_PER_PROVIDER ->
                 currentSubScreen = SettingsSubScreen.SETTINGS_NETWORK
         }
     }
@@ -301,6 +303,7 @@ fun SettingsScreen(
         SettingsSubScreen.MAIN,
         SettingsSubScreen.SETTINGS_NETWORK,
         SettingsSubScreen.SETTINGS_NETWORK_API_CALLS,
+        SettingsSubScreen.SETTINGS_NETWORK_PER_PROVIDER,
         SettingsSubScreen.SETTINGS_UI,
         SettingsSubScreen.SETTINGS_UI_COLORS,
         SettingsSubScreen.SETTINGS_LOGGING,
@@ -790,6 +793,9 @@ fun SettingsScreen(
                 onBack = goBack, onNavigateHome = onNavigateHome
             )
         }
+        SettingsSubScreen.SETTINGS_NETWORK_PER_PROVIDER -> {
+            PerProviderThrottlingSubScreen(onBack = goBack)
+        }
         SettingsSubScreen.SETTINGS_UI -> {
             UiTweaksSubScreen(
                 generalSettings = generalSettings, onSave = onSaveGeneral,
@@ -1126,6 +1132,11 @@ private fun NetworkSettingsSubScreen(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )
+                OutlinedButton(
+                    onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_NETWORK_PER_PROVIDER) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = AppColors.outlinedButtonColors()
+                ) { Text("Per provider") }
             }
             SettingCard(
                 "429 error handling",
@@ -1305,6 +1316,100 @@ private fun MaximalApiCallsSubScreen(
                     label = { Text("Concurrent Test all models calls") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+        }
+    }
+}
+
+/** Per-provider throttle overrides as a single list. One row per
+ *  registered provider, each with the two override fields that also
+ *  live on the provider's own edit screen
+ *  ([com.ai.data.AppService.maxCallsPerProviderPerMinute] /
+ *  [maxConcurrentCallsPerProvider]). Blank = inherit the global
+ *  default; a value autosaves straight into [ProviderRegistry] on
+ *  every edit. The ✕ at the field's right clears that override. */
+@Composable
+private fun PerProviderThrottlingSubScreen(onBack: () -> Unit) {
+    val providers = remember {
+        com.ai.data.ProviderRegistry.getAll().sortedBy { it.id.lowercase() }
+    }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(
+            helpTopic = "settings_network_per_provider",
+            title = "Per provider", subject = "Per-provider throttle overrides",
+            onBackClick = onBack
+        )
+        Column(
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "Blank fields inherit the global defaults set on the Network settings screen. Any value here overrides that default for the one provider.",
+                fontSize = 12.sp, color = AppColors.TextSecondary,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            providers.forEach { service ->
+                PerProviderThrottleRow(service)
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+}
+
+/** One provider's two throttle-override fields. State is local; each
+ *  edit re-reads the live registry entry and writes the changed pair
+ *  back so a concurrent field edit elsewhere can't be clobbered. */
+@Composable
+private fun PerProviderThrottleRow(service: AppService) {
+    var callsText by remember(service.id) {
+        mutableStateOf(service.maxCallsPerProviderPerMinute?.toString() ?: "")
+    }
+    var concText by remember(service.id) {
+        mutableStateOf(service.maxConcurrentCallsPerProvider?.toString() ?: "")
+    }
+    fun persist() {
+        val live = com.ai.data.ProviderRegistry.findById(service.id) ?: return
+        com.ai.data.ProviderRegistry.update(
+            live.copy(
+                maxCallsPerProviderPerMinute = callsText.trim().toIntOrNull()?.takeIf { it > 0 },
+                maxConcurrentCallsPerProvider = concText.trim().toIntOrNull()?.takeIf { it > 0 }
+            )
+        )
+    }
+    Card(
+        colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(service.id, fontWeight = FontWeight.Bold, color = Color.White)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = callsText,
+                    onValueChange = { callsText = it.filter { ch -> ch.isDigit() }; persist() },
+                    label = { Text("Calls/min", fontSize = 12.sp) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true, colors = AppColors.outlinedFieldColors(),
+                    trailingIcon = {
+                        if (callsText.isNotEmpty()) IconButton(onClick = { callsText = ""; persist() }) {
+                            Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.TextTertiary, fontSize = 12.sp)
+                        }
+                    }
+                )
+                OutlinedTextField(
+                    value = concText,
+                    onValueChange = { concText = it.filter { ch -> ch.isDigit() }; persist() },
+                    label = { Text("Concurrent", fontSize = 12.sp) },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true, colors = AppColors.outlinedFieldColors(),
+                    trailingIcon = {
+                        if (concText.isNotEmpty()) IconButton(onClick = { concText = ""; persist() }) {
+                            Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.TextTertiary, fontSize = 12.sp)
+                        }
+                    }
                 )
             }
         }
