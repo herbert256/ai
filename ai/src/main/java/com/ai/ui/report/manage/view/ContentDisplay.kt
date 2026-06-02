@@ -274,7 +274,12 @@ private fun ReportsViewerScreenLoaded(
         }
     }
     val translates = translatesState.value
-    val langTabs = remember(translates) { buildLangTabs(translates) }
+    // Pass originalAlias so a back-translation TO the report's own detected
+    // language folds into the Original tab instead of surfacing as a
+    // duplicate tab — matching the View screen (Main.kt).
+    val langTabs = remember(translates, report.languageName) {
+        buildLangTabs(translates, originalAlias = report.languageName)
+    }
     // pickerLangKey holds the local picker state used in non-locked
     // mode (Report - Manage path). When forcedLanguage is non-null
     // the View page is locking us to a specific language and the
@@ -407,8 +412,11 @@ private fun ReportsViewerScreenLoaded(
                 // Only show language tabs that actually have a prompt
                 // translation. Original is always available — the
                 // source prompt is what the report was started from.
-                val promptLangTabs = remember(translates) {
-                    buildLangTabs(translates.filter { it.translateSourceKind == "PROMPT" })
+                val promptLangTabs = remember(translates, report.languageName) {
+                    buildLangTabs(
+                        translates.filter { it.translateSourceKind == "PROMPT" },
+                        originalAlias = report.languageName
+                    )
                 }
                 LaunchedEffect(promptLangTabs) {
                     if (promptLangTabs.none { it.key == pickerLangKey }) pickerLangKey = LangTab.ORIGINAL_KEY
