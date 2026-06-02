@@ -1033,8 +1033,14 @@ class SecondaryRunManager(
                 // tends to mirror the title's language in its reply.
                 val seedTitle = lookupLanguageTranslations(report, allSecondaries, seedLang.first)?.title
                     ?: (report.title ?: "")
+                // Use the report-language translation of this meta prompt
+                // when one is bundled (English / unknown keeps the editable
+                // text); the body is otherwise identical.
+                val localizedTemplate = com.ai.data.InternalPromptSeed.bodyForReportLanguage(
+                    context, report.languageName, metaPrompt
+                )
                 val resolvedPrompt = resolveSecondaryPrompt(
-                    metaPrompt.text, question = translatedPrompt, results = resultsBlock,
+                    localizedTemplate, question = translatedPrompt, results = resultsBlock,
                     count = successfulCount, title = seedTitle
                 )
                 // Pre-create placeholders so we know each row's id up
