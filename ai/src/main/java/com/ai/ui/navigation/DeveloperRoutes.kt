@@ -175,7 +175,7 @@ internal fun NavGraphBuilder.developerRoutes(
                 },
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onOpenProvider = { pid -> navController.navigate(NavRoutes.aiUsageProvider(pid)) },
-                onOpenType = { prefix -> navController.navigate(NavRoutes.aiUsageType(prefix)) },
+                onOpenType = { prefix -> navController.navigate(NavRoutes.aiUsageTypeGroup(prefix)) },
                 onNavigateToStatistics = toStatistics,
                 onNavigateToTraceProvider = { pid -> navController.navigate(NavRoutes.traceListFiltered(provider = pid)) },
                 onNavigateToTraceCategory = { category -> navController.navigate(NavRoutes.traceListFiltered(category = category)) },
@@ -194,6 +194,15 @@ internal fun NavGraphBuilder.developerRoutes(
                 providerId = pid,
                 onBack = safePopBack, onNavigateHome = navigateHome,
                 onNavigateToModelInfo = { p, m -> navController.navigate(NavRoutes.aiModelInfo(p.id, m)) },
+                onNavigateToStatistics = toStatistics)
+        }
+        monitorComposable(NavRoutes.AI_USAGE_TYPE_GROUP, monitorNav) { entry ->
+            val prefix = try { java.net.URLDecoder.decode(entry.arguments?.getString("groupPrefix") ?: "", "UTF-8") } catch (_: Exception) { "" }
+            AiSpendUsageTypeGroupScreen(
+                groupPrefix = prefix,
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                onOpenType = { category -> navController.navigate(NavRoutes.aiUsageType(category)) },
+                onNavigateToTraceCategory = { category -> navController.navigate(NavRoutes.traceListFiltered(category = category)) },
                 onNavigateToStatistics = toStatistics)
         }
         monitorComposable(NavRoutes.AI_USAGE_TYPE, monitorNav) { entry ->

@@ -109,6 +109,7 @@ object NavRoutes {
     const val AI_STAT_PROVIDERS = "ai_stat_providers"
     const val AI_STAT_MODELS = "ai_stat_models"
     const val AI_USAGE_PROVIDER = "ai_usage_provider/{providerId}"
+    const val AI_USAGE_TYPE_GROUP = "ai_usage_type_group/{groupPrefix}"
     const val AI_USAGE_TYPE = "ai_usage_type/{typePrefix}"
     const val AI_TRACE_STATS = "ai_trace_stats"
     const val AI_TRACE_BREAKDOWN = "ai_trace_breakdown/{dim}"
@@ -201,6 +202,7 @@ object NavRoutes {
     }
     fun aiTraceBreakdown(dim: String) = "ai_trace_breakdown/$dim"
     fun aiUsageProvider(providerId: String) = "ai_usage_provider/${encode(providerId)}"
+    fun aiUsageTypeGroup(groupPrefix: String) = "ai_usage_type_group/${encode(groupPrefix)}"
     fun aiUsageType(typePrefix: String) = "ai_usage_type/${encode(typePrefix)}"
     fun aiModelInfo(provider: String, model: String) = "ai_model_info/$provider/${encode(model)}"
     fun aiModelInfoView(provider: String, model: String) = "ai_model_info_view/$provider/${encode(model)}"
