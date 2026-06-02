@@ -1313,8 +1313,11 @@ class SecondaryRunManager(
         val duration = System.currentTimeMillis() - start
         val pricing = PricingCache.getPricing(context, provider, model)
         val tu = response.tokenUsage
-        val inCost = tu?.let { it.inputTokens * pricing.promptPrice }
-        val outCost = tu?.let { it.outputTokens * pricing.completionPrice }
+        // Use the same cost model as the report + moderation paths:
+        // computeInOutCost honours cached-read / cache-creation rates, the
+        // above-200k input tier, and a provider-reported apiCost. The old
+        // naive inputTokens*promptPrice ignored all three.
+        val (inCost, outCost) = tu?.let { PricingCache.computeInOutCost(it, pricing) } ?: (null to null)
 
         // For chat-type Meta prompts with reference=true, append the
         // deterministic legend so each [N] in the model's prose has a
