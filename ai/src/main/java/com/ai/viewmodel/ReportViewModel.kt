@@ -910,6 +910,17 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
             ?.any { it.agentId == task.resultId } == true
         if (!stillPresent) {
             AppLog.d("Report", "skip UI publish for deleted agent=${task.resultId} report=$reportId")
+            // The agent was removed mid-run, but its slot was counted into the
+            // fixed genericReportsTotal at launch. Skip publishing its result,
+            // but STILL bump progress — otherwise reportsProgress can never
+            // reach reportsTotal, isComplete stays false forever, and the
+            // report is stuck showing 'generating' (KEEP_SCREEN_ON on, no
+            // completion toast).
+            if (!isRegeneration && !headless) {
+                appViewModel.updateUiState { state ->
+                    state.copy(genericReportsProgress = state.genericReportsProgress + 1)
+                }
+            }
             return
         }
         if (!headless) _agentResults.update { it + (task.resultId to response) }
