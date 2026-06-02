@@ -171,6 +171,12 @@ data class GeneralSettings(
      *  the plain text type label; already-cached entries stay on disk
      *  for re-enable. */
     val useInternalPromptsIcons: Boolean = true,
+    /** Master gate for every autostart item. When false (default) the app
+     *  never autostarts anything when a report finishes — auto Rerank /
+     *  Moderation and the Default meta items are all skipped — and the
+     *  per-item autostart settings are hidden. Flip on to reveal and
+     *  enable them. */
+    val autostartItemsEnabled: Boolean = false,
     /** When true (default), finishing a Fan Out run with no errored pairs
      *  automatically kicks off that run's Fan Meta batch (one call per
      *  pair produces both title and icon) — no need to tap the Fan Meta

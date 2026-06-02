@@ -1995,14 +1995,16 @@ private fun AutostartSubScreen(
     onNavigateHome: () -> Unit,
     onOpenDefaultMetaItems: () -> Unit
 ) {
+    var autostartItemsEnabled by remember { mutableStateOf(generalSettings.autostartItemsEnabled) }
     var autoCreateRerankAndModeration by remember { mutableStateOf(generalSettings.autoCreateRerankAndModeration) }
     var autostartFanMeta by remember { mutableStateOf(generalSettings.autostartFanMeta) }
 
     fun build(): GeneralSettings = generalSettings.copy(
+        autostartItemsEnabled = autostartItemsEnabled,
         autoCreateRerankAndModeration = autoCreateRerankAndModeration,
         autostartFanMeta = autostartFanMeta
     )
-    LaunchedEffect(autoCreateRerankAndModeration, autostartFanMeta) {
+    LaunchedEffect(autostartItemsEnabled, autoCreateRerankAndModeration, autostartFanMeta) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -2022,25 +2024,34 @@ private fun AutostartSubScreen(
         TitleBar(helpTopic = "settings_autostart", title = "Autostart", subject = "What runs automatically when a report finishes", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ToggleSettingCard(
-                title = "Auto create Rerank and Moderation",
-                description = "When a report's models all finish, automatically create one Rerank and one Moderation — each using the first rerank- / moderation-capable model found among your active providers. A kind is skipped when no capable model exists or one is already present. Manual Rerank / Moderation still lets you pick the model.",
-                icon = MetadataDefaults.REPEAT,
-                checked = autoCreateRerankAndModeration,
-                onCheckedChange = { autoCreateRerankAndModeration = it }
+                title = "Autostart items",
+                description = "Master switch for everything that runs by itself when a report finishes. Off (default) means the app never autostarts anything and the per-item options below stay hidden. Turn it on to reveal and configure them.",
+                icon = MetadataDefaults.ROCKET,
+                checked = autostartItemsEnabled,
+                onCheckedChange = { autostartItemsEnabled = it }
             )
-            ToggleSettingCard(
-                title = "Autostart Fan Meta",
-                description = "When a Fan Out finishes with no errored pairs, automatically kick off its Fan Meta batch (one call per pair produces both the title and the icon) — so you don't have to tap the Fan Meta button by hand. A run with any error pair is left alone; you can still start it manually.",
-                icon = MetadataDefaults.FAN_OUT,
-                checked = autostartFanMeta,
-                onCheckedChange = { autostartFanMeta = it }
-            )
-            SettingsNavCard(
-                icon = MetadataDefaults.FAN_IN,
-                title = "Default meta items",
-                description = "Meta prompts auto-run when a report finishes (${aiSettings.defaultMetaItems.size}).",
-                onClick = onOpenDefaultMetaItems
-            )
+            if (autostartItemsEnabled) {
+                ToggleSettingCard(
+                    title = "Auto create Rerank and Moderation",
+                    description = "When a report's models all finish, automatically create one Rerank and one Moderation — each using the first rerank- / moderation-capable model found among your active providers. A kind is skipped when no capable model exists or one is already present. Manual Rerank / Moderation still lets you pick the model.",
+                    icon = MetadataDefaults.REPEAT,
+                    checked = autoCreateRerankAndModeration,
+                    onCheckedChange = { autoCreateRerankAndModeration = it }
+                )
+                ToggleSettingCard(
+                    title = "Autostart Fan Meta",
+                    description = "When a Fan Out finishes with no errored pairs, automatically kick off its Fan Meta batch (one call per pair produces both the title and the icon) — so you don't have to tap the Fan Meta button by hand. A run with any error pair is left alone; you can still start it manually.",
+                    icon = MetadataDefaults.FAN_OUT,
+                    checked = autostartFanMeta,
+                    onCheckedChange = { autostartFanMeta = it }
+                )
+                SettingsNavCard(
+                    icon = MetadataDefaults.FAN_IN,
+                    title = "Default meta items",
+                    description = "Meta prompts auto-run when a report finishes (${aiSettings.defaultMetaItems.size}).",
+                    onClick = onOpenDefaultMetaItems
+                )
+            }
         }
     }
 }

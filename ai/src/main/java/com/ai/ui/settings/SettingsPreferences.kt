@@ -109,6 +109,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             perModelIconGenEnabled = prefs.getBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, true),
             perModelTitleGenEnabled = prefs.getBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, true),
             useInternalPromptsIcons = prefs.getBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, true),
+            autostartItemsEnabled = prefs.getBoolean(KEY_AUTOSTART_ITEMS_ENABLED, false),
             autostartFanMeta = prefs.getBoolean(KEY_AUTOSTART_FAN_META, true),
             autoCreateRerankAndModeration = prefs.getBoolean(KEY_AUTO_CREATE_RERANK_MODERATION, true),
             metadataIcons = metadataIcons,
@@ -181,6 +182,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putBoolean(KEY_PER_MODEL_ICON_GEN_ENABLED, settings.perModelIconGenEnabled)
             putBoolean(KEY_PER_MODEL_TITLE_GEN_ENABLED, settings.perModelTitleGenEnabled)
             putBoolean(KEY_USE_INTERNAL_PROMPTS_ICONS, settings.useInternalPromptsIcons)
+            putBoolean(KEY_AUTOSTART_ITEMS_ENABLED, settings.autostartItemsEnabled)
             putBoolean(KEY_AUTOSTART_FAN_META, settings.autostartFanMeta)
             putBoolean(KEY_AUTO_CREATE_RERANK_MODERATION, settings.autoCreateRerankAndModeration)
             putString(KEY_METADATA_ICONS, gson.toJson(settings.metadataIcons))
@@ -1000,6 +1002,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_PER_MODEL_ICON_GEN_ENABLED = "per_model_icon_gen_enabled"
         private const val KEY_PER_MODEL_TITLE_GEN_ENABLED = "per_model_title_gen_enabled"
         private const val KEY_USE_INTERNAL_PROMPTS_ICONS = "use_internal_prompts_icons"
+        private const val KEY_AUTOSTART_ITEMS_ENABLED = "autostart_items_enabled"
         private const val KEY_AUTOSTART_FAN_META = "autostart_fan_meta"
         private const val KEY_AUTO_CREATE_RERANK_MODERATION = "auto_create_rerank_moderation"
         private const val KEY_METADATA_ICONS = "metadata_icons"

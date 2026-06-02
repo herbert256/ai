@@ -345,6 +345,7 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("perModelIconGenEnabled", g.perModelIconGenEnabled)
     addProperty("perModelTitleGenEnabled", g.perModelTitleGenEnabled)
     addProperty("useInternalPromptsIcons", g.useInternalPromptsIcons)
+    addProperty("autostartItemsEnabled", g.autostartItemsEnabled)
     addProperty("autostartFanMeta", g.autostartFanMeta)
     add("metadataIcons", createAppGson().toJsonTree(g.metadataIcons))
     // App-wide / report-model default prompt + params.
@@ -446,6 +447,7 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         perModelIconGenEnabled = bool("perModelIconGenEnabled") ?: current.perModelIconGenEnabled,
         perModelTitleGenEnabled = bool("perModelTitleGenEnabled") ?: current.perModelTitleGenEnabled,
         useInternalPromptsIcons = bool("useInternalPromptsIcons") ?: current.useInternalPromptsIcons,
+        autostartItemsEnabled = bool("autostartItemsEnabled") ?: current.autostartItemsEnabled,
         autostartFanMeta = bool("autostartFanMeta") ?: current.autostartFanMeta,
         metadataIcons = metadataIcons ?: current.metadataIcons,
         appWideSystemPromptId = if (obj.has("appWideSystemPromptId")) str("appWideSystemPromptId") else current.appWideSystemPromptId,

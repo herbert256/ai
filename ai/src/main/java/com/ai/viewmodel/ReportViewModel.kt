@@ -700,6 +700,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private fun maybeAutoCreateSecondaries(
         context: Context, reportId: String, aiSettings: Settings, successCount: Int
     ) {
+        if (!appViewModel.uiState.value.generalSettings.autostartItemsEnabled) return
         if (!appViewModel.uiState.value.generalSettings.autoCreateRerankAndModeration) return
         if (successCount < 1) return  // nothing to rank / moderate
         val hasKind = { k: SecondaryKind ->
@@ -738,6 +739,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     private fun maybeAutoCreateDefaultMetas(
         context: Context, reportId: String, aiSettings: Settings, successCount: Int
     ) {
+        if (!appViewModel.uiState.value.generalSettings.autostartItemsEnabled) return
         if (successCount < 1) return
         val items = aiSettings.defaultMetaItems
         if (items.isEmpty()) return
