@@ -186,6 +186,7 @@ internal fun NavGraphBuilder.developerRoutes(
                         navController.navigate(NavRoutes.aiReportManage(ManagePickKind.COSTS.arg))
                     }
                 },
+                onNavigateToTraceReport = { reportId -> navController.navigate(NavRoutes.traceListForReport(reportId)) },
                 onHousekeeping = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) })
         }
         monitorComposable(NavRoutes.AI_USAGE_PROVIDER, monitorNav) { entry ->

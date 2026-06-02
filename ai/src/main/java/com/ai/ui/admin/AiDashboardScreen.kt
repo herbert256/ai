@@ -1185,6 +1185,8 @@ fun AiSpendUsageScreen(
     onNavigateToTraceCategory: (String) -> Unit = {},
     /** Report row → selected report's Costs section. */
     onOpenReportCosts: (String) -> Unit = {},
+    /** 🐞 on a report row → the API Traces scoped to that report. */
+    onNavigateToTraceReport: (String) -> Unit = {},
     onHousekeeping: (() -> Unit)? = null,
 ) {
     BackHandler { onBack() }
@@ -1218,6 +1220,9 @@ fun AiSpendUsageScreen(
     // thread; getTraceFiles is cached after the first parse.
     val tracedProviders by produceState(emptySet<String>(), refreshTick) {
         value = withContext(Dispatchers.IO) { ApiTracer.getTraceFiles().map { providerLabelForHost(it.hostname) }.toSet() }
+    }
+    val tracedReports by produceState(emptySet<String>(), refreshTick) {
+        value = withContext(Dispatchers.IO) { ApiTracer.getTraceFiles().mapNotNull { it.reportId }.toSet() }
     }
 
     Column(
@@ -1274,6 +1279,8 @@ fun AiSpendUsageScreen(
                             if (sortCol == col) sortAsc = !sortAsc else { sortCol = col; sortAsc = false }
                         },
                         onOpenReportCosts = onOpenReportCosts,
+                        tracedReports = tracedReports,
+                        onNavigateToTraceReport = onNavigateToTraceReport,
                     )
                     SpendUsageMode.MODELS -> SpendUsageModelsTab(
                         data = d,
@@ -1500,6 +1507,8 @@ private fun ColumnScope.SpendUsageReportsTab(
     sortAsc: Boolean,
     onSort: (UsageSort) -> Unit,
     onOpenReportCosts: (String) -> Unit,
+    tracedReports: Set<String>,
+    onNavigateToTraceReport: (String) -> Unit,
 ) {
     if (data.reportRows.isEmpty()) {
         Text(
@@ -1539,7 +1548,12 @@ private fun ColumnScope.SpendUsageReportsTab(
                 Text(formatCompactNumber(row.tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
                 Spacer(Modifier.width(cGap))
                 Text(cents(row.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
-                Spacer(Modifier.width(cBugGap + cBug))
+                Spacer(Modifier.width(cBugGap))
+                Box(Modifier.width(cBug), contentAlignment = Alignment.Center) {
+                    if (row.reportId in tracedReports) {
+                        Text(com.ai.ui.shared.LocalMetadataIcons.current.traces, fontSize = 13.sp, modifier = Modifier.clickable { onNavigateToTraceReport(row.reportId) })
+                    }
+                }
             }
             HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.width(tableWidth))
         }
