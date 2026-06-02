@@ -848,7 +848,12 @@ object ReportStorage {
             // Additive cost / token writes (see updateAgentStatus).
             val updated = report.copy(
                 languageIcon = icon,
-                languageIconModel = model,
+                // Preserve the prior attribution when this write carries no
+                // model (a 7-day MetaCache hit or the no-icon-prompt fallback
+                // pass null) — otherwise re-detecting a cached language would
+                // wipe "which model picked this", like languageIconPromptUsed
+                // / DurationMs below.
+                languageIconModel = model ?: report.languageIconModel,
                 languageIconErrorMessage = null,
                 languageIconInputTokens = report.languageIconInputTokens + inputTokens,
                 languageIconOutputTokens = report.languageIconOutputTokens + outputTokens,
