@@ -2260,8 +2260,12 @@ class IconGenerationManager(
                                     // emoji directly — language name was
                                     // fixed by the detection call, the
                                     // user is re-picking the emoji only.
-                                    val emoji = extractFirstEmoji(response.analysis.orEmpty())
-                                        ?: response.analysis?.trim().orEmpty().take(8)
+                                    // Only a parsed emoji counts as a candidate
+                                    // — never raw sliced prose (take(8) could
+                                    // cut a multi-codepoint emoji mid-sequence
+                                    // and let prose become a "pick"). Same fix
+                                    // already applied to the report-icon fan-out.
+                                    val emoji = extractFirstEmoji(response.analysis.orEmpty()).orEmpty()
                                     val tu = response.tokenUsage
                                     val pricing = PricingCache.getPricing(context, item.provider, item.model)
                                     val inT = tu?.inputTokens ?: 0
