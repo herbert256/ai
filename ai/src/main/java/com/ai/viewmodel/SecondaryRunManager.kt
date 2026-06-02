@@ -594,7 +594,14 @@ class SecondaryRunManager(
                         com.ai.data.SecondaryScope.AllReports -> null
                         is com.ai.data.SecondaryScope.TopRanked -> {
                             val rerank = SecondaryResultStorage.get(context, reportId, scope.rerankResultId)
-                            com.ai.data.extractTopRankedIds(rerank?.content, scope.count)?.toSet()
+                            val ids = com.ai.data.extractTopRankedIds(rerank?.content, scope.count)
+                            // Clamp stale 1-based positions to the current
+                            // successful count — same as runMetaPrompt — so a
+                            // removed agent can't leave an out-of-range id that
+                            // inflates @COUNT@ above the emitted result blocks.
+                            val nSuccess = report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                            val valid = ids?.filter { it in 1..nSuccess }
+                            if (valid.isNullOrEmpty()) null else valid.toSet()
                         }
                         is com.ai.data.SecondaryScope.Manual -> {
                             val successful = report.agents.filter {
