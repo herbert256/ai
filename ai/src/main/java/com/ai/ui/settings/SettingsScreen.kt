@@ -2033,6 +2033,7 @@ private fun MetadataSettingsSubScreen(
  *  immutable data class, and the [factory] glyph a blank field falls back to. */
 private class IconRowSpec(
     val label: String,
+    val field: String,
     val get: (com.ai.data.MetadataIcons) -> String,
     val set: (com.ai.data.MetadataIcons, String) -> com.ai.data.MetadataIcons,
     val factory: String,
@@ -2047,209 +2048,209 @@ private val DEFAULT_ICON_SECTIONS: List<Pair<String, List<IconRowSpec>>> = run {
     val d = com.ai.data.MetadataDefaults
     listOf(
         "Report" to listOf(
-            IconRowSpec("Report", { it.reportIcon }, { m, v -> m.copy(reportIcon = v) }, d.REPORT_ICON),
-            IconRowSpec("Report model", { it.reportModelIcon }, { m, v -> m.copy(reportModelIcon = v) }, d.MODEL_ICON),
+            IconRowSpec("Report", "reportIcon", { it.reportIcon }, { m, v -> m.copy(reportIcon = v) }, d.REPORT_ICON),
+            IconRowSpec("Report model", "reportModelIcon", { it.reportModelIcon }, { m, v -> m.copy(reportModelIcon = v) }, d.MODEL_ICON),
         ),
         "Secondary results" to listOf(
-            IconRowSpec("Rerank", { it.rerank }, { m, v -> m.copy(rerank = v) }, d.RERANK),
-            IconRowSpec("Moderate", { it.moderate }, { m, v -> m.copy(moderate = v) }, d.MODERATE),
-            IconRowSpec("Meta", { it.meta }, { m, v -> m.copy(meta = v) }, d.META),
-            IconRowSpec("Tournament", { it.tournament }, { m, v -> m.copy(tournament = v) }, d.TOURNAMENT),
-            IconRowSpec("Judges", { it.judges }, { m, v -> m.copy(judges = v) }, d.JUDGES),
-            IconRowSpec("Compare", { it.compare }, { m, v -> m.copy(compare = v) }, d.COMPARE),
-            IconRowSpec("Fan out", { it.fanOutRow }, { m, v -> m.copy(fanOutRow = v) }, d.FAN_OUT),
-            IconRowSpec("Fan in", { it.fanInRow }, { m, v -> m.copy(fanInRow = v) }, d.FAN_IN),
+            IconRowSpec("Rerank", "rerank", { it.rerank }, { m, v -> m.copy(rerank = v) }, d.RERANK),
+            IconRowSpec("Moderate", "moderate", { it.moderate }, { m, v -> m.copy(moderate = v) }, d.MODERATE),
+            IconRowSpec("Meta", "meta", { it.meta }, { m, v -> m.copy(meta = v) }, d.META),
+            IconRowSpec("Tournament", "tournament", { it.tournament }, { m, v -> m.copy(tournament = v) }, d.TOURNAMENT),
+            IconRowSpec("Judges", "judges", { it.judges }, { m, v -> m.copy(judges = v) }, d.JUDGES),
+            IconRowSpec("Compare", "compare", { it.compare }, { m, v -> m.copy(compare = v) }, d.COMPARE),
+            IconRowSpec("Fan out", "fanOutRow", { it.fanOutRow }, { m, v -> m.copy(fanOutRow = v) }, d.FAN_OUT),
+            IconRowSpec("Fan in", "fanInRow", { it.fanInRow }, { m, v -> m.copy(fanInRow = v) }, d.FAN_IN),
         ),
         "Translation" to listOf(
-            IconRowSpec("Language", { it.languageIcon }, { m, v -> m.copy(languageIcon = v) }, d.LANGUAGE),
-            IconRowSpec("Translation row", { it.translationRow }, { m, v -> m.copy(translationRow = v) }, d.TRANSLATE),
-            IconRowSpec("Translation compare", { it.translationCompare }, { m, v -> m.copy(translationCompare = v) }, d.TRANSLATION_COMPARE),
+            IconRowSpec("Language", "languageIcon", { it.languageIcon }, { m, v -> m.copy(languageIcon = v) }, d.LANGUAGE),
+            IconRowSpec("Translation row", "translationRow", { it.translationRow }, { m, v -> m.copy(translationRow = v) }, d.TRANSLATE),
+            IconRowSpec("Translation compare", "translationCompare", { it.translationCompare }, { m, v -> m.copy(translationCompare = v) }, d.TRANSLATION_COMPARE),
         ),
         "Monitor bar" to listOf(
-            IconRowSpec("Live dashboard", { it.liveDashboard }, { m, v -> m.copy(liveDashboard = v) }, d.LIVE_DASHBOARD),
-            IconRowSpec("Traces", { it.traces }, { m, v -> m.copy(traces = v) }, d.TRACES),
-            IconRowSpec("App log", { it.appLog }, { m, v -> m.copy(appLog = v) }, d.APP_LOG),
-            IconRowSpec("Audit", { it.audit }, { m, v -> m.copy(audit = v) }, d.AUDIT),
-            IconRowSpec("Statistics (monitor)", { it.statisticsMonitor }, { m, v -> m.copy(statisticsMonitor = v) }, d.STATISTICS_MONITOR),
+            IconRowSpec("Live dashboard", "liveDashboard", { it.liveDashboard }, { m, v -> m.copy(liveDashboard = v) }, d.LIVE_DASHBOARD),
+            IconRowSpec("Traces", "traces", { it.traces }, { m, v -> m.copy(traces = v) }, d.TRACES),
+            IconRowSpec("App log", "appLog", { it.appLog }, { m, v -> m.copy(appLog = v) }, d.APP_LOG),
+            IconRowSpec("Audit", "audit", { it.audit }, { m, v -> m.copy(audit = v) }, d.AUDIT),
+            IconRowSpec("Statistics (monitor)", "statisticsMonitor", { it.statisticsMonitor }, { m, v -> m.copy(statisticsMonitor = v) }, d.STATISTICS_MONITOR),
         ),
         "Create & chat" to listOf(
-            IconRowSpec("Add / new", { it.add }, { m, v -> m.copy(add = v) }, d.ADD),
-            IconRowSpec("Chat", { it.chat }, { m, v -> m.copy(chat = v) }, d.CHAT),
-            IconRowSpec("Agent chat", { it.agentChat }, { m, v -> m.copy(agentChat = v) }, d.AGENT_CHAT),
-            IconRowSpec("Temperature sweep", { it.temperatureSweep }, { m, v -> m.copy(temperatureSweep = v) }, d.TEMPERATURE_SWEEP),
-            IconRowSpec("Reasoning sweep", { it.reasoningSweep }, { m, v -> m.copy(reasoningSweep = v) }, d.REASONING_SWEEP),
-            IconRowSpec("Web-search replay", { it.webSearchReplay }, { m, v -> m.copy(webSearchReplay = v) }, d.WEB_SEARCH_REPLAY),
+            IconRowSpec("Add / new", "add", { it.add }, { m, v -> m.copy(add = v) }, d.ADD),
+            IconRowSpec("Chat", "chat", { it.chat }, { m, v -> m.copy(chat = v) }, d.CHAT),
+            IconRowSpec("Agent chat", "agentChat", { it.agentChat }, { m, v -> m.copy(agentChat = v) }, d.AGENT_CHAT),
+            IconRowSpec("Temperature sweep", "temperatureSweep", { it.temperatureSweep }, { m, v -> m.copy(temperatureSweep = v) }, d.TEMPERATURE_SWEEP),
+            IconRowSpec("Reasoning sweep", "reasoningSweep", { it.reasoningSweep }, { m, v -> m.copy(reasoningSweep = v) }, d.REASONING_SWEEP),
+            IconRowSpec("Web-search replay", "webSearchReplay", { it.webSearchReplay }, { m, v -> m.copy(webSearchReplay = v) }, d.WEB_SEARCH_REPLAY),
         ),
         "Navigation" to listOf(
-            IconRowSpec("Pick report", { it.pickReport }, { m, v -> m.copy(pickReport = v) }, d.PICK_REPORT),
-            IconRowSpec("Open manage", { it.openManage }, { m, v -> m.copy(openManage = v) }, d.OPEN_MANAGE),
-            IconRowSpec("Housekeeping", { it.housekeeping }, { m, v -> m.copy(housekeeping = v) }, d.HOUSEKEEPING),
-            IconRowSpec("Settings", { it.settings }, { m, v -> m.copy(settings = v) }, d.SETTINGS),
-            IconRowSpec("Statistics", { it.statistics }, { m, v -> m.copy(statistics = v) }, d.STATISTICS),
-            IconRowSpec("Info", { it.info }, { m, v -> m.copy(info = v) }, d.INFO),
+            IconRowSpec("Pick report", "pickReport", { it.pickReport }, { m, v -> m.copy(pickReport = v) }, d.PICK_REPORT),
+            IconRowSpec("Open manage", "openManage", { it.openManage }, { m, v -> m.copy(openManage = v) }, d.OPEN_MANAGE),
+            IconRowSpec("Housekeeping", "housekeeping", { it.housekeeping }, { m, v -> m.copy(housekeeping = v) }, d.HOUSEKEEPING),
+            IconRowSpec("Settings", "settings", { it.settings }, { m, v -> m.copy(settings = v) }, d.SETTINGS),
+            IconRowSpec("Statistics", "statistics", { it.statistics }, { m, v -> m.copy(statistics = v) }, d.STATISTICS),
+            IconRowSpec("Info", "info", { it.info }, { m, v -> m.copy(info = v) }, d.INFO),
         ),
         "Configuration" to listOf(
-            IconRowSpec("Parameters", { it.parameters }, { m, v -> m.copy(parameters = v) }, d.PARAMETERS),
-            IconRowSpec("System prompt", { it.systemPrompt }, { m, v -> m.copy(systemPrompt = v) }, d.SYSTEM_PROMPT),
-            IconRowSpec("Clear", { it.clear }, { m, v -> m.copy(clear = v) }, d.CLEAR),
-            IconRowSpec("Attach", { it.attach }, { m, v -> m.copy(attach = v) }, d.ATTACH),
-            IconRowSpec("Validate prompt", { it.validatePrompt }, { m, v -> m.copy(validatePrompt = v) }, d.VALIDATE_PROMPT),
+            IconRowSpec("Parameters", "parameters", { it.parameters }, { m, v -> m.copy(parameters = v) }, d.PARAMETERS),
+            IconRowSpec("System prompt", "systemPrompt", { it.systemPrompt }, { m, v -> m.copy(systemPrompt = v) }, d.SYSTEM_PROMPT),
+            IconRowSpec("Clear", "clear", { it.clear }, { m, v -> m.copy(clear = v) }, d.CLEAR),
+            IconRowSpec("Attach", "attach", { it.attach }, { m, v -> m.copy(attach = v) }, d.ATTACH),
+            IconRowSpec("Validate prompt", "validatePrompt", { it.validatePrompt }, { m, v -> m.copy(validatePrompt = v) }, d.VALIDATE_PROMPT),
         ),
         "Report actions" to listOf(
-            IconRowSpec("Copy", { it.copy }, { m, v -> m.copy(copy = v) }, d.COPY),
-            IconRowSpec("Pin", { it.pin }, { m, v -> m.copy(pin = v) }, d.PIN),
-            IconRowSpec("Toggle labels", { it.toggleLabels }, { m, v -> m.copy(toggleLabels = v) }, d.TOGGLE_LABELS),
-            IconRowSpec("Share", { it.share }, { m, v -> m.copy(share = v) }, d.SHARE),
-            IconRowSpec("Duplicate", { it.duplicate }, { m, v -> m.copy(duplicate = v) }, d.DUPLICATE),
+            IconRowSpec("Copy", "copy", { it.copy }, { m, v -> m.copy(copy = v) }, d.COPY),
+            IconRowSpec("Pin", "pin", { it.pin }, { m, v -> m.copy(pin = v) }, d.PIN),
+            IconRowSpec("Toggle labels", "toggleLabels", { it.toggleLabels }, { m, v -> m.copy(toggleLabels = v) }, d.TOGGLE_LABELS),
+            IconRowSpec("Share", "share", { it.share }, { m, v -> m.copy(share = v) }, d.SHARE),
+            IconRowSpec("Duplicate", "duplicate", { it.duplicate }, { m, v -> m.copy(duplicate = v) }, d.DUPLICATE),
         ),
         "Item actions" to listOf(
-            IconRowSpec("View", { it.view }, { m, v -> m.copy(view = v) }, d.VIEW),
-            IconRowSpec("Memo", { it.memo }, { m, v -> m.copy(memo = v) }, d.MEMO),
-            IconRowSpec("Add note", { it.addNote }, { m, v -> m.copy(addNote = v) }, d.ADD_NOTE),
-            IconRowSpec("List notes", { it.listNotes }, { m, v -> m.copy(listNotes = v) }, d.LIST_NOTES),
-            IconRowSpec("Edit", { it.edit }, { m, v -> m.copy(edit = v) }, d.EDIT),
-            IconRowSpec("Reload", { it.reload }, { m, v -> m.copy(reload = v) }, d.RELOAD),
-            IconRowSpec("Delete", { it.delete }, { m, v -> m.copy(delete = v) }, d.DELETE),
+            IconRowSpec("View", "view", { it.view }, { m, v -> m.copy(view = v) }, d.VIEW),
+            IconRowSpec("Memo", "memo", { it.memo }, { m, v -> m.copy(memo = v) }, d.MEMO),
+            IconRowSpec("Add note", "addNote", { it.addNote }, { m, v -> m.copy(addNote = v) }, d.ADD_NOTE),
+            IconRowSpec("List notes", "listNotes", { it.listNotes }, { m, v -> m.copy(listNotes = v) }, d.LIST_NOTES),
+            IconRowSpec("Edit", "edit", { it.edit }, { m, v -> m.copy(edit = v) }, d.EDIT),
+            IconRowSpec("Reload", "reload", { it.reload }, { m, v -> m.copy(reload = v) }, d.RELOAD),
+            IconRowSpec("Delete", "delete", { it.delete }, { m, v -> m.copy(delete = v) }, d.DELETE),
         ),
         "View bar & help" to listOf(
-            IconRowSpec("Show all", { it.viewShowAll }, { m, v -> m.copy(viewShowAll = v) }, d.VIEW_SHOW_ALL),
-            IconRowSpec("Show one", { it.viewShowOne }, { m, v -> m.copy(viewShowOne = v) }, d.VIEW_SHOW_ONE),
-            IconRowSpec("Help", { it.help }, { m, v -> m.copy(help = v) }, d.HELP),
-            IconRowSpec("Icons help", { it.helpLegend }, { m, v -> m.copy(helpLegend = v) }, d.HELP_LEGEND),
+            IconRowSpec("Show all", "viewShowAll", { it.viewShowAll }, { m, v -> m.copy(viewShowAll = v) }, d.VIEW_SHOW_ALL),
+            IconRowSpec("Show one", "viewShowOne", { it.viewShowOne }, { m, v -> m.copy(viewShowOne = v) }, d.VIEW_SHOW_ONE),
+            IconRowSpec("Help", "help", { it.help }, { m, v -> m.copy(help = v) }, d.HELP),
+            IconRowSpec("Icons help", "helpLegend", { it.helpLegend }, { m, v -> m.copy(helpLegend = v) }, d.HELP_LEGEND),
         ),
         "Status & progress" to listOf(
-            IconRowSpec("Done", { it.statusDone }, { m, v -> m.copy(statusDone = v) }, d.STATUS_DONE),
-            IconRowSpec("Failed", { it.statusFailed }, { m, v -> m.copy(statusFailed = v) }, d.STATUS_FAILED),
-            IconRowSpec("Pending", { it.statusPending }, { m, v -> m.copy(statusPending = v) }, d.STATUS_PENDING),
-            IconRowSpec("Paused", { it.statusPaused }, { m, v -> m.copy(statusPaused = v) }, d.STATUS_PAUSED),
-            IconRowSpec("Stopped", { it.statusStopped }, { m, v -> m.copy(statusStopped = v) }, d.STATUS_STOPPED),
-            IconRowSpec("Alarm", { it.statusAlarm }, { m, v -> m.copy(statusAlarm = v) }, d.STATUS_ALARM),
-            IconRowSpec("Blocked", { it.statusBlocked }, { m, v -> m.copy(statusBlocked = v) }, d.STATUS_BLOCKED),
-            IconRowSpec("Locked", { it.statusLocked }, { m, v -> m.copy(statusLocked = v) }, d.STATUS_LOCKED),
-            IconRowSpec("Warning", { it.statusWarning }, { m, v -> m.copy(statusWarning = v) }, d.STATUS_WARNING),
-            IconRowSpec("Warning (plain)", { it.warningPlain }, { m, v -> m.copy(warningPlain = v) }, d.WARNING_PLAIN),
-            IconRowSpec("Hot", { it.hot }, { m, v -> m.copy(hot = v) }, d.HOT),
-            IconRowSpec("Clock", { it.clockTime }, { m, v -> m.copy(clockTime = v) }, d.CLOCK_TIME),
-            IconRowSpec("Clock (queued)", { it.clockQueued }, { m, v -> m.copy(clockQueued = v) }, d.CLOCK_QUEUED),
-            IconRowSpec("Clock (recent)", { it.clockRecent }, { m, v -> m.copy(clockRecent = v) }, d.CLOCK_RECENT),
-            IconRowSpec("Sleep / inactive", { it.sleep }, { m, v -> m.copy(sleep = v) }, d.SLEEP),
-            IconRowSpec("No entry", { it.noEntry }, { m, v -> m.copy(noEntry = v) }, d.NO_ENTRY),
-            IconRowSpec("Snowflake", { it.snowflake }, { m, v -> m.copy(snowflake = v) }, d.SNOWFLAKE),
-            IconRowSpec("Roadblock", { it.roadblock }, { m, v -> m.copy(roadblock = v) }, d.ROADBLOCK),
-            IconRowSpec("Explosion", { it.explosion }, { m, v -> m.copy(explosion = v) }, d.EXPLOSION),
+            IconRowSpec("Done", "statusDone", { it.statusDone }, { m, v -> m.copy(statusDone = v) }, d.STATUS_DONE),
+            IconRowSpec("Failed", "statusFailed", { it.statusFailed }, { m, v -> m.copy(statusFailed = v) }, d.STATUS_FAILED),
+            IconRowSpec("Pending", "statusPending", { it.statusPending }, { m, v -> m.copy(statusPending = v) }, d.STATUS_PENDING),
+            IconRowSpec("Paused", "statusPaused", { it.statusPaused }, { m, v -> m.copy(statusPaused = v) }, d.STATUS_PAUSED),
+            IconRowSpec("Stopped", "statusStopped", { it.statusStopped }, { m, v -> m.copy(statusStopped = v) }, d.STATUS_STOPPED),
+            IconRowSpec("Alarm", "statusAlarm", { it.statusAlarm }, { m, v -> m.copy(statusAlarm = v) }, d.STATUS_ALARM),
+            IconRowSpec("Blocked", "statusBlocked", { it.statusBlocked }, { m, v -> m.copy(statusBlocked = v) }, d.STATUS_BLOCKED),
+            IconRowSpec("Locked", "statusLocked", { it.statusLocked }, { m, v -> m.copy(statusLocked = v) }, d.STATUS_LOCKED),
+            IconRowSpec("Warning", "statusWarning", { it.statusWarning }, { m, v -> m.copy(statusWarning = v) }, d.STATUS_WARNING),
+            IconRowSpec("Warning (plain)", "warningPlain", { it.warningPlain }, { m, v -> m.copy(warningPlain = v) }, d.WARNING_PLAIN),
+            IconRowSpec("Hot", "hot", { it.hot }, { m, v -> m.copy(hot = v) }, d.HOT),
+            IconRowSpec("Clock", "clockTime", { it.clockTime }, { m, v -> m.copy(clockTime = v) }, d.CLOCK_TIME),
+            IconRowSpec("Clock (queued)", "clockQueued", { it.clockQueued }, { m, v -> m.copy(clockQueued = v) }, d.CLOCK_QUEUED),
+            IconRowSpec("Clock (recent)", "clockRecent", { it.clockRecent }, { m, v -> m.copy(clockRecent = v) }, d.CLOCK_RECENT),
+            IconRowSpec("Sleep / inactive", "sleep", { it.sleep }, { m, v -> m.copy(sleep = v) }, d.SLEEP),
+            IconRowSpec("No entry", "noEntry", { it.noEntry }, { m, v -> m.copy(noEntry = v) }, d.NO_ENTRY),
+            IconRowSpec("Snowflake", "snowflake", { it.snowflake }, { m, v -> m.copy(snowflake = v) }, d.SNOWFLAKE),
+            IconRowSpec("Roadblock", "roadblock", { it.roadblock }, { m, v -> m.copy(roadblock = v) }, d.ROADBLOCK),
+            IconRowSpec("Explosion", "explosion", { it.explosion }, { m, v -> m.copy(explosion = v) }, d.EXPLOSION),
         ),
         "Marks & ranks" to listOf(
-            IconRowSpec("Check", { it.checkMark }, { m, v -> m.copy(checkMark = v) }, d.CHECK),
-            IconRowSpec("Cross", { it.crossMark }, { m, v -> m.copy(crossMark = v) }, d.CROSS),
-            IconRowSpec("Close", { it.closeMark }, { m, v -> m.copy(closeMark = v) }, d.CLOSE),
-            IconRowSpec("Checkbox on", { it.checkboxOn }, { m, v -> m.copy(checkboxOn = v) }, d.CHECKBOX_ON),
-            IconRowSpec("Checkbox off", { it.checkboxOff }, { m, v -> m.copy(checkboxOff = v) }, d.CHECKBOX_OFF),
-            IconRowSpec("Blank box", { it.boxBlank }, { m, v -> m.copy(boxBlank = v) }, d.BOX_BLANK),
-            IconRowSpec("Gold medal", { it.medalGold }, { m, v -> m.copy(medalGold = v) }, d.MEDAL_GOLD),
-            IconRowSpec("Silver medal", { it.medalSilver }, { m, v -> m.copy(medalSilver = v) }, d.MEDAL_SILVER),
-            IconRowSpec("Bronze medal", { it.medalBronze }, { m, v -> m.copy(medalBronze = v) }, d.MEDAL_BRONZE),
+            IconRowSpec("Check", "checkMark", { it.checkMark }, { m, v -> m.copy(checkMark = v) }, d.CHECK),
+            IconRowSpec("Cross", "crossMark", { it.crossMark }, { m, v -> m.copy(crossMark = v) }, d.CROSS),
+            IconRowSpec("Close", "closeMark", { it.closeMark }, { m, v -> m.copy(closeMark = v) }, d.CLOSE),
+            IconRowSpec("Checkbox on", "checkboxOn", { it.checkboxOn }, { m, v -> m.copy(checkboxOn = v) }, d.CHECKBOX_ON),
+            IconRowSpec("Checkbox off", "checkboxOff", { it.checkboxOff }, { m, v -> m.copy(checkboxOff = v) }, d.CHECKBOX_OFF),
+            IconRowSpec("Blank box", "boxBlank", { it.boxBlank }, { m, v -> m.copy(boxBlank = v) }, d.BOX_BLANK),
+            IconRowSpec("Gold medal", "medalGold", { it.medalGold }, { m, v -> m.copy(medalGold = v) }, d.MEDAL_GOLD),
+            IconRowSpec("Silver medal", "medalSilver", { it.medalSilver }, { m, v -> m.copy(medalSilver = v) }, d.MEDAL_SILVER),
+            IconRowSpec("Bronze medal", "medalBronze", { it.medalBronze }, { m, v -> m.copy(medalBronze = v) }, d.MEDAL_BRONZE),
         ),
         "Arrows" to listOf(
-            IconRowSpec("Arrow up", { it.arrowUp }, { m, v -> m.copy(arrowUp = v) }, d.ARROW_UP),
-            IconRowSpec("Arrow right", { it.arrowRight }, { m, v -> m.copy(arrowRight = v) }, d.ARROW_RIGHT),
-            IconRowSpec("Arrow down", { it.arrowDown }, { m, v -> m.copy(arrowDown = v) }, d.ARROW_DOWN),
-            IconRowSpec("Arrow back", { it.arrowBack }, { m, v -> m.copy(arrowBack = v) }, d.ARROW_BACK),
-            IconRowSpec("Arrow forward", { it.arrowForward }, { m, v -> m.copy(arrowForward = v) }, d.ARROW_FORWARD),
-            IconRowSpec("Submit arrow", { it.arrowSubmit }, { m, v -> m.copy(arrowSubmit = v) }, d.ARROW_SUBMIT),
-            IconRowSpec("Caret expanded", { it.caretExpanded }, { m, v -> m.copy(caretExpanded = v) }, d.CARET_EXPANDED),
-            IconRowSpec("Caret collapsed", { it.caretCollapsed }, { m, v -> m.copy(caretCollapsed = v) }, d.CARET_COLLAPSED),
-            IconRowSpec("Minus", { it.minus }, { m, v -> m.copy(minus = v) }, d.MINUS),
+            IconRowSpec("Arrow up", "arrowUp", { it.arrowUp }, { m, v -> m.copy(arrowUp = v) }, d.ARROW_UP),
+            IconRowSpec("Arrow right", "arrowRight", { it.arrowRight }, { m, v -> m.copy(arrowRight = v) }, d.ARROW_RIGHT),
+            IconRowSpec("Arrow down", "arrowDown", { it.arrowDown }, { m, v -> m.copy(arrowDown = v) }, d.ARROW_DOWN),
+            IconRowSpec("Arrow back", "arrowBack", { it.arrowBack }, { m, v -> m.copy(arrowBack = v) }, d.ARROW_BACK),
+            IconRowSpec("Arrow forward", "arrowForward", { it.arrowForward }, { m, v -> m.copy(arrowForward = v) }, d.ARROW_FORWARD),
+            IconRowSpec("Submit arrow", "arrowSubmit", { it.arrowSubmit }, { m, v -> m.copy(arrowSubmit = v) }, d.ARROW_SUBMIT),
+            IconRowSpec("Caret expanded", "caretExpanded", { it.caretExpanded }, { m, v -> m.copy(caretExpanded = v) }, d.CARET_EXPANDED),
+            IconRowSpec("Caret collapsed", "caretCollapsed", { it.caretCollapsed }, { m, v -> m.copy(caretCollapsed = v) }, d.CARET_COLLAPSED),
+            IconRowSpec("Minus", "minus", { it.minus }, { m, v -> m.copy(minus = v) }, d.MINUS),
         ),
         "Search & files" to listOf(
-            IconRowSpec("Agent / AI", { it.agent }, { m, v -> m.copy(agent = v) }, d.AGENT),
-            IconRowSpec("AI find", { it.aiFind }, { m, v -> m.copy(aiFind = v) }, d.AI_FIND),
-            IconRowSpec("Web / remote", { it.web }, { m, v -> m.copy(web = v) }, d.WEB),
-            IconRowSpec("Lookup", { it.lookup }, { m, v -> m.copy(lookup = v) }, d.LOOKUP),
-            IconRowSpec("Search", { it.search }, { m, v -> m.copy(search = v) }, d.SEARCH),
-            IconRowSpec("Open folder", { it.folderOpen }, { m, v -> m.copy(folderOpen = v) }, d.FOLDER_OPEN),
-            IconRowSpec("Label", { it.label }, { m, v -> m.copy(label = v) }, d.LABEL),
-            IconRowSpec("Bookmark", { it.bookmark }, { m, v -> m.copy(bookmark = v) }, d.BOOKMARK),
-            IconRowSpec("Notepad", { it.notepad }, { m, v -> m.copy(notepad = v) }, d.NOTEPAD),
-            IconRowSpec("Document", { it.document }, { m, v -> m.copy(document = v) }, d.DOCUMENT),
-            IconRowSpec("Package", { it.packageBox }, { m, v -> m.copy(packageBox = v) }, d.PACKAGE_BOX),
-            IconRowSpec("Plug", { it.plug }, { m, v -> m.copy(plug = v) }, d.PLUG),
-            IconRowSpec("Key", { it.key }, { m, v -> m.copy(key = v) }, d.KEY),
+            IconRowSpec("Agent / AI", "agent", { it.agent }, { m, v -> m.copy(agent = v) }, d.AGENT),
+            IconRowSpec("AI find", "aiFind", { it.aiFind }, { m, v -> m.copy(aiFind = v) }, d.AI_FIND),
+            IconRowSpec("Web / remote", "web", { it.web }, { m, v -> m.copy(web = v) }, d.WEB),
+            IconRowSpec("Lookup", "lookup", { it.lookup }, { m, v -> m.copy(lookup = v) }, d.LOOKUP),
+            IconRowSpec("Search", "search", { it.search }, { m, v -> m.copy(search = v) }, d.SEARCH),
+            IconRowSpec("Open folder", "folderOpen", { it.folderOpen }, { m, v -> m.copy(folderOpen = v) }, d.FOLDER_OPEN),
+            IconRowSpec("Label", "label", { it.label }, { m, v -> m.copy(label = v) }, d.LABEL),
+            IconRowSpec("Bookmark", "bookmark", { it.bookmark }, { m, v -> m.copy(bookmark = v) }, d.BOOKMARK),
+            IconRowSpec("Notepad", "notepad", { it.notepad }, { m, v -> m.copy(notepad = v) }, d.NOTEPAD),
+            IconRowSpec("Document", "document", { it.document }, { m, v -> m.copy(document = v) }, d.DOCUMENT),
+            IconRowSpec("Package", "packageBox", { it.packageBox }, { m, v -> m.copy(packageBox = v) }, d.PACKAGE_BOX),
+            IconRowSpec("Plug", "plug", { it.plug }, { m, v -> m.copy(plug = v) }, d.PLUG),
+            IconRowSpec("Key", "key", { it.key }, { m, v -> m.copy(key = v) }, d.KEY),
         ),
         "Content & media" to listOf(
-            IconRowSpec("World", { it.world }, { m, v -> m.copy(world = v) }, d.WORLD),
-            IconRowSpec("Chart", { it.chart }, { m, v -> m.copy(chart = v) }, d.CHART),
-            IconRowSpec("Cyclone", { it.cyclone }, { m, v -> m.copy(cyclone = v) }, d.CYCLONE),
-            IconRowSpec("Library", { it.library }, { m, v -> m.copy(library = v) }, d.LIBRARY),
-            IconRowSpec("Book", { it.book }, { m, v -> m.copy(book = v) }, d.BOOK),
-            IconRowSpec("Image", { it.image }, { m, v -> m.copy(image = v) }, d.IMAGE),
-            IconRowSpec("Mail", { it.mail }, { m, v -> m.copy(mail = v) }, d.MAIL),
-            IconRowSpec("Speech", { it.speech }, { m, v -> m.copy(speech = v) }, d.SPEECH),
-            IconRowSpec("Gem", { it.gem }, { m, v -> m.copy(gem = v) }, d.GEM),
-            IconRowSpec("Tip", { it.tip }, { m, v -> m.copy(tip = v) }, d.TIP),
-            IconRowSpec("Camera", { it.camera }, { m, v -> m.copy(camera = v) }, d.CAMERA),
-            IconRowSpec("Gift", { it.gift }, { m, v -> m.copy(gift = v) }, d.GIFT),
-            IconRowSpec("Rocket", { it.rocket }, { m, v -> m.copy(rocket = v) }, d.ROCKET),
-            IconRowSpec("Home", { it.home }, { m, v -> m.copy(home = v) }, d.HOME),
-            IconRowSpec("Save", { it.save }, { m, v -> m.copy(save = v) }, d.SAVE),
-            IconRowSpec("Cloud", { it.cloud }, { m, v -> m.copy(cloud = v) }, d.CLOUD),
-            IconRowSpec("Building blocks", { it.buildingBlocks }, { m, v -> m.copy(buildingBlocks = v) }, d.BUILDING_BLOCKS),
-            IconRowSpec("Groupings", { it.groupings }, { m, v -> m.copy(groupings = v) }, d.GROUPINGS),
-            IconRowSpec("GitHub", { it.github }, { m, v -> m.copy(github = v) }, d.GITHUB),
+            IconRowSpec("World", "world", { it.world }, { m, v -> m.copy(world = v) }, d.WORLD),
+            IconRowSpec("Chart", "chart", { it.chart }, { m, v -> m.copy(chart = v) }, d.CHART),
+            IconRowSpec("Cyclone", "cyclone", { it.cyclone }, { m, v -> m.copy(cyclone = v) }, d.CYCLONE),
+            IconRowSpec("Library", "library", { it.library }, { m, v -> m.copy(library = v) }, d.LIBRARY),
+            IconRowSpec("Book", "book", { it.book }, { m, v -> m.copy(book = v) }, d.BOOK),
+            IconRowSpec("Image", "image", { it.image }, { m, v -> m.copy(image = v) }, d.IMAGE),
+            IconRowSpec("Mail", "mail", { it.mail }, { m, v -> m.copy(mail = v) }, d.MAIL),
+            IconRowSpec("Speech", "speech", { it.speech }, { m, v -> m.copy(speech = v) }, d.SPEECH),
+            IconRowSpec("Gem", "gem", { it.gem }, { m, v -> m.copy(gem = v) }, d.GEM),
+            IconRowSpec("Tip", "tip", { it.tip }, { m, v -> m.copy(tip = v) }, d.TIP),
+            IconRowSpec("Camera", "camera", { it.camera }, { m, v -> m.copy(camera = v) }, d.CAMERA),
+            IconRowSpec("Gift", "gift", { it.gift }, { m, v -> m.copy(gift = v) }, d.GIFT),
+            IconRowSpec("Rocket", "rocket", { it.rocket }, { m, v -> m.copy(rocket = v) }, d.ROCKET),
+            IconRowSpec("Home", "home", { it.home }, { m, v -> m.copy(home = v) }, d.HOME),
+            IconRowSpec("Save", "save", { it.save }, { m, v -> m.copy(save = v) }, d.SAVE),
+            IconRowSpec("Cloud", "cloud", { it.cloud }, { m, v -> m.copy(cloud = v) }, d.CLOUD),
+            IconRowSpec("Building blocks", "buildingBlocks", { it.buildingBlocks }, { m, v -> m.copy(buildingBlocks = v) }, d.BUILDING_BLOCKS),
+            IconRowSpec("Groupings", "groupings", { it.groupings }, { m, v -> m.copy(groupings = v) }, d.GROUPINGS),
+            IconRowSpec("GitHub", "github", { it.github }, { m, v -> m.copy(github = v) }, d.GITHUB),
         ),
         "Cost" to listOf(
-            IconRowSpec("Cost", { it.cost }, { m, v -> m.copy(cost = v) }, d.COST),
-            IconRowSpec("Dollar", { it.dollar }, { m, v -> m.copy(dollar = v) }, d.DOLLAR),
-            IconRowSpec("Spend", { it.spend }, { m, v -> m.copy(spend = v) }, d.SPEND),
-            IconRowSpec("Cash", { it.cash }, { m, v -> m.copy(cash = v) }, d.CASH),
+            IconRowSpec("Cost", "cost", { it.cost }, { m, v -> m.copy(cost = v) }, d.COST),
+            IconRowSpec("Dollar", "dollar", { it.dollar }, { m, v -> m.copy(dollar = v) }, d.DOLLAR),
+            IconRowSpec("Spend", "spend", { it.spend }, { m, v -> m.copy(spend = v) }, d.SPEND),
+            IconRowSpec("Cash", "cash", { it.cash }, { m, v -> m.copy(cash = v) }, d.CASH),
         ),
         "Workers & tools" to listOf(
-            IconRowSpec("Swarm", { it.swarm }, { m, v -> m.copy(swarm = v) }, d.SWARM),
-            IconRowSpec("Flock", { it.flock }, { m, v -> m.copy(flock = v) }, d.FLOCK),
-            IconRowSpec("Fan-in knot", { it.fanInKnot }, { m, v -> m.copy(fanInKnot = v) }, d.FAN_IN_KNOT),
-            IconRowSpec("Feather", { it.feather }, { m, v -> m.copy(feather = v) }, d.FEATHER),
-            IconRowSpec("Tools", { it.tools }, { m, v -> m.copy(tools = v) }, d.TOOLS),
-            IconRowSpec("Toolbox", { it.toolbox }, { m, v -> m.copy(toolbox = v) }, d.TOOLBOX),
-            IconRowSpec("Puzzle", { it.puzzle }, { m, v -> m.copy(puzzle = v) }, d.PUZZLE),
-            IconRowSpec("Palette", { it.palette }, { m, v -> m.copy(palette = v) }, d.PALETTE),
-            IconRowSpec("Test", { it.test }, { m, v -> m.copy(test = v) }, d.TEST),
-            IconRowSpec("Worker", { it.worker }, { m, v -> m.copy(worker = v) }, d.WORKER),
-            IconRowSpec("Sparkles", { it.sparkles }, { m, v -> m.copy(sparkles = v) }, d.SPARKLES),
-            IconRowSpec("Ruler", { it.ruler }, { m, v -> m.copy(ruler = v) }, d.RULER),
-            IconRowSpec("Straight ruler", { it.rulerStraight }, { m, v -> m.copy(rulerStraight = v) }, d.RULER_STRAIGHT),
-            IconRowSpec("Shuffle", { it.shuffle }, { m, v -> m.copy(shuffle = v) }, d.SHUFFLE),
-            IconRowSpec("Repeat", { it.repeat }, { m, v -> m.copy(repeat = v) }, d.REPEAT),
-            IconRowSpec("Hide", { it.hide }, { m, v -> m.copy(hide = v) }, d.HIDE),
-            IconRowSpec("Shield", { it.shield }, { m, v -> m.copy(shield = v) }, d.SHIELD),
-            IconRowSpec("Microscope", { it.microscope }, { m, v -> m.copy(microscope = v) }, d.MICROSCOPE),
-            IconRowSpec("Controls", { it.controls }, { m, v -> m.copy(controls = v) }, d.CONTROLS),
-            IconRowSpec("Sliders", { it.sliders }, { m, v -> m.copy(sliders = v) }, d.SLIDERS),
-            IconRowSpec("Magic", { it.magic }, { m, v -> m.copy(magic = v) }, d.MAGIC),
+            IconRowSpec("Swarm", "swarm", { it.swarm }, { m, v -> m.copy(swarm = v) }, d.SWARM),
+            IconRowSpec("Flock", "flock", { it.flock }, { m, v -> m.copy(flock = v) }, d.FLOCK),
+            IconRowSpec("Fan-in knot", "fanInKnot", { it.fanInKnot }, { m, v -> m.copy(fanInKnot = v) }, d.FAN_IN_KNOT),
+            IconRowSpec("Feather", "feather", { it.feather }, { m, v -> m.copy(feather = v) }, d.FEATHER),
+            IconRowSpec("Tools", "tools", { it.tools }, { m, v -> m.copy(tools = v) }, d.TOOLS),
+            IconRowSpec("Toolbox", "toolbox", { it.toolbox }, { m, v -> m.copy(toolbox = v) }, d.TOOLBOX),
+            IconRowSpec("Puzzle", "puzzle", { it.puzzle }, { m, v -> m.copy(puzzle = v) }, d.PUZZLE),
+            IconRowSpec("Palette", "palette", { it.palette }, { m, v -> m.copy(palette = v) }, d.PALETTE),
+            IconRowSpec("Test", "test", { it.test }, { m, v -> m.copy(test = v) }, d.TEST),
+            IconRowSpec("Worker", "worker", { it.worker }, { m, v -> m.copy(worker = v) }, d.WORKER),
+            IconRowSpec("Sparkles", "sparkles", { it.sparkles }, { m, v -> m.copy(sparkles = v) }, d.SPARKLES),
+            IconRowSpec("Ruler", "ruler", { it.ruler }, { m, v -> m.copy(ruler = v) }, d.RULER),
+            IconRowSpec("Straight ruler", "rulerStraight", { it.rulerStraight }, { m, v -> m.copy(rulerStraight = v) }, d.RULER_STRAIGHT),
+            IconRowSpec("Shuffle", "shuffle", { it.shuffle }, { m, v -> m.copy(shuffle = v) }, d.SHUFFLE),
+            IconRowSpec("Repeat", "repeat", { it.repeat }, { m, v -> m.copy(repeat = v) }, d.REPEAT),
+            IconRowSpec("Hide", "hide", { it.hide }, { m, v -> m.copy(hide = v) }, d.HIDE),
+            IconRowSpec("Shield", "shield", { it.shield }, { m, v -> m.copy(shield = v) }, d.SHIELD),
+            IconRowSpec("Microscope", "microscope", { it.microscope }, { m, v -> m.copy(microscope = v) }, d.MICROSCOPE),
+            IconRowSpec("Controls", "controls", { it.controls }, { m, v -> m.copy(controls = v) }, d.CONTROLS),
+            IconRowSpec("Sliders", "sliders", { it.sliders }, { m, v -> m.copy(sliders = v) }, d.SLIDERS),
+            IconRowSpec("Magic", "magic", { it.magic }, { m, v -> m.copy(magic = v) }, d.MAGIC),
         ),
         "Devices & misc" to listOf(
-            IconRowSpec("Device", { it.device }, { m, v -> m.copy(device = v) }, d.DEVICE),
-            IconRowSpec("Computer", { it.computer }, { m, v -> m.copy(computer = v) }, d.COMPUTER),
-            IconRowSpec("Satellite", { it.satellite }, { m, v -> m.copy(satellite = v) }, d.SATELLITE),
-            IconRowSpec("Hugging Face", { it.huggingface }, { m, v -> m.copy(huggingface = v) }, d.HUGGINGFACE),
-            IconRowSpec("Green circle", { it.greenCircle }, { m, v -> m.copy(greenCircle = v) }, d.GREEN_CIRCLE),
-            IconRowSpec("White circle", { it.whiteCircle }, { m, v -> m.copy(whiteCircle = v) }, d.WHITE_CIRCLE),
-            IconRowSpec("Red circle", { it.redCircle }, { m, v -> m.copy(redCircle = v) }, d.RED_CIRCLE),
-            IconRowSpec("Orange circle", { it.orangeCircle }, { m, v -> m.copy(orangeCircle = v) }, d.ORANGE_CIRCLE),
-            IconRowSpec("Blue circle", { it.blueCircle }, { m, v -> m.copy(blueCircle = v) }, d.BLUE_CIRCLE),
-            IconRowSpec("Sun", { it.sun }, { m, v -> m.copy(sun = v) }, d.SUN),
-            IconRowSpec("Calendar", { it.calendar }, { m, v -> m.copy(calendar = v) }, d.CALENDAR),
-            IconRowSpec("Spiral calendar", { it.calendarSpiral }, { m, v -> m.copy(calendarSpiral = v) }, d.CALENDAR_SPIRAL),
-            IconRowSpec("Runner", { it.runner }, { m, v -> m.copy(runner = v) }, d.RUNNER),
-            IconRowSpec("Fog", { it.fog }, { m, v -> m.copy(fog = v) }, d.FOG),
-            IconRowSpec("Bento", { it.bento }, { m, v -> m.copy(bento = v) }, d.BENTO),
-            IconRowSpec("Number input", { it.numberInput }, { m, v -> m.copy(numberInput = v) }, d.NUMBER_INPUT),
-            IconRowSpec("Symbols", { it.symbols }, { m, v -> m.copy(symbols = v) }, d.SYMBOLS),
-            IconRowSpec("Handshake", { it.handshake }, { m, v -> m.copy(handshake = v) }, d.HANDSHAKE),
-            IconRowSpec("Blue diamond", { it.blueDiamond }, { m, v -> m.copy(blueDiamond = v) }, d.BLUE_DIAMOND),
-            IconRowSpec("Group", { it.group }, { m, v -> m.copy(group = v) }, d.GROUP),
-            IconRowSpec("Bolt", { it.bolt }, { m, v -> m.copy(bolt = v) }, d.BOLT),
-            IconRowSpec("Health", { it.health }, { m, v -> m.copy(health = v) }, d.HEALTH),
-            IconRowSpec("Slow", { it.slow }, { m, v -> m.copy(slow = v) }, d.SLOW),
-            IconRowSpec("Coffin", { it.coffin }, { m, v -> m.copy(coffin = v) }, d.COFFIN),
+            IconRowSpec("Device", "device", { it.device }, { m, v -> m.copy(device = v) }, d.DEVICE),
+            IconRowSpec("Computer", "computer", { it.computer }, { m, v -> m.copy(computer = v) }, d.COMPUTER),
+            IconRowSpec("Satellite", "satellite", { it.satellite }, { m, v -> m.copy(satellite = v) }, d.SATELLITE),
+            IconRowSpec("Hugging Face", "huggingface", { it.huggingface }, { m, v -> m.copy(huggingface = v) }, d.HUGGINGFACE),
+            IconRowSpec("Green circle", "greenCircle", { it.greenCircle }, { m, v -> m.copy(greenCircle = v) }, d.GREEN_CIRCLE),
+            IconRowSpec("White circle", "whiteCircle", { it.whiteCircle }, { m, v -> m.copy(whiteCircle = v) }, d.WHITE_CIRCLE),
+            IconRowSpec("Red circle", "redCircle", { it.redCircle }, { m, v -> m.copy(redCircle = v) }, d.RED_CIRCLE),
+            IconRowSpec("Orange circle", "orangeCircle", { it.orangeCircle }, { m, v -> m.copy(orangeCircle = v) }, d.ORANGE_CIRCLE),
+            IconRowSpec("Blue circle", "blueCircle", { it.blueCircle }, { m, v -> m.copy(blueCircle = v) }, d.BLUE_CIRCLE),
+            IconRowSpec("Sun", "sun", { it.sun }, { m, v -> m.copy(sun = v) }, d.SUN),
+            IconRowSpec("Calendar", "calendar", { it.calendar }, { m, v -> m.copy(calendar = v) }, d.CALENDAR),
+            IconRowSpec("Spiral calendar", "calendarSpiral", { it.calendarSpiral }, { m, v -> m.copy(calendarSpiral = v) }, d.CALENDAR_SPIRAL),
+            IconRowSpec("Runner", "runner", { it.runner }, { m, v -> m.copy(runner = v) }, d.RUNNER),
+            IconRowSpec("Fog", "fog", { it.fog }, { m, v -> m.copy(fog = v) }, d.FOG),
+            IconRowSpec("Bento", "bento", { it.bento }, { m, v -> m.copy(bento = v) }, d.BENTO),
+            IconRowSpec("Number input", "numberInput", { it.numberInput }, { m, v -> m.copy(numberInput = v) }, d.NUMBER_INPUT),
+            IconRowSpec("Symbols", "symbols", { it.symbols }, { m, v -> m.copy(symbols = v) }, d.SYMBOLS),
+            IconRowSpec("Handshake", "handshake", { it.handshake }, { m, v -> m.copy(handshake = v) }, d.HANDSHAKE),
+            IconRowSpec("Blue diamond", "blueDiamond", { it.blueDiamond }, { m, v -> m.copy(blueDiamond = v) }, d.BLUE_DIAMOND),
+            IconRowSpec("Group", "group", { it.group }, { m, v -> m.copy(group = v) }, d.GROUP),
+            IconRowSpec("Bolt", "bolt", { it.bolt }, { m, v -> m.copy(bolt = v) }, d.BOLT),
+            IconRowSpec("Health", "health", { it.health }, { m, v -> m.copy(health = v) }, d.HEALTH),
+            IconRowSpec("Slow", "slow", { it.slow }, { m, v -> m.copy(slow = v) }, d.SLOW),
+            IconRowSpec("Coffin", "coffin", { it.coffin }, { m, v -> m.copy(coffin = v) }, d.COFFIN),
         ),
     )
 }
@@ -2334,6 +2335,16 @@ private fun DefaultIconsSubScreen(
         return
     }
 
+    // 📍 Usage — opened by the per-row Usage icon. Layered as a
+    // full-screen early-return (same pattern as the AI finder above)
+    // so the save effects stay composed. Holds the row's label + the
+    // MetadataIcons field name keyed into the source-derived index.
+    var usageFor by remember { mutableStateOf<Pair<String, String>?>(null) }
+    usageFor?.let { (label, field) ->
+        IconUsageScreen(label = label, field = field, onBack = { usageFor = null })
+        return
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -2358,9 +2369,12 @@ private fun DefaultIconsSubScreen(
                     glyphs = rows.map { row -> row.get(icons).ifBlank { row.factory } }
                 ) {
                     rows.forEach { row ->
-                        IconDefaultRow(row.label, row.get(icons), { icons = row.set(icons, it) }) {
-                            aiFindFor = IconAiTarget(row.label) { picked -> icons = row.set(icons, picked) }
-                        }
+                        IconDefaultRow(
+                            label = row.label, value = row.get(icons),
+                            onChange = { icons = row.set(icons, it) },
+                            onAiFind = { aiFindFor = IconAiTarget(row.label) { picked -> icons = row.set(icons, picked) } },
+                            onUsage = { usageFor = row.label to row.field }
+                        )
                     }
                 }
             }
@@ -2420,7 +2434,7 @@ private fun IconCategoryCard(
  *  field. Blank on save falls back to the factory default (see `build()`). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun IconDefaultRow(label: String, value: String, onChange: (String) -> Unit, onAiFind: () -> Unit) {
+private fun IconDefaultRow(label: String, value: String, onChange: (String) -> Unit, onAiFind: () -> Unit, onUsage: () -> Unit) {
     var showPicker by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
@@ -2444,6 +2458,11 @@ private fun IconDefaultRow(label: String, value: String, onChange: (String) -> U
             com.ai.data.MetadataIconsHolder.current.aiFind, fontSize = 20.sp,
             modifier = Modifier.clickable { onAiFind() }.padding(start = 6.dp, end = 2.dp)
         )
+        // 📍 Usage — open the source-derived list of where this icon is used.
+        Text(
+            "📍", fontSize = 20.sp,
+            modifier = Modifier.clickable { onUsage() }.padding(start = 6.dp, end = 2.dp)
+        )
     }
     if (showPicker) {
         ModalBottomSheet(onDismissRequest = { showPicker = false }) {
@@ -2458,6 +2477,59 @@ private fun IconDefaultRow(label: String, value: String, onChange: (String) -> U
                 },
                 modifier = Modifier.fillMaxWidth().height(360.dp)
             )
+        }
+    }
+}
+
+/** Source-derived "where is this icon used" screen. Reads the
+ *  build-time [com.ai.data.IconUsageData] index keyed by the row's
+ *  MetadataIcons [field] name. The list is a static snapshot of the
+ *  `MetadataIconsHolder.current.<field>` references in the source — it
+ *  is NOT recomputed at runtime, hence the disclaimer + generated
+ *  timestamp at the top. */
+@Composable
+private fun IconUsageScreen(label: String, field: String, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    val usages = remember(field) { com.ai.data.IconUsageData.forField(field) }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(title = "Usage: $label", subject = "Where “$field” is used in the source", onBackClick = onBack)
+        Card(
+            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    "This list is derived from a static scan of the source code, not computed at runtime — it can drift as the code changes.",
+                    fontSize = 12.sp, color = AppColors.TextSecondary
+                )
+                Text(
+                    "Generated: ${com.ai.data.IconUsageData.GENERATED_AT}",
+                    fontSize = 12.sp, color = AppColors.TextTertiary,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (usages.isEmpty()) {
+                Text(
+                    "No source references found for this icon. It may only be a fallback/default, or referenced indirectly.",
+                    fontSize = 13.sp, color = AppColors.TextSecondary,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            } else {
+                Text("${usages.size} reference${if (usages.size == 1) "" else "s"}",
+                    fontSize = 12.sp, color = AppColors.TextTertiary)
+                usages.forEach { line ->
+                    Text(
+                        line, fontSize = 12.sp, color = Color.White,
+                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
         }
     }
 }
