@@ -1276,7 +1276,12 @@ object ReportStorage {
         initFromFilesDir(root)
         return lock.withLock {
             val report = loadReport(id) ?: return@withLock null
-            if (report.apiCallCosts.any { it.id == record.id }) return@withLock report.apiCallAppendResult()
+            // Dedup hit: this exact record id is already in the ledger, so
+            // nothing is appended. Return null (not a result) so the caller
+            // doesn't bump the per-report usage stats for a row that wasn't
+            // actually added — a non-null return here double-counted callCount/
+            // tokens/cost on any retry/replay carrying a stable id.
+            if (report.apiCallCosts.any { it.id == record.id }) return@withLock null
             val updated = report.copy(
                 apiCallCosts = (report.apiCallCosts + record).toMutableList(),
                 timestamp = System.currentTimeMillis()
