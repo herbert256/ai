@@ -781,8 +781,15 @@ class RegenerateBatchEngine internal constructor(
             )
         }
 
-        // AGENTS — one task per ReportAgent.
+        // AGENTS — one task per ReportAgent that can actually be
+        // re-dispatched. forceRegenerateAllAgents builds its work set via
+        // reportToModels, which drops any agent whose provider no longer
+        // resolves (removed / renamed). Creating a task for such an agent
+        // here would reset its row to PENDING but never re-fire it, hanging
+        // the phase to the 30-minute safety-net timeout. Skip them, matching
+        // reportToModels.
         for (agent in report.agents) {
+            if (com.ai.data.AppService.findById(agent.provider) == null) continue
             tasks += RegenerateTask(
                 rowId = agent.agentId,
                 phase = RegeneratePhase.AGENTS,
