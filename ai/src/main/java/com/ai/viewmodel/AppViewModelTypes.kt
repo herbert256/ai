@@ -35,6 +35,11 @@ val DEFAULT_UI_BUTTON_BACKGROUND_ARGB: Int = 0xFF27594E.toInt()
  *  multiple providers and want to disambiguate at a glance. */
 enum class ModelNameLayout { MODEL_ONLY, PROVIDER_AND_MODEL }
 
+/** Which of the two editable colour sets (Day / Night) the app paints.
+ *  AUTO follows the Android system day/night setting; DAY / NIGHT pin it.
+ *  Defaults to NIGHT — the app's long-standing dark palette. */
+enum class UiColorMode { DAY, NIGHT, AUTO }
+
 /** How a new report's title is set. MANUAL keeps the original
  *  behaviour — the user types a title in the New AI Report screen.
  *  AI hides the input field and a background LLM call (the bundled
@@ -87,7 +92,15 @@ data class GeneralSettings(
      *  without Compose/UI types in the view-model layer. */
     val uiCardBackgroundArgb: Int = DEFAULT_UI_CARD_BACKGROUND_ARGB,
     val uiButtonBackgroundArgb: Int = DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
+    /** The Night colour set's per-key overrides (the app's original
+     *  palette). Empty keys fall back to the dark factory defaults. */
     val uiColorOverrides: Map<String, Int> = emptyMap(),
+    /** The Day colour set's per-key overrides. Empty keys fall back to
+     *  the light factory defaults ([AppColors.DefaultUiColorArgbDay]). */
+    val uiColorOverridesDay: Map<String, Int> = emptyMap(),
+    /** Which colour set is painted — Night (default), Day, or Auto
+     *  (follow the system day/night setting). */
+    val uiColorMode: com.ai.viewmodel.UiColorMode = com.ai.viewmodel.UiColorMode.NIGHT,
     /** Grand master switch for every optional metadata item — report
      *  icon, report language, AI title, per-model icons / titles, fan
      *  icons / titles, and internal-prompt (meta / rerank / moderate /

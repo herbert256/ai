@@ -385,13 +385,19 @@ fun AppNavHost(
     // Keep the non-composable MetadataIcons holder in sync with the live
     // settings so helper/when-expression call sites read the user's Default
     // icons. Composable sites use LocalMetadataIcons.current (provided below).
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     androidx.compose.runtime.SideEffect {
         com.ai.data.MetadataIconsHolder.current = rootUiStateForLayout.generalSettings.metadataIcons
-        val uiColors = rootUiStateForLayout.generalSettings.uiColorOverrides.toMutableMap().apply {
+        val night = rootUiStateForLayout.generalSettings.uiColorOverrides.toMutableMap().apply {
             putIfAbsent("CardBackgroundAlt", rootUiStateForLayout.generalSettings.uiCardBackgroundArgb)
             putIfAbsent("ButtonBackground", rootUiStateForLayout.generalSettings.uiButtonBackgroundArgb)
         }
-        AppColors.applyUiColors(uiColors)
+        AppColors.applyTheme(
+            dayOverrides = rootUiStateForLayout.generalSettings.uiColorOverridesDay,
+            nightOverrides = night,
+            mode = rootUiStateForLayout.generalSettings.uiColorMode,
+            systemDark = systemDark,
+        )
     }
     androidx.compose.runtime.CompositionLocalProvider(
         com.ai.ui.shared.LocalTopBarLeftIcon provides sectionTopIcon,

@@ -1431,15 +1431,17 @@ private fun UiTweaksSubScreen(
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
     var fullScreen by remember { mutableStateOf(generalSettings.fullScreen) }
     var experimentalFeatures by remember { mutableStateOf(generalSettings.experimentalFeaturesEnabled) }
+    var colorMode by remember { mutableStateOf(generalSettings.uiColorMode) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         modelNameLayout = modelNameLayout,
         showKnowledgeCard = showKnowledgeCard,
         fullScreen = fullScreen,
-        experimentalFeaturesEnabled = experimentalFeatures
+        experimentalFeaturesEnabled = experimentalFeatures,
+        uiColorMode = colorMode
     )
 
-    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen, experimentalFeatures) {
+    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen, experimentalFeatures, colorMode) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1469,6 +1471,25 @@ private fun UiTweaksSubScreen(
                         selected = modelNameLayout == com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL,
                         label = "Provider and model name",
                         onClick = { modelNameLayout = com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL }
+                    )
+                }
+            }
+            SettingCard("Colors mode", "Which of the two colour sets (edited under UI Colors) the app paints. Auto follows the Android system day/night setting.", MetadataDefaults.PALETTE) {
+                Column {
+                    RadioRow(
+                        selected = colorMode == com.ai.viewmodel.UiColorMode.DAY,
+                        label = "Day ☀️",
+                        onClick = { colorMode = com.ai.viewmodel.UiColorMode.DAY }
+                    )
+                    RadioRow(
+                        selected = colorMode == com.ai.viewmodel.UiColorMode.NIGHT,
+                        label = "Night 🌙",
+                        onClick = { colorMode = com.ai.viewmodel.UiColorMode.NIGHT }
+                    )
+                    RadioRow(
+                        selected = colorMode == com.ai.viewmodel.UiColorMode.AUTO,
+                        label = "Auto (follow system)",
+                        onClick = { colorMode = com.ai.viewmodel.UiColorMode.AUTO }
                     )
                 }
             }
@@ -1506,20 +1527,33 @@ private fun UiColorsSubScreen(
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
-    var colorOverrides by remember(generalSettings.uiColorOverrides, generalSettings.uiCardBackgroundArgb, generalSettings.uiButtonBackgroundArgb) {
+    // Two independently-editable colour sets. Night is the original full
+    // override map; Day is its light counterpart. The top Day/Night
+    // switch only chooses which set the cards edit + preview — the set
+    // the app actually paints is governed by Colors mode (UI Tweaks).
+    var editingDay by rememberSaveable { mutableStateOf(generalSettings.uiColorMode == com.ai.viewmodel.UiColorMode.DAY) }
+    var nightOverrides by remember(generalSettings.uiColorOverrides, generalSettings.uiCardBackgroundArgb, generalSettings.uiButtonBackgroundArgb) {
         mutableStateOf(currentUiColorMap(generalSettings))
     }
+    var dayOverrides by remember(generalSettings.uiColorOverridesDay) {
+        mutableStateOf(generalSettings.uiColorOverridesDay)
+    }
+    val editing = if (editingDay) dayOverrides else nightOverrides
 
     fun build(): GeneralSettings = generalSettings.copy(
-        uiCardBackgroundArgb = colorOverrides["CardBackgroundAlt"] ?: DEFAULT_UI_CARD_BACKGROUND_ARGB,
-        uiButtonBackgroundArgb = colorOverrides["ButtonBackground"] ?: DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
-        uiColorOverrides = colorOverrides
+        uiCardBackgroundArgb = nightOverrides["CardBackgroundAlt"] ?: DEFAULT_UI_CARD_BACKGROUND_ARGB,
+        uiButtonBackgroundArgb = nightOverrides["ButtonBackground"] ?: DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
+        uiColorOverrides = nightOverrides,
+        uiColorOverridesDay = dayOverrides
     )
 
+    // Preview the set currently being edited. This SideEffect is nested
+    // below AppNavHost's theme SideEffect, so it runs last and wins while
+    // the screen is open; leaving restores the active Colors-mode theme.
     SideEffect {
-        AppColors.applyUiColors(colorOverrides)
+        AppColors.applyResolved(editingDay, editing)
     }
-    LaunchedEffect(colorOverrides) {
+    LaunchedEffect(dayOverrides, nightOverrides) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(250)
@@ -1543,15 +1577,29 @@ private fun UiColorsSubScreen(
         return
     }
 
+    fun setEditing(next: Map<String, Int>) {
+        if (editingDay) dayOverrides = next else nightOverrides = next
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "settings_ui_colors", title = "UI Colors", subject = "App palette", onBackClick = onBack,
-            // 🧽 restores every color to its factory default (clears all overrides).
-            onClear = { colorOverrides = emptyMap() })
+            // 🧽 restores the currently-edited set to its factory default.
+            onClear = { setEditing(emptyMap()) })
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                SegmentedButton(
+                    selected = editingDay, onClick = { editingDay = true },
+                    shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                ) { Text("Day ☀️") }
+                SegmentedButton(
+                    selected = !editingDay, onClick = { editingDay = false },
+                    shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                ) { Text("Night 🌙") }
+            }
             Text(
-                "These are the simple AppColors definitions used by shared cards, buttons, text, borders, badges, and status accents.",
+                "Editing the ${if (editingDay) "Day ☀️" else "Night 🌙"} set. Each set has its own colours; Colors mode (UI tweaks) picks which one the app paints. These are the AppColors used by shared cards, buttons, text, borders, badges, and status accents.",
                 fontSize = 12.sp,
                 color = AppColors.TextTertiary,
                 lineHeight = 17.sp,
@@ -1562,15 +1610,15 @@ private fun UiColorsSubScreen(
                     title = spec.title,
                     description = spec.description,
                     icon = spec.icon,
-                    argb = colorOverrides[spec.key] ?: AppColors.defaultArgbFor(spec.key),
-                    defaultArgb = AppColors.defaultArgbFor(spec.key),
+                    argb = editing[spec.key] ?: AppColors.defaultArgbFor(spec.key, editingDay),
+                    defaultArgb = AppColors.defaultArgbFor(spec.key, editingDay),
                     onChange = { next ->
                         // A combined row writes the same value to every key it
                         // represents (spec.alsoSet) — e.g. Primary + Info accent.
-                        colorOverrides = colorOverrides.toMutableMap().apply {
+                        setEditing(editing.toMutableMap().apply {
                             put(spec.key, next)
                             spec.alsoSet.forEach { put(it, next) }
-                        }.toMap()
+                        }.toMap())
                     },
                     onUsage = { usageForColor = spec.title to (listOf(spec.key) + spec.alsoSet) }
                 )

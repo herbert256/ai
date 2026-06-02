@@ -32,6 +32,32 @@ object AppColors {
         "BorderUnfocused" to 0xFF444444.toInt()
     )
 
+    /** Day (light) factory palette — the counterpart to the dark
+     *  [DefaultUiColorArgb] (which is the Night set). Same keys; tuned
+     *  for a light background with readable text and accents. Editable
+     *  per-key on the UI Colors screen with the Day ☀️ tab selected. */
+    val DefaultUiColorArgbDay = linkedMapOf(
+        "AppBackground" to 0xFFF7F7FA.toInt(),
+        "MainTitle" to 0xFF161616.toInt(),
+        "SubTitle" to 0xFFB26A00.toInt(),
+        "PrimaryAccent" to 0xFF7C3AED.toInt(),
+        "InfoAccent" to 0xFF2563EB.toInt(),
+        "SuccessAccent" to 0xFF2E7D32.toInt(),
+        "DangerAccent" to 0xFFD32F2F.toInt(),
+        "WarningAccent" to 0xFFB26A00.toInt(),
+        "QueueAccent" to 0xFF6D4C41.toInt(),
+        "SurfaceDark" to 0xFFE9E9EE.toInt(),
+        "CardBackground" to 0xFFFFFFFF.toInt(),
+        "CardBackgroundAlt" to 0xFFEAF0F7.toInt(),
+        "ButtonBackground" to 0xFFD6E8E1.toInt(),
+        "DisabledBackground" to 0xFFE2E2E2.toInt(),
+        "SelectionHighlight" to 0xFFD7EADF.toInt(),
+        "TextPrimary" to 0xFF161616.toInt(),
+        "TextSecondary" to 0xFF454545.toInt(),
+        "TextDim" to 0xFF767676.toInt(),
+        "BorderUnfocused" to 0xFFB9B9B9.toInt()
+    )
+
     private val UiColorAliasFallbacks = mapOf(
         "PrimaryAccent" to listOf("Purple"),
         "InfoAccent" to listOf("SecondaryAccent", "Blue", "Indigo"),
@@ -155,9 +181,26 @@ object AppColors {
         )
     }
 
-    fun applyUiColors(overrides: Map<String, Int>) {
-        val colors = normalizeUiColorOverrides(overrides)
-        fun color(key: String): Color = colorFromArgb(colors[key] ?: defaultArgbFor(key))
+    /** Night-base factory default for a key (the original behaviour). */
+    fun defaultArgbForDay(key: String): Int = DefaultUiColorArgbDay.getValue(key)
+
+    /** Factory default for a key in the requested set. */
+    fun defaultArgbFor(key: String, day: Boolean): Int =
+        if (day) DefaultUiColorArgbDay.getValue(key) else DefaultUiColorArgb.getValue(key)
+
+    /** Resolve whether the Day set is active for [mode] given the
+     *  current system day/night state ([systemDark]). */
+    fun isDayActive(mode: com.ai.viewmodel.UiColorMode, systemDark: Boolean): Boolean = when (mode) {
+        com.ai.viewmodel.UiColorMode.DAY -> true
+        com.ai.viewmodel.UiColorMode.NIGHT -> false
+        com.ai.viewmodel.UiColorMode.AUTO -> !systemDark
+    }
+
+    /** Paint the live colour state from [overrides] layered over the Day
+     *  or Night factory base. Missing keys fall back to that base. */
+    fun applyResolved(day: Boolean, overrides: Map<String, Int>) {
+        val base = if (day) DefaultUiColorArgbDay else DefaultUiColorArgb
+        fun color(key: String): Color = colorFromArgb(overrides[key] ?: base.getValue(key))
         AppBackground = color("AppBackground")
         MainTitle = color("MainTitle")
         SubTitle = color("SubTitle")
@@ -178,6 +221,22 @@ object AppColors {
         TextDim = color("TextDim")
         BorderUnfocused = color("BorderUnfocused")
     }
+
+    /** Apply the effective theme: pick Day or Night per [mode] +
+     *  [systemDark], then paint from that set's overrides. */
+    fun applyTheme(
+        dayOverrides: Map<String, Int>,
+        nightOverrides: Map<String, Int>,
+        mode: com.ai.viewmodel.UiColorMode,
+        systemDark: Boolean,
+    ) {
+        val day = isDayActive(mode, systemDark)
+        applyResolved(day, if (day) dayOverrides else normalizeUiColorOverrides(nightOverrides))
+    }
+
+    /** Legacy single-set apply (Night base). Kept for the import path. */
+    fun applyUiColors(overrides: Map<String, Int>) =
+        applyResolved(false, normalizeUiColorOverrides(overrides))
 
     /** Default filled style for OutlinedButton — gives every "neutral" button a subtle
      *  background instead of the Material default transparent container. */

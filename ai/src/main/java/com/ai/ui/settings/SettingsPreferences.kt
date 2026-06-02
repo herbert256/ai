@@ -96,6 +96,12 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             uiCardBackgroundArgb = uiColorOverrides["CardBackgroundAlt"] ?: DEFAULT_UI_CARD_BACKGROUND_ARGB,
             uiButtonBackgroundArgb = uiColorOverrides["ButtonBackground"] ?: DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
             uiColorOverrides = uiColorOverrides,
+            uiColorOverridesDay = prefs.getString(KEY_UI_COLOR_OVERRIDES_DAY, null)?.let {
+                try { gson.fromJson<Map<String, Int>>(it, TypeTokens.mapStringIntType) } catch (_: Exception) { null }
+            }.orEmpty(),
+            uiColorMode = prefs.getString(KEY_UI_COLOR_MODE, null)?.let {
+                try { com.ai.viewmodel.UiColorMode.valueOf(it) } catch (_: Exception) { null }
+            } ?: com.ai.viewmodel.UiColorMode.NIGHT,
             metadataEnabled = prefs.getBoolean(KEY_METADATA_ENABLED, true),
             iconGenEnabled = prefs.getBoolean(KEY_ICON_GEN_ENABLED, true),
             reportLanguageGenEnabled = prefs.getBoolean(KEY_REPORT_LANGUAGE_GEN_ENABLED, true),
@@ -166,6 +172,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putInt(KEY_UI_CARD_BACKGROUND_ARGB, cardBackgroundArgb)
             putInt(KEY_UI_BUTTON_BACKGROUND_ARGB, buttonBackgroundArgb)
             putString(KEY_UI_COLOR_OVERRIDES, gson.toJson(uiColorOverrides))
+            putString(KEY_UI_COLOR_OVERRIDES_DAY, gson.toJson(settings.uiColorOverridesDay))
+            putString(KEY_UI_COLOR_MODE, settings.uiColorMode.name)
             putBoolean(KEY_METADATA_ENABLED, settings.metadataEnabled)
             putBoolean(KEY_ICON_GEN_ENABLED, settings.iconGenEnabled)
             putBoolean(KEY_REPORT_LANGUAGE_GEN_ENABLED, settings.reportLanguageGenEnabled)
@@ -983,6 +991,8 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_UI_CARD_BACKGROUND_ARGB = "ui_card_background_argb"
         private const val KEY_UI_BUTTON_BACKGROUND_ARGB = "ui_button_background_argb"
         private const val KEY_UI_COLOR_OVERRIDES = "ui_color_overrides"
+        private const val KEY_UI_COLOR_OVERRIDES_DAY = "ui_color_overrides_day"
+        private const val KEY_UI_COLOR_MODE = "ui_color_mode"
         private const val KEY_METADATA_ENABLED = "metadata_enabled"
         private const val KEY_ICON_GEN_ENABLED = "icon_gen_enabled"
         private const val KEY_REPORT_LANGUAGE_GEN_ENABLED = "report_language_gen_enabled"
