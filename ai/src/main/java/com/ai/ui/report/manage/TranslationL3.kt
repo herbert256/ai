@@ -192,7 +192,7 @@ internal fun TranslationL3Screen(
         value = withContext(Dispatchers.IO) {
             val m = item.model ?: return@withContext null
             ApiTracer.getTraceFiles()
-                .filter { it.reportId == reportId && it.model == m && it.category?.endsWith("/Translate") == true }
+                .filter { it.reportId == reportId && it.model == m && it.category?.startsWith("translate") == true }
                 .maxByOrNull { it.timestamp }?.filename
         }
     }
