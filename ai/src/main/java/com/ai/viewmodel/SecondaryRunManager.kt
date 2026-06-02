@@ -1233,10 +1233,19 @@ class SecondaryRunManager(
         val isRerankApiPath = kind == SecondaryKind.RERANK
             && aiSettings.getModelType(provider, model) == com.ai.data.ModelType.RERANK
         if (isRerankApiPath) {
+            // Honour a selected target language: rank the TRANSLATED query +
+            // documents (falling back to the originals per-agent / for the
+            // query when a translation row is missing), so "Rerank in Dutch"
+            // ranks the Dutch text rather than the English originals — same
+            // as the moderation branch above.
+            val rerankLangCtx = targetLanguage?.let { lang ->
+                lookupLanguageTranslations(report, SecondaryResultStorage.listForReport(context, reportId), lang)
+            }
+            val query = rerankLangCtx?.prompt?.takeIf { it.isNotBlank() } ?: report.prompt
             val docs = report.agents
                 .filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
-                .map { it.responseBody!! }
-            val r = com.ai.data.callRerankApi(provider, apiKey, model, report.prompt, docs)
+                .map { agent -> rerankLangCtx?.bodiesByAgentId?.get(agent.agentId) ?: agent.responseBody!! }
+            val r = com.ai.data.callRerankApi(provider, apiKey, model, query, docs)
             // Per-query pricing: cost = billedSearchUnits × perQueryPrice.
             // Stored on inputCost so the report cost table renders
             // alongside chat/summarize rows. The provider may omit the
@@ -1254,7 +1263,7 @@ class SecondaryRunManager(
             // Gated on promptPrice > 0 so a genuinely free / unpriced model
             // still reads as $0 instead of carrying a fabricated token count.
             val estInputTokens = if (r.errorMessage == null && perQueryCost <= 0.0 && pricing.promptPrice > 0.0)
-                AppViewModel.estimateTokens(report.prompt) + docs.sumOf { AppViewModel.estimateTokens(it) }
+                AppViewModel.estimateTokens(query) + docs.sumOf { AppViewModel.estimateTokens(it) }
                 else 0
             val rerankCost = when {
                 perQueryCost > 0.0 -> perQueryCost
