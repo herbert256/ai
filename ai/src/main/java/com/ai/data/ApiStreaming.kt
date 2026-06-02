@@ -369,7 +369,15 @@ private fun AnalysisRepository.streamOpenAi(
         val response = withApiCallTimeout { withContext(Dispatchers.IO) { api.chatStream(chatUrl, "Bearer $apiKey", request) } }
         if (response.isSuccessful) {
             response.body()?.let { body ->
-                parseSseStream(body, ::extractOpenAiContent).collect { emit(it) }
+                // Emit content only, buffering reasoning, so the chain-of-
+                // thought isn't interleaved into the streamed answer AND the
+                // truncation guard counts real content chunks (not reasoning,
+                // which previously masked a reasoning-only / truncated stream
+                // as a completed answer). Surface reasoning at the end only
+                // when no content streamed (answer-in-reasoning_content).
+                val ext = OpenAiContentExtractor()
+                parseSseStream(body, ext::extract).collect { emit(it) }
+                ext.reasoningFallback()?.let { emit(it) }
             } ?: throw Exception("Empty response body")
         } else {
             val errorMsg = try { response.errorBody()?.string() } catch (_: Exception) { null }
