@@ -200,7 +200,10 @@ data class DefaultMetaItem(
     val metaName: String,
     val agentName: String = "",
     val providerName: String = "",
-    val modelName: String = ""
+    val modelName: String = "",
+    /** When false, the item is kept but skipped at report-completion
+     *  autostart time. Defaults true (existing rows stay active). */
+    val active: Boolean = true
 ) {
     /** Composite identity for append-only seed de-duplication. */
     val seedKey: String

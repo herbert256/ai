@@ -741,7 +741,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
     ) {
         if (!appViewModel.uiState.value.generalSettings.autostartItemsEnabled) return
         if (successCount < 1) return
-        val items = aiSettings.defaultMetaItems
+        val items = aiSettings.defaultMetaItems.filter { it.active }
         if (items.isEmpty()) return
         val existingMetaNames = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.META)
             .mapNotNull { it.metaPromptName?.lowercase() }.toMutableSet()

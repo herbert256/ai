@@ -16,9 +16,14 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.ai.ui.shared.AppColors
+import com.ai.ui.shared.DeleteConfirmationDialog
 import com.ai.ui.shared.TitleBar
 
 /**
@@ -45,16 +50,27 @@ fun CrudFormScaffold(
      *  discards the user's edits and shows the saved values again. Null
      *  → glyph hidden. */
     onReset: (() -> Unit)? = null,
+    /** Optional 👯 duplicate hook (Edit only). Null → glyph hidden. */
+    onCopy: (() -> Unit)? = null,
+    /** Optional 🗑 delete hook (Edit only). Null → glyph hidden. A
+     *  confirmation dialog runs first; [deleteName] names the entity. */
+    onDelete: (() -> Unit)? = null,
+    deleteName: String? = null,
     content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit
 ) {
     BackHandler { onBack() }
+    var confirmDelete by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp)
     ) {
-        TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack, onClear = onReset)
+        TitleBar(
+            helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack, onClear = onReset,
+            onCopyReport = if (isAdd) null else onCopy,
+            onDelete = if (isAdd || onDelete == null) null else ({ confirmDelete = true })
+        )
         if (isAdd) {
             OutlinedButton(
                 onClick = { onSave(); onBack() },
@@ -69,5 +85,13 @@ fun CrudFormScaffold(
         Column(modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState())) {
             content()
         }
+    }
+    if (confirmDelete && onDelete != null) {
+        DeleteConfirmationDialog(
+            entityType = title,
+            entityName = deleteName ?: title,
+            onConfirm = { confirmDelete = false; onDelete() },
+            onDismiss = { confirmDelete = false }
+        )
     }
 }

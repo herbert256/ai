@@ -4,14 +4,17 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -24,16 +27,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.model.DefaultMetaItem
 import com.ai.model.Settings
-import com.ai.ui.cruds.framework.CrudField
 import com.ai.ui.cruds.framework.CrudFormScaffold
 import com.ai.ui.cruds.framework.CrudListPage
-import com.ai.ui.cruds.framework.CrudViewPage
 import com.ai.ui.shared.AppColors
 import java.util.UUID
 
 private sealed interface Mode {
     data object List : Mode
-    data class View(val item: DefaultMetaItem) : Mode
     data class Edit(val item: DefaultMetaItem) : Mode
     data object Add : Mode
 }
@@ -78,34 +78,20 @@ fun DefaultMetaItemsCrud(
             subject = "Meta prompts auto-run when a report finishes",
             helpTopic = "crud_default_meta_items",
             items = aiSettings.defaultMetaItems.sortedBy { it.metaName.lowercase() },
-            line = { "${it.metaName} · ${it.targetLabel()}" },
+            line = { "${if (it.active) "" else "⛔ "}${it.metaName} · ${it.targetLabel()}" },
             itemKey = { it.id },
-            onView = { mode = Mode.View(it) },
+            // Tap → straight to the edit screen (the read-only view is
+            // skipped); 👯 / 🗑 live on the edit bar.
+            onView = { mode = Mode.Edit(it) },
             onAdd = { mode = Mode.Add },
             onBack = onBack,
             emptyMessage = "No default meta items configured"
         )
-        is Mode.View -> CrudViewPage(
-            title = "Default meta item",
-            subject = m.item.metaName,
-            helpTopic = "crud_default_meta_items",
-            onEdit = { mode = Mode.Edit(m.item) },
-            onCopy = { mode = Mode.Edit(m.item.copy(id = UUID.randomUUID().toString())) },
-            onDelete = { remove(m.item); toList() },
-            onBack = toList,
-            deleteName = m.item.metaName
-        ) {
-            CrudField("Meta prompt", m.item.metaName)
-            if (m.item.providerName.isNotBlank() && m.item.modelName.isNotBlank())
-                CrudField("Provider / Model", "${m.item.providerName} / ${m.item.modelName}")
-            else if (m.item.agentName.isNotBlank())
-                CrudField("Agent", m.item.agentName)
-            else
-                CrudField("Target", "(none — will be skipped at run time)")
-        }
         is Mode.Edit -> key(m.item.id) {
             DefaultMetaItemForm(m.item, aiSettings, isAdd = false,
-                onSaved = { upsert(it) }, onBack = toList, onNavigateHome = onNavigateHome)
+                onSaved = { upsert(it) }, onBack = toList, onNavigateHome = onNavigateHome,
+                onCopy = { mode = Mode.Edit(m.item.copy(id = UUID.randomUUID().toString())) },
+                onDelete = { remove(m.item); toList() })
         }
         Mode.Add -> DefaultMetaItemForm(null, aiSettings, isAdd = true,
             onSaved = { upsert(it) }, onBack = toList, onNavigateHome = onNavigateHome)
@@ -119,7 +105,9 @@ private fun DefaultMetaItemForm(
     isAdd: Boolean,
     onSaved: (DefaultMetaItem) -> Unit,
     onBack: () -> Unit,
-    onNavigateHome: () -> Unit
+    onNavigateHome: () -> Unit,
+    onCopy: (() -> Unit)? = null,
+    onDelete: (() -> Unit)? = null
 ) {
     val metaNames = remember(aiSettings) {
         aiSettings.internalPrompts.filter { it.category == "meta" }.map { it.name }.sortedBy { it.lowercase() }
@@ -131,6 +119,7 @@ private fun DefaultMetaItemForm(
     var agentName by remember(resetTick) { mutableStateOf(initial?.agentName ?: "") }
     var providerName by remember(resetTick) { mutableStateOf(initial?.providerName ?: "") }
     var modelName by remember(resetTick) { mutableStateOf(initial?.modelName ?: "") }
+    var active by remember(resetTick) { mutableStateOf(initial?.active ?: true) }
     var metaMenuOpen by remember { mutableStateOf(false) }
     var agentMenuOpen by remember { mutableStateOf(false) }
     var showPicker by remember { mutableStateOf(false) }
@@ -153,7 +142,7 @@ private fun DefaultMetaItemForm(
         title = if (isAdd) "Add default meta item" else "Edit default meta item",
         subject = "Auto-run a meta prompt on report completion",
         isAdd = isAdd,
-        current = if (saveEnabled) DefaultMetaItem(id = initial?.id ?: "", metaName = metaName.trim(), agentName = agentName.trim(), providerName = providerName.trim(), modelName = modelName.trim()) else null,
+        current = if (saveEnabled) DefaultMetaItem(id = initial?.id ?: "", metaName = metaName.trim(), agentName = agentName.trim(), providerName = providerName.trim(), modelName = modelName.trim(), active = active) else null,
         onSave = {
             onSaved(
                 DefaultMetaItem(
@@ -161,14 +150,28 @@ private fun DefaultMetaItemForm(
                     metaName = metaName.trim(),
                     agentName = agentName.trim(),
                     providerName = providerName.trim(),
-                    modelName = modelName.trim()
+                    modelName = modelName.trim(),
+                    active = active
                 )
             )
         },
         onBack = onBack,
         helpTopic = "crud_default_meta_items",
-        onReset = { resetTick++ }
+        onReset = { resetTick++ },
+        onCopy = onCopy,
+        onDelete = onDelete,
+        deleteName = metaName
     ) {
+        // ---- Active flag ----
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text("Active", fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+            Switch(checked = active, onCheckedChange = { active = it })
+        }
+        Text(
+            if (active) "Runs automatically when a report finishes." else "Kept but skipped at autostart time.",
+            fontSize = 11.sp, color = AppColors.TextTertiary
+        )
+        Spacer(modifier = Modifier.height(12.dp))
         // ---- Meta prompt (required) ----
         Text("Meta prompt", fontSize = 12.sp, color = AppColors.TextTertiary)
         Box {
