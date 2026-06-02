@@ -1231,7 +1231,7 @@ fun AiSpendUsageScreen(
         TitleBar(
             helpTopic = "ai_spend_usage",
             title = "Spend & usage",
-            subject = "Calls, tokens and cost by provider, type and report",
+            subject = "Calls, tokens and cost by provider, type, report and model",
             onBackClick = onBack,
             reportIcon = com.ai.ui.shared.LocalMetadataIcons.current.statistics,
             onReportIconClick = onNavigateToStatistics,
@@ -1279,6 +1279,14 @@ fun AiSpendUsageScreen(
                             if (sortCol == col) sortAsc = !sortAsc else { sortCol = col; sortAsc = false }
                         },
                         onOpenReportCosts = onOpenReportCosts,
+                    )
+                    SpendUsageMode.MODELS -> SpendUsageModelsTab(
+                        data = d,
+                        sortCol = sortCol,
+                        sortAsc = sortAsc,
+                        onSort = { col ->
+                            if (sortCol == col) sortAsc = !sortAsc else { sortCol = col; sortAsc = false }
+                        },
                     )
                 }
             }
@@ -1532,6 +1540,75 @@ private fun ColumnScope.SpendUsageReportsTab(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(row.title, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
+                Text("${row.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
+                Text(formatCompactNumber(row.tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
+                Spacer(Modifier.width(cGap))
+                Text(cents(row.totalCost), fontSize = 13.sp, color = AppColors.SuccessAccent, textAlign = TextAlign.End, modifier = Modifier.width(cCost))
+                Spacer(Modifier.width(cBugGap + cBug))
+            }
+            HorizontalDivider(color = AppColors.DividerDark, modifier = Modifier.width(tableWidth))
+        }
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun ColumnScope.SpendUsageModelsTab(
+    data: UsageGroupsResult,
+    sortCol: UsageSort,
+    sortAsc: Boolean,
+    onSort: (UsageSort) -> Unit,
+) {
+    // Flatten every provider's per-model stat rows and re-aggregate by
+    // model id, so the same model served by two providers shows as one
+    // line. Costs/tokens/calls are summed.
+    val modelRows = remember(data.groups) {
+        data.groups.flatMap { it.models }
+            .groupBy { it.stat.model }
+            .map { (model, rows) ->
+                ModelUsageRow(
+                    model = model,
+                    calls = rows.sumOf { it.stat.callCount },
+                    tokens = rows.sumOf { it.stat.totalTokens },
+                    totalCost = rows.sumOf { it.totalCost },
+                )
+            }
+    }
+    if (modelRows.isEmpty()) {
+        Text(
+            "No usage data yet. Generate reports or chat to see spend.",
+            color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp)
+        )
+        return
+    }
+    SpendUsageSummary(
+        modelRows.sumOf { it.calls },
+        modelRows.sumOf { it.tokens },
+        modelRows.sumOf { it.totalCost }
+    )
+    Spacer(Modifier.height(8.dp))
+
+    val cName = 184.dp; val cCalls = 56.dp; val cTok = 78.dp
+    val cGap = 18.dp; val cCost = 92.dp; val cBugGap = 12.dp; val cBug = 28.dp
+    val tableWidth = cName + cCalls + cTok + cGap + cCost + cBugGap + cBug
+    val rows = remember(modelRows, sortCol, sortAsc) {
+        val cmp: Comparator<ModelUsageRow> = when (sortCol) {
+            UsageSort.PROVIDER -> compareBy { it.model.lowercase() }
+            UsageSort.CALLS -> compareBy { it.calls }
+            UsageSort.TOKENS -> compareBy { it.tokens }
+            UsageSort.COST -> compareBy { it.totalCost }
+        }
+        modelRows.sortedWith(if (sortAsc) cmp else cmp.reversed())
+    }
+
+    Column(modifier = Modifier.align(Alignment.CenterHorizontally).weight(1f).verticalScroll(rememberScrollState())) {
+        SpendUsageTableHeader("Model", cName, cCalls, cTok, cGap, cCost, cBugGap, cBug, sortCol, sortAsc, onSort)
+        rows.forEach { row ->
+            Row(
+                modifier = Modifier.padding(vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(row.model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
                 Text("${row.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
                 Text(formatCompactNumber(row.tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
                 Spacer(Modifier.width(cGap))
@@ -2773,8 +2850,18 @@ private enum class UsageSort { PROVIDER, CALLS, TOKENS, COST }
 private enum class SpendUsageMode(val label: String) {
     PROVIDERS("Providers"),
     TYPES("Types"),
-    REPORTS("Reports")
+    REPORTS("Reports"),
+    MODELS("Models")
 }
+
+/** One aggregated row in the Models tab — all usage for a single model
+ *  id summed across every provider that served it. */
+private data class ModelUsageRow(
+    val model: String,
+    val calls: Int,
+    val tokens: Long,
+    val totalCost: Double,
+)
 
 private fun cents(v: Double, decimals: Int = 2): String = "${formatCents(v, decimals)} ¢"
 
