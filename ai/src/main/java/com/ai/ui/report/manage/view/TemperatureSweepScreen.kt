@@ -72,7 +72,10 @@ internal fun TemperatureSweepScreen(
         mutableStateOf(setOf(0, 1, 2))
     }
     var locallySubmittedTemps by remember(reportId, agentId) { mutableStateOf<List<Float>?>(null) }
-    val parsedTemps = remember(tempTexts) { tempTexts.map { it.toFloatOrNull() } }
+    // Parse locale-tolerantly: KeyboardType.Decimal shows a comma as the
+    // decimal key on comma-decimal locales (nl-NL), but toFloatOrNull is
+    // dot-only — accept both so editing a temperature isn't a hard lockout.
+    val parsedTemps = remember(tempTexts) { tempTexts.map { it.trim().replace(',', '.').toFloatOrNull() } }
     val selectedTemps = selectedIndexes.sorted().mapNotNull { parsedTemps.getOrNull(it) }
     val selectedAllValid = selectedIndexes.isNotEmpty() &&
         selectedTemps.size == selectedIndexes.size &&
