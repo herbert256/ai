@@ -690,15 +690,22 @@ class IconGenerationManager(
                             )
                         } else {
                             generatedTitle = generated
+                            // Cost/usage are recorded in BOTH configs — the
+                            // call is billed regardless of whether the title is
+                            // surfaced. With storeTitle the spend lands on the
+                            // model-title row; in the icon-only config the title
+                            // is transient (it only feeds @TITLE@), so attribute
+                            // its spend to the agent's icon cost instead of
+                            // dropping it from the report total.
+                            val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
+                                it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+                            }
+                            val tu = outcome.response.tokenUsage
+                            val inT = tu?.inputTokens ?: 0
+                            val outT = tu?.outputTokens ?: 0
+                            val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
+                            val (inC, outC) = costSplit(tu, pricing)
                             if (storeTitle) {
-                                val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
-                                    it.copy(model = aiSettings.getEffectiveModelForAgent(it))
-                                }
-                                val tu = outcome.response.tokenUsage
-                                val inT = tu?.inputTokens ?: 0
-                                val outT = tu?.outputTokens ?: 0
-                                val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
-                                val (inC, outC) = costSplit(tu, pricing)
                                 ReportStorage.updateReportAgentModelTitle(
                                     context, reportId, ra.agentId, generated,
                                     model = winAgent?.let { "${it.provider.id}/${it.model}" },
@@ -708,11 +715,15 @@ class IconGenerationManager(
                                     promptUsed = "model_title",
                                     durationMs = durationMs
                                 )
-                                if ((inT > 0 || outT > 0) && winAgent != null && tu != null) {
-                                    appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                        winAgent.provider, winAgent.model, tu, kind = "title"
-                                    )
-                                }
+                            } else if (inT > 0 || outT > 0 || inC > 0.0 || outC > 0.0) {
+                                ReportStorage.bumpReportAgentIconCost(
+                                    context, reportId, ra.agentId, inT, outT, inC, outC
+                                )
+                            }
+                            if ((inT > 0 || outT > 0) && winAgent != null && tu != null) {
+                                appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                    winAgent.provider, winAgent.model, tu, kind = "title"
+                                )
                             }
                         }
                     }
