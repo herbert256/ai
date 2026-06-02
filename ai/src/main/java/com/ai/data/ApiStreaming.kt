@@ -243,6 +243,34 @@ internal fun extractOpenAiContent(eventType: String?, data: String): String? {
     } catch (_: Exception) { null }
 }
 
+/** Stateful OpenAI Chat-Completions content extractor that emits ONLY the
+ *  answer (`delta.content`) and buffers reasoning (`reasoning_content` /
+ *  `reasoning`) separately, so a reasoning model's chain-of-thought never gets
+ *  concatenated into the answer (the flat [extractOpenAiContent] does, because
+ *  early reasoning deltas have empty content and fall through). After the
+ *  stream, call [reasoningFallback] to recover the answer for the
+ *  non-conforming providers that put it in `reasoning_content` with empty
+ *  `content` (see the matching whole-message fallback in parseOpenAiAnalysisResponse). */
+internal class OpenAiContentExtractor {
+    private val reasoning = StringBuilder()
+    var sawContent = false; private set
+    fun extract(@Suppress("UNUSED_PARAMETER") eventType: String?, data: String): String? {
+        return try {
+            val delta = gson.fromJson(data, OpenAiStreamChunk::class.java)?.choices?.firstOrNull()?.delta
+            val content = delta?.content?.takeIf { it.isNotEmpty() }
+            if (content != null) { sawContent = true; content }
+            else {
+                (delta?.reasoning_content?.takeIf { it.isNotEmpty() }
+                    ?: delta?.reasoning?.takeIf { it.isNotEmpty() })?.let { reasoning.append(it) }
+                null
+            }
+        } catch (_: Exception) { null }
+    }
+    /** Reasoning text to use as the answer iff NO content was streamed. */
+    fun reasoningFallback(): String? =
+        if (!sawContent) reasoning.toString().takeIf { it.isNotBlank() } else null
+}
+
 /** OpenAI Responses API SSE: event=response.output_text.delta, data.delta contains text */
 internal fun extractResponsesApiContent(eventType: String?, data: String): String? {
     if (eventType != "response.output_text.delta") return null

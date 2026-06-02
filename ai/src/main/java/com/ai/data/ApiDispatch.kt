@@ -1222,7 +1222,15 @@ private suspend fun AnalysisRepository.streamOpenAiReport(
     val request = buildOpenAiRequest(service, model, messages, params, stream = true)
         .copy(stream_options = StreamOptions(include_usage = true))
     val response = api.chatStream(chatUrl, "Bearer $apiKey", request)
-    return collectStreamResponse(service, response, ::extractOpenAiContent, extractOpenAiUsage(service), onDelta = onDelta)
+    // Emit content only; buffer reasoning so a reasoning model's chain-of-
+    // thought doesn't get concatenated into the persisted report answer. Fall
+    // back to the buffered reasoning only if no content streamed at all
+    // (providers that put the answer in reasoning_content with empty content).
+    val ext = OpenAiContentExtractor()
+    val resp = collectStreamResponse(service, response, ext::extract, extractOpenAiUsage(service), onDelta = onDelta)
+    return if (resp.analysis.isNullOrBlank())
+        ext.reasoningFallback()?.let { resp.copy(analysis = it, error = null) } ?: resp
+    else resp
 }
 
 private suspend fun AnalysisRepository.streamResponsesApiReport(
