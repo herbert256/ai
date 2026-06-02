@@ -73,6 +73,15 @@ class MainActivity : ComponentActivity() {
                 val useDarkSystemBarIcons = appBackground.luminance() > 0.5f
                 window.statusBarColor = systemBarColor
                 window.navigationBarColor = systemBarColor
+                // Under enableEdgeToEdge() on Android 15+ the deprecated
+                // statusBarColor / navigationBarColor are ignored and the
+                // system-bar areas show the *window* background instead
+                // (the Scaffold is inset below them via statusBarsPadding).
+                // Paint the window background with the App Background color
+                // too, so changing it on the UI Colors screen recolours the
+                // top Android bar live. This SideEffect re-runs whenever the
+                // AppBackground snapshot state changes.
+                window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(systemBarColor))
                 WindowInsetsControllerCompat(window, window.decorView).apply {
                     isAppearanceLightStatusBars = useDarkSystemBarIcons
                     isAppearanceLightNavigationBars = useDarkSystemBarIcons
