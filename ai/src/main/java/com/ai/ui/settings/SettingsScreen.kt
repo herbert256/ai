@@ -3,6 +3,8 @@ package com.ai.ui.settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -1531,6 +1533,16 @@ private fun UiColorsSubScreen(
         }
     }
 
+    // Per-color "Usage" → source-derived list, layered as a full-screen
+    // early-return so the autosave effects above stay composed. Holds the
+    // card title + every canonical color key the card represents
+    // (combined cards stand in for more than one key).
+    var usageForColor by remember { mutableStateOf<Pair<String, List<String>>?>(null) }
+    usageForColor?.let { (title, keys) ->
+        ColorUsageScreen(title = title, keys = keys, onBack = { usageForColor = null })
+        return
+    }
+
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -1559,7 +1571,8 @@ private fun UiColorsSubScreen(
                             put(spec.key, next)
                             spec.alsoSet.forEach { put(it, next) }
                         }.toMap()
-                    }
+                    },
+                    onUsage = { usageForColor = spec.title to (listOf(spec.key) + spec.alsoSet) }
                 )
             }
         }
@@ -1693,7 +1706,8 @@ private fun UiColorPickerCard(
     icon: String,
     argb: Int,
     defaultArgb: Int,
-    onChange: (Int) -> Unit
+    onChange: (Int) -> Unit,
+    onUsage: () -> Unit
 ) {
     var hexText by remember { mutableStateOf(argbToRgbHex(argb)) }
     LaunchedEffect(argb) {
@@ -1759,6 +1773,71 @@ private fun UiColorPickerCard(
             ColorChannelSlider("Red", colorChannel(argb, 16)) { onChange(withColorChannel(argb, 16, it)) }
             ColorChannelSlider("Green", colorChannel(argb, 8)) { onChange(withColorChannel(argb, 8, it)) }
             ColorChannelSlider("Blue", colorChannel(argb, 0)) { onChange(withColorChannel(argb, 0, it)) }
+            OutlinedButton(
+                onClick = onUsage, modifier = Modifier.fillMaxWidth(),
+                colors = AppColors.outlinedButtonColors()
+            ) { Text("Usage") }
+        }
+    }
+}
+
+/** Source-derived "where is this color used" screen. Reads the
+ *  build-time [com.ai.data.ColorUsageData] index for every canonical
+ *  color key the card represents ([keys]) and renders a screen / element
+ *  table. The list is a static snapshot of the `AppColors.<token>`
+ *  references in the source (alias accessors folded into their canonical
+ *  key) — it is NOT recomputed at runtime, hence the disclaimer +
+ *  generated timestamp at the top. */
+@Composable
+private fun ColorUsageScreen(title: String, keys: List<String>, onBack: () -> Unit) {
+    BackHandler { onBack() }
+    val usages = remember(keys) { com.ai.data.ColorUsageData.forKeys(keys) }
+    Column(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp)
+    ) {
+        TitleBar(title = "Usage: $title", subject = "Where this color is used in the source", onBackClick = onBack)
+        Card(
+            colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(12.dp)) {
+                Text(
+                    "This table is derived from a static scan of the source code, not computed at runtime — it can drift as the code changes. Element names are best-effort (the colored parameter / composable role).",
+                    fontSize = 12.sp, color = AppColors.TextSecondary
+                )
+                Text(
+                    "Generated: ${com.ai.data.ColorUsageData.GENERATED_AT}  ·  ${usages.size} reference${if (usages.size == 1) "" else "s"}",
+                    fontSize = 12.sp, color = AppColors.TextTertiary,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+        }
+        // Header row
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            Text("Screen", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppColors.TextTertiary, modifier = Modifier.weight(0.4f))
+            Text("Element", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppColors.TextTertiary, modifier = Modifier.weight(0.6f))
+        }
+        if (usages.isEmpty()) {
+            Text(
+                "No source references found for this color.",
+                fontSize = 13.sp, color = AppColors.TextSecondary,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(usages) { u ->
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.weight(0.4f)) {
+                            Text(u.screen, fontSize = 13.sp, color = Color.White)
+                            Text(u.location, fontSize = 10.sp, color = AppColors.TextDim,
+                                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
+                        }
+                        Text(u.element, fontSize = 12.sp, color = AppColors.TextSecondary,
+                            modifier = Modifier.weight(0.6f))
+                    }
+                }
+            }
         }
     }
 }
