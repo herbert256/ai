@@ -114,12 +114,19 @@ fun rankFor(method: TournamentMethod, m: WinMatrix): List<RankRow> = when (metho
 fun copeland(m: WinMatrix): List<RankRow> {
     val n = m.n
     if (n == 0) return emptyList()
-    val games = (n - 1).coerceAtLeast(1)
     val scored = (0 until n).map { i ->
         val w = (0 until n).sumOf { j -> m.wins[i][j] }
-        Triple(m.ids[i], w, 100.0 * w / games)
+        // Denominator = opponents this model actually played (contested
+        // pairs), not a fixed n-1. With a missing/errored match a fixed n-1
+        // scores the uncontested pair like a loss and the reason overstates
+        // the games played; per-model played-count makes it a true win-rate
+        // (identical to n-1 for a complete round-robin). Locale.US so the
+        // reason renders a dot, not a comma, on comma-decimal locales.
+        val played = (0 until n).count { j -> j != i && m.games[i][j] > 0.0 }.coerceAtLeast(1)
+        RankScored(m.ids[i], 100.0 * w / played,
+            String.format(java.util.Locale.US, "Won %.1f of %d head-to-heads", w, played))
     }
-    return assignRanks(scored.map { RankScored(it.first, it.third, "Won %.1f of %d head-to-heads".format(it.second, games)) })
+    return assignRanks(scored)
 }
 
 /** Davidson tie-aware paired-comparison model. It estimates a latent
