@@ -395,8 +395,11 @@ internal fun ViewAiReportScreen(
 
     // Inline expansion target — which Computed kind's items list is
     // open below the grid. Null = nothing expanded. rememberSaveable
-    // so a rotation doesn't snap the list shut mid-read.
-    var expandedKind by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
+    // so a rotation doesn't snap the list shut mid-read. Keyed on
+    // reportId too (like selectedViewLangKey): the View screen swaps
+    // reports in place, so without it a left-open inline list would
+    // persist onto a different report.
+    var expandedKind by rememberSaveable(resetTick, reportId) { mutableStateOf<String?>(null) }
 
     // Persisted tile-order — survives reports / restarts. Stored as
     // a comma-separated list of tile identifiers under SharedPreferences
