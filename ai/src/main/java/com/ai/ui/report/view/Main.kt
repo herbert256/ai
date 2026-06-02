@@ -389,6 +389,7 @@ internal fun ViewAiReportScreen(
     // language back up.
     var promptViewLanguage by rememberSaveable(resetTick) { mutableStateOf<String?>(null) }
     var promptViewOpen by rememberSaveable(resetTick) { mutableStateOf(false) }
+    var matrixViewOpen by rememberSaveable(resetTick) { mutableStateOf(false) }
     // Reports overlay vars are declared higher up (hoisted so the
     // rerank mount can flip them) — re-using the same identifiers
     // here.
@@ -543,6 +544,16 @@ internal fun ViewAiReportScreen(
         currentLanguageState.value = if (selectedViewLangKey == LangTab.ORIGINAL_KEY) ""
             else viewLangTabs.firstOrNull { it.key == selectedViewLangKey }?.displayName ?: ""
     }
+    val matrixCurrentLang = currentLanguageState.value
+    val matrixTranslationByTarget = remember(translates, matrixCurrentLang) {
+        if (matrixCurrentLang.isNullOrEmpty()) emptyMap()
+        else translates
+            .filter { it.targetLanguage == matrixCurrentLang && !it.content.isNullOrBlank() }
+            .associateBy(
+                { (it.translateSourceKind ?: "") + ":" + (it.translateSourceTargetId ?: "") },
+                { it.content.orEmpty() }
+            )
+    }
 
     // Prompt "View" overlay — language captured at tap time so the
     // opened screen renders the matching PROMPT TRANSLATE row for
@@ -579,6 +590,23 @@ internal fun ViewAiReportScreen(
                     promptViewOpen = false
                     promptViewLanguage = null
                 }
+            )
+        }
+        return
+    }
+    if (matrixViewOpen) {
+        val backToMain: () -> Unit = { matrixViewOpen = false }
+        androidx.compose.runtime.CompositionLocalProvider(
+            com.ai.ui.shared.LocalNavigateToCurrentReport provides backToMain
+        ) {
+            AnswerMatrixViewScreen(
+                report = loadedReport,
+                translationByTarget = matrixTranslationByTarget,
+                langTabs = viewLangTabs,
+                selectedLangKey = selectedViewLangKey,
+                onSelectLang = { selectedViewLangKey = it },
+                forcedLanguage = null,
+                onBack = backToMain
             )
         }
         return
@@ -909,6 +937,13 @@ internal fun ViewAiReportScreen(
                 // clear any agent seed left by a fan-out round-trip.
                 reportsViewInitialAgentId = null
                 reportsViewOpen = true
+            }))
+            add(IdentifiedTile("doc:Matrix", ViewTile(
+                "Matrix", com.ai.data.MetadataIconsHolder.current.document, AppColors.SuccessAccent,
+                enabled = reportsEnabled,
+                onMissingClick = if (!reportsEnabled) ({ openReportsMissing() }) else null
+            ) {
+                matrixViewOpen = true
             }))
             add(IdentifiedTile("doc:Costs", ViewTile("Costs", com.ai.data.MetadataIconsHolder.current.cost, AppColors.CautionAccent) { showCostsView = true }))
             // HTML preview, Log, Trace tiles are deliberately omitted
