@@ -436,13 +436,19 @@ private fun rebuildTournamentMatrixFromRows(
 ): WinMatrix? {
     val runId = aggregateRow.tournamentJudgeRunId ?: return null
     val report = ReportStorage.getReport(context, reportId) ?: return null
-    val successful = report.agents.filter {
-        it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank()
-    }
-    val idByAgent = successful.withIndex().associate { (i, a) -> a.agentId to (i + 1) }
     val matches = SecondaryResultStorage.listForReport(context, reportId, SecondaryKind.TOURNAMENT)
         .filter { it.tournamentRole == "MATCH" && it.tournamentJudgeRunId == runId }
         .mapNotNull { it.toMatchState() }
+    // Number participants by their stable position in report.agents (the
+    // match participant set), NOT by the current SUCCESS set: a participant
+    // that transiently dips out of SUCCESS (mid-regenerate) would otherwise
+    // be dropped — shrinking the matrix — and the surviving ids would shift,
+    // mapping ranks to the wrong models. Matches TournamentEngine's
+    // recomputeAndPersistAggregate and the podium loader's numbering.
+    val participantIds = matches.flatMapTo(HashSet()) { listOf(it.responseAId, it.responseBId) }
+    val idByAgent = report.agents
+        .filter { it.agentId in participantIds }
+        .withIndex().associate { (i, a) -> a.agentId to (i + 1) }
     return computeWinMatrix(matches) { idByAgent[it] }
 }
 
