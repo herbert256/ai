@@ -922,33 +922,47 @@ class IconGenerationManager(
                             }
                         }
                         val durationMs = System.currentTimeMillis() - started
-                        val analysis = (outcome as? WorkerOutcome.Success)?.response?.analysis
-                        val parsedEmoji = extractFirstEmoji(analysis.orEmpty())
-                        // Cache a real parsed emoji for this language (7-day).
-                        if (parsedEmoji != null) com.ai.data.MetaCache.put("language-icon", detectedName, parsedEmoji)
-                        val emoji = parsedEmoji ?: MetadataIconsHolder.current.languageIcon
-                        val winAgent = (outcome as? WorkerOutcome.Success)?.let { aiSettings.resolveWorker(it.worker) }?.let {
-                            it.copy(model = aiSettings.getEffectiveModelForAgent(it))
-                        }
-                        val tu = (outcome as? WorkerOutcome.Success)?.response?.tokenUsage
-                        val inT = tu?.inputTokens ?: 0
-                        val outT = tu?.outputTokens ?: 0
-                        val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
-                        val (inC, outC) = costSplit(tu, pricing)
-                        ReportStorage.updateReportLanguageIcon(
-                            context, reportId,
-                            icon = emoji,
-                            model = winAgent?.let { "${it.provider.id}/${it.model}" },
-                            inputTokens = inT, outputTokens = outT,
-                            inputCost = inC, outputCost = outC,
-                            traceFile = traceSink.get(),
-                            rawResponse = analysis,
-                            promptUsed = "language-icon",
-                            durationMs = durationMs
-                        )
-                        if (tu != null && winAgent != null && (inT > 0 || outT > 0)) {
-                            appViewModel.settingsPrefs.updateUsageStatsAsync(
-                                winAgent.provider, winAgent.model, tu, kind = "language-icon"
+                        if (outcome is WorkerOutcome.Success) {
+                            val analysis = outcome.response.analysis
+                            // The accept predicate guarantees a parseable emoji
+                            // on Success, so this fallback is belt-and-braces.
+                            val emoji = extractFirstEmoji(analysis.orEmpty()) ?: MetadataIconsHolder.current.languageIcon
+                            // Cache the real parsed emoji for this language (7-day).
+                            com.ai.data.MetaCache.put("language-icon", detectedName, emoji)
+                            val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
+                                it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+                            }
+                            val tu = outcome.response.tokenUsage
+                            val inT = tu?.inputTokens ?: 0
+                            val outT = tu?.outputTokens ?: 0
+                            val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
+                            val (inC, outC) = costSplit(tu, pricing)
+                            ReportStorage.updateReportLanguageIcon(
+                                context, reportId,
+                                icon = emoji,
+                                model = winAgent?.let { "${it.provider.id}/${it.model}" },
+                                inputTokens = inT, outputTokens = outT,
+                                inputCost = inC, outputCost = outC,
+                                traceFile = traceSink.get(),
+                                rawResponse = analysis,
+                                promptUsed = "language-icon",
+                                durationMs = durationMs
+                            )
+                            if (tu != null && winAgent != null && (inT > 0 || outT > 0)) {
+                                appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                    winAgent.provider, winAgent.model, tu, kind = "language-icon"
+                                )
+                            }
+                        } else {
+                            // Rate-limited / no-result: record an error row
+                            // instead of silently storing the default glyph as
+                            // a success (which would clear the error and mask
+                            // the failure). The detected language name is left
+                            // untouched.
+                            ReportStorage.updateReportLanguageError(
+                                context, reportId,
+                                if (outcome is WorkerOutcome.AllRateLimited) "language-icon: all workers rate-limited"
+                                else "language-icon: no worker produced an icon"
                             )
                         }
                     }
