@@ -491,7 +491,12 @@ object SecondaryResultStorage {
             val updated = current.copy(
                 icon = null,
                 iconWinningTier = null,
-                iconErrorMessage = null
+                iconErrorMessage = null,
+                // Clear iconRunId too (like clearFanOutIconState): the
+                // report-open + 30 s resume detectors treat a non-null
+                // iconRunId as "a Fan Meta batch was started here", which is
+                // what made a deleted/regenerated Fan Meta reappear.
+                iconRunId = null
             )
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)
@@ -621,7 +626,11 @@ object SecondaryResultStorage {
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
                 catch (_: Exception) { return }
-            val updated = current.copy(title = null, titleErrorMessage = null)
+            // Clear titleRunId too (like clearFanOutTitleState): a non-null
+            // titleRunId is read by the report-open + 30 s resume detectors as
+            // "a titles batch was started here", resurrecting a deleted/
+            // regenerated Fan Meta title.
+            val updated = current.copy(title = null, titleErrorMessage = null, titleRunId = null)
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)
         }
