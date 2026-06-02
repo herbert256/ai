@@ -1063,9 +1063,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                         val startTime = System.currentTimeMillis()
                         val response = try {
-                            ApiCallCaps.global.withPermit {
-                                ApiCallCaps.report.withPermit {
-                                    val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                    val permitHold = acquireThrottledPermits(ApiCallCaps.report, providerHost(task.runtimeAgent.provider))
                                     try {
                                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                             withTraceFilenameSink(traceSink) {
@@ -1080,10 +1078,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             }
                                         }
                                     } finally {
-                                        releaser.release()
+                                        permitHold.dispose()
                                     }
-                                }
-                            }
+
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (e: Exception) {
@@ -1270,9 +1267,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                         val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                         val startTime = System.currentTimeMillis()
                         val response = try {
-                            ApiCallCaps.global.withPermit {
-                                ApiCallCaps.report.withPermit {
-                                    val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                    val permitHold = acquireThrottledPermits(ApiCallCaps.report, providerHost(task.runtimeAgent.provider))
                                     try {
                                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                             withTraceFilenameSink(traceSink) {
@@ -1287,10 +1282,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             }
                                         }
                                     } finally {
-                                        releaser.release()
+                                        permitHold.dispose()
                                     }
-                                }
-                            }
+
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (e: Exception) {
@@ -1457,9 +1451,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                     val startTime = System.currentTimeMillis()
                     val response = try {
-                        ApiCallCaps.global.withPermit {
-                            ApiCallCaps.report.withPermit {
-                                val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                val permitHold = acquireThrottledPermits(ApiCallCaps.report, providerHost(task.runtimeAgent.provider))
                                 try {
                                     withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                         withTraceFilenameSink(traceSink) {
@@ -1473,10 +1465,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         }
                                     }
                                 } finally {
-                                    releaser.release()
+                                    permitHold.dispose()
                                 }
-                            }
-                        }
+
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -1659,9 +1650,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                     val startTime = System.currentTimeMillis()
                     val response = try {
-                        ApiCallCaps.global.withPermit {
-                            ApiCallCaps.report.withPermit {
-                                val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                val permitHold = acquireThrottledPermits(ApiCallCaps.report, providerHost(task.runtimeAgent.provider))
                                 try {
                                     withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                         withTraceFilenameSink(traceSink) {
@@ -1675,10 +1664,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                         }
                                     }
                                 } finally {
-                                    releaser.release()
+                                    permitHold.dispose()
                                 }
-                            }
-                        }
+
                     } catch (e: kotlinx.coroutines.CancellationException) {
                         throw e
                     } catch (e: Exception) {
@@ -1766,19 +1754,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                     // on the busiest hosts. acquireOrRequeue is the non-blocking
                     // gate (delay, not Thread.sleep); the interceptor skips its
                     // own acquire via permitPreAcquired.
-                    ApiCallCaps.global.withPermit {
-                        ApiCallCaps.report.withPermit {
-                            val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                            val permitHold = acquireThrottledPermits(ApiCallCaps.report, providerHost(task.runtimeAgent.provider))
                             try {
                                 withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                     executeReportTask(context, reportId, aiPrompt, overrideParams, task,
                                         imageBase64, imageMime, headless = headless)
                                 }
                             } finally {
-                                releaser.release()
+                                permitHold.dispose()
                             }
-                        }
-                    }
+
                     // Per-agent enrichment auto-fire — icon and/or title per
                     // the two toggles; launches independently (fire-and-forget),
                     // so awaitAll still tracks only the primary calls.
@@ -2162,19 +2147,16 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                 // against the global→host metadata/interceptor
                                 // path. See runReportPrimaryCalls for the full
                                 // rationale.
-                                ApiCallCaps.global.withPermit {
-                                    ApiCallCaps.report.withPermit {
-                                        val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                        val permitHold = acquireThrottledPermits(ApiCallCaps.report, providerHost(task.runtimeAgent.provider))
                                         try {
                                             withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                                 executeReportTask(context, reportId, finalReport.prompt, overrideParams, task,
                                                     finalReport.imageBase64, finalReport.imageMime, isRegeneration = false)
                                             }
                                         } finally {
-                                            releaser.release()
+                                            permitHold.dispose()
                                         }
-                                    }
-                                }
+
                                 // Per-task auto-fire — same shape as
                                 // generateGenericReports. Each agent's
                                 // worker-based title→icon enrichment kicks
@@ -2289,9 +2271,7 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                             // Canonical order global → report → per-host (host
                             // gate INSIDE global) to avoid the global↔host
                             // deadlock vs the metadata/interceptor path.
-                            ApiCallCaps.global.withPermit {
-                                ApiCallCaps.report.withPermit {
-                                    val releaser = acquireOrRequeue(providerHost(task.runtimeAgent.provider))
+                                    val permitHold = acquireThrottledPermits(ApiCallCaps.report, providerHost(task.runtimeAgent.provider))
                                     try {
                                         withContext(ProviderThrottle.permitPreAcquired.asContextElement(true)) {
                                             executeReportTask(
@@ -2301,10 +2281,9 @@ class ReportViewModel(private val appViewModel: AppViewModel) {
                                             )
                                         }
                                     } finally {
-                                        releaser.release()
+                                        permitHold.dispose()
                                     }
-                                }
-                            }
+
                             // Per-agent enrichment auto-fire — same shape as regenerateReport.
                             val g = appViewModel.uiState.value.generalSettings
                             if (g.perModelIconOn() || g.perModelTitleOn()) {
