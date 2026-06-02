@@ -759,7 +759,7 @@ class RegenerateBatchEngine internal constructor(
         // LANGUAGE — language detection + language-icon flow. Match
         // the language worker's independent dispatch gate.
         val languagePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "workers" && it.name == "report-language"
+            it.category == "workers" && it.name == "report-language-name"
         }
         val languageRunnable = languagePrompt?.workers?.any { aiSettings.resolveWorker(it) != null } == true
         if (generalSettings.reportLanguageOn() && !report.prompt.isNullOrBlank() && languageRunnable) {

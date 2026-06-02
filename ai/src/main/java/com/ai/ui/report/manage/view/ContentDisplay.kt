@@ -744,7 +744,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     val ai = com.ai.model.SettingsHolder.current
     val languageDetectRow: CostRow? = if (hasLanguageDetectCost) {
         val detectPrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "workers" && it.name == "report-language"
+            it.category == "workers" && it.name == "report-language-name"
         }
         val agent = detectPrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
         val provider = agent?.provider
@@ -765,7 +765,7 @@ internal fun rememberReportCostData(report: Report): ReportCostData? {
     } else null
     val languageIconRow: CostRow? = if (hasLanguageIconCost) {
         val iconPrompt = ai?.internalPrompts?.firstOrNull {
-            it.category == "workers" && it.name == "report-language"
+            it.category == "workers" && it.name == "report-language-icon"
         }
         val iconAgent = iconPrompt?.workers?.firstNotNullOfOrNull { ai?.resolveWorker(it) }
         val pickedParts = report.languageIconModel?.split("/", limit = 2)

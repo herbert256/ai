@@ -1,0 +1,5 @@
+Pick a single emoji that best represents this language.
+
+Language: @LANGUAGE@
+
+Reply with ONLY the emoji and nothing else.

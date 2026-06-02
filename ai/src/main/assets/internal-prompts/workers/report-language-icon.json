@@ -1,6 +1,6 @@
 {
-  "name": "report-language",
-  "title": "Detect a prompt's language + a fitting emoji",
+  "name": "report-language-icon",
+  "title": "Pick a fitting emoji for a language",
   "reference": false,
   "workers": [
     {

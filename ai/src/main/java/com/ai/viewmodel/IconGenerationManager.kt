@@ -803,23 +803,27 @@ class IconGenerationManager(
         aiSettings: Settings
     ) {
         if (!appViewModel.uiState.value.generalSettings.reportLanguageOn()) return
-        // Worker-based: a single report/language call returns BOTH the
-        // language name and a fitting emoji (the prompt asks for a
-        // "language:" / "icon:" two-line reply), via the random-pick /
-        // 429-fallback engine — no chained second call.
-        val languagePrompt = aiSettings.internalPrompts.firstOrNull {
-            it.category == "workers" && it.name == "report-language"
+        // Two chained worker calls now: report-language-name detects the
+        // language NAME from the prompt, then report-language-icon picks a
+        // fitting emoji for that name. Each call's cost / duration is
+        // attributed to its own row (detect vs icon). Both run through the
+        // random-pick / 429-fallback worker engine.
+        val namePrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "workers" && it.name == "report-language-name"
         } ?: return
-        if (languagePrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
-        val resolved = languagePrompt.text.replace("@PROMPT@", promptText)
+        if (namePrompt.workers.none { aiSettings.resolveWorker(it) != null }) return
+        val iconPrompt = aiSettings.internalPrompts.firstOrNull {
+            it.category == "workers" && it.name == "report-language-icon"
+        }
+        val resolvedName = namePrompt.text.replace("@PROMPT@", promptText)
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            withTracerTags(reportId = reportId, category = "report/language") {
+            appViewModel.updateRunningInfoJobs { it + "$reportId|language" }
+            // ---- 1) Language name ----
+            val detectedName = withTracerTags(reportId = reportId, category = "report/language") {
                 val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
-                appViewModel.updateRunningInfoJobs { it + "$reportId|language" }
                 val started = System.currentTimeMillis()
                 val outcome = withTraceFilenameSink(traceSink) {
-                    // No parseable "language:" line is a logical miss → next worker.
-                    rvm.workerRunner.run(languagePrompt, resolved, aiSettings, context) {
+                    rvm.workerRunner.run(namePrompt, resolvedName, aiSettings, context) {
                         parseLanguageDetectionResponse(it.analysis) != null
                     }
                 }
@@ -830,10 +834,8 @@ class IconGenerationManager(
                         val name = parseLanguageDetectionResponse(analysis)
                         if (name.isNullOrBlank()) {
                             ReportStorage.updateReportLanguageError(context, reportId, "unparseable response")
+                            null
                         } else {
-                            // Emoji from the `icon:` line; fall back to scanning the whole reply.
-                            val iconLine = analysis?.lineSequence()?.firstOrNull { it.trim().startsWith("icon", ignoreCase = true) }
-                            val emoji = extractFirstEmoji(iconLine ?: analysis.orEmpty()) ?: MetadataIconsHolder.current.languageIcon
                             val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
                                 it.copy(model = aiSettings.getEffectiveModelForAgent(it))
                             }
@@ -842,13 +844,6 @@ class IconGenerationManager(
                             val outT = tu?.outputTokens ?: 0
                             val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
                             val (inC, outC) = costSplit(tu, pricing)
-                            // One call → attribute its cost AND duration to
-                            // the detection row; the icon row stays 0 for
-                            // both. ReportInfoScreen's total-API-time sums
-                            // languageDurationMs + languageIconDurationMs, so
-                            // writing the same duration to both would count
-                            // this one call's time twice (the cost was
-                            // already handled this way — mirror it).
                             ReportStorage.updateReportLanguageDetect(
                                 context, reportId,
                                 name = name,
@@ -859,35 +854,86 @@ class IconGenerationManager(
                                 rawResponse = analysis,
                                 durationMs = durationMs
                             )
-                            ReportStorage.updateReportLanguageIcon(
-                                context, reportId,
-                                icon = emoji,
-                                model = winAgent?.let { "${it.provider.id}/${it.model}" },
-                                inputTokens = 0, outputTokens = 0,
-                                inputCost = 0.0, outputCost = 0.0,
-                                traceFile = traceSink.get(),
-                                rawResponse = analysis,
-                                promptUsed = "language",
-                                durationMs = 0L
-                            )
                             if (tu != null && winAgent != null && (inT > 0 || outT > 0)) {
                                 appViewModel.settingsPrefs.updateUsageStatsAsync(
                                     winAgent.provider, winAgent.model, tu, kind = "language"
                                 )
                             }
+                            name
                         }
                     }
-                    else -> ReportStorage.updateReportLanguageError(
+                    else -> {
+                        ReportStorage.updateReportLanguageError(
+                            context, reportId,
+                            if (outcome is WorkerOutcome.AllRateLimited) "language: all workers rate-limited"
+                            else "language: no worker produced a result"
+                        )
+                        null
+                    }
+                }
+            }
+            // ---- 2) Language icon (only once we have a name) ----
+            if (detectedName != null) {
+                val iconRunnable = iconPrompt != null &&
+                    iconPrompt.workers.any { aiSettings.resolveWorker(it) != null }
+                if (iconRunnable) {
+                    withTracerTags(reportId = reportId, category = "report/language-icon") {
+                        val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
+                        val resolvedIcon = iconPrompt!!.text.replace("@LANGUAGE@", detectedName)
+                        val started = System.currentTimeMillis()
+                        val outcome = withTraceFilenameSink(traceSink) {
+                            rvm.workerRunner.run(iconPrompt, resolvedIcon, aiSettings, context) {
+                                extractFirstEmoji(it.analysis.orEmpty()) != null
+                            }
+                        }
+                        val durationMs = System.currentTimeMillis() - started
+                        val analysis = (outcome as? WorkerOutcome.Success)?.response?.analysis
+                        val emoji = extractFirstEmoji(analysis.orEmpty()) ?: MetadataIconsHolder.current.languageIcon
+                        val winAgent = (outcome as? WorkerOutcome.Success)?.let { aiSettings.resolveWorker(it.worker) }?.let {
+                            it.copy(model = aiSettings.getEffectiveModelForAgent(it))
+                        }
+                        val tu = (outcome as? WorkerOutcome.Success)?.response?.tokenUsage
+                        val inT = tu?.inputTokens ?: 0
+                        val outT = tu?.outputTokens ?: 0
+                        val pricing = winAgent?.let { PricingCache.getPricing(context, it.provider, it.model) }
+                        val (inC, outC) = costSplit(tu, pricing)
+                        ReportStorage.updateReportLanguageIcon(
+                            context, reportId,
+                            icon = emoji,
+                            model = winAgent?.let { "${it.provider.id}/${it.model}" },
+                            inputTokens = inT, outputTokens = outT,
+                            inputCost = inC, outputCost = outC,
+                            traceFile = traceSink.get(),
+                            rawResponse = analysis,
+                            promptUsed = "language-icon",
+                            durationMs = durationMs
+                        )
+                        if (tu != null && winAgent != null && (inT > 0 || outT > 0)) {
+                            appViewModel.settingsPrefs.updateUsageStatsAsync(
+                                winAgent.provider, winAgent.model, tu, kind = "language-icon"
+                            )
+                        }
+                    }
+                } else {
+                    // No icon prompt available — fall back to the default
+                    // language glyph so the icon row isn't left blank.
+                    ReportStorage.updateReportLanguageIcon(
                         context, reportId,
-                        if (outcome is WorkerOutcome.AllRateLimited) "language: all workers rate-limited"
-                        else "language: no worker produced a result"
+                        icon = MetadataIconsHolder.current.languageIcon,
+                        model = null,
+                        inputTokens = 0, outputTokens = 0,
+                        inputCost = 0.0, outputCost = 0.0,
+                        traceFile = null,
+                        rawResponse = null,
+                        promptUsed = "language-icon",
+                        durationMs = 0L
                     )
                 }
-                appViewModel.updateUiState {
-                    it.copy(iconRefreshTick = it.iconRefreshTick + 1)
-                }
-                appViewModel.updateRunningInfoJobs { it - "$reportId|language" }
             }
+            appViewModel.updateUiState {
+                it.copy(iconRefreshTick = it.iconRefreshTick + 1)
+            }
+            appViewModel.updateRunningInfoJobs { it - "$reportId|language" }
         }
     }
 

@@ -664,7 +664,7 @@ internal fun RenderLanguageDetailOverlay(
     onBack: () -> Unit,
 ) {
     val languagePrompt = aiSettings.internalPrompts.firstOrNull {
-        it.category == "workers" && it.name == "report-language"
+        it.category == "workers" && it.name == "report-language-icon"
     } ?: return
     val languageAgent = languagePrompt.workers.firstNotNullOfOrNull {
         aiSettings.resolveWorker(it)

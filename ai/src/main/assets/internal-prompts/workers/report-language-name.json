@@ -1,0 +1,16 @@
+{
+  "name": "report-language-name",
+  "title": "Detect a prompt's language (name)",
+  "reference": false,
+  "workers": [
+    {
+      "agent": "*N/A",
+      "provider": "*N/A",
+      "model": "*N/A",
+      "flock": "*N/A",
+      "swarm": "workers"
+    }
+  ],
+  "parameters": "*NONE",
+  "systemPrompt": "*NONE"
+}
