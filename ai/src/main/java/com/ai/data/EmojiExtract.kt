@@ -68,6 +68,13 @@ private fun isLikelyEmojiCodePoint(cp: Int): Boolean =
     cp in 0x2600..0x27BF ||    // Misc symbols (☀ ☂ ☎ ❤ ✨) + Dingbats (✅ ✔ ✖)
     cp in 0x1F1E6..0x1F1FF ||  // Regional Indicator Letters (flag halves — full flag is two of these as one grapheme cluster)
     cp in 0x2300..0x23FF ||    // Misc Technical (⌚ ⌛ ⏳ ⏰)
+    cp in 0x2B00..0x2BFF ||    // Misc Symbols & Arrows (⭐ ⬆ ⬇ ⬛ ⬜ ✪)
+    cp in 0x25A0..0x25FF ||    // Geometric Shapes (▶ ◀ ■ ● ◻ ◼)
+    cp in 0x2190..0x21FF ||    // Arrows (↔ ↕ ↩ ↪ ⤴ via 2934 below)
+    cp == 0x203C || cp == 0x2049 ||                 // ‼ ⁉
+    cp == 0x2934 || cp == 0x2935 ||                 // ⤴ ⤵
+    cp == 0x3030 || cp == 0x303D ||                 // 〰 〽
+    cp == 0x3297 || cp == 0x3299 || cp == 0x24C2 || // ㊗ ㊙ Ⓜ
     cp in 0x1F000..0x1F02F ||  // Mahjong / Domino tiles
     cp in 0x1F0A0..0x1F0FF ||  // Playing cards
     cp in 0x1F100..0x1F1FF     // Enclosed Alphanumeric Supplement
