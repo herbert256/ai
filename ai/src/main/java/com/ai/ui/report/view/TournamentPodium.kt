@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,6 +57,7 @@ import com.ai.data.TournamentMethod
 import com.ai.data.applyTournamentMethod
 import com.ai.data.barTitle
 import com.ai.data.decodeTournamentMatrix
+import com.ai.data.rankFor
 import com.ai.data.parseMatchVerdict
 import com.ai.ui.helpers.SwipeDirection
 import com.ai.ui.helpers.formatRerankScore
@@ -110,6 +112,10 @@ fun TournamentPodiumViewScreen(
     val onOpenTournamentManage: (() -> Unit)? =
         openManage?.let { dispatch -> { dispatch(com.ai.ui.shared.ManageJump.Tournament(currentReportId)) } }
     var headToHeadAgentId by rememberSaveable(currentReportId, currentResultId) { mutableStateOf<String?>(null) }
+    // Rankings (per-method leaderboard, the original view) vs Total view
+    // (one row per model, a column per ranking method with that model's
+    // position, sorted by average position).
+    var showTotal by rememberSaveable(currentReportId, currentResultId) { mutableStateOf(false) }
     val selectedHeadToHeadAgentId = headToHeadAgentId
     if (selectedHeadToHeadAgentId != null) {
         val selectedAgent = loaded.rankings
@@ -180,43 +186,70 @@ fun TournamentPodiumViewScreen(
             contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp)
         ) {
             item {
-                MethodSelector(
-                    selected = currentMethod,
-                    onSelect = { method ->
-                        scope.launch(Dispatchers.IO) {
-                            applyTournamentMethod(context, currentReportId, currentResultId, method)
-                        }
-                    }
-                )
-            }
-            item {
-                TournamentStatsStrip(
-                    models = loaded.rankings.size,
-                    done = loaded.doneMatches,
-                    total = loaded.totalMatches,
-                    ties = loaded.tieCount
-                )
-            }
-            if (loaded.rankings.isEmpty()) {
-                item { EmptyTournamentCard(loaded.doneMatches, loaded.totalMatches) }
-            } else {
-                item {
-                    Text(
-                        "Leaderboard",
-                        color = AppColors.InfoAccent,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(top = 2.dp)
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    androidx.compose.material3.FilterChip(
+                        selected = !showTotal, onClick = { showTotal = false },
+                        label = { Text("Rankings", fontSize = 12.sp) }, modifier = Modifier.weight(1f)
+                    )
+                    androidx.compose.material3.FilterChip(
+                        selected = showTotal, onClick = { showTotal = true },
+                        label = { Text("Total view", fontSize = 12.sp) }, modifier = Modifier.weight(1f)
                     )
                 }
-                items(loaded.rankings) { ranking ->
-                    TournamentRankCard(
-                        ranking = ranking,
-                        method = currentMethod,
-                        onClick = ranking.agent?.agentId?.let { agentId ->
-                            { headToHeadAgentId = agentId }
+            }
+            if (showTotal) {
+                // Total view: one row per model with a column per ranking
+                // method (1..5), sorted by the model's average position. No
+                // green Leaderboard line, no per-method rank cards.
+                item {
+                    TournamentStatsStrip(
+                        models = loaded.rankings.size,
+                        done = loaded.doneMatches,
+                        total = loaded.totalMatches,
+                        ties = loaded.tieCount
+                    )
+                }
+                item { TournamentTotalTable(loaded.row?.tournamentMatrix, loaded.rankings) }
+            } else {
+                item {
+                    MethodSelector(
+                        selected = currentMethod,
+                        onSelect = { method ->
+                            scope.launch(Dispatchers.IO) {
+                                applyTournamentMethod(context, currentReportId, currentResultId, method)
+                            }
                         }
                     )
+                }
+                item {
+                    TournamentStatsStrip(
+                        models = loaded.rankings.size,
+                        done = loaded.doneMatches,
+                        total = loaded.totalMatches,
+                        ties = loaded.tieCount
+                    )
+                }
+                if (loaded.rankings.isEmpty()) {
+                    item { EmptyTournamentCard(loaded.doneMatches, loaded.totalMatches) }
+                } else {
+                    item {
+                        Text(
+                            "Leaderboard",
+                            color = AppColors.InfoAccent,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                    items(loaded.rankings) { ranking ->
+                        TournamentRankCard(
+                            ranking = ranking,
+                            method = currentMethod,
+                            onClick = ranking.agent?.agentId?.let { agentId ->
+                                { headToHeadAgentId = agentId }
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -854,6 +887,76 @@ private fun methodLabel(method: TournamentMethod): String = when (method) {
     TournamentMethod.DAVIDSON -> "Davidson"
     TournamentMethod.TIDEMAN -> "Tideman"
     TournamentMethod.MARKOV -> "Markov"
+}
+
+/** Total view: every ranking method applied to the same win matrix,
+ *  laid out as a model × method position grid. Columns are numbered
+ *  1..5 (one per [TournamentMethod] in declaration order); a legend at
+ *  the bottom maps each number to its method. Rows are sorted by the
+ *  model's average position across all methods. */
+@Composable
+private fun TournamentTotalTable(matrixJson: String?, rankings: List<TournamentRanking>) {
+    val methods = TournamentMethod.entries
+    // rankId (1-based) -> model label, from the already-loaded ranking set.
+    val labelById = remember(rankings) {
+        rankings.mapNotNull { it.agent }.associate { it.rankId to it.label }
+    }
+    // For each method, rankId -> position. Recomputed locally from the
+    // persisted win matrix so no method needs a DB round-trip.
+    val perMethod: Map<TournamentMethod, Map<Int, Int>> = remember(matrixJson) {
+        val matrix = decodeTournamentMatrix(matrixJson)?.first
+        if (matrix == null) emptyMap()
+        else methods.associateWith { m -> rankFor(m, matrix).associate { it.id to it.rank } }
+    }
+    if (perMethod.isEmpty() || labelById.isEmpty()) {
+        Text("No completed matches yet to rank.", color = AppColors.TextTertiary, fontSize = 13.sp,
+            modifier = Modifier.padding(8.dp))
+        return
+    }
+    // One row per model, sorted by average position across the methods
+    // that placed it (lower = better).
+    data class Row(val label: String, val positions: List<Int?>, val avg: Double)
+    val rows = labelById.entries.map { (id, label) ->
+        val positions = methods.map { m -> perMethod[m]?.get(id) }
+        val present = positions.filterNotNull()
+        Row(label, positions, if (present.isEmpty()) Double.MAX_VALUE else present.average())
+    }.sortedBy { it.avg }
+
+    val cModel = 150.dp; val cCol = 40.dp
+    Column {
+        // Header: Model | 1 | 2 | 3 | 4 | 5 | avg
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 4.dp)) {
+            Text("Model", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppColors.TextTertiary, modifier = Modifier.width(cModel))
+            methods.forEachIndexed { i, _ ->
+                Text("${i + 1}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppColors.TextTertiary,
+                    textAlign = TextAlign.Center, modifier = Modifier.width(cCol))
+            }
+            Text("avg", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppColors.TextTertiary,
+                textAlign = TextAlign.Center, modifier = Modifier.width(cCol))
+        }
+        HorizontalDivider(color = AppColors.DividerDark)
+        rows.forEach { r ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
+                Text(r.label, fontSize = 13.sp, color = Color.White, maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.width(cModel))
+                r.positions.forEach { pos ->
+                    Text(pos?.toString() ?: "–", fontSize = 13.sp, color = AppColors.TextSecondary,
+                        textAlign = TextAlign.Center, modifier = Modifier.width(cCol))
+                }
+                Text(
+                    if (r.avg == Double.MAX_VALUE) "–" else String.format(java.util.Locale.US, "%.1f", r.avg),
+                    fontSize = 12.sp, color = AppColors.InfoAccent, textAlign = TextAlign.Center, modifier = Modifier.width(cCol)
+                )
+            }
+            HorizontalDivider(color = AppColors.DividerDark)
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        // Legend mapping each column number to its ranking method.
+        Text("Ranking methods", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = AppColors.TextTertiary)
+        methods.forEachIndexed { i, m ->
+            Text("${i + 1} = ${methodLabel(m)}", fontSize = 12.sp, color = AppColors.TextSecondary)
+        }
+    }
 }
 
 private fun scoreText(score: Double?, method: TournamentMethod): String {
