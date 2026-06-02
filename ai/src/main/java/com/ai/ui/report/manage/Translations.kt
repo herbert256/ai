@@ -76,9 +76,12 @@ internal fun ReportTranslationsScreen(
             // Original — always the first row, returns to the managed report.
             // Uses the report's detected language icon (not the report icon).
             item(key = "tr-original") {
+                // Mark the original item: "<language> (original)", or plain
+                // "Original" when no language was detected.
+                val originalBase = originalLanguage?.takeIf { it.isNotBlank() }
                 TranslationLanguageRow(
                     icon = originalLanguageIcon,
-                    label = originalLanguage?.takeIf { it.isNotBlank() } ?: "Original",
+                    label = originalBase?.let { "$it (original)" } ?: "Original",
                     onClick = onOpenOriginal
                 )
             }

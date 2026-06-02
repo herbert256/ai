@@ -428,18 +428,15 @@ internal fun ReportRunScreen(
             tournamentIcon = com.ai.ui.shared.LocalMetadataIcons.current.tournament
                 .takeIf { it.isNotBlank() }
                 ?: com.ai.data.MetadataDefaults.TOURNAMENT,
-            // 🌐 Translate — with existing translations, open the Translations
-            // list (drill in / 🆕 a new one); with none, go straight to the
-            // create flow (language→model picker → its own run screen).
+            // 🌐 Translate — always open the Translations list (the Original
+            // row + any existing translations); its 🆕 starts the create flow
+            // (language→model picker → its own run screen). Shown even with no
+            // translations yet, so the page is always reachable.
             onTranslate = if (currentReportId != null) {
                 {
                     st.showCreateOverview.value = false
                     showTournamentOverview = false
-                    if (translationRunSummaries.isNotEmpty() || translationRuns.isNotEmpty()) {
-                        showTranslationsList = true
-                    } else {
-                        generationHandlers.onTranslate()
-                    }
+                    showTranslationsList = true
                 }
             } else null,
             translateIcon = com.ai.ui.shared.LocalMetadataIcons.current.translationRow
