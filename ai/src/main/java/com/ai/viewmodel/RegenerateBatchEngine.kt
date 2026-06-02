@@ -260,14 +260,24 @@ class RegenerateBatchEngine internal constructor(
                 advanceToNextPhase(context, reportId, phase, phases)
                 continue
             }
-            // 1. Reset every WAITING task in this phase to RUNNING
-            //    (and reset the underlying row on disk so the
-            //    Manage UI shows ⏳).
+            // 1. Reset EVERY task in this phase to RUNNING (not just WAITING)
+            //    — resetRowsForPhase clears every phase row on disk and
+            //    dispatchPhase re-fires the whole phase, so on a restart from
+            //    PAUSED_ON_ERROR the previously-ERROR task (and already-SUCCESS
+            //    siblings) must be re-armed too; otherwise awaitPhaseCompletion
+            //    (which only transitions RUNNING tasks) would leave them stuck
+            //    showing ❌ / ✅ even after the rerun settles. Clear the prior
+            //    end state so the Manage UI shows ⏳.
             mutateJob(context, reportId) { j ->
                 j.copy(
                     tasks = j.tasks.map { t ->
-                        if (t.phase == phase && t.state == RegenerateTaskState.WAITING) {
-                            t.copy(state = RegenerateTaskState.RUNNING, startedAt = System.currentTimeMillis())
+                        if (t.phase == phase) {
+                            t.copy(
+                                state = RegenerateTaskState.RUNNING,
+                                startedAt = System.currentTimeMillis(),
+                                endedAt = null,
+                                errorMessage = null
+                            )
                         } else t
                     }
                 )
