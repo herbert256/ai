@@ -156,7 +156,13 @@ class MetaEditManager internal constructor(
                 SecondaryScope.AllReports -> null
                 is SecondaryScope.TopRanked -> {
                     val rerank = SecondaryResultStorage.get(context, reportId, scope.rerankResultId)
-                    extractTopRankedIds(rerank?.content, scope.count)?.toSet()
+                    val ids = extractTopRankedIds(rerank?.content, scope.count)
+                    // Clamp stale 1-based positions to the current successful
+                    // count (same as runMetaPrompt) so a removed agent can't
+                    // leave an out-of-range id that inflates @COUNT@.
+                    val nSuccess = report.agents.count { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
+                    val valid = ids?.filter { it in 1..nSuccess }
+                    if (valid.isNullOrEmpty()) null else valid.toSet()
                 }
                 is SecondaryScope.Manual -> {
                     val successful = report.agents.filter { it.reportStatus == ReportStatus.SUCCESS && !it.responseBody.isNullOrBlank() }
