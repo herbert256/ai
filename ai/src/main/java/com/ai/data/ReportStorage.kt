@@ -2137,11 +2137,6 @@ object ReportStorage {
             removed.cost?.takeIf { it > 0.0 }?.let {
                 report.costsFromDeletedItems += it
             }
-            // Per-agent icon spend also stays out of the live total
-            // once the row is gone — same as the primary cost field.
-            (removed.iconInputCost + removed.iconOutputCost).takeIf { it > 0.0 }?.let {
-                report.costsFromDeletedItems += it
-            }
             // Per-agent model-title spend is summed into totalCost too
             // (computeReportTotalCost adds modelTitleInputCost/OutputCost),
             // so it must likewise roll into costsFromDeletedItems or the
@@ -2151,6 +2146,20 @@ object ReportStorage {
             }
             val removedCalls = report.iconCalls.filter { it.agentId == agentId }
             val structuredIconTypes = setOf<String?>(null, "model/icons", "alt/report")
+            // Structured icon-call spend (model/icons, alt/report) is normally
+            // mirrored on the agent's iconInputCost/iconOutputCost via
+            // bumpReportAgentIconCost — but some alt/report rows attributed to a
+            // secondary never bump the agent field, leaving it $0 while the call
+            // rows carry real cost. Roll whichever is LARGER so the spend isn't
+            // dropped on delete, without double-counting when the two agree.
+            val agentIconCost = removed.iconInputCost + removed.iconOutputCost
+            val structuredIconCallCost = removedCalls
+                .filter { it.type in structuredIconTypes }
+                .sumOf { it.inputCost + it.outputCost }
+            maxOf(agentIconCost, structuredIconCallCost).takeIf { it > 0.0 }?.let {
+                report.costsFromDeletedItems += it
+            }
+            // Non-structured icon calls (their cost lives only on the call row).
             removedCalls
                 .filterNot { it.type in structuredIconTypes }
                 .sumOf { it.inputCost + it.outputCost }
