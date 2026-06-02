@@ -902,7 +902,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     suspend fun updateUsageStatsAsync(provider: AppService, model: String, usage: TokenUsage, kind: String = "report", searchUnits: Int = 0) =
         withContext(Dispatchers.IO) { updateUsageStats(provider, model, usage, kind, searchUnits) }
 
-    fun clearUsageStats() {
+    fun clearUsageStats() = synchronized(usageStatsLock) {
         usageStatsCache?.clear()
         usageCategoryStatsCache?.clear()
         usageReportStatsCache?.clear()
