@@ -533,6 +533,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         AppLog.v(tag, "  init ProviderFieldTimestamps"); ProviderFieldTimestamps.init(application)
         AppLog.v(tag, "  init PromptCache"); PromptCache.init(application)
         AppLog.v(tag, "  init InternalPromptIconCache"); InternalPromptIconCache.init(application)
+        AppLog.v(tag, "  init MetaCache"); com.ai.data.MetaCache.init(application)
         AppLog.v(tag, "  init TranslationModeStore"); com.ai.data.TranslationModeStore.init(application)
         AppLog.v(tag, "  init LastReportTracker"); com.ai.data.LastReportTracker.init(application)
         AppLog.d(tag, "← Singletons init done in ${System.currentTimeMillis() - bootStart}ms")
@@ -984,6 +985,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // Drop the per-(name, title) emoji cache. The prompts themselves
         // are reset to defaults above; the icons should match.
         InternalPromptIconCache.clearAll(context)
+        MetaCache.clearAll(context)
         AppLog.i("Housekeeping", "← Clear all configuration: localLlms=$llms embedders=$embedders")
         return ConfigWipeResult(llms, embedders)
     }
@@ -1025,6 +1027,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 ReportStorage.getAllReports(context).forEach { ReportStorage.deleteReport(context, it.id) }
                 PromptCache.clearAll()
                 InternalPromptIconCache.clearAll(context)
+                MetaCache.clearAll(context)
                 settingsPrefs.clearPromptHistory()
                 settingsPrefs.clearLastReportPrompt()
                 KnowledgeStore.clearAll(context)

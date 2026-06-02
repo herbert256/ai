@@ -414,6 +414,17 @@ class IconGenerationManager(
         traceCategory: String,
     ): TitleGenResult? {
         if (prompt == null || prompt.workers.none { aiSettings.resolveWorker(it) != null }) return null
+        // Same prompt text → same title; serve from the 7-day meta cache.
+        // Keyed per trace-category so the short and long titles don't
+        // collide on the same input text.
+        com.ai.data.MetaCache.get(traceCategory, promptText)?.let { cached ->
+            return TitleGenResult(
+                title = cached.take(cap),
+                inputTokens = 0, outputTokens = 0,
+                inputCost = 0.0, outputCost = 0.0,
+                durationMs = 0L, traceFile = null, model = null
+            )
+        }
         val resolved = prompt.text.replace("@PROMPT@", promptText)
         val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
         val started = System.currentTimeMillis()
@@ -435,6 +446,7 @@ class IconGenerationManager(
             .lineSequence().map { cleanTitleLine(it) }.firstOrNull { it.isNotBlank() }
             .orEmpty().take(cap)
         if (title.isBlank()) return null
+        com.ai.data.MetaCache.put(traceCategory, promptText, title)
         val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
             it.copy(model = aiSettings.getEffectiveModelForAgent(it))
         }
@@ -874,9 +886,21 @@ class IconGenerationManager(
             }
             // ---- 2) Language icon (only once we have a name) ----
             if (detectedName != null) {
+                // Same language → same emoji; serve from the 7-day meta
+                // cache when present and skip the LLM call entirely.
+                val cachedIcon = com.ai.data.MetaCache.get("language-icon", detectedName)
                 val iconRunnable = iconPrompt != null &&
                     iconPrompt.workers.any { aiSettings.resolveWorker(it) != null }
-                if (iconRunnable) {
+                if (cachedIcon != null) {
+                    ReportStorage.updateReportLanguageIcon(
+                        context, reportId,
+                        icon = cachedIcon, model = null,
+                        inputTokens = 0, outputTokens = 0,
+                        inputCost = 0.0, outputCost = 0.0,
+                        traceFile = null, rawResponse = null,
+                        promptUsed = "language-icon", durationMs = 0L
+                    )
+                } else if (iconRunnable) {
                     withTracerTags(reportId = reportId, category = "report/language-icon") {
                         val traceSink = java.util.concurrent.atomic.AtomicReference<String?>(null)
                         val resolvedIcon = iconPrompt!!.text.replace("@LANGUAGE@", detectedName)
@@ -888,7 +912,10 @@ class IconGenerationManager(
                         }
                         val durationMs = System.currentTimeMillis() - started
                         val analysis = (outcome as? WorkerOutcome.Success)?.response?.analysis
-                        val emoji = extractFirstEmoji(analysis.orEmpty()) ?: MetadataIconsHolder.current.languageIcon
+                        val parsedEmoji = extractFirstEmoji(analysis.orEmpty())
+                        // Cache a real parsed emoji for this language (7-day).
+                        if (parsedEmoji != null) com.ai.data.MetaCache.put("language-icon", detectedName, parsedEmoji)
+                        val emoji = parsedEmoji ?: MetadataIconsHolder.current.languageIcon
                         val winAgent = (outcome as? WorkerOutcome.Success)?.let { aiSettings.resolveWorker(it.worker) }?.let {
                             it.copy(model = aiSettings.getEffectiveModelForAgent(it))
                         }
