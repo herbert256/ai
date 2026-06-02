@@ -524,6 +524,16 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Tips", "Backup before any of the destructive screens — Reset, Clear runtime data, and Clear all configuration are not undoable."),
         )
     ),
+    "prompt_translations" to HelpContent(
+        title = "Help - Prompt translations",
+        cards = listOf(
+            HelpCard("Overview", "The internal prompts (report icon/title/language, meta compare/summarize, fan-out/in, …) ship in English — the editable baseline. This screen generates translations into other languages, stored on-device, so a report whose detected language matches uses the translated prompt automatically, with English as the fallback."),
+            HelpCard("Languages list", "One row per language present: the English baseline, any bundled translations, and ones you generate. The row shows how many prompts are translated."),
+            HelpCard("Generate (🆕)", "Tap the 🆕 bar icon. If more than one language exists you first pick the source language to translate from; then pick the target language. Every baseline prompt is translated with the first active provider's default model via the translate-text prompt."),
+            HelpCard("Row actions", "🔄 redoes the translation for that language (English → that language). ❌ deletes the generated translation for that language; bundled translations and the English baseline are never deleted."),
+            HelpCard("Cost", "Generating a language is one API call per internal prompt, so it costs real tokens. Redo only when prompts changed or a model improved."),
+        )
+    ),
     "backup_restore" to HelpContent(
         title = "Help - Backup & Restore",
         cards = listOf(

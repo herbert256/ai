@@ -247,7 +247,16 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToReset = { navController.navigate(NavRoutes.AI_RESET) },
                 onNavigateToTest = { navController.navigate(NavRoutes.AI_TEST) },
                 onNavigateToUpdateFromCloud = { navController.navigate(NavRoutes.AI_UPDATE_FROM_CLOUD) },
-                onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) }
+                onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) },
+                onNavigateToPromptTranslations = { navController.navigate(NavRoutes.AI_PROMPT_TRANSLATIONS) }
+            )
+        }
+        composable(NavRoutes.AI_PROMPT_TRANSLATIONS) {
+            val uiState by appViewModel.uiState.collectAsState()
+            com.ai.ui.admin.PromptTranslationsScreen(
+                onBack = safePopBack, onNavigateHome = navigateHome,
+                aiSettings = uiState.aiSettings,
+                onAskModelText = { service, model, prompt -> appViewModel.askModelText(service, model, prompt) }
             )
         }
         composable(NavRoutes.AI_TEST) {

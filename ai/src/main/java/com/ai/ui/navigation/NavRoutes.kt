@@ -118,6 +118,7 @@ object NavRoutes {
     const val AI_COSTS_MAINTENANCE = "ai_costs_maintenance"
     const val AI_SETUP = "ai_setup"
     const val AI_HOUSEKEEPING = "ai_housekeeping"
+    const val AI_PROMPT_TRANSLATIONS = "ai_prompt_translations"
     const val AI_BACKUP_RESTORE = "ai_backup_restore"
     const val AI_IMPORT_EXPORT = "ai_import_export"
     const val AI_TRIM_BY_AGE = "ai_trim_by_age"

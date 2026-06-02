@@ -300,6 +300,7 @@ fun AppNavHost(
     val housekeepingSubRoutes = setOf(
         NavRoutes.AI_BACKUP_RESTORE, NavRoutes.AI_TRIM_BY_AGE,
         NavRoutes.AI_UPDATE_FROM_CLOUD, NavRoutes.AI_RESET,
+        NavRoutes.AI_PROMPT_TRANSLATIONS,
         NavRoutes.AI_APPLOG_LIST, NavRoutes.AI_TEST, NavRoutes.AI_COSTS_MAINTENANCE,
         // 2-levels-deep, housekeeping-only screens (the 🧹 used to vanish
         // here). Reset confirmations, Test-all-models, App-log detail.

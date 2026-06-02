@@ -46,7 +46,8 @@ fun HousekeepingScreen(
     onNavigateToReset: () -> Unit = {},
     onNavigateToTest: () -> Unit = {},
     onNavigateToUpdateFromCloud: () -> Unit = {},
-    onNavigateToCosts: () -> Unit = {}
+    onNavigateToCosts: () -> Unit = {},
+    onNavigateToPromptTranslations: () -> Unit = {}
 ) {
     BackHandler { onBackToHome() }
     val mi = LocalMetadataIcons.current
@@ -135,6 +136,16 @@ fun HousekeepingScreen(
                         onClick = onNavigateToTest
                     )
                 }
+            }
+            // Translate the bundled internal prompts into other languages
+            // (generated on-device, used per report language).
+            item {
+                IconLinkCard(
+                    icon = MetadataDefaults.TRANSLATE,
+                    title = "Prompt translations",
+                    subtitle = "Generate and manage internal-prompt translations per language",
+                    onClick = onNavigateToPromptTranslations
+                )
             }
             // Refresh and Reset live together at the bottom — both
             // wholesale-state operations that finish with a forced app
