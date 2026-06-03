@@ -47,6 +47,10 @@ class MainActivity : ComponentActivity() {
     private val externalInstructions = mutableStateOf<String?>(null)
     private val sharedContent = mutableStateOf<SharedContent?>(null)
 
+    // statusBarColor / navigationBarColor are deprecated on API 35+ (ignored under
+    // enableEdgeToEdge, where the window background is used instead — see the SideEffect),
+    // but still take effect on older releases, so we keep setting them.
+    @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Install the crash recorder before anything else can throw, so a

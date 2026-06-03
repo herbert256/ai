@@ -123,7 +123,7 @@ fun HelpScreen(
                 // screen that gains an icon page gets this link for free.
                 // Suppressed on screens that have the live "<screen> - icons"
                 // overlay (white ❔) — there it's redundant.
-                if (topicId != null && !topicId.endsWith("_icons") &&
+                if (!topicId.endsWith("_icons") &&
                     topicId !in com.ai.ui.shared.LEGEND_OVERLAY_TOPICS &&
                     HELP_TOPICS.containsKey("${topicId}_icons")) {
                     HomeSubpageLink(
@@ -147,15 +147,13 @@ fun HelpScreen(
                 // Per-screen icon legend: standalone table on a
                 // "<topic>_icons" page, or inline (with a header) under the
                 // main help of a screen that has only 1–3 icons.
-                if (topicId != null) {
-                    if (topicId.endsWith("_icons")) {
-                        SCREEN_ICON_HELP[topicId.removeSuffix("_icons")]?.let { IconHelpTable(it) }
-                    } else if (topicId in SCREEN_ICON_HELP && topicId !in ICON_HELP_AS_PAGE &&
-                        topicId !in com.ai.ui.shared.LEGEND_OVERLAY_TOPICS) {
-                        // Screens with the live icon overlay don't repeat the
-                        // icon table inline on their help page.
-                        IconHelpTable(SCREEN_ICON_HELP.getValue(topicId), title = "Icons on this screen")
-                    }
+                if (topicId.endsWith("_icons")) {
+                    SCREEN_ICON_HELP[topicId.removeSuffix("_icons")]?.let { IconHelpTable(it) }
+                } else if (topicId in SCREEN_ICON_HELP && topicId !in ICON_HELP_AS_PAGE &&
+                    topicId !in com.ai.ui.shared.LEGEND_OVERLAY_TOPICS) {
+                    // Screens with the live icon overlay don't repeat the
+                    // icon table inline on their help page.
+                    IconHelpTable(SCREEN_ICON_HELP.getValue(topicId), title = "Icons on this screen")
                 }
                 when (topicId) {
                     "help_home_icons" -> HelpIconTable()
@@ -181,7 +179,7 @@ fun HelpScreen(
                 }
                 // Bottom link from a per-icon page ("<screen>_icons") back
                 // to the screen's full help. Generic for any icon page.
-                if (topicId != null && topicId.endsWith("_icons")) {
+                if (topicId.endsWith("_icons")) {
                     val base = topicId.removeSuffix("_icons")
                     if (HELP_TOPICS.containsKey(base)) {
                         HomeSubpageLink(

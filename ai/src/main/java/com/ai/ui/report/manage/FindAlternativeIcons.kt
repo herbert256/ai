@@ -133,10 +133,9 @@ private fun CandidateRow(
             }
         }
     val traceFilename = traceFilenameState?.value
-    val isTappable = candidate is IconCandidate.Done
     Card(
         modifier = Modifier.fillMaxWidth().then(
-            if (isTappable && candidate is IconCandidate.Done)
+            if (candidate is IconCandidate.Done)
                 Modifier.clickable { onPickIcon(candidate.emoji, iconModel) }
             else Modifier
         ),

@@ -311,7 +311,7 @@ class TracingInterceptor : Interceptor {
 internal fun extractApiErrorMessage(body: String?): String {
     if (body.isNullOrBlank()) return ""
     val parsed: com.google.gson.JsonElement? = try {
-        com.google.gson.JsonParser().parse(body)
+        com.google.gson.JsonParser.parseString(body)
     } catch (_: Exception) { null }
     val candidate = if (parsed != null && parsed.isJsonObject) {
         val obj = parsed.asJsonObject

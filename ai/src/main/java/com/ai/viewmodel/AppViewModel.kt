@@ -493,6 +493,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class) // GlobalScope is intentional — see below.
     override fun onCleared() {
         // Flush off the main thread — flushUsageStats does a
         // SharedPreferences commit which blocks on disk I/O. Use

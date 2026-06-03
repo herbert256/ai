@@ -130,7 +130,7 @@ fun Modifier.verticalSwipeNavigation(
  *  whose composable was preserved across the trip. */
 @Composable
 fun resumeRefreshTick(): Int {
-    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     var tick by remember { mutableStateOf(0) }
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
@@ -2039,7 +2039,7 @@ fun BottomIconBar(icons: TitleBarIcons?, modifier: Modifier = Modifier) {
                         if (showLegendHelp) {
                             // White ❔ → live "<screen> - icons" overlay.
                             TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { showLegend = true }, width = 18.dp, heightDp = rowCellH, scale = scale)
-                        } else if (showIconPageHelp && iconTopic != null) {
+                        } else if (showIconPageHelp) {
                             // White ❔ → static icon-table help page.
                             TitleBarIcon(barIcons.helpLegend, AppColors.InfoAccent, { navigateHelp(iconTopic) }, width = 18.dp, heightDp = rowCellH, scale = scale)
                         }

@@ -261,7 +261,7 @@ object KnowledgeService {
                 val src = sourceById[c.sourceId]?.name ?: "?"
                 val candidate = Scored(Hit(kb.id, kb.name, src, c.text, sim), sim)
                 if (heap.size < cap) heap.offer(candidate)
-                else if (sim > heap.peek().score) {
+                else if (sim > heap.peek()!!.score) {
                     heap.poll(); heap.offer(candidate)
                 }
             }

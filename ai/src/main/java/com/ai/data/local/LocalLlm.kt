@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION") // MediaPipe's LlmInference is the only on-device LLM API available; no replacement yet.
+
 package com.ai.data.local
 
 import android.content.Context
