@@ -105,6 +105,113 @@ fun buildInfoJobs(
 ): List<InfoJob> {
     val jobs = mutableListOf<InfoJob>()
 
+    // A report-level CLOCK only keeps the aggregate hourglass spinning while
+    // the report can still proceed (not yet completed). Once completedAt is
+    // set, an unstarted job is terminal — show ⏰ but don't spin forever.
+    fun reportPending(state: InfoJobState): Boolean =
+        state == InfoJobState.RUNNING ||
+            (state == InfoJobState.CLOCK && report.completedAt == null)
+
+    // ----- Report-level rows: one per underlying prompt, in run order -----
+    // language → language-icon → report-short → report-long → report-icon.
+
+    // Same "never ran" terminal guard for the whole language flow: a finished
+    // report with no detected language, no error, and no recorded language
+    // attempt (cost / duration / prompt all empty) never ran it — e.g. legacy
+    // reports, or a copy / fan-out-derived report whose source had no
+    // language. Without this the rows spin "Queued…" forever on those.
+    val languageNeverRan = report.completedAt != null &&
+        report.languageName.isNullOrBlank() &&
+        report.languageIconErrorMessage == null &&
+        report.languageIconPromptUsed == null &&
+        report.languageDurationMs == null && report.languageIconDurationMs == null &&
+        report.languageInputCost == 0.0 && report.languageOutputCost == 0.0 &&
+        report.languageIconInputCost == 0.0 && report.languageIconOutputCost == 0.0
+
+    // Language detection has its own gate (split from the icon gate) so report
+    // icon and report language can be toggled independently.
+    if (reportLanguageOn && !languageNeverRan) {
+        // 1) language — detect the report's language.
+        val langState = when {
+            !report.languageName.isNullOrBlank() -> InfoJobState.DONE
+            "${report.id}|language" in running -> InfoJobState.RUNNING
+            else -> InfoJobState.CLOCK
+        }
+        val langLabel = report.languageName?.takeIf { it.isNotBlank() }
+            ?: if (langState == InfoJobState.RUNNING) "Detecting…" else "Queued…"
+        jobs += InfoJob(
+            "language", langLabel, langState,
+            report.languageInputCost + report.languageOutputCost,
+            doneIcon = null, pending = reportPending(langState)
+        )
+
+        // 2) language-icon — pick an emoji for the detected language. Waits on
+        // detection (CLOCK until a language name exists).
+        val langIconState = when {
+            !report.languageIconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
+            !report.languageIcon.isNullOrBlank() -> InfoJobState.DONE
+            report.languageName.isNullOrBlank() -> InfoJobState.CLOCK
+            "${report.id}|language" in running -> InfoJobState.RUNNING
+            else -> InfoJobState.CLOCK
+        }
+        val langIconLabel = report.languageIconErrorMessage?.takeIf { it.isNotBlank() }
+            ?: report.languageName?.takeIf { it.isNotBlank() }
+            ?: if (langIconState == InfoJobState.RUNNING) "Generating…" else "Queued…"
+        jobs += InfoJob(
+            "language-icon", langIconLabel, langIconState,
+            report.languageIconInputCost + report.languageIconOutputCost,
+            doneIcon = report.languageIcon ?: icons.languageIcon,
+            pending = reportPending(langIconState)
+        )
+    }
+
+    val titlePrompts = settings.internalPrompts.filter {
+        it.category == "workers" &&
+            (it.name == "report-title-short" || it.name == "report-title-long")
+    }
+    val titleConfigured = titlePrompts.any { prompt ->
+        prompt.workers.any { settings.resolveWorker(it) != null }
+    }
+    // "Never ran" terminal guard, mirroring the language rows: a finished
+    // report that recorded no AI-title attempt (no promptUsed, no error, no
+    // cost / duration) never ran the report-title job — e.g. legacy reports
+    // or a copy whose title was inherited rather than generated. Skip the
+    // rows instead of spinning "Queued…" forever.
+    val titleNeverRan = report.completedAt != null &&
+        report.titlePromptUsed.isNullOrBlank() && report.titleErrorMessage == null &&
+        report.titleDurationMs == null && report.titleLongDurationMs == null &&
+        report.titleInputCost == 0.0 && report.titleOutputCost == 0.0 &&
+        report.titleLongInputCost == 0.0 && report.titleLongOutputCost == 0.0
+    if (titleModeAi && titleConfigured && !titleNeverRan) {
+        // 3) report-short — the short report title.
+        val shortState = when {
+            !report.titleErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
+            !report.titlePromptUsed.isNullOrBlank() -> InfoJobState.DONE
+            "${report.id}|title" in running -> InfoJobState.RUNNING
+            else -> InfoJobState.CLOCK
+        }
+        val shortLabel = report.titleErrorMessage?.takeIf { it.isNotBlank() }
+            ?: report.title.takeIf { !report.titlePromptUsed.isNullOrBlank() }
+            ?: if (shortState == InfoJobState.RUNNING) "Generating…" else "Queued…"
+        jobs += InfoJob("report-short", shortLabel, shortState,
+            report.titleInputCost + report.titleOutputCost,
+            doneIcon = com.ai.data.MetadataIconsHolder.current.label,
+            pending = reportPending(shortState))
+
+        // 4) report-long — the long report title.
+        val longState = when {
+            !report.titleLong.isNullOrBlank() -> InfoJobState.DONE
+            "${report.id}|title" in running -> InfoJobState.RUNNING
+            else -> InfoJobState.CLOCK
+        }
+        val longLabel = report.titleLong?.takeIf { it.isNotBlank() }
+            ?: if (longState == InfoJobState.RUNNING) "Generating…" else "Queued…"
+        jobs += InfoJob("report-long", longLabel, longState,
+            report.titleLongInputCost + report.titleLongOutputCost,
+            doneIcon = com.ai.data.MetadataIconsHolder.current.label,
+            pending = reportPending(longState))
+    }
+
     // Report icons are produced by the worker engine (report/icon).
     // The row is eligible when that prompt has at least one resolvable worker.
     val iconPrompt = settings.internalPrompts.firstOrNull { it.category == "workers" && it.name == "report-icon" }
@@ -122,6 +229,7 @@ fun buildInfoJobs(
         report.iconOutputCost == 0.0
 
     if (iconRowOn && !iconNeverRan) {
+        // 5) report-icon — the report icon, derived from the long title.
         val state = when {
             !report.iconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
             !report.icon.isNullOrBlank() -> InfoJobState.DONE
@@ -131,75 +239,8 @@ fun buildInfoJobs(
         val label = report.iconErrorMessage?.takeIf { it.isNotBlank() }
             ?: report.icon?.takeIf { it.isNotBlank() }
             ?: if (state == InfoJobState.RUNNING) "Generating…" else "Queued…"
-        jobs += InfoJob("icon", label, state, report.iconInputCost + report.iconOutputCost,
-            doneIcon = report.icon, pending = state == InfoJobState.RUNNING || state == InfoJobState.CLOCK)
-    }
-
-    // Same "never ran" terminal guard as the icon row above: a finished
-    // report with no detected language, no error, and no recorded
-    // language attempt (cost / duration / prompt all empty) never ran the
-    // language flow — e.g. legacy reports, or a copy / fan-out-derived
-    // report whose source had no language. Without this the row spins
-    // "Queued…" forever on those.
-    val languageNeverRan = report.completedAt != null &&
-        report.languageName.isNullOrBlank() &&
-        report.languageIconErrorMessage == null &&
-        report.languageIconPromptUsed == null &&
-        report.languageDurationMs == null && report.languageIconDurationMs == null &&
-        report.languageInputCost == 0.0 && report.languageOutputCost == 0.0 &&
-        report.languageIconInputCost == 0.0 && report.languageIconOutputCost == 0.0
-
-    // Language detection has its own gate now (split from the icon gate)
-    // so report icon and report language can be toggled independently.
-    if (reportLanguageOn && !languageNeverRan) {
-        val langState = when {
-            !report.languageIconErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
-            !report.languageName.isNullOrBlank() -> InfoJobState.DONE
-            "${report.id}|language" in running -> InfoJobState.RUNNING
-            else -> InfoJobState.CLOCK
-        }
-        val langLabel = report.languageIconErrorMessage?.takeIf { it.isNotBlank() }
-            ?: report.languageName?.takeIf { it.isNotBlank() }
-            ?: if (langState == InfoJobState.RUNNING) "Detecting…" else "Queued…"
-        jobs += InfoJob(
-            "language", langLabel, langState,
-            report.languageInputCost + report.languageOutputCost +
-                report.languageIconInputCost + report.languageIconOutputCost,
-            doneIcon = report.languageIcon ?: icons.languageIcon,
-            pending = langState == InfoJobState.RUNNING || langState == InfoJobState.CLOCK
-        )
-    }
-
-    val titlePrompts = settings.internalPrompts.filter {
-        it.category == "workers" &&
-            (it.name == "report-title-short" || it.name == "report-title-long")
-    }
-    val titleConfigured = titlePrompts.any { prompt ->
-        prompt.workers.any { settings.resolveWorker(it) != null }
-    }
-    // "Never ran" terminal guard, mirroring the icon / language rows: a
-    // finished report that recorded no AI-title attempt (no promptUsed,
-    // no error, no cost / duration) never ran the report-title job — e.g.
-    // legacy reports or a copy whose title was inherited rather than
-    // generated. Skip the row instead of spinning "Queued…" forever.
-    val titleNeverRan = report.completedAt != null &&
-        report.titlePromptUsed.isNullOrBlank() && report.titleErrorMessage == null &&
-        report.titleDurationMs == null && report.titleLongDurationMs == null &&
-        report.titleInputCost == 0.0 && report.titleOutputCost == 0.0 &&
-        report.titleLongInputCost == 0.0 && report.titleLongOutputCost == 0.0
-    if (titleModeAi && titleConfigured && !titleNeverRan) {
-        val state = when {
-            !report.titleErrorMessage.isNullOrBlank() -> InfoJobState.FAILED
-            !report.titlePromptUsed.isNullOrBlank() -> InfoJobState.DONE
-            "${report.id}|title" in running -> InfoJobState.RUNNING
-            else -> InfoJobState.CLOCK
-        }
-        val label = report.titleErrorMessage?.takeIf { it.isNotBlank() }
-            ?: report.title.takeIf { !report.titlePromptUsed.isNullOrBlank() }
-            ?: if (state == InfoJobState.RUNNING) "Generating…" else "Queued…"
-        jobs += InfoJob("title", label, state,
-            report.titleInputCost + report.titleOutputCost + report.titleLongInputCost + report.titleLongOutputCost,
-            doneIcon = com.ai.data.MetadataIconsHolder.current.label, pending = state == InfoJobState.RUNNING || state == InfoJobState.CLOCK)
+        jobs += InfoJob("report-icon", label, state, report.iconInputCost + report.iconOutputCost,
+            doneIcon = report.icon, pending = reportPending(state))
     }
 
     // Per-agent title state — agent must succeed first; when both jobs are
@@ -349,9 +390,9 @@ fun ReportGetInfoScreen(
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(jobs, key = { "${it.type}-${it.agentId ?: it.label}" }) { job ->
                 val click: (() -> Unit)? = when (job.type) {
-                    "icon" -> onOpenIconDetail
-                    "language" -> onOpenLanguageDetail
-                    "title" -> onEditTitle
+                    "report-icon" -> onOpenIconDetail
+                    "language", "language-icon" -> onOpenLanguageDetail
+                    "report-short", "report-long" -> onEditTitle
                     "model-icon" -> job.agentId?.let { id -> { onOpenAgentIconDetail(id) } }
                     "model-title" -> job.agentId?.let { id -> { onEditModelTitle(id) } }
                     else -> null

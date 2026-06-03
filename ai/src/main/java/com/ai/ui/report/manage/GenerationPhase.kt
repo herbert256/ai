@@ -775,6 +775,37 @@ internal fun ColumnScope.GenerationPhase(
         item(key = "top-divider") {
             HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
         }
+        // Info row — always the first row. Single summary row replacing the
+        // old icon / language / title rows; those jobs (plus per-model icon /
+        // model-title) now live on the "Report - Get info" screen. The row's
+        // status aggregates every enabled job (❌ if any failed, else ⏳ if any
+        // clock/running, else ✅) and its cost is the info meta total; tapping
+        // opens the Info screen. Shown when a metadata job is enabled OR
+        // metadata cost was already spent — so toggling a metadata feature off
+        // doesn't hide its already-spent cost from the page (that cost stays
+        // in the grand total).
+        if (infoEnabled || infoMetaTotal > 0.0) {
+            item(key = "row-info") {
+                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    .clickable { onGetInfo() },
+                    verticalAlignment = Alignment.CenterVertically) {
+                    // When all jobs are done, the aggregate cell shows the
+                    // report's own icon instead of ✅.
+                    InfoStatusCell(infoState, doneIcon = reportIcon)
+                    RowTypeCell("info")
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("icon, language, title, per-model icon / title",
+                            fontSize = 13.sp, color = Color.White,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                    if (infoMetaTotal > 0.0) {
+                        Text(formatCents(infoMetaTotal), fontSize = 10.sp,
+                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
+                    }
+                }
+                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
+            }
+        }
         // Regenerate batch — top of body when a RegenerateJob is
         // active for this report. Hoisted into its own composable
         // (RegenerateBatchManageRow) to keep this LazyColumn body
@@ -1255,38 +1286,6 @@ internal fun ColumnScope.GenerationPhase(
                     // Per-row 🐞 removed — TranslationRunDetailScreen
                     // (the row's tap target) carries the same trace
                     // icon in its title bar.
-                }
-                HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
-            }
-        }
-
-        // Info row — single summary row replacing the old icon /
-        // language / title rows. Those jobs (plus per-model icon /
-        // model-title) now live on the "Report - Get info" screen. The
-        // row's status aggregates every enabled job (❌ if any failed,
-        // else ⏳ if any clock/running, else ✅) and its cost is the
-        // info meta total; tapping opens the Info screen. Shown when a
-        // metadata job is enabled OR metadata cost was already spent — so
-        // toggling a metadata feature off doesn't hide its already-spent
-        // cost from the page (that cost stays in the grand total).
-        if (infoEnabled || infoMetaTotal > 0.0) {
-            item(key = "row-info") {
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
-                    .clickable { onGetInfo() },
-                    verticalAlignment = Alignment.CenterVertically) {
-                    // When all jobs are done, the aggregate cell shows the
-                    // report's own icon instead of ✅.
-                    InfoStatusCell(infoState, doneIcon = reportIcon)
-                    RowTypeCell("info")
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("icon, language, title, per-model icon / title",
-                            fontSize = 13.sp, color = Color.White,
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    }
-                    if (infoMetaTotal > 0.0) {
-                        Text(formatCents(infoMetaTotal), fontSize = 10.sp,
-                            color = AppColors.TextTertiary, fontFamily = FontFamily.Monospace)
-                    }
                 }
                 HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
             }
