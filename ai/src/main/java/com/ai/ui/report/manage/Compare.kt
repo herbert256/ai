@@ -4,7 +4,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,7 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -79,23 +77,22 @@ import kotlinx.coroutines.withContext
 // and the L1 overlay opens.
 // ===================================================================
 
-/** Page 1 — multi-select the plain-meta results to score answers against. */
+/** Page 1 — pick ONE plain-meta result to score answers against. Tapping a
+ *  row goes straight to the prompt page (1×1: one meta, one prompt). */
 @Composable
 fun CompareSelectMetaScreen(
     metaItems: List<SecondaryResult>,
     aiSettings: Settings,
-    preselected: List<String>,
-    onNext: (List<String>) -> Unit,
+    onPick: (String) -> Unit,
     onBack: () -> Unit,
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
-    var selected by remember { mutableStateOf(preselected.toSet()) }
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "compare_select_meta",
             title = "Compare with meta",
-            subject = "Pick meta results to score answers against",
+            subject = "Pick a meta result to score answers against",
             reportIcon = com.ai.data.MetadataIconsHolder.current.compare,
             onBackClick = onBack
         )
@@ -107,19 +104,14 @@ fun CompareSelectMetaScreen(
             LazyColumn(Modifier.weight(1f)) {
                 items(metaItems, key = { it.id }) { row ->
                     val name = secondaryPromptDisplayName(row.metaPromptName ?: "meta")
-                    val checked = row.id in selected
                     val preview = row.content?.trim()?.take(90)?.replace("\n", " ").orEmpty()
                     Row(
                         modifier = Modifier.fillMaxWidth()
-                            .clickable {
-                                selected = if (checked) selected - row.id else selected + row.id
-                            }
-                            .padding(vertical = 8.dp),
+                            .clickable { onPick(row.id) }
+                            .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text(if (checked) com.ai.data.MetadataIconsHolder.current.checkboxOn else com.ai.data.MetadataIconsHolder.current.checkboxOff, fontSize = 18.sp,
-                            color = if (checked) AppColors.SuccessAccent else AppColors.TextSecondary,
-                            modifier = Modifier.padding(end = 10.dp))
+                        Text(com.ai.data.MetadataIconsHolder.current.compare, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -136,12 +128,6 @@ fun CompareSelectMetaScreen(
                 modifier = Modifier.padding(vertical = 8.dp)
             )
         }
-        OutlinedButton(
-            onClick = { onNext(selected.toList()) },
-            enabled = selected.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-            colors = AppColors.outlinedButtonColors()
-        ) { Text("Next — pick a prompt (${selected.size})", fontSize = 14.sp) }
     }
 }
 
@@ -255,10 +241,8 @@ fun CompareOverlay(reportId: String, engine: CompareEngine, onClose: () -> Unit)
 }
 
 // ===================================================================
-// Drill-in: L1 (stats + 2 grouping modes) → L2 (group) → L3 (cell)
+// Drill-in: L1 (stats + per-model list) → L2 (group) → L3 (cell)
 // ===================================================================
-
-enum class CompareGroupMode { REPORT_MODELS, META_ITEMS }
 
 @Composable
 fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
@@ -309,7 +293,6 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
         }
     }
 
-    var groupMode by rememberSaveable { mutableStateOf(CompareGroupMode.REPORT_MODELS) }
     var level by rememberSaveable { mutableStateOf(1) }   // 1 = L1, 2 = L2, 3 = L3
     var groupKey by rememberSaveable { mutableStateOf("") }
     var cellKey by rememberSaveable { mutableStateOf("") }
@@ -334,15 +317,14 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
     }
 
     when (level) {
-        2 -> CompareL2(run, agents, metaLabels, reportTitle, reportIcon, groupKey, groupMode,
+        2 -> CompareL2(run, agents, metaLabels, reportTitle, reportIcon, groupKey,
             openCell = { ck -> cellKey = ck; level = 3 },
             onBack = { level = 1 })
-        3 -> CompareL3(run, agents, metaLabels, metaRowsById, reportTitle, reportIcon, cellKey, groupKey, groupMode,
+        3 -> CompareL3(run, agents, metaLabels, metaRowsById, reportTitle, reportIcon, cellKey, groupKey,
             onBack = { level = 2 },
             onRerun = { scope.launch { engine.rerunCell(context, reportId, cellKey) } },
             onStep = { ck -> cellKey = ck })
-        else -> CompareL1(run, agents, metaLabels, reportTitle, reportIcon, groupMode, throttled,
-            setGroupMode = { groupMode = it },
+        else -> CompareL1(run, agents, reportTitle, reportIcon, throttled,
             openGroup = { gk -> groupKey = gk; level = 2 },
             onRedo = { confirmRedo = true },
             onRestartFailed = { scope.launch { engine.restartFailedCells(context, reportId) } },
@@ -400,18 +382,11 @@ private data class CompareGroupRow(val key: String, val label: String, val cells
 }
 
 private fun buildGroups(
-    run: CompareRunState, agents: Map<String, ReportAgent>, metaLabels: Map<String, String>,
-    mode: CompareGroupMode
-): List<CompareGroupRow> = when (mode) {
-    CompareGroupMode.REPORT_MODELS ->
-        run.cells.values.groupBy { it.agentId }
-            .map { (aid, cs) -> CompareGroupRow("agent:$aid", agentLabel(agents, aid), cs) }
-            .sortedByDescending { it.avg ?: -1 }
-    CompareGroupMode.META_ITEMS ->
-        run.cells.values.groupBy { it.metaResultId }
-            .map { (mid, cs) -> CompareGroupRow("meta:$mid", metaLabels[mid] ?: "meta", cs) }
-            .sortedBy { it.label.lowercase() }
-}
+    run: CompareRunState, agents: Map<String, ReportAgent>
+): List<CompareGroupRow> =
+    run.cells.values.groupBy { it.agentId }
+        .map { (aid, cs) -> CompareGroupRow("agent:$aid", agentLabel(agents, aid), cs) }
+        .sortedByDescending { it.avg ?: -1 }
 
 private fun cellsForGroup(run: CompareRunState, groupKey: String): List<CompareCellState> {
     val (kind, value) = groupKey.split(":", limit = 2).let { it[0] to it.getOrElse(1) { "" } }
@@ -428,12 +403,9 @@ private fun cellsForGroup(run: CompareRunState, groupKey: String): List<CompareC
 private fun CompareL1(
     run: CompareRunState,
     agents: Map<String, ReportAgent>,
-    metaLabels: Map<String, String>,
     reportTitle: String,
     reportIcon: String,
-    groupMode: CompareGroupMode,
     throttled: Set<String>,
-    setGroupMode: (CompareGroupMode) -> Unit,
     openGroup: (String) -> Unit,
     onRedo: () -> Unit,
     onRestartFailed: () -> Unit,
@@ -472,23 +444,8 @@ private fun CompareL1(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = groupMode == CompareGroupMode.REPORT_MODELS,
-                    onClick = { setGroupMode(CompareGroupMode.REPORT_MODELS) },
-                    label = { Text("Report models", fontSize = 12.sp) },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterChip(
-                    selected = groupMode == CompareGroupMode.META_ITEMS,
-                    onClick = { setGroupMode(CompareGroupMode.META_ITEMS) },
-                    label = { Text("Meta items", fontSize = 12.sp) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Spacer(Modifier.height(10.dp))
 
-            val groups = buildGroups(run, agents, metaLabels, groupMode)
+            val groups = buildGroups(run, agents)
             if (groups.isEmpty()) {
                 Text("No cells yet.", color = AppColors.TextSecondary, fontSize = 13.sp,
                     modifier = Modifier.padding(vertical = 8.dp))
@@ -544,30 +501,20 @@ private fun CompareL2(
     reportTitle: String,
     reportIcon: String,
     groupKey: String,
-    groupMode: CompareGroupMode,
     openCell: (String) -> Unit,
     onBack: () -> Unit
 ) {
     val cells = cellsForGroup(run, groupKey)
-    val title = when {
-        groupKey.startsWith("agent:") -> agentLabel(agents, groupKey.substringAfter(":"))
-        groupKey.startsWith("meta:") -> metaLabels[groupKey.substringAfter(":")] ?: "meta"
-        else -> ""
-    }
-    val screenTitle = when (groupMode) {
-        CompareGroupMode.REPORT_MODELS -> "Compare - model"
-        CompareGroupMode.META_ITEMS -> "Compare - meta"
-    }
-    // The opposite axis labels each row: for an agent group the row is the
-    // meta item; for a meta group the row is the answer model.
+    val title = agentLabel(agents, groupKey.substringAfter(":"))
+    // Groups are always report models; each row is the meta item the answer
+    // was scored against.
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
-        TitleBar(helpTopic = "compare_l2", title = screenTitle, subject = reportTitle,
+        TitleBar(helpTopic = "compare_l2", title = "Compare - model", subject = reportTitle,
             reportIcon = reportIcon, onBackClick = onBack)
         CompareGreenSubject(title)
         LazyColumn(Modifier.fillMaxSize()) {
             items(cells.sortedByDescending { it.percent ?: -1 }, key = { it.key }) { c ->
-                val rowLabel = if (groupKey.startsWith("agent:")) (metaLabels[c.metaResultId] ?: "meta")
-                    else agentLabel(agents, c.agentId)
+                val rowLabel = metaLabels[c.metaResultId] ?: "meta"
                 CompareCellRow(c, rowLabel) { openCell(c.key) }
             }
             item { Spacer(Modifier.height(24.dp)) }
@@ -620,7 +567,6 @@ private fun CompareL3(
     reportIcon: String,
     cellKey: String,
     groupKey: String,
-    groupMode: CompareGroupMode,
     onBack: () -> Unit,
     onRerun: () -> Unit,
     onStep: (String) -> Unit

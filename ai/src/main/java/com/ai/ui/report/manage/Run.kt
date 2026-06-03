@@ -148,7 +148,7 @@ internal fun ReportRunScreen(
     }
     val compareEnabled = compareMetaItems.isNotEmpty() && tournamentResponseCount >= 1
     var compareStep by rememberSaveable { mutableStateOf(0) }
-    var compareSelectedMeta by remember { mutableStateOf<List<String>>(emptyList()) }
+    var compareSelectedMeta by remember { mutableStateOf<String?>(null) }
     // Armed by the 🏆 / 🚦 bottom-bar icons when no rerank / moderation exists
     // yet: the icon opens the picker, and once the run's placeholder row lands
     // in secondaryRuns the LaunchedEffect below jumps to its detail screen.
@@ -208,8 +208,7 @@ internal fun ReportRunScreen(
         CompareSelectMetaScreen(
             metaItems = compareMetaItems,
             aiSettings = aiSettings,
-            preselected = compareSelectedMeta,
-            onNext = { ids -> compareSelectedMeta = ids; compareStep = 2 },
+            onPick = { id -> compareSelectedMeta = id; compareStep = 2 },
             onBack = { compareStep = 0 },
             onNavigateHome = onDismiss
         )
@@ -220,10 +219,12 @@ internal fun ReportRunScreen(
             prompts = aiSettings.internalPrompts.filter { it.category == "meta_compare" },
             onRun = { promptId ->
                 val rid = currentReportId
-                compareEngine?.startRun(context, rid, compareSelectedMeta, promptId)
+                compareSelectedMeta?.let { metaId ->
+                    compareEngine?.startRun(context, rid, listOf(metaId), promptId)
+                }
                 compareOpenState?.value = rid
                 compareStep = 0
-                compareSelectedMeta = emptyList()
+                compareSelectedMeta = null
             },
             onBack = { compareStep = 1 },
             onNavigateHome = onDismiss

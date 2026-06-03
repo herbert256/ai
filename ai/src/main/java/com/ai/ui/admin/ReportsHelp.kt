@@ -282,8 +282,8 @@ internal val reportsHelp: Map<String, HelpContent> = mapOf(
     "compare_l1" to HelpContent(
         title = "Help - Compare with meta",
         cards = listOf(
-            HelpCard("What it is", "The results grid for a Compare-with-meta run: each report answer scored 0–100 for how closely it matches each chosen meta result, judged by the worker engine. Start one from the report's 🆕 Create launcher → Compare with meta."),
-            HelpCard("Statistics + grouping", "The counters show Total cells (answers × meta items) / Done / Running / Wait (throttled) / Queue / Errors / Cost. The two chips switch grouping: 'Report models' lists each answer with its average score across the meta items; 'Meta items' lists each meta item with the average score across answers. Tap a group to drill into its cells, then a cell for the full detail."),
+            HelpCard("What it is", "The results grid for a Compare-with-meta run: each report answer scored 0–100 for how closely it matches the chosen meta result, judged by the worker engine. Start one from the report's 🆕 Create launcher → Compare with meta: pick one meta result, then one comparison prompt."),
+            HelpCard("Statistics + list", "The counters show Total / Done / Running / Wait (throttled) / Queue / Errors / Cost. Below them each report answer is listed with its score against the meta result. Tap an answer to drill into its cell, then the cell for the full detail."),
             HelpCard("Actions", "🔄 redoes the whole comparison from scratch, 🗑 deletes the run, 'Restart failed' re-scores any errored cells.")
         )
     ),
