@@ -359,11 +359,6 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("maxCallsPerProviderPerMinute", g.maxCallsPerProviderPerMinute)
     addProperty("maxConcurrentCallsPerProvider", g.maxConcurrentCallsPerProvider)
     addProperty("maxConcurrentApiCalls", g.maxConcurrentApiCalls)
-    addProperty("maxConcurrentReportCalls", g.maxConcurrentReportCalls)
-    addProperty("maxConcurrentTranslationCalls", g.maxConcurrentTranslationCalls)
-    addProperty("maxConcurrentFanOutCalls", g.maxConcurrentFanOutCalls)
-    addProperty("maxConcurrentFanMetaCalls", g.maxConcurrentFanMetaCalls)
-    addProperty("maxTestApiCalls", g.maxTestApiCalls)
     addProperty("maxRetriesOn429", g.maxRetriesOn429)
     addProperty("retryBackoffMs429", g.retryBackoffMs429)
     addProperty("maxRetriesOn529", g.maxRetriesOn529)
@@ -460,11 +455,6 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         maxCallsPerProviderPerMinute = int("maxCallsPerProviderPerMinute") ?: current.maxCallsPerProviderPerMinute,
         maxConcurrentCallsPerProvider = int("maxConcurrentCallsPerProvider") ?: current.maxConcurrentCallsPerProvider,
         maxConcurrentApiCalls = int("maxConcurrentApiCalls") ?: current.maxConcurrentApiCalls,
-        maxConcurrentReportCalls = int("maxConcurrentReportCalls") ?: current.maxConcurrentReportCalls,
-        maxConcurrentTranslationCalls = int("maxConcurrentTranslationCalls") ?: current.maxConcurrentTranslationCalls,
-        maxConcurrentFanOutCalls = int("maxConcurrentFanOutCalls") ?: current.maxConcurrentFanOutCalls,
-        maxConcurrentFanMetaCalls = int("maxConcurrentFanMetaCalls") ?: current.maxConcurrentFanMetaCalls,
-        maxTestApiCalls = int("maxTestApiCalls") ?: current.maxTestApiCalls,
         maxRetriesOn429 = int("maxRetriesOn429") ?: current.maxRetriesOn429,
         retryBackoffMs429 = long("retryBackoffMs429") ?: current.retryBackoffMs429,
         maxRetriesOn529 = int("maxRetriesOn529") ?: current.maxRetriesOn529,

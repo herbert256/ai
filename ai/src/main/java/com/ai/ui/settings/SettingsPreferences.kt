@@ -133,11 +133,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             maxCallsPerProviderPerMinute = prefs.getInt(KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE, 30),
             maxConcurrentCallsPerProvider = prefs.getInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, 3),
             maxConcurrentApiCalls = prefs.getInt(KEY_MAX_CONCURRENT_API_CALLS, 50),
-            maxConcurrentReportCalls = prefs.getInt(KEY_MAX_CONCURRENT_REPORT_CALLS, 15),
-            maxConcurrentTranslationCalls = prefs.getInt(KEY_MAX_CONCURRENT_TRANSLATION_CALLS, 15),
-            maxConcurrentFanOutCalls = prefs.getInt(KEY_MAX_CONCURRENT_FAN_OUT_CALLS, 15),
-            maxConcurrentFanMetaCalls = prefs.getInt(KEY_MAX_CONCURRENT_FAN_META_CALLS, 15),
-            maxTestApiCalls = prefs.getInt(KEY_MAX_TEST_API_CALLS, 40),
             maxRetriesOn429 = prefs.getInt(KEY_MAX_RETRIES_ON_429, 3),
             retryBackoffMs429 = prefs.getLong(KEY_RETRY_BACKOFF_MS_429, 1_000L),
             maxRetriesOn529 = prefs.getInt(KEY_MAX_RETRIES_ON_529, 3),
@@ -202,11 +197,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putInt(KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE, settings.maxCallsPerProviderPerMinute)
             putInt(KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER, settings.maxConcurrentCallsPerProvider)
             putInt(KEY_MAX_CONCURRENT_API_CALLS, settings.maxConcurrentApiCalls)
-            putInt(KEY_MAX_CONCURRENT_REPORT_CALLS, settings.maxConcurrentReportCalls)
-            putInt(KEY_MAX_CONCURRENT_TRANSLATION_CALLS, settings.maxConcurrentTranslationCalls)
-            putInt(KEY_MAX_CONCURRENT_FAN_OUT_CALLS, settings.maxConcurrentFanOutCalls)
-            putInt(KEY_MAX_CONCURRENT_FAN_META_CALLS, settings.maxConcurrentFanMetaCalls)
-            putInt(KEY_MAX_TEST_API_CALLS, settings.maxTestApiCalls)
             putInt(KEY_MAX_RETRIES_ON_429, settings.maxRetriesOn429)
             putLong(KEY_RETRY_BACKOFF_MS_429, settings.retryBackoffMs429)
             putInt(KEY_MAX_RETRIES_ON_529, settings.maxRetriesOn529)
@@ -1020,11 +1010,6 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_MAX_CALLS_PER_PROVIDER_PER_MINUTE = "max_calls_per_provider_per_minute"
         private const val KEY_MAX_CONCURRENT_CALLS_PER_PROVIDER = "max_concurrent_calls_per_provider"
         private const val KEY_MAX_CONCURRENT_API_CALLS = "max_concurrent_api_calls"
-        private const val KEY_MAX_CONCURRENT_REPORT_CALLS = "max_concurrent_report_calls"
-        private const val KEY_MAX_CONCURRENT_TRANSLATION_CALLS = "max_concurrent_translation_calls"
-        private const val KEY_MAX_CONCURRENT_FAN_OUT_CALLS = "max_concurrent_fan_out_calls"
-        private const val KEY_MAX_CONCURRENT_FAN_META_CALLS = "max_concurrent_fan_meta_calls"
-        private const val KEY_MAX_TEST_API_CALLS = "max_test_api_calls"
         private const val KEY_MAX_RETRIES_ON_429 = "max_retries_on_429"
         private const val KEY_RETRY_BACKOFF_MS_429 = "retry_backoff_ms_429"
         private const val KEY_MAX_RETRIES_ON_529 = "max_retries_on_529"

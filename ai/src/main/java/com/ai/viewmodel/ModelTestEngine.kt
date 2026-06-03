@@ -327,7 +327,11 @@ class ModelTestEngine internal constructor(
                     _run.value?.let { ModelTestRunStore.save(context, it) }
                     if (keys.isEmpty()) return@withTracerTags
 
-                    val cap = appViewModel.uiState.value.generalSettings.maxTestApiCalls.coerceAtLeast(1)
+                    // No per-batch limit any more — bound the sweep by the
+                    // single global "Concurrent API calls" cap (the shared
+                    // global semaphore in runThrottledBatch still applies on
+                    // top; this local cap matches it so it never binds tighter).
+                    val cap = appViewModel.uiState.value.generalSettings.maxConcurrentApiCalls.coerceAtLeast(1)
                     val ioCap = Semaphore(cap)
                     val items = keys.mapNotNull { _run.value?.items?.get(it) }
                     // Shared runner owns the interleave + the canonical

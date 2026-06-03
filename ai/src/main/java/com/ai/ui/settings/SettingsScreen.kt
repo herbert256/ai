@@ -1195,28 +1195,13 @@ private fun MaximalApiCallsSubScreen(
     onNavigateHome: () -> Unit
 ) {
     var apiText by remember { mutableStateOf(generalSettings.maxConcurrentApiCalls.toString()) }
-    var reportText by remember { mutableStateOf(generalSettings.maxConcurrentReportCalls.toString()) }
-    var translationText by remember { mutableStateOf(generalSettings.maxConcurrentTranslationCalls.toString()) }
-    var fanOutText by remember { mutableStateOf(generalSettings.maxConcurrentFanOutCalls.toString()) }
-    var fanMetaText by remember { mutableStateOf(generalSettings.maxConcurrentFanMetaCalls.toString()) }
-    var testText by remember { mutableStateOf(generalSettings.maxTestApiCalls.toString()) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         maxConcurrentApiCalls = apiText.toIntOrNull()?.coerceAtLeast(1)
-            ?: generalSettings.maxConcurrentApiCalls,
-        maxConcurrentReportCalls = reportText.toIntOrNull()?.coerceAtLeast(1)
-            ?: generalSettings.maxConcurrentReportCalls,
-        maxConcurrentTranslationCalls = translationText.toIntOrNull()?.coerceAtLeast(1)
-            ?: generalSettings.maxConcurrentTranslationCalls,
-        maxConcurrentFanOutCalls = fanOutText.toIntOrNull()?.coerceAtLeast(1)
-            ?: generalSettings.maxConcurrentFanOutCalls,
-        maxConcurrentFanMetaCalls = fanMetaText.toIntOrNull()?.coerceAtLeast(1)
-            ?: generalSettings.maxConcurrentFanMetaCalls,
-        maxTestApiCalls = testText.toIntOrNull()?.coerceAtLeast(1)
-            ?: generalSettings.maxTestApiCalls
+            ?: generalSettings.maxConcurrentApiCalls
     )
 
-    LaunchedEffect(apiText, reportText, translationText, fanOutText, fanMetaText, testText) {
+    LaunchedEffect(apiText) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1244,78 +1229,13 @@ private fun MaximalApiCallsSubScreen(
         ) {
             SettingCard(
                 "Concurrent API calls at the same time",
-                "Hard global ceiling on every API call the app keeps in flight at once — reports, translations, fan-out, and any sub-dispatcher under them. Calls beyond the cap suspend until a permit frees up. Default 100.",
+                "Hard global ceiling on every API call the app keeps in flight at once — reports, translations, fan-out, workers, and any sub-dispatcher under them. Calls beyond the cap suspend until a permit frees up. This is the only concurrency cap; there are no per-batch limits. Default 100.",
                 MetadataDefaults.CLOUD
             ) {
                 OutlinedTextField(
                     value = apiText,
                     onValueChange = { apiText = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Concurrent API calls") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
-                )
-            }
-            SettingCard(
-                "Concurrent Model reports API calls",
-                "Cap on the primary per-agent calls fired during a new-report run. The global cap still wins if it's lower. Default 50.",
-                MetadataDefaults.REPORT_ICON
-            ) {
-                OutlinedTextField(
-                    value = reportText,
-                    onValueChange = { reportText = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Concurrent Model reports calls") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
-                )
-            }
-            SettingCard(
-                "Concurrent Translations API calls",
-                "Cap on per-item translation calls inside a translation run. With multi-model translation runs, the cap is on the total across models, not per model. Default 50.",
-                MetadataDefaults.TRANSLATE
-            ) {
-                OutlinedTextField(
-                    value = translationText,
-                    onValueChange = { translationText = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Concurrent Translation calls") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
-                )
-            }
-            SettingCard(
-                "Concurrent Fan Out API calls",
-                "Cap on per-pair fan-out calls. The per-provider cap (Network settings → Per-provider throttling) still applies on top, so a single-provider fan-out still respects that limit. Default 50.",
-                MetadataDefaults.FAN_OUT
-            ) {
-                OutlinedTextField(
-                    value = fanOutText,
-                    onValueChange = { fanOutText = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Concurrent Fan Out calls") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
-                )
-            }
-            SettingCard(
-                "Concurrent Fan Meta API calls",
-                "Cap on the Fan Meta batch — the title+icon generation the user launches from a fan-out's Fan Meta button. Separate from the fan-out cap so the two can run side-by-side without halving each other's budget. Default 50.",
-                MetadataDefaults.META
-            ) {
-                OutlinedTextField(
-                    value = fanMetaText,
-                    onValueChange = { fanMetaText = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Concurrent Fan Meta calls") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true, colors = AppColors.outlinedFieldColors()
-                )
-            }
-            SettingCard(
-                "Concurrent Test all models API calls",
-                "Cap on the \"Test all models\" run (Housekeeping → Test). A run probes every configured model of every active provider, so this controls how hard that sweep hits the network. Default 50.",
-                MetadataDefaults.TEST
-            ) {
-                OutlinedTextField(
-                    value = testText,
-                    onValueChange = { testText = it.filter { ch -> ch.isDigit() } },
-                    label = { Text("Concurrent Test all models calls") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )

@@ -446,25 +446,24 @@ object ApiCallCaps {
     val fanMeta: kotlinx.coroutines.sync.Semaphore get() = fanMetaSem
     val workers: kotlinx.coroutines.sync.Semaphore get() = workersSem
 
-    fun resetForNewLimits(
-        globalMax: Int, reportMax: Int,
-        translationMax: Int, fanOutMax: Int,
-        // Sourced from the persisted maxConcurrentFanMetaCalls setting;
-        // drives the fan-meta + workers pools.
-        fanMetaMax: Int
-    ) {
+    /** There are no per-batch limits any more — every flow is bounded only
+     *  by the single global "Concurrent API calls" cap. The per-flow sub-cap
+     *  semaphores are kept (the throttle framework still acquires one
+     *  alongside [global]) but sized to the global cap so they never bind
+     *  before it. */
+    fun resetForNewLimits(globalMax: Int) {
         globalCap = globalMax.coerceAtLeast(1)
-        reportCap = reportMax.coerceAtLeast(1)
-        translationCap = translationMax.coerceAtLeast(1)
-        fanOutCap = fanOutMax.coerceAtLeast(1)
-        fanMetaCap = fanMetaMax.coerceAtLeast(1)
-        workersCap = fanMetaMax.coerceAtLeast(1)
+        reportCap = globalCap
+        translationCap = globalCap
+        fanOutCap = globalCap
+        fanMetaCap = globalCap
+        workersCap = globalCap
         globalSem = sem(globalCap)
-        reportSem = sem(reportCap)
-        translationSem = sem(translationCap)
-        fanOutSem = sem(fanOutCap)
-        fanMetaSem = sem(fanMetaCap)
-        workersSem = sem(workersCap)
+        reportSem = sem(globalCap)
+        translationSem = sem(globalCap)
+        fanOutSem = sem(globalCap)
+        fanMetaSem = sem(globalCap)
+        workersSem = sem(globalCap)
     }
 
     private fun sem(n: Int) = kotlinx.coroutines.sync.Semaphore(n.coerceAtLeast(1))

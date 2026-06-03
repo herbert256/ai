@@ -424,13 +424,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             NetworkSettings.retryBackoffMs429 = bs.first.retryBackoffMs429
             NetworkSettings.maxRetriesOn529 = bs.first.maxRetriesOn529
             NetworkSettings.retryBackoffMs529 = bs.first.retryBackoffMs529
-            ApiCallCaps.resetForNewLimits(
-                globalMax = bs.first.maxConcurrentApiCalls,
-                reportMax = bs.first.maxConcurrentReportCalls,
-                translationMax = bs.first.maxConcurrentTranslationCalls,
-                fanOutMax = bs.first.maxConcurrentFanOutCalls,
-                fanMetaMax = bs.first.maxConcurrentFanMetaCalls
-            )
+            ApiCallCaps.resetForNewLimits(globalMax = bs.first.maxConcurrentApiCalls)
             AppLog.v(
                 startTag,
                 "  NetworkSettings: streamRT=${bs.first.streamingReadTimeoutSec}s nonStreamRT=${bs.first.nonStreamingReadTimeoutSec}s " +
@@ -1119,19 +1113,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         // the caps changed. Already-held permits release against
         // their original semaphore (held alive by the holder), so
         // swap-on-change is safe.
-        if (settings.maxConcurrentApiCalls != previous.maxConcurrentApiCalls
-            || settings.maxConcurrentReportCalls != previous.maxConcurrentReportCalls
-            || settings.maxConcurrentTranslationCalls != previous.maxConcurrentTranslationCalls
-            || settings.maxConcurrentFanOutCalls != previous.maxConcurrentFanOutCalls
-            || settings.maxConcurrentFanMetaCalls != previous.maxConcurrentFanMetaCalls
-        ) {
-            ApiCallCaps.resetForNewLimits(
-                globalMax = settings.maxConcurrentApiCalls,
-                reportMax = settings.maxConcurrentReportCalls,
-                translationMax = settings.maxConcurrentTranslationCalls,
-                fanOutMax = settings.maxConcurrentFanOutCalls,
-                fanMetaMax = settings.maxConcurrentFanMetaCalls
-            )
+        if (settings.maxConcurrentApiCalls != previous.maxConcurrentApiCalls) {
+            ApiCallCaps.resetForNewLimits(globalMax = settings.maxConcurrentApiCalls)
         }
         if (settings.logLevel != previous.logLevel) {
             AppLog.i("Settings", "Log level changed: ${previous.logLevel} → ${settings.logLevel}")

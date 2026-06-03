@@ -247,29 +247,6 @@ data class GeneralSettings(
      *  per-kind / per-host caps. Surfaced in Settings → Network
      *  settings → Maximal API calls. */
     val maxConcurrentApiCalls: Int = 100,
-    /** Cap on concurrent primary report-gen calls (per-agent calls
-     *  fired during a new-report run). Replaces the legacy
-     *  hardcoded `REPORT_CONCURRENCY_LIMIT = 4`. */
-    val maxConcurrentReportCalls: Int = 50,
-    /** Cap on concurrent translation calls (each item × language
-     *  inside a translation run). With multi-model translation
-     *  runs, the cap is on the total across models, not per
-     *  model. */
-    val maxConcurrentTranslationCalls: Int = 50,
-    /** Cap on concurrent fan-out pair calls. Applied per-pair on
-     *  top of the per-host throttle, so a fan-out against a
-     *  single 3-per-host provider still bottlenecks at 3. */
-    val maxConcurrentFanOutCalls: Int = 50,
-    /** Cap on concurrent Fan Meta batch calls. The Fan Meta batch
-     *  generates a title+icon for completed fan-out pair responses; gated
-     *  separately so it doesn't compete with the parent fan-out's
-     *  budget. Mirrors the per-host cap structure used by fan-out. */
-    val maxConcurrentFanMetaCalls: Int = 50,
-    /** Cap on concurrent calls in the "Test all models" run
-     *  (Housekeeping → Test). Read directly by
-     *  [com.ai.viewmodel.ModelTestEngine] to size its in-flight
-     *  semaphore — not mirrored into [com.ai.data.NetworkSettings]. */
-    val maxTestApiCalls: Int = 50,
     /** Maximum number of in-line retries the OkHttp client performs on
      *  a 429 response from a single provider host. Defaults to 3 —
      *  three retries × the backoff below = ~3 s of in-line waiting.

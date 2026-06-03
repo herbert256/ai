@@ -115,15 +115,10 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
     "settings_network_api_calls" to HelpContent(
         title = "Help - Maximal API calls",
         cards = listOf(
-            HelpCard("Overview", "Caps on how many model/API jobs the app keeps in flight at once. Calls pass through the global cap, the matching per-kind cap, and then the per-provider throttle. When a cap is full, work waits; it is not dropped."),
-            HelpCard("Concurrent API calls at the same time", "Hard global ceiling for cloud API work across reports, chat, translations, fan-out, metadata, tests, and background jobs. Lower it if the device or providers are overloaded."),
-            HelpCard("Concurrent Model reports API calls", "Cap on primary report-answer calls: the rows that fill in while a new report is running."),
-            HelpCard("Concurrent Translations API calls", "Cap on translation calls. A multi-model translation run shares this budget across all selected models and translated items."),
-            HelpCard("Concurrent Fan Out API calls", "Cap on per-pair fan-out calls. Large reports can create many answerer/source pairs, so this setting protects providers from a burst."),
-            HelpCard("Concurrent Fan Meta API calls", "Cap on Fan Meta title+icon jobs for fan-out pairs. This keeps Fan Meta from consuming the same budget as the original fan-out calls."),
-            HelpCard("Concurrent Test all models calls", "Cap on the batch tester under Housekeeping -> Test. It lets you validate many models without starving normal report/chat work."),
-            HelpCard("Per-kind ≠ per-host", "These caps don't replace the per-provider concurrency cap (Network settings → Per-provider throttling) — they sit on top of it. A run with 20 fan-out pairs going to the same provider with a 5-per-host cap will still bottleneck at 5 in flight even with a 50 fan-out cap."),
-            HelpCard("Live updates", "Changing a cap takes effect immediately for any new dispatch — calls already in flight keep running on their original permit and release it normally. No restart needed.")
+            HelpCard("Overview", "A single cap on how many model/API jobs the app keeps in flight at once. Every call passes through this global cap and then the per-provider throttle. When the cap is full, work waits; it is not dropped. There are no per-batch limits any more — one number governs everything."),
+            HelpCard("Concurrent API calls at the same time", "Hard global ceiling for all cloud API work across reports, chat, translations, fan-out, metadata, workers, tests, and background jobs. Lower it if the device or providers are overloaded. Default 100."),
+            HelpCard("Global ≠ per-host", "This cap doesn't replace the per-provider concurrency cap (Network settings → Per-provider throttling) — it sits on top of it. A run with 20 fan-out pairs going to the same provider with a 5-per-host cap will still bottleneck at 5 in flight even with the global cap at 100."),
+            HelpCard("Live updates", "Changing the cap takes effect immediately for any new dispatch — calls already in flight keep running on their original permit and release it normally. No restart needed.")
         )
     ),
     "settings_network_per_provider" to HelpContent(
