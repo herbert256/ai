@@ -1,8 +1,0 @@
-{
-  "name": "summarize",
-  "title": "Combineer alle antwoorden tot één antwoord",
-  "reference": false,
-  "agent": "*select",
-  "parameters": "*NONE",
-  "systemPrompt": "*NONE"
-}

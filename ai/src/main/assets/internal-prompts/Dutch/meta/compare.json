@@ -1,8 +1,0 @@
-{
-  "name": "compare",
-  "title": "Vind punten van overeenkomst en verschil",
-  "reference": true,
-  "agent": "*select",
-  "parameters": "*NONE",
-  "systemPrompt": "*NONE"
-}

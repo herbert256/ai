@@ -59,6 +59,10 @@ fun PromptTranslationsScreen(
     val storedSet = remember(refreshTick) { PromptTranslationStore.storedLanguages(context).toSet() }
 
     var busyMessage by remember { mutableStateOf<String?>(null) }
+    // The language currently being translated + its (done, total) progress,
+    // shown inline on that language's own row rather than at the top.
+    var translatingLang by remember { mutableStateOf<String?>(null) }
+    var translateProgress by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var confirmDelete by remember { mutableStateOf<String?>(null) }
     // New-translation flow: pick source (skip if only English), then target.
     var pickSource by remember { mutableStateOf(false) }
@@ -70,13 +74,17 @@ fun PromptTranslationsScreen(
         }
         scope.launch {
             busyMessage = "Translating into $target…"
+            translatingLang = target
+            translateProgress = null
             val n = withContext(Dispatchers.IO) {
                 PromptTranslationStore.translateInto(
                     context, source, target, aiSettings, onAskModelText,
-                    onProgress = { done, total -> busyMessage = "Translating into $target… ($done/$total)" }
+                    onProgress = { done, total -> translateProgress = done to total }
                 )
             }
             busyMessage = null
+            translatingLang = null
+            translateProgress = null
             refreshTick++
             Toast.makeText(
                 context,
@@ -113,12 +121,17 @@ fun PromptTranslationsScreen(
             title = "Prompt translations",
             subject = "Generate and manage internal-prompt translations",
             onBackClick = onBack,
-            onAdd = if (busyMessage == null) ({ startNewFlow() }) else null
+            // Always publish the 🆕 add action so it's reliably visible the
+            // moment the screen loads; the handler no-ops while a translation
+            // is already running.
+            onAdd = { if (busyMessage == null) startNewFlow() }
         )
 
-        busyMessage?.let {
-            Text(it, color = AppColors.InfoAccent, fontSize = 13.sp, modifier = Modifier.padding(vertical = 8.dp))
-        }
+        // A brand-new target language has no row yet (it isn't stored until
+        // the run finishes) — surface it now so its progress shows inline.
+        val displayLanguages = if (translatingLang != null && languages.none { it.equals(translatingLang, ignoreCase = true) })
+            languages + translatingLang!!
+        else languages
 
         LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
@@ -128,9 +141,10 @@ fun PromptTranslationsScreen(
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
-            items(languages, key = { it }) { lang ->
+            items(displayLanguages, key = { it }) { lang ->
                 val isBase = lang.equals(InternalPromptSeed.BASE_LANGUAGE, ignoreCase = true)
                 val storedCount = PromptTranslationStore.count(context, lang)
+                val isTranslating = lang.equals(translatingLang, ignoreCase = true)
                 Card(
                     colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt),
                     modifier = Modifier.fillMaxWidth()
@@ -141,14 +155,21 @@ fun PromptTranslationsScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(lang, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text(
-                                when {
-                                    isBase -> "Editable baseline"
-                                    lang in storedSet -> "$storedCount generated prompts"
-                                    else -> "Bundled translation"
-                                },
-                                fontSize = 12.sp, color = AppColors.TextTertiary
-                            )
+                            if (isTranslating) {
+                                Text(
+                                    translateProgress?.let { (done, total) -> "Translating… $done/$total" } ?: "Translating…",
+                                    fontSize = 12.sp, color = AppColors.InfoAccent
+                                )
+                            } else {
+                                Text(
+                                    when {
+                                        isBase -> "Editable baseline"
+                                        lang in storedSet -> "$storedCount generated prompts"
+                                        else -> "Bundled translation"
+                                    },
+                                    fontSize = 12.sp, color = AppColors.TextTertiary
+                                )
+                            }
                         }
                         if (!isBase) {
                             // 🔄 redo the translation (English → this language).
