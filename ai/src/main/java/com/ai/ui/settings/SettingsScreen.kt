@@ -1334,7 +1334,11 @@ private fun MaximalApiCallsSubScreen(
 @Composable
 private fun PerProviderThrottlingSubScreen(onBack: () -> Unit) {
     val providers = remember {
-        com.ai.data.ProviderRegistry.getAll().sortedBy { it.id.lowercase() }
+        com.ai.data.ProviderRegistry.getAll().sortedWith(
+            compareByDescending<AppService> {
+                it.maxCallsPerProviderPerMinute != null || it.maxConcurrentCallsPerProvider != null
+            }.thenBy { it.id.lowercase() }
+        )
     }
     Column(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
