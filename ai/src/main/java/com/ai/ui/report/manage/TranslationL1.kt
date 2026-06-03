@@ -52,7 +52,6 @@ import com.ai.ui.shared.ReloadConfirmationDialog
 import com.ai.ui.shared.TitleBar
 import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.ReportViewModel
-import com.ai.viewmodel.TranslationMode
 import com.ai.viewmodel.TranslationRunState
 import com.ai.viewmodel.TranslationStatus
 import kotlinx.coroutines.launch
@@ -229,47 +228,6 @@ internal fun TranslationL1Screen(
             }) else null,
             onDelete = { confirmDelete = true }
         )
-
-        // Mode toggle — switches the cost-aware hesitation in the
-        // worker loop. Mid-run interactive: workers re-read the
-        // selection on every queue pull, so the bias change takes
-        // effect within ~1s. Persisted per-runId so a restart lands
-        // in the same mode the user picked. See ReportViewModel
-        // TranslationMode + setTranslationMode + costPenaltyMs. Hidden
-        // once the run is done/idle — the bias only affects in-flight
-        // scheduling, so it has nothing to act on then.
-        val showModeChips = (queuedCount + runningCount + throttledCount > 0 || benchCount > 0) && !run.cancelled
-        if (showModeChips) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                // Order: Speed | Mixed | Cost — left-to-right matches the
-                // user-facing speed-vs-cost spectrum.
-                listOf(
-                    TranslationMode.SPEED to "Speed",
-                    TranslationMode.MIXED to "Mixed",
-                    TranslationMode.COST to "Cost"
-                ).forEach { (m, label) ->
-                    FilterChip(
-                        selected = run.mode == m,
-                        onClick = { actions.onSetMode(runId, m) },
-                        label = {
-                            Text(
-                                label,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                softWrap = false,
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center
-                            )
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-        }
 
         // Stats panel — pinned at the top, kept visible even once the
         // whole run is done. Throttled = items parked on a provider gate

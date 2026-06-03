@@ -684,8 +684,7 @@ fun ReportsScreenNav(
             onCancelItem = { runId, itemId -> reportViewModel.translation.cancelTranslationItem(runId, itemId) },
             onConsumeRun = { runId -> reportViewModel.translation.consumeTranslationRun(runId) },
             onReconcileStalled = { sourceId, runId -> reportViewModel.translation.reconcileStalledTranslationRun(context, sourceId, runId) },
-            onDeleteRun = { sourceId, runId -> reportViewModel.translation.deleteTranslationRun(context, sourceId, runId) },
-            onSetMode = { runId, mode -> reportViewModel.translation.setTranslationMode(runId, mode) }
+            onDeleteRun = { sourceId, runId -> reportViewModel.translation.deleteTranslationRun(context, sourceId, runId) }
         ),
         onContinueWithCurrent = onContinueWithCurrent,
         onContinueWithAgentPicker = onContinueWithAgentPicker,

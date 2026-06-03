@@ -1337,7 +1337,6 @@ fun ReportsScreen(
                     onNavigateToTraceRunList = onNavigateToTraceRunList,
                     onNavigateToModelInfo = onNavigateToModelInfo,
                     onNavigateHome = onNavigateHome,
-                    onSetMode = translationLifecycle.onSetMode,
                     onFindAlternativeTranslation = { itemId, isTitle, src, traceType, lang, rowId ->
                         translationModels = emptyList()
                         pickerTarget = PickerTarget.TRANSLATION

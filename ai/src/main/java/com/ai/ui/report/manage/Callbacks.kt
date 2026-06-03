@@ -41,7 +41,6 @@ import com.ai.ui.shared.formatCents
 import com.ai.viewmodel.AppViewModel
 import com.ai.viewmodel.IconCandidate
 import com.ai.viewmodel.ReportViewModel
-import com.ai.viewmodel.TranslationMode
 import com.ai.viewmodel.UiState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -61,9 +60,6 @@ data class TranslationLifecycleCallbacks(
      *  then deletes every persisted row. Returns the Job so the
      *  detail screen can await it behind a "Deleting…" popup. */
     val onDeleteRun: (sourceReportId: String, runId: String) -> kotlinx.coroutines.Job? = { _, _ -> null },
-    /** Flip the cost-vs-speed mode on a (possibly in-flight) run.
-     *  Wired by ReportsScreenNav to ReportViewModel.setTranslationMode. */
-    val onSetMode: (runId: String, mode: com.ai.viewmodel.TranslationMode) -> Unit = { _, _ -> },
     /** Rebuild a stalled run's in-memory state from disk — wired to
      *  ReportViewModel.reconcileStalledTranslationRun. Fires from the
      *  result page's 10-second poll when an hourglass row's

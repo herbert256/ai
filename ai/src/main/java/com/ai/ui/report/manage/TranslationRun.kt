@@ -26,7 +26,6 @@ import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.ReportViewModel
 import com.ai.viewmodel.TranslationItem
-import com.ai.viewmodel.TranslationMode
 import com.ai.viewmodel.TranslationRunState
 
 /** "providerId|model" key for grouping a [TranslationItem]
@@ -115,10 +114,6 @@ data class TranslationActions(
     val onNavigateToTraceRunList: (String) -> Unit = {},
     val onNavigateToModelInfo: (AppService, String) -> Unit = { _, _ -> },
     val onNavigateHome: () -> Unit = {},
-    /** Flip the cost-vs-speed mode on a (possibly in-flight) run.
-     *  Workers re-read the mode on every queue pull, so the new bias
-     *  kicks in within one chunk (~1s). Persisted per-runId. */
-    val onSetMode: (runId: String, mode: TranslationMode) -> Unit = { _, _ -> },
     /** Open the "Find alternative translation" flow for one L3 item.
      *  Carries the full target identity so the parent can host the
      *  model picker + candidate screen and apply the pick back to the

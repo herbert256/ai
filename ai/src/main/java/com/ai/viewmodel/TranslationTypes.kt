@@ -18,22 +18,6 @@ val TranslationKind.isTitle: Boolean
     get() = this == TranslationKind.TITLE || this == TranslationKind.TITLE_LONG ||
         this == TranslationKind.AGENT_TITLE || this == TranslationKind.FANOUT_TITLE
 
-/** Per-run optimisation knob exposed on the L1 screen — switches
- *  the cost-aware hesitation built into [startTranslation]'s
- *  worker loop. Mutable mid-run: each worker re-reads the current
- *  value before pulling the next item, so flipping the toggle
- *  takes effect on the next pull (in-flight calls keep running).
- *  Persisted per-runId via [com.ai.data.TranslationModeStore] so
- *  the choice survives app restarts.
- *  - [COST] (default): full bias — penalty = `(myAvg / cheapest − 1) × 100ms`,
- *    capped at 120 s. Expensive models pull only what cheap ones
- *    can't keep up with.
- *  - [MIXED]: softened bias — multiplier 20, cap 5 s. Still
- *    favours cheap models but expensive ones stay engaged.
- *  - [SPEED]: no hesitation — every model pulls as fast as its
- *    per-host caps allow. Highest throughput, highest spend. */
-enum class TranslationMode { COST, MIXED, SPEED }
-
 /** One row on the translation progress screen. [sourceText] is what
  *  gets fed to the model; [translatedText] is filled in on DONE.
  *  [costDollars] is the per-call cost in USD (input + output) for
@@ -98,9 +82,6 @@ data class TranslationRunState(
     val totalCostDollars: Double = 0.0,
     val finished: Boolean = false,
     val cancelled: Boolean = false,
-    /** Cost-vs-speed knob the L1 screen exposes. Mutated via
-     *  [setTranslationMode]; workers re-read on every queue pull. */
-    val mode: TranslationMode = TranslationMode.COST,
     /** The run's intended (provider, model) set — strings in the
      *  same `"$providerId|$model"` shape as `translationModelKey`.
      *  Surfaced on the L1 screen so every model the user picked

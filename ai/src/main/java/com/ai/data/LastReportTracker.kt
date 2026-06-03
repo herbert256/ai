@@ -6,7 +6,7 @@ import android.content.Context
  * Tiny persistent record of the most recently opened report and the
  * mode (Manage / View) the user opened it in. Backing store: its own
  * SharedPreferences file. Same `object` + `init(context)` shape as
- * [TranslationModeStore] / [ModelCooldownStore].
+ * [ModelCooldownStore].
  *
  * Read by the home Hub's big AI logo: tapping it restores this report
  * in the recorded mode so the user lands back where they were rather

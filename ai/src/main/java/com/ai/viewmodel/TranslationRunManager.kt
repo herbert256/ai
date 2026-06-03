@@ -263,10 +263,6 @@ class TranslationRunManager(
                 targetLanguageName = targetLanguageName,
                 targetLanguageNative = targetLanguageNative,
                 items = itemsWithIds,
-                // Brand-new runId always has no persisted entry → COST.
-                // Kept explicit for symmetry with the resume / persisted
-                // reconstruction paths below.
-                mode = com.ai.data.TranslationModeStore.get(runId) ?: TranslationMode.COST,
                 models = models.distinctBy { (p, m) -> p.id to m }
                     .map { (p, m) -> "${p.id}|$m" }
             )) }
@@ -345,31 +341,9 @@ class TranslationRunManager(
                         ProviderThrottle.suppressInlineRetry.asContextElement(true)
                 else
                     ProviderThrottle.permitPreAcquired.asContextElement(true)
-            // Cost-aware biasing. Each worker records (count, totalCost)
-            // for its own model after every successful call (single
-            // writer per key — only that model's worker touches it).
-            // Before pulling the next item, a worker hesitates for a
-            // delay proportional to how much pricier its model is than
-            // the cheapest one observed so far — so cheap models drain
-            // the queue first and an expensive model (e.g. Perplexity
-            // sonar, with its per-request search fee) only picks up
-            // work the cheap models can't keep up with. The cheapest
-            // model always has 0 penalty, so the run never stalls.
-            //
-            // Seeded from the static price table (a synthetic 2-sample
-            // prior on a nominal 200-in / 200-out token profile) so the
-            // bias is right from the very first item — otherwise, with
-            // many models, the expensive ones grab a cold-start chunk
-            // before real per-item costs are learned. Real completions
-            // accumulate on top and drift the average to reality (which
-            // also corrects per-request-fee models the static table
-            // under-prices).
-            val modelCost = java.util.concurrent.ConcurrentHashMap<Pair<String, String>, Pair<Int, Double>>()
-            distinctModels.forEach { (p, m) ->
-                val pr = ctxByKey[p.id to m]?.pricing ?: return@forEach
-                val estPerItem = 200.0 * pr.promptPrice + 200.0 * pr.completionPrice + pr.perQueryPrice
-                if (estPerItem > 0.0) modelCost[p.id to m] = 2 to (2.0 * estPerItem)
-            }
+            // Every worker pulls from the shared queue as fast as its
+            // per-host caps allow (the old cost-aware hesitation is gone —
+            // throughput over spend).
             // Per-attempt wall-clock budget. The work queue rebalances
             // *queued* items but can't steal one already in-flight in a
             // slow worker — so a pathologically slow model (or one
@@ -393,74 +367,9 @@ class TranslationRunManager(
                             ?: error("missing ctx for ${p.id}/$m")
                         launch {
                             val modelKey = ctx.provider.id to ctx.model
-                            // Hesitation before pulling the next item,
-                            // proportional to how much pricier this
-                            // model's observed per-item cost is than the
-                            // cheapest model's: (ratio - 1) × 100ms, up
-                            // to 120s. The cheapest model never waits, so
-                            // the queue always drains; a pathological
-                            // outlier (a frontier model or Perplexity
-                            // sonar, hundreds× the cheapest here) pulls
-                            // only every minute or two and ends up doing
-                            // a handful of items instead of dozens.
-                            // Needs ≥2 samples so one freak-sized item
-                            // can't lock a model out — the modelCost
-                            // seed above already supplies a 2-sample
-                            // prior, so the bias is live from item 1.
-                            fun costPenaltyMs(): Long {
-                                // Re-read the user-chosen mode on every
-                                // call so the L1 toggle takes effect on
-                                // the very next pull. setTranslationMode
-                                // writes; we read.
-                                val curMode = _translationRuns.value[runId]?.mode ?: TranslationMode.COST
-                                if (curMode == TranslationMode.SPEED) return 0L
-                                val mine = modelCost[modelKey] ?: return 0L
-                                if (mine.first < 2) return 0L
-                                val myAvg = mine.second / mine.first
-                                if (myAvg <= 0.0) return 0L
-                                val cheapest = modelCost.values
-                                    .filter { it.first >= 2 }
-                                    .minOfOrNull { it.second / it.first } ?: return 0L
-                                if (cheapest <= 0.0) return 0L
-                                // COST: full 100ms-per-ratio penalty, 120s cap.
-                                // MIXED: 20ms-per-ratio, 5s cap — still
-                                // favours cheap models but a 100× outlier
-                                // hesitates 2 s instead of 10 s and an
-                                // extreme outlier 5 s instead of 2 minutes.
-                                val (mult, cap) = when (curMode) {
-                                    TranslationMode.COST -> 100.0 to 120_000.0
-                                    TranslationMode.MIXED -> 20.0 to 5_000.0
-                                    TranslationMode.SPEED -> return 0L  // handled above
-                                }
-                                return ((myAvg / cheapest - 1.0) * mult)
-                                    .coerceIn(0.0, cap).toLong()
-                            }
-                            // Wait out the penalty in 1s chunks so the
-                            // worker still notices the run finishing
-                            // (channel closed) promptly instead of
-                            // sitting out a long hesitation. The
-                            // penalty is captured once at entry so the
-                            // loop is finite — re-reading every chunk
-                            // would loop forever for an expensive
-                            // model whose ratio never drops. The mid-
-                            // chunk re-check below catches a user
-                            // flipping to a less-aggressive mode and
-                            // exits early when the new (smaller)
-                            // penalty has already been satisfied.
-                            suspend fun costHesitate() {
-                                val penalty = costPenaltyMs()
-                                var waited = 0L
-                                while (waited < penalty && remaining.get() > 0) {
-                                    val chunk = minOf(1_000L, penalty - waited)
-                                    delay(chunk)
-                                    waited += chunk
-                                    if (waited >= costPenaltyMs()) return
-                                }
-                            }
                             // A benched model stops pulling — its share
                             // flows to the healthy workers instead.
                             while (!rvm.isBenched(ctx.provider, ctx.model)) {
-                                costHesitate()
                                 val item = itemQueue.receiveCatching().getOrNull() ?: break
                                 val tried = triedBy.computeIfAbsent(item.id) {
                                     java.util.concurrent.ConcurrentHashMap.newKeySet()
@@ -531,12 +440,6 @@ class TranslationRunManager(
                                 }
                                 when (outcome) {
                                     is TranslationOutcome.Success -> {
-                                        // Record the spend so costPenaltyMs
-                                        // can bias future items toward
-                                        // cheaper models.
-                                        val cur = modelCost[modelKey]
-                                        modelCost[modelKey] =
-                                            ((cur?.first ?: 0) + 1) to ((cur?.second ?: 0.0) + outcome.costDollars)
                                         if (remaining.decrementAndGet() == 0) itemQueue.close()
                                     }
                                     is TranslationOutcome.Failed -> {
@@ -1129,22 +1032,6 @@ class TranslationRunManager(
         }
     }
 
-    /** Flip the cost-vs-speed mode on a (possibly in-flight) run.
-     *  Persists to [com.ai.data.TranslationModeStore] so the choice
-     *  survives a process kill / app restart, and updates the
-     *  in-memory [_translationRuns] so the worker's per-pull mode
-     *  read (in [startTranslation]'s `costPenaltyMs`) picks up the
-     *  new value on the next item. In-flight calls keep running on
-     *  whichever model they're already on. */
-    fun setTranslationMode(runId: String, mode: TranslationMode) {
-        com.ai.data.TranslationModeStore.set(runId, mode)
-        _translationRuns.update { runs ->
-            val cur = runs[runId] ?: return@update runs
-            if (cur.mode == mode) return@update runs
-            runs + (runId to cur.copy(mode = mode))
-        }
-    }
-
     fun consumeTranslationRun(runId: String) {
         _translationRuns.update { it - runId }
     }
@@ -1175,9 +1062,6 @@ class TranslationRunManager(
             if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, sourceReportId, costDelta)
             ReportStorage.bumpReportTimestamp(context, sourceReportId)
             _translationRuns.update { it - runId }
-            // Drop the persisted Speed/Mixed/Cost pick so the prefs
-            // file doesn't accumulate entries for deleted runs.
-            com.ai.data.TranslationModeStore.remove(runId)
         }
     }
 
@@ -1525,7 +1409,6 @@ class TranslationRunManager(
             totalCostDollars = items.sumOf { it.costDollars },
             finished = true,
             cancelled = false,
-            mode = com.ai.data.TranslationModeStore.get(runId) ?: TranslationMode.COST,
             // Distinct (providerId, model) tuples from the disk rows
             // — skipping the blank-provider placeholder rows that
             // haven't been claimed by a worker yet.
@@ -1770,7 +1653,6 @@ class TranslationRunManager(
                 targetLanguageNative = targetLanguageNative,
                 items = persistedItems + items,
                 totalCostDollars = persistedItems.sumOf { it.costDollars },
-                mode = com.ai.data.TranslationModeStore.get(runId) ?: TranslationMode.COST,
                 models = runModels.map { (p, m) -> "${p.id}|$m" }
             )
             runs + (runId to merged)
