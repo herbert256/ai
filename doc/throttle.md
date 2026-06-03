@@ -11,9 +11,13 @@ layers** plus two retry interceptors and a per-call read-timeout shim:
    Settings → Network settings).
 2. **`ApiCallCaps`** — a set of process-wide coroutine
    `Semaphore` pools (`global` + one per flow: report, translation,
-   fan-out, fan-meta, workers). This caps how many calls a *flow*
-   runs at once, independent of which host they hit. Configured
-   under Settings → Network settings → **Maximal API calls**.
+   fan-out, fan-meta, workers) that caps how many calls run at
+   once, independent of which host they hit. The per-flow pools
+   are no longer independently configurable or binding: the
+   "Maximal API calls" screen now exposes a single global
+   **Concurrent API calls** knob, and every sub-cap is sized to
+   it. Configured under Settings → Network settings → **Maximal
+   API calls**.
 
 The two layers compose: a batch acquires its flow sub-cap →
 `global` → the per-host gate, in that order. See
@@ -56,35 +60,39 @@ have to thread a `Settings` reference through their constructors.
 ### `ApiCallCaps` (`data/ApiTracer.kt`)
 
 A flow-level layer of coroutine `Semaphore`s, entirely separate
-from the per-host `ProviderThrottle`. Six pools:
+from the per-host `ProviderThrottle`. There is now a **single
+configurable cap** — the global one (`maxConcurrentApiCalls`,
+default **100**). The five per-flow semaphores still exist
+(`report`, `translation`, `fanOut`, `fanMeta`, `workers`) because
+the throttle framework still acquires one alongside `global`, but
+they are no longer independently configurable: `resetForNewLimits`
+sizes every sub-cap to the global cap, so only the global ceiling
+ever binds.
 
-| Pool | Default cap | Backed by `GeneralSettings.*` |
+| Pool | Cap | Configurable |
 |---|---|---|
-| `global` | 100 | `maxConcurrentApiCalls` |
-| `report` | 50 | `maxConcurrentReportCalls` |
-| `translation` | 50 | `maxConcurrentTranslationCalls` |
-| `fanOut` | 50 | `maxConcurrentFanOutCalls` |
-| `fanMeta` | 50 | `maxConcurrentFanMetaCalls` |
-| `workers` | 50 | `maxConcurrentFanMetaCalls` (shared) |
+| `global` | `maxConcurrentApiCalls` (default 100) | yes — the only knob |
+| `report` | = global | no (kept for the acquisition contract) |
+| `translation` | = global | no |
+| `fanOut` | = global | no |
+| `fanMeta` | = global | no |
+| `workers` | = global | no |
 
-`fanMeta` and `workers` share the **same** persisted knob
-(`maxConcurrentFanMetaCalls`) but get **separate** semaphores, so
-a worker batch can't starve (or be starved by) the fan-meta pool.
-All caps are `@Volatile` and rebuilt at runtime via
-`ApiCallCaps.resetForNewLimits(globalMax, reportMax,
-translationMax, fanOutMax, fanMetaMax)` (`workersMax = fanMetaMax`),
-wired from `AppViewModel` on bootstrap and whenever any of the five
-concurrency settings change. `snapshot()` / `diagnosticLine()` /
-`isBusy()` expose in-flight-vs-max for the stall watchdog and the
-Live Dashboard.
+`fanMeta` and `workers` still get **separate** semaphores from
+each other (so a worker batch can't starve, or be starved by, the
+fan-meta pool), but all six are now sized identically. All caps
+are `@Volatile` and rebuilt at runtime via
+`ApiCallCaps.resetForNewLimits(globalMax: Int)`, wired from
+`AppViewModel` on bootstrap and whenever `maxConcurrentApiCalls`
+changes. `snapshot()` / `diagnosticLine()` / `isBusy()` expose
+in-flight-vs-max for the stall watchdog and the Live Dashboard.
 
 > Note: the `ApiCallCaps` object's own field initialisers are
-> 100/50, but `SettingsPreferences` reads different fallbacks when
-> the prefs key is absent on a fresh install
-> (`maxConcurrentApiCalls` 50, `maxConcurrentReportCalls` 15).
-> The canonical defaults shown above are the `GeneralSettings`
-> data-class defaults that get fed to `resetForNewLimits` once
-> settings load.
+> 100/50, but `SettingsPreferences` reads a different fallback for
+> `maxConcurrentApiCalls` when the prefs key is absent on a fresh
+> install (**50** vs. the `GeneralSettings` data-class default of
+> **100**). The data-class default is what gets fed to
+> `resetForNewLimits` once settings load.
 
 ### `ProviderThrottle` (`data/ProviderThrottling.kt`)
 
@@ -400,6 +408,12 @@ overwrites a user-set value: the asset-sync paths
 (`importFromAsset`, `upsertFromJson`, `syncFromAsset`) consult
 `ProviderFieldTimestamps` and skip fields the user has already
 edited.
+
+The **Per-provider throttling** list (`PerProviderThrottlingSubScreen`
+in `SettingsScreen.kt`) sorts providers that have a rate or
+concurrency override (`maxCallsPerProviderPerMinute` /
+`maxConcurrentCallsPerProvider` non-null) to the top, then
+alphabetically by id (commit `9fe78b89`).
 
 ## Files
 

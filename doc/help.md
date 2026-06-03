@@ -56,18 +56,18 @@ adding 12 per-domain maps plus one auto-built map:
 | `ReportsHelp.kt` | 103 | The whole reports flow + every report-Manage drill-in |
 | `SearchHelp.kt` | 4 | Search / local semantic search |
 | `LocalKnowledgeHelp.kt` | 13 | RAG knowledge bases + on-device runtime |
-| `SettingsAdminHelp.kt` | 78 | Settings sub-screens + Housekeeping |
+| `SettingsAdminHelp.kt` | 79 | Settings sub-screens + Housekeeping |
 | `DeveloperHelp.kt` | 21 | Trace, logs, developer tools |
 | `ChatHelp.kt` | 9 | Chat hub, session, Dual Chat |
 | `ModelsHelp.kt` | 14 | Model lists, states, info |
 | `ProviderCatalogHelp.kt` | 44 | `provider_edit` + 43 `provider_*` per-provider pages |
 | `CrudHelp.kt` | 1 | Shared CRUD overview |
 
-That is **324 base `HelpContent` entries**. On top of those,
+That is **325 base `HelpContent` entries**. On top of those,
 `ICON_HELP_TOPIC_CONTENT` auto-builds **22** empty-bodied
 `<topic>_icons` pages (one per `ICON_HELP_AS_PAGE` member; the table
 itself is rendered by `HelpScreen`, not stored in the `HelpContent`),
-for **~346 topics** total.
+for **~347 topics** total.
 
 Topics group, roughly, into:
 
@@ -257,7 +257,7 @@ category that `startsWith("pricing/")`.
 - Per-provider pages share an infrastructure helper so each provider
   card has a uniform layout (`providerCatalogHelp` +
   `CLOUD_PROVIDER_TAGLINES`).
-- The topic catalog (~346 entries) carries code-accurate detail and
+- The topic catalog (~347 entries) carries code-accurate detail and
   tips — when changing a flow, the help text deserves the same edit
   so the in-app docs stay in sync. Every full-screen overlay (model
   picker, scope picker, viewer detail, agent icon detail,

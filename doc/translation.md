@@ -63,27 +63,9 @@ per-model slice:
   requeue recovers faster than a same-model back-off sleep; the
   long-Retry-After bench check still parks a >1h-rate-limited model
   on `ModelCooldownStore`.
-
-### Cost-vs-speed mode
-
-The L1 screen exposes a per-run **Speed | Mixed | Cost** chip
-(`TranslationMode`, persisted per-`runId` via
-`data/TranslationModeStore`, prefs file `translation_modes` —
-which is *not* included in backups). It tunes a cost-aware
-hesitation each worker applies before pulling its next item:
-
-- **Cost** (default): full bias — penalty
-  `≈ (myAvg / cheapest − 1) × 100ms`, capped at 120 s. Expensive
-  models pull only what cheap ones can't keep up with.
-- **Mixed**: softened bias (multiplier 20, cap 5 s) — still favours
-  cheap models but keeps expensive ones engaged.
-- **Speed**: no hesitation — every model pulls as fast as its
-  per-host caps allow. Highest throughput, highest spend.
-
-The knob is mutable mid-run: workers re-read it before each pull,
-so flipping it takes effect on the next item (in-flight calls keep
-running). The chips are hidden once the run has nothing left to
-schedule.
+- Every worker pulls from the shared queue as fast as its per-host
+  caps allow — there is no cost-vs-speed throttle; translation
+  always runs at full throughput.
 
 ## Multiple concurrent translation runs
 
@@ -212,8 +194,7 @@ under the user-given name regardless of language.
 - **`TranslationL1Screen` / `TranslationRunScreen`**
   (`ui/report/manage/TranslationL1.kt` / `TranslationRun.kt`, help
   `translation_run_l1`, title "Translation") — drill into a run.
-  Above a per-model progress list it shows the **Speed | Mixed |
-  Cost** mode chips (while work remains), a stats panel (Total /
+  Above a per-model progress list it shows a stats panel (Total /
   Done / Errors / Bench / Run / Throttled / Queue / Costs), a
   **Translation workers ↔ Translation types** grouping toggle, and
   whole-run failure controls: **Remove failed**, **Restart failed**,

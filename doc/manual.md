@@ -697,6 +697,8 @@ its own help topic.
 | Update from cloud | Install the APK from a previously selected cloud/storage file |
 | Costs | Maintain manual pricing overrides and layered cost data |
 | Test | Run diagnostics such as Test all models and Stress test |
+| Prompt translations | Generate and manage internal-prompt translations per language |
+| Cached prompts | View and clear the on-disk cache of internal-prompt responses (48 h TTL); per-row age / size / STALE marker; delete one or clear all |
 | Refresh | Hand-off to the per-tier Refresh screen |
 | Trim by age | Drop reports / chats / traces / log files older than a chosen cutoff. Hidden when there's nothing to trim |
 | Reset | Five dedicated sub-screens (see below) |

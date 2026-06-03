@@ -16,8 +16,8 @@ They surface across **three** screens under **Settings**:
 
 | Settings nav card | Sub-screen | Help topic | What it edits |
 |---|---|---|---|
-| **UI tweaks** | `SETTINGS_UI` | `settings_ui` | Model-name layout, **Colors mode** (Day / Night / Auto), Experimental features, Full-screen |
-| **UI Colors** | `SETTINGS_UI_COLORS` | `settings_ui_colors` | The Day and Night colour sets (`AppColors` role overrides) |
+| **UI tweaks** | `SETTINGS_UI` | `settings_ui` | Model-name layout, Experimental features, Full-screen |
+| **UI Colors** | `SETTINGS_UI_COLORS` | `settings_ui_colors` | **Colors mode** (Day / Night / Auto) at the top, then the Day and Night colour sets (`AppColors` role overrides) |
 | **Default icons** | `SETTINGS_DEFAULT_ICONS` | `settings_default_icons` | Every fallback / bottom-bar emoji (`MetadataIcons`) |
 
 (`SettingsSubScreen` in `ui/settings/SettingsScreen.kt` drives the
@@ -66,7 +66,7 @@ Each set has its own per-key override map persisted separately:
 - `AUTO` — follow the Android system day/night setting
   (`AppColors.isDayActive(mode, systemDark)`).
 
-The user picks the mode on the **UI tweaks** screen ("Colors mode" card).
+The user picks the mode at the **top of the UI Colors** screen ("Colors mode" card).
 The two override sets are edited on the **UI Colors** screen.
 
 Both override maps store missing keys implicitly: a role absent from the

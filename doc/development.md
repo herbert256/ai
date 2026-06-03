@@ -100,7 +100,7 @@ Complete** options. The code uses ~75 distinct `AppLog` tags. See
 ```
 ai/src/main/java/com/ai/
 ├── MainActivity.kt                   # the only Activity (ComponentActivity)
-├── data/                             # 83 files, core data layer
+├── data/                             # 82 files, core data layer
 │   ├── (HTTP, dispatch, streaming, tracer, throttle, registry, …)
 │   ├── AnalysisRepository.kt   ApiClient.kt     ApiDispatch.kt
 │   ├── ApiFormat.kt            ApiModels.kt     ApiStreaming.kt
@@ -129,7 +129,7 @@ ai/src/main/java/com/ai/
 │       JudgeEvalEngine, CompareEngine, FanOutEngine, ModelTestEngine,
 │       StressTestEngine, MetaEditManager, TranslationRunManager,
 │       WorkerRunner, ThrottledBatch, TranslationTypes
-└── ui/                               # 258 files (no files at the ui/ root)
+└── ui/                               # 259 files (no files at the ui/ root)
     ├── report/      (88)             # report flows, secondary results,
     │                                 # Fan-out / Fan-in / Tournament / Judges /
     │                                 # Compare screens, exports (PDF, DOCX/ODT,
@@ -139,7 +139,7 @@ ai/src/main/java/com/ai/
     ├── cruds/       (48)             # generic CRUD framework + per-entity
     │                                 # CRUDs: workers (agents/flocks/swarms),
     │                                 # model-states, prompts, params, cost overrides
-    ├── admin/       (32)             # Housekeeping / Backup-Restore / Reset /
+    ├── admin/       (33)             # Housekeeping / Backup-Restore / Reset /
     │                                 # Trim by age / Costs / Test / traces / help /
     │                                 # provider admin / developer / docs / AppLog
     ├── settings/    (22)             # SettingsScreen sub-screens + Workers /
@@ -161,7 +161,7 @@ ai/src/main/java/com/ai/
 ```
 
 Roughly **363 Kotlin files, ~141,000 LOC** total
-(`data` 83 + `model` 2 + `viewmodel` 19 + `ui` 258 + `MainActivity`).
+(`data` 82 + `model` 2 + `viewmodel` 19 + `ui` 259 + `MainActivity`).
 
 ### Navigation, in two systems
 

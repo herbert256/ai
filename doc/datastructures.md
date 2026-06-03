@@ -8,7 +8,7 @@ fields on big classes (`Report`, `SecondaryResult`) are summarised
 rather than exhaustively transcribed; read the source for the full set.
 
 The codebase is ~141,000 LOC across 363 Kotlin files under
-`ai/src/main/java/com/ai` (`data` 83, `ui` 258, `viewmodel` 19, `model`
+`ai/src/main/java/com/ai` (`data` 82, `ui` 259, `viewmodel` 19, `model`
 2, plus `MainActivity.kt`). Persistence is SharedPreferences + JSON
 files under `<filesDir>` — there is **no** Jetpack DataStore at runtime
 (the dependency is declared but unused). See
@@ -949,12 +949,7 @@ Computed:
 | nonStreamingReadTimeoutSec | `Int` (default `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC`) | read timeout applied to non-streaming calls (meta / rerank / translate / model-list / individual analyze). Much shorter than streaming by default so a hung provider can't gate a whole batch for 10 minutes |
 | maxCallsPerProviderPerMinute | `Int` (default 60) | sliding-window rate cap per provider hostname. The OkHttp interceptor `ProviderThrottleInterceptor` reads this via `NetworkSettings.maxCallsPerProviderPerMinute`. See [throttle.md](throttle.md) |
 | maxConcurrentCallsPerProvider | `Int` (default 5) | per-provider concurrency cap. Applies across every flow (report, meta, fan-out, chat, translate, model fetch) hitting the same provider host |
-| maxConcurrentApiCalls | `Int` (default 100) | global hard ceiling for in-flight API calls (`ApiCallCaps.global`) |
-| maxConcurrentReportCalls | `Int` (default 50) | concurrent primary report-generation calls (`ApiCallCaps.report`) |
-| maxConcurrentTranslationCalls | `Int` (default 50) | concurrent translation item × language calls |
-| maxConcurrentFanOutCalls | `Int` (default 50) | concurrent Fan-out pair calls |
-| maxConcurrentFanMetaCalls | `Int` (default 50) | concurrent Fan Meta title/icon calls (also sizes the `workers` cap) |
-| maxTestApiCalls | `Int` (default 50) | concurrent Housekeeping → Test calls |
+| maxConcurrentApiCalls | `Int` (default 100) | global hard ceiling for in-flight API calls (`ApiCallCaps.global`) — the only concurrency cap; every per-flow sub-cap is sized to this value |
 | maxRetriesOn429 | `Int` (default 3) | maximum number of in-line retries the OkHttp client performs on a 429. 0 disables in-line retries entirely (the outer `withRetry` layer still gets a chance) |
 | retryBackoffMs429 | `Long` (default 1000) | wait between 429 retry attempts in milliseconds |
 | maxRetriesOn529 | `Int` (default 3) | maximum number of in-line retries the OkHttp client performs on a 529 (server overloaded). 0 disables in-line retries entirely. Independent of the 429 budget |

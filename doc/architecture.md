@@ -54,7 +54,7 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Data layer (com.ai.data, 83 files)                                 │
+│  Data layer (com.ai.data, 82 files)                                 │
 │  ├── AnalysisRepository  — façade with withRetry / fallback        │
 │  ├── ApiDispatch         — selects ApiFormat-specific code path     │
 │  ├── ApiStreaming        — SSE parser + Flow emission               │
@@ -99,7 +99,7 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
 (`namespace = "com.ai"`, `applicationId = "com.ai"`, `minSdk = 26`,
 `targetSdk = 36`):
 
-- **`data/` — 83 files.** 79 at the top level plus a nested
+- **`data/` — 82 files.** 78 at the top level plus a nested
   `data/local/` (4 files: `LocalLlm`, `LocalEmbedder`, `LlmRuntime`,
   `LocalRuntime`). Covers HTTP/dispatch/streaming, the tracer +
   interceptor stack, the provider registry, pricing, all on-disk
@@ -120,8 +120,8 @@ embeddings, usage stats, pricing tier blobs, RAG knowledge bases).
   (`SecondaryRunManager`, `IconGenerationManager`,
   `TranslationRunManager`, `WorkerRunner`), and support/type files
   (`ThrottledBatch.kt`, `TranslationTypes.kt`).
-- **`ui/` — 258 files** across sub-domains (`report` × 88,
-  `cruds` × 48, `admin` × 32, `settings` × 22, `shared` × 17,
+- **`ui/` — 259 files** across sub-domains (`report` × 88,
+  `cruds` × 48, `admin` × 33, `settings` × 22, `shared` × 17,
   `helpers` × 16, `navigation` × 7, `other` × 6, `chat` × 5,
   `search` × 4, `hub` × 4, `history` × 3, `models` × 2, `share` × 2,
   `knowledge` × 1, `theme` × 1). No files sit directly at the `ui/`
@@ -546,10 +546,12 @@ Throttling is **two distinct layers** stacked on top of each other.
   `ProviderThrottleInterceptor`), non-blocking `tryAcquire`, and the
   suspend `acquireOrWait` (used by the coroutine-layer host gate).
 - **`ApiCallCaps`** (`ApiTracer.kt`) — the flow-level coroutine
-  `Semaphore` pools, independent of the per-host gate: `global` (100),
-  `report` (50), `translation` (50), `fanOut` (50), `fanMeta` (50),
-  `workers` (50, shares the fan-meta limit). Reconfigured at runtime
-  from Settings → Network → Maximal API calls.
+  `Semaphore` pools, independent of the per-host gate. `global` is the
+  only user-tunable cap (default 100, set in Settings → Network →
+  Maximal API calls). The per-flow sub-cap semaphores
+  (`report` / `translation` / `fanOut` / `fanMeta` / `workers`) are
+  retained for the acquisition contract but are all sized to the global
+  cap at runtime, so only the global ceiling actually binds.
 
 The **canonical batch acquisition order** is sub-cap → `ApiCallCaps.global`
 → per-host gate. The private sub-cap is taken first so a flow queued on

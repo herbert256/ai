@@ -7,7 +7,7 @@ prompt, and chatting with them.
 
 The project is a single Activity ([`MainActivity`](../ai/src/main/java/com/ai/MainActivity.kt)),
 Kotlin 2.2.10 + Jetpack Compose, ~141,000 LOC across 363 Kotlin files
-(`data` 83, `ui` 258, `viewmodel` 19, `model` 2, plus the one entry
+(`data` 82, `ui` 259, `viewmodel` 19, `model` 2, plus the one entry
 file). It is MVVM, but with exactly **one** real Android view model:
 [`AppViewModel`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt)
 (`: AndroidViewModel`). `ReportViewModel` and `ChatViewModel` are plain
@@ -82,9 +82,9 @@ and a manual override layer into one resolved view per
   `perModelIconGenEnabled` master switches.
 - **[throttle.md](throttle.md)** — The two-layer throttle: the
   per-host `ProviderThrottle` / `ProviderThrottleInterceptor` gate
-  and the separate `ApiCallCaps` coroutine-semaphore pools
-  (global 100, report / translation / fan-out / fan-meta / workers
-  50 each); the canonical sub→global→host acquisition order that
+  and the separate global `ApiCallCaps` coroutine-semaphore (default
+  100; the per-flow sub-caps are sized to it); the canonical
+  sub→global→host acquisition order that
   releases the outer two caps while parked on a busy host gate; the
   429 + 529 retry interceptors (3 retries / 1 s backoff by default);
   and user-tunable read timeouts and per-provider overrides.

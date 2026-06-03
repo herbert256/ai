@@ -439,10 +439,17 @@ debounce. `onCleared` forces a flush off the main thread on
 stats. Read by the AI Usage screen. See [costs.md](costs.md).
 
 ### `prompt_cache/`
-Cached `PromptCache` entries — per-prompt cached responses with TTL.
-Used to short-circuit repeat lookups (e.g. the Model Info "model
-info" prompt). Cache keys are length-prefixed hashes so a `|`
-separator collision can't conflate two distinct keys.
+Cached `PromptCache` entries — per-prompt cached responses used to
+short-circuit repeat internal-prompt lookups (e.g. the Model Info
+"model info" prompt). Each entry is a `<key>.json` file holding
+`{ "timestamp": Long, "response": String }`, where `<key>` is a
+length-prefixed SHA-256 hash of `(prompt, agentId)` — the length
+prefix stops a `|` separator collision from conflating two distinct
+keys. The TTL is **48 h**: `get()` prunes a stale entry on read
+(`getRaw()` is the non-destructive variant for callers wanting a
+custom window). The Housekeeping → **Cached prompts** screen lists
+every entry (age / size / STALE marker) via `PromptCache.list()` and
+deletes one (`delete()`) or all (`clearAll()`).
 
 ### `model_lists/<providerId>.json`
 Most recent `/models` raw JSON per provider (`ModelListCache`). Used
@@ -505,6 +512,7 @@ restore, zip-bomb caps, path-traversal defence).
 - `clearUsageStats()` — empties the usage-stat files + in-memory caches
 - `ApiTracer.clearTraces()` — deletes every file under `trace/`
 - `AppLog.clearLogs()` — deletes every file under `applog/`
+- `PromptCache.clearAll()` — deletes every `<key>.json` under `prompt_cache/`
 
 **Housekeeping → Reset** offers five dedicated sub-screens:
 

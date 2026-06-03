@@ -16,7 +16,7 @@ enum class SecondaryKind { RERANK, META, MODERATION, TRANSLATE, TOURNAMENT, JUDG
 | `TRANSLATE` | Translate prompt + responses to one or more languages | One row per (source × language) — see [translation.md](translation.md) |
 | `TOURNAMENT` | Worker-judged head-to-head answer tournament | `N(N-1)` MATCH rows + one AGGREGATE ranking row |
 | `JUDGES` | Judge-the-judges agreement analysis | Every judge scores the same random answer-pairs; one AGGREGATE row stores agreement |
-| `COMPARE` | Compare-with-meta similarity grid | A 0..100 similarity score per (answer × selected Meta row) cell; no aggregate row |
+| `COMPARE` | Compare-with-meta similarity grid | A 0..100 similarity score per (answer × the one chosen Meta row) cell; no aggregate row |
 
 Every chat-type prompt routes through the single `META` kind; the
 user-given prompt name carried on the row (`metaPromptName`) is what
@@ -308,15 +308,15 @@ placeholders, and L1/L2/L3 drill-in:
   (capped by available distinct pairs). Each cell is a fixed-model
   call; the AGGREGATE row stores each judge's agreement with the
   consensus.
-- **Compare with meta** (`CompareEngine`) — the user picks existing
-  plain Meta rows plus a `meta_compare` prompt (bundled
-  `equivalent`). The grid is (successful answers × selected Meta
-  rows); each cell is worker-judged, starting at
+- **Compare with meta** (`CompareEngine`) — the user picks **one**
+  existing plain Meta row (single tap) plus a `meta_compare` prompt
+  (bundled `equivalent`). The grid is (successful answers × 1 chosen
+  Meta row); each cell is worker-judged, starting at
   `providerId = "*workers"` / `model = "*pending"` and overwritten
   with the winning worker. The cell prompt substitutes `@RESPONSE@`
   (answer body) and `@META_RESPONSE@` (Meta content, legend
-  stripped). There is **no** aggregate row — per-answer / per-meta
-  averages are computed from the cells.
+  stripped). There is **no** aggregate row — per-answer averages are
+  computed from the cells.
 
 See [tournament-judges-compare.md](tournament-judges-compare.md) for
 the full cell/aggregate model, resume orchestration, and ranking

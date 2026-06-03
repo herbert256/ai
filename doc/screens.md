@@ -49,6 +49,7 @@ screens use the generic `TitleBar`.
 | Backup & Restore | Back up or restore the whole app to a zip |
 | Blocked model | \<provider\> · \<model\> |
 | Blocked models | Models the app will never call |
+| Cached prompts | Cached internal-prompt responses (48 h) |
 | Chat | Start or resume a chat with a model |
 | Chat | \<running cost\> |
 | Chat History | Resume any of your saved chat sessions |

@@ -66,7 +66,7 @@ response into another's prompt, and chat with real-time streaming.
   swarms), Costs CSV, and the All bundle (with or without API keys)
 - **Refresh All** — chains the seven repositories in dependency
   order on a full-screen progress page, then auto-restarts the app
-- **Comprehensive in-app help** — on report-Manage screens the white ❔
+- **Comprehensive in-app help** — on report-Manage screens the help ❔
   opens a live icon overlay (every visible bottom-bar icon, named and
   tappable) and the red ❓ opens the screen's help page; other screens
   keep the ❔ icon-legend page. Plus per-provider ℹ help, deep-linked

@@ -17,27 +17,37 @@ This doc owns the **orchestration**. The icon-generation content
 
 ## Get info
 
-The Manage hub collapses the separate icon / language / title
-rows into one **info** row (built in
-`GenerationPhase.kt`, ~line 1275 — `RowTypeCell("info")` with an
-`onGetInfo()` click). Tapping it opens `ReportGetInfoScreen`
-(`GetInfo.kt:298`, launched from `Run.kt:618`), help topic
+The Manage hub collapses the separate metadata-generation jobs
+into one **info** row (built in `GenerationPhase.kt`, ~line 778 —
+`RowTypeCell("info")` with an `onGetInfo()` click). The info row is
+**always the first row** on Manage — it sits above the Regenerate
+batch row. Tapping it opens `ReportGetInfoScreen`
+(`GetInfo.kt:337`, launched from `Run.kt:618`), help topic
 `report_get_info`. The screen is a layer over the Manage hub —
 `publishBottomBar = false`, so Manage keeps publishing its own
 bottom bar and the screen total surfaces there.
 
-`buildInfoJobs` (`GetInfo.kt:90`) is the single source of truth
+`buildInfoJobs` (`GetInfo.kt:88`) is the single source of truth
 for the rows — used by both the Info screen *and* the Manage info
 row, so the two never disagree. It's a pure function of the report
-plus the relevant gates. Only **enabled** jobs are emitted:
+plus the relevant gates. Only **enabled** jobs are emitted, and the
+report-level jobs are split into five prompt rows emitted in run
+order:
 
-| Job type | Gate | Reads | Done icon |
-|---|---|---|---|
-| `icon` | `iconGenEnabled` + `workers/report-icon` has a resolvable worker | `Report.icon` / `iconErrorMessage` | the icon |
-| `language` | `reportLanguageOn` (own gate, split from icon) | `Report.languageName` / `languageIcon` / `languageIconErrorMessage` | `languageIcon` |
-| `title` | `titleModeAi` + a `workers/report-title-short`/`report-title-long` worker resolves | `Report.titlePromptUsed` / `titleErrorMessage` | 🏷️ (`MetadataIcons.label`) |
-| `model-title` | `perModelTitle` | per-`ReportAgent` `modelTitle` / `modelTitleErrorMessage` | agent icon, else 🏷️ |
-| `model-icon` | `perModelIcon` | per-`ReportAgent` `icon` / `iconErrorMessage` | the icon |
+| Job type | Gate | Reads | Cost | Done icon |
+|---|---|---|---|---|
+| `language` | `reportLanguageOn` (own gate, split from icon) | `Report.languageName` | language in/out | `languageIcon` |
+| `language-icon` | same `reportLanguageOn` gate; ⏳ until a language name exists | `Report.languageIcon` / `languageIconErrorMessage` | language-icon in/out | `languageIcon` |
+| `report-short` | `titleModeAi` + a `workers/report-title-short`/`report-title-long` worker resolves | `Report.title` / `titleErrorMessage` | title in/out | 🏷️ (`MetadataIcons.label`) |
+| `report-long` | same title gate | `Report.titleLong` | titleLong in/out | 🏷️ (`MetadataIcons.label`) |
+| `report-icon` | `iconGenEnabled` + `workers/report-icon` has a resolvable worker; derived from the long title | `Report.icon` / `iconErrorMessage` | icon in/out | the icon |
+| `model-title` | `perModelTitle` | per-`ReportAgent` `modelTitle` / `modelTitleErrorMessage` | model-title in/out | agent icon, else 🏷️ |
+| `model-icon` | `perModelIcon` | per-`ReportAgent` `icon` / `iconErrorMessage` | model-icon in/out | the icon |
+
+Row click routing: `report-icon` → icon detail; `language` /
+`language-icon` → language detail; `report-short` / `report-long` →
+edit-title; `model-icon` → agent-icon detail; `model-title` →
+edit-model-title.
 
 Each report-level row also carries a **`*NeverRan` terminal
 guard**: a finished report (`completedAt != null`) that recorded no
@@ -55,15 +65,15 @@ without an error** (markers recorded — cost / tokens / duration /
 prompt-name — but `icon` / `modelTitle` left null, e.g. an
 empty/unparseable model reply) is treated as terminal `DONE` via
 `ReportAgent.modelIconAttempted()` / `modelTitleAttempted()`
-(`GetInfo.kt:65`, `:73`), so the Manage **info** row doesn't keep
+(`GetInfo.kt:63`, `:71`), so the Manage **info** row doesn't keep
 the animated hourglass spinning forever. (Per-model analogue of the
 report-level `iconNeverRan` guard.)
 
-`aggregateInfoState` (`GetInfo.kt:270`) drives the Manage row's
+`aggregateInfoState` (`GetInfo.kt:309`) drives the Manage row's
 status cell: ❌ if any job FAILED, else ⏳ while any job is still
 genuinely `pending`, else ✅ (or the report's own icon). A `CLOCK`
 left by an **ERRORed** or **STOPPED** model is *not* pending
-(`perModelPending`, `GetInfo.kt:222`) — a finished report with one
+(`perModelPending`, `GetInfo.kt:261`) — a finished report with one
 failed model settles to ✅ rather than spinning forever.
 
 Rows are clickable to their existing detail screens (icon detail,

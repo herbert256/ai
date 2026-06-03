@@ -207,12 +207,13 @@ its own category); usage kind `judges`.
 **Compare with meta** scores how closely each primary report answer matches
 selected Meta results.
 
-The user first selects one or more existing plain Meta rows, then chooses an
-internal prompt from `category="meta_compare"` (the bundled prompt is
+The user first selects one existing plain Meta row (a single tap, no
+multi-select), then chooses an internal prompt from
+`category="meta_compare"` (the bundled prompt is
 `meta_compare/equivalent`). The run creates:
 
 ```
-successful answers × selected meta rows
+successful answers × 1 (the one chosen meta row)
 ```
 
 (`cellCountFor(agentCount, metaCount) = agentCount * metaCount`.) Each cell is
@@ -236,8 +237,9 @@ Stored rows:
 There is **no aggregate row** — L1 averages are computed directly from the
 cells:
 
-- Report models mode: mean score per answer across selected meta rows.
-- Meta items mode: mean score per meta row across answers.
+- L1 lists each report answer with its score against the single chosen
+  meta result — no grouping toggle (the "Meta items" mode was removed).
+  The L2 title is now always "Compare - model".
 
 L2 opens one group; L3 opens one cell with answer text, meta text, worker reply,
 reason, cost, and trace.

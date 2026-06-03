@@ -219,8 +219,8 @@ calls `getPricing` per model. Rerank rows fold
 `searchUnits × perQueryPrice` into their cost.
 
 A **Total card** (calls / tokens / cost, green) sits above a
-four-tab body (`SpendUsageMode`: **Providers / Types / Reports /
-Models**):
+four-tab body (`SpendUsageMode`: **Providers / Models / Types /
+Reports**):
 
 - **Providers** — one row per provider (Provider / Calls / Tokens /
   Cost / 🐞), sortable by any column header (default cost,
@@ -231,11 +231,11 @@ Models**):
   per-provider breakdown grouped by call kind, by pricing source
   (OVERRIDE / OPENROUTER / LITELLM / …), and by model; each model row
   links to that model's **Model Info** page.
+- **Models** — usage rolled up per model across providers.
 - **Types** — one row per call category (e.g. `report/prompt`,
   `after/rerank`, `meta/compare`); 🐞 scopes Traces to that category.
 - **Reports** — one row per report; tap opens that report's Costs
   section, 🐞 scopes Traces to the report.
-- **Models** — usage rolled up per model across providers.
 
 `computeUsageGroups` also carries `getPricingStats` (which tiers are
 loaded, with entry counts) on its result for the dashboard hub.
