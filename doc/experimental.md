@@ -7,18 +7,34 @@ for a cluster of in-progress / advanced surfaces that aren't ready for
 general use: **on-device models**, **AI Knowledge / RAG**, and **Local
 Semantic Search**.
 
-When it is **off** (the default), every UI surface below is hidden.
-Nothing is deleted: installed model files stay under `<filesDir>/`,
-knowledge bases stay on disk, and **any KB already attached to a chat
-or report keeps sending its context at API time** — only the
-*entry-point UI* disappears. Flipping the toggle back on reveals
-everything intact.
+When it is **off** (the default), the **nine** UI surfaces below are
+hidden (three groups: on-device models, AI Knowledge / RAG, Local
+Semantic Search). Nothing is deleted: installed model files stay under
+`<filesDir>/`, knowledge bases stay on disk, and **any KB already
+attached to a chat or report keeps sending its context at API time** —
+only the *entry-point UI* disappears. Flipping the toggle back on
+reveals everything intact.
+
+The flag lives on `GeneralSettings`, persists to the main `eval_prefs`
+SharedPreferences under key `experimental_features`, and round-trips
+through Import/Export and the full backup zip.
 
 ## Where the toggle lives
 
 **Settings → UI tweaks → "Experimental features".** (The UI-tweaks
-sub-screen is described on the Settings landing as "Model name layout,
-full-screen, experimental features.")
+sub-screen is reached from the Settings landing card whose subtitle
+reads "Model name layout, full-screen, experimental features.") The
+toggle's own in-screen description is:
+
+> Master gate for on-device Local LLMs, LiteRT embedders, AI Knowledge
+> / RAG, and Local Semantic Search. Off (default) hides those UI
+> surfaces — installed model files and KBs stay on disk, and any KB
+> already attached to a chat or report keeps sending context at API
+> time.
+
+The "Show AI Knowledge card on home page" toggle (surface #4) is
+rendered immediately below it, inside the same `if (experimentalFeatures)`
+block, so it only appears once the master gate is on.
 
 Source of truth — the gate's own doc comment in
 [`viewmodel/AppViewModelTypes.kt`](../ai/src/main/java/com/ai/viewmodel/AppViewModelTypes.kt)
@@ -42,25 +58,25 @@ Each row below is a real gate check in the codebase (not a Compose
 
 | # | Surface | What's hidden | Gate site |
 |---|---------|---------------|-----------|
-| 1 | **AI Setup → AI Models → "Local Models" card** | The entry to the on-device LLM + LiteRT text-embedder setup screen (install / manage `.task` and `.tflite` models). | [`SetupScreens.kt:156`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt) |
-| 2 | **Chats hub → Local LLM chat card** | The dropdown card that picks an installed on-device LLM and jumps straight into a local chat session. Shown only when at least one `.task` LLM is installed. | [`ChatHub.kt`](../ai/src/main/java/com/ai/ui/chat/ChatHub.kt) |
-| 3 | **Model pickers → synthetic `LOCAL` provider + local models** | The on-device models (and the synthetic `AppService.LOCAL` provider) stay invisible in every model picker even when `.task` / `.tflite` files exist on disk. The picker reads the prefs flag directly so it doesn't have to thread the flag through every caller. | [`Selection.kt:226-243`](../ai/src/main/java/com/ai/ui/other/Selection.kt) |
+| 1 | **AI Setup → AI Models → "Local Models" card** | The entry to the on-device LLM + LiteRT text-embedder setup screen (install / manage `.task` and `.tflite` models; subtitle "On-device LLMs and LiteRT text embedders", route `AI_LOCAL_MODELS_SETUP`). Gated by an `if (experimentalFeatures)` block inside `ModelsSetupScreen`. | [`SetupScreens.kt:167`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt) |
+| 2 | **Chats hub → Local LLM chat card** | The dropdown card that picks an installed on-device LLM and jumps straight into a local chat session. Gate is `experimentalFeatures && installedLocalLlms.isNotEmpty()` — shown only when at least one `.task` LLM is installed. | [`ChatHub.kt:121`](../ai/src/main/java/com/ai/ui/chat/ChatHub.kt) |
+| 3 | **Model pickers → synthetic `LOCAL` provider + local models** | The on-device models (and the synthetic `AppService.LOCAL` provider, id `"Local"`) stay invisible in every model picker even when `.task` / `.tflite` files exist on disk. Unlike the other surfaces (which receive the flag as a parameter), this picker reads the prefs flag **directly** — `getSharedPreferences("eval_prefs", …).getBoolean("experimental_features", false)` — so it doesn't have to thread the flag through every caller. When off, `localModelsForFilter` is `emptyList()`, so `AppService.LOCAL` is never appended to the service list. | [`Selection.kt:226-239`](../ai/src/main/java/com/ai/ui/other/Selection.kt) |
 
 ### AI Knowledge / RAG
 
 | # | Surface | What's hidden | Gate site |
 |---|---------|---------------|-----------|
-| 4 | **Settings → UI tweaks → "Show AI Knowledge card on home page" toggle** | The secondary toggle itself is hidden (it only makes sense once Knowledge is enabled). It additionally gates surface #5. | [`SettingsScreen.kt:1297`](../ai/src/main/java/com/ai/ui/settings/SettingsScreen.kt) |
-| 5 | **Hub → "AI Knowledge" card** | The home-screen entry into the Knowledge / RAG screens. Requires **both** `experimentalFeaturesEnabled` **and** `showKnowledgeCard`. | [`HubScreens.kt:154`](../ai/src/main/java/com/ai/ui/hub/HubScreens.kt) |
-| 6 | **Chat composer → "📚 Knowledge" attach chip** | The per-chat KB attach chip (multi-select over saved KBs). Shown only when at least one KB exists. | [`ChatScreens.kt:686`](../ai/src/main/java/com/ai/ui/chat/ChatScreens.kt) |
-| 7 | **New Report → "📚 Attach knowledge" button** | The report-start KB attach button (multi-select over saved KBs). Shown only when at least one KB exists. | [`SelectionPhase.kt:210`](../ai/src/main/java/com/ai/ui/report/start/SelectionPhase.kt) |
-| 8 | **Share-target chooser → "Add to Knowledge" card** | The `ACTION_SEND` landing card that opens the Knowledge screen with the shared file / URL pre-staged. | [`ShareChooserScreen.kt:100`](../ai/src/main/java/com/ai/ui/share/ShareChooserScreen.kt) |
+| 4 | **Settings → UI tweaks → "Show AI Knowledge card on home page" toggle** | The secondary toggle itself is hidden (it only makes sense once Knowledge is enabled), inside an `if (experimentalFeatures)` block directly below the master toggle in the UI-tweaks screen. The `showKnowledgeCard` field it controls additionally gates surface #5. | [`SettingsScreen.kt:1503`](../ai/src/main/java/com/ai/ui/settings/SettingsScreen.kt) |
+| 5 | **Hub → "AI Knowledge" card** | The home-screen entry into the Knowledge / RAG screens. Requires **both** `experimentalFeaturesEnabled` **and** `showKnowledgeCard` (`if (… && …)`). | [`HubScreens.kt:156`](../ai/src/main/java/com/ai/ui/hub/HubScreens.kt) |
+| 6 | **Chat composer → "📚 Knowledge" attach chip** | The per-chat KB attach chip (multi-select over saved KBs). Gate is `experimentalFeatures && availableKbs.isNotEmpty()` — shown only when at least one KB exists. | [`ChatScreens.kt:691`](../ai/src/main/java/com/ai/ui/chat/ChatScreens.kt) |
+| 7 | **New Report → "📚 Attach knowledge" button** | The report-start KB attach button (multi-select over saved KBs). Gate is `experimentalFeatures && allKbs.isNotEmpty()` — shown only when at least one KB exists. | [`SelectionPhase.kt:204`](../ai/src/main/java/com/ai/ui/report/start/SelectionPhase.kt) |
+| 8 | **Share-target chooser → "Add to Knowledge" card** | The `ACTION_SEND` landing card that opens the Knowledge screen with the shared file / URL pre-staged. Plain shared text that isn't a URL can't be ingested here and is steered to New Report instead. | [`ShareChooserScreen.kt:96`](../ai/src/main/java/com/ai/ui/share/ShareChooserScreen.kt) |
 
 ### Local Semantic Search
 
 | # | Surface | What's hidden | Gate site |
 |---|---------|---------------|-----------|
-| 9 | **Search AI Reports → "📱 Local semantic search" item** | The on-device (embedder-backed) semantic search over reports. The other three search modes (Quick local, Extended local, Remote semantic) stay visible. | [`SearchAiReportsScreen.kt:66`](../ai/src/main/java/com/ai/ui/hub/SearchAiReportsScreen.kt) |
+| 9 | **Search AI Reports → "Local semantic search" item** | The on-device (embedder-backed) semantic search over reports. The other three search modes — **Quick local search**, **Extended local search**, **Remote semantic search** — stay visible; only this on-device item sits behind `if (experimentalFeatures)`. | [`SearchAiReportsScreen.kt:65`](../ai/src/main/java/com/ai/ui/hub/SearchAiReportsScreen.kt) |
 
 ## What is *not* affected
 
@@ -73,8 +89,9 @@ Each row below is a real gate check in the codebase (not a Compose
 - **Remote semantic search** and the two local (text) search modes —
   always visible; only *Local semantic* search is gated.
 - The flag round-trips through Import/Export
-  ([`ImportExportScreen.kt`](../ai/src/main/java/com/ai/ui/settings/ImportExportScreen.kt),
-  `experimentalFeaturesEnabled`).
+  ([`ImportExportScreen.kt:341,444`](../ai/src/main/java/com/ai/ui/settings/ImportExportScreen.kt),
+  serialized as `experimentalFeaturesEnabled`) and is backed up via
+  `eval_prefs` in the full backup zip.
 
 ## Related docs
 

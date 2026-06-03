@@ -11,7 +11,11 @@ starting a report or chat. They nest:
 | **Swarm** | 🐝 | a named group of **(provider, model)** pairs | the member pairs + its own Parameters presets + system prompt |
 
 All three live on `Settings` (`agents`, `flocks`, `swarms`) and
-round-trip through Import/Export.
+round-trip through Import/Export. The three glyphs are the
+factory `MetadataDefaults` constants `AGENT`/`FLOCK`/`SWARM`
+([`MetadataDefaults.kt:119`](../ai/src/main/java/com/ai/data/MetadataDefaults.kt),
+`:159`, `:160`) and are user-overridable via the metadata-icons
+editor.
 
 ## Data classes
 
@@ -37,38 +41,63 @@ data class Swarm(
 Field notes:
 
 - **Agent `apiKey` / `model` are overrides, not requirements.**
-  Both fall back to the provider's stored value — `model.ifBlank
-  { getModel(provider) }` and `apiKey.ifBlank {
-  getApiKey(provider) }` ([`SettingsModels.kt:637`](../ai/src/main/java/com/ai/model/SettingsModels.kt),
-  `:638`). So an agent pinned to a provider's default-model
-  alias resolves at use time.
+  Both fall back to the provider's stored value through the
+  resolver helpers `getEffectiveModelForAgent` and
+  `getEffectiveApiKeyForAgent`
+  ([`SettingsModels.kt:686`](../ai/src/main/java/com/ai/model/SettingsModels.kt),
+  `:685`):
+
+  ```kotlin
+  fun getEffectiveApiKeyForAgent(agent) = agent.apiKey.ifBlank { getApiKey(agent.provider) }
+  fun getEffectiveModelForAgent(agent)  = agent.model.ifBlank  { getModel(agent.provider) }
+  ```
+
+  `getModel(service)` returns `service.defaultModel`
+  (`:345`) and `getApiKey(service)` returns the stored
+  provider key (`:343`). So an agent left on a provider's
+  default-model alias resolves at use time, not at save time.
 - **Flock stores agent *ids***, not copies —
   `getAgentsForFlock` maps them back live
-  ([`SettingsModels.kt:660`](../ai/src/main/java/com/ai/model/SettingsModels.kt)),
+  ([`SettingsModels.kt:759`](../ai/src/main/java/com/ai/model/SettingsModels.kt)),
   so editing an agent updates every flock that references it.
+  Ids that no longer resolve are silently skipped
+  (`mapNotNull`).
 - **Swarm members are bare pairs** — no agent id, no key
   override; they carry only the swarm's own `paramsIds`.
 - A reserved flock named **`default agents`**
   (`DEFAULT_AGENTS_FLOCK_NAME`,
   [`SettingsModels.kt:123`](../ai/src/main/java/com/ai/model/SettingsModels.kt))
-  is auto-populated by the per-provider Test button and Refresh
-  All → Default agents step.
+  is auto-managed: the per-provider **Test** button adds the
+  provider's tested model as an agent and joins it to this flock
+  ([`AppViewModel.kt:1294`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt)),
+  and the **Refresh All → Providers / models / default agents**
+  step empties and repopulates it
+  ([`AppViewModel.kt:1587`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt),
+  `:1646`).
 
 Full field tables: [datastructures.md](datastructures.md).
 
 ## The AI Workers setup hub
 
 `Settings → AI Setup → Workers` opens `WorkersSetupScreen`
-([`SetupScreens.kt:175`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt)),
-a sub-hub with three nav cards. The AI Setup landing's own
-"Workers" card and all three sub-cards are **gated on
-`hasApiKey`** (`Settings.hasAnyApiKey()`,
-[`SettingsModels.kt:633`](../ai/src/main/java/com/ai/model/SettingsModels.kt)) —
+([`SetupScreens.kt:189`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt)),
+a sub-hub with three nav cards plus a model-search entry. The AI
+Setup landing's own **Workers** card (subtitle "Agents, Flocks,
+and Swarms") and all sub-cards are **gated on `hasApiKey`**
+(`Settings.hasAnyApiKey()`,
+[`SettingsModels.kt:681`](../ai/src/main/java/com/ai/model/SettingsModels.kt)) —
 disabled until at least one provider has a key set
-([`SetupScreens.kt:69`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt),
-`:190-195`). The Agents card badge counts only agents whose
-provider is **active** (`isProviderActive` ⇒ provider state
-`"ok"`).
+([`SetupScreens.kt:46`](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt),
+`:76`, `:216-220`). The **Agents** card badge counts only agents
+whose provider is **active** (`isProviderActive` ⇒ provider
+state `"ok"`,
+[`SettingsModels.kt:337`](../ai/src/main/java/com/ai/model/SettingsModels.kt));
+`agentCount` at `SetupScreens.kt:52`/`:197`. The Flocks and
+Swarms badges show the raw `flocks.size` / `swarms.size`.
+
+Nav-card subtitles (verbatim in source): Agents "Named model
+configurations", Flocks "Groups of agents", Swarms "Groups of
+provider/model pairs".
 
 | Card | Route (`SettingsSubScreen`) | CRUD entry |
 |---|---|---|
@@ -78,88 +107,141 @@ provider is **active** (`isProviderActive` ⇒ provider state
 
 Routing + back-stack live in
 [`SettingsScreen.kt`](../ai/src/main/java/com/ai/ui/settings/SettingsScreen.kt)
-(the `SettingsSubScreen` enum at `:28` and the `when` block
-mapping each list back to `AI_WORKERS_SETUP`).
+(the `SettingsSubScreen` enum at `:32`; the three list sub-screens
+back out to `AI_WORKERS_SETUP` at `:232-233`, which in turn backs
+out to `AI_SETUP`).
 
 ## CRUD shape
 
-Each worker is a self-contained `Mode` state machine
-(`List / View / Edit / Add`) over the shared `CrudListPage` /
-`CrudViewPage` framework:
+Each worker CRUD is a small `Mode` state machine — **`List` /
+`Edit` / `Add`** (no separate read-only View step) — over the
+shared `CrudListPage` framework
+([`cruds/workers/agents/list.kt:15`](../ai/src/main/java/com/ai/ui/cruds/workers/agents/list.kt)):
 
-- [`cruds/workers/agents/`](../ai/src/main/java/com/ai/ui/cruds/workers/agents/list.kt) — list / add / edit / view
+- [`cruds/workers/agents/`](../ai/src/main/java/com/ai/ui/cruds/workers/agents/list.kt) — `list.kt` / `add.kt` / `edit.kt`
 - [`cruds/workers/flocks/`](../ai/src/main/java/com/ai/ui/cruds/workers/flocks/list.kt)
 - [`cruds/workers/swarms/`](../ai/src/main/java/com/ai/ui/cruds/workers/swarms/list.kt)
 
-The thin CRUD `*Edit` wrappers delegate to the rich legacy
+**Tapping a row jumps straight to Edit** — the `CrudListPage`'s
+`onView` handler is wired to `Mode.Edit(it)`, so the read-only
+view is skipped and the 👯 **copy** + 🗑 **delete** icons live on
+the edit bar. `onAdd` opens `Mode.Add`.
+
+The thin CRUD `Edit`/`Add` wrappers delegate to the rich legacy
 forms — `AgentEditScreen`
 ([`AgentsScreen.kt:24`](../ai/src/main/java/com/ai/ui/settings/AgentsScreen.kt)),
 `FlockEditScreen`
 ([`FlocksScreen.kt:23`](../ai/src/main/java/com/ai/ui/settings/FlocksScreen.kt)),
 `SwarmEditScreen`
 ([`SwarmsScreen.kt:23`](../ai/src/main/java/com/ai/ui/settings/SwarmsScreen.kt)).
-The agent form additionally needs `AgentEditDeps` (model
-fetch, Test button, endpoint persistence, trace links;
+The agent form additionally needs `AgentEditDeps` (model fetch,
+Test button, fetch-error map, endpoint persistence, trace-link
+callback;
 [`agents/edit.kt:13`](../ai/src/main/java/com/ai/ui/cruds/workers/agents/edit.kt)).
-**Copy** clones with a fresh `UUID` and a `-copy` name suffix
-and drops straight into Edit; **Save** upserts by id. Name
-uniqueness is enforced case-insensitively against the other
-items.
 
-Every View screen ends with `WorkerSharedCards` — identical
-System-prompt + Parameters render for all three since they share
-the `paramsIds` + `systemPromptId` shape
-([`CommonViewWorkerCards.kt:32`](../ai/src/main/java/com/ai/ui/settings/CommonViewWorkerCards.kt)).
-Help topics: `crud_agents`, `crud_flocks`, `crud_swarms`,
-`setup_workers`.
+**Copy** is the 👯 duplicate affordance inside the legacy edit
+form: it appends `-copy` to the name
+([`AgentsScreen.kt:95`](../ai/src/main/java/com/ai/ui/settings/AgentsScreen.kt))
+and a Save in that state writes a fresh `UUID`
+(`AgentsScreen.kt:179`), so the duplicate lands as a new item
+rather than overwriting the original; the duplicate name is
+treated as a collision against the source so the user can't save
+`<name>-copy` over it. **Save** upserts by id (replace-if-id-
+present, else append;
+[`agents/list.kt:37-42`](../ai/src/main/java/com/ai/ui/cruds/workers/agents/list.kt)).
+**Delete** is a confirm-dialog that calls `removeAgent` /
+filters the list.
+
+The legacy **view** screens (`AgentViewScreen` /
+`FlockViewScreen` / `SwarmViewScreen`) — reachable from older
+entry points outside the new CRUD list — each render their
+prompt + params via the shared `WorkerSharedCards`
+([`CommonViewWorkerCards.kt:32`](../ai/src/main/java/com/ai/ui/settings/CommonViewWorkerCards.kt)),
+which is identical for all three because they share the
+`paramsIds` + `systemPromptId` shape.
+
+Help topics: `crud_agents`, `crud_flocks`, `crud_swarms`
+([`CrudHelp.kt:175`](../ai/src/main/java/com/ai/ui/admin/CrudHelp.kt))
+and `setup_workers`
+([`SettingsAdminHelp.kt:491`](../ai/src/main/java/com/ai/ui/admin/SettingsAdminHelp.kt)).
 
 ## How workers feed model selection
 
 Workers are never "run" directly — they **expand into
 `ReportModel` targets** during the report/chat selection phase.
 `SelectionOverlays`
-([`report/start/SelectionOverlays.kt:144-181`](../ai/src/main/java/com/ai/ui/report/start/SelectionOverlays.kt))
+([`report/start/SelectionOverlays.kt`](../ai/src/main/java/com/ai/ui/report/start/SelectionOverlays.kt))
 wires the three pickers to expander functions in
-[`SettingsModels.kt:904`](../ai/src/main/java/com/ai/model/SettingsModels.kt):
+[`SettingsModels.kt:1004`](../ai/src/main/java/com/ai/model/SettingsModels.kt):
 
 | Pick | Expander | Yields |
 |---|---|---|
-| Agent | `expandAgentToModel` | **one** target (null if provider inactive) |
-| Flock | `expandFlockToModels` | one target **per active member agent** |
-| Swarm | `expandSwarmToModels` | one target **per active member pair** |
+| Agent | `expandAgentToModel` (`:1011`) | **one** target (null if provider inactive) |
+| Flock | `expandFlockToModels` (`:1004`) | one target **per active member agent** |
+| Swarm | `expandSwarmToModels` (`:1017`) | one target **per active member pair** |
 
-Inactive-provider members are silently dropped. Agent- and
-flock-sourced targets carry the resolved api key, endpoint, and
-`paramsIds` (flock prepends its own ids to each agent's);
-swarm-sourced targets carry only the swarm's `paramsIds` and no
-key. Pickers add into the active target bucket and the result
+Inactive-provider members are silently dropped (every expander
+filters on `isProviderActive`). The resulting `ReportModel`
+carries a `source`/`origin` tag and the resolved key/params:
+
+- **Agent** → `ReportModel(provider, effectiveModel, "agent",
+  "agent", agent.name, agent.id, agentId = agent.id,
+  endpointId, effectiveApiKey, agent.paramsIds)`.
+- **Flock** → one per member, same as the agent target but with
+  `origin = "flock"`, `flockId = flock.id`, and
+  `paramsIds = flock.paramsIds + agent.paramsIds` (the flock
+  **prepends** its own ids to each agent's).
+- **Swarm** → `ReportModel(member.provider, member.model,
+  "model", "swarm", swarm.name, swarm.id,
+  paramsIds = swarm.paramsIds)` — no `agentId`, no key
+  override.
+
+Pickers add into the active target bucket, then the whole list
 is run through `deduplicateModels`
-([`SettingsModels.kt:923`](../ai/src/main/java/com/ai/model/SettingsModels.kt)),
-where on a provider+model collision an **agent-sourced** entry
-(non-null `agentId`) beats a bare manual / swarm pick — so it
-keeps the key and parameter ids.
+([`SettingsModels.kt:1023`](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
+Dedup keys by `deduplicationKey = "${provider.id}:$model"`
+(`:1001`) into a `LinkedHashMap` (first-appearance order
+preserved); on a collision an **agent-sourced** entry (non-null
+`agentId` — a direct agent or a flock member) replaces a bare
+manual / swarm pick, so the surviving row keeps the api key and
+parameter ids.
 
 The flock and swarm pickers
 ([`ui/other/Selection.kt`](../ai/src/main/java/com/ai/ui/other/Selection.kt))
-show a per-worker cost estimate (summed across active members)
-and an ℹ️ info screen listing members. Chat reuses the agent
-picker directly: picking an agent navigates to
-`aiChatWithAgent(id)`
-([`navigation/ChatRoutes.kt:76`](../ai/src/main/java/com/ai/ui/navigation/ChatRoutes.kt)).
+show a per-worker cost estimate (summed across **active**
+members), an active-vs-total member count, and an ℹ️ info screen
+listing each member with provider, model, capability badges, and
+cost. Chat reuses the agent picker directly: picking an agent
+navigates to `aiChatWithAgent(id)`
+([`NavRoutes.kt:218`](../ai/src/main/java/com/ai/ui/navigation/NavRoutes.kt),
+call site
+[`ChatRoutes.kt:76`](../ai/src/main/java/com/ai/ui/navigation/ChatRoutes.kt)).
 
 ## Parameter + system-prompt resolution
 
 Agents (and flocks/swarms) carry `paramsIds` + `systemPromptId`
-references; the actual merge precedence — how multiple presets
-combine and how an agent system prompt layers with a Parameters
-preset's own prompt — is **not** re-documented here. See
-[parameters.md](parameters.md) and
-[system-prompts.md](system-prompts.md).
+references. The full merge precedence — how multiple presets
+fold (`mergeParameters`,
+[`SettingsModels.kt:972`](../ai/src/main/java/com/ai/model/SettingsModels.kt)),
+how the report-generation agent / swarm chains layer
+selection / report-level / app-wide overrides, and how an agent
+system prompt combines with a Parameters preset's own prompt —
+is documented once in the dedicated docs:
+
+- [parameters.md](parameters.md) — Parameters presets + merge precedence.
+- [system-prompts.md](system-prompts.md) — system-prompt resolution.
+
+In brief: `resolveAgentParameters(agent) =
+mergeParameters(agent.paramsIds) ?: AgentParameters()`
+(`SettingsModels.kt:684`); `mergeParameters` folds presets
+left→right with "later non-null wins" for scalar/string fields,
+OR for `responseFormatJson`/`searchEnabled`/`webSearchTool`, and
+AND for `returnCitations`.
 
 ## Related docs
 
 - [parameters.md](parameters.md) — Parameters presets + merge precedence.
 - [system-prompts.md](system-prompts.md) — system-prompt resolution.
 - [datastructures.md](datastructures.md) — full field tables for `Agent` / `Flock` / `Swarm` / `ReportModel`.
-- [report-icons.md](report-icons.md) — the per-agent icon chain (an agent can be pinned to drive internal-prompt calls).
+- [report-icons.md](report-icons.md) — the worker engine that drives per-report / per-model / fan-meta internal-prompt calls (`WorkerRunner` picks a random worker per call).
 - [secondary-results.md](secondary-results.md) — fan-out / fan-in over the expanded set of targets.

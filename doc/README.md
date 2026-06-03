@@ -5,11 +5,21 @@ multi-provider Android client for running prompts against many AI
 models in parallel, fanning one model's response into another's
 prompt, and chatting with them.
 
-The project is a single Activity, Kotlin 2.2.10 + Jetpack Compose,
-~133,000 LOC across 355 Kotlin files, MVVM with three primary view
-models plus extracted engines/managers (19 files under `viewmodel/`),
-42 cloud providers across three API formats, and seven external
-metadata repositories layered into one resolved view per
+The project is a single Activity ([`MainActivity`](../ai/src/main/java/com/ai/MainActivity.kt)),
+Kotlin 2.2.10 + Jetpack Compose, ~141,000 LOC across 363 Kotlin files
+(`data` 83, `ui` 258, `viewmodel` 19, `model` 2, plus the one entry
+file). It is MVVM, but with exactly **one** real Android view model:
+[`AppViewModel`](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt)
+(`: AndroidViewModel`). `ReportViewModel` and `ChatViewModel` are plain
+wrapper classes constructed with an `AppViewModel` and delegating all
+state to it — they carry the `…ViewModel` name but are not androidx
+view models. Generation logic is split out into 8 engines and 4
+managers/runners (the 19 files under `viewmodel/`). There are **42
+cloud providers** loaded at runtime from `assets/providers.json`
+(40 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`, 1 `GOOGLE`) — they are not
+hardcoded — plus the synthetic on-device `AppService.LOCAL`. Seven
+external metadata repositories plus two provider self-report sources
+and a manual override layer into one resolved view per
 `(provider, model)` pair.
 
 ## Index
@@ -43,8 +53,10 @@ metadata repositories layered into one resolved view per
   TRANSLATE, Fan-out / Fan-in, and the worker-judged secondary kinds
   TOURNAMENT / JUDGES / COMPARE.
 - **[tournament-judges-compare.md](tournament-judges-compare.md)** —
-  Worker-judged report analysis: Tournament rankings, Judge-the-judges
-  agreement, and Compare-with-meta similarity grids.
+  Worker-judged report analysis: Tournament rankings (Copeland win-rate
+  now over per-model contested games, plus ELO / Davidson / Tideman /
+  Markov), Judge-the-judges agreement, and Compare-with-meta similarity
+  grids.
 - **[ui-customization.md](ui-customization.md)** — Settings → UI Colors
   and Default icons: `AppColors`, `MetadataIcons`, persistence, aliases,
   and which UI roles each setting controls.
@@ -67,11 +79,14 @@ metadata repositories layered into one resolved view per
   picker (`alt/*` prompts), the Manual edit / Select icon options, the
   icons grid view, cost surfacing, and the `iconGenEnabled` /
   `perModelIconGenEnabled` master switches.
-- **[throttle.md](throttle.md)** — Per-provider rate-limit +
-  concurrency caps (`ProviderThrottle`,
-  `ProviderThrottleInterceptor`), the 429-retry interceptor,
-  user-tunable read timeouts, and the per-provider override
-  hierarchy.
+- **[throttle.md](throttle.md)** — The two-layer throttle: the
+  per-host `ProviderThrottle` / `ProviderThrottleInterceptor` gate
+  and the separate `ApiCallCaps` coroutine-semaphore pools
+  (global 100, report / translation / fan-out / fan-meta / workers
+  50 each); the canonical sub→global→host acquisition order that
+  releases the outer two caps while parked on a busy host gate; the
+  429 + 529 retry interceptors (3 retries / 1 s backoff by default);
+  and user-tunable read timeouts and per-provider overrides.
 
 ### Subsystem deep dives
 - **[workers.md](workers.md)** — AI Workers: **Agents** (named
@@ -119,7 +134,11 @@ metadata repositories layered into one resolved view per
   `<filesDir>` including the `embeddings/`, `secondary/`, `pricing/`
   and `trace/` trees.
 
-### Backlog
+### Analysis & backlog
+- **[reports_section_analysis.md](reports_section_analysis.md)** —
+  In-depth code-level review of the Reports section: current
+  capabilities, product / technical gaps, and feature
+  recommendations. An analysis artefact, not a live spec.
 - **[TODO.md](TODO.md)** — Future work discussed but not scheduled.
   Currently: a foreground-Service plan so AI Report API calls can
   truly survive process kill (today's `viewModelScope` setup
@@ -139,11 +158,13 @@ secondary-results, help) when a specific question lands in your lap.
 
 ## Internal QA notes
 
-The repo also carries an `audit/` directory at the root (six
-markdown files: `00_summary.md`, `bugs_chat.md`, `bugs_data.md`,
-`bugs_reports.md`, `bugs_settings.md`, plus a `README.md`) with a
-running list of internal findings — not part of the user-facing
-documentation, but useful when picking up where someone left off.
+The repo also carries an `audit/` directory at the root, holding
+date-stamped review snapshots (e.g. `audit/2026-05-08/`,
+`audit/2026-05-24/`). Each snapshot is the same six markdown files:
+`00_summary.md`, `bugs_chat.md`, `bugs_data.md`, `bugs_reports.md`,
+`bugs_settings.md`, plus a `README.md`. These are running lists of
+internal findings — not part of the user-facing documentation, but
+useful when picking up where someone left off.
 
 ## Authoritative sources
 
@@ -155,16 +176,28 @@ truth. When in doubt, the relevant files are:
 - `assets/examples.json` — Example Prompts library
 - `data/AppService.kt` — provider runtime model
 - `data/ApiFormat.kt` + `data/ApiDispatch.kt` — dispatch routing
-- `data/PricingCache.kt` — layered pricing + capability lookup
-  (LiteLLM, models.dev, llm-prices, Artificial Analysis, manual
-  override, OpenRouter, Helicone) plus provider self-report
-  (OpenRouter / Together) and `DEFAULT_PRICING`. Tier blobs live
-  under `<filesDir>/pricing/`; `pricing_cache.xml` keeps only
-  timestamps and the manual-override map
-- `data/SecondaryModels.kt` / `data/SecondaryResult.kt` —
-  `SecondaryKind` (RERANK, META, MODERATION, TRANSLATE, TOURNAMENT,
-  JUDGES, COMPARE) + storage + scope / language-scope sealed types +
-  prompt-template helpers + Fan-out / Fan-in scope encoding
+- `data/PricingCache.kt` — layered pricing + capability lookup. The
+  `getPricing` precedence (first hit wins) is: provider self-report
+  (OpenRouter-self, then Together-self) → manual **OVERRIDE** →
+  LiteLLM → models.dev → llm-prices → Artificial Analysis →
+  OpenRouter cross-provider fallback → Helicone → `DEFAULT_PRICING`
+  ($25/M in, $75/M out). Manual override sits **above** all curated
+  catalog tiers but below the two provider self-report tiers. (The
+  class-level docstring still describes a stale five-tier order — the
+  code is authoritative.) Tier blobs live under `<filesDir>/pricing/`;
+  the `pricing_cache` prefs file keeps only timestamps and the
+  manual-override map
+- `data/SecondaryModels.kt` — `SecondaryKind` (the 7 kinds RERANK,
+  META, MODERATION, TRANSLATE, TOURNAMENT, JUDGES, COMPARE), the
+  single flat `SecondaryResult` row used for every kind, and the
+  prompt-template helpers (`resolveSecondaryPrompt`,
+  `resolveFanInPrompt`, …)
+- `data/SecondaryResult.kt` — the `SecondaryResultStorage` object: the
+  per-report `<filesDir>/secondary/<reportId>/<resultId>.json` store
+  and its Tournament / Compare cell-commit helpers
+- `data/SecondaryScopes.kt` — the `SecondaryScope` sealed type
+  (AllReports / TopRanked / Manual) used by Meta / Fan-out scope
+  selection
 - `data/TournamentRunModel.kt`, `data/JudgeEvalRunModel.kt`,
   `data/CompareRunModel.kt` — worker-judged analysis run state
 - `ui/shared/AppColors.kt` + `data/MetadataDefaults.kt` — configurable
@@ -175,9 +208,13 @@ truth. When in doubt, the relevant files are:
 - `viewmodel/AppViewModelTypes.kt` — `UiState`, `GeneralSettings`, and
   the `IconCandidate` / `TitleCandidate` / `TranslationCandidate` +
   `Refresh*` top-level types
-- `viewmodel/AppViewModel.kt` — bootstrap, model fetching, hot per-pair
-  fan-out flow
-- `viewmodel/ReportViewModel.kt` — report and secondary-result generation, Fan-out / Fan-in
+- `viewmodel/AppViewModel.kt` — the single `AndroidViewModel`:
+  bootstrap, model fetching, the shared `UiState`, and the
+  `viewModelScope` that all long-running engines run on
+- `viewmodel/ReportViewModel.kt` — report-generation orchestration
+  (plain wrapper over `AppViewModel`); the secondary kinds are
+  delegated to `SecondaryRunManager`, `FanOutEngine`, `CompareEngine`,
+  `TournamentEngine`, `JudgeEvalEngine`, and `TranslationRunManager`
 - `ui/settings/SettingsPreferences.kt` — every prefs key
 - `ui/admin/HelpScreen.kt` — per-screen / per-provider / per-repository help topics
 - `data/BackupManager.kt` — what gets backed up

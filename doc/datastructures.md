@@ -3,51 +3,77 @@
 All non-trivial data classes shipped by the app, grouped by domain.
 Field types follow Kotlin notation; `?` marks nullable. Classes inside
 `com.ai.data.ApiModels` (raw provider request/response shapes) are not
-listed here — see the file directly.
+listed here — see the file directly. Cost / token / trace bookkeeping
+fields on big classes (`Report`, `SecondaryResult`) are summarised
+rather than exhaustively transcribed; read the source for the full set.
+
+The codebase is ~141,000 LOC across 363 Kotlin files under
+`ai/src/main/java/com/ai` (`data` 83, `ui` 258, `viewmodel` 19, `model`
+2, plus `MainActivity.kt`). Persistence is SharedPreferences + JSON
+files under `<filesDir>` — there is **no** Jetpack DataStore at runtime
+(the dependency is declared but unused). See
+**[persistent.md](persistent.md)** for every prefs key and file.
 
 ---
 
 ## Settings & Configuration (`com.ai.model`)
+
+The two files under `com.ai.model` are `SettingsModels.kt` (all the
+data classes below) and `SettingsHolder.kt` (the `object SettingsHolder`
+that hands the live `Settings` to non-Composable call sites).
 
 ### `Settings`
 The top-level AI configuration object. Persisted in `eval_prefs`.
 
 | Field | Type | Notes |
 |---|---|---|
-| providers | `Map<AppService, ProviderConfig>` | one entry per known provider |
+| providers | `Map<AppService, ProviderConfig>` | one entry per configured provider |
 | agents | `List<Agent>` | named model configurations |
 | flocks | `List<Flock>` | groups of agents |
 | swarms | `List<Swarm>` | groups of provider/model pairs |
 | parameters | `List<Parameters>` | reusable parameter presets |
 | systemPrompts | `List<SystemPrompt>` | reusable system prompts |
-| internalPrompts | `List<InternalPrompt>` | user-managed Meta / Fan-out / Fan-in / Other internal templates |
+| internalPrompts | `List<InternalPrompt>` | user-managed Meta / Compare / Fan-out / Fan-in / worker / alt / internal templates |
 | examplePrompts | `List<ExamplePrompt>` | starter (title, text) pairs surfaced in the New Report flow |
 | endpoints | `Map<AppService, List<Endpoint>>` | per-provider endpoint URLs |
-| providerStates | `Map<String, String>` | "ok" / "error" / "inactive" / "not-used" per provider id |
+| providerStates | `Map<String, String>` | `"ok"` / `"error"` / `"inactive"` per provider id |
 | modelTypeOverrides | `List<ModelTypeOverride>` | manual per-model type assignments |
+| blockedModels | `List<BlockedModel>` | models the test sweep flagged as failing (🚫) |
+| testExcludedModels | `List<TestExcludedModel>` | models skipped by the test sweep (costly probes etc.) |
+| inaccessibleModels | `List<InaccessibleModel>` | models gated behind paid tier / approval (🔒) |
+| defaultMetaItems | `List<DefaultMetaItem>` | Meta rows auto-created after primary generation |
+
+The four model-state lists (`blockedModels`, `testExcludedModels`,
+`inaccessibleModels`, plus the cooldown store) are documented in
+**[model-states.md](model-states.md)**.
 
 ### `ProviderConfig`
+Per-provider, user-curated configuration. The provider's `defaultModel`
+/ `defaultModelSource` / `adminUrl` are NOT here — they live on the
+`AppService` itself (loaded from `assets/providers.json`, edited through
+`ProviderRegistry.update`).
+
 | Field | Type | Notes |
 |---|---|---|
 | apiKey | `String` | empty until user pastes one |
-| model | `String` | default model selected for this provider |
-| modelSource | `ModelSource` | `API` or `MANUAL` |
 | models | `List<String>` | model ids (from API list or hardcoded fallback) |
-| modelTypes | `Map<String, String>` | id → type ("chat", "embedding", "rerank", ...) |
+| modelTypes | `Map<String, String>` | id → type (`"chat"`, `"embedding"`, `"rerank"`, ...) |
 | visionModels | `Set<String>` | user-flagged vision-capable ids |
 | webSearchModels | `Set<String>` | user-flagged web-search-capable ids |
 | reasoningModels | `Set<String>` | user-flagged reasoning-capable ids |
-| modelCapabilities | `Map<String, ModelCapabilities>` | provider's own self-report |
-| modelListRawJson | `String?` | raw `/models` response for future parsing |
+| modelCapabilities | `Map<String, ModelCapabilities>` | provider's own `/models` self-report |
+| modelListRawJson | `String?` | raw `/models` response, kept for future re-parsing |
 | visionCapableComputed | `Set<String>` | precomputed layered lookup result |
 | webSearchCapableComputed | `Set<String>` | precomputed layered lookup result |
 | reasoningCapableComputed | `Set<String>` | precomputed layered lookup result |
-| modelPricing | `Map<String, PricingCache.ModelPricing>` | precomputed per-model price |
-| parametersIds | `List<String>` | default param presets |
+| modelPricing | `Map<String, PricingCache.ModelPricing>` | precomputed per-model price (avoids catalog scans on every render) |
+| parametersIds | `List<String>` | provider-level default param presets (bare provider+model selection) |
+| systemPromptId | `String?` | provider-level default system prompt |
 
-> The legacy `adminUrl` and `modelListUrl` per-provider override
-> fields have been dropped — admin-URL overrides now live as part
-> of the bundled provider definition only.
+> The legacy per-provider `model`, `modelSource`, `adminUrl`, and
+> `modelListUrl` override fields are gone. `model` / `modelSource`
+> moved to `AppService.defaultModel` / `defaultModelSource`; admin-URL
+> overrides live in the bundled provider definition only.
 
 ### `Agent`
 | Field | Type |
@@ -138,10 +164,14 @@ test-model).
 | title | `String` (default empty) | one-line description shown alongside `name` on Fan out and the prompt-edit screen |
 | scope | `String` (default `"Default"`) | meta-prompt + fan-out launch scope. `"Default"` runs against every report agent / every present language with no extra picker step; `"Select"` routes the user through `SecondaryScopeScreen` first so they can pick a subset / top-N / language fan-out. Other categories carry the value verbatim so round-tripping through `prompts.json` and the export bundle is lossless |
 
-> The legacy `type` field is gone — routing is now derived from
-> `category`. `category="meta"` plus a `name` matching `"rerank"`,
-> `"moderation"`, etc. drives `metaTypeToKind` resolution at
-> runtime.
+> The legacy `type` field is gone — routing is derived from
+> `category`. There is **no** `metaTypeToKind` function: Rerank,
+> Moderation, and Meta are dispatched by three distinct entry methods
+> on `SecondaryRunManager` (`runRerank` → `RERANK`, `runModeration` →
+> `MODERATION`, `runMetaPrompt` → `META`), wired from
+> `ui/report/manage/Nav.kt`. "Compare", "Critique", "Synthesize" etc.
+> are just user-given `meta`-category prompt **names** — the kind is
+> always `META`; only `summarize` and `compare` ship as bundled seeds.
 
 ### `ExamplePrompt`
 Stand-alone (title, text) pair the user curates as a starter library
@@ -172,16 +202,21 @@ Used during the report selection phase.
 | paramsIds | `List<String>` |
 
 ### `UsageStats`
-A per-(provider, model, kind) aggregate.
+A per-(provider, model, kind) aggregate. Persisted to
+`usage-stats.json` under `<filesDir>` (no longer in prefs). The single
+write chokepoint is `SettingsPreferences.updateUsageStats`, debounced to
+disk once per 2 s.
 
 | Field | Type | Notes |
 |---|---|---|
 | provider | `AppService` | |
 | model | `String` | |
 | callCount | `Int` | |
-| inputTokens | `Long` | |
-| outputTokens | `Long` | |
-| kind | `String` | `report`, `rerank`, `meta`, `moderate`, `translate`, `tournament`, `judges`, `compare`, plus metadata/worker buckets such as `fan/meta`, `model/icons`, `report/icon`. The Type column often displays a friendlier prompt/flow label. |
+| inputTokens, outputTokens | `Long` | |
+| kind | `String` | `report`, `rerank`, `meta`, `moderation`, `translate`, `tournament`, `judges`, `compare`, plus metadata / worker buckets such as `icon`, `model/icons`, `fan/meta`, and the `translate/...` sub-types. The Type column often displays a friendlier prompt / flow label. |
+| searchUnits | `Long` | per-search billing units for `rerank` rows (Cohere bills per search-unit, not per token) |
+| inputCost, outputCost | `Double?` | persisted USD cost at call time; null on legacy rows (readers fall back to `PricingCache`) |
+| pricingSource | `String?` | which tier priced the row; forced to `"API_REPORTED"` for providers that self-report cost |
 
 ### `ModelCapabilities`
 Per-model capability bundle derived from a provider's own `/models`
@@ -218,102 +253,196 @@ Result of a single provider model-list fetch.
 ## Reports (`com.ai.data`)
 
 ### `Report`
-| Field | Type |
-|---|---|
-| id | `String` (UUID) |
-| timestamp, completedAt | `Long`, `Long?` |
-| title, prompt | `String` |
-| agents | `MutableList<ReportAgent>` |
-| totalCost | `Double` |
-| rapportText, closeText | `String?` |
-| reportType | `ReportType` (`CLASSIC` or `TABLE`) |
-| imageBase64, imageMime | `String?` (vision attachments — downscaled + JPEG-encoded before storage) |
-| webSearchTool | `Boolean` (per-report 🌐 toggle) |
-| reasoningEffort | `String?` (per-report 🧠 hint) |
-| sourceReportId | `String?` (set when this report is a translated copy of another) |
-| pinned | `Boolean` (user-pinned, surfaces on the Reports hub above Recent) |
-| costsFromDeletedItems | `Double` (sum of input+output cost of every deleted row — agent / secondary / fan-out / fan-in / translation. Surfaced as its own line above Total when non-zero so the user sees what the API actually billed even after trimming visible rows) |
-| icon | `String?` (per-report emoji, set by `kickOffIconGeneration` on report start. Null while running, on call failure, or on legacy reports created before the feature shipped. See [report-icons.md](report-icons.md)) |
-| iconErrorMessage | `String?` (failure reason from the icon-gen call; set instead of `icon` when the LLM returned an error or empty body) |
-| iconInputTokens, iconOutputTokens | `Int` |
-| iconInputCost, iconOutputCost | `Double` |
-| iconModel | `String?` (set when the current icon was picked manually via Find alternative icons, stored as `"<providerId>/<modelId>"`) |
-| iconCalls | `MutableList<IconCallRecord>` (per-call audit log for icon / title generation — one record per worker-engine call + every Find-alternative attempt) |
-
-### `ReportAgent`
-| Field | Type |
-|---|---|
-| agentId, agentName, provider, model | `String` |
-| reportStatus | `ReportStatus` (`PENDING`, `RUNNING`, `SUCCESS`, `ERROR`, `STOPPED`) |
-| httpStatus | `Int?` |
-| requestHeaders, requestBody, responseHeaders, responseBody | `String?` |
-| errorMessage | `String?` |
-| tokenUsage | `TokenUsage?` |
-| cost, durationMs | `Double?`, `Long?` |
-| citations | `List<String>?` |
-| searchResults | `List<SearchResult>?` |
-| relatedQuestions | `List<String>?` |
-| rawUsageJson | `String?` |
-| icon | `String?` (per-model emoji produced by the worker engine `workers/model-icons` from the model's title. Null until it runs; null too on failure — see `iconErrorMessage`) |
-| iconErrorMessage | `String?` |
-| iconInputTokens, iconOutputTokens | `Int` |
-| iconInputCost, iconOutputCost | `Double` (cumulative cost across every tier attempt) |
-| iconWinningTier | `Int?` (legacy from the removed response-based 3-tier chain; always null now — worker-engine, manual, and Find-alternative icons all leave it null) |
-
-### `IconCallRecord`
-One captured icon / title generation API call (worker engine + any
-Find-alternative attempt — [report-icons.md](report-icons.md)). Stored on
-`Report.iconCalls` so the per-call All-tab in the cost export
-renders every attempt — including failed earlier tiers the
-chain skipped past.
-
-| Field | Type |
-|---|---|
-| agentId | `String` |
-| tier | `Int` (1 / 2 / 3) |
-| provider, model, pricingTier | `String` |
-| inputTokens, outputTokens | `Int` |
-| inputCost, outputCost | `Double` |
-| durationMs | `Long?` |
-| success | `Boolean` |
-| timestamp | `Long` |
-
-### `SecondaryResult`
-Result tied to a parent report — rerank, chat-type Meta (driven by
-the user's Meta-prompt CRUD entries), moderation, translation,
-fan-out per-pair row, fan-in combined-report row, Tournament match /
-aggregate row, Judge-the-judges cell / aggregate row, or Compare cell.
+Persisted one JSON file per report at `<filesDir>/reports/<id>.json` by
+the `ReportStorage` object. The class is large — the core fields plus
+the families of metadata-generation bookkeeping (icon / title /
+titleLong / language) are summarised below.
 
 | Field | Type | Notes |
 |---|---|---|
 | id | `String` (UUID) | |
-| reportId | `String` | |
-| kind | `SecondaryKind` | `RERANK`, `META`, `MODERATION`, `TRANSLATE`, `TOURNAMENT`, `JUDGES`, `COMPARE` |
+| timestamp | `Long` | last-changed time, bumped on (almost) every mutation |
+| createdAt | `Long` (default 0) | stable creation time; 0 on legacy reports (falls back to `timestamp`) |
+| completedAt | `Long?` | |
+| title, prompt | `String` | short title + the user's question |
+| agents | `MutableList<ReportAgent>` | one per model in the run |
+| totalCost | `Double` | |
+| rapportText, closeText | `String?` | optional intro / outro text |
+| reportType | `ReportType` (`CLASSIC` / `TABLE`) | |
+| imageBase64, imageMime | `String?` | vision attachment — downscaled + JPEG-encoded before storage |
+| webSearchTool | `Boolean` | per-report 🌐 toggle, replayed on regenerate |
+| reasoningEffort | `String?` | per-report 🧠 hint (`low` / `medium` / `high`) |
+| sourceReportId | `String?` | set when this report is a translated copy of another |
+| knowledgeBaseIds | `List<String>` | attached RAG knowledge bases ([knowledge.md](knowledge.md)) |
+| parameterPresetIds, advancedParameters, selectionParamsById, reportSystemPromptId | resolved generation config | captured at create time so Regenerate replays the SAME selections, not whatever the live UiState holds now |
+| pinned | `Boolean` | user-pinned; surfaces above Recent on the Reports hub |
+| costsFromDeletedItems | `Double` | input+output cost of every deleted row (agent / secondary / fan-out / fan-in / translation). Uses `SecondaryResult.fullCost()` so a pair's icon+title spend isn't dropped. Surfaced as its own line above Total when non-zero |
+| icon, iconErrorMessage, iconModel | `String?` | per-report emoji from `kickOffIconGeneration` (worker engine `workers/report-icon`); error reason on failure; `iconModel` set when picked manually via Find-alternative ([report-icons.md](report-icons.md)) |
+| icon{Input,Output}{Tokens,Cost}, iconDurationMs, iconTraceFile | token / USD / time / trace bookkeeping for the icon call |
+| titleModel, titlePromptUsed, title{Input,Output}{Tokens,Cost}, titleDurationMs | short-title (≤25 char) AI-gen bookkeeping; `titlePromptUsed="report_title"` doubles as the success sentinel |
+| titleLong | `String?` | longer title (≤50 char) for the top-bar orange line; null for manually-set titles |
+| titleLong{Input,Output}{Tokens,Cost}, titleLongModel, titleLongTraceFile, titleLongDurationMs | long-title call bookkeeping (separate `report/title-long` cost row) |
+| languageName, languageIcon, languageIconModel | `String?` | detected source-language English name + flag emoji + the model that produced the icon |
+| language{,Icon}{Input,Output}{Tokens,Cost}, language*TraceFile, language*RawResponse, language*DurationMs, languageIconPromptUsed, languageIconErrorMessage | two-call language flow (detect, then pick emoji) bookkeeping |
+| iconCalls | `MutableList<IconCallRecord>` | per-call audit log for every icon / title / Find-alternative attempt |
+| apiCallCosts | `MutableList<ReportApiCallCost>` | durable append-only per-report cost ledger (version 3) |
+| apiCallCostsComplete, apiCallCostsVersion | `Boolean` / `Int` | ledger completeness flag + schema version |
+| runId | `String?` | UUID shared by every trace of this report's initial generation; the L1 🐞 deep-links to it |
+| promptHistory | `List<PromptRevision>` | superseded prompt bodies (Edit prompt → Previous prompts) |
+| userNotes | `MutableList<UserNote>` | free-text notes pinned to the report / an agent / a secondary / a fan-out run |
+
+`val Report.barTitle: String` = `titleLong` when non-blank, else
+`title` — used as the top-bar / Answer-matrix title text.
+
+### `ReportAgent`
+| Field | Type | Notes |
+|---|---|---|
+| agentId, agentName, provider, model | `String` | |
+| reportStatus | `ReportStatus` (`PENDING`, `RUNNING`, `SUCCESS`, `ERROR`, `STOPPED`) | |
+| httpStatus | `Int?` | |
+| requestHeaders, requestBody, responseHeaders, responseBody | `String?` | |
+| errorMessage | `String?` | |
+| tokenUsage | `TokenUsage?` | |
+| cost, durationMs | `Double?`, `Long?` | |
+| citations, searchResults, relatedQuestions | `List<String>?` / `List<SearchResult>?` | |
+| rawUsageJson | `String?` | |
+| icon, iconErrorMessage | `String?` | per-model emoji from the worker engine (`workers/model-icons`), derived from the model **title** not the response. Null until it runs / on failure |
+| icon{Input,Output}{Tokens,Cost} | token + USD bookkeeping |
+| iconWinningTier | `Int?` | **legacy** from the removed response-based 3-tier chain; always null now (worker-engine, manual, and Find-alternative all leave it null) |
+| iconPromptUsed | `String?` | bundled prompt name for the current emoji (`report_title_icon`, or `report_alt` after a Find-alt pick) |
+| modelTitle, modelTitleErrorMessage, modelTitleModel, modelTitle*{Tokens,Cost}, modelTitleTraceFile, modelTitleDurationMs, modelTitlePromptUsed | per-model response title (worker engine `workers/model-titles`) + bookkeeping |
+| chatMessages | `List<ChatMessage>` | in-report "refine this answer" 🗣️ conversation; applying a reply overwrites `responseBody` |
+
+### `IconCallRecord`
+One captured icon / title generation API call — worker-engine calls plus
+every Find-alternative attempt ([report-icons.md](report-icons.md)).
+Stored on `Report.iconCalls` so the per-call All-tab in the cost export
+renders every attempt, including failed earlier tiers.
+
+| Field | Type | Notes |
+|---|---|---|
+| agentId | `String` | |
+| tier | `Int` | retained for cost-row labelling; not a response-based "winning tier" anymore |
+| provider, model, pricingTier | `String` | the model that actually billed the call |
+| inputTokens, outputTokens | `Int` | |
+| inputCost, outputCost | `Double` | |
+| durationMs | `Long?` | |
+| success | `Boolean` | |
+| timestamp | `Long` | |
+| type | `String?` | overrides the agentId-based cost classifier; Find-alt fan-out calls set the bundled `_alt` prompt name (`main_alt`, `meta_alt`, `report_alt`, `language_alt`, `translation_alt`) |
+| attributedToSecondaryId | `String?` | when set, this cost is attributed to a `SecondaryResult` on the same report (so the cost table subtracts it from that row to avoid double-counting) |
+
+### `ReportApiCallCost`
+One row of the durable per-report cost ledger (`Report.apiCallCosts`).
+Unlike traces, it is part of the report JSON itself, so report cost
+totals don't depend on optional trace files.
+
+| Field | Type |
+|---|---|
+| id | `String` (UUID) |
+| timestamp | `Long` |
+| type, provider, model, pricingTier | `String` |
+| inputTokens, outputTokens, searchUnits | `Int` |
+| inputCost, outputCost | `Double` |
+| durationMs | `Long?` |
+| traceFile | `String?` |
+
+### `SecondaryResult`
+A single flat row used for **every** secondary kind — rerank, chat-type
+Meta (driven by the user's Meta-prompt CRUD entries), moderation,
+translation, fan-out per-pair row, fan-in combined-report row,
+Tournament match / aggregate row, Judge-the-judges cell / aggregate row,
+or Compare cell. Persisted one JSON file per result at
+`<filesDir>/secondary/<reportId>/<resultId>.json` by the
+`SecondaryResultStorage` object. The kind-specific fields are mostly
+null on rows of other kinds. See
+**[secondary-results.md](secondary-results.md)**.
+
+**Common fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| id, reportId | `String` | |
+| kind | `SecondaryKind` | one of the 7 below |
 | providerId, model, agentName | `String` | |
 | timestamp | `Long` | |
-| content | `String?` | the model output (chat-type META rows whose Meta prompt has `reference=true` get a deterministic `## References` legend appended at storage time) |
+| content | `String?` | the model output. A chat-type META row whose Meta prompt has `reference=true` gets a deterministic `## References` legend appended at storage time |
 | errorMessage | `String?` | |
 | tokenUsage | `TokenUsage?` | |
 | inputCost, outputCost | `Double?` | |
 | durationMs | `Long?` | |
-| metaPromptId | `String?` | id of the `InternalPrompt` (`category="meta"` / `"meta_compare"` / `"fan_out"` / `"fan_in"` / `"workers"`) that produced this row |
-| metaPromptName | `String?` | display name of the prompt copied at run time. Drives every UI bucket / export section / cost-row label so renaming or deleting the prompt later doesn't reshape old rows |
-| fanOutSourceAgentId | `String?` | Fan-out per-pair rows: agentId of the report-model whose response was substituted into the prompt's `@RESPONSE@` slot. Together with this row's own `(providerId, model)` (the answerer) it forms the (answerer, source) pair the fan-out drill-in keys on |
-| fanInOf | `String?` | Fan-in combined-report rows: id of the `InternalPrompt` that produced this combined output. Lets the fan-out detail screen distinguish the single combined output from the per-pair response rows |
-| secondaryScope | `String?` | Encoded `SecondaryScope` used when this row was originally produced — `"ALL"` / `"TOP:<rerankResultId>:<count>"` / `"MANUAL:<agentId>,..."`. Cascade-on-prompt-change re-runs at the same scope |
-| translateSourceTargetId | `String?` | TRANSLATE only — id of the item translated (`"prompt"`, `agent.agentId`, or a secondary `id`) |
-| translateSourceKind | `String?` | TRANSLATE only — `"PROMPT"`, `"AGENT"`, `"META"` |
-| targetLanguage | `String?` | TRANSLATE only — English language name (e.g. `"Dutch"`) |
-| targetLanguageNative | `String?` | TRANSLATE only — native rendering (e.g. `"Nederlands"`) |
-| translationRunId | `String?` | TRANSLATE only — UUID shared by every row of one Translate batch so the result page can group them |
-| tournamentRole | `String?` | TOURNAMENT/JUDGES only — `"MATCH"` for cell rows, `"AGGREGATE"` for rollup rows |
-| tournamentJudgeRunId | `String?` | run id shared by Tournament/Judges rows |
-| matchResponseAId, matchResponseBId | `String?` | Tournament/Judges match source agent ids |
-| matchOrientation | `Int?` | Tournament: 0 or 1 for A-vs-B / B-vs-A. Judges currently uses 0 |
-| tournamentMatrix | `String?` | TOURNAMENT aggregate row — win matrix plus selected ranking method |
-| compareRunId | `String?` | COMPARE run id shared by its cells |
-| compareAgentId | `String?` | COMPARE cell — answer being scored |
-| compareToResultId | `String?` | COMPARE cell — Meta row scored against |
+| traceFile | `String?` | trace filename for the call (currently populated for TRANSLATE rows) |
+
+A row's identity within a kind is derived, not stored: a **Fan-out**
+per-pair row has `fanOutSourceAgentId != null`; a **Fan-in**
+combined-report row has `fanInOf != null` — both carry `kind = META`.
+
+**META / Fan-out / Fan-in fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| metaPromptId | `String?` | id of the `InternalPrompt` (`meta` / `meta_compare` / `fan_out` / `fan_in` / `workers`) that produced this row |
+| metaPromptName | `String?` | display name copied at run time. Drives every UI bucket / export section / cost-row label so a later rename / delete doesn't reshape old rows |
+| fanOutSourceAgentId | `String?` | Fan-out pair: agentId of the report-model whose response was substituted into the prompt's `@RESPONSE@` slot. With this row's own `(providerId, model)` (the answerer) it forms the (answerer, source) pair the drill-in keys on |
+| fanInOf | `String?` | Fan-in: id of the `InternalPrompt` that produced the combined output |
+| secondaryScope | `String?` | encoded `SecondaryScope` (`"ALL"` / `"TOP:<rerankResultId>:<count>"` / `"MANUAL:<agentId>,..."`) so cascade-on-prompt-change re-runs at the same scope |
+| secondaryParameterPresetIds, secondarySystemPromptId | `List<String>?` / `String?` | param/system-prompt selections captured at launch for faithful pair-variation replays |
+| responseChangeSource, responseChangeValue | `String?` | user-selected replacement marker for `content` |
+| chatMessages | `List<ChatMessage>` | in-report 🗣️ "refine this answer" conversation for a fan-out pair |
+
+**Per-pair Fan-Meta icon + title fields** (the worker call that titles
+and icons one fan-out pair — [report-icons.md](report-icons.md)):
+`icon`, `iconWinningTier` (legacy, always null), `iconErrorMessage`,
+`iconInput/OutputTokens`, `iconInput/OutputCost`, `iconPromptUsed`,
+`iconRunId`; and the title twins `title`, `titleErrorMessage`,
+`titleInput/OutputTokens`, `titleInput/OutputCost`, `titleModel`,
+`titleDurationMs`, `titlePromptUsed`, `titleRunId`. `runId` is the UUID
+of the fan-out batch that created the row.
+`SecondaryResult.fullCost()` rolls the primary in/out cost **plus** the
+icon+title spend together, so delete / re-run paths don't drop the
+per-pair metadata cost.
+
+**TRANSLATE fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| translateSourceTargetId | `String?` | id of the item translated (`"prompt"`, `agent.agentId`, or a secondary `id`) |
+| translateSourceKind | `String?` | `"PROMPT"`, `"AGENT"`, `"META"`, plus title kinds (`"TITLE"`, `"TITLE_LONG"`, `"AGENT_TITLE"`, `"FANOUT_TITLE"`) |
+| targetLanguage | `String?` | English language name (e.g. `"Dutch"`) |
+| targetLanguageNative | `String?` | native rendering (e.g. `"Nederlands"`) |
+| translationRunId | `String?` | UUID shared by every row of one Translate batch |
+
+`translateTraceType(srcKind, sourceIsFanOut, sourceIsFanIn)` maps the
+source to the trace category / cost Type / AI Usage kind
+(`translate/report_prompt`, `translate/model_response`,
+`translate/fan/out/response`, `translate/meta`, …). Rerank / Moderation
+are never translated.
+
+**TOURNAMENT / JUDGES fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| tournamentRole | `String?` | `"MATCH"` for cell rows, `"AGGREGATE"` for the rollup row |
+| tournamentJudgeRunId | `String?` | run key `"${reportId}|${providerId}|${model}"` grouping the run's rows |
+| matchResponseAId, matchResponseBId | `String?` | match source agent ids (`@RESPONSE_A@` / `@RESPONSE_B@` slots) |
+| matchOrientation | `Int?` | Tournament: 0 (A-vs-B) or 1 (swapped B-vs-A, to cancel position bias). Judges uses 0 |
+| tournamentMatrix | `String?` | AGGREGATE row — encoded win matrix + selected ranking method |
+
+A tournament MATCH placeholder starts at sentinel
+`providerId="*workers"` / `model="*pending"` (the judging model is
+unknown until the round-robin worker chain returns); the AGGREGATE row
+uses `providerId="*tournament"` / `model="aggregate"`.
+
+**COMPARE fields:**
+
+| Field | Type | Notes |
+|---|---|---|
+| compareRunId | `String?` | run id shared by its cells |
+| compareAgentId | `String?` | the report answer being scored |
+| compareToResultId | `String?` | the Meta row scored against |
+
+A Compare cell placeholder starts at sentinel `providerId="*workers"` /
+`model="*pending"`, overwritten with the winning worker on commit.
 
 ### `SecondaryScope` (sealed)
 - `AllReports` — every successful agent feeds the meta-result.
@@ -389,14 +518,21 @@ Outcome of a single moderation endpoint call.
 | tokenUsage | `TokenUsage?` |
 | durationMs | `Long` |
 
-### `SecondaryRunState`
-In-progress UI state surfaced on the Report screen.
-
-| reportId, kind, total, completed |
+> There is no `SecondaryRunState` data class. In-flight secondary work
+> is surfaced via `UiState.activeSecondaryBatches: Int` (incremented on
+> entry, decremented in `finally` by every `SecondaryRunManager` runner)
+> plus the per-engine hot-state sets on `AppViewModel`
+> (`runningTournamentMatches`, `runningCompareCells`,
+> `runningJudgeEvalCells`, …).
 
 ### `TokenUsage`
-| inputTokens, outputTokens, totalTokens | `Int` |
-| cachedTokens | `Int?` |
+| Field | Type | Notes |
+|---|---|---|
+| inputTokens, outputTokens | `Int` | |
+| apiCost | `Double?` | provider-reported cost (OpenRouter / Perplexity / xAI ticks). When non-null it wins over token-math pricing |
+| cachedInputTokens, cacheCreationTokens, reasoningTokens | `Int` (default 0) | cache-aware + reasoning token splits used by `computeCost` |
+
+Computed: `totalTokens` = the sum of all five token counts.
 
 ### `SearchResult`
 | name, url, snippet | `String?` |
@@ -461,7 +597,7 @@ per-provider table.
 | reasoningModelPatterns | `List<ModelPattern>` | gates the 🧠 reasoning badge + thinking dispatch |
 | reasoningEffortAcceptPatterns | `List<ModelPattern>?` | narrower subset that actually accepts `reasoning_effort`. Null = use `reasoningModelPatterns`; xAI sets a narrower list because its always-on variants reject the parameter |
 | webSearchModelPatterns | `List<ModelPattern>` | gates the 🌐 web-search tool descriptor |
-| adaptiveThinkingPatterns | `List<ModelPattern>` | opts in to Anthropic's adaptive-thinking shape (claude-opus-4.6 / 4.7) |
+| adaptiveThinkingPatterns | `List<ModelPattern>` | opts in to Anthropic's adaptive-thinking shape (`claude-opus-4-7`+); older Claude 3.7 / 4.x use the `budget_tokens` shape |
 | maxTokensDefaults | `List<MaxTokensRule>` | per-family default `max_tokens` (Anthropic). First match wins, default 4096 |
 | builtInEndpoints | `List<Endpoint>` | bundled alternate endpoints (DeepSeek main + reasoner; Mistral chat + Codestral; Z.AI mainland + international). User can pick between them on the provider edit screen |
 | maxCallsPerProviderPerMinute | `Int?` | per-provider override for `GeneralSettings.maxCallsPerProviderPerMinute`. Null → inherit. Read by `ProviderThrottle.acquire` when this provider's hostname matches. See [throttle.md](throttle.md) |
@@ -472,17 +608,24 @@ per-provider table.
 | retryBackoffMs529 | `Long?` | per-provider override for the wait between 529 retries. Null → inherit. Seeded to 5000 ms for Anthropic |
 
 #### `ModelPattern`
-Shared by every `*Patterns` field on `AppService`. Wire format is a
-JSON object with one or more of three string fields (matched against
-the model id, lowercased): `prefix`, `contains`, `regex`. The first
-non-null field wins; an empty pattern matches nothing. `anyMatches`
-walks the list and returns true on the first hit.
+Shared by every `*Patterns` field on `AppService` (defined in
+`ProviderRegistry.kt`). Four optional string fields, all matched against
+the model id lowercased: `exact`, `prefix`, `contains`, `suffix`. When
+more than one is set they must **all** match (intersection — e.g.
+`prefix:"grok-4-" + contains:"reasoning"` matches only the grok-4
+reasoning variants); an all-null pattern matches nothing.
+`List<ModelPattern>?.anyMatches(modelId)` returns true on the first
+pattern in the list that matches (a null / empty list returns false —
+"feature off for this provider").
 
 #### `MaxTokensRule`
-Per-family override for Anthropic's required `max_tokens`. Wire
-format is `{ "match": <ModelPattern>, "value": <Int> }`. Used when
-the user hasn't pinned an explicit `max_tokens` on the agent's
-parameters.
+`MaxTokensRule(pattern: ModelPattern, maxTokens: Int)` — a per-family
+default `max_tokens`. `List<MaxTokensRule>?.resolveMaxTokens(modelId)`
+returns the first matching rule's value (else null, caller falls back to
+4096). Used as the dispatch-time default when the user hasn't pinned an
+explicit `max_tokens`. Applied to Anthropic (whose `max_tokens` is
+required) and also to OpenAI-compatible calls, to avoid OpenRouter
+balance-gating 402s.
 
 #### `Endpoint`
 Bundled alternate endpoint. See `Endpoint` under "Settings &
@@ -490,8 +633,19 @@ Configuration" — same shape, just preloaded from `providers.json`
 instead of created by the user.
 
 ### `ApiFormat` (enum)
-`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`. All cloud dispatch keys
-off this — provider identity is never used for routing.
+`OPENAI_COMPATIBLE`, `ANTHROPIC`, `GOOGLE`. The cloud dispatch keys
+off this in `when (service.apiFormat)` blocks (analyze / chat /
+fetchModels / streaming / auth / endpoint URL). Of the 42 bundled
+providers, **40** are `OPENAI_COMPATIBLE` (sharing unified code), 1 is
+`ANTHROPIC`, 1 is `GOOGLE` — so only Anthropic and Google have
+format-specific branches. (The enum's source comment still says "28
+providers using OpenAI-compatible"; that count is stale.)
+
+The synthetic `AppService.LOCAL` is **not** routed by `apiFormat` — its
+format is the default `OPENAI_COMPATIBLE` and is never used for a
+network call. Callers route on-device work with a
+`provider.id == AppService.LOCAL.id` check to `LocalLlm` / `LocalEmbedder`
+(see [local-runtime.md](local-runtime.md)).
 
 ### `ModelType` (constants)
 `CHAT`, `RESPONSES`, `EMBEDDING`, `RERANK`, `IMAGE`, `TTS`, `STT`,
@@ -512,16 +666,30 @@ are split so the 🧠 badge can fire on always-on reasoning models
 ## Pricing (`com.ai.data.PricingCache`)
 
 ### `PricingCache.ModelPricing`
-| model | `String` |
-| promptPrice | `Double` (per token) |
-| completionPrice | `Double` (per token) |
-| source | `String` (`LITELLM`, `MODELSDEV`, `OVERRIDE`, `OPENROUTER`, `HELICONE`, `LLMPRICES`, `ARTIFICIAL_ANALYSIS`, `DEFAULT`) |
+| Field | Type | Notes |
+|---|---|---|
+| modelId | `String` | |
+| promptPrice, completionPrice | `Double` | **per token** (not per million) |
+| source | `String` (default `"unknown"`) | which tier priced it — `LITELLM`, `MODELSDEV`, `OVERRIDE`, `OPENROUTER`, `HELICONE`, `LLMPRICES`, `ARTIFICIAL_ANALYSIS`, `TOGETHER`, `DEFAULT`, `API_REPORTED` |
+| cachedReadPrice, cachedWritePrice | `Double?` | cache-aware input rates; null = charge full input |
+| promptPriceAbove200k, completionPriceAbove200k, cachedReadPriceAbove200k, cachedWritePriceAbove200k | `Double?` | >200k-context tier (Gemini 2.5/3 Pro, etc.) |
+| perQueryPrice | `Double` (default 0) | per-search-unit price for rerank models (Cohere bills per search, not per token) |
+
+`DEFAULT_PRICING = ModelPricing("default", 25e-6, 75e-6, "DEFAULT")` —
+i.e. $25/M input, $75/M output, **not** zero. It is also what
+`getPricing` returns when called on the main thread before the catalog
+preload completes (the UI cold window). The full layered-lookup
+precedence lives in **[costs.md](costs.md)**; in short, manual `OVERRIDE`
+beats every curated catalog tier but loses to the two provider
+self-report tiers (OpenRouter-self, Together-self).
 
 ### `PricingCache.TierBreakdown`
-Per-(provider, model) snapshot showing every tier's view, used by the
-Costs page and the layered-costs CSV export.
+Per-(provider, model) snapshot showing every tier's independently-computed
+view, used by the layered Costs view and the 🐞 pricing trace.
 
-| litellm, modelsDev, helicone, llmPrices, artificialAnalysis, override, openrouter | `ModelPricing?` |
+| Field | Type |
+|---|---|
+| litellm, modelsDev, helicone, llmPrices, artificialAnalysis, override, openrouter, together | `ModelPricing?` |
 | default | `ModelPricing` |
 
 ---
@@ -535,23 +703,36 @@ Costs page and the layered-costs CSV export.
 | timestamp | `Long` |
 
 ### `ChatSession`
-| id | `String` |
-| provider | `AppService` |
-| model | `String` |
-| messages | `List<ChatMessage>` |
-| parameters | `ChatParameters` |
-| createdAt, updatedAt | `Long` |
-| pinned | `Boolean` (surfaces above Recent on the AI Chat hub) |
-| title | `String` (default empty) | Display title. Seeded with the first 10 words of the first user message on send; replaced asynchronously by the bundled `internal/chat-title` prompt against DeepSeek after the first assistant response. Blank for sessions saved before this field existed — display sites fall back to `preview` (first user message, first 50 chars) |
+| Field | Type | Notes |
+|---|---|---|
+| id | `String` (UUID) | |
+| provider | `AppService` | |
+| model | `String` | |
+| messages | `List<ChatMessage>` | |
+| parameters | `ChatParameters` | |
+| createdAt, updatedAt | `Long` | |
+| pinned | `Boolean` | surfaces above Recent on the AI Chat hub |
+| knowledgeBaseIds | `List<String>` | attached RAG knowledge bases; each user turn prepends a retrieved context block ([knowledge.md](knowledge.md)) |
+| title | `String` (default empty) | seeded with the first 10 words of the first user message on send; replaced asynchronously by the `chat_title` internal prompt after the first assistant response. Blank for legacy sessions — display sites fall back to `preview` |
 
 Computed:
-- `preview: String` — first user message, truncated to 50 chars.
+- `preview: String` — first user message, truncated to 50 chars (or
+  `"Empty chat"`).
 
 ### `ChatParameters`
-Per-chat overrides — same shape as `Parameters` minus id/name, plus:
+Per-chat generation overrides. A **subset** of `Parameters` — it carries
+`systemPrompt`, `temperature`, `maxTokens`, `topP`, `topK`,
+`frequencyPenalty`, `presencePenalty`, `searchEnabled`,
+`returnCitations`, `searchRecency`, `webSearchTool`, and:
 - `reasoningEffort: String?` — set per-turn from the chat session
-  screen's 🧠 pulldown. Clamped to the active model's supported
-  range on session resume.
+  screen's 🧠 pulldown. Clamped to the active model's supported range
+  on session resume. Only injected at dispatch when the model reports
+  reasoning support.
+
+It does **not** have `seed`, `stopSequences`, or `responseFormatJson`.
+`webSearchTool` (explicit tool-use) and `searchEnabled` (the older flat
+`search:true` flag) are kept distinct so each provider gets the request
+shape it expects.
 
 ### `DualChatConfig`
 Two-models-talk-to-each-other configuration. Persisted to
@@ -570,28 +751,41 @@ Two-models-talk-to-each-other configuration. Persisted to
 
 ## Tracing (`com.ai.data.ApiTracer`)
 
+Defined in `data/TraceModels.kt`. Traces are stored as pretty-printed
+JSON under `<filesDir>/trace/`; the lightweight `TraceFileInfo` mirror
+(parsed streaming, metadata-only) backs the list view. See
+**[applog.md](applog.md)** / **[log-details.md](log-details.md)** for the
+call-site categories.
+
 ### `ApiTrace`
-| timestamp, hostname | `Long`, `String` |
-| reportId | `String?` |
-| model | `String?` |
-| request | `TraceRequest` |
-| response | `TraceResponse` |
+| Field | Type | Notes |
+|---|---|---|
+| timestamp, hostname | `Long`, `String` | |
+| reportId, model | `String?` | |
+| category | `String?` | functional call-site tag. Internal-prompt calls use the `"<category>/<prompt>"` form (`"report/prompt"`, `"report/title"`, `"meta/Compare"`, `"after/rerank"`, `"translate/model_response"`, `"pricing/OpenRouter"`); other sites use free-text (`"Chat"`, `"Provider test"`) |
+| runId | `String?` | UUID shared by every trace of one user-launched batch (fan-out / Fan-Meta / translation / model-test / report-gen); the L1 🐞 deep-links to it |
+| request | `TraceRequest` | |
+| response | `TraceResponse` | |
+| partial | `Boolean` (default false) | true while a streaming response is still being read (written speculatively before EOF so a mid-stream kill still leaves a record); the EOF/close overwrite resets it |
 
 ### `TraceRequest`
 | url, method | `String` |
-| headers | `Map<String, String>` (auth headers redacted at write time) |
-| body | `String?` |
+| headers | `Map<String, String>` (auth headers / `?key=` query params redacted at write time) |
+| body | `String?` (secrets in JSON body keys redacted) |
 
 ### `TraceResponse`
 | statusCode | `Int` |
 | headers | `Map<String, String>` |
-| body | `String?` (capped at 8 MiB; streaming responses note "[streaming response - not captured]") |
+| body | `String?` (captured body capped at 8 MiB; an in-progress streaming response reads `"[partial: stream in progress]"` until the EOF overwrite) |
 
 ### `TraceFileInfo`
-| filename, hostname, reportId, model | `String` / `String?` |
+| Field | Type |
+|---|---|
+| filename, hostname | `String` |
+| reportId, model, category, runId | `String?` |
 | timestamp | `Long` |
 | statusCode | `Int` |
-| category | `String?` (e.g. `"Report meta: Compare"`, `"Translation"`) |
+| partial | `Boolean` |
 
 ---
 
@@ -606,29 +800,45 @@ threading a `Settings` reference through their constructors.
 
 | Field | Type | Notes |
 |---|---|---|
-| streamingReadTimeoutSec | `Int` (default = BuildConfig) | SSE chat / report streams |
-| nonStreamingReadTimeoutSec | `Int` (default = BuildConfig) | analyze, meta, rerank, translate, model-list |
-| maxCallsPerProviderPerMinute | `Int` (default 30) | per-host sliding-window rate cap |
-| maxConcurrentCallsPerProvider | `Int` (default 3) | per-host concurrency cap |
+| streamingReadTimeoutSec | `Int` (default = BuildConfig 240s) | SSE chat / report streams |
+| nonStreamingReadTimeoutSec | `Int` (default = BuildConfig 120s) | analyze, meta, rerank, translate, model-list |
+| maxCallsPerProviderPerMinute | `Int` (default **60**) | per-host sliding-window rate cap |
+| maxConcurrentCallsPerProvider | `Int` (default **5**) | per-host concurrency cap |
 | maxRetriesOn429 | `Int` (default 3) | in-line 429 retries |
 | retryBackoffMs429 | `Long` (default 1000) | wait between retries |
 | maxRetriesOn529 | `Int` (default 3) | in-line 529 (server overloaded) retries |
 | retryBackoffMs529 | `Long` (default 1000) | wait between 529 retries |
 
 ### `ProviderThrottle`
-Per-hostname rate + concurrency gate. One `Semaphore` + one
-`ConcurrentLinkedDeque<Long>` per host. `acquire(host)` is
-synchronous (blocks an OkHttp dispatcher worker, never the main
-thread) and returns a `Releaser` that must be called in
-`finally` to avoid leaking the permit. Caps are resolved per
-acquire from per-provider override → `NetworkSettings` global.
+Per-hostname rate + concurrency gate (in `ProviderThrottling.kt`). One
+`Semaphore` (concurrency) + one `ConcurrentLinkedDeque<Long>`
+(60 s sliding-window rate) per host. Caps are resolved per acquire from
+per-provider override (`AppService.maxCallsPerProviderPerMinute` /
+`maxConcurrentCallsPerProvider`, matched via `ProviderRegistry.findByHost`)
+→ `NetworkSettings` global, each `coerceAtLeast(1)`. Three acquire paths:
+- `acquire(host)` — **blocking** (`Thread.sleep`), used by the OkHttp
+  `ProviderThrottleInterceptor`. Never the main thread.
+- `tryAcquire(host)` — non-blocking → `Outcome.Acquired(Releaser)` /
+  `Outcome.Blocked(availableAtMs)`.
+- `acquireOrWait(host)` — suspend, polls `tryAcquire` + `delay`; used by
+  `ApiDispatch.withHostGate` (never blocks a thread).
 
-`permitPreAcquired: ThreadLocal<Boolean>` lets coroutine-side
-flows (Fan-out, report-icon chain, alternative-icons fan-out)
-tell the inline `ProviderThrottleInterceptor` to skip its own
-acquire. Propagated across coroutine dispatcher hops via
-`asContextElement(true)` and onto OkHttp workers via
-`TagPropagatingExecutor`.
+`permitPreAcquired: ThreadLocal<Boolean>` lets coroutine-side batch
+flows (report, fan-out, Fan-Meta, translation) tell the inline
+`ProviderThrottleInterceptor` to skip its own acquire so a permit isn't
+double-counted. Propagated across coroutine dispatcher hops via
+`asContextElement` and onto OkHttp workers via `TagPropagatingExecutor`.
+
+### `ApiCallCaps` (declared in `ApiTracer.kt`)
+A **separate** flow-level coroutine-`Semaphore` layer, independent of the
+per-host `ProviderThrottle`. Six pools with defaults: `global` 100,
+`report` 50, `translation` 50, `fanOut` 50, `fanMeta` 50, `workers` 50
+(`workers` shares the `fanMeta` limit). Rebuilt at runtime via
+`resetForNewLimits(...)` from the `GeneralSettings.maxConcurrent*`
+knobs. The canonical batch acquisition order is **sub-cap → global →
+per-host gate**; while parked on a saturated host gate the helper
+releases both the sub-cap and `global` and re-takes them on the next
+poll, so a flow's cap counts only items holding a live provider slot.
 
 See [throttle.md](throttle.md) for the full chain.
 
@@ -719,7 +929,7 @@ Computed:
 | fullScreen | `Boolean` (default false) | hides the Android status bar when enabled |
 | modelNameLayout | `ModelNameLayout` | `MODEL_ONLY` (default) or `PROVIDER_AND_MODEL` |
 | uiCardBackgroundArgb, uiButtonBackgroundArgb | `Int` | legacy single-color mirrors for card/button customization |
-| uiColorOverrides | `Map<String, Int>` | ARGB overrides for functional `AppColors` roles; see [ui-customization.md](ui-customization.md) |
+| uiColorOverrides, uiColorOverridesDay | `Map<String, Int>` | ARGB overrides for functional `AppColors` roles (dark + day variants); see [ui-customization.md](ui-customization.md) |
 | metadataEnabled | `Boolean` (default true) | grand-master switch for optional metadata generation |
 | iconGenEnabled | `Boolean` (default true) | master switch for the per-report icon-gen feature. When true, every new report kicks off a background worker call (`workers/report-icon`) that generates a fitting emoji and writes it onto `Report.icon`. Surfaces in the result page, AI Reports hub, history rows, search hits, and report title bars. When false the call is skipped and existing on-disk icon values stay intact for re-enable |
 | reportLanguageGenEnabled | `Boolean` (default true) | gates automatic report language + flag detection |
@@ -735,14 +945,14 @@ Computed:
 | recentReportModels | `List<String>` (default empty) | last 3 (provider, model) pairs picked from the Report section's model pickers, most-recent first. Encoded as `"providerId|model"` strings; surfaces in the Report Select Models picker as a "Recent" section (honors the active provider / type / search filters) |
 | streamingReadTimeoutSec | `Int` (default `BuildConfig.NETWORK_READ_TIMEOUT_SEC`) | read timeout applied to streaming API calls (SSE chat / report streams). Mirrored to `NetworkSettings.streamingReadTimeoutSec` so the per-call OkHttp interceptor reads the live value |
 | nonStreamingReadTimeoutSec | `Int` (default `BuildConfig.NETWORK_NONSTREAMING_READ_TIMEOUT_SEC`) | read timeout applied to non-streaming calls (meta / rerank / translate / model-list / individual analyze). Much shorter than streaming by default so a hung provider can't gate a whole batch for 10 minutes |
-| maxCallsPerProviderPerMinute | `Int` (default 30) | sliding-window rate cap per provider hostname. The OkHttp interceptor `ProviderThrottleInterceptor` reads this via `NetworkSettings.maxCallsPerProviderPerMinute`. See [throttle.md](throttle.md) |
-| maxConcurrentCallsPerProvider | `Int` (default 3) | per-provider concurrency cap. Replaces the prior hardcoded fan-out semaphore — applies globally across every flow (report, meta, fan-out, chat, translate, model fetch) hitting the same provider host |
-| maxConcurrentApiCalls | `Int` | global hard ceiling for in-flight API calls |
-| maxConcurrentReportCalls | `Int` | concurrent primary report-generation calls |
-| maxConcurrentTranslationCalls | `Int` | concurrent translation item × language calls |
-| maxConcurrentFanOutCalls | `Int` | concurrent Fan-out pair calls |
-| maxConcurrentFanMetaCalls | `Int` | concurrent Fan Meta title/icon calls |
-| maxTestApiCalls | `Int` | concurrent Housekeeping → Test calls |
+| maxCallsPerProviderPerMinute | `Int` (default 60) | sliding-window rate cap per provider hostname. The OkHttp interceptor `ProviderThrottleInterceptor` reads this via `NetworkSettings.maxCallsPerProviderPerMinute`. See [throttle.md](throttle.md) |
+| maxConcurrentCallsPerProvider | `Int` (default 5) | per-provider concurrency cap. Applies across every flow (report, meta, fan-out, chat, translate, model fetch) hitting the same provider host |
+| maxConcurrentApiCalls | `Int` (default 100) | global hard ceiling for in-flight API calls (`ApiCallCaps.global`) |
+| maxConcurrentReportCalls | `Int` (default 50) | concurrent primary report-generation calls (`ApiCallCaps.report`) |
+| maxConcurrentTranslationCalls | `Int` (default 50) | concurrent translation item × language calls |
+| maxConcurrentFanOutCalls | `Int` (default 50) | concurrent Fan-out pair calls |
+| maxConcurrentFanMetaCalls | `Int` (default 50) | concurrent Fan Meta title/icon calls (also sizes the `workers` cap) |
+| maxTestApiCalls | `Int` (default 50) | concurrent Housekeeping → Test calls |
 | maxRetriesOn429 | `Int` (default 3) | maximum number of in-line retries the OkHttp client performs on a 429. 0 disables in-line retries entirely (the outer `withRetry` layer still gets a chance) |
 | retryBackoffMs429 | `Long` (default 1000) | wait between 429 retry attempts in milliseconds |
 | maxRetriesOn529 | `Int` (default 3) | maximum number of in-line retries the OkHttp client performs on a 529 (server overloaded). 0 disables in-line retries entirely. Independent of the 429 budget |
@@ -827,8 +1037,21 @@ or similar) can stuff into UiState.
 
 ## Provider definitions (`com.ai.data.ProviderDefinition`)
 
-Wire format used by `assets/providers.json` and import/export. Same
-fields as `AppService`. Translated into a runtime `AppService` by
-`ProviderDefinition.toAppService()`. Custom providers added by the
-user are persisted as `ProviderDefinition` JSON in the
-`provider_registry` prefs file.
+Wire format used by `assets/providers.json` and import/export, declared
+in `ProviderRegistry.kt`. Mostly the same fields as `AppService`, except
+`apiFormat` is a `String?` (default `"OPENAI_COMPATIBLE"`) parsed via
+`ApiFormat.valueOf(...)` inside a try/catch that falls back to
+`OPENAI_COMPATIBLE` on any invalid value. Translated to a runtime
+`AppService` by `toAppService()`; the inverse is `fromAppService(s)`.
+Custom providers added by the user round-trip as `ProviderDefinition`
+JSON in the `provider_registry` prefs file.
+
+`ProviderRegistry` is a mutable `object` that starts **empty** on a
+fresh install — the 42 bundled providers are loaded on demand from
+`assets/providers.json` via `importFromAsset` (append-only), not
+hardcoded in Kotlin. `parseProvidersJson` filters out entries with a
+null/blank id or baseUrl. A `hostIndex` (rebuilt on every `save()` from
+`baseUrl` + `auxHosts`) backs `findByHost(host)`, which `ProviderThrottle`
+uses to resolve a request hostname to its per-provider throttle
+overrides. See [providers.md](providers.md) and
+[repositories.md](repositories.md).
