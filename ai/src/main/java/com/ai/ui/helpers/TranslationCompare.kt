@@ -61,7 +61,7 @@ internal fun TranslationCompareScreen(
 ) {
     BackHandler { onBack() }
     val context = androidx.compose.ui.platform.LocalContext.current
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
         TitleBar(
             helpTopic = "translation_compare",
             title = "Translation compare",

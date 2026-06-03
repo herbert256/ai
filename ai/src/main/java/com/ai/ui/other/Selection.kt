@@ -63,7 +63,7 @@ internal fun ReportSelectAgentScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_pick_agent", title = "Pick an agent", subject = "Add a saved agent to the report", onBackClick = onBack)
 
         OutlinedTextField(
@@ -98,7 +98,7 @@ internal fun ReportSelectAgentScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(agent.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                            Text(agent.name, style = MaterialTheme.typography.bodyLarge, color = AppColors.TextPrimary,
                                 fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(com.ai.ui.shared.modelLabel(agent.provider.id, model),
                                 fontSize = 12.sp, color = AppColors.TextTertiary,
@@ -265,24 +265,24 @@ internal fun ReportSelectModelsScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_pick_model", title = titleText, subject = "Add one model, with live pricing", onBackClick = onBack,
             onParameters = if (onSecondaryParamsConfirm != null) { { showSecParamsDialog = true } } else null,
             onSystemPrompt = if (onSecondaryParamsConfirm != null) { { showSecSystemPromptDialog = true } } else null)
 
         Box(modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(onClick = { providerDropdownExpanded = true }, modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White), border = BorderStroke(1.dp, AppColors.BorderUnfocused)) {
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColors.TextPrimary), border = BorderStroke(1.dp, AppColors.BorderUnfocused)) {
                 Text(providerFilter?.id ?: "All Providers", modifier = Modifier.weight(1f), fontSize = 13.sp,
-                    color = if (providerFilter != null) Color.White else AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    color = if (providerFilter != null) AppColors.TextPrimary else AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("\u25be", color = AppColors.TextTertiary)
             }
-            DropdownMenu(expanded = providerDropdownExpanded, onDismissRequest = { providerDropdownExpanded = false }, modifier = Modifier.background(Color(0xFF2D2D2D))) {
-                DropdownMenuItem(text = { Text("All Providers", color = if (providerFilter == null) AppColors.InfoAccent else Color.White, fontSize = 13.sp) },
+            DropdownMenu(expanded = providerDropdownExpanded, onDismissRequest = { providerDropdownExpanded = false }, modifier = Modifier.background(AppColors.SurfaceDark)) {
+                DropdownMenuItem(text = { Text("All Providers", color = if (providerFilter == null) AppColors.InfoAccent else AppColors.TextPrimary, fontSize = 13.sp) },
                     onClick = { providerFilter = null; providerDropdownExpanded = false })
                 remember(effectiveServices) { effectiveServices.sortedBy { it.id.lowercase() } }.forEach { provider ->
                     val mc = if (provider.id == AppService.LOCAL.id) localModelsForFilter.size else aiSettings.getModels(provider).size
-                    DropdownMenuItem(text = { Text("${provider.id} ($mc)", color = if (providerFilter == provider) AppColors.InfoAccent else Color.White, fontSize = 13.sp) },
+                    DropdownMenuItem(text = { Text("${provider.id} ($mc)", color = if (providerFilter == provider) AppColors.InfoAccent else AppColors.TextPrimary, fontSize = 13.sp) },
                         onClick = { providerFilter = provider; providerDropdownExpanded = false })
                 }
             }
@@ -346,7 +346,7 @@ internal fun ReportSelectModelsScreen(
                 Column(modifier = Modifier.weight(1f).alpha(rowAlpha)) {
                     Text(provider.id, fontSize = 12.sp, color = AppColors.InfoAccent, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(model, fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
                         com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(provider, model))
                         com.ai.ui.shared.ReasoningBadge(aiSettings.isReasoningCapable(provider, model))
@@ -468,7 +468,7 @@ internal fun ReportSelectFlockScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_pick_flock", title = "Pick a flock", subject = "Add a whole group of agents at once", onBackClick = onBack)
 
         OutlinedTextField(
@@ -525,7 +525,7 @@ internal fun ReportSelectFlockScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    flock.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                                    flock.name, style = MaterialTheme.typography.bodyLarge, color = AppColors.TextPrimary,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
                                 )
@@ -589,7 +589,7 @@ internal fun ReportSelectSwarmScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_pick_swarm", title = "Pick a swarm", subject = "Add a multi-agent team to the report", onBackClick = onBack)
 
         OutlinedTextField(
@@ -642,7 +642,7 @@ internal fun ReportSelectSwarmScreen(
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    swarm.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                                    swarm.name, style = MaterialTheme.typography.bodyLarge, color = AppColors.TextPrimary,
                                     fontWeight = FontWeight.SemiBold,
                                     modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis
                                 )
@@ -723,7 +723,7 @@ internal fun ReportSelectInternalPromptScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         // Reuse the closest existing helpTopic per category so the help
         // icon points at something meaningful even though this screen
         // is shared across the three picker entry points.
@@ -770,7 +770,7 @@ internal fun ReportSelectInternalPromptScreen(
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
                         Text(
-                            p.name, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                            p.name, style = MaterialTheme.typography.bodyLarge, color = AppColors.TextPrimary,
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.fillMaxWidth(), maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
@@ -821,7 +821,7 @@ internal fun ReportActionPickerScreen(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = helpTopic, title = titleText, subject = "Choose what to do with the report", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
             options.forEach { opt ->
@@ -830,7 +830,7 @@ internal fun ReportActionPickerScreen(
                         .padding(vertical = 12.dp, horizontal = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Text(opt.label, style = MaterialTheme.typography.bodyLarge, color = Color.White,
+                    Text(opt.label, style = MaterialTheme.typography.bodyLarge, color = AppColors.TextPrimary,
                         fontWeight = FontWeight.SemiBold)
                     if (!opt.detail.isNullOrBlank()) {
                         Text(opt.detail, fontSize = 12.sp, color = AppColors.InfoAccent,
@@ -890,7 +890,7 @@ internal fun ReportOneTimePromptScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val helpId = when (category) {
             "meta" -> "report_meta"
             "fan_out" -> "secondary_fan_out"
@@ -1009,7 +1009,7 @@ internal fun ReportSelectFromReportScreen(
             reports.filter { it.title.lowercase().contains(q) || it.prompt.lowercase().contains(q) }
         }
     }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_pick_previous", title = "Pick previous report", subject = "Reuse a past report's model selection", onBackClick = onBack)
 
         OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -1038,7 +1038,7 @@ internal fun ReportSelectFromReportScreen(
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(report.title.ifBlank { "(untitled)" }, fontSize = 14.sp, color = Color.White,
+                            Text(report.title.ifBlank { "(untitled)" }, fontSize = 14.sp, color = AppColors.TextPrimary,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(
                                 "${report.agents.size} model${if (report.agents.size == 1) "" else "s"}",
@@ -1091,7 +1091,7 @@ private fun ModelInfoRow(
         Text(provider.id, fontSize = 12.sp, color = AppColors.InfoAccent,
             maxLines = 1, overflow = TextOverflow.Ellipsis)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(model, fontSize = 13.sp, color = Color.White,
+            Text(model, fontSize = 13.sp, color = AppColors.TextPrimary,
                 modifier = Modifier.weight(1f),
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(provider, model))
@@ -1127,7 +1127,7 @@ private fun SwarmInfoScreen(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_swarm_info",
             title = "Swarm",
@@ -1168,7 +1168,7 @@ private fun FlockInfoScreen(
     val agents = aiSettings.getAgentsForFlock(flock)
     val flockParamNames = aiSettings.getParametersByIds(flock.paramsIds).map { it.name }
     val flockSystemPromptName = flock.systemPromptId?.let { aiSettings.getSystemPromptById(it)?.name }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_flock_info",
             title = "Flock",

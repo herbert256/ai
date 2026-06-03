@@ -193,7 +193,7 @@ fun CollapsibleCard(
                     )
                     Spacer(Modifier.width(12.dp))
                 }
-                Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                Text(title, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                 Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
             }
             if (expanded) content()
@@ -231,7 +231,7 @@ fun ControlledCollapsibleCard(
                     )
                     Spacer(Modifier.width(12.dp))
                 }
-                Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                Text(title, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                 Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
             }
             if (expanded) content()
@@ -1216,7 +1216,7 @@ fun TitleBar(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "AI", fontSize = 36.sp, color = Color.White, fontWeight = FontWeight.Bold,
+                text = "AI", fontSize = 36.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.Bold,
                 modifier = Modifier.clickable { navigateHome() }
             )
         }
@@ -1561,7 +1561,7 @@ internal fun AppTopBarChrome(
         val status = swipeStatus.value
         if (status != null) {
             Text(
-                text = status, color = Color.White, fontSize = 13.sp,
+                text = status, color = AppColors.TextPrimary, fontSize = 13.sp,
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .background(AppColors.SurfaceDark.copy(alpha = 0.95f))
@@ -1858,7 +1858,7 @@ private fun TitleBarIcon(
     ) {
         Text(
             text = emoji, fontSize = fontSize * scale,
-            color = if (tint == Color.Unspecified) Color.White else tint
+            color = if (tint == Color.Unspecified) AppColors.TextPrimary else tint
         )
     }
 }
@@ -2090,10 +2090,10 @@ private fun IconLegendOverlay(
         onDismissRequest = onClose,
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Surface(modifier = Modifier.fillMaxSize(), color = AppColors.AppBackground) {
             Column(modifier = Modifier.fillMaxSize().padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = 8.dp)) {
                 Text(
-                    header, color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold,
+                    header, color = AppColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
                 Column(
@@ -2109,7 +2109,7 @@ private fun IconLegendOverlay(
                             Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
                                 Text(
                                     spec.emoji, fontSize = 30.sp,
-                                    color = if (spec.tint == Color.Unspecified) Color.White else spec.tint
+                                    color = if (spec.tint == Color.Unspecified) AppColors.TextPrimary else spec.tint
                                 )
                             }
                             // Key the legend label off the stable factory glyph
@@ -2119,7 +2119,7 @@ private fun IconLegendOverlay(
                             Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                                 Text(
                                     entry?.first ?: spec.emoji,
-                                    color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
+                                    color = AppColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis
                                 )
                                 entry?.second?.takeIf { it.isNotBlank() }?.let { desc ->
@@ -2141,11 +2141,11 @@ private fun IconLegendOverlay(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Box(modifier = Modifier.width(56.dp), contentAlignment = Alignment.Center) {
-                            Text(mi.helpLegend, fontSize = 30.sp, color = Color.White)
+                            Text(mi.helpLegend, fontSize = 30.sp, color = AppColors.TextPrimary)
                         }
                         Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                             Text(
-                                "Icons help", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
+                                "Icons help", color = AppColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
                             )
                             Text(
                                 "Opens this list of the icons on the screen",
@@ -2166,7 +2166,7 @@ private fun IconLegendOverlay(
                         }
                         Column(modifier = Modifier.padding(start = 12.dp).weight(1f)) {
                             Text(
-                                "Screen help", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
+                                "Screen help", color = AppColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.SemiBold
                             )
                             Text(
                                 "Opens the help for the screen",

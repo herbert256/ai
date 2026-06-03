@@ -86,7 +86,7 @@ internal fun FanOutL1MetaScreen(
             .map { it.key to it.value.sortedBy { p -> p.timestamp } }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "fan_meta",
             title = "Fan Meta - All",
@@ -146,7 +146,7 @@ internal fun FanOutL1MetaScreen(
                             // The pair's found icon (Fan Meta result).
                             Text(p.icon ?: com.ai.data.MetadataIconsHolder.current.boxBlank, fontSize = 16.sp, modifier = Modifier.padding(end = 8.dp))
                             Text(
-                                p.title.orEmpty(), fontSize = 14.sp, color = Color.White,
+                                p.title.orEmpty(), fontSize = 14.sp, color = AppColors.TextPrimary,
                                 modifier = Modifier.weight(1f),
                                 maxLines = 2, overflow = TextOverflow.Ellipsis
                             )
@@ -201,7 +201,7 @@ internal fun FanOutL2MetaScreen(
             .sortedBy { it.timestamp }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "fan_meta",
             title = "Fan out - model titles",
@@ -257,7 +257,7 @@ internal fun FanOutL2MetaScreen(
                     Text(com.ai.data.MetadataIconsHolder.current.label, fontSize = 18.sp, modifier = Modifier.padding(end = 8.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            p.title.orEmpty(), fontSize = 15.sp, color = Color.White,
+                            p.title.orEmpty(), fontSize = 15.sp, color = AppColors.TextPrimary,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 2, overflow = TextOverflow.Ellipsis
                         )

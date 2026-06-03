@@ -136,7 +136,7 @@ internal fun FanOutL3Screen(
     }
 
     if (pair == null) {
-        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             val pendingHolderEmpty = com.ai.ui.shared.LocalPendingViewOverManage.current
             val onOpenViewEmptyJump: (() -> Unit)? = pendingHolderEmpty?.let { holder ->
                 {
@@ -461,7 +461,7 @@ internal fun FanOutL3Screen(
         }
     }
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    BoxWithConstraints(Modifier.fillMaxSize().background(AppColors.AppBackground)) {
         val halfMax = maxHeight / 2
         Column(Modifier.fillMaxSize().padding(16.dp)) {
             // 👁 → matching View Fan-out for this metaPromptName.
@@ -532,7 +532,7 @@ internal fun FanOutL3Screen(
                     if (!sourceIcon.isNullOrBlank()) {
                         Text(
                             sourceIcon, fontSize = 16.sp,
-                            modifier = Modifier.background(MaterialTheme.colorScheme.background)
+                            modifier = Modifier.background(AppColors.AppBackground)
                                 .padding(end = 6.dp)
                         )
                     }
@@ -564,7 +564,7 @@ internal fun FanOutL3Screen(
                     if (body.isNullOrBlank()) {
                         Text("(source content not found)", color = AppColors.TextTertiary, fontSize = 13.sp)
                     } else {
-                        Text(body, fontSize = 13.sp, color = Color.White)
+                        Text(body, fontSize = 13.sp, color = AppColors.TextPrimary)
                     }
                 }
             }
@@ -584,7 +584,7 @@ internal fun FanOutL3Screen(
                         // MAIN mode — ICONS-mode L3 is itself an
                         // icon-focused view.
                         val iconModifier = Modifier
-                            .background(MaterialTheme.colorScheme.background)
+                            .background(AppColors.AppBackground)
                             .padding(end = 6.dp)
                             .let { base ->
                                 if (mode == FanOutMode.MAIN) {
@@ -657,7 +657,7 @@ internal fun FanOutL3Screen(
                             if (body.isNullOrBlank()) {
                                 Text("(no result)", color = AppColors.TextTertiary, fontSize = 13.sp)
                             } else {
-                                Text(body, fontSize = 13.sp, color = Color.White)
+                                Text(body, fontSize = 13.sp, color = AppColors.TextPrimary)
                             }
                         }
                     }
@@ -771,7 +771,7 @@ internal fun FanOutL3MetaBody(
     }
 
     Column(
-        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)
             .pointerInput(prev, next, role) {
                 detectHorizontalDragGestures(
                     onDragStart = { swipeDragX.floatValue = 0f },
@@ -817,7 +817,7 @@ internal fun FanOutL3MetaBody(
             verticalArrangement = Arrangement.Center
         ) {
             // Big, centered, the found icon.
-            Text(icon ?: com.ai.data.MetadataIconsHolder.current.label, fontSize = 72.sp, color = Color.White)
+            Text(icon ?: com.ai.data.MetadataIconsHolder.current.label, fontSize = 72.sp, color = AppColors.TextPrimary)
             Spacer(Modifier.height(20.dp))
             // Green, big, the found title.
             Text(
@@ -832,14 +832,14 @@ internal fun FanOutL3MetaBody(
             Column(Modifier.fillMaxWidth()) {
                 Text(
                     "Fan-out model:  ${shortModelName(pair.model)}",
-                    fontSize = 14.sp, color = Color.White,
+                    fontSize = 14.sp, color = AppColors.TextPrimary,
                     fontFamily = FontFamily.Monospace, maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
                     "Meta model:     $metaModel",
-                    fontSize = 14.sp, color = Color.White,
+                    fontSize = 14.sp, color = AppColors.TextPrimary,
                     fontFamily = FontFamily.Monospace, maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )

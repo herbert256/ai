@@ -135,7 +135,7 @@ fun RerankViewScreen(
     }
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
             .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction() }, onNext = { onSwipeNextAction() })
     ) {
@@ -206,9 +206,9 @@ fun RerankViewScreen(
                 val label = agentLabels[row.id]
                 val onCardClick: (() -> Unit)? = label?.agentId?.let { aid -> { onOpenReportForAgent(aid) } }
                 when (row.rank) {
-                    1 -> PodiumCard(row, label, MedalSpec(com.ai.data.MetadataIconsHolder.current.medalGold, Color(0xFFFFD54F), "Gold"), onCardClick)
-                    2 -> PodiumCard(row, label, MedalSpec(com.ai.data.MetadataIconsHolder.current.medalSilver, Color(0xFFB0BEC5), "Silver"), onCardClick)
-                    3 -> PodiumCard(row, label, MedalSpec(com.ai.data.MetadataIconsHolder.current.medalBronze, Color(0xFFCD7F32), "Bronze"), onCardClick)
+                    1 -> PodiumCard(row, label, MedalSpec(com.ai.data.MetadataIconsHolder.current.medalGold, AppColors.WarningAccent, "Gold"), onCardClick)
+                    2 -> PodiumCard(row, label, MedalSpec(com.ai.data.MetadataIconsHolder.current.medalSilver, AppColors.TextSecondary, "Silver"), onCardClick)
+                    3 -> PodiumCard(row, label, MedalSpec(com.ai.data.MetadataIconsHolder.current.medalBronze, AppColors.QueueAccent, "Bronze"), onCardClick)
                     else -> RankRow(row, label)
                 }
             }
@@ -286,7 +286,7 @@ private fun RankRow(row: RerankRow, label: AgentLabel?) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(34.dp).clip(CircleShape).background(Color(0x33000000)),
+            modifier = Modifier.size(34.dp).clip(CircleShape).background(AppColors.AppBackground.copy(alpha = 0.2f)),
             contentAlignment = Alignment.Center
         ) {
             Text(

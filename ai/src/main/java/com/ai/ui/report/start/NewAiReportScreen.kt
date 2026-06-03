@@ -56,7 +56,7 @@ fun NewAiReportScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .verticalScroll(rememberScrollState())
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
@@ -97,7 +97,7 @@ private fun NewAiReportItem(
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
-            color = if (enabled) Color.White else AppColors.TextDim,
+            color = if (enabled) AppColors.TextPrimary else AppColors.TextDim,
             maxLines = 1, overflow = TextOverflow.Ellipsis
         )
     }

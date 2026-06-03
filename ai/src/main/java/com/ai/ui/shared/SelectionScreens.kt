@@ -123,7 +123,7 @@ fun SelectModelScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "model_pick_model", title = "Select Model", subject = "Pick a model, with pricing & flags", onBackClick = onBack)
 
@@ -222,7 +222,7 @@ fun SelectModelScreen(
                         .alpha(state.rowAlpha)
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(shortModelName(modelName), style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Text(shortModelName(modelName), style = MaterialTheme.typography.bodyMedium, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                         VisionBadge(aiSettings.isVisionCapable(provider, modelName))
                         WebSearchBadge(aiSettings.isWebSearchCapable(provider, modelName))
                         ReasoningBadge(aiSettings.isReasoningCapable(provider, modelName))
@@ -266,7 +266,7 @@ fun SelectProviderScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "model_pick_provider", title = "Select Provider", subject = "Pick a cloud provider", onBackClick = onBack)
 
@@ -306,7 +306,7 @@ fun SelectProviderScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(provider.id, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(provider.id, style = MaterialTheme.typography.bodyMedium, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Text(stateEmoji, fontSize = 14.sp, modifier = Modifier.padding(start = 8.dp))
                 }
@@ -344,7 +344,7 @@ fun SelectAgentScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "model_pick_agent", title = "Select Agent", subject = "Pick one of your saved agents", onBackClick = onBack)
 
@@ -391,7 +391,7 @@ fun SelectAgentScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(agent.name, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(agent.name, style = MaterialTheme.typography.bodyMedium, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             VisionBadge(aiSettings.isVisionCapable(agent.provider, effectiveModel))
                             WebSearchBadge(aiSettings.isWebSearchCapable(agent.provider, effectiveModel))
                             ReasoningBadge(aiSettings.isReasoningCapable(agent.provider, effectiveModel))

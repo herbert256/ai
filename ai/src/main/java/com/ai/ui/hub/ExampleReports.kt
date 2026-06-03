@@ -174,7 +174,7 @@ internal fun ExampleReportRow(
         Text(text = entry.icon.ifBlank { com.ai.data.MetadataIconsHolder.current.reportIcon }, fontSize = 22.sp)
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = entry.title, fontSize = 14.sp, color = Color.White,
+            text = entry.title, fontSize = 14.sp, color = AppColors.TextPrimary,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
@@ -208,7 +208,7 @@ internal fun AllAiExamplesScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(title = "Examples", subject = "Open ready-made example reports", helpTopic = "ai_examples_screen", onBackClick = onNavigateBack)

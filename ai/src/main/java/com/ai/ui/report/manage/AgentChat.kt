@@ -187,7 +187,7 @@ internal fun AgentChatScreen(
         if (count > 0) listState.animateScrollToItem(count - 1)
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_agent_chat",
             title = "Refine answer",
@@ -267,7 +267,7 @@ private fun AgentChatBubble(msg: ChatMessage, onApply: (() -> Unit)?) {
                 .background(if (isUser) AppColors.InfoAccent.copy(alpha = 0.20f) else AppColors.CardBackground)
                 .padding(10.dp)
         ) {
-            Text(msg.content, fontSize = 13.sp, color = Color.White)
+            Text(msg.content, fontSize = 13.sp, color = AppColors.TextPrimary)
         }
         if (onApply != null) {
             Text(

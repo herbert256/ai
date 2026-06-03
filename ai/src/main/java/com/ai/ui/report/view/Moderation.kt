@@ -137,7 +137,7 @@ fun ModerationViewScreen(
     }
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
             .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction() }, onNext = { onSwipeNextAction() })
     ) {
@@ -395,7 +395,7 @@ private fun CategoryChip(cat: String, fired: Boolean, score: Double) {
     ) {
         Text(
             text = text,
-            color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+            color = AppColors.TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.Medium,
             maxLines = 1, softWrap = false
         )
     }

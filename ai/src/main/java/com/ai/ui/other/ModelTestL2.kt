@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -69,7 +68,7 @@ internal fun ModelTestL2Screen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "test_all_models_l2",
             title = "Test all models - provider",
@@ -111,7 +110,7 @@ internal fun ModelTestL2Screen(
                         }
                         Text(
                             p.model,
-                            fontSize = 14.sp, color = Color.White,
+                            fontSize = 14.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f).padding(start = 16.dp)
                         )

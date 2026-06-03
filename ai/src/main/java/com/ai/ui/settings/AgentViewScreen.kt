@@ -53,7 +53,7 @@ fun AgentViewScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewScreenTitleBar(
@@ -112,7 +112,7 @@ private fun AgentHeroCard(agent: Agent) {
             Text(
                 text = agent.name,
                 fontSize = 22.sp,
-                color = Color.White,
+                color = AppColors.TextPrimary,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
@@ -139,7 +139,7 @@ private fun AgentDetailsCard(agent: Agent) {
         Text("Details", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text("Provider", fontSize = 13.sp, color = AppColors.TextTertiary)
-            Text(agent.provider.id, fontSize = 13.sp, color = Color.White)
+            Text(agent.provider.id, fontSize = 13.sp, color = AppColors.TextPrimary)
         }
         Row(
             modifier = Modifier.fillMaxWidth().modelInfoViewClickable(agent.provider, agent.model),
@@ -151,13 +151,13 @@ private fun AgentDetailsCard(agent: Agent) {
         if (!agent.endpointId.isNullOrBlank()) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Endpoint", fontSize = 13.sp, color = AppColors.TextTertiary)
-                Text(agent.endpointId, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(agent.endpointId, fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         if (agent.apiKey.isNotBlank()) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("API key", fontSize = 13.sp, color = AppColors.TextTertiary)
-                Text("•••• (set)", fontSize = 13.sp, color = Color.White)
+                Text("•••• (set)", fontSize = 13.sp, color = AppColors.TextPrimary)
             }
         }
     }

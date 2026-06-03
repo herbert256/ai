@@ -43,13 +43,13 @@ import com.ai.ui.shared.AppColors
 internal fun ReportSelectProviderDialog(aiSettings: Settings, onSelectProvider: (AppService) -> Unit, onDismiss: () -> Unit) {
     val activeProviders = AppService.entries.filter { aiSettings.getProviderState(it) == "ok" }
     Dialog(onDismissRequest = onDismiss) {
-        Surface(modifier = Modifier.heightIn(max = 400.dp), shape = MaterialTheme.shapes.large, color = Color(0xFF2D2D2D)) {
+        Surface(modifier = Modifier.heightIn(max = 400.dp), shape = MaterialTheme.shapes.large, color = AppColors.SurfaceDark) {
             Column(modifier = Modifier.padding(12.dp).verticalScroll(rememberScrollState())) {
-                Text("Select a provider", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
+                Text("Select a provider", style = MaterialTheme.typography.titleMedium, color = AppColors.TextPrimary, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth().background(AppColors.SurfaceDark, shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
                 Spacer(modifier = Modifier.height(6.dp))
                 activeProviders.forEach { provider ->
-                    Text(provider.id, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1,
+                    Text(provider.id, style = MaterialTheme.typography.bodyMedium, color = AppColors.TextPrimary, maxLines = 1,
                         modifier = Modifier.fillMaxWidth().clickable { onSelectProvider(provider) }.padding(vertical = 8.dp, horizontal = 4.dp))
                     HorizontalDivider(color = AppColors.TextDisabled, thickness = 1.dp)
                 }
@@ -90,10 +90,10 @@ internal fun ReportSelectModelDialog(
     }
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(modifier = Modifier.wrapContentWidth().widthIn(min = 280.dp, max = 360.dp).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = Color(0xFF2D2D2D)) {
+        Surface(modifier = Modifier.wrapContentWidth().widthIn(min = 280.dp, max = 360.dp).fillMaxHeight(0.65f), shape = MaterialTheme.shapes.large, color = AppColors.SurfaceDark) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text("${provider.id} — ${all.size} models", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.fillMaxWidth().background(Color(0xFF3A3A3A), shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
+                Text("${provider.id} — ${all.size} models", style = MaterialTheme.typography.titleMedium, color = AppColors.TextPrimary, fontWeight = FontWeight.Bold,
+                    modifier = Modifier.fillMaxWidth().background(AppColors.SurfaceDark, shape = MaterialTheme.shapes.small).padding(horizontal = 8.dp, vertical = 8.dp))
                 Spacer(modifier = Modifier.height(6.dp))
                 OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(), textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp), placeholder = { Text("Search...", fontSize = 14.sp) }, singleLine = true,
                     colors = AppColors.outlinedFieldColors(), trailingIcon = { if (search.isNotEmpty()) IconButton(onClick = { search = "" }) { Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.TextTertiary, fontSize = 12.sp) } })
@@ -125,7 +125,7 @@ internal fun ReportSelectModelDialog(
                             .alpha(if (benchedUntil != null) 0.4f else 1f)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(model, style = MaterialTheme.typography.bodyMedium, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            Text(model, style = MaterialTheme.typography.bodyMedium, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                             if (deprecation != null) {
                                 Text(com.ai.data.MetadataIconsHolder.current.statusWarning, fontSize = 12.sp, color = AppColors.WarningAccent, modifier = Modifier.padding(end = 2.dp))
                             }

@@ -54,7 +54,7 @@ internal fun ReportCreateOverviewScreen(
 ) {
     BackHandler { onBack() }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -91,7 +91,7 @@ internal fun ReportTournamentOverviewScreen(
 ) {
     BackHandler { onBack() }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -134,7 +134,7 @@ private fun CreateRow(
     ) {
         Text(icon, fontSize = 32.sp, modifier = Modifier.padding(end = 14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 17.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+            Text(title, fontSize = 17.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
             Text(
                 explanation, fontSize = 13.sp, color = AppColors.TextTertiary,
                 maxLines = 2, overflow = TextOverflow.Ellipsis

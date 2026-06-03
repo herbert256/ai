@@ -288,7 +288,7 @@ fun FanOutViewScreen(
     var showAll by rememberSaveable(currentReportId, currentPromptName) { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
             .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction?.invoke() }, onNext = { onSwipeNextAction?.invoke() })
     ) {

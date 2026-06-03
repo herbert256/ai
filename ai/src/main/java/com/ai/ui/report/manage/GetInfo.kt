@@ -376,7 +376,7 @@ fun ReportGetInfoScreen(
         }
     }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         // publishBottomBar=false: this screen is drawn as a layer on top
@@ -411,7 +411,7 @@ fun ReportGetInfoScreen(
                         modifier = Modifier.width(96.dp).padding(start = 8.dp, end = 6.dp)
                     )
                     Column(modifier = Modifier.weight(1f)) {
-                        val color = if (job.state == InfoJobState.FAILED) AppColors.DangerAccent else Color.White
+                        val color = if (job.state == InfoJobState.FAILED) AppColors.DangerAccent else AppColors.TextPrimary
                         Text(job.label, fontSize = 13.sp, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     if (job.cost > 0.0) {

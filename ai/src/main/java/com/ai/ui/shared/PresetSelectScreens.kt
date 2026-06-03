@@ -64,7 +64,7 @@ fun ParametersSelectScreen(
     val activeNames = aiSettings.parameters.filter { it.id in selected }.joinToString(", ") { it.name }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)
     ) {
         TitleBar(
             helpTopic = "select_parameters",
@@ -112,7 +112,7 @@ fun SystemPromptSelectScreen(
     val activeName = selectedId?.let { id -> aiSettings.systemPrompts.firstOrNull { it.id == id }?.name }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)
     ) {
         TitleBar(
             helpTopic = "select_system_prompt",
@@ -217,7 +217,7 @@ private fun PresetRow(
             else RadioButton(selected = selected, onClick = onClick)
             Spacer(modifier = Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(name, color = Color.White, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                Text(name, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (detail.isNotEmpty()) {
                     Text(detail, color = AppColors.TextTertiary, fontSize = 12.sp,

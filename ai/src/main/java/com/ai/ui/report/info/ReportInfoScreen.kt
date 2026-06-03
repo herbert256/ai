@@ -83,7 +83,7 @@ fun ReportInfoScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -239,7 +239,7 @@ private fun InfoRow(
         Text(label, color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.weight(0.42f))
         Text(
             value,
-            color = if (dim) AppColors.TextTertiary else androidx.compose.ui.graphics.Color.White,
+            color = if (dim) AppColors.TextTertiary else AppColors.TextPrimary,
             fontSize = 13.sp,
             textAlign = androidx.compose.ui.text.style.TextAlign.End,
             overflow = TextOverflow.Ellipsis,
@@ -301,7 +301,7 @@ private fun ReportInfoTableLine(
     header: Boolean = false,
     onFirstClick: (() -> Unit)? = null
 ) {
-    val color = if (header) AppColors.TextTertiary else androidx.compose.ui.graphics.Color.White
+    val color = if (header) AppColors.TextTertiary else AppColors.TextPrimary
     val weight = if (header) FontWeight.Bold else FontWeight.Normal
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = if (header) 4.dp else 5.dp),

@@ -117,7 +117,7 @@ internal fun SecondaryScopeScreen(
     // screen for fan_out; they're back on the Run page (above the
     // prompt) so the Scope step stays focused on scope + language.
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "secondary_scope",
             title = if (metaPrompt.category == "fan_out") "Fan Out - scope" else "Scope",
@@ -236,7 +236,7 @@ internal fun SecondaryScopeScreen(
                             OutlinedButton(
                                 onClick = { rerankDropdownOpen = true },
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColors.TextPrimary),
                                 border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.BorderUnfocused)
                             ) {
                                 val sel = reranks.firstOrNull { it.id == selectedRerank }
@@ -244,7 +244,7 @@ internal fun SecondaryScopeScreen(
                                     text = sel?.let { rerankLabel(it) } ?: "Pick a rerank",
                                     modifier = Modifier.weight(1f),
                                     fontSize = 13.sp,
-                                    color = if (sel != null) Color.White else AppColors.TextTertiary,
+                                    color = if (sel != null) AppColors.TextPrimary else AppColors.TextTertiary,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis
                                 )
                                 Text("▾", color = AppColors.TextTertiary)
@@ -252,14 +252,14 @@ internal fun SecondaryScopeScreen(
                             DropdownMenu(
                                 expanded = rerankDropdownOpen,
                                 onDismissRequest = { rerankDropdownOpen = false },
-                                modifier = Modifier.background(Color(0xFF2D2D2D))
+                                modifier = Modifier.background(AppColors.SurfaceDark)
                             ) {
                                 reranks.forEach { r ->
                                     DropdownMenuItem(
                                         text = {
                                             Text(
                                                 rerankLabel(r),
-                                                color = if (r.id == selectedRerank) AppColors.InfoAccent else Color.White,
+                                                color = if (r.id == selectedRerank) AppColors.InfoAccent else AppColors.TextPrimary,
                                                 fontSize = 13.sp
                                             )
                                         },
@@ -295,7 +295,7 @@ internal fun SecondaryScopeScreen(
                                 val agentProv = AppService.findById(a.provider)?.id ?: a.provider
                                 Text(
                                     com.ai.ui.shared.modelLabel(agentProv, a.model, separator = " / "),
-                                    fontSize = 13.sp, color = Color.White,
+                                    fontSize = 13.sp, color = AppColors.TextPrimary,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -321,7 +321,7 @@ internal fun SecondaryScopeScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 "Let models respond to their own answers",
-                                fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold
+                                fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold
                             )
                             Text(
                                 "A model also reacts to the answer it gave",
@@ -360,7 +360,7 @@ internal fun SecondaryScopeScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 RadioButton(selected = fanOutPickedLanguage == "", onClick = { fanOutPickedLanguage = "" })
-                                Text("Original", fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f),
+                                Text("Original", fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f),
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                             languages.forEach { (lang, native) ->
@@ -371,7 +371,7 @@ internal fun SecondaryScopeScreen(
                                 ) {
                                     RadioButton(selected = selected, onClick = { fanOutPickedLanguage = lang })
                                     val label = native?.takeIf { it.isNotBlank() && it != lang }?.let { "$lang · $it" } ?: lang
-                                    Text(label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f),
+                                    Text(label, fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f),
                                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
@@ -403,7 +403,7 @@ internal fun SecondaryScopeScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Checkbox(checked = pickedOriginal, onCheckedChange = { pickedOriginal = it })
-                                    Text("Original", fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f),
+                                    Text("Original", fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f),
                                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                                 languages.forEach { (lang, native) ->
@@ -414,7 +414,7 @@ internal fun SecondaryScopeScreen(
                                     ) {
                                         Checkbox(checked = checked, onCheckedChange = { pickedLanguages[lang] = it })
                                         val label = native?.takeIf { it.isNotBlank() && it != lang }?.let { "$lang · $it" } ?: lang
-                                        Text(label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f),
+                                        Text(label, fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f),
                                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     }
                                 }
@@ -446,7 +446,7 @@ private fun ScopeOption(selected: Boolean, label: String, sublabel: String, onSe
             RadioButton(selected = selected, onClick = onSelect)
             Spacer(modifier = Modifier.width(4.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(label, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text(label, fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
                 Text(sublabel, fontSize = 11.sp, color = AppColors.TextTertiary, fontFamily = FontFamily.Default)
             }
         }

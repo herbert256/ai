@@ -103,7 +103,7 @@ internal fun UserNoteCard(
                 Text(com.ai.data.MetadataIconsHolder.current.addNote, fontSize = 13.sp, modifier = Modifier.padding(end = 8.dp))
                 Text(
                     text = headline,
-                    color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                    color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
@@ -191,7 +191,7 @@ internal fun UserNoteEditorScreen(
     BackHandler { onCancel() }
     var text by rememberSaveable(initialText) { mutableStateOf(initialText) }
     val canSave = text.trim().isNotBlank()
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_user_note_edit", title = titleBarTitle,
             subject = "Your own note — not sent to any model", onBackClick = onCancel
@@ -280,7 +280,7 @@ internal fun ReportNotesListScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_notes", title = "User notes",
             subject = "Every note in this report", onBackClick = onBack,

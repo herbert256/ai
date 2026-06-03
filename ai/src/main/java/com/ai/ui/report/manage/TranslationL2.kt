@@ -90,7 +90,7 @@ internal fun TranslationL2Screen(
     val cost = rows.sumOf { it.costDollars }
     val allDone = total > 0 && done == total
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         // 👁 → matching View Translate screen for this run.
         val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
         val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
@@ -153,7 +153,7 @@ internal fun TranslationL2Screen(
                         // takes the remaining width and ellipsises. The row
                         // background fill still conveys done/error.
                         val cellSize = 13.sp
-                        val cellColor = Color.White
+                        val cellColor = AppColors.TextPrimary
                         Text(
                             if (isModels) translationTypeLabel(item.traceType)
                             else com.ai.ui.shared.shortModelName(item.model.orEmpty()),

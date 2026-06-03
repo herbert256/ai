@@ -226,7 +226,7 @@ fun DualChatSetupScreen(
     val canStart = model1Provider != null && model1Name.isNotBlank() && model2Provider != null && model2Name.isNotBlank() && subject.isNotBlank() && (interactionCount.toIntOrNull() ?: 0) > 0
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "dual_chat_setup", title = "Dual Chat", subject = "Set up two models to debate a topic", onBackClick = onNavigateBack,
             onParameters = { showParamsChooser = true }, onSystemPrompt = { showSysPromptChooser = true })
@@ -235,7 +235,7 @@ fun DualChatSetupScreen(
             // Model 1
             ModelSelectionCard(
                 label = "Model 1", providerName = model1Provider?.id, modelName = model1Name,
-                onSelectClick = { overlayMode = 1 }, color = Color(0xFF4488CC)
+                onSelectClick = { overlayMode = 1 }, color = AppColors.InfoAccent
             )
 
             // Swap button
@@ -250,7 +250,7 @@ fun DualChatSetupScreen(
             // Model 2
             ModelSelectionCard(
                 label = "Model 2", providerName = model2Provider?.id, modelName = model2Name,
-                onSelectClick = { overlayMode = 3 }, color = Color(0xFF44AA66)
+                onSelectClick = { overlayMode = 3 }, color = AppColors.SuccessAccent
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -508,7 +508,7 @@ fun DualChatSessionScreen(
     var showInfoPicker by remember { mutableStateOf(false) }
     val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "dual_chat_session",
@@ -518,12 +518,12 @@ fun DualChatSessionScreen(
 
         // Cost row
         Row(
-            modifier = Modifier.fillMaxWidth().background(Color(0xFF1A2A3A), RoundedCornerShape(8.dp)).padding(8.dp),
+            modifier = Modifier.fillMaxWidth().background(AppColors.CardBackground, RoundedCornerShape(8.dp)).padding(8.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            CostLabel("Model 1", model1Cost, Color(0xFF4488CC))
-            CostLabel("Model 2", model2Cost, Color(0xFF44AA66))
-            CostLabel("Total", totalCost, Color(0xFFCCCCCC))
+            CostLabel("Model 1", model1Cost, AppColors.InfoAccent)
+            CostLabel("Model 2", model2Cost, AppColors.SuccessAccent)
+            CostLabel("Total", totalCost, AppColors.TextSecondary)
         }
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -537,7 +537,7 @@ fun DualChatSessionScreen(
             }
             if (thinkingModel != null) {
                 item(key = "thinking") {
-                    val color = if (thinkingModel == 1) Color(0xFF4488CC) else Color(0xFF44AA66)
+                    val color = if (thinkingModel == 1) AppColors.InfoAccent else AppColors.SuccessAccent
                     val align = if (thinkingModel == 1) Alignment.CenterStart else Alignment.CenterEnd
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = align) {
                         Card(
@@ -558,7 +558,7 @@ fun DualChatSessionScreen(
 
         // Error
         if (errorMessage != null) {
-            Text(errorMessage!!, color = Color(0xFFFF6666), fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp))
+            Text(errorMessage!!, color = AppColors.DangerAccent, fontSize = 12.sp, modifier = Modifier.padding(vertical = 4.dp))
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -574,7 +574,7 @@ fun DualChatSessionScreen(
                     isRunning = false; isStopped = true; thinkingModel = null
                 },
                 modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFCC4444))
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.DangerAccent)
             ) { Text("Stop", maxLines = 1, softWrap = false) }
         } else if (isStopped) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -606,7 +606,7 @@ fun DualChatSessionScreen(
                 Column {
                     Text(
                         "${config.model1Provider.id} — ${com.ai.ui.shared.shortModelName(config.model1Name)}",
-                        fontSize = 14.sp, color = Color.White,
+                        fontSize = 14.sp, color = AppColors.TextPrimary,
                         modifier = Modifier.fillMaxWidth().clickable {
                             showInfoPicker = false
                             navToModelInfo(config.model1Provider, config.model1Name)
@@ -614,7 +614,7 @@ fun DualChatSessionScreen(
                     )
                     Text(
                         "${config.model2Provider.id} — ${com.ai.ui.shared.shortModelName(config.model2Name)}",
-                        fontSize = 14.sp, color = Color.White,
+                        fontSize = 14.sp, color = AppColors.TextPrimary,
                         modifier = Modifier.fillMaxWidth().clickable {
                             showInfoPicker = false
                             navToModelInfo(config.model2Provider, config.model2Name)
@@ -645,7 +645,7 @@ private fun DualMessageBubble(
     onNavigateToTraceFile: (String) -> Unit
 ) {
     val isModel1 = msg.modelIndex == 1
-    val color = if (isModel1) Color(0xFF4488CC) else Color(0xFF44AA66)
+    val color = if (isModel1) AppColors.InfoAccent else AppColors.SuccessAccent
     val align = if (isModel1) Alignment.CenterStart else Alignment.CenterEnd
 
     // Closest-timestamp trace lookup, mirroring the single-chat
@@ -684,7 +684,7 @@ private fun DualMessageBubble(
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(msg.content, fontSize = 14.sp, color = Color.White)
+                Text(msg.content, fontSize = 14.sp, color = AppColors.TextPrimary)
             }
         }
     }

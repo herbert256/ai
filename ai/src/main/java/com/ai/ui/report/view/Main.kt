@@ -1195,7 +1195,7 @@ internal fun ViewAiReportScreen(
     // [ViewScreenTitleBar] (title-bar swipe is now generic across
     // every View screen — see ViewSwipeNav.kt).
     Box(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
     ) {
     Column(
         modifier = Modifier.fillMaxSize()
@@ -1428,7 +1428,7 @@ internal fun ViewAiReportScreen(
                                 }
                                 androidx.compose.material3.Text(
                                     src.displayName,
-                                    color = Color.White, fontSize = 15.sp,
+                                    color = AppColors.TextPrimary, fontSize = 15.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -1663,12 +1663,12 @@ private fun TileCard(tile: ViewTile) {
             if (tile.count >= 2) {
                 Box(
                     modifier = Modifier.align(Alignment.TopEnd).padding(8.dp)
-                        .size(22.dp).clip(CircleShape).background(Color.Black.copy(alpha = 0.55f)),
+                        .size(22.dp).clip(CircleShape).background(AppColors.AppBackground.copy(alpha = 0.55f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         tile.count.toString(),
-                        color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.SemiBold
+                        color = AppColors.TextPrimary, fontSize = 11.sp, fontWeight = FontWeight.SemiBold
                     )
                 }
             }
@@ -1691,7 +1691,7 @@ private fun StandardTileBody(tile: ViewTile) {
         Text(tile.emoji, fontSize = 36.sp)
         Spacer(modifier = Modifier.height(6.dp))
         Text(
-            tile.label, color = Color.White, fontSize = 14.sp,
+            tile.label, color = AppColors.TextPrimary, fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
             maxLines = 1, overflow = TextOverflow.Ellipsis
         )
@@ -1717,20 +1717,20 @@ private fun TournamentTileBody(tile: ViewTile) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             TournamentBadge("A", AppColors.SuccessAccent)
-            Text("vs", color = Color.White.copy(alpha = 0.82f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            Text("vs", color = AppColors.TextPrimary.copy(alpha = 0.82f), fontSize = 10.sp, fontWeight = FontWeight.Bold)
             TournamentBadge("B", AppColors.DangerAccent)
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(tile.emoji, fontSize = 31.sp)
         Spacer(modifier = Modifier.height(3.dp))
         Text(
-            tile.label, color = Color.White, fontSize = 14.sp,
+            tile.label, color = AppColors.TextPrimary, fontSize = 14.sp,
             fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
             maxLines = 1, overflow = TextOverflow.Ellipsis
         )
         Text(
             tile.sublabel ?: "head-to-head",
-            color = Color.White.copy(alpha = 0.78f), fontSize = 10.sp,
+            color = AppColors.TextPrimary.copy(alpha = 0.78f), fontSize = 10.sp,
             fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
             maxLines = 1, overflow = TextOverflow.Ellipsis
         )
@@ -1741,7 +1741,7 @@ private fun TournamentTileBody(tile: ViewTile) {
 private fun TournamentBadge(text: String, color: Color) {
     Box(
         modifier = Modifier.size(18.dp).clip(CircleShape)
-            .background(Color.Black.copy(alpha = 0.42f))
+            .background(AppColors.AppBackground.copy(alpha = 0.42f))
             .border(BorderStroke(1.dp, color.copy(alpha = 0.85f)), CircleShape),
         contentAlignment = Alignment.Center
     ) {
@@ -1752,7 +1752,7 @@ private fun TournamentBadge(text: String, color: Color) {
 @Composable
 private fun TournamentTileLines() {
     Canvas(modifier = Modifier.fillMaxSize().padding(13.dp)) {
-        val line = Color.White.copy(alpha = 0.22f)
+        val line = AppColors.TextPrimary.copy(alpha = 0.22f)
         val stroke = 1.4.dp.toPx()
         val left = size.width * 0.08f
         val mid = size.width * 0.46f
@@ -1798,7 +1798,7 @@ private fun ExpandedKindCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        item.label, color = Color.White, fontSize = 14.sp,
+                        item.label, color = AppColors.TextPrimary, fontSize = 14.sp,
                         modifier = Modifier.weight(1f),
                         maxLines = 1, overflow = TextOverflow.Ellipsis
                     )

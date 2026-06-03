@@ -46,7 +46,7 @@ fun AboutScreen(
 ) {
     BackHandler { onBack() }
     val context = LocalContext.current
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
         TitleBar(
             helpTopic = "about",
             title = "About", subject = "Version, build date and credits",

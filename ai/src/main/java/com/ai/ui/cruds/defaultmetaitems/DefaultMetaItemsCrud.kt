@@ -164,7 +164,7 @@ private fun DefaultMetaItemForm(
     ) {
         // ---- Active flag ----
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-            Text("Active", fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+            Text("Active", fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
             Switch(checked = active, onCheckedChange = { active = it })
         }
         Text(
@@ -178,18 +178,18 @@ private fun DefaultMetaItemForm(
             OutlinedButton(onClick = { metaMenuOpen = true }, modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()) {
                 Text(metaName.ifBlank { "Pick a meta prompt…" }, modifier = Modifier.weight(1f),
-                    fontSize = 13.sp, color = if (metaName.isBlank()) AppColors.TextTertiary else Color.White,
+                    fontSize = 13.sp, color = if (metaName.isBlank()) AppColors.TextTertiary else AppColors.TextPrimary,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("▾", color = AppColors.TextTertiary)
             }
             DropdownMenu(expanded = metaMenuOpen, onDismissRequest = { metaMenuOpen = false },
-                modifier = Modifier.background(Color(0xFF2D2D2D))) {
+                modifier = Modifier.background(AppColors.SurfaceDark)) {
                 if (metaNames.isEmpty()) DropdownMenuItem(enabled = false,
                     text = { Text("No meta prompts defined", fontSize = 13.sp, color = AppColors.TextTertiary) },
                     onClick = {})
                 metaNames.forEach { n ->
                     DropdownMenuItem(
-                        text = { Text(n, fontSize = 13.sp, color = if (metaName == n) AppColors.InfoAccent else Color.White) },
+                        text = { Text(n, fontSize = 13.sp, color = if (metaName == n) AppColors.InfoAccent else AppColors.TextPrimary) },
                         onClick = { metaName = n; metaMenuOpen = false })
                 }
             }
@@ -202,7 +202,7 @@ private fun DefaultMetaItemForm(
             colors = AppColors.outlinedButtonColors()) {
             Text(if (hasModel) "$providerName · $modelName" else "Pick provider / model…",
                 modifier = Modifier.weight(1f), fontSize = 13.sp,
-                color = if (hasModel) Color.White else AppColors.TextTertiary,
+                color = if (hasModel) AppColors.TextPrimary else AppColors.TextTertiary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (hasModel) Text(com.ai.data.MetadataIconsHolder.current.closeMark, color = AppColors.TextTertiary,
                 modifier = Modifier.clickableNoRipple { providerName = ""; modelName = "" })
@@ -215,18 +215,18 @@ private fun DefaultMetaItemForm(
             OutlinedButton(onClick = { agentMenuOpen = true }, modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedButtonColors()) {
                 Text(agentName.ifBlank { "(none)" }, modifier = Modifier.weight(1f), fontSize = 13.sp,
-                    color = if (agentName.isBlank()) AppColors.TextTertiary else Color.White,
+                    color = if (agentName.isBlank()) AppColors.TextTertiary else AppColors.TextPrimary,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text("▾", color = AppColors.TextTertiary)
             }
             DropdownMenu(expanded = agentMenuOpen, onDismissRequest = { agentMenuOpen = false },
-                modifier = Modifier.background(Color(0xFF2D2D2D))) {
+                modifier = Modifier.background(AppColors.SurfaceDark)) {
                 DropdownMenuItem(
-                    text = { Text("(none)", fontSize = 13.sp, color = if (agentName.isBlank()) AppColors.InfoAccent else Color.White) },
+                    text = { Text("(none)", fontSize = 13.sp, color = if (agentName.isBlank()) AppColors.InfoAccent else AppColors.TextPrimary) },
                     onClick = { agentName = ""; agentMenuOpen = false })
                 agentNames.forEach { n ->
                     DropdownMenuItem(
-                        text = { Text(n, fontSize = 13.sp, color = if (agentName == n) AppColors.InfoAccent else Color.White) },
+                        text = { Text(n, fontSize = 13.sp, color = if (agentName == n) AppColors.InfoAccent else AppColors.TextPrimary) },
                         onClick = { agentName = n; agentMenuOpen = false })
                 }
             }

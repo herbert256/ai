@@ -99,7 +99,7 @@ internal fun ManualModelTypeEditScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "manual_model_types",
@@ -127,7 +127,7 @@ internal fun ManualModelTypeEditScreen(
             enabled = canSave,
             modifier = Modifier.fillMaxWidth(),
             colors = AppColors.outlinedButtonColors()
-        ) { Text(if (isAddMode) "Add" else "Save", maxLines = 1, softWrap = false, color = Color.White) }
+        ) { Text(if (isAddMode) "Add" else "Save", maxLines = 1, softWrap = false, color = AppColors.TextPrimary) }
         Spacer(modifier = Modifier.height(8.dp))
 
         Column(
@@ -226,7 +226,7 @@ internal fun ManualModelTypeEditScreen(
             ) {
                 Checkbox(checked = supportsVision, onCheckedChange = { supportsVision = it })
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Supports vision (image input) ${mi.view}", color = Color.White, fontSize = 13.sp)
+                Text("Supports vision (image input) ${mi.view}", color = AppColors.TextPrimary, fontSize = 13.sp)
             }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 4.dp).clickable { supportsWebSearch = !supportsWebSearch },
@@ -234,7 +234,7 @@ internal fun ManualModelTypeEditScreen(
             ) {
                 Checkbox(checked = supportsWebSearch, onCheckedChange = { supportsWebSearch = it })
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Supports web-search tool ${mi.web}", color = Color.White, fontSize = 13.sp)
+                Text("Supports web-search tool ${mi.web}", color = AppColors.TextPrimary, fontSize = 13.sp)
             }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 4.dp).clickable { supportsReasoning = !supportsReasoning },
@@ -242,7 +242,7 @@ internal fun ManualModelTypeEditScreen(
             ) {
                 Checkbox(checked = supportsReasoning, onCheckedChange = { supportsReasoning = it })
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Supports thinking ${mi.reportModelIcon}", color = Color.White, fontSize = 13.sp)
+                Text("Supports thinking ${mi.reportModelIcon}", color = AppColors.TextPrimary, fontSize = 13.sp)
             }
         }
 

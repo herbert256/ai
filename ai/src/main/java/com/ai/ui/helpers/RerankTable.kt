@@ -117,7 +117,7 @@ internal fun RerankTable(
                     Text(r.rank?.toString() ?: "—", fontSize = 12.sp, color = AppColors.TextSecondary,
                         fontFamily = FontFamily.Monospace, fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.width(48.dp), textAlign = androidx.compose.ui.text.style.TextAlign.End)
-                    Text(label, fontSize = 12.sp, color = Color.White,
+                    Text(label, fontSize = 12.sp, color = AppColors.TextPrimary,
                         modifier = Modifier.width(220.dp).padding(start = 8.dp),
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(

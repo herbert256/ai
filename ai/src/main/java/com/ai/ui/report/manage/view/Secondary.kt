@@ -496,7 +496,7 @@ internal fun SecondaryResultsScreen(
     // wrapper's padding on top would double the inset and push the
     // top title bar 16dp lower than every other screen.
     val outerPadding = if (isFanOutDrillIn) Modifier else Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp)
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).then(outerPadding)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).then(outerPadding)) {
         if (!isFanOutDrillIn) {
             val tfTop = pickerTraceFilename
             val pickerProviderService = pickerSelected?.providerId?.let { AppService.findById(it) }
@@ -804,7 +804,7 @@ private fun ColumnScope.MetaResultsPickerView(
             val provider = AppService.findById(r.providerId)?.id ?: r.providerId
             Button(
                 onClick = { selectedId = r.id },
-                colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.WarningAccent else Color(0xFF3A3A4A)),
+                colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.WarningAccent else AppColors.CardBackground),
                 contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                 modifier = Modifier.heightIn(min = 36.dp)
             ) {
@@ -878,7 +878,7 @@ private fun SecondaryRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -
             )
         }
         Column(modifier = Modifier.weight(1f)) {
-            Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         IconButton(onClick = { confirmDelete = true }) {
             Text(com.ai.data.MetadataIconsHolder.current.delete, fontSize = 16.sp, color = AppColors.DangerAccent)

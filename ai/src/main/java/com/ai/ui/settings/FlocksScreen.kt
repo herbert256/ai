@@ -92,7 +92,7 @@ fun FlockEditScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "flock_edit",
@@ -164,7 +164,7 @@ fun FlockEditScreen(
                         Text(
                             if (inactive) "${agent.name} (inactive)" else agent.name,
                             fontSize = 14.sp,
-                            color = if (inactive) AppColors.TextTertiary else Color.White,
+                            color = if (inactive) AppColors.TextTertiary else AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                         Text(com.ai.ui.shared.modelLabel(agent.provider.id, effectiveModel),

@@ -34,7 +34,7 @@ fun ResetScreen(
     onOpenApplication: () -> Unit
 ) {
     BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "reset", title = "Reset", subject = "Five ways to clear data, safe to drastic", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -80,7 +80,7 @@ fun ResetRuntimeDataScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "reset_runtime", title = "Clear runtime data", subject = "Drop history; keeps config & API keys", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -126,7 +126,7 @@ fun ResetInfoProvidersScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "reset_info_providers", title = "Clear Info providers", subject = "Drop cached pricing; refetch on Refresh", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -176,7 +176,7 @@ fun ResetConfigurationScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "reset_configuration", title = "Clear all configuration", subject = "Wipe all config; keeps reports & chats", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -237,7 +237,7 @@ fun ResetAssetsScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "reset_assets", title = "assets/*.json", subject = "Restore providers/prompts from defaults", onBackClick = onBack)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -348,7 +348,7 @@ fun ResetApplicationScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "reset_application", title = "Reset application", subject = "Factory reset; only API keys are kept", onBackClick = onBack)
 
         restartMessage?.let { msg ->

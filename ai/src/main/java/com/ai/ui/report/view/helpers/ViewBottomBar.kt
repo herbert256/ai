@@ -74,7 +74,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
             Text(
                 text = if (spec.showAll) mi.viewShowAll else mi.viewShowOne,
                 fontSize = 28.sp,
-                color = Color.White,
+                color = AppColors.TextPrimary,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .clickable(onClick = spec.onToggleOneOrAll)
@@ -88,7 +88,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
             Text(
                 text = mi.pickReport,
                 fontSize = 27.sp,
-                color = Color.White,
+                color = AppColors.TextPrimary,
                 modifier = Modifier
                     .align(Alignment.CenterStart)
                     .clickable(onClick = spec.onViewList)
@@ -99,7 +99,7 @@ fun ViewBottomBar(spec: ViewBottomBarSpec, modifier: Modifier = Modifier) {
             Text(
                 text = mi.openManage,
                 fontSize = 30.sp,
-                color = Color.White,
+                color = AppColors.TextPrimary,
                 modifier = Modifier
                     .clickable(onClick = onManage)
                     .padding(8.dp)

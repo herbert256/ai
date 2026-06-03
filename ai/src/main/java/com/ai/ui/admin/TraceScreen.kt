@@ -267,7 +267,7 @@ fun TraceListScreen(
         return
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val rowHeight = 52
         val overhead = 130
         val pageSize = maxOf(1, ((maxHeight.value - overhead) / rowHeight).toInt())
@@ -541,14 +541,14 @@ private fun TraceModelPickerOverlay(
     BackHandler { onBack() }
     val mi = LocalMetadataIcons.current
     val advisory = com.ai.ui.shared.rememberModelAdvisoryLookup(aiSettings)
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "trace_pick_model", title = "Pick model", subject = "Filter the trace list to one model", onBackClick = onBack)
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
             modifier = Modifier.fillMaxWidth().clickable { onSelect(null) }
         ) {
             Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("(All models)", fontSize = 13.sp,
-                    color = if (current == null) AppColors.InfoAccent else Color.White,
+                    color = if (current == null) AppColors.InfoAccent else AppColors.TextPrimary,
                     modifier = Modifier.weight(1f))
                 if (current == null) Text(mi.checkMark, color = AppColors.InfoAccent, fontSize = 13.sp)
             }
@@ -568,7 +568,7 @@ private fun TraceModelPickerOverlay(
                                 com.ai.ui.shared.ModelAdvisoryBadges(state)
                             }
                             Text(com.ai.ui.shared.shortModelName(model), fontSize = 13.sp,
-                                color = if (selected) AppColors.InfoAccent else Color.White,
+                                color = if (selected) AppColors.InfoAccent else AppColors.TextPrimary,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             com.ai.ui.shared.ModelAdvisoryCaptions(state)
                         }
@@ -593,7 +593,7 @@ private fun TraceListItem(trace: TraceFileInfo, onClick: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(trace.hostname, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(trace.hostname, fontSize = 12.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             Text(dateFormat.format(Instant.ofEpochMilli(trace.timestamp)), fontSize = 11.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.Center)
             Text("${trace.statusCode}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = statusColor, modifier = Modifier.weight(0.4f), textAlign = TextAlign.End)
         }
@@ -675,7 +675,7 @@ fun TraceDetailScreen(
 
     val t = trace
     val statusCode = t?.response?.statusCode ?: 0
-    val bgColor = if (statusCode >= 300) Color(0xFF4A1515) else MaterialTheme.colorScheme.background
+    val bgColor = if (statusCode >= 300) AppColors.DangerAccent.copy(alpha = 0.18f) else AppColors.AppBackground
 
     // Translation traces (category == "Translation") get an extra
     // "Translation result" button that opens a top/bottom split
@@ -959,7 +959,7 @@ fun TraceDetailScreen(
             views.forEach { (view, label) ->
                 val isActive = currentView == view
                 OutlinedButton(onClick = { currentView = view }, modifier = Modifier.weight(1f),
-                    colors = if (isActive) ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF3366BB).copy(alpha = 0.3f)) else ButtonDefaults.outlinedButtonColors(),
+                    colors = if (isActive) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.InfoAccent.copy(alpha = 0.3f)) else ButtonDefaults.outlinedButtonColors(),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)
                 ) { Text(label, fontSize = 10.sp, maxLines = 1, softWrap = false) }
             }
@@ -976,7 +976,7 @@ fun TraceDetailScreen(
             ).forEach { (mode, label) ->
                 val isActive = currentMode == mode
                 OutlinedButton(onClick = { currentMode = mode }, modifier = Modifier.weight(1f),
-                    colors = if (isActive) ButtonDefaults.outlinedButtonColors(containerColor = Color(0xFF3366BB).copy(alpha = 0.3f)) else ButtonDefaults.outlinedButtonColors(),
+                    colors = if (isActive) ButtonDefaults.outlinedButtonColors(containerColor = AppColors.InfoAccent.copy(alpha = 0.3f)) else ButtonDefaults.outlinedButtonColors(),
                     contentPadding = PaddingValues(horizontal = 2.dp, vertical = 0.dp)
                 ) { Text(label, fontSize = 10.sp, maxLines = 1, softWrap = false) }
             }
@@ -1027,7 +1027,7 @@ fun TraceDetailScreen(
                         val (name, value) = headerEntries[index]
                         Row(modifier = Modifier.padding(vertical = 1.dp)) {
                             Text("$name: ", fontSize = 11.sp, color = AppColors.InfoAccent, fontFamily = FontFamily.Monospace)
-                            Text(value, fontSize = 11.sp, color = Color(0xFF6A8759), fontFamily = FontFamily.Monospace)
+                            Text(value, fontSize = 11.sp, color = AppColors.SuccessAccent, fontFamily = FontFamily.Monospace)
                         }
                     }
                 }
@@ -1042,7 +1042,7 @@ fun TraceDetailScreen(
                             Text(highlightJsonLine(lines[index]), fontSize = 11.sp,
                                 fontFamily = FontFamily.Monospace, modifier = Modifier.padding(vertical = 1.dp))
                         } else {
-                            Text(lines[index], fontSize = 11.sp, color = Color(0xFFCCCCCC),
+                            Text(lines[index], fontSize = 11.sp, color = AppColors.TextSecondary,
                                 fontFamily = FontFamily.Monospace, modifier = Modifier.padding(vertical = 1.dp))
                         }
                     }
@@ -1152,7 +1152,7 @@ private fun parseJsonElement(key: String?, element: JsonElement): JsonTreeNode {
  *  punctuation gray). Pretty-printed JSON keeps every value on
  *  its own line, so a per-line scan is sufficient. */
 private fun highlightJsonLine(line: String): AnnotatedString = buildAnnotatedString {
-    val green = Color(0xFF6A8759)
+    val green = AppColors.SuccessAccent
     var i = 0
     while (i < line.length) {
         val c = line[i]
@@ -1217,11 +1217,11 @@ private fun JsonTreeNodeView(node: JsonTreeNode, depth: Int) {
             }
             else -> {
                 val valueColor = when (node.type) {
-                    JsonNodeType.STRING -> Color(0xFF6A8759) // green
+                    JsonNodeType.STRING -> AppColors.SuccessAccent // green
                     JsonNodeType.NUMBER -> AppColors.WarningAccent
                     JsonNodeType.BOOLEAN -> AppColors.PrimaryAccent
                     JsonNodeType.NULL -> AppColors.TextDim
-                    else -> Color.White
+                    else -> AppColors.TextPrimary
                 }
                 Text(node.value ?: "", fontSize = 11.sp, color = valueColor, fontFamily = FontFamily.Monospace)
             }

@@ -175,7 +175,7 @@ internal fun ReportMetaScreen(
         com.ai.ui.shared.LocalManageSwipeFilter provides
             ViewSwipeFilter.HasKind(SecondaryKind.META)
     ) {
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         // 👁 → Main View (Meta list is a picker; no per-meta View context).
         val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
         val onOpenViewJump: (() -> Unit)? = pendingHolder?.let {
@@ -280,7 +280,7 @@ private fun MetaRow(r: SecondaryResult, onClick: () -> Unit, onDelete: () -> Uni
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(kindLabel, fontSize = 11.sp, color = AppColors.WarningAccent, fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(end = 6.dp))
-                Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = Color.White,
+                Text(com.ai.ui.shared.modelLabel(provider, r.model), fontSize = 13.sp, color = AppColors.TextPrimary,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }

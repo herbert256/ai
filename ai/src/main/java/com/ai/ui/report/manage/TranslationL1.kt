@@ -204,7 +204,7 @@ internal fun TranslationL1Screen(
             )
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         // 👁 → matching View Translate screen for this run.
         val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
         val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
@@ -559,7 +559,7 @@ private fun TranslationL1Row(
         )
         Text(
             name,
-            fontSize = 14.sp, color = Color.White,
+            fontSize = 14.sp, color = AppColors.TextPrimary,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(start = 8.dp)
         )

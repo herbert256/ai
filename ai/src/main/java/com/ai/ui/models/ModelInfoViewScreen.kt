@@ -24,7 +24,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -308,7 +307,7 @@ fun ModelInfoViewScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         // Title bar shows the AI Report Title when this screen is
@@ -459,7 +458,7 @@ fun ModelInfoViewScreen(
                     } else {
                         Text(
                             "${ue.callCount} calls · ${formatCompactNumber(ue.inputTokens)} in / ${formatCompactNumber(ue.outputTokens)} out",
-                            fontSize = 13.sp, color = Color.White
+                            fontSize = 13.sp, color = AppColors.TextPrimary
                         )
                         usageCost?.let {
                             Text(
@@ -556,7 +555,7 @@ private fun HeroCard(provider: AppService, modelName: String, onOpenProvider: ((
             Text(
                 text = shortModelName(modelName),
                 fontSize = 22.sp,
-                color = Color.White,
+                color = AppColors.TextPrimary,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
@@ -598,7 +597,7 @@ private fun KeyValueRow(label: String, value: String) {
     val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(mi.iconizedText(label), fontSize = 13.sp, color = AppColors.TextTertiary)
-        Text(mi.iconizedText(value), fontSize = 13.sp, color = Color.White)
+        Text(mi.iconizedText(value), fontSize = 13.sp, color = AppColors.TextPrimary)
     }
 }
 
@@ -686,7 +685,7 @@ private fun SourceRow(icon: String, label: String, raw: String?, isLast: Boolean
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = label,
-            color = Color.White,
+            color = AppColors.TextPrimary,
             fontSize = 14.sp,
             modifier = Modifier.weight(1f),
             maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -738,7 +737,7 @@ private fun CostsCard(provider: AppService, modelName: String) {
         } else {
             rows.forEach { (label, p) ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                    Text(label, fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                     Text(
                         "${"%.4f".format(Locale.US, p.promptPrice * 1_000_000)} / ${"%.4f".format(Locale.US, p.completionPrice * 1_000_000)}",
                         fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.SuccessAccent
@@ -790,7 +789,7 @@ private fun WorkerRow(label: String, name: String, onClick: () -> Unit) {
             modifier = Modifier.width(80.dp)
         )
         Text(
-            name, fontSize = 13.sp, color = Color.White,
+            name, fontSize = 13.sp, color = AppColors.TextPrimary,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
@@ -813,7 +812,7 @@ private fun LastUsageCard(entries: List<ViewUsageEntry>) {
                     modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    e.title, fontSize = 13.sp, color = Color.White,
+                    e.title, fontSize = 13.sp, color = AppColors.TextPrimary,
                     modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
@@ -854,7 +853,7 @@ private fun ParsedSourceOverlay(
     }
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewScreenTitleBar(
@@ -991,7 +990,7 @@ private fun primitiveColor(p: JsonPrimitive): Color = when {
     p.isBoolean -> AppColors.WarningAccent
     p.isNumber -> AppColors.CautionAccent
     p.isString -> AppColors.SuccessAccent
-    else -> Color.White
+    else -> AppColors.TextPrimary
 }
 
 // ───── Local types + helpers (mirrors the Manage screen's shape) ─────

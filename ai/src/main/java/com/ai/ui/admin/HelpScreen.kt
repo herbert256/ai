@@ -107,7 +107,7 @@ fun HelpScreen(
         ?.removePrefix("Help")?.trimStart(' ', '-', '—', '–', ':')
         ?.takeIf { it.isNotBlank() }
         ?: "How this app works, screen by screen"
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             title = "Help",
             subject = subject,
@@ -315,7 +315,7 @@ private fun CompactOverview(
         placeholder = {
             Text(
                 "Search help (try \"translation\", \"cost\", \"agent\"…)",
-                fontSize = 13.sp, color = Color(0xFF888888)
+                fontSize = 13.sp, color = AppColors.TextDim
             )
         },
         leadingIcon = { Text(mi.search, fontSize = 14.sp) },
@@ -488,7 +488,7 @@ private fun SearchResults(query: String, onNavigateToTopic: (String) -> Unit) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     "Nothing in any help topic matched \"$query\". Try a shorter or differently-spelled term.",
-                    fontSize = 12.sp, color = Color(0xFFCCCCCC), lineHeight = 16.sp
+                    fontSize = 12.sp, color = AppColors.TextSecondary, lineHeight = 16.sp
                 )
             }
         }
@@ -496,7 +496,7 @@ private fun SearchResults(query: String, onNavigateToTopic: (String) -> Unit) {
     }
     Text(
         "${hits.size} match${if (hits.size == 1) "" else "es"} for \"$query\"",
-        fontSize = 12.sp, color = Color(0xFFAAAAAA),
+        fontSize = 12.sp, color = AppColors.TextSecondary,
         modifier = Modifier.padding(start = 4.dp, top = 4.dp, bottom = 2.dp)
     )
     hits.forEach { hit ->
@@ -511,10 +511,10 @@ private fun SearchResults(query: String, onNavigateToTopic: (String) -> Unit) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(mi.iconizedText(hit.topicTitle), fontSize = 13.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                     if (hit.matchedCardTitle != null) {
-                        Text(mi.iconizedText(hit.matchedCardTitle), fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                        Text(mi.iconizedText(hit.matchedCardTitle), fontSize = 12.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
                     }
                     if (hit.snippet.isNotBlank()) {
-                        Text(mi.iconizedText(hit.snippet), fontSize = 12.sp, color = Color(0xFFCCCCCC), lineHeight = 16.sp)
+                        Text(mi.iconizedText(hit.snippet), fontSize = 12.sp, color = AppColors.TextSecondary, lineHeight = 16.sp)
                     }
                 }
             }
@@ -559,7 +559,7 @@ private fun HelpSection(title: String, content: String) {
         Column(modifier = Modifier.padding(14.dp)) {
             Text(mi.iconizedText(title), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.WarningAccent)
             Spacer(modifier = Modifier.height(6.dp))
-            Text(mi.iconizedText(content), fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp)
+            Text(mi.iconizedText(content), fontSize = 13.sp, color = AppColors.TextSecondary, lineHeight = 18.sp)
         }
     }
 }
@@ -581,8 +581,8 @@ private fun IconHelpTable(rows: List<Triple<String, String, String>>, title: Str
             rows.forEach { (icon, name, desc) ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 5.dp)) {
                     Text(mi.forFactoryGlyph(icon), fontSize = 26.sp, modifier = Modifier.width(34.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-                    Text(mi.iconizedText(name), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.width(94.dp))
-                    Text(mi.iconizedText(desc), fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                    Text(mi.iconizedText(name), fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary, modifier = Modifier.width(94.dp))
+                    Text(mi.iconizedText(desc), fontSize = 13.sp, color = AppColors.TextSecondary, lineHeight = 18.sp, modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -612,14 +612,14 @@ private fun HelpIconTable() {
             rows.forEach { (icon, name, desc) ->
                 Row(verticalAlignment = Alignment.Top, modifier = Modifier.padding(vertical = 3.dp)) {
                     Text(icon, fontSize = 16.sp, modifier = Modifier.width(28.dp))
-                    Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.width(72.dp))
-                    Text(mi.iconizedText(desc), fontSize = 13.sp, color = Color(0xFFCCCCCC), lineHeight = 18.sp, modifier = Modifier.weight(1f))
+                    Text(name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary, modifier = Modifier.width(72.dp))
+                    Text(mi.iconizedText(desc), fontSize = 13.sp, color = AppColors.TextSecondary, lineHeight = 18.sp, modifier = Modifier.weight(1f))
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 "Icons that aren't relevant to a screen are simply absent — there's nothing to disable.",
-                fontSize = 12.sp, color = Color(0xFFAAAAAA), lineHeight = 16.sp
+                fontSize = 12.sp, color = AppColors.TextSecondary, lineHeight = 16.sp
             )
         }
     }
@@ -645,7 +645,7 @@ private fun InfoProviderTable(onNavigateToTopic: (String) -> Unit) {
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 "Third-party services the app reads model metadata + pricing from. Same seven that appear on Model Info → Sources. Tap a row for the details.",
-                fontSize = 12.sp, color = Color(0xFFAAAAAA), lineHeight = 16.sp
+                fontSize = 12.sp, color = AppColors.TextSecondary, lineHeight = 16.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
             INFO_PROVIDERS.forEach { ref ->
@@ -656,9 +656,9 @@ private fun InfoProviderTable(onNavigateToTopic: (String) -> Unit) {
                         .padding(vertical = 6.dp)
                 ) {
                     Text(ref.displayName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                        color = Color.White, modifier = Modifier.width(140.dp))
+                        color = AppColors.TextPrimary, modifier = Modifier.width(140.dp))
                     Text(taglines[ref.topicId].orEmpty(), fontSize = 12.sp,
-                        color = Color(0xFFCCCCCC), lineHeight = 16.sp,
+                        color = AppColors.TextSecondary, lineHeight = 16.sp,
                         modifier = Modifier.weight(1f))
                     Text(">", color = AppColors.InfoAccent, fontSize = 14.sp)
                 }
@@ -780,7 +780,7 @@ private fun CloudProviderTable(onNavigateToTopic: (String) -> Unit) {
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 "AI services the app dispatches chat / report / embedding calls to. Tap a row for setup, models, pricing, and pitfalls specific to that provider.",
-                fontSize = 12.sp, color = Color(0xFFAAAAAA), lineHeight = 16.sp
+                fontSize = 12.sp, color = AppColors.TextSecondary, lineHeight = 16.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
             services.forEach { svc ->
@@ -792,9 +792,9 @@ private fun CloudProviderTable(onNavigateToTopic: (String) -> Unit) {
                         .padding(vertical = 6.dp)
                 ) {
                     Text(svc.id, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
-                        color = Color.White, modifier = Modifier.width(160.dp))
+                        color = AppColors.TextPrimary, modifier = Modifier.width(160.dp))
                     Text(CLOUD_PROVIDER_TAGLINES[topicId].orEmpty(), fontSize = 12.sp,
-                        color = Color(0xFFCCCCCC), lineHeight = 16.sp,
+                        color = AppColors.TextSecondary, lineHeight = 16.sp,
                         modifier = Modifier.weight(1f))
                     Text(">", color = AppColors.InfoAccent, fontSize = 14.sp)
                 }

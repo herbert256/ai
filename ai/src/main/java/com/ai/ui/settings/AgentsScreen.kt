@@ -58,7 +58,7 @@ fun AgentEditScreen(
         ?: AppService.entries.firstOrNull { aiSettings.isProviderActive(it) }
         ?: AppService.entries.firstOrNull()
     if (initialProvider == null) {
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(helpTopic = "agent_edit", title = "Agent", subject = "This agent's model, prompt & settings", onBackClick = onBack)
             Text(
                 "No providers configured. Add a provider in Settings → Provider before creating an Agent.",
@@ -144,7 +144,7 @@ fun AgentEditScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "agent_edit",

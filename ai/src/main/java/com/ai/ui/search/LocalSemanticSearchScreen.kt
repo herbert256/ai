@@ -83,7 +83,7 @@ fun LocalSemanticSearchScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val tfTop = latestTrace
         TitleBar(
             helpTopic = "search_local_semantic", title = "Local semantic search", subject = "On-device meaning search, no cloud", onBackClick = onBack,
@@ -185,7 +185,7 @@ fun LocalSemanticSearchScreen(
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(hit.title, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+                            Text(hit.title, fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(hit.timestamp, fontSize = 11.sp, color = AppColors.TextTertiary)
                         }

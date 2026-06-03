@@ -147,6 +147,6 @@ private fun CapRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit)
     ) {
         Checkbox(checked = checked, onCheckedChange = onChange)
         Spacer(modifier = Modifier.width(4.dp))
-        Text(label, color = Color.White, fontSize = 13.sp)
+        Text(label, color = AppColors.TextPrimary, fontSize = 13.sp)
     }
 }

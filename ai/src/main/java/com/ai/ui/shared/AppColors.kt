@@ -243,7 +243,7 @@ object AppColors {
     @Composable
     fun outlinedButtonColors(
         containerColor: Color = ButtonBackground,
-        contentColor: Color = Color.White
+        contentColor: Color = TextPrimary
     ): ButtonColors = ButtonDefaults.outlinedButtonColors(
         containerColor = containerColor, contentColor = contentColor
     )
@@ -252,10 +252,10 @@ object AppColors {
     fun outlinedFieldColors() = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = InfoAccent,
         unfocusedBorderColor = BorderUnfocused,
-        focusedTextColor = Color.White,
-        unfocusedTextColor = Color.White,
-        cursorColor = Color.White,
+        focusedTextColor = TextPrimary,
+        unfocusedTextColor = TextPrimary,
+        cursorColor = TextPrimary,
         focusedLabelColor = InfoAccent,
-        unfocusedLabelColor = Color.Gray
+        unfocusedLabelColor = TextDim
     )
 }

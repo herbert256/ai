@@ -680,7 +680,7 @@ fun SettingsScreen(
             // it re-initialises when the lookup resolves.
             if (editingInternalPromptId != null && ip == null) {
                 Column(
-                    modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+                    modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
                 ) {
                     TitleBar(helpTopic = "settings_main", title = "Loading…", subject = "Loading settings…", onBackClick = goBack)
                 }
@@ -860,7 +860,7 @@ private fun SettingsMainScreen(
     // editable card lives in one of the topic sub-screens reached via
     // the nav rows below.
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "settings_main", title = "Settings", subject = "App preferences, grouped by topic", onBackClick = onBack)
 
@@ -968,7 +968,7 @@ private fun SettingsNavCard(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary)
                 Text(description, fontSize = 12.sp, color = AppColors.TextTertiary)
             }
             Text(">", fontSize = 16.sp, color = AppColors.InfoAccent)
@@ -1065,7 +1065,7 @@ private fun NetworkSettingsSubScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "settings_network", title = "Network settings", subject = "Timeouts, throttling and retry rules", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1088,7 +1088,7 @@ private fun NetworkSettingsSubScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
                             "Maximal API calls",
-                            fontWeight = FontWeight.Bold, color = Color.White,
+                            fontWeight = FontWeight.Bold, color = AppColors.TextPrimary,
                             modifier = Modifier.weight(1f)
                         )
                         Text("▸", color = AppColors.TextTertiary)
@@ -1216,7 +1216,7 @@ private fun MaximalApiCallsSubScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "settings_network_api_calls",
@@ -1261,7 +1261,7 @@ private fun PerProviderThrottlingSubScreen(onBack: () -> Unit) {
         )
     }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -1311,7 +1311,7 @@ private fun PerProviderThrottleRow(service: AppService) {
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(service.id, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(service.id, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = callsText,
@@ -1378,7 +1378,7 @@ private fun UiTweaksSubScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "settings_ui", title = "UI tweaks", subject = "Visual and layout preferences", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1487,7 +1487,7 @@ private fun UiColorsSubScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "settings_ui_colors", title = "UI Colors", subject = "App palette", onBackClick = onBack,
             // 🧽 restores the currently-edited set to its factory default.
@@ -1702,7 +1702,7 @@ private fun UiColorPickerCard(
                 SettingsCardHeaderIcon(icon)
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(title, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(title, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
                     Text(argbToRgbHex(argb), fontSize = 11.sp, color = AppColors.TextTertiary)
                 }
                 Box(
@@ -1765,7 +1765,7 @@ private fun ColorUsageScreen(title: String, keys: List<String>, onBack: () -> Un
     BackHandler { onBack() }
     val usages = remember(keys) { com.ai.data.ColorUsageData.forKeys(keys) }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(title = "Usage: $title", subject = "Where this color is used in the source", onBackClick = onBack)
@@ -1801,7 +1801,7 @@ private fun ColorUsageScreen(title: String, keys: List<String>, onBack: () -> Un
                 items(usages) { u ->
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.weight(0.4f)) {
-                            Text(u.screen, fontSize = 13.sp, color = Color.White)
+                            Text(u.screen, fontSize = 13.sp, color = AppColors.TextPrimary)
                             Text(u.location, fontSize = 10.sp, color = AppColors.TextDim,
                                 fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace)
                         }
@@ -1884,7 +1884,7 @@ private fun OtherSettingsSubScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "settings_other", title = "Other settings", subject = "Identity", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -1943,7 +1943,7 @@ private fun AutostartSubScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "settings_autostart", title = "Autostart", subject = "What runs automatically when a report finishes", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2024,7 +2024,7 @@ private fun MetadataSettingsSubScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "settings_metadata", title = "Metadata & icons", subject = "Master switch and per-item options for optional report metadata", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2408,7 +2408,7 @@ private fun DefaultIconsSubScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "settings_default_icons", title = "Default icons", subject = "Fallback + bottom-bar action emoji", onBackClick = onBack,
             // 🧽 restores every icon to its factory default.
@@ -2469,7 +2469,7 @@ private fun IconCategoryCard(
             ) {
                 SettingsCardHeaderIcon(icon)
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                Text(title, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                 Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
             }
             if (expanded) {
@@ -2499,7 +2499,7 @@ private fun IconCategoryCard(
 private fun IconDefaultRow(label: String, value: String, onChange: (String) -> Unit, onAiFind: () -> Unit, onUsage: () -> Unit) {
     var showPicker by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
+        Text(label, fontSize = 14.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
         OutlinedTextField(
             value = value,
             onValueChange = onChange,
@@ -2554,7 +2554,7 @@ private fun IconUsageScreen(label: String, field: String, onBack: () -> Unit) {
     BackHandler { onBack() }
     val usages = remember(field) { com.ai.data.IconUsageData.forField(field) }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(title = "Usage: $label", subject = "Where “$field” is used in the source", onBackClick = onBack)
@@ -2586,7 +2586,7 @@ private fun IconUsageScreen(label: String, field: String, onBack: () -> Unit) {
                     fontSize = 12.sp, color = AppColors.TextTertiary)
                 usages.forEach { line ->
                     Text(
-                        line, fontSize = 12.sp, color = Color.White,
+                        line, fontSize = 12.sp, color = AppColors.TextPrimary,
                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                     )
                 }
@@ -2650,7 +2650,7 @@ private fun DefaultIconAiFinderScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "settings_default_icons", title = "Find icon", subject = label, onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Spacer(modifier = Modifier.height(4.dp))
@@ -2685,7 +2685,7 @@ private fun DefaultIconAiFinderScreen(
                         }
                     }
                     Column(modifier = Modifier.weight(1f).padding(start = 8.dp)) {
-                        Text(com.ai.ui.shared.modelLabel(c.provider.id, c.model), fontSize = 13.sp, color = Color.White,
+                        Text(com.ai.ui.shared.modelLabel(c.provider.id, c.model), fontSize = 13.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                         val sub = when (c) {
                             is com.ai.viewmodel.IconCandidate.Done -> "Tap to use this icon"
@@ -2753,7 +2753,7 @@ private fun AppSettingsScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "settings_app_settings", title = "App settings", subject = "App-wide & report-model default prompt / parameters", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             SettingCard("System prompt", "App-wide is the lowest fallback for every model; Report model applies to bare models (not from an agent / flock / swarm) and is skipped when a pre-generation system prompt is given.", MetadataDefaults.SYSTEM_PROMPT) {
@@ -2775,7 +2775,7 @@ private fun AppDefaultRow(label: String, selectedName: String?, onClick: () -> U
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 6.dp)
     ) {
-        Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.width(110.dp))
+        Text(label, fontSize = 14.sp, color = AppColors.TextPrimary, modifier = Modifier.width(110.dp))
         Text(
             selectedName ?: "Tap to select", fontSize = 13.sp,
             color = if (selectedName == null) AppColors.TextTertiary else AppColors.InfoAccent,
@@ -2823,7 +2823,7 @@ private fun LoggingAndTracingSubScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "settings_logging", title = "Logging and tracing", subject = "Log level and API call tracing", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -2888,7 +2888,7 @@ private fun SettingCard(
             ) {
                 SettingsCardHeaderIcon(icon)
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                Text(title, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                 Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
             }
             if (expanded) {
@@ -2925,7 +2925,7 @@ private fun ToggleSettingCard(
             ) {
                 SettingsCardHeaderIcon(icon)
                 Spacer(modifier = Modifier.width(12.dp))
-                Text(title, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                Text(title, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                 Text(if (expanded) "▾" else "▸", color = AppColors.TextTertiary)
             }
             if (expanded) {
@@ -2965,6 +2965,6 @@ private fun RadioRow(selected: Boolean, label: String, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().clickable { onClick() }
     ) {
         RadioButton(selected = selected, onClick = onClick)
-        Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.padding(start = 4.dp))
+        Text(label, fontSize = 14.sp, color = AppColors.TextPrimary, modifier = Modifier.padding(start = 4.dp))
     }
 }

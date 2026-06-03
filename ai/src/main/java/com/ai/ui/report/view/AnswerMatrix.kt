@@ -122,7 +122,7 @@ internal fun AnswerMatrixViewScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewTitleBar(
@@ -260,7 +260,7 @@ private fun AnswerMatrixTable(rows: List<AnswerMatrixRow>) {
         rows.forEachIndexed { idx, row ->
             Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 9.dp)) {
                 BodyCell(row.ordinal.toString(), 46.dp, end = true, mono = true, color = AppColors.TextSecondary)
-                BodyCell(row.modelLabel, 180.dp, color = Color.White, weight = FontWeight.SemiBold)
+                BodyCell(row.modelLabel, 180.dp, color = AppColors.TextPrimary, weight = FontWeight.SemiBold)
                 BodyCell(
                     text = rankText(row),
                     width = 64.dp,

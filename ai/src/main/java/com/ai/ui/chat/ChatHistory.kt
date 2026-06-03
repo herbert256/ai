@@ -47,7 +47,7 @@ fun ChatHistoryScreen(
     var currentPage by rememberSaveable { mutableStateOf(0) }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "chat_history", title = "Chat History", subject = "Resume any of your saved chat sessions", onBackClick = onNavigateBack, onHousekeeping = onHousekeeping)
 
@@ -99,7 +99,7 @@ fun ChatHistoryScreen(
                                     Text(
                                         text = session.title.ifBlank { session.preview }
                                             .let { if (it.length > 50) "${it.take(50)}..." else it },
-                                        fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis
+                                        fontSize = 14.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Row {
@@ -217,7 +217,7 @@ fun ChatSearchScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "chat_search", title = "Search Chats", subject = "Full-text search across saved chats", onBackClick = onNavigateBack)
 
@@ -272,7 +272,7 @@ fun ChatSearchScreen(
                             colors = CardDefaults.cardColors(containerColor = AppColors.SurfaceDark)
                         ) {
                             Column(modifier = Modifier.padding(12.dp)) {
-                                Text(result.sessionTitle, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(result.sessionTitle, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(result.messageRole.replaceFirstChar { it.uppercase() }, fontSize = 11.sp, color = AppColors.InfoAccent)
                                 Text(result.messagePreview, fontSize = 12.sp, color = AppColors.TextSecondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
                                 Text(dateFormat.format(result.messageTimestamp), fontSize = 10.sp, color = AppColors.TextDim)

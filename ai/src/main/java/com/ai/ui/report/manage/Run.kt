@@ -1,6 +1,7 @@
 package com.ai.ui.report.manage
 import com.ai.ui.report.view.*
 import com.ai.ui.helpers.*
+import com.ai.ui.shared.AppColors
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -317,7 +318,7 @@ internal fun ReportRunScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
             .then(
                 if (bodySwipeReady) {
@@ -588,7 +589,7 @@ internal fun ReportRunScreen(
         if (bodyStatus != null) {
             Text(
                 text = bodyStatus,
-                color = Color.White,
+                color = AppColors.TextPrimary,
                 fontSize = 13.sp,
                 modifier = Modifier
                     .align(Alignment.TopCenter)

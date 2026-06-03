@@ -150,7 +150,7 @@ internal fun ReportEditTitlesScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -173,7 +173,7 @@ internal fun ReportEditTitlesScreen(
                             fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            item.value, fontSize = 14.sp, color = Color.White,
+                            item.value, fontSize = 14.sp, color = AppColors.TextPrimary,
                             maxLines = 2, overflow = TextOverflow.Ellipsis
                         )
                     }

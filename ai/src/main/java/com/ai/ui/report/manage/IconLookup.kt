@@ -62,7 +62,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
     var showManualEdit by remember { mutableStateOf(false) }
     var showSelectIcon by remember { mutableStateOf(false) }
     var manualText by remember { mutableStateOf("") }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = ctx.helpTopic,
             title = "Icon lookup",
@@ -109,7 +109,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
                         val label = if (ctx.model.isNotBlank())
                             modelLabel(ctx.provider.id, ctx.model)
                         else "(pending)"
-                        Text(label, fontSize = 14.sp, color = Color.White)
+                        Text(label, fontSize = 14.sp, color = AppColors.TextPrimary)
                         if (ctx.pricingTier.isNotBlank()) {
                             Text(
                                 "Pricing tier: ${ctx.pricingTier}",
@@ -140,7 +140,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
                             modifier = Modifier.padding(bottom = 6.dp))
                         Text(
                             ctx.apiInteraction.ifBlank { "(no interaction recorded)" },
-                            fontSize = 13.sp, color = Color.White, lineHeight = 18.sp,
+                            fontSize = 13.sp, color = AppColors.TextPrimary, lineHeight = 18.sp,
                             fontFamily = FontFamily.Monospace
                         )
                     }
@@ -155,7 +155,7 @@ fun IconLookupScreen(ctx: IconLookupContext) {
                     ctx.emoji.isNullOrBlank() -> "⏳"
                     else -> ctx.emoji
                 }
-                Text(glyph, fontSize = 64.sp, color = Color.White)
+                Text(glyph, fontSize = 64.sp, color = AppColors.TextPrimary)
             }
             if (!ctx.errorMessage.isNullOrBlank()) {
                 Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),

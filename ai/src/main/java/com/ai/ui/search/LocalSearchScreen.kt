@@ -51,7 +51,7 @@ fun LocalSearchScreen(
     var status by remember { mutableStateOf<String?>(null) }
     var running by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "search_local", title = "Extended local search", subject = "Tokenised search over saved reports", onBackClick = onBack)
 
         OutlinedTextField(
@@ -108,7 +108,7 @@ fun LocalSearchScreen(
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(hit.title, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+                            Text(hit.title, fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(hit.timestamp, fontSize = 11.sp, color = AppColors.TextTertiary)
                         }

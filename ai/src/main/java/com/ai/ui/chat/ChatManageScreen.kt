@@ -52,7 +52,7 @@ fun ChatManageScreen(
 
     Column(modifier = Modifier
         .fillMaxSize()
-        .background(MaterialTheme.colorScheme.background)
+        .background(AppColors.AppBackground)
         .padding(16.dp)) {
         TitleBar(helpTopic = "chat_manage", title = "Manage chats", subject = "Bulk-delete old chats or export them", onBackClick = onBack)
 

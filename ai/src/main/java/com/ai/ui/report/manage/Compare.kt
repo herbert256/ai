@@ -88,7 +88,7 @@ fun CompareSelectMetaScreen(
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "compare_select_meta",
             title = "Compare with meta",
@@ -113,7 +113,7 @@ fun CompareSelectMetaScreen(
                     ) {
                         Text(com.ai.data.MetadataIconsHolder.current.compare, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(name, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
+                            Text(name, color = AppColors.TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(preview, color = AppColors.TextTertiary, fontSize = 11.sp,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -140,7 +140,7 @@ fun CompareSelectPromptScreen(
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "compare_select_prompt",
             title = "Compare with meta",
@@ -164,7 +164,7 @@ fun CompareSelectPromptScreen(
                     ) {
                         Text(com.ai.data.MetadataIconsHolder.current.compare, fontSize = 22.sp, modifier = Modifier.padding(end = 12.dp))
                         Column(Modifier.weight(1f)) {
-                            Text(p.name, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text(p.name, color = AppColors.TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                             if (p.title.isNotBlank()) {
                                 Text(p.title, color = AppColors.TextTertiary, fontSize = 12.sp,
                                     maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -219,7 +219,7 @@ fun CompareManageRow() {
             }
             RowTypeCell("compare")
             Text(
-                text = rowText, color = Color.White, fontSize = 13.sp,
+                text = rowText, color = AppColors.TextPrimary, fontSize = 13.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
             )
             if (run.totalCost > 0.0) {
@@ -307,7 +307,7 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
     }
 
     if (run == null) {
-        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)) {
             TitleBar(helpTopic = "compare_l1", title = "Compare", subject = reportTitle,
                 reportIcon = reportIcon, onBackClick = onBack)
             Spacer(Modifier.height(20.dp))
@@ -413,7 +413,7 @@ private fun CompareL1(
     onBack: () -> Unit
 ) {
     val throttledCount = run.cells.values.count { it.id in throttled }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "compare_l1", title = "Compare",
             subject = reportTitle, reportIcon = reportIcon,
@@ -477,7 +477,7 @@ private fun CompareGroupRowItem(group: CompareGroupRow, onClick: () -> Unit) {
             modifier = Modifier.width(52.dp).padding(end = 8.dp)
         )
         Column(Modifier.weight(1f)) {
-            Text(group.label, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(group.label, color = AppColors.TextPrimary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             val sub = buildString {
                 append("${group.done}/${group.total} scored")
                 if (group.errored > 0) append(" · ${group.errored} failed")
@@ -508,7 +508,7 @@ private fun CompareL2(
     val title = agentLabel(agents, groupKey.substringAfter(":"))
     // Groups are always report models; each row is the meta item the answer
     // was scored against.
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "compare_l2", title = "Compare - model", subject = reportTitle,
             reportIcon = reportIcon, onBackClick = onBack)
         CompareGreenSubject(title)
@@ -549,7 +549,7 @@ private fun CompareCellRow(c: CompareCellState, label: String, onClick: () -> Un
                 fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
                 textAlign = TextAlign.End, modifier = Modifier.width(40.dp))
         }
-        Text(label, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+        Text(label, color = AppColors.TextPrimary, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(start = 10.dp))
     }
     HorizontalDivider(color = AppColors.TextDisabled.copy(alpha = 0.3f), thickness = 0.5.dp)
@@ -576,7 +576,7 @@ private fun CompareL3(
     val c = scoped.getOrNull(idx) ?: run.cells[cellKey]
     val swipeThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
     var swipeDragX by remember(cellKey) { mutableStateOf(0f) }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "compare_l3", title = "Compare - cell", subject = reportTitle,
             reportIcon = reportIcon, onBackClick = onBack, onReload = onRerun)
         if (c == null) {
@@ -607,7 +607,7 @@ private fun CompareL3(
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(AppColors.CardBackground).padding(12.dp)) {
                 Text(pctText(c.percent), color = pctColor(c.percent), fontSize = 30.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(4.dp))
-                Text("$answerLabel  vs  $metaLabel", color = Color.White, fontSize = 14.sp,
+                Text("$answerLabel  vs  $metaLabel", color = AppColors.TextPrimary, fontSize = 14.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (!c.reason.isNullOrBlank()) {
                     Spacer(Modifier.height(6.dp))

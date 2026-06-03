@@ -68,7 +68,7 @@ fun LocalLiteRtModelsScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "local_litert_models", title = "Local LiteRT models", subject = "On-device embedding models", onBackClick = onBack)
 
@@ -136,7 +136,7 @@ fun LocalLiteRtModelsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = name,
-                            fontSize = 13.sp, color = Color.White,
+                            fontSize = 13.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )
@@ -200,7 +200,7 @@ fun LocalLlmsScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "local_llms", title = "Local LLMs", subject = "On-device chat models, run offline", onBackClick = onBack)
 
@@ -308,7 +308,7 @@ fun LocalLlmsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = name,
-                            fontSize = 13.sp, color = Color.White,
+                            fontSize = 13.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
                         )

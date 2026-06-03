@@ -103,7 +103,7 @@ fun SwipeEdgeNoMoreOverlay(
         status?.let { s ->
             Text(
                 text = s,
-                color = Color.White,
+                color = AppColors.TextPrimary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier

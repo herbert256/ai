@@ -112,7 +112,7 @@ fun JudgeEvalManageRow() {
             }
             RowTypeCell("judges")
             Text(
-                text = rowText, color = Color.White, fontSize = 13.sp,
+                text = rowText, color = AppColors.TextPrimary, fontSize = 13.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
             )
             if (run.totalCost > 0.0) {
@@ -216,7 +216,7 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
     }
 
     if (run == null) {
-        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)) {
             TitleBar(
                 helpTopic = "judge_eval_l1", title = "Judge the judges",
                 subject = reportTitle, reportIcon = reportIcon, onBackClick = onBack
@@ -377,7 +377,7 @@ private fun JudgeEvalL1(
     onBack: () -> Unit
 ) {
     val throttledCount = run.cells.values.count { it.id in throttled }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "judge_eval_l1", title = "Judge the judges",
             subject = reportTitle, reportIcon = reportIcon,
@@ -514,7 +514,7 @@ private fun JudgeProgressRow(label: String, done: Int, total: Int, barFrac: Floa
         Text("$done/$total", color = AppColors.TextSecondary, fontSize = 13.sp,
             fontFamily = FontFamily.Monospace, textAlign = TextAlign.End,
             modifier = Modifier.padding(start = 8.dp).width(56.dp))
-        Text(label, color = Color.White, fontSize = 14.sp, maxLines = 1,
+        Text(label, color = AppColors.TextPrimary, fontSize = 14.sp, maxLines = 1,
             overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 12.dp).weight(1f))
     }
 }
@@ -528,7 +528,7 @@ private fun JudgeLeaderRow(rank: Int, s: JudgeStats, onDelete: () -> Unit, onCli
     ) {
         Text("$rank", color = AppColors.TextTertiary, fontSize = 12.sp,
             fontFamily = FontFamily.Monospace, modifier = Modifier.width(22.dp))
-        Text(shortModelName(s.judgeModel), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+        Text(shortModelName(s.judgeModel), color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f).padding(end = 4.dp))
         Text(formatCents(s.totalCost, 2), color = AppColors.TextSecondary, fontSize = 12.sp,
             fontFamily = FontFamily.Monospace, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
@@ -564,7 +564,7 @@ private fun JudgeEvalL2(
         .sortedWith(compareBy({ it.responseAId }, { it.responseBId }))
     val consensus = run.cells.values.groupBy { it.matchKey }
         .mapValues { (_, cs) -> consensusForMatch(cs.mapNotNull { it.verdict }) }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "judge_eval_l2", title = "Judge",
             subject = reportTitle, reportIcon = reportIcon, onBackClick = onBack,
@@ -595,10 +595,10 @@ private fun JudgeEvalL2(
                 ) {
                     Text(
                         "${shortModelName(agents[c.responseAId]?.model ?: "?")} vs ${shortModelName(agents[c.responseBId]?.model ?: "?")}",
-                        color = Color.White, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        color = AppColors.TextPrimary, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    Text(verdictGlyph(c.verdict, c.status), color = Color.White, fontSize = 13.sp,
+                    Text(verdictGlyph(c.verdict, c.status), color = AppColors.TextPrimary, fontSize = 13.sp,
                         textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
                     Text(
                         if (c.verdict == null) "—" else if (agree) com.ai.data.MetadataIconsHolder.current.checkMark else com.ai.data.MetadataIconsHolder.current.crossMark,
@@ -632,7 +632,7 @@ private fun JudgeEvalL3(
         .let { consensusForMatch(it) }
     val navigateToRoute = com.ai.ui.shared.LocalNavigateToRoute.current
     val traceCtx = LocalContext.current
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "judge_eval_l3", title = "Match",
             subject = reportTitle, reportIcon = reportIcon,
@@ -665,7 +665,7 @@ private fun JudgeEvalL3(
             ) {
                 Row(Modifier.fillMaxWidth()) {
                     Text("Verdict: ", color = AppColors.TextSecondary, fontSize = 13.sp)
-                    Text(verdictLabel(cell.verdict), color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(verdictLabel(cell.verdict), color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     Spacer(Modifier.weight(1f))
                     cell.confidence?.let { Text("conf ${"%.2f".format(it)}", color = AppColors.TextTertiary, fontSize = 12.sp) }
                 }
@@ -673,7 +673,7 @@ private fun JudgeEvalL3(
                 Text("Consensus: ${verdictLabel(consensus)}", color = AppColors.TextTertiary, fontSize = 12.sp)
                 cell.reason?.takeIf { it.isNotBlank() }?.let {
                     Spacer(Modifier.height(6.dp))
-                    Text(it, color = Color.White, fontSize = 13.sp)
+                    Text(it, color = AppColors.TextPrimary, fontSize = 13.sp)
                 }
                 cell.errorMessage?.let {
                     Spacer(Modifier.height(6.dp))
@@ -700,7 +700,7 @@ private fun ResponsePane(header: String, body: String, highlight: Boolean) {
     ) {
         Text(header, color = if (highlight) AppColors.SuccessAccent else AppColors.InfoAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.height(6.dp))
-        Text(body.ifBlank { "(empty)" }, color = Color.White, fontSize = 13.sp)
+        Text(body.ifBlank { "(empty)" }, color = AppColors.TextPrimary, fontSize = 13.sp)
     }
 }
 
@@ -786,7 +786,7 @@ private fun MatchSummaryRow(m: MatchSummary, allDone: Boolean, onClick: () -> Un
             .clickable { onClick() }.padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("${m.aLabel} vs ${m.bLabel}", color = Color.White, fontSize = 13.sp,
+        Text("${m.aLabel} vs ${m.bLabel}", color = AppColors.TextPrimary, fontSize = 13.sp,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Text(verdictLabel(m.consensus), color = AppColors.TextSecondary, fontSize = 12.sp,
             modifier = Modifier.width(64.dp), textAlign = TextAlign.Center)
@@ -813,7 +813,7 @@ private fun JudgeEvalMatchScreen(
     val pairLabel = if (first != null)
         "${shortModelName(agents[first.responseAId]?.model ?: "?")} vs ${shortModelName(agents[first.responseBId]?.model ?: "?")}"
     else "Match"
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "judge_eval_match", title = "Match",
             subject = reportTitle, reportIcon = reportIcon, onBackClick = onBack
@@ -839,9 +839,9 @@ private fun JudgeEvalMatchScreen(
                     modifier = Modifier.fillMaxWidth().clickable { openJudge(c.judgeKey) }.padding(vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(shortModelName(c.judgeModel), color = Color.White, fontSize = 13.sp,
+                    Text(shortModelName(c.judgeModel), color = AppColors.TextPrimary, fontSize = 13.sp,
                         maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                    Text(verdictGlyph(c.verdict, c.status), color = Color.White, fontSize = 13.sp,
+                    Text(verdictGlyph(c.verdict, c.status), color = AppColors.TextPrimary, fontSize = 13.sp,
                         textAlign = TextAlign.Center, modifier = Modifier.width(64.dp))
                     Text(
                         if (c.verdict == null) "—" else if (agree) com.ai.data.MetadataIconsHolder.current.checkMark else com.ai.data.MetadataIconsHolder.current.crossMark,
@@ -865,7 +865,7 @@ private fun JudgeTraceBug(traceFile: String?) {
     val context = LocalContext.current
     Text(
         com.ai.data.MetadataIconsHolder.current.traces, fontSize = 13.sp,
-        color = if (traceFile.isNullOrBlank()) AppColors.TextDisabled else Color.White,
+        color = if (traceFile.isNullOrBlank()) AppColors.TextDisabled else AppColors.TextPrimary,
         textAlign = TextAlign.Center,
         modifier = Modifier
             .width(30.dp)

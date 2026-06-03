@@ -48,7 +48,7 @@ fun SwarmViewScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewScreenTitleBar(
@@ -91,7 +91,7 @@ fun SwarmViewScreen(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
                                         shortModelName(m.model),
-                                        fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+                                        fontSize = 13.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis
                                     )
                                     Text(
@@ -141,7 +141,7 @@ private fun SwarmHero(swarm: Swarm) {
             Text(
                 text = swarm.name,
                 fontSize = 22.sp,
-                color = Color.White,
+                color = AppColors.TextPrimary,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )

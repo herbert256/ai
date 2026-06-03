@@ -68,7 +68,7 @@ fun <T> CrudListPage(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(16.dp)
     ) {
         TitleBar(helpTopic = helpTopic, title = title, subject = subject, onBackClick = onBack, onAdd = onAdd, onHousekeeping = onHousekeeping)
@@ -145,7 +145,7 @@ private fun CrudRow(text: String, onClick: () -> Unit, trailing: (@Composable ()
         ) {
             Text(
                 text = text,
-                color = androidx.compose.ui.graphics.Color.White,
+                color = AppColors.TextPrimary,
                 fontSize = 14.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

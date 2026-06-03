@@ -47,7 +47,7 @@ fun CrudViewPage(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(16.dp)
     ) {
         TitleBar(
@@ -77,6 +77,6 @@ fun CrudViewPage(
 @Composable
 fun CrudField(label: String, value: String) {
     Text(label, color = AppColors.TextTertiary, fontSize = 12.sp)
-    Text(value, color = androidx.compose.ui.graphics.Color.White, fontSize = 15.sp)
+    Text(value, color = AppColors.TextPrimary, fontSize = 15.sp)
     Spacer(modifier = Modifier.height(12.dp))
 }

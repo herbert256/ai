@@ -163,7 +163,7 @@ fun TournamentViewScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewTitleBar(
@@ -233,7 +233,7 @@ private fun MethodChip(label: String, selected: Boolean, onClick: () -> Unit) {
         label,
         fontSize = 13.sp,
         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-        color = if (selected) Color.Black else Color.White,
+        color = if (selected) AppColors.AppBackground else AppColors.TextPrimary,
         modifier = Modifier
             .clip(RoundedCornerShape(8.dp))
             .background(if (selected) AppColors.PrimaryAccent else AppColors.CardBackground)
@@ -261,7 +261,7 @@ private fun ModelHeadToHeadsScreen(model: String, matches: List<MatchRow>, onBac
     BackHandler { onBack() }
     var showBA by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -326,7 +326,7 @@ private fun HeadToHeadRow(opponent: String, result: String, reason: String?, err
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("vs  $opponent", color = Color.White, fontSize = 13.sp)
+            Text("vs  $opponent", color = AppColors.TextPrimary, fontSize = 13.sp)
             when {
                 error != null -> Text("${com.ai.data.MetadataIconsHolder.current.warningPlain} ${error.take(60)}", color = AppColors.TextTertiary, fontSize = 11.sp)
                 !reason.isNullOrBlank() -> Text(reason, color = AppColors.TextTertiary, fontSize = 11.sp)
@@ -354,7 +354,7 @@ private fun TraceBug(orientation: String, traceFile: String?) {
     val context = LocalContext.current
     Text(
         com.ai.data.MetadataIconsHolder.current.traces, fontSize = 14.sp,
-        color = if (traceFile.isNullOrBlank()) AppColors.TextTertiary else Color.White,
+        color = if (traceFile.isNullOrBlank()) AppColors.TextTertiary else AppColors.TextPrimary,
         modifier = Modifier
             .padding(start = 6.dp)
             .clip(RoundedCornerShape(6.dp))

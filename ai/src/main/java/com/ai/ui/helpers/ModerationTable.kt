@@ -145,7 +145,7 @@ internal fun ModerationTable(
                     Text(if (r.flagged) com.ai.data.MetadataIconsHolder.current.validatePrompt else com.ai.data.MetadataIconsHolder.current.checkMark, fontSize = 13.sp,
                         color = if (r.flagged) AppColors.DangerAccent else AppColors.SuccessAccent,
                         modifier = Modifier.width(40.dp))
-                    Text(label, fontSize = 12.sp, color = Color.White,
+                    Text(label, fontSize = 12.sp, color = AppColors.TextPrimary,
                         modifier = Modifier.width(220.dp).padding(start = 8.dp),
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(firedText, fontSize = 12.sp,
@@ -180,7 +180,7 @@ internal fun ModerationCallDetailScreen(
     val context = LocalContext.current
     val flagColor = if (row.flagged) AppColors.DangerAccent else AppColors.SuccessAccent
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -247,7 +247,7 @@ internal fun ModerationCallDetailScreen(
                         Text(
                             cat,
                             fontSize = 13.sp,
-                            color = if (fired) AppColors.DangerAccent else Color.White,
+                            color = if (fired) AppColors.DangerAccent else AppColors.TextPrimary,
                             modifier = Modifier.weight(1f)
                         )
                         Text(

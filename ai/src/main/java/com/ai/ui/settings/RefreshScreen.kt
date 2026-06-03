@@ -387,7 +387,7 @@ fun RefreshScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "refresh", title = "Refresh", subject = "Update model catalogs and workers", onBackClick = onBack, onSettings = onSettings)
 
         // Fresh-install gate: with no keyed provider, the Workers phase
@@ -456,7 +456,7 @@ private fun InfoProvidersRefreshPage(
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "refresh_info_providers", title = "Info Providers", subject = "Six pricing & capability catalogs", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             RefreshAction(
@@ -582,7 +582,7 @@ private fun RefreshAllProgressScreen(
     restartMessage: String? = null
 ) {
     BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "refresh_all", title = state.title, subject = "Updating catalogs and workers…", onBackClick = onBack)
         if (onRestart != null && restartMessage != null) {
             RestartAppBanner(message = restartMessage, onConfirm = onRestart)
@@ -665,7 +665,7 @@ private fun RefreshAllProgressScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(com.ai.data.MetadataIconsHolder.current.crossMark, fontSize = 14.sp, color = AppColors.DangerAccent, modifier = Modifier.width(20.dp))
-                                Text(svc.id, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                Text(svc.id, fontSize = 14.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                                 Text("Open ›", fontSize = 12.sp, color = AppColors.InfoAccent)
                             }
                             HorizontalDivider(color = AppColors.DividerDark, thickness = 1.dp)
@@ -690,7 +690,7 @@ private fun CatalogProgressRow(label: String, icon: String, statusText: String, 
         } else {
             Text(icon, fontSize = 14.sp, modifier = Modifier.width(20.dp))
         }
-        Text(label, fontSize = 14.sp, color = Color.White, modifier = Modifier.weight(1f))
+        Text(label, fontSize = 14.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
         Text(statusText, fontSize = 12.sp, color = color, fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
             modifier = Modifier.widthIn(max = 220.dp))
@@ -710,7 +710,7 @@ private fun RefreshResultScreen(
     sampleEntries: List<String> = emptyList()
 ) {
     BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "refresh_result", title = titleText, subject = "What the refresh updated", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             if (!description.isNullOrBlank()) {
@@ -721,7 +721,7 @@ private fun RefreshResultScreen(
                     IconCardHeader(MetadataDefaults.RELOAD, "Results")
                     rows.forEach { r ->
                         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                            Text(r.label, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                            Text(r.label, fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                             Text(r.value, fontSize = 13.sp, color = r.color, fontWeight = FontWeight.SemiBold)
                         }
                     }

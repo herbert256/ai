@@ -102,22 +102,22 @@ internal fun ContentWithThinkSections(analysis: String) {
 
 @Composable
 private fun MarkdownTableSection(table: MarkdownTable) {
-    val divider = Color(0xFF3A3A3A)
+    val divider = AppColors.BorderUnfocused
     Column(modifier = Modifier
         .fillMaxWidth()
         .padding(vertical = 8.dp)
-        .background(Color(0xFF222222), androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
+        .background(AppColors.SurfaceDark, androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
         .border(1.dp, divider, androidx.compose.foundation.shape.RoundedCornerShape(6.dp))
     ) {
         Row(modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF2A2A3A), androidx.compose.foundation.shape.RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
+            .background(AppColors.CardBackground, androidx.compose.foundation.shape.RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp))
             .padding(8.dp)
         ) {
             for ((i, h) in table.headers.withIndex()) {
                 Text(
                     text = stripInlineMarkdown(h),
-                    color = Color(0xFF9FCFFF),
+                    color = AppColors.InfoAccent,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
@@ -129,13 +129,13 @@ private fun MarkdownTableSection(table: MarkdownTable) {
             HorizontalDivider(color = divider, thickness = 1.dp)
             Row(modifier = Modifier
                 .fillMaxWidth()
-                .background(if (rowIdx % 2 == 1) Color(0xFF262626) else Color(0xFF222222))
+                .background(if (rowIdx % 2 == 1) AppColors.SurfaceDark else AppColors.DisabledBackground)
                 .padding(8.dp)
             ) {
                 for (i in 0 until table.headers.size) {
                     Text(
                         text = stripInlineMarkdown(row.getOrNull(i) ?: ""),
-                        color = Color.White,
+                        color = AppColors.TextPrimary,
                         fontSize = 14.sp,
                         modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
                         textAlign = textAlignFor(table.alignments.getOrNull(i))
@@ -165,9 +165,9 @@ private fun ThinkSection(content: String) {
         ) { Text(if (isExpanded) "Hide Think" else "Think", color = AppColors.TextSecondary, fontSize = 13.sp, maxLines = 1, softWrap = false) }
 
         if (isExpanded) {
-            Row(modifier = Modifier.fillMaxWidth().background(Color(0xFF252525))) {
+            Row(modifier = Modifier.fillMaxWidth().background(AppColors.SurfaceDark)) {
                 Box(modifier = Modifier.width(3.dp).fillMaxHeight().background(AppColors.TextDisabled))
-                Text(content, color = Color(0xFF999999), fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(12.dp))
+                Text(content, color = AppColors.TextDim, fontSize = 14.sp, lineHeight = 20.sp, modifier = Modifier.padding(12.dp))
             }
         }
     }
@@ -195,7 +195,7 @@ internal fun convertMarkdownToSimpleHtml(markdown: String): String {
 @Composable
 private fun HtmlContentDisplay(htmlContent: String) {
     val annotatedString = remember(htmlContent) { parseHtmlToAnnotatedString(htmlContent) }
-    Text(text = annotatedString, color = Color.White, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.fillMaxWidth())
+    Text(text = annotatedString, color = AppColors.TextPrimary, fontSize = 15.sp, lineHeight = 22.sp, modifier = Modifier.fillMaxWidth())
 }
 
 private fun parseHtmlToAnnotatedString(html: String): androidx.compose.ui.text.AnnotatedString {
@@ -223,11 +223,11 @@ private fun parseHtmlToAnnotatedString(html: String): androidx.compose.ui.text.A
                 if (idx >= 0) {
                     val (_, startPos) = styleStack.removeAt(idx)
                     val style = when (tagName) {
-                        "h1" -> SpanStyle(fontWeight = FontWeight.Bold, fontSize = 24.sp, color = Color.White)
-                        "h2" -> SpanStyle(fontWeight = FontWeight.Bold, fontSize = 20.sp, color = Color(0xFF8BB8FF))
-                        "h3" -> SpanStyle(fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Color(0xFF9FCFFF))
+                        "h1" -> SpanStyle(fontWeight = FontWeight.Bold, fontSize = 24.sp, color = AppColors.TextPrimary)
+                        "h2" -> SpanStyle(fontWeight = FontWeight.Bold, fontSize = 20.sp, color = AppColors.InfoAccent)
+                        "h3" -> SpanStyle(fontWeight = FontWeight.Bold, fontSize = 17.sp, color = AppColors.InfoAccent)
                         "strong" -> SpanStyle(fontWeight = FontWeight.Bold)
-                        "em" -> SpanStyle(fontStyle = FontStyle.Italic, color = Color(0xFFCCCCCC))
+                        "em" -> SpanStyle(fontStyle = FontStyle.Italic, color = AppColors.TextSecondary)
                         else -> null
                     }
                     style?.let { addStyle(it, startPos, length) }

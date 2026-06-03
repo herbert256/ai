@@ -84,7 +84,7 @@ internal fun ReportEditOverviewScreen(
         ?.takeIf { it.isNotBlank() } ?: "*NONE"
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -104,7 +104,7 @@ internal fun ReportEditOverviewScreen(
             // the right edge (all pencils share a right-aligned column).
             Box(modifier = Modifier.fillMaxWidth()) {
                 Text(
-                    icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon, fontSize = 56.sp, color = Color.White,
+                    icon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon, fontSize = 56.sp, color = AppColors.TextPrimary,
                     modifier = Modifier.align(Alignment.Center)
                 )
                 EditPencil(Modifier.align(Alignment.CenterEnd)) { st.showIconDetail.value = true }
@@ -145,7 +145,7 @@ internal fun ReportEditOverviewScreen(
                 }
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    prompt.ifBlank { "(no prompt)" }, fontSize = 13.sp, color = Color.White,
+                    prompt.ifBlank { "(no prompt)" }, fontSize = 13.sp, color = AppColors.TextPrimary,
                     lineHeight = 18.sp, maxLines = 8, overflow = TextOverflow.Ellipsis
                 )
             }
@@ -182,7 +182,7 @@ private fun EditPencil(modifier: Modifier = Modifier, onEdit: () -> Unit) {
 private fun CenteredEditRow(text: String, onEdit: () -> Unit) {
     Box(modifier = Modifier.fillMaxWidth()) {
         Text(
-            text, fontSize = 17.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+            text, fontSize = 17.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis,
             // Leave room on both sides so the centred title never runs under
             // the right-aligned pencil.
@@ -198,7 +198,7 @@ private fun CenteredEditRow(text: String, onEdit: () -> Unit) {
 private fun LabeledEditRow(label: String, value: String, onEdit: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(
-            "$label: $value", fontSize = 14.sp, color = Color.White,
+            "$label: $value", fontSize = 14.sp, color = AppColors.TextPrimary,
             maxLines = 2, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )

@@ -50,7 +50,7 @@ fun ProviderViewScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewScreenTitleBar(
@@ -100,7 +100,7 @@ private fun ProviderHeroCard(provider: AppService) {
             Text(
                 text = provider.id,
                 fontSize = 22.sp,
-                color = Color.White,
+                color = AppColors.TextPrimary,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
@@ -126,7 +126,7 @@ private fun ProviderEndpointsCard(provider: AppService) {
                 fontSize = 12.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold
             )
             provider.builtInEndpoints.forEach { ep ->
-                Text("• ${ep.name}", fontSize = 12.sp, color = Color.White)
+                Text("• ${ep.name}", fontSize = 12.sp, color = AppColors.TextPrimary)
             }
         }
     }
@@ -180,6 +180,6 @@ private fun KvRowLocal(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, color = AppColors.TextTertiary, fontSize = 12.sp, modifier = Modifier.weight(1f))
         Spacer(modifier = Modifier.width(12.dp))
-        Text(value, color = Color.White, fontSize = 13.sp)
+        Text(value, color = AppColors.TextPrimary, fontSize = 13.sp)
     }
 }

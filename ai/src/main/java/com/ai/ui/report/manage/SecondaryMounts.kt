@@ -240,7 +240,7 @@ internal fun MetaRunScreen(
 ) {
     BackHandler { onCancel() }
     var editablePrompt by remember(metaPrompt.id) { mutableStateOf(metaPrompt.text) }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_meta_run",
             title = "Run ${metaPrompt.name}", subject = "Tweak the prompt for this run only",
@@ -272,7 +272,7 @@ internal fun MetaRunScreen(
                 onValueChange = { editablePrompt = it },
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedFieldColors(),
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = Color.White),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = AppColors.TextPrimary),
                 minLines = 8
             )
         }
@@ -341,7 +341,7 @@ internal fun FanOutConfirmScreen(
     fun agentLabel(a: com.ai.data.ReportAgent): String =
         a.agentName.takeIf { it.isNotBlank() } ?: "${a.provider} · ${a.model}"
     BackHandler { onCancel() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_fan_out_confirm",
             title = "Fan Out - run", subject = "Confirm the calls before fanning out",
@@ -383,7 +383,7 @@ internal fun FanOutConfirmScreen(
                     } else {
                         val gridText = "${selectedInitiators.size} initiator${if (selectedInitiators.size == 1) "" else "s"} × ${selectedResponders.size} responder${if (selectedResponders.size == 1) "" else "s"} = $pairCount call${if (pairCount == 1) "" else "s"}"
                         Text(
-                            gridText, fontSize = 15.sp, color = Color.White,
+                            gridText, fontSize = 15.sp, color = AppColors.TextPrimary,
                             fontWeight = FontWeight.SemiBold, fontFamily = FontFamily.Monospace
                         )
                     }
@@ -410,7 +410,7 @@ internal fun FanOutConfirmScreen(
                             Checkbox(checked = checked, onCheckedChange = null)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                agentLabel(agent), fontSize = 12.sp, color = Color.White,
+                                agentLabel(agent), fontSize = 12.sp, color = AppColors.TextPrimary,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
@@ -433,7 +433,7 @@ internal fun FanOutConfirmScreen(
                             Checkbox(checked = checked, onCheckedChange = null)
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                agentLabel(agent), fontSize = 12.sp, color = Color.White,
+                                agentLabel(agent), fontSize = 12.sp, color = AppColors.TextPrimary,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 modifier = Modifier.weight(1f)
                             )
@@ -451,7 +451,7 @@ internal fun FanOutConfirmScreen(
                 onValueChange = { editablePrompt = it },
                 modifier = Modifier.fillMaxWidth(),
                 colors = AppColors.outlinedFieldColors(),
-                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = Color.White),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = AppColors.TextPrimary),
                 minLines = 4
             )
         }

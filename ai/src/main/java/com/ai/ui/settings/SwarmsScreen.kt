@@ -113,7 +113,7 @@ fun SwarmEditScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "swarm_edit",
@@ -189,7 +189,7 @@ fun SwarmEditScreen(
                                 Text(member.provider.id, fontSize = 13.sp, color = AppColors.InfoAccent,
                                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(com.ai.ui.shared.shortModelName(member.model), fontSize = 12.sp, color = Color.White,
+                                    Text(com.ai.ui.shared.shortModelName(member.model), fontSize = 12.sp, color = AppColors.TextPrimary,
                                         maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     com.ai.ui.shared.VisionBadge(aiSettings.isVisionCapable(member.provider, member.model))
                                     com.ai.ui.shared.WebSearchBadge(aiSettings.isWebSearchCapable(member.provider, member.model))

@@ -15,7 +15,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -57,7 +56,7 @@ internal fun ModelTestL3Screen(
     val service = AppService.findById(providerId)
 
     if (item == null) {
-        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(
                 helpTopic = "test_all_models_l3",
                 title = "Test all models - model", subject = "Pass/fail, latency and the model's reply",
@@ -88,7 +87,7 @@ internal fun ModelTestL3Screen(
     val next = if (curIdx in 0 until siblings.size - 1) siblings[curIdx + 1] else null
     val mi = com.ai.ui.shared.LocalMetadataIcons.current
 
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "test_all_models_l3",
             title = "Test all models - model",
@@ -153,14 +152,14 @@ internal fun ModelTestL3Screen(
             Spacer(Modifier.height(4.dp))
             Text(
                 com.ai.data.AnalysisRepository.TEST_PROMPT,
-                fontSize = 13.sp, color = Color.White
+                fontSize = 13.sp, color = AppColors.TextPrimary
             )
 
             if (!item.responseText.isNullOrBlank()) {
                 Spacer(Modifier.height(12.dp))
                 Text("Response", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
-                Text(item.responseText, fontSize = 13.sp, color = Color.White)
+                Text(item.responseText, fontSize = 13.sp, color = AppColors.TextPrimary)
             }
         }
 

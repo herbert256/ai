@@ -43,7 +43,7 @@ fun ShareChooserScreen(
 
     Column(modifier = Modifier
         .fillMaxSize()
-        .background(MaterialTheme.colorScheme.background)
+        .background(AppColors.AppBackground)
         .padding(16.dp)) {
         TitleBar(helpTopic = "share_target", title = "Share", subject = "Turn shared content into a report/chat", onBackClick = onCancel)
 
@@ -52,7 +52,7 @@ fun ShareChooserScreen(
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt)) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 shared.subject?.takeIf { it.isNotBlank() }?.let {
-                    Text(it, fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text(it, fontSize = 13.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
                 }
                 if (hasText) {
                     Text(shared.text!!.take(300) + if (shared.text.length > 300) "…" else "",
@@ -129,7 +129,7 @@ private fun ShareCard(
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
-                    color = if (enabled) Color.White else AppColors.TextDim)
+                    color = if (enabled) AppColors.TextPrimary else AppColors.TextDim)
                 Text(description, fontSize = 11.sp,
                     color = if (enabled) AppColors.TextTertiary else AppColors.TextDim)
             }

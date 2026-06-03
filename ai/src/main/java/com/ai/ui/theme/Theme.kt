@@ -2,26 +2,27 @@ package com.ai.ui.theme
 
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import com.ai.ui.shared.AppColors
 
 @Composable
 fun AppTheme(
     content: @Composable () -> Unit
 ) {
+    // Every Material colour role is sourced from AppColors so that
+    // MaterialTheme.colorScheme.* consumers follow the UI Colors settings.
     val colorScheme = darkColorScheme(
-        primary = Color(0xFF4A9EFF),
-        onPrimary = Color.White,
-        secondary = Color(0xFF3A8EEF),
-        onSecondary = Color.White,
+        primary = AppColors.InfoAccent,
+        onPrimary = AppColors.TextPrimary,
+        secondary = AppColors.InfoAccent,
+        onSecondary = AppColors.TextPrimary,
         background = AppColors.AppBackground,
-        onBackground = Color(0xFFEEEEEE),
+        onBackground = AppColors.TextPrimary,
         surface = AppColors.AppBackground,
-        onSurface = Color(0xFFEEEEEE),
-        surfaceVariant = Color(0xFF0F3460),
-        onSurfaceVariant = Color(0xFF888888),
-        error = Color(0xFFFF4757),
-        onError = Color.White
+        onSurface = AppColors.TextPrimary,
+        surfaceVariant = AppColors.CardBackground,
+        onSurfaceVariant = AppColors.TextDim,
+        error = AppColors.DangerAccent,
+        onError = AppColors.TextPrimary
     )
     MaterialTheme(
         colorScheme = colorScheme,

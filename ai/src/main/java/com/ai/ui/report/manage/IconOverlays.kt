@@ -442,7 +442,7 @@ internal fun PairIconDetailOverlay(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
+                    .background(AppColors.AppBackground)
             ) {}
             return true
         }

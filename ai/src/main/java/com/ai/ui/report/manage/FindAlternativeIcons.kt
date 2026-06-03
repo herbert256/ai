@@ -48,7 +48,7 @@ fun AlternativeIconsScreen(
                 com.ai.ui.report.view.helpers.ViewReportCache.get(screenContext, reportId)?.icon
             }
         }.value
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "alternative_icons", title = "Alternative icons", subject = "Live icon ideas from several models", onBackClick = onBack,
             reportIcon = if (iconGenEnabled) loadedReportIcon?.takeIf { it.isNotBlank() } ?: com.ai.data.MetadataIconsHolder.current.reportIcon else null
@@ -164,7 +164,7 @@ private fun CandidateRow(
                 )
             }
             Column(modifier = Modifier.weight(1f)) {
-                androidx.compose.material3.Text(iconModel, fontSize = 13.sp, color = Color.White)
+                androidx.compose.material3.Text(iconModel, fontSize = 13.sp, color = AppColors.TextPrimary)
                 when (candidate) {
                     is IconCandidate.Error -> androidx.compose.material3.Text(
                         candidate.reason, fontSize = 11.sp, color = AppColors.DangerAccent,

@@ -124,7 +124,7 @@ fun UpdateFromCloudScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "update_from_cloud", title = "Update from cloud", subject = "Install the latest APK from a synced file", onBackClick = onBack)
@@ -209,7 +209,7 @@ fun UpdateFromCloudScreen(
                                 color = AppColors.WarningAccent, fontSize = 13.sp
                             )
                         } else {
-                            Text(info.displayName, color = Color.White, fontSize = 13.sp)
+                            Text(info.displayName, color = AppColors.TextPrimary, fontSize = 13.sp)
                             Text(
                                 "${formatBytes(info.size)} · modified ${formatDate(info.lastModified)}",
                                 color = AppColors.TextTertiary, fontSize = 11.sp, fontFamily = FontFamily.Monospace
@@ -225,7 +225,7 @@ fun UpdateFromCloudScreen(
             Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground)) {
                 Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("Installed version", color = AppColors.InfoAccent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    Text(installedVersion, color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                    Text(installedVersion, color = AppColors.TextPrimary, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                     // Two columns so the timestamps line up despite
                     // the different label widths ("built" / "installed").
                     // Both labels padded to 10 chars ("installed " is 10

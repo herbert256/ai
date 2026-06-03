@@ -125,7 +125,7 @@ fun ValueViewScreen(reportId: String, onBack: () -> Unit) {
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewTitleBar(
@@ -259,7 +259,7 @@ private fun ValueRow(p: ValuePoint) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("${p.provider} · ${p.modelShort}", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text("${p.provider} · ${p.modelShort}", color = AppColors.TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     "${formatCents(p.costCents)}   ·   score ${formatScore(p.quality)}",
                     color = AppColors.TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace

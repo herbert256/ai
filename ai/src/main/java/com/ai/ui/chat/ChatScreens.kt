@@ -96,7 +96,7 @@ fun ChatParametersScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "chat_parameters", title = "Chat Parameters", subject = "Set model & options before chatting", onBackClick = onNavigateBack,
             onParameters = { showParamsDialog = true }, onSystemPrompt = { showSystemPromptDialog = true })
@@ -662,7 +662,7 @@ fun ChatSessionScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         val navToModelInfo = com.ai.ui.shared.LocalNavigateToModelInfo.current
         TitleBar(
@@ -816,7 +816,7 @@ fun ChatSessionScreen(
                     DropdownMenu(
                         expanded = reasoningMenuExpanded,
                         onDismissRequest = { reasoningMenuExpanded = false },
-                        modifier = Modifier.background(Color(0xFF2D2D2D))
+                        modifier = Modifier.background(AppColors.SurfaceDark)
                     ) {
                         // Narrow the option list to whatever the model
                         // self-reports it accepts (Anthropic
@@ -834,7 +834,7 @@ fun ChatSessionScreen(
                             DropdownMenuItem(
                                 text = {
                                     Text(label, fontSize = 13.sp,
-                                        color = if (reasoningEffort == value) AppColors.InfoAccent else Color.White)
+                                        color = if (reasoningEffort == value) AppColors.InfoAccent else AppColors.TextPrimary)
                                 },
                                 onClick = { reasoningEffort = value; reasoningMenuExpanded = false }
                             )
@@ -1074,7 +1074,7 @@ private fun ChatMessageBubble(
                 }
             }
             if (message.content.isNotBlank()) {
-                Text(message.content, fontSize = 14.sp, color = Color.White)
+                Text(message.content, fontSize = 14.sp, color = AppColors.TextPrimary)
             }
         }
     }
@@ -1125,7 +1125,7 @@ private fun AnimatedTextLines(content: String) {
         lines.forEachIndexed { index, line ->
             val targetAlpha = if (index < visibleLineCount) 1f else 0f
             val alpha by animateFloatAsState(targetAlpha, animationSpec = tween(300))
-            Text(line, fontSize = 14.sp, color = Color.White, modifier = Modifier.alpha(alpha))
+            Text(line, fontSize = 14.sp, color = AppColors.TextPrimary, modifier = Modifier.alpha(alpha))
         }
     }
 }

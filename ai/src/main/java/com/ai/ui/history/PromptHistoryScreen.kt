@@ -57,7 +57,7 @@ fun PromptHistoryScreen(
 
     LaunchedEffect(searchText) { currentPage = 0 }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val rowHeight = 56
         val overhead = 160
         val pageSize = maxOf(1, ((maxHeight.value - overhead) / rowHeight).toInt())
@@ -68,7 +68,7 @@ fun PromptHistoryScreen(
         val startIndex = currentPage * pageSize
         val pageItems = filteredEntries.subList(startIndex.coerceAtMost(filteredEntries.size), (startIndex + pageSize).coerceAtMost(filteredEntries.size))
 
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(helpTopic = "prompt_history", title = "Prompt History", subject = "Reuse a prompt you sent before", onBackClick = onNavigateBack,
                 onClear = if (allEntries.isNotEmpty()) ({
                     overrideEntries = emptyList(); currentPage = 0
@@ -119,7 +119,7 @@ private fun PromptHistoryRow(entry: PromptHistoryEntry, onClick: () -> Unit) {
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(entry.title, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.5f))
+            Text(entry.title, fontSize = 14.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1.5f))
             Text(dateFormat.format(Date(entry.timestamp)), fontSize = 12.sp, color = AppColors.TextTertiary, modifier = Modifier.weight(1f), textAlign = TextAlign.End)
         }
     }

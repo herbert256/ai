@@ -795,7 +795,7 @@ internal fun ColumnScope.GenerationPhase(
                     RowTypeCell("info")
                     Column(modifier = Modifier.weight(1f)) {
                         Text("icon, language, title, per-model icon / title",
-                            fontSize = 13.sp, color = Color.White,
+                            fontSize = 13.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     if (infoMetaTotal > 0.0) {
@@ -1018,7 +1018,7 @@ internal fun ColumnScope.GenerationPhase(
                         }
                         Text(
                             text,
-                            fontSize = 13.sp, color = Color.White,
+                            fontSize = 13.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -1127,7 +1127,7 @@ internal fun ColumnScope.GenerationPhase(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             "${run.metaPromptName} · ${run.pairCount} pairs$pendingSuffix",
-                            fontSize = 13.sp, color = Color.White,
+                            fontSize = 13.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -1165,7 +1165,7 @@ internal fun ColumnScope.GenerationPhase(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 "${run.metaPromptName} · ${run.titleCount} title${if (run.titleCount == 1) "" else "s"}",
-                                fontSize = 13.sp, color = Color.White,
+                                fontSize = 13.sp, color = AppColors.TextPrimary,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
@@ -1206,7 +1206,7 @@ internal fun ColumnScope.GenerationPhase(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             "$progress · ${run.targetLanguageName.ifBlank { "Translate" }}",
-                            fontSize = 13.sp, color = Color.White,
+                            fontSize = 13.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -1275,7 +1275,7 @@ internal fun ColumnScope.GenerationPhase(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             info,
-                            fontSize = 13.sp, color = Color.White,
+                            fontSize = 13.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -1332,7 +1332,7 @@ internal fun ColumnScope.GenerationPhase(
                     val modelTitle = if (showModelNamesInReportRows) null
                         else agentModelTitles[agentId]?.title?.takeIf { it.isNotBlank() }
                     Text(modelTitle ?: modelLabel,
-                        fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (result?.tokenUsage != null) {
                     // Just the model's own response cost — meta costs moved
@@ -1459,7 +1459,7 @@ internal fun LanguageRow(
                 running -> "Detecting…"
                 else -> snapshot.name ?: "(unknown)"
             }
-            val color = if (snapshot.error != null) AppColors.DangerAccent else Color.White
+            val color = if (snapshot.error != null) AppColors.DangerAccent else AppColors.TextPrimary
             Text(
                 text, fontSize = 13.sp, color = color,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
@@ -1523,7 +1523,7 @@ internal fun TitleRow(
                 running -> "Generating…"
                 else -> snapshot.title ?: "(no title)"
             }
-            val color = if (snapshot.error != null) AppColors.DangerAccent else Color.White
+            val color = if (snapshot.error != null) AppColors.DangerAccent else AppColors.TextPrimary
             Text(
                 text, fontSize = 13.sp, color = color,
                 maxLines = 1, overflow = TextOverflow.Ellipsis

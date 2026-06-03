@@ -204,7 +204,7 @@ fun NewReportScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_new", title = "New Report", subject = "Write your prompt, then pick models", onBackClick = onNavigateBack,
             onParameters = { showAdvancedParams = true }, onSystemPrompt = { showSystemPromptDialog = true },
             onClear = { title = ""; prompt = ""; userTagBlock = ""; attachedImage = null },
@@ -320,7 +320,7 @@ fun NewReportScreen(
             colors = AppColors.outlinedButtonColors()
         ) {
             if (isModerating) {
-                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = Color.White, strokeWidth = 2.dp)
+                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = AppColors.TextPrimary, strokeWidth = 2.dp)
                 Spacer(modifier = Modifier.width(6.dp))
             }
             Text("Next", fontSize = 16.sp, maxLines = 1, softWrap = false)

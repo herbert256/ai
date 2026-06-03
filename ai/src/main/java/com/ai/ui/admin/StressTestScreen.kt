@@ -32,7 +32,7 @@ fun StressTestScreen(
     val state by engine.state.collectAsState()
     var showConfirm by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "stress_test",
             title = "Stress test",
@@ -48,7 +48,7 @@ fun StressTestScreen(
             val s = state
             when (s?.phase) {
                 StressTestEngine.Phase.SUBMITTING -> {
-                    Text("Submitting ${s.total} report${if (s.total == 1) "" else "s"}…", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Submitting ${s.total} report${if (s.total == 1) "" else "s"}…", color = AppColors.TextPrimary, fontWeight = FontWeight.Bold)
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
                 StressTestEngine.Phase.DONE -> {
@@ -66,7 +66,7 @@ fun StressTestScreen(
                     Text(s.errorMessage ?: "Unknown error", color = AppColors.TextSecondary, fontSize = 13.sp)
                 }
                 null -> {
-                    Text("Runs an end-to-end stress test:", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Runs an end-to-end stress test:", color = AppColors.TextPrimary, fontWeight = FontWeight.Bold)
                     Text(
                         "Submits one AI report per Example Prompt, each using the models of swarm " +
                             "\"Level 2\". The reports are fired off all at once and generate concurrently in " +

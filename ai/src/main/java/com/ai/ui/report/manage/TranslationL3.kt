@@ -85,7 +85,7 @@ internal fun TranslationL3Screen(
 
     val item = run.items.firstOrNull { it.id == itemId }
     if (item == null) {
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(helpTopic = "translation_run_l3", title = "Translation call", subject = "Source text and its translation", onBackClick = onBack)
             Text("This item no longer exists.", color = AppColors.TextTertiary, fontSize = 14.sp)
         }
@@ -197,7 +197,7 @@ internal fun TranslationL3Screen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val traceEnabled = ApiTracer.ladybugLinksEnabled && traceFilename != null
         // 👁 → matching View Translate screen for this run.
         val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current

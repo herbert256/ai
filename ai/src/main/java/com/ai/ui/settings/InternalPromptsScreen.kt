@@ -215,7 +215,7 @@ fun InternalPromptEditScreen(
     var agentMenuOpen by remember { mutableStateOf(false) }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         val singular = categoryDisplayName(fixedCategory).removeSuffix("s")
         TitleBar(
@@ -334,7 +334,7 @@ fun InternalPromptEditScreen(
                                 agent,
                                 modifier = Modifier.weight(1f),
                                 fontSize = 13.sp,
-                                color = if (agent == AGENT_SELECT) AppColors.TextTertiary else Color.White,
+                                color = if (agent == AGENT_SELECT) AppColors.TextTertiary else AppColors.TextPrimary,
                                 fontFamily = FontFamily.Monospace
                             )
                             Text("▾", color = AppColors.TextTertiary)
@@ -342,17 +342,17 @@ fun InternalPromptEditScreen(
                         DropdownMenu(
                             expanded = agentMenuOpen,
                             onDismissRequest = { agentMenuOpen = false },
-                            modifier = Modifier.background(Color(0xFF2D2D2D))
+                            modifier = Modifier.background(AppColors.SurfaceDark)
                         ) {
                             DropdownMenuItem(
                                 text = { Text(AGENT_SELECT, fontSize = 13.sp,
-                                    color = if (agent == AGENT_SELECT) AppColors.InfoAccent else Color.White) },
+                                    color = if (agent == AGENT_SELECT) AppColors.InfoAccent else AppColors.TextPrimary) },
                                 onClick = { agent = AGENT_SELECT; agentMenuOpen = false }
                             )
                             agentNames.sortedBy { it.lowercase() }.forEach { n ->
                                 DropdownMenuItem(
                                     text = { Text(n, fontSize = 13.sp,
-                                        color = if (agent == n) AppColors.InfoAccent else Color.White) },
+                                        color = if (agent == n) AppColors.InfoAccent else AppColors.TextPrimary) },
                                     onClick = { agent = n; agentMenuOpen = false }
                                 )
                             }
@@ -373,7 +373,7 @@ fun InternalPromptEditScreen(
                         Text(
                             providerId.ifBlank { "Select provider…" },
                             modifier = Modifier.weight(1f), fontSize = 13.sp,
-                            color = if (providerId.isBlank()) AppColors.TextTertiary else Color.White,
+                            color = if (providerId.isBlank()) AppColors.TextTertiary else AppColors.TextPrimary,
                             fontFamily = FontFamily.Monospace
                         )
                         Text("▾", color = AppColors.TextTertiary)
@@ -387,7 +387,7 @@ fun InternalPromptEditScreen(
                         Text(
                             model.ifBlank { "Select model…" },
                             modifier = Modifier.weight(1f), fontSize = 13.sp,
-                            color = if (model.isBlank()) AppColors.TextTertiary else Color.White,
+                            color = if (model.isBlank()) AppColors.TextTertiary else AppColors.TextPrimary,
                             fontFamily = FontFamily.Monospace
                         )
                         Text("▾", color = AppColors.TextTertiary)
@@ -470,7 +470,7 @@ fun InternalPromptEditScreen(
                     Text(
                         if (selectedParametersName == "*NONE") "No parameters preset" else selectedParametersName,
                         modifier = Modifier.weight(1f), fontSize = 13.sp,
-                        color = if (selectedParametersName == "*NONE") AppColors.TextTertiary else Color.White,
+                        color = if (selectedParametersName == "*NONE") AppColors.TextTertiary else AppColors.TextPrimary,
                         fontFamily = FontFamily.Monospace
                     )
                     if (selectedParametersName != "*NONE") {
@@ -483,7 +483,7 @@ fun InternalPromptEditScreen(
                     Text(
                         if (selectedSystemPromptName == "*NONE") "No system prompt" else selectedSystemPromptName,
                         modifier = Modifier.weight(1f), fontSize = 13.sp,
-                        color = if (selectedSystemPromptName == "*NONE") AppColors.TextTertiary else Color.White,
+                        color = if (selectedSystemPromptName == "*NONE") AppColors.TextTertiary else AppColors.TextPrimary,
                         fontFamily = FontFamily.Monospace
                     )
                     if (selectedSystemPromptName != "*NONE") {
@@ -552,7 +552,7 @@ private fun WorkerRowEditor(
     val model = worker.model.takeIf { it != "*N/A" } ?: ""
 
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = AppColors.AppBackground),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -591,7 +591,7 @@ private fun WorkerRowEditor(
                     ) {
                         Text(
                             worker.agent, modifier = Modifier.weight(1f), fontSize = 13.sp,
-                            color = if (worker.agent == AGENT_SELECT) AppColors.TextTertiary else Color.White,
+                            color = if (worker.agent == AGENT_SELECT) AppColors.TextTertiary else AppColors.TextPrimary,
                             fontFamily = FontFamily.Monospace
                         )
                         Text("▾", color = AppColors.TextTertiary)
@@ -599,15 +599,15 @@ private fun WorkerRowEditor(
                     DropdownMenu(
                         expanded = agentMenuOpen,
                         onDismissRequest = { agentMenuOpen = false },
-                        modifier = Modifier.background(Color(0xFF2D2D2D))
+                        modifier = Modifier.background(AppColors.SurfaceDark)
                     ) {
                         DropdownMenuItem(
-                            text = { Text(AGENT_SELECT, fontSize = 13.sp, color = if (worker.agent == AGENT_SELECT) AppColors.InfoAccent else Color.White) },
+                            text = { Text(AGENT_SELECT, fontSize = 13.sp, color = if (worker.agent == AGENT_SELECT) AppColors.InfoAccent else AppColors.TextPrimary) },
                             onClick = { onChange(Worker(agent = AGENT_SELECT)); agentMenuOpen = false }
                         )
                         agentNames.sortedBy { it.lowercase() }.forEach { n ->
                             DropdownMenuItem(
-                                text = { Text(n, fontSize = 13.sp, color = if (worker.agent == n) AppColors.InfoAccent else Color.White) },
+                                text = { Text(n, fontSize = 13.sp, color = if (worker.agent == n) AppColors.InfoAccent else AppColors.TextPrimary) },
                                 onClick = { onChange(Worker(agent = n)); agentMenuOpen = false }
                             )
                         }
@@ -622,7 +622,7 @@ private fun WorkerRowEditor(
                     ) {
                         Text(
                             if (chosen) worker.flock else "Select flock…", modifier = Modifier.weight(1f), fontSize = 13.sp,
-                            color = if (chosen) Color.White else AppColors.TextTertiary,
+                            color = if (chosen) AppColors.TextPrimary else AppColors.TextTertiary,
                             fontFamily = FontFamily.Monospace
                         )
                         Text("▾", color = AppColors.TextTertiary)
@@ -630,14 +630,14 @@ private fun WorkerRowEditor(
                     DropdownMenu(
                         expanded = flockMenuOpen,
                         onDismissRequest = { flockMenuOpen = false },
-                        modifier = Modifier.background(Color(0xFF2D2D2D))
+                        modifier = Modifier.background(AppColors.SurfaceDark)
                     ) {
                         if (aiSettings.flocks.isEmpty()) {
                             DropdownMenuItem(text = { Text("No flocks defined", fontSize = 13.sp, color = AppColors.TextTertiary) }, onClick = { flockMenuOpen = false })
                         }
                         aiSettings.flocks.sortedBy { it.name.lowercase() }.forEach { f ->
                             DropdownMenuItem(
-                                text = { Text(f.name, fontSize = 13.sp, color = if (worker.flock == f.name) AppColors.InfoAccent else Color.White) },
+                                text = { Text(f.name, fontSize = 13.sp, color = if (worker.flock == f.name) AppColors.InfoAccent else AppColors.TextPrimary) },
                                 onClick = { onChange(Worker(agent = "*N/A", flock = f.name)); flockMenuOpen = false }
                             )
                         }
@@ -652,7 +652,7 @@ private fun WorkerRowEditor(
                     ) {
                         Text(
                             if (chosen) worker.swarm else "Select swarm…", modifier = Modifier.weight(1f), fontSize = 13.sp,
-                            color = if (chosen) Color.White else AppColors.TextTertiary,
+                            color = if (chosen) AppColors.TextPrimary else AppColors.TextTertiary,
                             fontFamily = FontFamily.Monospace
                         )
                         Text("▾", color = AppColors.TextTertiary)
@@ -660,14 +660,14 @@ private fun WorkerRowEditor(
                     DropdownMenu(
                         expanded = swarmMenuOpen,
                         onDismissRequest = { swarmMenuOpen = false },
-                        modifier = Modifier.background(Color(0xFF2D2D2D))
+                        modifier = Modifier.background(AppColors.SurfaceDark)
                     ) {
                         if (aiSettings.swarms.isEmpty()) {
                             DropdownMenuItem(text = { Text("No swarms defined", fontSize = 13.sp, color = AppColors.TextTertiary) }, onClick = { swarmMenuOpen = false })
                         }
                         aiSettings.swarms.sortedBy { it.name.lowercase() }.forEach { s ->
                             DropdownMenuItem(
-                                text = { Text(s.name, fontSize = 13.sp, color = if (worker.swarm == s.name) AppColors.InfoAccent else Color.White) },
+                                text = { Text(s.name, fontSize = 13.sp, color = if (worker.swarm == s.name) AppColors.InfoAccent else AppColors.TextPrimary) },
                                 onClick = { onChange(Worker(agent = "*N/A", swarm = s.name)); swarmMenuOpen = false }
                             )
                         }
@@ -681,7 +681,7 @@ private fun WorkerRowEditor(
                     ) {
                         Text(
                             providerId.ifBlank { "Select provider…" }, modifier = Modifier.weight(1f), fontSize = 13.sp,
-                            color = if (providerId.isBlank()) AppColors.TextTertiary else Color.White,
+                            color = if (providerId.isBlank()) AppColors.TextTertiary else AppColors.TextPrimary,
                             fontFamily = FontFamily.Monospace
                         )
                         Text("▾", color = AppColors.TextTertiary)
@@ -694,7 +694,7 @@ private fun WorkerRowEditor(
                     ) {
                         Text(
                             model.ifBlank { "Select model…" }, modifier = Modifier.weight(1f), fontSize = 13.sp,
-                            color = if (model.isBlank()) AppColors.TextTertiary else Color.White,
+                            color = if (model.isBlank()) AppColors.TextTertiary else AppColors.TextPrimary,
                             fontFamily = FontFamily.Monospace
                         )
                         Text("▾", color = AppColors.TextTertiary)

@@ -62,7 +62,7 @@ internal fun UsageProviderCard(
         Column(modifier = Modifier.padding(14.dp)) {
             Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle), verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(group.provider.id, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                    Text(group.provider.id, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary)
                     Text("${group.totalCalls} calls", fontSize = 12.sp, color = AppColors.TextTertiary)
                 }
                 Text(formatCurrency(group.totalCost), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.SuccessAccent)
@@ -84,7 +84,7 @@ private fun UsageModelRow(swc: StatWithCost, onClick: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(com.ai.ui.shared.shortModelName(swc.stat.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text(com.ai.ui.shared.shortModelName(swc.stat.model), fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 // Type pill — only shown for non-default kinds (rerank,
                 // summarize). The default "report" kind matches the
                 // implicit assumption and would just be visual noise.
@@ -236,7 +236,7 @@ internal fun AddManualOverrideScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "cost_override",
             title = if (isAddMode) "Add Override" else "Edit Override",

@@ -44,7 +44,7 @@ fun ExamplePromptPickerScreen(
     }
     val sorted = remember(filtered) { filtered.sortedBy { it.title.lowercase(java.util.Locale.ROOT) } }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "example_prompt_picker", title = "Pick an example prompt", subject = "Start a report from a sample prompt", onBackClick = onNavigateBack)
 
         OutlinedTextField(
@@ -85,7 +85,7 @@ fun ExamplePromptPickerScreen(
                     ) {
                         Text(
                             entry.title.ifBlank { "(untitled)" },
-                            fontSize = 14.sp, color = androidx.compose.ui.graphics.Color.White,
+                            fontSize = 14.sp, color = AppColors.TextPrimary,
                             fontWeight = FontWeight.SemiBold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )

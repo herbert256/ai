@@ -246,7 +246,7 @@ fun FanOutScreen(
         // Either still hydrating, or no persisted rows exist yet
         // (run launched ms ago). Show a minimal title bar so back
         // works, then a "loading" sentinel.
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             // 👁 → Main View (no run state yet → no metaPromptName).
             val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
             val onOpenViewJump: (() -> Unit)? = pendingHolder?.let {

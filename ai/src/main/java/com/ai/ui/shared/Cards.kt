@@ -57,7 +57,7 @@ fun IconLinkCard(
             )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
                 if (!subtitle.isNullOrBlank()) {
                     Text(subtitle, fontSize = 11.sp, color = AppColors.TextTertiary)
                 }
@@ -84,7 +84,7 @@ fun IconCardHeader(
             modifier = Modifier.width(42.dp)
         )
         Spacer(Modifier.width(12.dp))
-        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
         trailing?.invoke()
     }
 }
@@ -114,7 +114,7 @@ fun SettingsListItemCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.White)
+                Text(text = title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = AppColors.TextPrimary)
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(text = subtitle, fontSize = 14.sp, color = subtitleColor)
                 if (extraLine != null) {
@@ -175,7 +175,7 @@ fun CollapsibleCard(
                 }
                 Text(
                     text = title, style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold, color = Color.White, modifier = Modifier.weight(1f)
+                    fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f)
                 )
                 if (summary != null && !expanded) {
                     Text(
@@ -211,7 +211,7 @@ fun HubCard(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = Color.White)
+            Text(text = title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp, color = AppColors.TextPrimary)
             Spacer(modifier = Modifier.height(4.dp))
             Text(text = description, fontSize = 14.sp, color = AppColors.TextTertiary)
         }
@@ -281,7 +281,7 @@ fun ReportListRow(
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = report.title.ifBlank { "Untitled" },
-            fontSize = 14.sp, color = Color.White,
+            fontSize = 14.sp, color = AppColors.TextPrimary,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)

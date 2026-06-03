@@ -58,7 +58,7 @@ fun ParametersEditScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "parameters_edit",
@@ -114,7 +114,7 @@ fun ParametersEditScreen(
             // reach digits.
             val decKb = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
             val intKb = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
-            Text("Parameters", fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Parameters", fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
             OutlinedTextField(value = temperature, onValueChange = { temperature = it }, label = { Text("Temperature (0.0 - 2.0)") }, keyboardOptions = decKb, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
             OutlinedTextField(value = maxTokens, onValueChange = { maxTokens = it }, label = { Text("Max tokens") }, keyboardOptions = intKb, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
             OutlinedTextField(value = topP, onValueChange = { topP = it }, label = { Text("Top P (0.0 - 1.0)") }, keyboardOptions = decKb, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
@@ -123,32 +123,32 @@ fun ParametersEditScreen(
             OutlinedTextField(value = presencePenalty, onValueChange = { presencePenalty = it }, label = { Text("Presence penalty (-2.0 - 2.0)") }, keyboardOptions = decKb, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
             OutlinedTextField(value = seed, onValueChange = { seed = it }, label = { Text("Seed") }, keyboardOptions = intKb, modifier = Modifier.fillMaxWidth(), singleLine = true, colors = AppColors.outlinedFieldColors())
 
-            Text("System Prompt", fontWeight = FontWeight.Bold, color = Color.White)
+            Text("System Prompt", fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
             OutlinedTextField(
                 value = systemPrompt, onValueChange = { systemPrompt = it },
                 label = { Text("System prompt") }, modifier = Modifier.fillMaxWidth(),
                 minLines = 3, maxLines = 6, colors = AppColors.outlinedFieldColors()
             )
 
-            Text("Options", fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Options", fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
             Row(modifier = Modifier.fillMaxWidth().clickable { responseFormatJson = !responseFormatJson }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = responseFormatJson, onCheckedChange = { responseFormatJson = it })
-                Spacer(modifier = Modifier.width(8.dp)); Text("Response format: JSON", color = Color.White)
+                Spacer(modifier = Modifier.width(8.dp)); Text("Response format: JSON", color = AppColors.TextPrimary)
             }
             Row(modifier = Modifier.fillMaxWidth().clickable { searchEnabled = !searchEnabled }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = searchEnabled, onCheckedChange = { searchEnabled = it })
-                Spacer(modifier = Modifier.width(8.dp)); Text("Enable web search (search:true flag)", color = Color.White)
+                Spacer(modifier = Modifier.width(8.dp)); Text("Enable web search (search:true flag)", color = AppColors.TextPrimary)
             }
             Row(modifier = Modifier.fillMaxWidth().clickable { webSearchTool = !webSearchTool }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = webSearchTool, onCheckedChange = { webSearchTool = it })
-                Spacer(modifier = Modifier.width(8.dp)); Text("Web search tool (Anthropic/Gemini/Responses)", color = Color.White)
+                Spacer(modifier = Modifier.width(8.dp)); Text("Web search tool (Anthropic/Gemini/Responses)", color = AppColors.TextPrimary)
             }
             Row(modifier = Modifier.fillMaxWidth().clickable { returnCitations = !returnCitations }, verticalAlignment = Alignment.CenterVertically) {
                 Checkbox(checked = returnCitations, onCheckedChange = { returnCitations = it })
-                Spacer(modifier = Modifier.width(8.dp)); Text("Return citations", color = Color.White)
+                Spacer(modifier = Modifier.width(8.dp)); Text("Return citations", color = AppColors.TextPrimary)
             }
 
-            Text("Search Recency", fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Search Recency", fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf("", "day", "week", "month", "year").forEach { option ->
                     FilterChip(
@@ -159,7 +159,7 @@ fun ParametersEditScreen(
                 }
             }
 
-            Text("Reasoning Effort", fontWeight = FontWeight.Bold, color = Color.White)
+            Text("Reasoning Effort", fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
             Text("Only honored on reasoning-capable models (gpt-5/o-series, Gemini thinking, Claude with extended thinking). Ignored elsewhere.",
                 fontSize = 11.sp, color = AppColors.TextTertiary)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {

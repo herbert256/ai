@@ -102,7 +102,7 @@ private fun ModelTypeChip(type: String) {
     Text(
         text = type,
         fontSize = 9.sp,
-        color = Color.White,
+        color = AppColors.TextPrimary,
         modifier = Modifier
             .padding(horizontal = 4.dp)
             .background(color.copy(alpha = 0.4f), MaterialTheme.shapes.extraSmall)
@@ -176,7 +176,7 @@ fun ModelsListScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "models", title = "Models", subject = "Fetch, test and edit a provider's models",
@@ -209,7 +209,7 @@ fun ModelsListScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(provider.id, fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text(provider.id, fontSize = 15.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
                             if (model.isNotBlank()) {
                                 Text(com.ai.ui.shared.shortModelName(model), fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
@@ -370,7 +370,7 @@ fun ProviderModelSettingsScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "models_per_provider",
@@ -551,7 +551,7 @@ fun ProviderModelSettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             modelId,
-                            fontSize = 13.sp, color = Color.White,
+                            fontSize = 13.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f).alpha(state.rowAlpha)
                         )
@@ -902,7 +902,7 @@ fun ProviderSettingsScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
             helpTopic = "provider_edit",
@@ -928,7 +928,7 @@ fun ProviderSettingsScreen(
                 Row(modifier = Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text(com.ai.data.MetadataIconsHolder.current.sleep, fontSize = 28.sp, modifier = Modifier.width(42.dp))
                     Spacer(Modifier.width(12.dp))
-                    Text("Provider inactive", modifier = Modifier.weight(1f), color = Color.White)
+                    Text("Provider inactive", modifier = Modifier.weight(1f), color = AppColors.TextPrimary)
                     Text(
                         text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.InfoAccent,
                         modifier = Modifier
@@ -979,7 +979,7 @@ fun ProviderSettingsScreen(
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                         Text(com.ai.data.MetadataIconsHolder.current.key, fontSize = 28.sp, modifier = Modifier.width(42.dp))
                         Spacer(Modifier.width(12.dp))
-                        Text("API Key", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                        Text("API Key", fontWeight = FontWeight.Bold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                         Text(
                             text = com.ai.data.MetadataIconsHolder.current.help, fontSize = 14.sp, color = AppColors.InfoAccent,
                             modifier = Modifier.clickable { navigateHelp("provider_card_apikey") }
@@ -1013,7 +1013,7 @@ fun ProviderSettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(com.ai.data.MetadataIconsHolder.current.reportModelIcon, fontSize = 18.sp, modifier = Modifier.width(30.dp))
-                        Text("Models", fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                        Text("Models", fontWeight = FontWeight.Bold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                         if (modelsCount > 0) {
                             Text("$modelsCount", fontSize = 14.sp, color = AppColors.TextTertiary, modifier = Modifier.padding(horizontal = 8.dp))
                         }
@@ -1027,7 +1027,7 @@ fun ProviderSettingsScreen(
                     ) {
                         Text(com.ai.data.MetadataIconsHolder.current.reportModelIcon, fontSize = 18.sp, modifier = Modifier.width(30.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Default Model", fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Default Model", fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
                             Text(
                                 text = defaultModel.ifBlank { "Tap to select a model" },
                                 fontSize = 12.sp,
@@ -1206,7 +1206,7 @@ fun ProviderSettingsScreen(
                     label = { Text("Cost ticks divisor") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(), colors = AppColors.outlinedFieldColors())
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Extract API cost", color = Color.White, modifier = Modifier.weight(1f))
+                    Text("Extract API cost", color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                     Switch(checked = defExtractApiCost, onCheckedChange = { defExtractApiCost = it })
                 }
             }
@@ -1273,11 +1273,11 @@ fun ProviderSettingsScreen(
                 helpTopic = "provider_card_features"
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Supports citations", color = Color.White, modifier = Modifier.weight(1f))
+                    Text("Supports citations", color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                     Switch(checked = defSupportsCitations, onCheckedChange = { defSupportsCitations = it })
                 }
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Supports search recency", color = Color.White, modifier = Modifier.weight(1f))
+                    Text("Supports search recency", color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                     Switch(checked = defSupportsSearchRecency, onCheckedChange = { defSupportsSearchRecency = it })
                 }
             }
@@ -1348,7 +1348,7 @@ fun ProviderSettingsScreen(
             ) {
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Pricing from /models", color = Color.White)
+                        Text("Pricing from /models", color = AppColors.TextPrimary)
                         Text(
                             "When ON, the provider's /v1/models response carries authoritative pricing (input/output per million tokens) and the fetcher harvests it as a self-report tier. Only Together AI ships this today.",
                             fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1358,7 +1358,7 @@ fun ProviderSettingsScreen(
                 }
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Cross-provider model list", color = Color.White)
+                        Text("Cross-provider model list", color = AppColors.TextPrimary)
                         Text(
                             "When ON, this provider's /v1/models response drives pricing + type fan-out into every other provider via the openRouterName prefix. Only OpenRouter does this. Exactly one provider should have this flag set.",
                             fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1368,7 +1368,7 @@ fun ProviderSettingsScreen(
                 }
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("Merge hardcoded models", color = Color.White)
+                        Text("Merge hardcoded models", color = AppColors.TextPrimary)
                         Text(
                             "When ON, the model fetcher unions the persisted Hardcoded Models with the API list. Useful when /v1/models omits valid endpoints (e.g. OpenAI's TTS / image / moderation models aren't in /v1/models).",
                             fontSize = 11.sp, color = AppColors.TextTertiary
@@ -1378,7 +1378,7 @@ fun ProviderSettingsScreen(
                 }
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("External reasoning signal untrusted", color = Color.White)
+                        Text("External reasoning signal untrusted", color = AppColors.TextPrimary)
                         Text(
                             "When ON, the model fetcher's `reasoning: true` signal from /models metadata is ignored — reasoning capability is decided exclusively by the patterns below. xAI uses this because some always-on reasoning variants reject the reasoning_effort parameter.",
                             fontSize = 11.sp, color = AppColors.TextTertiary

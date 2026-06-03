@@ -133,7 +133,7 @@ fun CostsViewScreen(
     }
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
             // Body swipe flips Buckets ⇄ Models (both directions, wraps).
             // The title-bar swipe still changes report.
@@ -367,7 +367,7 @@ private fun CostsModeChip(
     ) {
         Text(
             text = label,
-            color = if (selected) Color.Black else AppColors.TextSecondary,
+            color = if (selected) AppColors.AppBackground else AppColors.TextSecondary,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center
@@ -428,7 +428,7 @@ private fun BucketBar(bucket: BucketTotal, totalCents: Double, onClick: (() -> U
         Box(
             modifier = Modifier.fillMaxWidth().height(10.dp)
                 .clip(RoundedCornerShape(5.dp))
-                .background(Color(0x33000000))
+                .background(AppColors.AppBackground.copy(alpha = 0.2f))
         ) {
             val frac = pct.coerceAtLeast(0.01).coerceAtMost(1.0)
             Box(
@@ -485,7 +485,7 @@ private fun CostsDrillL2Screen(
     val drillTotal = crossItems.sumOf { it.cents }
     val crossLabel = if (mode == CostsMode.Buckets) "model" else "bucket"
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewTitleBar(
@@ -540,7 +540,7 @@ private fun CostsDrillL3Screen(
     }
     val entriesTotal = entries.sumOf { it.inputCents + it.outputCents }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewTitleBar(

@@ -275,14 +275,14 @@ fun ReportModelScreen(
     }
 
     if (report == null) {
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
             TitleBar(helpTopic = "report_single_result", title = "Model response", subject = "Conclusion, motivation and full reply", onBackClick = onBack,
                 modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
         }
         return
     }
     if (agent == null || provider == null) {
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
             TitleBar(helpTopic = "report_single_result", title = "Model response", subject = "Conclusion, motivation and full reply", onBackClick = onBack,
                 modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -546,7 +546,7 @@ fun ReportModelScreen(
         )
     }
     val agentIdx = orderedAgents.indexOfFirst { it.agentId == currentAgentId }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
         // 👁 → the View "Model reports" screen at this agent. Overlay
         // path uses the pending-jump holder; the standalone route (holder
         // null) navigates via onNavigateToViewReports.
@@ -658,7 +658,7 @@ fun ReportModelScreen(
                                 // this model (same agentIconDetailFor overlay
                                 // the agent grid uses); layers over this screen
                                 // so Back returns here.
-                                Text(glyph, fontSize = 80.sp, color = Color.White,
+                                Text(glyph, fontSize = 80.sp, color = AppColors.TextPrimary,
                                     modifier = Modifier.clickable { onOpenAgentIcon(currentAgentId) })
                                 // 🐞 → the trace of the call that produced THIS
                                 // icon (the per-model icon-chain trace).
@@ -873,7 +873,7 @@ internal fun ContinueInChatPickerScreen(
     onNavigateHome: () -> Unit
 ) {
     BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
         TitleBar(helpTopic = "report_continue_in_chat", title = "Continue in chat", subject = "Send this answer into a new chat", onBackClick = onBack,
             modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
         Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
@@ -920,7 +920,7 @@ private fun ContinueRow(icon: String, title: String, enabled: Boolean, onClick: 
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold,
-            color = if (enabled) Color.White else AppColors.TextDim
+            color = if (enabled) AppColors.TextPrimary else AppColors.TextDim
         )
     }
 }

@@ -63,7 +63,7 @@ fun ReportEditPromptScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_edit_prompt", title = "Edit prompt", subject = "Saving needs a regenerate to apply", onBackClick = onBack)
 
         OutlinedTextField(
@@ -243,7 +243,7 @@ private fun SingleTitleEditScreen(
     }
     val titleTraceFilename = titleTraceFilenameState.value
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = helpTopic, title = titleBarTitle, subject = "Metadata only — no regenerate needed", onBackClick = onBack,
             onTrace = titleTraceFilename?.let { fn -> { onNavigateToTraceFile(fn) } }
@@ -300,7 +300,7 @@ fun ReportEditModelTitleScreen(
     var title by rememberSaveable(initialTitle) { mutableStateOf(initialTitle) }
     LaunchedEffect(injectedTitle) { injectedTitle?.let { title = it; onConsumeInjectedTitle() } }
     val canUpdate = title.trim().isNotBlank()
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_edit_model_title", title = "Edit model title", subject = "Rename one model's answer title", onBackClick = onBack,
             onTrace = traceFilename?.takeIf { it.isNotBlank() }?.let { fn -> { onNavigateToTraceFile(fn) } }
@@ -361,7 +361,7 @@ fun ReportEditPairTitleScreen(
     var title by rememberSaveable(loadedTitle) { mutableStateOf(loadedTitle) }
     val modelName = pair?.let { "${it.providerId} · ${com.ai.ui.shared.shortModelName(it.model)}" } ?: ""
     val canUpdate = title.trim().isNotBlank()
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "report_edit_pair_title", title = "Edit title", subject = "Rename one fan-out response title", onBackClick = onBack
         )

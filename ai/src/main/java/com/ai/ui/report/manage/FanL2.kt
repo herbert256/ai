@@ -165,7 +165,7 @@ internal fun FanOutL2Screen(
         rawRows.sortedWith(compareBy { p -> rowLabel(p).lowercase() })
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         // 👁 → matching View Fan-out for this metaPromptName.
         val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
         val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
@@ -302,7 +302,7 @@ internal fun FanOutL2Screen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     p.title ?: "—",
-                                    fontSize = 15.sp, color = Color.White,
+                                    fontSize = 15.sp, color = AppColors.TextPrimary,
                                     fontWeight = FontWeight.SemiBold,
                                     maxLines = 2, overflow = TextOverflow.Ellipsis
                                 )
@@ -449,7 +449,7 @@ internal fun FanOutL2Screen(
                             }
                             Text(
                                 label,
-                                fontSize = 14.sp, color = Color.White,
+                                fontSize = 14.sp, color = AppColors.TextPrimary,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                             )
                         }
@@ -567,7 +567,7 @@ internal fun FanOutL2MetaModelScreen(
             .sortedBy { it.timestamp }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val pendingHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
         val onOpenViewJump: (() -> Unit)? = pendingHolder?.let { holder ->
             {
@@ -604,7 +604,7 @@ internal fun FanOutL2MetaModelScreen(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 p.title ?: "—",
-                                fontSize = 15.sp, color = Color.White,
+                                fontSize = 15.sp, color = AppColors.TextPrimary,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 2, overflow = TextOverflow.Ellipsis
                             )
@@ -700,7 +700,7 @@ internal fun FanOutL2OnePageScreen(
         report?.agents?.firstOrNull { "${it.provider}|${it.model}" == answererKey }?.responseBody
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         // 👁 → matching View Fan-out for this metaPromptName.
         val pendingOnePageHolder = com.ai.ui.shared.LocalPendingViewOverManage.current
         val onOpenViewOnePageJump: (() -> Unit)? = pendingOnePageHolder?.let { holder ->
@@ -744,7 +744,7 @@ internal fun FanOutL2OnePageScreen(
                         Spacer(Modifier.height(4.dp))
                         Text(
                             initiatorBody ?: "(original response not found)",
-                            fontSize = 13.sp, color = Color.White
+                            fontSize = 13.sp, color = AppColors.TextPrimary
                         )
                         HorizontalDivider(
                             color = AppColors.DividerDark, thickness = 2.dp,
@@ -764,7 +764,7 @@ internal fun FanOutL2OnePageScreen(
                             p.content
                                 ?: p.errorMessage?.let { "${com.ai.data.MetadataIconsHolder.current.statusFailed} $it" }
                                 ?: "${com.ai.data.MetadataIconsHolder.current.statusPending} pending",
-                            fontSize = 13.sp, color = Color.White
+                            fontSize = 13.sp, color = AppColors.TextPrimary
                         )
                         HorizontalDivider(
                             color = AppColors.DividerDark, thickness = 2.dp,
@@ -797,7 +797,7 @@ internal fun FanOutL2OnePageScreen(
                             p.content
                                 ?: p.errorMessage?.let { "${com.ai.data.MetadataIconsHolder.current.statusFailed} $it" }
                                 ?: "${com.ai.data.MetadataIconsHolder.current.statusPending} pending",
-                            fontSize = 13.sp, color = Color.White
+                            fontSize = 13.sp, color = AppColors.TextPrimary
                         )
                         HorizontalDivider(
                             color = AppColors.DividerDark, thickness = 2.dp,

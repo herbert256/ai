@@ -97,7 +97,7 @@ fun HubScreen(
     val cardsHeight = (cardHeight * cardCount) + (cardSpacing * (cardCount - 1)) + 32.dp
 
     BoxWithConstraints(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(horizontal = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(horizontal = 16.dp)
     ) {
         // Cap calibrated for the tight-cropped ai_logo (content fills
         // the viewport, no internal padding). Bumping above ~160 dp
@@ -197,7 +197,7 @@ internal fun HubCard(icon: String, title: String, onClick: () -> Unit) {
                 modifier = Modifier.width(42.dp)
             )
             Spacer(modifier = Modifier.width(12.dp))
-            Text(text = title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+            Text(text = title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary)
         }
     }
 }
@@ -395,7 +395,7 @@ fun ReportsHubScreen(
     ) {
     Column(modifier = Modifier
         .fillMaxSize()
-        .background(MaterialTheme.colorScheme.background)
+        .background(AppColors.AppBackground)
         .verticalScroll(rememberScrollState())
         .padding(16.dp)) {
         TitleBar(helpTopic = "reports_hub", title = "Reports", subject = "Create, browse and search your reports", onBackClick = onNavigateBack, onHousekeeping = onHousekeeping)

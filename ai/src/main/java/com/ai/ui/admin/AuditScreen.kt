@@ -63,7 +63,7 @@ fun AuditListScreen(
     }
     var confirmClearAll by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "audit_list",
             title = "Audit", subject = "Per-report audit trail",
@@ -124,7 +124,7 @@ private fun AuditListItem(row: AuditRow, index: Int, onClick: () -> Unit) {
                 Text(
                     row.title ?: "(deleted report)",
                     fontSize = 13.sp,
-                    color = if (row.title != null) Color.White else AppColors.TextTertiary,
+                    color = if (row.title != null) AppColors.TextPrimary else AppColors.TextTertiary,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
                 Text(
@@ -173,7 +173,7 @@ fun AuditDetailScreen(
             ?.filename
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "audit_detail",
             title = "Audit",
@@ -297,6 +297,6 @@ private fun colorForAuditLine(line: String): Color {
         body.startsWith("API ") -> AppColors.TextTertiary
         body.startsWith("Start ") || body.startsWith("End ") -> AppColors.InfoAccent
         body.startsWith("Deleted ") || body == "Report deleted" -> AppColors.WarningAccent
-        else -> Color(0xFFCCCCCC)
+        else -> AppColors.TextSecondary
     }
 }

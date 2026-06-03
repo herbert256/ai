@@ -80,7 +80,7 @@ fun ApiTestScreen(
             else availableModels.filter { it.lowercase().contains(search.lowercase()) }
         }
         BackHandler { showModelDialog = false }
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(
                 helpTopic = "developer_select_model",
                 title = "Select Model",
@@ -120,7 +120,7 @@ fun ApiTestScreen(
                                 .padding(vertical = 10.dp, horizontal = 4.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            Text(m, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+                            Text(m, fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             Text(priceText, fontSize = 11.sp,
                                 color = if (real) AppColors.SuccessAccent else AppColors.TextDim,
@@ -140,7 +140,7 @@ fun ApiTestScreen(
     if (showEndpointDialog) {
         val endpoints = uiState.aiSettings.getEndpointsForProvider(selectedProvider)
         BackHandler { showEndpointDialog = false }
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(
                 helpTopic = "developer_select_endpoint",
                 title = "Select Endpoint",
@@ -155,7 +155,7 @@ fun ApiTestScreen(
                         .padding(vertical = 12.dp, horizontal = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    Text("default", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Text("default", fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
                     Text(selectedProvider.baseUrl, fontSize = 11.sp, color = AppColors.TextDim,
                         fontFamily = FontFamily.Monospace, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
@@ -167,7 +167,7 @@ fun ApiTestScreen(
                             .padding(vertical = 12.dp, horizontal = 4.dp),
                         verticalArrangement = Arrangement.spacedBy(2.dp)
                     ) {
-                        Text(ep.name, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+                        Text(ep.name, fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(ep.url, fontSize = 11.sp, color = AppColors.TextDim,
                             fontFamily = FontFamily.Monospace, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -179,7 +179,7 @@ fun ApiTestScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "developer_test", title = "API Test", subject = "Hand-craft a raw API call to a model", onBackClick = onBackClick)
 
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -301,7 +301,7 @@ fun EditApiRequestScreen(
     }
     var editableJson by remember { mutableStateOf(initialJson) }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "developer_edit", title = "Edit Request", subject = "Edit the raw JSON request body", onBackClick = onBackClick,
             onCopy = editableJson.takeIf { it.isNotBlank() }?.let {
@@ -315,7 +315,7 @@ fun EditApiRequestScreen(
         // Info card
         Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground), modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(12.dp)) {
-                Text("${provider.id} / ${com.ai.ui.shared.shortModelName(model)}", fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text("${provider.id} / ${com.ai.ui.shared.shortModelName(model)}", fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
                 Text(apiUrl, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -325,7 +325,7 @@ fun EditApiRequestScreen(
         // JSON editor
         OutlinedTextField(value = editableJson, onValueChange = { editableJson = it },
             modifier = Modifier.weight(1f).fillMaxWidth(),
-            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = Color.White),
+            textStyle = LocalTextStyle.current.copy(fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = AppColors.TextPrimary),
             colors = AppColors.outlinedFieldColors())
 
         Spacer(modifier = Modifier.height(12.dp))

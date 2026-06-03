@@ -55,7 +55,7 @@ internal fun ReportTranslationsScreen(
 ) {
     BackHandler { onBack() }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -116,7 +116,7 @@ private fun TranslationLanguageRow(
             Text(icon, fontSize = 16.sp)
         }
         Text(
-            label, fontSize = 14.sp, color = Color.White,
+            label, fontSize = 14.sp, color = AppColors.TextPrimary,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 8.dp)
         )

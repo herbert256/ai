@@ -53,7 +53,7 @@ fun HousekeepingScreen(
     BackHandler { onBackToHome() }
     val mi = LocalMetadataIcons.current
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "housekeeping",
             title = "Housekeeping",

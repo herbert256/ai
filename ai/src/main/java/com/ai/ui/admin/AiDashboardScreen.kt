@@ -152,7 +152,7 @@ fun AiLiveDashboardScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -239,7 +239,7 @@ private fun AiDashboardEditScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -326,7 +326,7 @@ fun AiMonitorScreen(
     }
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -381,7 +381,7 @@ fun AiCrashReportsScreen(
         }
         val text = body
         Column(
-            modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+            modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
                 .padding(start = 16.dp, end = 16.dp, top = 16.dp)
         ) {
             TitleBar(
@@ -401,7 +401,7 @@ fun AiCrashReportsScreen(
                 Text("Loading…", color = AppColors.TextTertiary, fontSize = 13.sp, modifier = Modifier.padding(8.dp))
             } else {
                 Text(
-                    text, fontSize = 12.sp, color = Color.White,
+                    text, fontSize = 12.sp, color = AppColors.TextPrimary,
                     fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace,
                     modifier = Modifier.fillMaxWidth().weight(1f)
                         .verticalScroll(rememberScrollState()).padding(top = 8.dp, bottom = 16.dp)
@@ -415,7 +415,7 @@ fun AiCrashReportsScreen(
         value = withContext(Dispatchers.IO) { com.ai.data.CrashReporter.listReports() }
     }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -444,7 +444,7 @@ fun AiCrashReportsScreen(
                     ) {
                         Column(Modifier.padding(14.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(r.whenLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                Text(r.whenLabel, fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                                 Text(
                                     r.kind, fontSize = 10.sp,
                                     color = if (r.kind == "FATAL") AppColors.DangerAccent else AppColors.WarningAccent,
@@ -509,7 +509,7 @@ fun AiStatisticsScreen(
     }
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -553,7 +553,7 @@ fun AiTraceStatsScreen(
     val d by produceState<TraceStatsData?>(null, refreshTick) { value = computeTraceStats() }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -653,7 +653,7 @@ fun AiTraceBreakdownScreen(
         else -> Triple(com.ai.data.MetadataDefaults.LABEL, "Trace categories", AppColors.SecondaryAccent)
     }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -694,7 +694,7 @@ fun AiLogStatsScreen(
     val d by produceState<LogStatsData?>(null, refreshTick) { value = computeLogStats() }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -713,7 +713,7 @@ fun AiLogStatsScreen(
                         KeyVal("Log level", s.level)
                         KeyVal("Writer", if (s.writerError == null) "OK" else "ERROR", if (s.writerError == null) AppColors.SuccessAccent else AppColors.DangerAccent)
                         if (s.writerError != null) Text(s.writerError, fontSize = 11.sp, color = AppColors.DangerAccent)
-                        KeyVal("Dropped lines", "${s.droppedLines}", if (s.droppedLines > 0) AppColors.WarningAccent else Color.White)
+                        KeyVal("Dropped lines", "${s.droppedLines}", if (s.droppedLines > 0) AppColors.WarningAccent else AppColors.TextPrimary)
                     }
                 }
                 item {
@@ -740,7 +740,7 @@ fun AiLogStatsScreen(
                         Spacer(Modifier.height(6.dp))
                         s.files.forEach { (date, bytes) ->
                             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(date, fontSize = 12.sp, color = Color.White)
+                                Text(date, fontSize = 12.sp, color = AppColors.TextPrimary)
                                 Text(fmtBytes(bytes), fontSize = 12.sp, color = AppColors.TextSecondary)
                             }
                         }
@@ -778,7 +778,7 @@ fun AiStatReportsScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -899,7 +899,7 @@ fun AiStatProvidersScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -921,7 +921,7 @@ fun AiStatProvidersScreen(
                 item {
                     SectionCard("🔌", "Providers", AppColors.SecondaryAccent) {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StatChip("🔢", "Configured", d.providersConfigured, Color.White)
+                            StatChip("🔢", "Configured", d.providersConfigured, AppColors.TextPrimary)
                             StatChip("🟢", "Active", d.providersActive, AppColors.SuccessAccent)
                             StatChip("🔑", "With key", d.providersWithKey, AppColors.InfoAccent)
                             StatChip("⚪", "Inactive", d.providersConfigured - d.providersActive, AppColors.TextDim)
@@ -960,7 +960,7 @@ fun AiStatProvidersScreen(
                         SectionCard("🧪", "Last test-all-models", AppColors.PrimaryAccent) {
                             KeyVal("For testing", "${t.forTesting}")
                             KeyVal("Passed", "${t.passed}", AppColors.SuccessAccent)
-                            KeyVal("Failed", "${t.failed}", if (t.failed > 0) AppColors.DangerAccent else Color.White)
+                            KeyVal("Failed", "${t.failed}", if (t.failed > 0) AppColors.DangerAccent else AppColors.TextPrimary)
                             KeyVal("Cost", money(t.cost), AppColors.SuccessAccent)
                             KeyVal("When", fmtFetched(t.startedAt))
                         }
@@ -1000,7 +1000,7 @@ fun AiStatModelsScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -1096,7 +1096,7 @@ private fun ProviderStatCard(row: ProviderRow, isExpanded: Boolean, onToggle: ()
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (row.active) mi.greenCircle else mi.whiteCircle, fontSize = 11.sp)
                 Spacer(Modifier.width(6.dp))
-                Text(row.id, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color.White, maxLines = 1, modifier = Modifier.weight(1f))
+                Text(row.id, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary, maxLines = 1, modifier = Modifier.weight(1f))
                 Text(
                     formatTag(row.format), fontSize = 9.sp, color = AppColors.TextSecondary,
                     modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(AppColors.SurfaceDark).padding(horizontal = 5.dp, vertical = 1.dp)
@@ -1227,7 +1227,7 @@ fun AiSpendUsageScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -1335,7 +1335,7 @@ private fun SpendUsageModeSelector(
 private fun SpendUsageSummary(calls: Int, tokens: Long, cost: Double) {
     Card(colors = CardDefaults.cardColors(containerColor = AppColors.CardBackgroundAlt), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(14.dp)) {
-            Text("Total: $calls calls, ${formatCompactNumber(tokens)} tokens", fontSize = 13.sp, color = Color.White)
+            Text("Total: $calls calls, ${formatCompactNumber(tokens)} tokens", fontSize = 13.sp, color = AppColors.TextPrimary)
             Text("Cost: ${cents(cost)}", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = AppColors.SuccessAccent)
         }
     }
@@ -1404,7 +1404,7 @@ private fun ColumnScope.SpendUsageProvidersTab(
                 modifier = Modifier.clickable { onOpenProvider(group.provider.id) }.padding(vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(group.provider.id, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
+                Text(group.provider.id, fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
                 Text("${group.totalCalls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
                 Text(formatCompactNumber(tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
                 Spacer(Modifier.width(cGap))
@@ -1483,7 +1483,7 @@ private fun ColumnScope.SpendUsageTypesTab(
                 modifier = Modifier.clickable { onOpenType(row.category) }.padding(vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(row.category, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
+                Text(row.category, fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
                 Text("${row.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
                 Text(
                     if (row.searchUnits > 0 && row.tokens == 0L) "${formatCompactNumber(row.searchUnits)} su" else formatCompactNumber(row.tokens),
@@ -1543,7 +1543,7 @@ private fun ColumnScope.SpendUsageReportsTab(
                 modifier = Modifier.clickable { onOpenReportCosts(row.reportId) }.padding(vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(row.title, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
+                Text(row.title, fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
                 Text("${row.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
                 Text(formatCompactNumber(row.tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
                 Spacer(Modifier.width(cGap))
@@ -1617,7 +1617,7 @@ private fun ColumnScope.SpendUsageModelsTab(
                 modifier = Modifier.padding(vertical = 9.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(row.model, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
+                Text(row.model, fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
                 Text("${row.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
                 Text(formatCompactNumber(row.tokens), fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cTok))
                 Spacer(Modifier.width(cGap))
@@ -1676,7 +1676,7 @@ fun AiSpendUsageProviderScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -1738,7 +1738,7 @@ fun AiSpendUsageProviderScreen(
                             .padding(horizontal = 4.dp, vertical = 8.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(com.ai.ui.shared.shortModelName(swc.stat.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                            Text(com.ai.ui.shared.shortModelName(swc.stat.model), fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                             if (swc.stat.kind != "report") {
                                 Text(swc.stat.kind, fontSize = 9.sp, color = AppColors.TextSecondary,
                                     modifier = Modifier.padding(end = 6.dp).clip(RoundedCornerShape(4.dp)).background(AppColors.SurfaceDark).padding(horizontal = 4.dp, vertical = 1.dp))
@@ -1797,7 +1797,7 @@ fun AiSpendUsageTypeGroupScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -1826,7 +1826,7 @@ fun AiSpendUsageTypeGroupScreen(
                             modifier = Modifier.clickable { onOpenType(row.category) }.padding(vertical = 9.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(row.category, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
+                            Text(row.category, fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(cName))
                             Text("${row.calls}", fontSize = 13.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.width(cCalls))
                             Text(
                                 if (row.searchUnits > 0 && row.tokens == 0L) "${formatCompactNumber(row.searchUnits)} su" else formatCompactNumber(row.tokens),
@@ -1873,7 +1873,7 @@ fun AiSpendUsageTypeScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -1939,7 +1939,7 @@ fun AiSpendUsageTypeScreen(
                                 .padding(horizontal = 4.dp, vertical = 8.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(com.ai.ui.shared.shortModelName(swc.stat.model), fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                Text(com.ai.ui.shared.shortModelName(swc.stat.model), fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                 if (swc.stat.kind != typePrefix) {
                                     Text(swc.stat.kind, fontSize = 9.sp, color = AppColors.TextSecondary,
                                         modifier = Modifier.padding(end = 6.dp).clip(RoundedCornerShape(4.dp)).background(AppColors.SurfaceDark).padding(horizontal = 4.dp, vertical = 1.dp))
@@ -2016,7 +2016,7 @@ fun AiCostsTierScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -2252,7 +2252,7 @@ private fun ActiveRunsBody(appViewModel: AppViewModel, reportViewModel: ReportVi
             Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(com.ai.ui.shared.LocalMetadataIcons.current.forFactoryGlyph(r.glyph), fontSize = 13.sp, modifier = Modifier.padding(end = 6.dp))
-                    Text(r.label, fontSize = 12.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Text(r.label, fontSize = 12.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                     Text(
                         if (r.total > 0) "${r.done}/${r.total}" else "${r.running} running",
                         fontSize = 12.sp, color = AppColors.TextSecondary
@@ -2313,7 +2313,7 @@ private fun ThrottleBody(
             }
             Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(twoLevelHost(h.host), fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium)
+                    Text(twoLevelHost(h.host), fontSize = 12.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.Medium)
                     Spacer(Modifier.weight(1f))
                     Text(
                         "con ${h.inUse}/${h.limit}  ·  min ${h.windowCount}/$windowCap",
@@ -2353,14 +2353,14 @@ private fun SpendTokensBody(context: android.content.Context) {
         Text("5m", fontSize = 11.sp, color = AppColors.TextTertiary, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
     }
     SpendRow("Spend", money(cost1), money(cost5), AppColors.SuccessAccent)
-    SpendRow("Tokens in", fmtTokens(tok1.inTok), fmtTokens(tok5.inTok), Color.White)
-    SpendRow("Tokens out", fmtTokens(tok1.outTok), fmtTokens(tok5.outTok), Color.White)
+    SpendRow("Tokens in", fmtTokens(tok1.inTok), fmtTokens(tok5.inTok), AppColors.TextPrimary)
+    SpendRow("Tokens out", fmtTokens(tok1.outTok), fmtTokens(tok5.outTok), AppColors.TextPrimary)
 }
 
 @Composable
 private fun SpendRow(label: String, v1: String, v5: String, accent: Color) {
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 12.sp, color = Color.White)
+        Text(label, fontSize = 12.sp, color = AppColors.TextPrimary)
         Spacer(Modifier.weight(1f))
         Text(v1, fontSize = 12.sp, color = accent, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
         Text(v5, fontSize = 12.sp, color = accent, textAlign = TextAlign.End, modifier = Modifier.width(72.dp))
@@ -2403,7 +2403,7 @@ private fun HttpCodesBody(onOpenTraceFilter: (String, String) -> Unit) {
 private fun HttpCodeRow(label: String, c1: Int, c5: Int, accent: Color, onTrace: () -> Unit) {
     val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(mi.iconizedText(label), fontSize = 12.sp, color = Color.White)
+        Text(mi.iconizedText(label), fontSize = 12.sp, color = AppColors.TextPrimary)
         Spacer(Modifier.weight(1f))
         Text("$c1", fontSize = 12.sp, color = if (c1 > 0) accent else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
         Text("$c5", fontSize = 12.sp, color = if (c5 > 0) accent else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(48.dp))
@@ -2443,10 +2443,10 @@ private fun ResponseTimesBody() {
 @Composable
 private fun ResponseTimeRow(label: String, n1: Int, v1: Int, n5: Int, v5: Int) {
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, fontSize = 12.sp, color = Color.White)
+        Text(label, fontSize = 12.sp, color = AppColors.TextPrimary)
         Spacer(Modifier.weight(1f))
-        Text(if (n1 > 0) fmtMs(v1) else "—", fontSize = 12.sp, color = if (n1 > 0) Color.White else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
-        Text(if (n5 > 0) fmtMs(v5) else "—", fontSize = 12.sp, color = if (n5 > 0) Color.White else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
+        Text(if (n1 > 0) fmtMs(v1) else "—", fontSize = 12.sp, color = if (n1 > 0) AppColors.TextPrimary else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
+        Text(if (n5 > 0) fmtMs(v5) else "—", fontSize = 12.sp, color = if (n5 > 0) AppColors.TextPrimary else AppColors.TextDim, textAlign = TextAlign.End, modifier = Modifier.width(60.dp))
     }
 }
 
@@ -2479,7 +2479,7 @@ private fun RecentErrorsBody() {
         Column(Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(errCodeLabel(e.code), fontSize = 12.sp, color = codeColor, fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp))
-                Text(twoLevelHost(e.host ?: "?"), fontSize = 12.sp, color = Color.White, maxLines = 1)
+                Text(twoLevelHost(e.host ?: "?"), fontSize = 12.sp, color = AppColors.TextPrimary, maxLines = 1)
                 e.model?.takeIf { it.isNotBlank() }?.let {
                     Spacer(Modifier.width(6.dp))
                     Text("· ${com.ai.ui.shared.shortModelName(it)}", fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -2503,7 +2503,7 @@ private fun SlowestCallsBody() {
     }
     slow.forEach { s ->
         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(twoLevelHost(s.host ?: "?"), fontSize = 12.sp, color = Color.White, maxLines = 1)
+            Text(twoLevelHost(s.host ?: "?"), fontSize = 12.sp, color = AppColors.TextPrimary, maxLines = 1)
             s.model?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.width(6.dp))
                 Text("· ${com.ai.ui.shared.shortModelName(it)}", fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
@@ -2527,7 +2527,7 @@ private fun CooldownBody() {
         val provider = key.substringBefore(":")
         val model = key.substringAfter(":")
         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-            Text("$provider · $model", fontSize = 12.sp, color = Color.White, maxLines = 1)
+            Text("$provider · $model", fontSize = 12.sp, color = AppColors.TextPrimary, maxLines = 1)
             Text(fmtDuration(until - now) + " left", fontSize = 12.sp, color = AppColors.WarningAccent, fontWeight = FontWeight.Medium)
         }
     }
@@ -2556,7 +2556,7 @@ private fun TestRunBody(reportViewModel: ReportViewModel, context: android.conte
     Spacer(Modifier.height(6.dp))
     KeyVal("Progress", "$finished / ${r.total}")
     KeyVal("Passed", "${r.doneCount}", AppColors.SuccessAccent)
-    KeyVal("Failed", "${r.errorCount}", if (r.errorCount > 0) AppColors.DangerAccent else Color.White)
+    KeyVal("Failed", "${r.errorCount}", if (r.errorCount > 0) AppColors.DangerAccent else AppColors.TextPrimary)
     KeyVal("Running", "${r.runningCount}", AppColors.WarningAccent)
     KeyVal("Queued", "${r.queuedCount}")
     KeyVal("Cost", money(r.totalCost), AppColors.SuccessAccent)
@@ -2611,7 +2611,7 @@ private fun HealthBody(context: android.content.Context) {
     }
     KeyVal("Log writer", if (logErr == null) "OK" else "ERROR", if (logErr == null) AppColors.SuccessAccent else AppColors.DangerAccent)
     if (logErr != null) Text(logErr, fontSize = 11.sp, color = AppColors.DangerAccent)
-    KeyVal("Dropped log lines", "$droppedLines", if (droppedLines > 0) AppColors.WarningAccent else Color.White)
+    KeyVal("Dropped log lines", "$droppedLines", if (droppedLines > 0) AppColors.WarningAccent else AppColors.TextPrimary)
     KeyVal("Trace files", "$traceCount (${fmtBytes(disk.traceBytes)})")
     KeyVal("Embeddings on disk", fmtBytes(disk.embeddingsBytes))
     KeyVal("Knowledge on disk", fmtBytes(disk.knowledgeBytes))
@@ -2663,7 +2663,7 @@ private fun LocalRuntimeBody(context: android.content.Context) {
 private fun ReportsSection(rs: ReportStats) {
     SectionCard("📋", "Reports", AppColors.InfoAccent) {
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            StatChip("📄", "Total", rs.total, Color.White)
+            StatChip("📄", "Total", rs.total, AppColors.TextPrimary)
             StatChip("⏳", "Running", rs.running, AppColors.WarningAccent)
             StatChip("⚠️", "Problems", rs.problems, AppColors.DangerAccent)
             StatChip("✅", "Completed", rs.completed, AppColors.SuccessAccent)
@@ -2734,7 +2734,7 @@ private fun CostTierSection(config: Map<String, Int>, runtime: Map<String, Int>)
             // All rows render uniformly (no per-row dimming) so a zero-count
             // tier like "Manual override" matches the rest.
             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(tierLabel(src), fontSize = 12.sp, color = Color.White, maxLines = 1, modifier = Modifier.weight(1.6f))
+                Text(tierLabel(src), fontSize = 12.sp, color = AppColors.TextPrimary, maxLines = 1, modifier = Modifier.weight(1.6f))
                 Text("$cfg", fontSize = 12.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
                 Text("$rt", fontSize = 12.sp, color = AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
             }
@@ -2742,8 +2742,8 @@ private fun CostTierSection(config: Map<String, Int>, runtime: Map<String, Int>)
         Spacer(Modifier.height(4.dp))
         Row(Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
             Text("Total models", fontSize = 12.sp, color = AppColors.TextSecondary, fontWeight = FontWeight.Medium, modifier = Modifier.weight(1.6f))
-            Text("${config.values.sum()}", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
-            Text("${runtime.values.sum()}", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+            Text("${config.values.sum()}", fontSize = 12.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
+            Text("${runtime.values.sum()}", fontSize = 12.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.Medium, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
         }
     }
 }
@@ -2782,7 +2782,7 @@ private fun PricingSection(
             val traceCat = "pricing/${c.name}"
             val hasTrace = c.fetchedAt > 0L && traceCat in tracedCategories
             Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(c.name, fontSize = 12.sp, color = if (dim) AppColors.TextDim else Color.White, maxLines = 1, modifier = Modifier.weight(1.5f))
+                Text(c.name, fontSize = 12.sp, color = if (dim) AppColors.TextDim else AppColors.TextPrimary, maxLines = 1, modifier = Modifier.weight(1.5f))
                 Text("${c.entries}", fontSize = 12.sp, color = if (dim) AppColors.TextDim else AppColors.TextSecondary, textAlign = TextAlign.End, modifier = Modifier.weight(0.7f))
                 Row(modifier = Modifier.weight(1.4f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End) {
                     Text(
@@ -2834,7 +2834,7 @@ private fun LinkCard(emoji: String, title: String, subtitle: String, onClick: ()
             )
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
                 Text(subtitle, fontSize = 11.sp, color = AppColors.TextTertiary)
             }
             Text("›", fontSize = 22.sp, color = AppColors.TextTertiary)
@@ -2909,7 +2909,7 @@ private fun StatChip(emoji: String, label: String, count: Int, accent: Color) {
 }
 
 @Composable
-private fun KeyVal(label: String, value: String, valueColor: Color = Color.White) {
+private fun KeyVal(label: String, value: String, valueColor: Color = AppColors.TextPrimary) {
     val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Row(Modifier.fillMaxWidth().padding(vertical = 2.dp), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(mi.iconizedText(label), fontSize = 12.sp, color = AppColors.TextSecondary)
@@ -2920,7 +2920,7 @@ private fun KeyVal(label: String, value: String, valueColor: Color = Color.White
 /** KeyVal that's tappable — label left, count right, a faint "›" to
  *  signal the row drills into a filtered API-trace list. */
 @Composable
-private fun StatRow(label: String, value: String, valueColor: Color = Color.White, onClick: () -> Unit) {
+private fun StatRow(label: String, value: String, valueColor: Color = AppColors.TextPrimary, onClick: () -> Unit) {
     val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Row(
         Modifier.fillMaxWidth().clickable { onClick() }.padding(vertical = 5.dp),

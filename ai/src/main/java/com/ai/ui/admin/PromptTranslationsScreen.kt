@@ -115,7 +115,7 @@ fun PromptTranslationsScreen(
         return
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "prompt_translations",
             title = "Prompt translations",
@@ -154,7 +154,7 @@ fun PromptTranslationsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(lang, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(lang, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
                             if (isTranslating) {
                                 Text(
                                     translateProgress?.let { (done, total) -> "Translating… $done/$total" } ?: "Translating…",
@@ -207,7 +207,7 @@ fun PromptTranslationsScreen(
                 Column {
                     languages.forEach { lang ->
                         Text(
-                            lang, color = Color.White, fontSize = 15.sp,
+                            lang, color = AppColors.TextPrimary, fontSize = 15.sp,
                             modifier = Modifier.fillMaxWidth().clickable {
                                 pickSource = false; pickTargetFromSource = lang
                             }.padding(vertical = 10.dp)

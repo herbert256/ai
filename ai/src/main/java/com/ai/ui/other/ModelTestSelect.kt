@@ -20,7 +20,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.OutlinedButton
@@ -69,7 +68,7 @@ internal fun ModelTestSelectScreen(
         providers.sortedBy { it.first.id.lowercase() }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "test_all_models_select",
             title = "Test all models", subject = "Choose which providers to test",
@@ -123,7 +122,7 @@ internal fun ModelTestSelectScreen(
                         )
                         Text(
                             service.id,
-                            fontSize = 14.sp, color = Color.White,
+                            fontSize = 14.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f).padding(start = 4.dp)
                         )

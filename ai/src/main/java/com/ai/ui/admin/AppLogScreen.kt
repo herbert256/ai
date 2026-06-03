@@ -69,7 +69,7 @@ fun AppLogListScreen(
     // share sheet (real .log attachment, not pasted text).
     var showSharePicker by remember { mutableStateOf(false) }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "applog_list",
             title = "Application log", subject = "Daily app logs for diagnosing issues",
@@ -261,7 +261,7 @@ fun AppLogListScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    info.date, fontSize = 14.sp, color = Color.White,
+                                    info.date, fontSize = 14.sp, color = AppColors.TextPrimary,
                                     modifier = Modifier.weight(1f), maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
@@ -290,7 +290,7 @@ private fun AppLogListItem(info: AppLogFileInfo, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
         Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically) {
-            Text(info.date, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f),
+            Text(info.date, fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f),
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text(formatBytes(info.sizeBytes), fontSize = 12.sp, color = AppColors.TextTertiary,
                 modifier = Modifier.weight(0.6f), textAlign = TextAlign.End)
@@ -349,7 +349,7 @@ private fun colorForEntry(header: String): Color = when {
     " INFO " in header -> AppColors.SuccessAccent
     " DEBUG " in header -> AppColors.InfoAccent
     " TRACE " in header -> AppColors.TextTertiary
-    else -> Color(0xFFCCCCCC)
+    else -> AppColors.TextSecondary
 }
 
 /** Resolve the [LogLevel] of a header line, or null when the line
@@ -587,7 +587,7 @@ fun AppLogDetailScreen(
                                 if (v) shareEntireLog = false
                             }
                         )
-                        Text("Filtered only (${entries.size} entries)", fontSize = 13.sp, color = Color.White)
+                        Text("Filtered only (${entries.size} entries)", fontSize = 13.sp, color = AppColors.TextPrimary)
                     }
                     Row(
                         modifier = Modifier.fillMaxWidth().clickable {
@@ -604,7 +604,7 @@ fun AppLogDetailScreen(
                                 if (v) shareFilteredOnly = false
                             }
                         )
-                        Text("Complete log", fontSize = 13.sp, color = Color.White)
+                        Text("Complete log", fontSize = 13.sp, color = AppColors.TextPrimary)
                     }
                 }
             },
@@ -665,7 +665,7 @@ fun AppLogDetailScreen(
         searchQuery = ""; enabledLevels = logDefaultLevels
         startTimeText = ""; endTimeText = ""; selectedTag = "(any)"
     }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "applog_detail",
             title = "Log file",
@@ -1005,7 +1005,7 @@ private fun AppLogEntryScreen(
             ?.filename
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "applog_detail",
             title = "Log entry",
@@ -1068,7 +1068,7 @@ private fun AppLogEntryScreen(
                 Text(
                     parts.rest,
                     fontSize = 13.sp,
-                    color = Color(0xFFCCCCCC),
+                    color = AppColors.TextSecondary,
                     fontFamily = FontFamily.Monospace
                 )
                 // Stack-trace continuation, if any.

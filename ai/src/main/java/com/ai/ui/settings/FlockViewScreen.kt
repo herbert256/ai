@@ -52,7 +52,7 @@ fun FlockViewScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewScreenTitleBar(
@@ -94,7 +94,7 @@ fun FlockViewScreen(
                             ) {
                                 Text(com.ai.data.MetadataIconsHolder.current.agent, fontSize = 18.sp, modifier = Modifier.padding(end = 8.dp))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(a.name, fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                                    Text(a.name, fontSize = 13.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
                                     Text(
                                         "${a.provider.id} / ${shortModelName(a.model)}",
                                         fontSize = 11.sp, color = AppColors.TextTertiary,
@@ -142,7 +142,7 @@ private fun FlockHero(flock: Flock, agentCount: Int) {
             Text(
                 text = flock.name,
                 fontSize = 22.sp,
-                color = Color.White,
+                color = AppColors.TextPrimary,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )

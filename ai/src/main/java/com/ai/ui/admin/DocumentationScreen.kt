@@ -8,13 +8,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 
 /** In-app browser for one bundled documentation hub. The same
@@ -46,7 +46,7 @@ fun DocumentationScreen(
         if (wv != null && wv.canGoBack()) wv.goBack() else onBack()
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
         TitleBar(
             helpTopic = helpTopic,
             title = title,

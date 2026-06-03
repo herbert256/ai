@@ -795,7 +795,7 @@ internal fun ColumnScope.FanOutDrillInView(
                             }
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(com.ai.ui.shared.modelLabel(rowProv, row.model), fontSize = 14.sp, color = Color.White,
+                            Text(com.ai.ui.shared.modelLabel(rowProv, row.model), fontSize = 14.sp, color = AppColors.TextPrimary,
                                 maxLines = 1, overflow = TextOverflow.Ellipsis)
                             row.sourceLabel?.let { label ->
                                 Text(label, fontSize = 11.sp, color = AppColors.TextTertiary,
@@ -1112,7 +1112,7 @@ internal fun ColumnScope.FanOutDrillInView(
                     val rowText = if (acLabel != null) "$acLabel · ${com.ai.ui.shared.modelLabel(acProv, row.model)}"
                         else com.ai.ui.shared.modelLabel(acProv, row.model)
                     Text(
-                        rowText, fontSize = 14.sp, color = Color.White,
+                        rowText, fontSize = 14.sp, color = AppColors.TextPrimary,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
@@ -1142,7 +1142,7 @@ internal fun ColumnScope.FanOutDrillInView(
             val rowFinished = rs.ok + rs.err
             val rowPending = (rs.totalSources - rowFinished).coerceAtLeast(0)
             val isOrphan = ak in orphanSetForRender
-            val labelColor = if (isOrphan) AppColors.TextDisabled else Color.White
+            val labelColor = if (isOrphan) AppColors.TextDisabled else AppColors.TextPrimary
             Row(
                 modifier = Modifier.fillMaxWidth()
                     .clickable { selectedModelKey = ak; selectedRole = "Responder" }

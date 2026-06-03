@@ -141,7 +141,7 @@ fun ReportPickerScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -184,7 +184,7 @@ private fun PickerCard(data: PickerCardData) {
                 data.entries.forEach { e ->
                     Text(
                         e.title,
-                        color = Color.White, fontSize = 14.sp,
+                        color = AppColors.TextPrimary, fontSize = 14.sp,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.fillMaxWidth()
                             .clickable { e.onOpen() }

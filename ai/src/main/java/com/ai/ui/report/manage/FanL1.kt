@@ -177,7 +177,7 @@ internal fun FanOutL1Screen(
         else -> run.pairs.values.firstNotNullOfOrNull { it.runId }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "secondary_fan_out_l1",
             title = when (mode) {
@@ -483,12 +483,12 @@ internal fun FanOutL1Screen(
                         Text(
                             icon, fontSize = 16.sp,
                             modifier = Modifier.width(24.dp)
-                                .background(MaterialTheme.colorScheme.background)
+                                .background(AppColors.AppBackground)
                         )
                     } else {
                         Box(
                             Modifier.width(24.dp)
-                                .background(MaterialTheme.colorScheme.background),
+                                .background(AppColors.AppBackground),
                             contentAlignment = Alignment.Center
                         ) {
                             AnimatedHourglass(fontSize = 16.sp)
@@ -496,7 +496,7 @@ internal fun FanOutL1Screen(
                     }
                     Text(
                         "${cr.fanInPromptName} · ${cr.providerId} / ${com.ai.ui.shared.shortModelName(cr.model)}",
-                        fontSize = 13.sp, color = Color.White,
+                        fontSize = 13.sp, color = AppColors.TextPrimary,
                         modifier = Modifier.weight(1f),
                         maxLines = 1, overflow = TextOverflow.Ellipsis
                     )
@@ -650,7 +650,7 @@ internal fun FanOutL1Screen(
                         Text(
                             // Model name only — no provider prefix.
                             row.label,
-                            fontSize = 14.sp, color = Color.White,
+                            fontSize = 14.sp, color = AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     }
@@ -925,7 +925,7 @@ private fun FanMetaModelsL1Row(
         )
         Text(
             name,
-            fontSize = 14.sp, color = Color.White,
+            fontSize = 14.sp, color = AppColors.TextPrimary,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f).padding(start = 8.dp)
         )

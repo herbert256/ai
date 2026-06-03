@@ -153,7 +153,7 @@ internal fun LanguageSelectionScreen(
         onConfirm(lang)
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "translation_language", title = "Pick target language", subject = "Choose a language to translate into", onBackClick = onBack)
 
         OutlinedTextField(value = search, onValueChange = { search = it }, modifier = Modifier.fillMaxWidth(),
@@ -206,7 +206,7 @@ private fun LanguageRow(lang: TargetLanguage, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(lang.name, fontSize = 14.sp, color = Color.White,
+            Text(lang.name, fontSize = 14.sp, color = AppColors.TextPrimary,
                 maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (lang.native != lang.name) {
                 Text(lang.native, fontSize = 12.sp, color = AppColors.TextTertiary,

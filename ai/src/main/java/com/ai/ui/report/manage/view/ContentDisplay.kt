@@ -71,14 +71,14 @@ fun ReportsViewerScreen(
 
     when (val s = reportState.value) {
         ReportLoadState.Loading -> {
-            Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
                 TitleBar(helpTopic = "content_model_response", title = "View Reports", subject = "Read each model's full answer", onBackClick = onDismiss,
                     modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
             }
             return
         }
         ReportLoadState.NotFound -> {
-            Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+            Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
                 TitleBar(helpTopic = "content_model_response", title = "View Reports", subject = "Read each model's full answer", onBackClick = onDismiss,
                     modifier = Modifier.padding(top = 16.dp, start = 16.dp, end = 16.dp))
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -167,7 +167,7 @@ internal fun LanguagePickerRow(
                 Text(
                     content,
                     fontSize = if (isEmoji) iconFontSize else 12.sp,
-                    color = if (isEmoji) Color.Unspecified else Color.White,
+                    color = if (isEmoji) Color.Unspecified else AppColors.TextPrimary,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                     maxLines = 1, softWrap = false,
                     modifier = Modifier
@@ -178,7 +178,7 @@ internal fun LanguagePickerRow(
             } else {
                 Button(
                     onClick = { onSelect(lang.key) },
-                    colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.SuccessAccent else Color(0xFF3A3A4A)),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isSelected) AppColors.SuccessAccent else AppColors.CardBackground),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                     modifier = Modifier.heightIn(min = 36.dp)
                 ) {
@@ -355,7 +355,7 @@ private fun ReportsViewerScreenLoaded(
             )
             return
         }
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
             val title = if (initialSection == "prompt") "Prompt" else "Report - costs"
             val sectionHelpTopic = if (initialSection == "prompt") "prompt_view" else "cost_view"
             // Resolve the prompt text up front so the title-bar 📋
@@ -433,7 +433,7 @@ private fun ReportsViewerScreenLoaded(
                     if (displayPrompt.isBlank()) {
                         Text("(no prompt recorded)", color = AppColors.TextTertiary, fontSize = 14.sp)
                     } else {
-                        Text(displayPrompt, fontSize = 14.sp, color = Color.White, lineHeight = 20.sp)
+                        Text(displayPrompt, fontSize = 14.sp, color = AppColors.TextPrimary, lineHeight = 20.sp)
                     }
                 } else {
                     val hasAgentCosts = report.agents.any { it.tokenUsage != null && (it.reportStatus == ReportStatus.SUCCESS || it.reportStatus == ReportStatus.ERROR) }
@@ -496,7 +496,7 @@ private fun OnePageReportView(
 ) {
     BackHandler { onBack() }
     val titleText = report.title.ifBlank { "Report" }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
         TitleBar(
             helpTopic = "content_one_page",
             title = "View in one page",
@@ -518,7 +518,7 @@ private fun OnePageReportView(
                 if (displayPrompt.isBlank()) {
                     Text("(no prompt recorded)", color = AppColors.TextTertiary, fontSize = 13.sp)
                 } else {
-                    Text(displayPrompt, fontSize = 13.sp, color = Color.White, lineHeight = 18.sp)
+                    Text(displayPrompt, fontSize = 13.sp, color = AppColors.TextPrimary, lineHeight = 18.sp)
                 }
                 Spacer(modifier = Modifier.height(12.dp))
                 HorizontalDivider(color = AppColors.DividerDark)
@@ -1020,8 +1020,8 @@ fun ReportCostTable(report: Report, onShowAllApi: () -> Unit = {}) {
             ),
             renderCells = { g ->
                 listOf(
-                    CostCell(com.ai.ui.shared.shortModelName(g.model ?: ""), Color.White, mono = true, end = false, weight = 2f),
-                    CostCell(g.calls.toString(), Color.White, mono = true, end = true, weight = 1f),
+                    CostCell(com.ai.ui.shared.shortModelName(g.model ?: ""), AppColors.TextPrimary, mono = true, end = false, weight = 2f),
+                    CostCell(g.calls.toString(), AppColors.TextPrimary, mono = true, end = true, weight = 1f),
                     CostCell("%.2f ¢".format(g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = 1f),
                 )
             },
@@ -1056,7 +1056,7 @@ fun ReportApiCallsScreen(report: Report, onBack: () -> Unit, onNavigateToTraceFi
     // narrows the Model options to those still present, and vice-versa.
     var typeFilter by rememberSaveable { mutableStateOf("All") }
     var modelFilter by rememberSaveable { mutableStateOf("All") }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)) {
         TitleBar(
             helpTopic = "cost_view",
             title = "Report - API", subject = "Raw API request and response",
@@ -1121,7 +1121,7 @@ fun ReportApiCallsScreen(report: Report, onBack: () -> Unit, onNavigateToTraceFi
                         renderCells = { r ->
                             listOf(
                                 CostCell(r.type, costTypeColor(r.type), mono = false, end = false, weight = 1f),
-                                CostCell(com.ai.ui.shared.shortModelName(r.model), Color.White, mono = true, end = false, weight = 2f),
+                                CostCell(com.ai.ui.shared.shortModelName(r.model), AppColors.TextPrimary, mono = true, end = false, weight = 2f),
                                 CostCell("%.2f ¢".format(r.inputCents + r.outputCents), tColor, mono = true, end = true, weight = 1f),
                             )
                         },
@@ -1159,7 +1159,7 @@ private fun FilterDropdown(
         OutlinedButton(
             onClick = { open = true },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White)
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColors.TextPrimary)
         ) {
             Text(
                 "$label: $selected",
@@ -1179,7 +1179,7 @@ private fun FilterDropdown(
                             opt,
                             fontSize = 13.sp,
                             fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isSel) AppColors.InfoAccent else Color.White,
+                            color = if (isSel) AppColors.InfoAccent else AppColors.TextPrimary,
                             maxLines = 1, overflow = TextOverflow.Ellipsis
                         )
                     },
@@ -1423,8 +1423,8 @@ private fun CostTypeGroupedSection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 CostCellText(CostCell("${if (isOpen) "▾" else "▸"} ${g.prefix}", costTypeColor(g.prefix), mono = false, end = false, weight = weights[0], bold = true))
-                CostCellText(CostCell(g.calls.toString(), Color.White, mono = true, end = true, weight = weights[1]))
-                CostCellText(CostCell("%,d".format(g.inputTokens + g.outputTokens), Color.White, mono = true, end = true, weight = weights[2]))
+                CostCellText(CostCell(g.calls.toString(), AppColors.TextPrimary, mono = true, end = true, weight = weights[1]))
+                CostCellText(CostCell("%,d".format(g.inputTokens + g.outputTokens), AppColors.TextPrimary, mono = true, end = true, weight = weights[2]))
                 CostCellText(CostCell("%.2f ¢".format(g.inputCents + g.outputCents), tColor, mono = true, end = true, weight = weights[3]))
             }
             // Members — indented; tap opens that type's per-call breakdown.
@@ -1437,8 +1437,8 @@ private fun CostTypeGroupedSection(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         CostCellText(CostCell("      ${m.key}", costTypeColor(m.key), mono = false, end = false, weight = weights[0]))
-                        CostCellText(CostCell(m.calls.toString(), Color.White, mono = true, end = true, weight = weights[1]))
-                        CostCellText(CostCell("%,d".format(m.inputTokens + m.outputTokens), Color.White, mono = true, end = true, weight = weights[2]))
+                        CostCellText(CostCell(m.calls.toString(), AppColors.TextPrimary, mono = true, end = true, weight = weights[1]))
+                        CostCellText(CostCell("%,d".format(m.inputTokens + m.outputTokens), AppColors.TextPrimary, mono = true, end = true, weight = weights[2]))
                         CostCellText(CostCell("%.2f ¢".format(m.inputCents + m.outputCents), tColor, mono = true, end = true, weight = weights[3]))
                     }
                 }
@@ -1603,14 +1603,14 @@ private fun buildCallBody(r: CostRow): String {
 @Composable
 private fun CitationsSection(citations: List<String>) {
     val context = LocalContext.current
-    Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF252525), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().background(AppColors.SurfaceDark, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)) {
         Text("Sources", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppColors.PrimaryAccent, modifier = Modifier.padding(bottom = 12.dp))
         citations.forEachIndexed { i, url ->
             Row(modifier = Modifier.padding(vertical = 4.dp).clickable {
                 try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, url.toUri())) } catch (_: Exception) {}
             }) {
                 Text("${i + 1}. ", color = AppColors.TextSecondary, fontSize = 14.sp)
-                Text(url, color = Color(0xFF64B5F6), fontSize = 14.sp, modifier = Modifier.weight(1f), textDecoration = TextDecoration.Underline)
+                Text(url, color = AppColors.InfoAccent, fontSize = 14.sp, modifier = Modifier.weight(1f), textDecoration = TextDecoration.Underline)
             }
         }
     }
@@ -1619,7 +1619,7 @@ private fun CitationsSection(citations: List<String>) {
 @Composable
 private fun SearchResultsSection(searchResults: List<SearchResult>) {
     val context = LocalContext.current
-    Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF252525), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().background(AppColors.SurfaceDark, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)) {
         Text("Search Results", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppColors.WarningAccent, modifier = Modifier.padding(bottom = 12.dp))
         searchResults.forEachIndexed { i, result ->
             if (result.url != null) {
@@ -1628,10 +1628,10 @@ private fun SearchResultsSection(searchResults: List<SearchResult>) {
                 }) {
                     Row {
                         Text("${i + 1}. ", color = AppColors.TextSecondary, fontSize = 14.sp)
-                        Text(result.name ?: result.url, color = Color(0xFF64B5F6), fontSize = 14.sp, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)
+                        Text(result.name ?: result.url, color = AppColors.InfoAccent, fontSize = 14.sp, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)
                     }
                     if (result.name != null && result.name != result.url) Text(result.url, color = AppColors.TextTertiary, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, top = 2.dp))
-                    if (!result.snippet.isNullOrBlank()) Text(result.snippet, color = Color(0xFFBBBBBB), fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
+                    if (!result.snippet.isNullOrBlank()) Text(result.snippet, color = AppColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp, top = 4.dp))
                 }
             }
         }
@@ -1640,12 +1640,12 @@ private fun SearchResultsSection(searchResults: List<SearchResult>) {
 
 @Composable
 private fun RelatedQuestionsSection(relatedQuestions: List<String>) {
-    Column(modifier = Modifier.fillMaxWidth().background(Color(0xFF252525), shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxWidth().background(AppColors.SurfaceDark, shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)).padding(16.dp)) {
         Text("Related Questions", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = AppColors.SuccessAccent, modifier = Modifier.padding(bottom = 12.dp))
         relatedQuestions.forEachIndexed { i, q ->
             Row(modifier = Modifier.padding(vertical = 4.dp)) {
                 Text("${i + 1}. ", color = AppColors.TextSecondary, fontSize = 14.sp)
-                Text(q, color = Color(0xFFE0E0E0), fontSize = 14.sp, modifier = Modifier.weight(1f))
+                Text(q, color = AppColors.TextPrimary, fontSize = 14.sp, modifier = Modifier.weight(1f))
             }
         }
     }

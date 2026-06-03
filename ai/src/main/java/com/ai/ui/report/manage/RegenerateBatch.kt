@@ -101,7 +101,7 @@ fun RegenerateBatchScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -284,7 +284,7 @@ private fun TaskCard(t: RegenerateTask) {
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                t.label, color = Color.White, fontSize = 14.sp,
+                t.label, color = AppColors.TextPrimary, fontSize = 14.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis
             )
             val ts = formatTimestamps(t)
@@ -419,7 +419,7 @@ fun RegenerateBatchManageRow() {
             // model-name text on every other row in this LazyColumn.
             Text(
                 text = rowText,
-                color = Color.White,
+                color = AppColors.TextPrimary,
                 fontSize = 13.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

@@ -1639,7 +1639,7 @@ fun ImportExportScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "import_export",
             title = if (importOnly) "Import" else "Export / Import",
@@ -1905,7 +1905,7 @@ private fun ImportExportRow(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(label, fontSize = 12.sp, color = Color.White, modifier = Modifier.weight(1f),
+        Text(label, fontSize = 12.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f),
             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
         if (!importOnly) {
             OutlinedButton(onClick = onExport,

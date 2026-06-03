@@ -149,7 +149,7 @@ internal fun ReportExportScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "report_export", title = "Export", subject = "Pick a format and save or share it", onBackClick = onBack)
         // Both CTAs hoisted to the top — Export (green) dispatches
         // based on the Target chip; Export all (purple) bundles the

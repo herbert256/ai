@@ -155,7 +155,7 @@ fun TournamentPodiumViewScreen(
 
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
             .viewBodySwipe(currentReportId, onPrev = { onSwipePrevAction() }, onNext = { onSwipeNextAction() })
     ) {
@@ -494,7 +494,7 @@ private fun TournamentMethodChip(label: String, selected: Boolean, onClick: () -
         label,
         fontSize = 12.sp,
         fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-        color = if (selected) Color.Black else Color.White,
+        color = if (selected) AppColors.AppBackground else AppColors.TextPrimary,
         maxLines = 1,
         modifier = Modifier.clip(RoundedCornerShape(8.dp))
             .background(if (selected) AppColors.SuccessAccent else AppColors.CardBackground)
@@ -569,7 +569,7 @@ private fun TournamentRankCard(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 ranking.agent?.label ?: "(unknown model)",
-                color = Color.White,
+                color = AppColors.TextPrimary,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -641,7 +641,7 @@ private fun TournamentModelHeadToHeadViewScreen(
     val subjectLabel = activeModelRole?.let { "$it - $modelLabel" } ?: modelLabel
     Column(
         modifier = Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         ViewTitleBar(
@@ -738,7 +738,7 @@ private fun TournamentHeadToHeadCard(match: TournamentViewMatch, agentId: String
     ) {
         Text(
             "vs $opponent",
-            color = Color.White,
+            color = AppColors.TextPrimary,
             fontSize = 14.sp,
             fontWeight = FontWeight.SemiBold
         )
@@ -762,7 +762,7 @@ private fun TournamentOrientationLine(label: String, side: TournamentViewSide, a
     Column(
         modifier = Modifier.fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(Color.Black.copy(alpha = 0.18f))
+            .background(AppColors.AppBackground.copy(alpha = 0.18f))
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -880,7 +880,7 @@ private fun EmptyTournamentCard(done: Int, total: Int) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         Text(com.ai.data.MetadataIconsHolder.current.tournament, fontSize = 42.sp)
-        Text("Tournament is still forming", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text("Tournament is still forming", color = AppColors.TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Text(
             "Judged $done/$total matches",
             color = AppColors.TextSecondary,
@@ -945,7 +945,7 @@ private fun TournamentTotalTable(matrixJson: String?, rankings: List<TournamentR
         HorizontalDivider(color = AppColors.DividerDark)
         rows.forEach { r ->
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 6.dp)) {
-                Text(r.label, fontSize = 13.sp, color = Color.White, maxLines = 1,
+                Text(r.label, fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.width(cModel))
                 r.positions.forEach { pos ->
                     Text(pos?.toString() ?: "–", fontSize = 13.sp, color = AppColors.TextSecondary,
@@ -986,8 +986,8 @@ private fun medalForRank(rank: Int?): String? = when (rank) {
 }
 
 private fun medalColor(rank: Int?): Color = when (rank) {
-    1 -> Color(0xFFFFD54F)
-    2 -> Color(0xFFB0BEC5)
-    3 -> Color(0xFFCD7F32)
+    1 -> AppColors.WarningAccent
+    2 -> AppColors.TextSecondary
+    3 -> AppColors.QueueAccent
     else -> AppColors.InfoAccent
 }

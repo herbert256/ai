@@ -444,7 +444,7 @@ fun ModelInfoScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "model_info",
             title = "Model Info",
@@ -839,7 +839,7 @@ fun ModelInfoScreen(
                                             InfoProviderName(
                                                 name = label,
                                                 fontSize = 13.sp,
-                                                plainColor = Color.White,
+                                                plainColor = AppColors.TextPrimary,
                                                 onNavigateToHelpTopic = onNavigateToHelpTopic,
                                                 modifier = Modifier.weight(1f)
                                             )
@@ -938,7 +938,7 @@ fun ModelInfoScreen(
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("Capabilities", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
                                 Row {
-                                    Text(visionLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                    Text(visionLabel, fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                                     InfoProviderName(
                                         name = visionSrcText, fontSize = 12.sp,
                                         plainColor = AppColors.TextTertiary,
@@ -946,7 +946,7 @@ fun ModelInfoScreen(
                                     )
                                 }
                                 Row {
-                                    Text(webLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                    Text(webLabel, fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                                     InfoProviderName(
                                         name = webSrcText, fontSize = 12.sp,
                                         plainColor = AppColors.TextTertiary,
@@ -954,7 +954,7 @@ fun ModelInfoScreen(
                                     )
                                 }
                                 Row {
-                                    Text(reasoningLabel, fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                    Text(reasoningLabel, fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                                     InfoProviderName(
                                         name = reasoningSrcText, fontSize = 12.sp,
                                         plainColor = AppColors.TextTertiary,
@@ -967,7 +967,7 @@ fun ModelInfoScreen(
                                 cfg.modelCapabilities[modelName]?.supportsPdfInput?.let { pdf ->
                                     Row {
                                         Text("PDF input ${mi.document}: ${if (pdf) "yes" else "no"}",
-                                            fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                            fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                                         Text("Provider self-report", fontSize = 12.sp, color = AppColors.TextTertiary)
                                     }
                                 }
@@ -987,14 +987,14 @@ fun ModelInfoScreen(
                                 // diverging in a Parameters preset.
                                 cfg.modelCapabilities[modelName]?.defaultTemperature?.let { t ->
                                     Row {
-                                        Text("Default temperature: $t", fontSize = 13.sp, color = Color.White, modifier = Modifier.weight(1f))
+                                        Text("Default temperature: $t", fontSize = 13.sp, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                                         Text("Provider", fontSize = 12.sp, color = AppColors.TextTertiary)
                                     }
                                 }
                                 cfg.modelCapabilities[modelName]?.defaultStopSequences?.takeIf { it.isNotEmpty() }?.let { stops ->
                                     Row {
                                         Text("Default stops: ${stops.joinToString(", ")}",
-                                            fontSize = 13.sp, color = Color.White,
+                                            fontSize = 13.sp, color = AppColors.TextPrimary,
                                             maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                             modifier = Modifier.weight(1f))
                                         Text("Provider", fontSize = 12.sp, color = AppColors.TextTertiary)
@@ -1025,7 +1025,7 @@ fun ModelInfoScreen(
                         ) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text("Provider", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = AppColors.InfoAccent)
-                                Text(provider.id, fontSize = 14.sp, color = Color.White)
+                                Text(provider.id, fontSize = 14.sp, color = AppColors.TextPrimary)
                             }
                         }
                     }
@@ -1045,7 +1045,7 @@ fun ModelInfoScreen(
                                 } else {
                                     Text(
                                         "${ue.callCount} calls, ${formatCompactNumber(ue.inputTokens)} in / ${formatCompactNumber(ue.outputTokens)} out",
-                                        fontSize = 13.sp, color = Color.White
+                                        fontSize = 13.sp, color = AppColors.TextPrimary
                                     )
                                     usageCost?.let {
                                         Text(
@@ -1062,7 +1062,7 @@ fun ModelInfoScreen(
                     info?.openRouterInfo?.description?.let { desc ->
                         item {
                             ModelInfoSection("Description", "OpenRouter", onNavigateToHelpTopic) {
-                                Text(desc, fontSize = 13.sp, color = Color(0xFFCCCCCC))
+                                Text(desc, fontSize = 13.sp, color = AppColors.TextSecondary)
                             }
                         }
                     }
@@ -1179,7 +1179,7 @@ fun ModelInfoScreen(
                                                 modifier = Modifier.width(80.dp), maxLines = 1, overflow = TextOverflow.Ellipsis
                                             )
                                             Text(
-                                                entry.title, fontSize = 13.sp, color = Color.White,
+                                                entry.title, fontSize = 13.sp, color = AppColors.TextPrimary,
                                                 modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
                                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                                             )
@@ -1206,7 +1206,7 @@ fun ModelInfoScreen(
                                             )
                                             Text(
                                                 "${ueRow.callCount} calls · ${ueRow.totalTokens} tokens",
-                                                fontSize = 13.sp, color = Color.White,
+                                                fontSize = 13.sp, color = AppColors.TextPrimary,
                                                 modifier = Modifier.weight(1f).padding(horizontal = 6.dp),
                                                 maxLines = 1, overflow = TextOverflow.Ellipsis
                                             )
@@ -1279,7 +1279,7 @@ private fun ModelInfoRow(label: String, value: String) {
     val mi = com.ai.ui.shared.LocalMetadataIcons.current
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(mi.iconizedText(label), fontSize = 13.sp, color = AppColors.TextTertiary)
-        Text(mi.iconizedText(value), fontSize = 13.sp, color = Color.White)
+        Text(mi.iconizedText(value), fontSize = 13.sp, color = AppColors.TextPrimary)
     }
 }
 
@@ -1306,7 +1306,7 @@ private fun ModelRawInfoScreen(
     BackHandler { onBack() }
     val context = LocalContext.current
     val annotated = remember(body) { colorizeJson(body) }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             // ❓ describes THIS screen ("Raw catalog data" / Source
             // detail layout). The convention from the home-help icon
@@ -1333,7 +1333,7 @@ private fun ModelRawInfoScreen(
             calledUrl?.let { url ->
                 Text(
                     url,
-                    fontSize = 11.sp, color = Color.White, fontFamily = FontFamily.Monospace,
+                    fontSize = 11.sp, color = AppColors.TextPrimary, fontFamily = FontFamily.Monospace,
                     maxLines = 2, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
                 )
@@ -1377,7 +1377,7 @@ private fun colorizeJson(json: String): androidx.compose.ui.text.AnnotatedString
     val numStyle = SpanStyle(color = AppColors.WarningAccent)
     val boolStyle = SpanStyle(color = AppColors.PrimaryAccent)
     val nullStyle = SpanStyle(color = AppColors.TextTertiary)
-    val punctStyle = SpanStyle(color = Color.White)
+    val punctStyle = SpanStyle(color = AppColors.TextPrimary)
     return buildAnnotatedString {
         var i = 0
         val n = json.length
@@ -1440,7 +1440,7 @@ private fun ModelConfigRow(label: String, value: String, onClick: () -> Unit) {
             modifier = Modifier.width(128.dp)
         )
         Text(
-            value, fontSize = 13.sp, color = Color.White,
+            value, fontSize = 13.sp, color = AppColors.TextPrimary,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )

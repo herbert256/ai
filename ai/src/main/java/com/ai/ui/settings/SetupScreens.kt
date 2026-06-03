@@ -61,7 +61,7 @@ fun SetupScreen(
         (if (aaApiKey.isNotBlank()) 1 else 0)
     }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "settings_setup", title = "Setup", subject = "Providers, models, workers & prompts", onBackClick = onBackToSettings)
 
@@ -116,7 +116,7 @@ private fun SetupNavCard(icon: String, title: String, description: String, count
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (enabled) Color.White else AppColors.TextDim)
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (enabled) AppColors.TextPrimary else AppColors.TextDim)
                 Text(description, fontSize = 12.sp, color = if (enabled) AppColors.TextTertiary else AppColors.TextVeryDim)
             }
             if (count.isNotBlank()) {
@@ -153,7 +153,7 @@ fun ModelsSetupScreen(
     val localLlmCount = remember(refreshTick) { com.ai.data.local.LocalLlm.availableLlms(context).size }
     val cooldownCount by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "setup_models", title = "Models setup", subject = "Models, types and manual overrides", onBackClick = onBack, onHousekeeping = onHousekeeping)
 
@@ -205,7 +205,7 @@ fun WorkersSetupScreen(
     // prop-drilling a NavController callback through the Settings chain.
     val navRoute = com.ai.ui.shared.LocalNavigateToRoute.current
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "setup_workers", title = "Workers", subject = "Models, agents, flocks and swarms", onBackClick = onBack)
 
@@ -354,7 +354,7 @@ fun PromptsSetupScreen(
     BackHandler { onBack() }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "setup_prompts", title = "Prompt management", subject = "System, internal and example prompts", onBackClick = onBack)
 
@@ -392,7 +392,7 @@ fun InternalPromptsHubScreen(
     BackHandler { onBack() }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "internal_prompts_hub", title = "Internal prompts", subject = "Prompts the app's own flows use", onBackClick = onBack)
 
@@ -431,7 +431,7 @@ fun FanInOutPromptsHubScreen(
 ) {
     BackHandler { onBack() }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "fan_in_out_prompts_hub", title = "Fan out/in prompts", subject = "Prompts for multi-model fan out/in", onBackClick = onBack)
 
@@ -466,7 +466,7 @@ fun LocalModelsSetupScreen(
     val liteRtCount = remember(refreshTick) { com.ai.data.local.LocalEmbedder.availableModels(context).size }
     val localLlmCount = remember(refreshTick) { com.ai.data.local.LocalLlm.availableLlms(context).size }
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "setup_local_models", title = "Local models", subject = "On-device LLMs and embedders", onBackClick = onBack)
 
@@ -498,7 +498,7 @@ private fun ModelsSetupNavCard(icon: String, title: String, description: String,
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (enabled) Color.White else AppColors.TextDim)
+                Text(title, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (enabled) AppColors.TextPrimary else AppColors.TextDim)
                 Text(description, fontSize = 12.sp, color = if (enabled) AppColors.TextTertiary else AppColors.TextVeryDim)
             }
             if (count.isNotBlank()) {
@@ -556,7 +556,7 @@ fun ProvidersScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "providers", title = "Providers", subject = "42 built-in plus your own providers", onBackClick = onBackToAiSetup, onHousekeeping = onHousekeeping)
 
@@ -579,7 +579,7 @@ fun ProvidersScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f).padding(vertical = 6.dp)) {
-                            Text(provider.id, fontSize = 15.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                            Text(provider.id, fontSize = 15.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
                             if (state == "ok") {
                                 val model = aiSettings.getModel(provider)
                                 if (model.isNotBlank()) Text(com.ai.ui.shared.shortModelName(model), fontSize = 12.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -734,7 +734,7 @@ fun ExternalServicesScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "external_services", title = "External Services", subject = "Keys for search and other extras", onBackClick = onBack)
 
@@ -784,7 +784,7 @@ private fun ExternalServiceCard(
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(name, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f))
+                Text(name, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                 IconButton(onClick = { onNavigateToHelpTopic(topicId) }, modifier = Modifier.size(28.dp)) {
                     Text(com.ai.data.MetadataIconsHolder.current.info, fontSize = 16.sp)
                 }

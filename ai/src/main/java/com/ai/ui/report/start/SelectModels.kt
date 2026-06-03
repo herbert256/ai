@@ -17,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import com.ai.data.AgentParameters
 import com.ai.data.ReportType
 import com.ai.model.ReportModel
+import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.TitleBar
 import com.ai.viewmodel.UiState
 
@@ -65,7 +66,7 @@ internal fun ReportSelectModelsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(

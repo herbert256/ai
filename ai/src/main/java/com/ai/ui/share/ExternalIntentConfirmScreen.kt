@@ -64,7 +64,7 @@ fun ExternalIntentConfirmScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(AppColors.AppBackground)
             .padding(16.dp)
     ) {
         TitleBar(helpTopic = "external_intent", title = "External request", subject = "Another app wants to make a report", onBackClick = onCancel)
@@ -111,7 +111,7 @@ private fun SourceCard(intent: PendingExternalReport) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Prompt", fontSize = 11.sp, color = AppColors.TextTertiary, fontWeight = FontWeight.SemiBold)
             intent.title?.takeIf { it.isNotBlank() }?.let {
-                Text(it, fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.SemiBold)
+                Text(it, fontSize = 13.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold)
             }
             val previewLimit = 400
             val preview = if (intent.aiPrompt.length > previewLimit)
@@ -139,7 +139,7 @@ private fun ActionCard(intent: PendingExternalReport) {
                 // malformed intent. Don't over-promise a selection screen.
                 else -> "Open the new-report screen"
             }
-            Text(headline, fontSize = 13.sp, color = Color.White)
+            Text(headline, fontSize = 13.sp, color = AppColors.TextPrimary)
 
             intent.reportType?.takeIf { it.isNotBlank() }?.let {
                 Text("Report type: $it", fontSize = 12.sp, color = AppColors.TextSecondary)
@@ -158,7 +158,7 @@ private fun ActionCard(intent: PendingExternalReport) {
 
 @Composable
 private fun SideEffectsCard(intent: PendingExternalReport) {
-    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF3A2A2A))) {
+    Card(colors = CardDefaults.cardColors(containerColor = AppColors.DangerAccent.copy(alpha = 0.18f))) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("After generation", fontSize = 11.sp, color = AppColors.ErrorAccent, fontWeight = FontWeight.SemiBold)
             if (!intent.email.isNullOrBlank()) {

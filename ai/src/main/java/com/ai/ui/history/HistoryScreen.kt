@@ -77,7 +77,7 @@ fun HistoryScreenNav(
         }
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         // Defer paging until the constraints are actually measured — during the
         // pre-measure frame maxHeight is 0, which would compute pageSize=1 and
         // flicker the page count / momentarily clamp currentPage.
@@ -93,7 +93,7 @@ fun HistoryScreenNav(
         val pageItems = filteredReports.subList(startIndex.coerceAtMost(filteredReports.size), (startIndex + pageSize).coerceAtMost(filteredReports.size))
 
         var confirmClearAll by remember { mutableStateOf(false) }
-        Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+        Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
             TitleBar(
                 helpTopic = "history",
                 title = "History", subject = "All your saved reports, newest first", onBackClick = onNavigateBack,
@@ -213,7 +213,7 @@ private fun HistoryReportRow(report: Report, onOpen: () -> Unit, onOpenView: () 
             val historyDefaultLogo = com.ai.ui.shared.LocalMetadataIcons.current.reportIcon
             Text((if (historyIconOn) report.icon?.takeIf { it.isNotBlank() } else null) ?: historyDefaultLogo, fontSize = 14.sp)
             Spacer(modifier = Modifier.width(8.dp))
-            Text(report.title, fontSize = 14.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Text(report.title, fontSize = 14.sp, color = AppColors.TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
             com.ai.ui.shared.ReportRowActionIcons(onOpenManage = onOpen, onOpenView = onOpenView)
             TextButton(onClick = { showDeleteConfirm = true }, contentPadding = PaddingValues(horizontal = 6.dp)) {
                 Text(com.ai.data.MetadataIconsHolder.current.closeMark, fontSize = 14.sp, color = AppColors.DangerAccent, maxLines = 1, softWrap = false)

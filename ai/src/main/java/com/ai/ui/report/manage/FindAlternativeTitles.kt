@@ -27,7 +27,7 @@ fun AlternativeTitlesScreen(
     onBack: () -> Unit
 ) {
     BackHandler { onBack() }
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "alternative_titles", title = "Alternative titles", subject = "Live title ideas from several models", onBackClick = onBack)
 
         // Stable order so rows don't reshuffle as candidates settle.
@@ -77,7 +77,7 @@ private fun TitleCandidateRow(candidate: TitleCandidate, onPickTitle: (String) -
             Column(modifier = Modifier.weight(1f)) {
                 Text(iconModel, fontSize = 11.sp, color = AppColors.TextTertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 when (candidate) {
-                    is TitleCandidate.Done -> Text(candidate.title, fontSize = 14.sp, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    is TitleCandidate.Done -> Text(candidate.title, fontSize = 14.sp, color = AppColors.TextPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     is TitleCandidate.Error -> Text(candidate.reason, fontSize = 11.sp, color = AppColors.DangerAccent, maxLines = 2, overflow = TextOverflow.Ellipsis)
                     is TitleCandidate.Running -> Text("Generating…", fontSize = 11.sp, color = AppColors.TextTertiary)
                 }

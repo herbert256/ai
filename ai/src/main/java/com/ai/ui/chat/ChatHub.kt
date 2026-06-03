@@ -86,7 +86,7 @@ fun ChatsHubScreen(
     )
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(helpTopic = "chat_hub", title = "Chat", subject = "Start or resume a chat with a model", onBackClick = onNavigateBack)
 
@@ -165,7 +165,7 @@ private fun ChatListCard(title: String, icon: String?, sessions: List<com.ai.dat
             sessions.forEach { s ->
                 Text(
                     text = s.title.ifBlank { s.preview },
-                    fontSize = 13.sp, color = Color.White,
+                    fontSize = 13.sp, color = AppColors.TextPrimary,
                     maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -226,7 +226,7 @@ private fun UnfinishedChatPill(count: Int, onResume: () -> Unit) {
             Text(com.ai.data.MetadataIconsHolder.current.mail, fontSize = 18.sp)
             Spacer(modifier = Modifier.width(10.dp))
             val label = if (count == 1) "1 chat awaiting reply" else "$count chats awaiting reply"
-            Text(label, fontSize = 14.sp, color = Color.White, fontWeight = FontWeight.SemiBold,
+            Text(label, fontSize = 14.sp, color = AppColors.TextPrimary, fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.weight(1f))
             Text("Resume", fontSize = 12.sp, color = AppColors.InfoAccent, fontWeight = FontWeight.Bold)
         }
@@ -287,7 +287,7 @@ private fun ChatStartRow(icon: String, title: String, enabled: Boolean, onClick:
         )
         Spacer(modifier = Modifier.width(12.dp))
         Text(text = title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold,
-            color = if (enabled) Color.White else AppColors.TextDim)
+            color = if (enabled) AppColors.TextPrimary else AppColors.TextDim)
     }
 }
 
@@ -318,7 +318,7 @@ private fun ChatHubCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-                    color = if (enabled) Color.White else AppColors.TextDim
+                    color = if (enabled) AppColors.TextPrimary else AppColors.TextDim
                 )
                 Text(
                     text = description, fontSize = 13.sp,

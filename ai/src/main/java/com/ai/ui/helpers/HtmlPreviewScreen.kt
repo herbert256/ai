@@ -85,7 +85,7 @@ fun HtmlPreviewScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
         .padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         val titleSubject = (state.value as? PreviewState.Ready)?.report?.title?.takeIf { it.isNotBlank() }
         ViewScreenTitleBar(

@@ -117,7 +117,7 @@ fun TournamentManageRow() {
             }
             RowTypeCell("tournament")
             Text(
-                text = rowText, color = Color.White, fontSize = 13.sp,
+                text = rowText, color = AppColors.TextPrimary, fontSize = 13.sp,
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
             )
             if (run.totalCost > 0.0) {
@@ -206,7 +206,7 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
     }
 
     if (run == null) {
-        Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+        Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(16.dp)) {
             TitleBar(
                 helpTopic = "tournament_l1",
                 title = "Tournament",
@@ -317,7 +317,7 @@ private fun TournamentL1(
     onBack: () -> Unit
 ) {
     val throttledCount = run.matches.values.count { it.id in throttled }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "tournament_l1", title = "Tournament",
             subject = reportTitle,
@@ -451,7 +451,7 @@ private fun TournamentJudgeModelRow(
         )
         Text(
             group.label,
-            color = Color.White,
+            color = AppColors.TextPrimary,
             fontSize = 14.sp,
             modifier = Modifier.weight(1f).padding(start = 8.dp),
             maxLines = 1,
@@ -499,7 +499,7 @@ private fun TournamentReportModelRow(group: GroupRow, allDone: Boolean, onClick:
         }
         Text(
             group.label,
-            color = Color.White,
+            color = AppColors.TextPrimary,
             fontSize = 14.sp,
             modifier = Modifier.weight(1f).padding(start = 4.dp),
             maxLines = 1,
@@ -534,7 +534,7 @@ private fun TournamentL2(
         TournamentGroupMode.TOURNAMENT_MODELS -> "Tournament - judge"
         TournamentGroupMode.REPORT_MODELS -> "Tournament - model"
     }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "tournament_l2",
             title = screenTitle,
@@ -595,7 +595,7 @@ private fun TournamentL2Header(groupMode: TournamentGroupMode) {
 @Composable
 private fun RowScope.TournamentL2Cell(
     text: String,
-    color: Color = Color.White,
+    color: Color = AppColors.TextPrimary,
     fontWeight: FontWeight = FontWeight.Normal,
     columnIndex: Int
 ) {
@@ -697,7 +697,7 @@ private fun TournamentL3(
     val m = scoped.getOrNull(idx) ?: run.matches[matchKey]
     val swipeThresholdPx = with(LocalDensity.current) { 80.dp.toPx() }
     var swipeDragX by remember(matchKey) { mutableStateOf(0f) }
-    Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "tournament_l3",
             title = "Tournament - Match",

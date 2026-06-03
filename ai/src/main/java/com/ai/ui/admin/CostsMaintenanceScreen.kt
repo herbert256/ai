@@ -137,7 +137,7 @@ fun CostsMaintenanceScreen(
         Toast.makeText(context, "Imported $imported overrides" + (if (skipped > 0) ", skipped $skipped" else ""), Toast.LENGTH_SHORT).show()
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(helpTopic = "cost_config", title = "Costs", subject = "Correct model prices used in cost totals", onBackClick = onBack, onSettings = onSettings)
 
         LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {

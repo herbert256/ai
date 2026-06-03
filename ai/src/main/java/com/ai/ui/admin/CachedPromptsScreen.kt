@@ -55,7 +55,7 @@ fun CachedPromptsScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
+        modifier = Modifier.fillMaxSize().background(AppColors.AppBackground)
             .padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
         TitleBar(
@@ -134,7 +134,7 @@ private fun CachedPromptRow(entry: PromptCache.CachedEntry, onDelete: () -> Unit
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     entry.response.ifBlank { "(empty)" },
-                    fontSize = 13.sp, color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis
+                    fontSize = 13.sp, color = AppColors.TextPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis
                 )
                 Spacer(Modifier.height(4.dp))
                 val age = DateUtils.getRelativeTimeSpanString(
