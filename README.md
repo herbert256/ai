@@ -8,8 +8,10 @@ response into another's prompt, and chat with real-time streaming.
 
 ## Features
 
-- **42 Cloud AI Services** across three API formats (OpenAI-compatible,
-  Anthropic, Google), all with real-time SSE streaming
+- **42 Cloud AI Services** across three API formats — 40
+  OpenAI-compatible, 1 Anthropic, 1 Google — all with real-time SSE
+  streaming, loaded at runtime from `assets/providers.json` rather than
+  hardcoded, plus a synthetic on-device `Local` provider
 - **Multi-Agent Reports** — query providers in parallel, compare
   responses side-by-side, exportable as HTML, JSON, PDF, DOCX, ODT,
   RTF, or a self-contained zipped HTML site
@@ -80,14 +82,15 @@ response into another's prompt, and chat with real-time streaming.
 Download the latest APK from releases, or build from source:
 
 ```bash
-JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew assembleDebug
+JAVA_HOME=/opt/homebrew/opt/openjdk@17 ./gradlew :ai:assembleDebug
 adb install -r ai/build/outputs/apk/debug/ai-debug.apk
 ```
 
 ## Documentation
 
-Full documentation lives in **[doc/](doc/)**. Recommended reading
-order:
+Full documentation lives in **[doc/](doc/)** — 32 reference docs, all
+verified against the current source. The complete set (see
+[doc/README.md](doc/README.md) for the suggested reading order):
 
 | Document | Purpose |
 |---|---|
@@ -120,10 +123,8 @@ order:
 | [doc/help.md](doc/help.md) | The in-app Help system: live icon overlay vs help page, per-screen topics, per-provider pages |
 | [doc/applog.md](doc/applog.md) | In-app file logger: levels, rotation, redaction, viewer |
 | [doc/log-details.md](doc/log-details.md) | Reference: every `AppLog` call site, grouped by severity |
+| [doc/reports_section_analysis.md](doc/reports_section_analysis.md) | Code-level analysis of the Reports section — capabilities, gaps, and recommendations (analysis artefact, not a live spec) |
 | [doc/TODO.md](doc/TODO.md) | Future-work backlog discussed but not scheduled |
-
-[doc/README.md](doc/README.md) is the index with the same list and a
-bit more orientation.
 
 ## Privacy & Security
 
