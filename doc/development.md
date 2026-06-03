@@ -398,9 +398,9 @@ seeded categories (folders under `assets/internal-prompts/<lang>/`):
 ### A new Help topic / help page
 
 `ui/admin/HelpContent.kt` assembles `HELP_TOPICS` from 12 per-domain
-maps (`ReportsHelp.kt` ≈103, `SettingsAdminHelp.kt` ≈78,
-`ProviderCatalogHelp.kt` ≈44, …; ~324 base entries) plus 22
-auto-built `<topic>_icons` pages → **~346 topics total**. Each
+maps (`ReportsHelp.kt` 103, `SettingsAdminHelp.kt` 78,
+`ProviderCatalogHelp.kt` 44, …; 323 base entries) plus 22
+auto-built `<topic>_icons` pages → **~345 topics total**. Each
 full-screen overlay has its own entry. To add one:
 
 1. Add a `"<topicId>" to HelpContent(title, cards)` entry to the

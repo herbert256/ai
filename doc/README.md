@@ -57,9 +57,10 @@ and a manual override layer into one resolved view per
   now over per-model contested games, plus ELO / Davidson / Tideman /
   Markov), Judge-the-judges agreement, and Compare-with-meta similarity
   grids.
-- **[ui-customization.md](ui-customization.md)** — Settings → UI Colors
-  and Default icons: `AppColors`, `MetadataIcons`, persistence, aliases,
-  and which UI roles each setting controls.
+- **[ui-customization.md](ui-customization.md)** — Settings → UI tweaks
+  (Colors mode), UI Colors, and Default icons: `AppColors` Day/Night
+  palettes + `UiColorMode`, `MetadataIcons`, persistence, aliases, and
+  which UI roles each setting controls.
 - **[help.md](help.md)** — The in-app Help system: the white ❔ live
   "&lt;screen&gt; - icons" overlay (report-Manage screens) vs the red ❓
   help page, per-screen topics, per-provider / per-repository pages,

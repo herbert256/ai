@@ -4,9 +4,12 @@ Five parallel lists keyed on the `"providerId:model"` pair decide
 whether a (provider, model) tuple is benched, blocked, skipped by the
 test sweep, marked unreachable, or has its API type forced by hand.
 Four are advisory/exclusion lists; the fifth (manual overrides) is a
-classification list. The four exclusion lists each have a CRUD screen
-under **AI Setup → AI Models** (the `ModelsSetupScreen` cards) and a
-matching `Settings.*` field; cooldowns are a separate runtime store.
+classification list. Each has a CRUD screen under **AI Setup → AI
+Models** (the `ModelsSetupScreen` cards,
+[ui/settings/SetupScreens.kt:137](../ai/src/main/java/com/ai/ui/settings/SetupScreens.kt)).
+The four `Settings.*`-backed lists are stored on the settings object;
+cooldowns are a separate runtime store (`ModelCooldownStore`) with its
+own SharedPreferences.
 
 All keys share the shape `"${providerId}:${model}"` — the same form as
 `ReportModel.deduplicationKey`.
@@ -19,14 +22,31 @@ All keys share the shape `"${providerId}:${model}"` — the same form as
 | Inaccessible | `Settings.inaccessibleModels` | tier-gate probe error; `inaccessible.json` seed | dim + 🔒 caption | `cruds/models/inaccessible/` |
 | Manual types | `Settings.modelTypeOverrides` | (manual only) | wins over autodetection | `cruds/models/manualoverrides/` |
 
-The three advisory states (cooldown / blocked / inaccessible) are
-collapsed into one per-row lookup, `ModelAdvisoryState`, hoisted once
-per picker via `rememberModelAdvisoryLookup`
+The CRUD screens are reached through the two-tier `SettingsSubScreen`
+router: **AI Setup → AI Models** lands on `AI_MODELS_SETUP`, whose cards
+push `AI_BLOCKED_MODELS` / `AI_TEST_EXCLUDED_MODELS` /
+`AI_INACCESSIBLE_MODELS` / `AI_MANUAL_MODEL_TYPES` and the cooldowns
+list ([ui/settings/SettingsScreen.kt:436](../ai/src/main/java/com/ai/ui/settings/SettingsScreen.kt)).
+Each sub-screen is a four-file CRUD (`add` / `edit` / `list` / `view`)
+under `ui/cruds/models/<name>/`.
+
+The three **advisory** states (cooldown / blocked / inaccessible) are
+collapsed into one per-row lookup, `ModelAdvisoryState`
+([ui/shared/ModelAdvisory.kt:25](../ai/src/main/java/com/ai/ui/shared/ModelAdvisory.kt)),
+hoisted once per picker via `rememberModelAdvisoryLookup`
 ([ui/shared/ModelAdvisory.kt:59](../ai/src/main/java/com/ai/ui/shared/ModelAdvisory.kt)).
-A model can be in zero, one, two, or all three independently. The dim
-treatment is identical for all three: `rowAlpha = 0.4f`, a leading
-badge (⏳ / 🚫 / 🔒), and a one-line reason caption — but the row stays
-**clickable** so the user can still pick it deliberately.
+That helper collects `ModelCooldownStore.cooldowns` (a `StateFlow`,
+re-derived on change) plus `Settings.blockedReasonByKey` and
+`Settings.inaccessibleReasonByKey`, packaging them so each row pays only
+an O(1) map lookup. A model can be in zero, one, two, or all three
+states independently — `stateFor` reads all three maps. The dim
+treatment is identical: `rowAlpha = 0.4f` when any state is active, a
+leading badge (⏳ / 🚫 / 🔒) via `ModelAdvisoryBadges`, and a one-line
+reason caption via `ModelAdvisoryCaptions` — but the row stays
+**clickable** so the user can still pick it deliberately. The cooldown's
+`benchedUntil` is additionally filtered to `> System.currentTimeMillis()`
+inside `stateFor`, so an expired bench never dims a row even before the
+store prunes it.
 
 ## Cooldowns
 
@@ -38,50 +58,63 @@ fires this.
 
 - **Stored** in `ModelCooldownStore`
   ([data/ModelCooldownStore.kt:27](../ai/src/main/java/com/ai/data/ModelCooldownStore.kt))
-  — a plain `object` singleton (both the OkHttp interceptor, which has
-  no `Context`, and the Compose pickers read it) with its **own**
+  — a plain `object` singleton (both the OkHttp 429 interceptor, which
+  has no `Context`, and the Compose pickers read it) with its **own**
   SharedPreferences (`model_cooldowns`, key `map`). A sibling `traces`
-  map records the API-trace filename whose 429 caused each bench; it's
-  device-local and **not** exported.
+  map (key `traces`) records the API-trace filename whose 429 caused each
+  bench; it's device-local and **not** carried in Import/Export.
 - **Populated** by `markUnavailable(providerId, model, availableAtMs,
-  traceFile)`. Expiry is lazy — `isUnavailable` and `availableAt` drop
-  expired entries on read; `init` prunes on load.
-- **Picker effect**: dimmed with an orange caption from
-  `cooldownCaption`, e.g. `rate-limited · back 14:30`.
+  traceFile)`, called from `RateLimitRetryInterceptor` when a 429's
+  retry-after exceeds `LONG_RETRY_THRESHOLD_MS`
+  ([data/RateLimitRetry.kt:94](../ai/src/main/java/com/ai/data/RateLimitRetry.kt)).
+  Reads are side-effect-free (Bug 48): `isUnavailable` and `availableAt`
+  are pure timestamp compares (`until > now`) that **don't** drop the
+  expired entry — model pickers call them per row, so they must not write
+  SharedPreferences or emit on the `StateFlow` as a side effect of a
+  "read". Actual pruning (delete + persist) happens only in `init` (on
+  load) and the `pruneExpired` sweep.
+- **Picker effect**: dimmed with the `cooldownCaption` string, e.g.
+  `rate-limited · back 14:30` (today) or `rate-limited · back Jun 4 14:30`
+  (a later day — Bug 47 compares day-of-year *and* year so a one-year-out
+  bench doesn't render as a same-day time).
 - **Import** merges via `importMerge` (trace filenames don't travel).
-- The `cooldowns` `StateFlow` drives recomposition; the CRUD screen
-  reads `entries()` (raw, **not** expiry-pruned, so stale rows can be
-  cleared by hand).
+- The `cooldowns` `StateFlow` drives recomposition; the CRUD list reads
+  `entries()` (raw, **not** expiry-pruned, so stale rows can be cleared
+  by hand).
 
 ## Blocked models
 
 Manually flagged pairs the app treats as failing. Identity is the
-`(providerId, model)` pair — no UUID, optional `reason`
+`(providerId, model)` pair — no UUID, optional `reason` (default `""`)
 ([model/SettingsModels.kt:158](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
 
 - **Populated** mostly by the "Test all models" sweep:
-  `syncBlockedModelsFromTestRun` drops every key the run tested (so a
-  PASS un-blocks) then appends the run's failures (so a FAIL blocks /
-  refreshes its reason). Untested entries are left alone. Hand-curable
-  via the `blocked/` CRUD (`upsertBlockedModel` / `removeBlockedModel`).
+  `syncBlockedModelsFromTestRun(failures, testedKeys)`
+  ([model/SettingsModels.kt:791](../ai/src/main/java/com/ai/model/SettingsModels.kt))
+  drops every key the run tested (so a PASS un-blocks) then appends the
+  run's failures (so a FAIL blocks / refreshes its reason). Untested
+  entries are left alone. Hand-curable via the `blocked/` CRUD
+  (`upsertBlockedModel` / `removeBlockedModel`).
 - **Picker effect**: dimmed in every picker with a red `🚫 Blocked: …`
   caption (`blockedReasonByKey` feeds the advisory lookup).
 - **Stored** in `Settings.blockedModels`, prefs key `ai_blocked_models`.
 
 ## Test-excluded models
 
-A pure skip-set for the "Test all models" sweep — no reason field
-([model/SettingsModels.kt:170](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
-`testExcludedKeys` is the O(1) filter `ModelTestEngine.startRun`
-consults.
+A pure skip-set for the "Test all models" sweep — no reason field, no
+UUID ([model/SettingsModels.kt:170](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
+`testExcludedKeys` is the `"providerId:model"` set the sweep checks; in
+practice `ModelTestEngine.startRun` consults it per-model via
+`isTestExcluded` ([viewmodel/ModelTestEngine.kt:192](../ai/src/main/java/com/ai/viewmodel/ModelTestEngine.kt)).
 
 - **Populated** automatically when a probe's computed cost exceeds the
   5¢ ceiling (`COSTLY_PROBE_USD_THRESHOLD = 0.05` in
-  [viewmodel/AppViewModel.kt:1808](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
-  — the model is added on run completion so the next sweep won't pay
-  for it again. Also **seeded** from `assets/excluded.json` on app
-  start (`TestExcludedSeed.ensureAllPresent`,
-  [data/TestExcludedSeed.kt:18](../ai/src/main/java/com/ai/data/TestExcludedSeed.kt)),
+  [viewmodel/AppViewModel.kt:1948](../ai/src/main/java/com/ai/viewmodel/AppViewModel.kt))
+  — the model is appended on run completion via
+  `addTestExclusionsFromTestRun` (no-clobber, no-duplicate) so the next
+  sweep won't pay for it again. Also **seeded** from
+  `assets/excluded.json` on app start (`TestExcludedSeed.ensureAllPresent`,
+  [data/TestExcludedSeed.kt:43](../ai/src/main/java/com/ai/data/TestExcludedSeed.kt)),
   a delta-merge that never touches existing keys. Hand-curable via the
   `testexcluded/` CRUD.
 - **Picker effect**: **none** — these models stay fully visible and
@@ -92,48 +125,60 @@ consults.
 ## Inaccessible models
 
 Pairs genuinely unreachable on the user's account/tier (e.g. Together
-or OpenRouter non-serverless catalog entries). Carries a `reason`
-([model/SettingsModels.kt:184](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
+or OpenRouter non-serverless catalog entries). Carries a **required**
+`reason` ([model/SettingsModels.kt:184](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
 
 - **Populated** by the test engine when a probe returns a tier-gating
-  error ("Unable to access non-serverless" or similar) — dropped from
-  sweep results rather than counted as FAIL. Also **seeded** from
-  `assets/inaccessible.json` on start
+  error ("Unable to access non-serverless" or similar) — `upsertInaccessibleModel`
+  records it ([viewmodel/ModelTestEngine.kt:547](../ai/src/main/java/com/ai/viewmodel/ModelTestEngine.kt))
+  and the row is dropped from sweep results rather than counted as FAIL.
+  Also **seeded** from `assets/inaccessible.json` on start
   (`InaccessibleSeed.ensureAllPresent`,
-  [data/InaccessibleSeed.kt:20](../ai/src/main/java/com/ai/data/InaccessibleSeed.kt));
+  [data/InaccessibleSeed.kt:49](../ai/src/main/java/com/ai/data/InaccessibleSeed.kt));
   blank-reason seed rows default to "Unable to access non-serverless
   (bundled)". Hand-curable via the `inaccessible/` CRUD.
 - **Picker effect**: dimmed with a tertiary `🔒 Inaccessible: …`
-  caption (`inaccessibleReasonByKey`). Per `Selection.kt` (line ~204)
+  caption (`inaccessibleReasonByKey`). Per
+  [ui/other/Selection.kt:204](../ai/src/main/java/com/ai/ui/other/Selection.kt)
   inaccessible rows **dim and stay selectable** like the other two
-  advisory states — they are not hidden.
+  advisory states — they used to hide from this picker but no longer do.
 - **Stored** in `Settings.inaccessibleModels`, prefs key
   `ai_inaccessible_models`.
 
 ## Manual model-type overrides
 
-Per-model API-type assignments that win over autodetection — a fan
-out-provider CRUD list living at the `Settings` root (one entry per
-override, identified by UUID `id`)
-([model/SettingsModels.kt:284](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
-Each entry sets a `type` (one of `ModelType.ALL`) plus three optional
-capability flags: `supportsVision` 👁, `supportsWebSearch` 🌐,
+Per-model API-type assignments that win over autodetection — a flat,
+cross-provider CRUD list living at the `Settings` root (one entry per
+override, identified by UUID `id`), rather than one map per provider
+([model/SettingsModels.kt:297](../ai/src/main/java/com/ai/model/SettingsModels.kt)).
+Each entry sets a `type` — one of the ten type tokens in `ModelType.ALL`
+(`chat`, `responses`, `embedding`, `rerank`, `image`, `tts`, `stt`,
+`moderation`, `classify`, `ocr`;
+[data/ModelType.kt:34](../ai/src/main/java/com/ai/data/ModelType.kt) — note
+`ModelType` is an `object` of `const String`s, not an enum) — plus three
+optional capability flags: `supportsVision` 👁, `supportsWebSearch` 🌐,
 `supportsReasoning` 🧠.
 
 - **Type precedence** (`getModelType`,
-  [model/SettingsModels.kt:428](../ai/src/main/java/com/ai/model/SettingsModels.kt)):
+  [model/SettingsModels.kt:441](../ai/src/main/java/com/ai/model/SettingsModels.kt)):
   a matching override returns first and short-circuits everything —
-  ahead of the LiteLLM type, the per-provider `modelTypes` map (native
-  list-API metadata), and the naming heuristic.
+  ahead of the LiteLLM type (`PricingCache.liteLLMModelType`, used only
+  when it's not plain `CHAT`), the per-provider `modelTypes` map (native
+  list-API metadata), and the `ModelType.infer` naming heuristic.
 - **Capability precedence**: each of `isVisionCapable` /
-  `isWebSearchCapable` / `isReasoningCapable` checks the per-provider
-  set first (e.g. `ProviderConfig.visionModels`, populated by Model
-  Info edits and fetch unions), then the matching override flag, then
-  the LiteLLM flag, then the naming heuristic. An override flag can
-  only **add** a capability — it never clears one already implied by
-  the per-provider set or the catalog. This is how a user forces a
-  model the catalog mis-classifies (e.g. a vision/web-search/reasoning
-  model the autodetect missed).
+  `isWebSearchCapable` / `isReasoningCapable`
+  ([model/SettingsModels.kt:466/503/560](../ai/src/main/java/com/ai/model/SettingsModels.kt))
+  checks, in order: the per-provider set (e.g. `ProviderConfig.visionModels`,
+  populated by Model Info edits and fetch unions) → the matching override
+  flag → the per-provider *precomputed* cache (`visionCapableComputed`
+  etc., refreshed by `recomputeCapabilities`) → a slow layered lookup
+  (provider `/models` self-report → LiteLLM flag → models.dev →
+  `ModelType.infer*` naming heuristic). An override flag can only **add**
+  a capability — because each lookup returns `true` early on a positive
+  match, it never clears one already implied by the per-provider set or
+  the catalog. This is how a user forces a model the catalog
+  mis-classifies (e.g. a vision/web-search/reasoning model the autodetect
+  missed).
 - The edit form pulls the provider's known models from
   `aiSettings.getProvider(...).models`; if the provider hasn't been
   fetched the model dropdown is empty and prompts a fetch first
@@ -155,10 +200,16 @@ For [persistent.md](persistent.md) cross-reference:
 | `assets/excluded.json` | seed for test-excluded (delta-merged on start) |
 | `assets/inaccessible.json` | seed for inaccessible (delta-merged on start) |
 
-The four `ai_*` keys live in the main settings prefs
-([ui/settings/SettingsPreferences.kt:591](../ai/src/main/java/com/ai/ui/settings/SettingsPreferences.kt));
-each is written `null` when its list is empty. All four lists
-round-trip through Import/Export.
+The four `ai_*` keys live in the main `eval_prefs` settings store
+(constants at
+[ui/settings/SettingsPreferences.kt:1045](../ai/src/main/java/com/ai/ui/settings/SettingsPreferences.kt),
+written at :375–378). The three exclusion lists
+(`ai_blocked_models` / `ai_test_excluded_models` /
+`ai_inaccessible_models`) are each written `null` when empty (so the key
+disappears); `ai_model_type_overrides` is written unconditionally as a
+JSON array. All four lists round-trip through Import/Export. The
+`model_cooldowns` store is its own SharedPreferences file and is **not**
+in this set — its `traces` sidecar stays device-local.
 
 ## Related docs
 

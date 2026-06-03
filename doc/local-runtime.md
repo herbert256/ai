@@ -205,8 +205,10 @@ runs meaning search over saved reports with no cloud round-trip. It
 picks an installed `.tflite`, embeds the query and each report's
 title+prompt+first-response via `LocalEmbedder.embed`, caches the
 vectors in `EmbeddingsStore` under provider key `"LOCAL"`, and ranks by
-the `EmbeddingsStore.cosine(FloatArray, FloatArray)` hot path. This is
-one of the local embedder's RAG consumers; see
+`EmbeddingsStore.cosine(List<Double>, List<Double>)` (the cached
+vectors are kept as `List<Double>`, so this uses the `List<Double>`
+overload — *not* the `FloatArray` hot path that KB retrieval uses).
+This is one of the local embedder's RAG consumers; see
 [knowledge.md](knowledge.md) for KB embedding / retrieval, which uses
 the same `LocalEmbedder` when a KB's `embedderProviderId == "LOCAL"`
 (again, all-caps — distinct from `AppService.LOCAL.id`).

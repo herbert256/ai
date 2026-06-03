@@ -226,7 +226,7 @@ restored manifest cannot write outside the `knowledge/` root.
 The separate `<filesDir>/embeddings/` directory belongs to
 `EmbeddingsStore`'s per-document report-embedding cache — **not** KB
 chunks, which live under `knowledge/`. (Note: the
-`local_llms`/`local_models`/`native` runtime dirs are excluded from
+`local_llms`/`local_models`/`native`/`applog` dirs are excluded from
 backups, but `knowledge/` is **included**.)
 
 ## Related docs

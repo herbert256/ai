@@ -174,7 +174,7 @@ five route-group files.
 ### 2. Settings sub-screens — the `SettingsSubScreen` enum
 
 Inside `SettingsScreen.kt`, sub-screens are routed via the
-`enum class SettingsSubScreen` (~54 values: `MAIN`, `AI_SETUP`,
+`enum class SettingsSubScreen` (~48 values: `MAIN`, `AI_SETUP`,
 `AI_PROVIDERS`, `AI_PROVIDER_EDIT`, `AI_MODELS_SETUP`, `AI_AGENTS`,
 `AI_FLOCKS`, `AI_SWARMS`, `AI_PARAMETERS`, `AI_SYSTEM_PROMPTS`,
 `AI_INTERNAL_PROMPTS`, the `*_SETUP` hubs, the model-state lists,
@@ -289,11 +289,13 @@ Inference.net.
 
 - **`ChatViewModel`** (`class ChatViewModel(private val appViewModel:
   AppViewModel)`) — a plain class, **not** an androidx ViewModel. Chat
-  session state and streaming. Fires the bundled `internal/chat-title`
-  prompt asynchronously after the first assistant response and stamps
-  `ChatSession.title`. Routes `provider.id == AppService.LOCAL.id`
+  session state and streaming (`sendChatMessageStream`,
+  `sendDualChatMessage`). Routes `provider.id == AppService.LOCAL.id`
   chats to `LocalLlm.generate` (`sendLocalLlmStream`); prepends RAG
-  context via `messagesWithRag` when knowledge bases are attached.
+  context via `messagesWithRag` when knowledge bases are attached. The
+  bundled `internal/chat-title` prompt that names a session is fired
+  separately by the chat screen (`kickOffChatTitleGeneration` in
+  `ChatScreens.kt`), not by this class.
 
 - **`ReportViewModel`** (`class ReportViewModel(private val
   appViewModel: AppViewModel)`) — also a plain wrapper. Report

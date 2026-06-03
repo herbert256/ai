@@ -5,11 +5,12 @@
 > `android.util.Log` and appends to `<filesDir>/applog/applog_<yyyyMMdd>.log`
 > for any call at or above the active `threshold` (default `INFO`).
 > Grouped by severity, then by source file. Each row is
-> `Lnnn` `Tag` — message (message interpolations shown as written in source).
+> `Lnnn` `Tag` — message (message interpolations shown verbatim as written
+> in source, including the `+ "…"` string concatenations on multi-line calls).
 > For *how the logger works* (levels, rotation, redaction, viewer), see
 > **[applog.md](applog.md)**.
 
-**463 call sites** — 61 ERROR, 149 WARN, 94 INFO, 106 DEBUG, 53 TRACE.
+**480 call sites** — 62 ERROR, 160 WARN, 97 INFO, 107 DEBUG, 54 TRACE.
 
 Severity is chosen at the call site by which method is invoked:
 
@@ -21,11 +22,37 @@ Severity is chosen at the call site by which method is invoked:
 | `AppLog.w` | WARN | 5 | yes (debounced) |
 | `AppLog.e` | ERROR | 6 | yes (debounced) |
 
+`AppLog.w` also has a `w(tag, t: Throwable)` overload that derives the
+message from the throwable; there is no `e(tag, t)` overload, so every
+`AppLog.e` call passes an explicit message string (the throwable, when
+present, rides in the optional third argument).
+
+WARN/ERROR Toasts are debounced — at most one Toast per
+`TOAST_MIN_INTERVAL_MS` (1500 ms) so a burst of retries (e.g. fan-out icon
+workers all rate-limiting at once) can't flood the screen.
+
+A handful of call sites pass a `tag` / `startTag` local variable rather than
+a string literal. These resolve to:
+
+| Variable | File | Value |
+|---|---|---|
+| `tag` | `ui/helpers/PdfExport.kt` | `"PdfExport"` |
+| `tag` | `data/TracingInterceptor.kt` | `"ApiCall"` |
+| `tag` | `viewmodel/AppViewModel.kt` (bootstrap region) | `"App.bootstrap"` |
+| `startTag` | `viewmodel/AppViewModel.kt` (start region) | `"App.start"` |
+
+Rows tagged `"Crash"` (one ERROR in `data/CrashReporter.kt`) write the
+captured crash report — the message is the `report` string, not a literal.
+
+> **Maintenance.** Counts and line numbers track HEAD and drift on every
+> commit that touches a logging call. Regenerate by walking
+> `ai/src/main/java/com/ai` for `AppLog.(v|d|i|w|e)(` (excluding the
+> string-literal examples embedded in `data/IconUsageData.kt`, which quote
+> three call sites as documentation), grouping by severity then file.
+
 ---
 
-## ERROR (61)
-
-`AppLog.e` — priority 6 (matches `Log.ERROR`). Also posts a debounced Toast.
+## ERROR (62)
 
 ### `data/ApiTracer.kt`
 
@@ -45,6 +72,10 @@ Severity is chosen at the call site by which method is invoked:
 - **L84** `"ChatHistory"` — "Failed to load: ${e.message}"
 - **L96** `"ChatHistory"` — "Failed to parse: ${e.message}"
 - **L106** `"ChatHistory"` — "Refusing to delete session with unsafe id: $sessionId"
+
+### `data/CrashReporter.kt`
+
+- **L107** `"Crash"` — report
 
 ### `data/Knowledge.kt`
 
@@ -74,11 +105,11 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/ReportStorage.kt`
 
-- **L418** `"ReportStorage"` — "Failed to load report $reportId: ${e.message}"
-- **L426** `"ReportStorage"` — "Failed to load ${file.name}: ${e.message}"
-- **L474** `"ReportStorage"` — "Refusing to save report with suspect id ${report.id}"
-- **L479** `"ReportStorage"` — "Refusing to save report that escapes reportsDir: ${report.id}"
-- **L488** `"ReportStorage"` — "Failed to save report ${report.id} (writeTextAtomic returned false)"
+- **L447** `"ReportStorage"` — "Failed to load report $reportId: ${e.message}"
+- **L455** `"ReportStorage"` — "Failed to load ${file.name}: ${e.message}"
+- **L507** `"ReportStorage"` — "Refusing to save report with suspect id ${report.id}"
+- **L512** `"ReportStorage"` — "Refusing to save report that escapes reportsDir: ${report.id}"
+- **L521** `"ReportStorage"` — "Failed to save report ${report.id} (writeTextAtomic returned false)"
 
 ### `data/SecondaryResult.kt`
 
@@ -120,9 +151,9 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `ui/settings/ImportExportScreen.kt`
 
-- **L1170** `"ImportExport"` — "AI Report import error"
-- **L1208** `"ImportExport"` — "API keys import parse error"
-- **L1211** `"ImportExport"` — "API keys import error"
+- **L1172** `"ImportExport"` — "AI Report import error"
+- **L1210** `"ImportExport"` — "API keys import parse error"
+- **L1213** `"ImportExport"` — "API keys import error"
 
 ### `ui/settings/LocalRuntimeScreens.kt`
 
@@ -137,11 +168,9 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `viewmodel/AppViewModel.kt`
 
-- **L1084** `"Housekeeping"` — "← Reset application FAILED"
+- **L1087** `"Housekeeping"` — "← Reset application FAILED"
 
-## WARN (149)
-
-`AppLog.w` — priority 5 (matches `Log.WARN`). Also posts a debounced Toast.
+## WARN (160)
 
 ### `data/AnalysisRepository.kt`
 
@@ -166,7 +195,7 @@ Severity is chosen at the call site by which method is invoked:
 - **L954** `"ApiDispatch"` — "Anthropic listModels returned 200 but no claude-* entries (data size=${response.body()?.data?.size ?: 0})"
 - **L1035** `"ApiDispatch"` — "Gemini listModels HTTP ${response.code()}: ${body ?: "(no body)"}"
 - **L1043** `"ApiDispatch"` — "Gemini listModels threw: ${e.javaClass.simpleName}: ${e.message}"
-- **L1595** `"ApiDispatch"` — "Anthropic reasoning override: max_tokens raised from $baseMax to $effectiveMax (thinking budget=$budget)"
+- **L1603** `"ApiDispatch"` — "Anthropic reasoning override: max_tokens raised from $baseMax to $effectiveMax (thinking budget=$budget)"
 
 ### `data/ApiTracer.kt`
 
@@ -215,9 +244,9 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/InternalPromptSeed.kt`
 
-- **L83** `"InternalPromptSeed"` — "Missing body for $dir/$stem.txt: ${e.message}"
-- **L107** `"InternalPromptSeed"` — "Failed to load internal-prompts/: ${e.message}"
-- **L187** `"InternalPromptSeed"` — "upsertFromJson failed: ${e.message}"
+- **L126** `"InternalPromptSeed"` — "Missing body for $dir/$stem.txt: ${e.message}"
+- **L150** `"InternalPromptSeed"` — "Failed to load internal-prompts/: ${e.message}"
+- **L230** `"InternalPromptSeed"` — "upsertFromJson failed: ${e.message}"
 
 ### `data/Knowledge.kt`
 
@@ -229,6 +258,11 @@ Severity is chosen at the call site by which method is invoked:
 
 - **L219** `"Knowledge"` — "Embedder mismatch across attached KBs (${first.name} vs ${mismatch.name}); using ${first.name}'s"
 - **L269** `"KnowledgeService"` — "KB '${kb.name}' (${kb.id}) has chunks with dim=$it; query dim=${queryVec.size}. " + "Re-index the KB with the current embedder."
+
+### `data/MetaCache.kt`
+
+- **L55** `"MetaCache"` — "load failed: ${e.message}"
+- **L100** `"MetaCache"` — "save failed: ${e.message}"
 
 ### `data/ModelCooldownStore.kt`
 
@@ -254,6 +288,10 @@ Severity is chosen at the call site by which method is invoked:
 - **L1005** `"PricingCache"` — "Helicone refresh: empty / failed response"
 - **L1160** `"PricingCache"` — "Artificial Analysis refresh skipped: missing API key"
 - **L1169** `"PricingCache"` — "Artificial Analysis refresh: empty / failed response"
+
+### `data/PromptTranslationStore.kt`
+
+- **L37** `"PromptTranslationStore"` — "put failed: ${e.message}"
 
 ### `data/ProviderFieldTimestamps.kt`
 
@@ -282,9 +320,9 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `data/ReportStorage.kt`
 
-- **L357** `"ReportStorage"` — "Refusing to delete report with suspect id $reportId"
-- **L364** `"ReportStorage"` — "Refusing to delete report that escapes reportsDir: $reportId"
-- **L411** `"ReportStorage"` — "Rejected reportId with path traversal markers: $reportId"
+- **L386** `"ReportStorage"` — "Refusing to delete report with suspect id $reportId"
+- **L393** `"ReportStorage"` — "Refusing to delete report that escapes reportsDir: $reportId"
+- **L440** `"ReportStorage"` — "Rejected reportId with path traversal markers: $reportId"
 
 ### `data/SecondaryResult.kt`
 
@@ -321,35 +359,35 @@ Severity is chosen at the call site by which method is invoked:
 - **L244** `"ImportExport"` — "Skipped runtime report entry: ${e.message}"
 - **L264** `"ImportExport"` — "Skipped secondary row: ${e.message}"
 - **L290** `"ImportExport"` — "Skipped chat session entry: ${e.message}"
-- **L512** `"ImportExport"` — "Skipped model list for unknown provider $key"
-- **L600** `"ImportExport"` — "Skipped endpoints for unknown provider $key"
-- **L606** `"ImportExport"` — "Skipped endpoint entry: ${e.message}"
-- **L626** `"ImportExport"` — "Skipped parameters entry: ${e.message}"
-- **L641** `"ImportExport"` — "Skipped model type override entry: ${e.message}"
-- **L659** `"ImportExport"` — "Skipped model cooldowns blob: ${e.message}"
-- **L673** `"ImportExport"` — "Skipped system prompt entry: ${e.message}"
-- **L689** `"ImportExport"` — "Skipped blocked model entry: ${e.message}"
-- **L705** `"ImportExport"` — "Skipped test-excluded model entry: ${e.message}"
-- **L721** `"ImportExport"` — "Skipped inaccessible model entry: ${e.message}"
-- **L1528** `"ImportExport"` — "Bundle apiKeys section failed: ${e.message}"
-- **L1554** `"ImportExport"` — "Bundle costs section failed: ${e.message}"
+- **L514** `"ImportExport"` — "Skipped model list for unknown provider $key"
+- **L602** `"ImportExport"` — "Skipped endpoints for unknown provider $key"
+- **L608** `"ImportExport"` — "Skipped endpoint entry: ${e.message}"
+- **L628** `"ImportExport"` — "Skipped parameters entry: ${e.message}"
+- **L643** `"ImportExport"` — "Skipped model type override entry: ${e.message}"
+- **L661** `"ImportExport"` — "Skipped model cooldowns blob: ${e.message}"
+- **L675** `"ImportExport"` — "Skipped system prompt entry: ${e.message}"
+- **L691** `"ImportExport"` — "Skipped blocked model entry: ${e.message}"
+- **L707** `"ImportExport"` — "Skipped test-excluded model entry: ${e.message}"
+- **L723** `"ImportExport"` — "Skipped inaccessible model entry: ${e.message}"
+- **L1530** `"ImportExport"` — "Bundle apiKeys section failed: ${e.message}"
+- **L1556** `"ImportExport"` — "Bundle costs section failed: ${e.message}"
 
 ### `viewmodel/AppViewModel.kt`
 
 - **L402** `"CapsWatch"` — "POSSIBLE STALL — throttle state frozen ${stalledTicks * 15}s — $line"
-- **L561** `tag` — "First-run providers.json import failed"
-- **L592** `tag` — "← providers.json delta-sync failed in ${System.currentTimeMillis() - tSync}ms"
-- **L642** `tag` — "← internal-prompts/ delta-merge failed in ${System.currentTimeMillis() - tPrompts}ms"
-- **L671** `tag` — "← examples.json delta-merge failed in ${System.currentTimeMillis() - tExamples}ms"
-- **L698** `tag` — "← system-prompts.json delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms"
-- **L722** `tag` — "← workers/swarms.json delta-merge failed in ${System.currentTimeMillis() - tSwarms}ms"
-- **L745** `tag` — "← workers/flocks.json delta-merge failed in ${System.currentTimeMillis() - tFlocks}ms"
-- **L771** `tag` — "← excluded.json delta-merge failed in ${System.currentTimeMillis() - tExcluded}ms"
-- **L799** `tag` — "← inaccessible.json delta-merge failed in ${System.currentTimeMillis() - tInaccessible}ms"
-- **L821** `tag` — "← meta.json delta-merge failed in ${System.currentTimeMillis() - tMeta}ms"
-- **L1039** `"App"` — "providers.json reload failed during reset"
-- **L1421** `"App"` — "Failed to fetch models for ${service.id}: ${e.message}"
-- **L1798** `"RefreshAll"` — "model fetch failed for ${service.id}: ${it.message}"
+- **L562** `tag` — "First-run providers.json import failed"
+- **L593** `tag` — "← providers.json delta-sync failed in ${System.currentTimeMillis() - tSync}ms"
+- **L643** `tag` — "← internal-prompts/ delta-merge failed in ${System.currentTimeMillis() - tPrompts}ms"
+- **L672** `tag` — "← examples.json delta-merge failed in ${System.currentTimeMillis() - tExamples}ms"
+- **L699** `tag` — "← system-prompts.json delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms"
+- **L723** `tag` — "← workers/swarms.json delta-merge failed in ${System.currentTimeMillis() - tSwarms}ms"
+- **L746** `tag` — "← workers/flocks.json delta-merge failed in ${System.currentTimeMillis() - tFlocks}ms"
+- **L772** `tag` — "← excluded.json delta-merge failed in ${System.currentTimeMillis() - tExcluded}ms"
+- **L800** `tag` — "← inaccessible.json delta-merge failed in ${System.currentTimeMillis() - tInaccessible}ms"
+- **L822** `tag` — "← meta.json delta-merge failed in ${System.currentTimeMillis() - tMeta}ms"
+- **L1042** `"App"` — "providers.json reload failed during reset"
+- **L1424** `"App"` — "Failed to fetch models for ${service.id}: ${e.message}"
+- **L1801** `"RefreshAll"` — "model fetch failed for ${service.id}: ${it.message}"
 
 ### `viewmodel/ChatViewModel.kt`
 
@@ -362,43 +400,48 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `viewmodel/FanOutEngine.kt`
 
-- **L1340** `"FanOut"` — "pair ans=$answererAgentId src=$sourceAgentId timed out after 60s"
+- **L1338** `"FanOut"` — "pair ans=$answererAgentId src=$sourceAgentId timed out after 60s"
+- **L1796** `"FanOut"` — "rerun pairs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}"
+- **L1810** `"FanOut"` — "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}"
 
 ### `viewmodel/IconGenerationManager.kt`
 
-- **L867** `"InternalPromptIcon"` — "second/meta not configured — skipping"
-- **L911** `"InternalPromptIcon"` — "no worker produced an icon for name='${prompt.name}'"
-- **L974** `"InternalPromptIconAlt"` — "alt/meta not configured — skipping fan-out"
-- **L1088** `"InternalPromptIconAlt"` — "exception for ${item.provider.id}/${item.model}: ${e.message}"
-- **L1196** `"PairIconAlt"` — "alt/fan_out prompt not found — skipping (pair=$pairId)"
-- **L1371** `"PairTitleAlt"` — "alt/model_title prompt not found — skipping (pair=$pairId)"
-- **L1512** `"TranslationIcon"` — "translation/icon not configured — skipping"
-- **L1552** `"TranslationIcon"` — "no worker produced an icon for language='$language'"
-- **L1586** `"TranslationIconAlt"` — "alt/translation not configured — skipping fan-out"
-- **L1688** `"TranslationIconAlt"` — "exception for ${item.provider.id}/${item.model}: ${e.message}"
-- **L2062** `"LanguageIconAlt"` — "no detected language on report=$reportId — skipping fan-out"
-- **L2193** `"AgentIconAlt"` — "alt/report prompt not found — skipping (agent=$agentId)"
-- **L2472** `"FanMeta"` — "fan/meta not configured — skipping"
+- **L1026** `"InternalPromptIcon"` — "second/meta not configured — skipping"
+- **L1069** `"InternalPromptIcon"` — "no worker produced an icon for name='${prompt.name}'"
+- **L1132** `"InternalPromptIconAlt"` — "alt/meta not configured — skipping fan-out"
+- **L1247** `"InternalPromptIconAlt"` — "exception for ${item.provider.id}/${item.model}: ${e.message}"
+- **L1355** `"PairIconAlt"` — "alt/fan_out prompt not found — skipping (pair=$pairId)"
+- **L1531** `"PairTitleAlt"` — "alt/model_title prompt not found — skipping (pair=$pairId)"
+- **L1673** `"TranslationIcon"` — "translation/icon not configured — skipping"
+- **L1712** `"TranslationIcon"` — "no worker produced an icon for language='$language'"
+- **L1746** `"TranslationIconAlt"` — "alt/translation not configured — skipping fan-out"
+- **L1849** `"TranslationIconAlt"` — "exception for ${item.provider.id}/${item.model}: ${e.message}"
+- **L2228** `"LanguageIconAlt"` — "no detected language on report=$reportId — skipping fan-out"
+- **L2367** `"AgentIconAlt"` — "alt/report prompt not found — skipping (agent=$agentId)"
+- **L2650** `"FanMeta"` — "fan/meta not configured — skipping"
 
 ### `viewmodel/JudgeEvalEngine.kt`
 
 - **L204** `"JudgeEval"` — "workers/tournament prompt not configured — aborting"
 - **L209** `"JudgeEval"` — "no resolvable judges in the prompt's swarm — aborting"
+- **L636** `"JudgeEval"` — "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}"
+- **L674** `"JudgeEval"` — "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}"
 
 ### `viewmodel/RegenerateBatchEngine.kt`
 
 - **L237** `"RegenBatch"` — "orchestrator crashed for $reportId: ${e.message}"
-- **L310** `"RegenBatch"` — "phase $phase timed out for $reportId — pausing"
+- **L320** `"RegenBatch"` — "phase $phase timed out for $reportId — pausing"
 
 ### `viewmodel/ReportViewModel.kt`
 
-- **L785** `"Report"` — "skip benched ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} — marking agent ${task.resultId} errored"
-- **L1817** `"Report"` — "background report skipped — no active models for swarm $swarmId"
+- **L788** `"Report"` — "skip benched ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} — marking agent ${task.resultId} errored"
+- **L1815** `"Report"` — "background report skipped — no active models for swarm $swarmId"
 
 ### `viewmodel/SecondaryRunManager.kt`
 
-- **L470** `"BgResumeSweep"` — "iteration failed: ${e.javaClass.simpleName}: ${e.message}"
-- **L1156** `"Secondary"` — "skip benched ${provider.id}/$model — marking row ${placeholder.id} errored"
+- **L449** `"SecondaryResume"` — "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}"
+- **L480** `"BgResumeSweep"` — "iteration failed: ${e.javaClass.simpleName}: ${e.message}"
+- **L1179** `"Secondary"` — "skip benched ${provider.id}/$model — marking row ${placeholder.id} errored"
 
 ### `viewmodel/StressTestEngine.kt`
 
@@ -407,6 +450,9 @@ Severity is chosen at the call site by which method is invoked:
 ### `viewmodel/TournamentEngine.kt`
 
 - **L200** `"Tournament"` — "workers/tournament not configured — aborting"
+- **L411** `"Tournament"` — "recompute aggregate failed report=$reportId method=${run.selectedMethod}: ${e.javaClass.simpleName}: ${e.message}"
+- **L532** `"Tournament"` — "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}"
+- **L592** `"Tournament"` — "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}"
 
 ### `viewmodel/TranslationRunManager.kt`
 
@@ -427,9 +473,7 @@ Severity is chosen at the call site by which method is invoked:
 - **L148** `"Workers"` — "no usable result '${prompt.name}' via ${agent.name} — next worker"
 - **L149** `"Workers"` — "miss '${prompt.name}' via ${agent.name}: ${resp.error?.take(80)}"
 
-## INFO (94)
-
-`AppLog.i` — priority 4 (matches `Log.INFO`).
+## INFO (97)
 
 ### `data/AnalysisRepository.kt`
 
@@ -451,6 +495,10 @@ Severity is chosen at the call site by which method is invoked:
 - **L121** `"Knowledge"` — "→ index \"$displayName\" type=$type kb=$kbId textLen=${text.length}"
 - **L190** `"Knowledge"` — "← index \"$displayName\" kb=$kbId chunks=${chunks.size} chars=${src.charCount} dim=$embeddingDim in ${System.currentTimeMillis() - indexStart}ms"
 
+### `data/MetaCache.kt`
+
+- **L84** `"MetaCache"` — "clearAll dropped $n entries"
+
 ### `data/PricingCache.kt`
 
 - **L872** `"PricingCache"` — "models.dev parse: ${pricing.size} priced, ${meta.size} meta entries (raw ${json.length} bytes)"
@@ -458,10 +506,15 @@ Severity is chosen at the call site by which method is invoked:
 - **L1099** `"PricingCache"` — "llm-prices parse: ${combined.size} entries from ${llmPricesVendors.size} vendors"
 - **L1173** `"PricingCache"` — "Artificial Analysis parse: ${pricing.size} priced, ${meta.size} meta entries"
 
+### `data/PromptTranslationStore.kt`
+
+- **L61** `"PromptTranslationStore"` — "deleted $n files for $language"
+- **L108** `"PromptTranslationStore"` — "translated $done/${baseline.size} prompts into $targetLanguage from $sourceLanguage"
+
 ### `data/ProviderRegistry.kt`
 
 - **L181** `"ProviderRegistry"` — "added ${service.id} (baseUrl=${service.baseUrl})"
-- **L201** `"ProviderRegistry"` — "updated ${service.id} changed=${changed.joinToString("
+- **L201** `"ProviderRegistry"` — "updated ${service.id} changed=${changed.joinToString(",")}"
 - **L209** `"ProviderRegistry"` — "removed $id"
 - **L244** `"ProviderRegistry"` — "syncFromAsset: ${asset.id} pulled ${take.joinToString()}"
 
@@ -483,8 +536,8 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `ui/admin/AppLogScreen.kt`
 
-- **L177** `"Housekeeping"` — "Cleared $n log file(s)"
-- **L200** `"Housekeeping"` — "Deleted $n log file(s) older than 7 days"
+- **L185** `"Housekeeping"` — "Cleared $n log file(s)"
+- **L208** `"Housekeeping"` — "Deleted $n log file(s) older than 7 days"
 
 ### `ui/helpers/PdfExport.kt`
 
@@ -506,16 +559,16 @@ Severity is chosen at the call site by which method is invoked:
 
 - **L404** `"CapsWatch"` — line
 - **L464** `"App"` — "App started — $appLabel v${com.ai.BuildConfig.VERSION_NAME} " + "(built $builtAt, installed $installedAt) " + "logLevel=${bs.first.logLevel}, tracing=${bs.first.tracingEnabled}"
-- **L608** `tag` — "Seeding ${needsSeed.size} default-inactive provider state(s): ${needsSeed.joinToString { it.id }}"
-- **L949** `"Housekeeping"` — "→ Clear logs / chats / traces / reports / prompts / usage stats / test run"
-- **L973** `"Housekeeping"` — "→ Clear Info-provider caches"
-- **L975** `"Housekeeping"` — "← Clear Info-provider caches done"
-- **L979** `"Housekeeping"` — "→ Clear all configuration"
-- **L987** `"Housekeeping"` — "← Clear all configuration: localLlms=$llms embedders=$embedders"
-- **L1003** `"Housekeeping"` — "→ Reset application (preserve API keys)"
-- **L1080** `"Housekeeping"` — "← Reset application: $count API keys restored"
-- **L1135** `"Settings"` — "Log level changed: ${previous.logLevel} → ${settings.logLevel}"
-- **L1252** `"ModelTest"` — "→ test-run flush: ${snapshot.blockedModels.size} blocked, ${snapshot.testExcludedModels.size} test-excluded, ${snapshot.inaccessibleModels.size} inaccessible"
+- **L609** `tag` — "Seeding ${needsSeed.size} default-inactive provider state(s): ${needsSeed.joinToString { it.id }}"
+- **L950** `"Housekeeping"` — "→ Clear logs / chats / traces / reports / prompts / usage stats / test run"
+- **L974** `"Housekeeping"` — "→ Clear Info-provider caches"
+- **L976** `"Housekeeping"` — "← Clear Info-provider caches done"
+- **L980** `"Housekeeping"` — "→ Clear all configuration"
+- **L989** `"Housekeeping"` — "← Clear all configuration: localLlms=$llms embedders=$embedders"
+- **L1005** `"Housekeeping"` — "→ Reset application (preserve API keys)"
+- **L1083** `"Housekeeping"` — "← Reset application: $count API keys restored"
+- **L1138** `"Settings"` — "Log level changed: ${previous.logLevel} → ${settings.logLevel}"
+- **L1255** `"ModelTest"` — "→ test-run flush: ${snapshot.blockedModels.size} blocked, ${snapshot.testExcludedModels.size} test-excluded, ${snapshot.inaccessibleModels.size} inaccessible"
 
 ### `viewmodel/CompareEngine.kt`
 
@@ -524,23 +577,23 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `viewmodel/FanOutEngine.kt`
 
-- **L1068** `"FanOut"` — "→ start \"${metaPrompt.name}\" (report=$reportId, ${successful.size} successful agents)"
-- **L1160** `"FanOut"` — "← end \"${metaPrompt.name}\" (${pending.size} pairs in ${System.currentTimeMillis() - fanOutStartMs}ms)"
+- **L1066** `"FanOut"` — "→ start \"${metaPrompt.name}\" (report=$reportId, ${successful.size} successful agents)"
+- **L1158** `"FanOut"` — "← end \"${metaPrompt.name}\" (${pending.size} pairs in ${System.currentTimeMillis() - fanOutStartMs}ms)"
 
 ### `viewmodel/IconGenerationManager.kt`
 
-- **L2485** `"FanMeta"` — "no pending pairs on $reportId — nothing to do"
-- **L2488** `"FanMeta"` — "→ start (report=$reportId, ${pending.size} pairs)"
-- **L2513** `"FanMeta"` — "← end (report=$reportId)"
+- **L2663** `"FanMeta"` — "no pending pairs on $reportId — nothing to do"
+- **L2666** `"FanMeta"` — "→ start (report=$reportId, ${pending.size} pairs)"
+- **L2691** `"FanMeta"` — "← end (report=$reportId)"
 
 ### `viewmodel/JudgeEvalEngine.kt`
 
 - **L226** `"JudgeEval"` — "→ start report=$reportId (${judges.size} judges × ${chosen.size} matches = ${judges.size * chosen.size} cells)"
 - **L269** `"JudgeEval"` — "← done report=$reportId in ${System.currentTimeMillis() - startMs}ms"
-- **L444** `"JudgeEval"` — "Removed judge $providerId/$model from swarm '$swarmName'"
-- **L469** `"JudgeEval"` — "Removed judge $judgeKey from run on $reportId (${cells.size} cells)"
-- **L490** `"JudgeEval"` — "Added judge ${provider.id}/$model to swarm '$swarmName'"
-- **L536** `"JudgeEval"` — "Added judge $judgeKey to run on $reportId (${matches.size} cells)"
+- **L445** `"JudgeEval"` — "Removed judge $providerId/$model from swarm '$swarmName'"
+- **L470** `"JudgeEval"` — "Removed judge $judgeKey from run on $reportId (${cells.size} cells)"
+- **L491** `"JudgeEval"` — "Added judge ${provider.id}/$model to swarm '$swarmName'"
+- **L537** `"JudgeEval"` — "Added judge $judgeKey to run on $reportId (${matches.size} cells)"
 
 ### `viewmodel/ModelTestEngine.kt`
 
@@ -557,26 +610,26 @@ Severity is chosen at the call site by which method is invoked:
 
 - **L196** `"RegenBatch"` — "reviving stale RUNNING orchestrator for $reportId"
 - **L204** `"RegenBatch"` — "auto-resuming PAUSED batch for $reportId — error cleared"
-- **L284** `"RegenBatch"` — "phase $phase paused on error for $reportId"
+- **L294** `"RegenBatch"` — "phase $phase paused on error for $reportId"
 
 ### `viewmodel/ReportViewModel.kt`
 
-- **L449** `"Report"` — "→ start \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))"
-- **L470** `"Report"` — "← end \"${title.ifBlank { "AI Report" }}\" ok=$ok fail=$fail in ${System.currentTimeMillis() - reportStartMs}ms"
-- **L708** `"Report"` — "auto-rerank skipped: no rerank-capable model"
-- **L711** `"Report"` — "auto-moderation skipped: no moderation-capable model"
-- **L750** `"Report"` — "auto-meta skipped: no meta prompt '${item.metaName}'"
-- **L755** `"Report"` — "auto-meta '${item.metaName}': no resolvable model"
-- **L1831** `"Report"` — "→ start (bg) \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))"
-- **L1842** `"Report"` — "← end (bg) id=$reportId ok=$ok fail=$fail in ${System.currentTimeMillis() - startMs}ms"
+- **L450** `"Report"` — "→ start \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))"
+- **L471** `"Report"` — "← end \"${title.ifBlank { "AI Report" }}\" ok=$ok fail=$fail in ${System.currentTimeMillis() - reportStartMs}ms"
+- **L710** `"Report"` — "auto-rerank skipped: no rerank-capable model"
+- **L713** `"Report"` — "auto-moderation skipped: no moderation-capable model"
+- **L753** `"Report"` — "auto-meta skipped: no meta prompt '${item.metaName}'"
+- **L758** `"Report"` — "auto-meta '${item.metaName}': no resolvable model"
+- **L1829** `"Report"` — "→ start (bg) \"${title.ifBlank { "AI Report" }}\" (id=$reportId, ${reportTasks.size} agent(s))"
+- **L1840** `"Report"` — "← end (bg) id=$reportId ok=$ok fail=$fail in ${System.currentTimeMillis() - startMs}ms"
 
 ### `viewmodel/SecondaryRunManager.kt`
 
 - **L144** `"Rerank"` — "→ start report=$reportId via ${provider.id}/$model"
 - **L207** `"Moderation"` — "→ start report=$reportId via ${provider.id}/$model"
-- **L555** `"Resume"` — "→ re-issue ${kind.name} \"${metaPrompt.name}\" report=$reportId row=${placeholder.id} via ${provider.id}/$model"
-- **L650** `"FanIn"` — "→ start \"${metaPrompt.name}\" report=$reportId via ${pick.first.id}/${pick.second}"
-- **L909** `"Meta"` — "→ start \"${metaPrompt.name}\" report=$reportId — ${picks.size} pick(s)"
+- **L565** `"Resume"` — "→ re-issue ${kind.name} \"${metaPrompt.name}\" report=$reportId row=${placeholder.id} via ${provider.id}/$model"
+- **L667** `"FanIn"` — "→ start \"${metaPrompt.name}\" report=$reportId via ${pick.first.id}/${pick.second}"
+- **L926** `"Meta"` — "→ start \"${metaPrompt.name}\" report=$reportId — ${picks.size} pick(s)"
 
 ### `viewmodel/StressTestEngine.kt`
 
@@ -600,9 +653,7 @@ Severity is chosen at the call site by which method is invoked:
 
 - **L128** `"Workers"` — "${com.ai.data.MetadataIconsHolder.current.checkMark} '${prompt.name}' via ${agent.name} (worker ${idx + 1}/$n)"
 
-## DEBUG (106)
-
-`AppLog.d` — priority 3 (matches `Log.DEBUG`).
+## DEBUG (107)
 
 ### `data/ApiDispatch.kt`
 
@@ -643,6 +694,10 @@ Severity is chosen at the call site by which method is invoked:
 ### `data/KnowledgeService.kt`
 
 - **L303** `"Knowledge"` — "retrieve kbs=${kbs.size} topK=$topK queryLen=${query.length} → hits=${out.size}" + (out.firstOrNull()?.score?.let { " topScore=${"%.3f".format(it)}" } ?: "")
+
+### `data/MetaCache.kt`
+
+- **L53** `"MetaCache"` — "loaded ${map.size} live entries"
 
 ### `data/ModelListCache.kt`
 
@@ -694,8 +749,8 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `ui/settings/SettingsPreferences.kt`
 
-- **L134** `"SettingsPrefs"` — "loadGeneralSettings logLevel=${it.logLevel} tracing=${it.tracingEnabled} " + "streamRT=${it.streamingReadTimeoutSec}s nonStreamRT=${it.nonStreamingReadTimeoutSec}s " + "maxPerMin=${it.maxCallsPerProviderPerMinute} maxConc=${it.maxConcurrentCallsPerProvider} " + "recentReportModels=${it.recentReportModels.size}"
-- **L198** `"SettingsPrefs"` — "saveGeneralSettings logLevel=${settings.logLevel} tracing=${settings.tracingEnabled} " + "streamRT=${settings.streamingReadTimeoutSec}s nonStreamRT=${settings.nonStreamingReadTimeoutSec}s " + "maxPerMin=${settings.maxCallsPerProviderPerMinute} maxConc=${settings.maxConcurrentCallsPerProvider}"
+- **L149** `"SettingsPrefs"` — "loadGeneralSettings logLevel=${it.logLevel} tracing=${it.tracingEnabled} " + "streamRT=${it.streamingReadTimeoutSec}s nonStreamRT=${it.nonStreamingReadTimeoutSec}s " + "maxPerMin=${it.maxCallsPerProviderPerMinute} maxConc=${it.maxConcurrentCallsPerProvider} " + "recentReportModels=${it.recentReportModels.size}"
+- **L216** `"SettingsPrefs"` — "saveGeneralSettings logLevel=${settings.logLevel} tracing=${settings.tracingEnabled} " + "streamRT=${settings.streamingReadTimeoutSec}s nonStreamRT=${settings.nonStreamingReadTimeoutSec}s " + "maxPerMin=${settings.maxCallsPerProviderPerMinute} maxConc=${settings.maxConcurrentCallsPerProvider}"
 
 ### `viewmodel/AppViewModel.kt`
 
@@ -710,53 +765,53 @@ Severity is chosen at the call site by which method is invoked:
 - **L486** `startTag` — "→ refreshAllModelLists (cache-respecting)"
 - **L490** `startTag` — "← refreshAllModelLists done in ${System.currentTimeMillis() - tRefresh}ms"
 - **L525** `tag` — "→ Singletons init"
-- **L538** `tag` — "← Singletons init done in ${System.currentTimeMillis() - bootStart}ms"
-- **L540** `tag` — "→ Load prefs"
-- **L547** `tag` — "← Load prefs done in ${System.currentTimeMillis() - tLoad}ms"
-- **L552** `tag` — "→ First-run seed"
-- **L568** `tag` — "← First-run seed done in ${System.currentTimeMillis() - tFirst}ms"
-- **L583** `tag` — "→ providers.json delta-sync"
-- **L590** `tag` — "← providers.json delta-sync done in ${System.currentTimeMillis() - tSync}ms (synced=$syncCount, added=$addCount)"
-- **L622** `tag` — "→ internal-prompts/ delta-merge"
-- **L637** `tag` — "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (added=$added)"
-- **L639** `tag` — "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (empty asset)"
-- **L651** `tag` — "→ examples.json delta-merge"
-- **L666** `tag` — "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (added=$added)"
-- **L668** `tag` — "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (empty asset)"
-- **L678** `tag` — "→ system-prompts.json delta-merge"
-- **L693** `tag` — "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (added=$added)"
-- **L695** `tag` — "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (empty asset)"
-- **L705** `tag` — "→ workers/swarms.json delta-merge"
-- **L717** `tag` — "← workers/swarms.json delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (added=$added)"
-- **L719** `tag` — "← workers/swarms.json delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (empty asset)"
-- **L728** `tag` — "→ workers/flocks.json delta-merge"
-- **L740** `tag` — "← workers/flocks.json delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (added=$added)"
-- **L742** `tag` — "← workers/flocks.json delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (empty asset)"
-- **L752** `tag` — "→ excluded.json delta-merge"
-- **L766** `tag` — "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (added=$added)"
-- **L768** `tag` — "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (empty asset)"
-- **L780** `tag` — "→ inaccessible.json delta-merge"
-- **L794** `tag` — "← inaccessible.json delta-merge done in ${System.currentTimeMillis() - tInaccessible}ms (added=$added)"
-- **L796** `tag` — "← inaccessible.json delta-merge done in ${System.currentTimeMillis() - tInaccessible}ms (empty asset)"
-- **L802** `tag` — "→ meta.json delta-merge"
-- **L816** `tag` — "← meta.json delta-merge done in ${System.currentTimeMillis() - tMeta}ms (added=$added)"
-- **L818** `tag` — "← meta.json delta-merge done in ${System.currentTimeMillis() - tMeta}ms (empty asset)"
-- **L825** `tag` — "bootstrap total ${System.currentTimeMillis() - bootStart}ms"
-- **L1468** `"RefreshAll"` — "→ ${toRefresh.size} provider(s): ${toRefresh.joinToString { it.id }}"
-- **L1524** `"RefreshAll"` — "← ok=${successful.size}/${toRefresh.size} in ${System.currentTimeMillis() - t0}ms"
+- **L539** `tag` — "← Singletons init done in ${System.currentTimeMillis() - bootStart}ms"
+- **L541** `tag` — "→ Load prefs"
+- **L548** `tag` — "← Load prefs done in ${System.currentTimeMillis() - tLoad}ms"
+- **L553** `tag` — "→ First-run seed"
+- **L569** `tag` — "← First-run seed done in ${System.currentTimeMillis() - tFirst}ms"
+- **L584** `tag` — "→ providers.json delta-sync"
+- **L591** `tag` — "← providers.json delta-sync done in ${System.currentTimeMillis() - tSync}ms (synced=$syncCount, added=$addCount)"
+- **L623** `tag` — "→ internal-prompts/ delta-merge"
+- **L638** `tag` — "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (added=$added)"
+- **L640** `tag` — "← internal-prompts/ delta-merge done in ${System.currentTimeMillis() - tPrompts}ms (empty asset)"
+- **L652** `tag` — "→ examples.json delta-merge"
+- **L667** `tag` — "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (added=$added)"
+- **L669** `tag` — "← examples.json delta-merge done in ${System.currentTimeMillis() - tExamples}ms (empty asset)"
+- **L679** `tag` — "→ system-prompts.json delta-merge"
+- **L694** `tag` — "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (added=$added)"
+- **L696** `tag` — "← system-prompts.json delta-merge done in ${System.currentTimeMillis() - tSystemPrompts}ms (empty asset)"
+- **L706** `tag` — "→ workers/swarms.json delta-merge"
+- **L718** `tag` — "← workers/swarms.json delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (added=$added)"
+- **L720** `tag` — "← workers/swarms.json delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (empty asset)"
+- **L729** `tag` — "→ workers/flocks.json delta-merge"
+- **L741** `tag` — "← workers/flocks.json delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (added=$added)"
+- **L743** `tag` — "← workers/flocks.json delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (empty asset)"
+- **L753** `tag` — "→ excluded.json delta-merge"
+- **L767** `tag` — "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (added=$added)"
+- **L769** `tag` — "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (empty asset)"
+- **L781** `tag` — "→ inaccessible.json delta-merge"
+- **L795** `tag` — "← inaccessible.json delta-merge done in ${System.currentTimeMillis() - tInaccessible}ms (added=$added)"
+- **L797** `tag` — "← inaccessible.json delta-merge done in ${System.currentTimeMillis() - tInaccessible}ms (empty asset)"
+- **L803** `tag` — "→ meta.json delta-merge"
+- **L817** `tag` — "← meta.json delta-merge done in ${System.currentTimeMillis() - tMeta}ms (added=$added)"
+- **L819** `tag` — "← meta.json delta-merge done in ${System.currentTimeMillis() - tMeta}ms (empty asset)"
+- **L826** `tag` — "bootstrap total ${System.currentTimeMillis() - bootStart}ms"
+- **L1471** `"RefreshAll"` — "→ ${toRefresh.size} provider(s): ${toRefresh.joinToString { it.id }}"
+- **L1527** `"RefreshAll"` — "← ok=${successful.size}/${toRefresh.size} in ${System.currentTimeMillis() - t0}ms"
 
 ### `viewmodel/ChatViewModel.kt`
 
 - **L34** `"Chat"` — "sendChatMessageStream ${service.id}/$model msgs=${messages.size} kbs=${knowledgeBaseIds.size} web=$webSearchTool reasoning=$reasoningEffort"
-- **L84** `"Chat.RAG"` — "retrieving for kbs=${knowledgeBaseIds.joinToString("
+- **L84** `"Chat.RAG"` — "retrieving for kbs=${knowledgeBaseIds.joinToString(",")} queryLen=${lastUser.length}"
 - **L97** `"Chat.RAG"` — "retrieved ${hits.size} hit(s)"
 - **L124** `"Chat"` — "sendDualChatMessage ${service.id}/$model msgs=${messages.size}"
 
 ### `viewmodel/FanOutEngine.kt`
 
-- **L1292** `"FanOut"` — "queued pair ans=$answererAgentId src=$sourceAgentId ${provider.id}/$answererModel"
-- **L1294** `"FanOut"` — "skip pair $placeholderId — deleted before launch"
-- **L1370** `"FanOut"` — "← pair ans=$answererAgentId src=$sourceAgentId ${System.currentTimeMillis() - pairStart}ms"
+- **L1290** `"FanOut"` — "queued pair ans=$answererAgentId src=$sourceAgentId ${provider.id}/$answererModel"
+- **L1292** `"FanOut"` — "skip pair $placeholderId — deleted before launch"
+- **L1368** `"FanOut"` — "← pair ans=$answererAgentId src=$sourceAgentId ${System.currentTimeMillis() - pairStart}ms"
 
 ### `viewmodel/RegenerateBatchEngine.kt`
 
@@ -764,13 +819,13 @@ Severity is chosen at the call site by which method is invoked:
 
 ### `viewmodel/ReportViewModel.kt`
 
-- **L779** `"Report"` — "→ task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId}${if (isRegeneration) " (regen)" else ""}"
-- **L908** `"Report"` — "skip UI publish for deleted agent=${task.resultId} report=$reportId"
-- **L917** `"Report"` — "← task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId} " + (if (response.isSuccess) "ok" else "err") + " ${durationMs}ms" + (response.tokenUsage?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") + (cost?.let { " cost=${"%.5f".format(it)}" } ?: "")
+- **L782** `"Report"` — "→ task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId}${if (isRegeneration) " (regen)" else ""}"
+- **L912** `"Report"` — "skip UI publish for deleted agent=${task.resultId} report=$reportId"
+- **L932** `"Report"` — "← task ${task.runtimeAgent.provider.id}/${task.runtimeAgent.model} agent=${task.resultId} " + (if (response.isSuccess) "ok" else "err") + " ${durationMs}ms" + (response.tokenUsage?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") + (cost?.let { " cost=${"%.5f".format(it)}" } ?: "")
 
 ### `viewmodel/SecondaryRunManager.kt`
 
-- **L489** `"BgResumeSweep"` — "scanning ${recent.size} report${if (recent.size == 1) "" else "s"} (last 7 days)"
+- **L499** `"BgResumeSweep"` — "scanning ${recent.size} report${if (recent.size == 1) "" else "s"} (last 7 days)"
 
 ### `viewmodel/TranslationRunManager.kt`
 
@@ -779,9 +834,7 @@ Severity is chosen at the call site by which method is invoked:
 - **L799** `"Translation"` — "← item ${item.id} ok ${callDurationMs}ms" + (tu?.let { " in=${it.inputTokens} out=${it.outputTokens}" } ?: "") + " cost=${"%.5f".format(costDollars)}"
 - **L1094** `"Translation"` — "reconcile skipped — runId=$runId has active dispatch job"
 
-## TRACE (53)
-
-`AppLog.v` — priority 2 (matches `Log.VERBOSE`).
+## TRACE (54)
 
 ### `data/ApiStreaming.kt`
 
@@ -830,29 +883,31 @@ Severity is chosen at the call site by which method is invoked:
 - **L533** `tag` — " init ProviderFieldTimestamps"
 - **L534** `tag` — " init PromptCache"
 - **L535** `tag` — " init InternalPromptIconCache"
-- **L536** `tag` — " init TranslationModeStore"
-- **L537** `tag` — " init LastReportTracker"
-- **L543** `tag` — " GeneralSettings loaded (logLevel=${gs.logLevel}, tracing=${gs.tracingEnabled})"
-- **L545** `tag` — " providers=${ai.providers.size} agents=${ai.agents.size} flocks=${ai.flocks.size} swarms=${ai.swarms.size}"
-- **L546** `tag` — " internalPrompts=${ai.internalPrompts.size} examplePrompts=${ai.examplePrompts.size} parameters=${ai.parameters.size} systemPrompts=${ai.systemPrompts.size}"
-- **L556** `tag` — " first run; isEmptyInstall=$isEmptyInstall"
-- **L559** `tag` — " providers.json seed: added=$providersAdded"
-- **L566** `tag` — " not a first run; skipping seed"
-- **L587** `tag` — " syncFromAsset: $syncCount unedited fields refreshed"
-- **L589** `tag` — " importFromAsset: $addCount new providers appended"
-- **L626** `tag` — " bundled internal-prompts/ entries: ${bundled.size}"
-- **L631** `tag` — " merge: before=$before merged=${merged.size} added=$added"
-- **L635** `tag` — " settings saved with $added new prompts"
-- **L655** `tag` — " bundled examples.json entries: ${bundled.size}"
-- **L660** `tag` — " merge: before=$before merged=${merged.size} added=$added"
-- **L664** `tag` — " settings saved with $added new example prompts"
-- **L682** `tag` — " bundled system-prompts.json entries: ${bundled.size}"
-- **L687** `tag` — " merge: before=$before merged=${merged.size} added=$added"
-- **L691** `tag` — " settings saved with $added new system prompts"
-- **L756** `tag` — " bundled excluded.json entries: ${bundled.size}"
-- **L764** `tag` — " settings saved with $added new test-excluded entries"
-- **L784** `tag` — " bundled inaccessible.json entries: ${bundled.size}"
-- **L792** `tag` — " settings saved with $added new inaccessible entries"
-- **L806** `tag` — " bundled meta.json entries: ${bundled.size}"
-- **L814** `tag` — " settings saved with $added new default meta items"
-- **L1148** `"RecentModels"` — "record $providerId/$model"
+- **L536** `tag` — " init MetaCache"
+- **L537** `tag` — " init TranslationModeStore"
+- **L538** `tag` — " init LastReportTracker"
+- **L544** `tag` — " GeneralSettings loaded (logLevel=${gs.logLevel}, tracing=${gs.tracingEnabled})"
+- **L546** `tag` — " providers=${ai.providers.size} agents=${ai.agents.size} flocks=${ai.flocks.size} swarms=${ai.swarms.size}"
+- **L547** `tag` — " internalPrompts=${ai.internalPrompts.size} examplePrompts=${ai.examplePrompts.size} parameters=${ai.parameters.size} systemPrompts=${ai.systemPrompts.size}"
+- **L557** `tag` — " first run; isEmptyInstall=$isEmptyInstall"
+- **L560** `tag` — " providers.json seed: added=$providersAdded"
+- **L567** `tag` — " not a first run; skipping seed"
+- **L588** `tag` — " syncFromAsset: $syncCount unedited fields refreshed"
+- **L590** `tag` — " importFromAsset: $addCount new providers appended"
+- **L627** `tag` — " bundled internal-prompts/ entries: ${bundled.size}"
+- **L632** `tag` — " merge: before=$before merged=${merged.size} added=$added"
+- **L636** `tag` — " settings saved with $added new prompts"
+- **L656** `tag` — " bundled examples.json entries: ${bundled.size}"
+- **L661** `tag` — " merge: before=$before merged=${merged.size} added=$added"
+- **L665** `tag` — " settings saved with $added new example prompts"
+- **L683** `tag` — " bundled system-prompts.json entries: ${bundled.size}"
+- **L688** `tag` — " merge: before=$before merged=${merged.size} added=$added"
+- **L692** `tag` — " settings saved with $added new system prompts"
+- **L757** `tag` — " bundled excluded.json entries: ${bundled.size}"
+- **L765** `tag` — " settings saved with $added new test-excluded entries"
+- **L785** `tag` — " bundled inaccessible.json entries: ${bundled.size}"
+- **L793** `tag` — " settings saved with $added new inaccessible entries"
+- **L807** `tag` — " bundled meta.json entries: ${bundled.size}"
+- **L815** `tag` — " settings saved with $added new default meta items"
+- **L1151** `"RecentModels"` — "record $providerId/$model"
+

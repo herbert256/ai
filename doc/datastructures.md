@@ -162,7 +162,9 @@ test-model).
 | agent | `String` (default `"*select"`) | `"*select"` = ask the user; otherwise an `Agent.name` |
 | text | `String` | template body. Top-level placeholders: `@QUESTION@`, `@RESULTS@`, `@COUNT@`, `@TITLE@`, `@DATE@`, `@RESPONSE@`, `@PROMPT@`, `@LANGUAGE@`, `@TEXT@`, `@FAN_OUT_COUNT@`, `@MODEL@`, `@PROVIDER@`. Iterable block: `***Report*** @REPORT@@RESPONSES@` (whitespace-tolerant; one expansion per source-report) |
 | title | `String` (default empty) | one-line description shown alongside `name` on Fan out and the prompt-edit screen |
-| scope | `String` (default `"Default"`) | meta-prompt + fan-out launch scope. `"Default"` runs against every report agent / every present language with no extra picker step; `"Select"` routes the user through `SecondaryScopeScreen` first so they can pick a subset / top-N / language fan-out. Other categories carry the value verbatim so round-tripping through `prompts.json` and the export bundle is lossless |
+| provider, model | `String?` | optional alternative to `agent`: pin the prompt directly to a provider id + model (resolved to a synthetic agent, taking precedence over `agent`) |
+| parameters, systemPrompt | `String` (default `"*NONE"`) | per-prompt Parameters preset NAME / System-prompt NAME used for THIS prompt's call, overriding the agent/flock/swarm/provider/app-wide levels (unless a runtime 🌡️/🎭 pick was made) |
+| workers | `List<Worker>` (default empty) | only the `workers` category: the ordered fallback chain `WorkerRunner` runs in random order until one succeeds. Each `Worker` is a Model / Agent / Flock / Swarm pick |
 
 > The legacy `type` field is gone — routing is derived from
 > `category`. There is **no** `metaTypeToKind` function: Rerank,

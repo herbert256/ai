@@ -1,113 +1,334 @@
 # UI Customization
 
-The app has two user-editable visual systems:
+The app exposes two user-editable visual systems:
 
-- **UI Colors** — color roles backed by `AppColors`.
-- **Default icons** — fallback and action glyphs backed by
-  `MetadataIcons`.
+- **UI Colors** — the app-wide palette, backed by `AppColors`
+  (`ui/shared/AppColors.kt`). Two independent colour sets (Day and
+  Night) plus a mode that picks which one is painted.
+- **Default icons** — the fallback/action emoji the app draws, backed by
+  `MetadataIcons` (`data/MetadataDefaults.kt`).
 
-Both live under **Settings**. They are app-wide preferences, are saved in
-`eval_prefs`, and are included in backups/export bundles.
+Both are app-wide preferences. Their state is persisted in the main
+`eval_prefs` SharedPreferences file (see `doc/persistent.md`) and rides
+through the full backup zip and the settings import/export bundle.
+
+They surface across **three** screens under **Settings**:
+
+| Settings nav card | Sub-screen | Help topic | What it edits |
+|---|---|---|---|
+| **UI tweaks** | `SETTINGS_UI` | `settings_ui` | Model-name layout, **Colors mode** (Day / Night / Auto), Experimental features, Full-screen |
+| **UI Colors** | `SETTINGS_UI_COLORS` | `settings_ui_colors` | The Day and Night colour sets (`AppColors` role overrides) |
+| **Default icons** | `SETTINGS_DEFAULT_ICONS` | `settings_default_icons` | Every fallback / bottom-bar emoji (`MetadataIcons`) |
+
+(`SettingsSubScreen` in `ui/settings/SettingsScreen.kt` drives the
+two-tier in-Settings navigation; the matching `when` block routes each
+value to its composable.)
+
+A fourth screen, **Metadata & icons** (`SETTINGS_METADATA`, help topic
+`settings_metadata`), is *generation* configuration — the master switch
+and per-item toggles for whether the app generates report / model icons,
+titles, and languages at all. It is documented in `doc/report-icons.md`
+and is not part of the palette/default-icon customization covered here.
+
+---
 
 ## UI Colors
 
-`AppColors` is the single source for simple shared colors. The Settings →
-**UI Colors** screen exposes each configurable role as a collapsed card with a
-hex input, RGB sliders, a swatch, and a default reset button. Edits apply live
-through `AppColors.applyUiColors`.
+`AppColors` is the single source for the shared colours used by cards,
+buttons, text, borders, badges and status accents. It holds each role as
+a `mutableStateOf` Compose state with a private setter; the rest of the
+app reads `AppColors.<Role>` and recomposes when the theme is repainted.
 
-The stored format is a JSON map of Android ARGB ints:
+### Two colour sets + a mode
 
+There are two complete factory palettes, both keyed by the same role
+names:
+
+- `AppColors.DefaultUiColorArgb` — the **Night** (dark) base. Black
+  background, light text. This is the original palette.
+- `AppColors.DefaultUiColorArgbDay` — the **Day** (light) counterpart.
+  Off-white background, dark text, accents re-tuned for a light surface.
+
+Each set has its own per-key override map persisted separately:
+
+| Pref key | Holds |
+|---|---|
+| `ui_color_overrides` | the **Night** set's per-role overrides |
+| `ui_color_overrides_day` | the **Day** set's per-role overrides |
+| `ui_color_mode` | a `UiColorMode` name — which set the app paints |
+| `ui_card_background_argb` | legacy Int mirror of the Night `CardBackgroundAlt` override |
+| `ui_button_background_argb` | legacy Int mirror of the Night `ButtonBackground` override |
+
+`UiColorMode` (`viewmodel/AppViewModelTypes.kt`) has three values:
+
+- `DAY` — always paint the Day set.
+- `NIGHT` — always paint the Night set (default).
+- `AUTO` — follow the Android system day/night setting
+  (`AppColors.isDayActive(mode, systemDark)`).
+
+The user picks the mode on the **UI tweaks** screen ("Colors mode" card).
+The two override sets are edited on the **UI Colors** screen.
+
+Both override maps store missing keys implicitly: a role absent from the
+map falls back to that set's factory default, so the persisted JSON only
+ever carries the keys the user actually changed. Stored values are
+Android ARGB ints:
+
+```jsonc
+// ui_color_overrides (Night)
+{ "CardBackgroundAlt": -14009526, "InfoAccent": -9651457, ... }
 ```
-ui_color_overrides = { "CardBackgroundAlt": -14009526, ... }
+
+### How the live theme is painted
+
+`AppNavHost` runs a `SideEffect` that repaints `AppColors` from the live
+settings on every relevant change:
+
+```kotlin
+AppColors.applyTheme(
+    dayOverrides   = generalSettings.uiColorOverridesDay,
+    nightOverrides = night,   // uiColorOverrides + legacy card/button mirrors
+    mode           = generalSettings.uiColorMode,
+    systemDark     = isSystemInDarkTheme(),
+)
 ```
 
-The legacy `ui_card_background_argb` and `ui_button_background_argb` keys still
-exist for compatibility and are mirrored from the current map.
+`applyTheme` resolves Day-vs-Night via `isDayActive`, then calls
+`applyResolved(day, overrides)`, which layers the chosen override map
+over that set's factory base and writes each role's `mutableStateOf`.
+`normalizeUiColorOverrides` is applied to the Night map first so legacy
+hue aliases and the `ui_card_background_argb` / `ui_button_background_argb`
+mirrors are folded in.
 
-Configurable roles:
+The **UI Colors** screen nests its own `SideEffect` below the
+`AppNavHost` one, so while that screen is open it previews the set
+currently being edited (`AppColors.applyResolved(editingDay, editing)`);
+leaving the screen lets the `AppNavHost` effect restore the active
+Colors-mode theme on the next recomposition.
 
-| UI label | `AppColors` key | Used for |
+### The UI Colors editor
+
+The screen header has a **Day ☀️ / Night 🌙** segmented switch that
+chooses *which set the cards edit and preview* — independent of the
+Colors mode that governs what the app actually paints. The 🧽 title-bar
+action clears the currently-edited set back to its factory default
+(`setEditing(emptyMap())`).
+
+Each role is a collapsible card. Collapsed, it shows the role name, its
+current hex, and a swatch. Expanded, it offers:
+
+- a 48 dp swatch,
+- a **Hex** text field (`#RRGGBB`, validated; invalid input flags the
+  field but doesn't write),
+- a **Default** button that resets that role to the factory value *for
+  the set being edited*,
+- **Red / Green / Blue** 0–255 sliders,
+- a **Usage** button that opens a source-derived "where is this colour
+  used" screen.
+
+Edits autosave (a 250 ms debounce plus an `onDispose` flush).
+
+#### Combined rows
+
+The editor does **not** present one card per `AppColors` key. A few keys
+are folded so the user sees fewer, more meaningful controls — one card
+writes the same value to every key it represents (`UiColorPickerSpec.key`
++ `alsoSet`):
+
+| Card title | Writes keys |
+|---|---|
+| **Accent** | `PrimaryAccent` + `InfoAccent` |
+| **Card Background** | `CardBackgroundAlt` + `CardBackground` |
+
+Every other role is a standalone card. The card order is an explicit
+importance order (backgrounds & titles → text → card → button → accents
+→ minor surfaces → border), with any newly-added `AppColors` key
+auto-appended so a future role can't silently lose its editor.
+
+#### The "Usage" screen
+
+Each colour card's **Usage** button opens `ColorUsageScreen`, which lists
+every `AppColors.<role>` reference in the source — screen, code location,
+and the coloured element/role. The list comes from `ColorUsageData`
+(`data/ColorUsageData.kt`), a **build-time static scan** of the source
+(`GENERATED_AT` timestamp shown at the top), not a runtime computation,
+so it can drift as the code changes. Alias accessors are folded into
+their canonical key, and a combined card's Usage screen unions the keys
+it represents.
+
+### Configurable roles
+
+The factory keys (identical for both sets) and what each drives:
+
+| `AppColors` key | Editor card | Used for |
 |---|---|---|
-| App Background | `AppBackground` | Material background/surface and Android system bars |
-| Main Title | `MainTitle` | Main text in the shared title bar |
-| Sub Title | `SubTitle` | Subtitle text below the main title |
-| Primary Accent | `PrimaryAccent` | Primary action/user-side accent |
-| Secondary / Info Accent | `InfoAccent` | Secondary accents, headings, links, selected states, totals, focused fields |
-| Success / Success Count Accent | `SuccessAccent` | Success states and success-count highlights |
-| Danger / Error / Destructive Action Background | `DangerAccent` | Error, danger, delete, and destructive-action colors |
-| Warning / Caution Accent | `WarningAccent` | Warning, caution, running, reload, pinned, throttled, and in-progress highlights |
-| Queue Accent | `QueueAccent` | Queued and alternate worker/category highlights |
-| Surface Dark | `SurfaceDark` | Dense dark surfaces |
-| Card Background | `CardBackground` | Darker card panels, including pricing badge background |
-| Card Background Alt | `CardBackgroundAlt` | Monitor/Housekeeping gray-blue card surface |
-| Button Background | `ButtonBackground` | Neutral outlined button fill |
-| Disabled Background | `DisabledBackground` | Disabled/unavailable surface fill |
-| Selection Highlight | `SelectionHighlight` | Muted selected-state backgrounds |
-| Text Primary | `TextPrimary` | Primary text and pricing badge text |
-| Text Secondary / Tertiary | `TextSecondary` | Secondary and helper text |
-| Text Dim / Disabled / Very Dim / Darkest | `TextDim` | Low-emphasis, disabled, and very dim text |
-| Divider Dark / Border Unfocused | `BorderUnfocused` | Subtle dividers and unfocused field/swatch borders |
+| `AppBackground` | App Background | Full-screen background behind every screen and the Android system bars |
+| `MainTitle` | Main Title | Main text in the shared title bar |
+| `SubTitle` | Sub Title | Subtitle text below the main title |
+| `PrimaryAccent` | Accent (combined) | Primary action / user-side accent; focused field border |
+| `InfoAccent` | Accent (combined) | Secondary/detail accents, headings, links, selected states, totals, focused fields |
+| `SuccessAccent` | Success | Success states and success-count highlights |
+| `DangerAccent` | Error | Error, danger, delete, destructive-action colours; "real" pricing |
+| `WarningAccent` | Warning | Warning, caution, running, reload, throttled, in-progress highlights |
+| `QueueAccent` | Queue Accent | Queued and alternate worker/category highlights |
+| `SurfaceDark` | Surface Dark | Primary dark app surface / dense surfaces |
+| `CardBackground` | Card Background (combined) | Darker dense card panels |
+| `CardBackgroundAlt` | Card Background (combined) | Monitor / Housekeeping gray-blue card surface |
+| `ButtonBackground` | Button Background | Neutral outlined-button fill |
+| `DisabledBackground` | Disabled Background | Disabled / unavailable surface fill |
+| `SelectionHighlight` | Selection Highlight | Muted selected-state backgrounds |
+| `TextPrimary` | Text Primary | Primary text; pricing-badge text |
+| `TextSecondary` | Text Secondary | Secondary and helper/tertiary text |
+| `TextDim` | Text Dimmed | Low-emphasis, disabled, very-dim, darkest text |
+| `BorderUnfocused` | Border | Subtle dividers, unfocused field/swatch borders |
 
-Several Kotlin properties remain as read-only aliases so older call sites keep
-their semantic names while the user sees one setting:
+### Read-only aliases
+
+Many `AppColors` properties are semantic aliases that *get* their value
+from a canonical role, so older call sites keep their meaningful name
+while the user edits a single setting:
 
 | Alias property | Reads from |
 |---|---|
 | `SecondaryAccent` | `InfoAccent` |
-| `SuccessCountAccent` | `SuccessAccent` |
-| `ErrorAccent`, `DestructiveActionBackground` | `DangerAccent` |
+| `BorderInfoFocused` | `InfoAccent` |
+| `SuccessCountAccent`, `StatusOk` | `SuccessAccent` |
+| `ErrorAccent`, `DestructiveActionBackground`, `StatusError`, `PricingReal` | `DangerAccent` |
 | `CautionAccent` | `WarningAccent` |
+| `BorderFocused` | `PrimaryAccent` |
 | `TextTertiary` | `TextSecondary` |
-| `TextDisabled`, `TextVeryDim`, `TextDarkest` | `TextDim` |
+| `TextDisabled`, `TextVeryDim`, `TextDarkest`, `StatusNotUsed`, `PricingDefault` | `TextDim` |
 | `DividerDark` | `BorderUnfocused` |
+| `StatusInactive` | `TextTertiary` → `TextSecondary` |
 
-The old hue names (`Purple`, `Indigo`, `Blue`, `Green`, `Red`, `Orange`, …)
-are import/load fallbacks only. New saved settings use the functional names.
+### Legacy aliases on load
+
+`normalizeUiColorOverrides` (Night-set only) also accepts older saved
+keys so an upgrade keeps a user's prior colours. The old hue names
+(`Purple`, `Indigo`, `Blue`, `Green`, `Red`, `Orange`, `Yellow`,
+`Brown`, …) and a handful of older role names
+(`SecondaryAccent`, `SuccessCountAccent`, `ErrorAccent`,
+`DestructiveActionBackground`, `CautionAccent`, `TextTertiary`,
+`TextDisabled`, `DividerDark`, `IndigoHighlight`) map onto the functional
+keys. These are **import/load fallbacks only**; new saved settings use
+the functional names, and the `ui_card_background_argb` /
+`ui_button_background_argb` Int prefs are kept as mirrors of the Night
+`CardBackgroundAlt` / `ButtonBackground` overrides.
+
+---
 
 ## Default icons
 
-The app does not hard-code user-visible action/fallback icons in UI call sites.
-Factory defaults live in `MetadataDefaults`; the editable live set is
-`MetadataIcons`, persisted as one `metadata_icons` JSON blob on
-`GeneralSettings`.
+The app does not hard-code its user-visible action/fallback emoji at the
+call sites. Factory glyph constants live in the `MetadataDefaults` object;
+the editable live set is the `MetadataIcons` data class
+(`data/MetadataDefaults.kt`), persisted as **one `metadata_icons` JSON
+blob serialised onto `GeneralSettings`** (not a separate per-field
+`eval_prefs` entry).
 
-Composable code should read icons from `LocalMetadataIcons.current`.
-Non-composable helpers use `MetadataIconsHolder.current`, which `AppNavHost`
-keeps in sync with the live settings through a `SideEffect`.
+### How call sites read the live icons
 
-Default-icons groups include:
+There are two read paths, kept in sync by `AppNavHost`:
 
-- report/model fallback icons
-- secondary result kinds (`rerank`, `meta`, `fanOutRow`, `fanInRow`,
-  `tournament`, `judges`, `compare`, translation rows)
-- Monitor jump icons
-- create/chat/per-response actions
-- navigation jumps
-- configuration actions
-- report-level and per-item actions
-- help/view toggles
-- status/progress glyphs
-- marks, ranks, arrows, search/file/content/media/cost/workers/device icons
+- **Composable** code reads `LocalMetadataIcons.current`
+  (`ui/shared/SharedComponents.kt`), provided from the live settings.
+- **Non-composable** helpers and `when`-expression sites read
+  `MetadataIconsHolder.current` (`data/MetadataDefaults.kt`), which an
+  `AppNavHost` `SideEffect` assigns from the live settings on every
+  change.
 
-The Settings → **Default icons** screen groups those fields into collapsible
-cards. Each row has:
+Many shared components are passed a hard-coded factory glyph (e.g.
+`MetadataDefaults.PALETTE`) and remap it to the user's override through
+`MetadataIcons.forFactoryGlyph(factoryGlyph)` — it looks the factory
+constant up in `factoryGlyphMap()` and returns the live glyph (or the
+factory glyph unchanged if untouched). `iconizedText(text)` does the same
+replacement across an entire string. This is what lets a single edit on
+the Default icons screen propagate everywhere, including the bottom action
+bars, whose render sites (`buildBottomBarIcons` / the View bottom bar)
+read the same `MetadataIcons` set.
 
-- a label
-- the current glyph
-- a text field for manual entry
-- an AI-icon-finder action for icon suggestions
-- reset-to-default behavior
+`MetadataIcons.sanitized()` backfills any field left null (older stored
+JSON predating it) or blank with its factory default. Gson allocates the
+object without calling the Kotlin constructor, so absent fields load as
+null; every load site (settings load, import) runs `sanitized()` so the
+bars never draw a null/blank glyph.
 
-Generated metadata icons on reports and secondary rows still win over default
-fallbacks. Default icons are used when a row has no generated icon and for the
-app's action bars/navigation cards.
+### The Default icons editor
+
+The screen (`DefaultIconsSubScreen`) is **always reachable**, independent
+of the Metadata master switch, because the report/result fallbacks render
+on view screens regardless. It groups every editable glyph into ~18
+collapsible category cards (`DEFAULT_ICON_SECTIONS`):
+
+`Report` · `Secondary results` · `Translation` · `Monitor bar` ·
+`Create & chat` · `Navigation` · `Configuration` · `Report actions` ·
+`Item actions` · `View bar & help` · `Status & progress` ·
+`Marks & ranks` · `Arrows` · `Search & files` · `Content & media` ·
+`Cost` · `Workers & tools` · `Devices & misc`.
+
+A collapsed category previews every glyph it contains (emoji only, no
+labels, wrapping). Expanded, each row offers:
+
+- the item label,
+- an editable text field (type or paste any emoji),
+- **🔎** — opens the AndroidX `EmojiPickerView` in a bottom sheet; the
+  pick is written into the field,
+- **🤖** — the AI icon finder: asks models for a fitting emoji (editable
+  prompt) and lets you pick one,
+- **📍** — a per-icon **Usage** screen showing where that glyph is drawn
+  in the source.
+
+Edits autosave (debounced + `onDispose` flush). A blank field falls back
+to its factory default on save (`normalized()` walks the same row table
+the UI renders). The 🧽 title-bar action resets *all* icons to factory
+(`MetadataIcons()`).
+
+### Notable groups
+
+`MetadataIcons` carries ~170 glyph fields, among them:
+
+- **report / model fallback** icons (`reportIcon`, `reportModelIcon`),
+- **secondary-result kinds** — `rerank`, `moderate`, `meta`,
+  `tournament`, `judges`, `compare`, `fanOutRow`, `fanInRow` (six of the
+  seven `SecondaryKind` values — `TRANSLATE`'s glyph is `translationRow`
+  below — plus the fan-out / fan-in row variants;
+  `MetadataDefaults.forKind(kind)` maps any kind to its glyph),
+- **translation** — `languageIcon`, `translationRow`,
+  `translationCompare`,
+- bottom-bar groups: Monitor jumps, create/chat/per-response actions,
+  navigation jumps, configuration, report-level and per-item actions,
+  view-bar + help toggles (`help` ❓, `helpLegend` ❔),
+- status/progress glyphs, marks/ranks/medals, arrows/carets, and a long
+  tail of search/file/content/media/cost/workers/device symbols.
+
+Generated metadata icons on a report or secondary row still win over
+these defaults — the defaults are the fallback when a row has no
+generated icon of its own, and they back the app's action bars and
+navigation cards.
+
+---
 
 ## Related files
 
-- `ui/shared/AppColors.kt`
-- `data/MetadataDefaults.kt`
-- `ui/settings/SettingsScreen.kt`
-- `ui/navigation/AppNavHost.kt`
-- `ui/theme/Theme.kt`
-- `MainActivity.kt`
+- `ui/shared/AppColors.kt` — the `AppColors` object: two factory
+  palettes, `UiColorMode` resolution, `applyTheme` / `applyResolved`,
+  alias accessors, `normalizeUiColorOverrides`.
+- `data/MetadataDefaults.kt` — `MetadataDefaults` factory constants, the
+  `MetadataIcons` data class, `MetadataIconsHolder`, `forFactoryGlyph` /
+  `iconizedText` / `sanitized`.
+- `data/ColorUsageData.kt` — the build-time source scan behind the colour
+  **Usage** screen.
+- `ui/settings/SettingsScreen.kt` — the **UI tweaks**, **UI Colors** and
+  **Default icons** sub-screens (`UiTweaksSubScreen`, `UiColorsSubScreen`,
+  `DefaultIconsSubScreen`) and their `SettingsSubScreen` routing.
+- `ui/navigation/AppNavHost.kt` — the `SideEffect` that paints the theme
+  (`AppColors.applyTheme`) and keeps `MetadataIconsHolder.current` /
+  `LocalMetadataIcons` in sync.
+- `ui/shared/SharedComponents.kt` — `LocalMetadataIcons` and the
+  bottom-bar render sites.
+- `viewmodel/AppViewModelTypes.kt` — `UiColorMode` and the
+  `GeneralSettings` colour/icon fields.
+
+See also `doc/persistent.md` (every prefs key), `doc/report-icons.md`
+(generated icons vs these fallbacks, and the Metadata master switch), and
+`doc/backup-restore.md` (how these settings ride in a backup).

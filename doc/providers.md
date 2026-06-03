@@ -2,61 +2,112 @@
 
 Every provider shipped in `assets/providers.json`. The full schema is
 in [datastructures.md](datastructures.md) under `AppService`; this
-table shows only the fields that differ from the default.
+table shows only the fields that differ from the default. The dispatch
+behaviour each `apiFormat` selects is in [api-formats.md](api-formats.md);
+the rate-limit / concurrency overrides are in [throttle.md](throttle.md);
+the pricing tiers `litellmPrefix` / `openRouterName` / `pricingFromModelList`
+/ `crossProviderModelList` feed are in [costs.md](costs.md) and
+[repositories.md](repositories.md).
 
-The bundled JSON is a flat `{"providers": [...]}` array — no top-level
-`version`. Custom providers added by the user persist as
-`ProviderDefinition` JSON in the `provider_registry` SharedPreferences
-file and are merged with the bundle at runtime.
+## How the catalog loads
+
+The bundled JSON is a flat `{"providers": [...]}` object — 42 entries,
+no top-level `version`. It is **not** hardcoded in Kotlin.
+`ProviderRegistry` (`data/ProviderRegistry.kt`) is a mutable `object`
+that starts **empty** on a fresh install; the catalog is pulled in on
+demand by `ProviderRegistry.importFromAsset(context, "providers.json")`
+(wired to a button on the Providers screen) and cached in memory as a
+`CopyOnWriteArrayList<AppService>`. It persists back to the
+`provider_registry` SharedPreferences file (`KEY_PROVIDERS =
+"providers_json"`, `KEY_INITIALIZED = "initialized"`) as a list of
+`ProviderDefinition` JSON objects. Custom providers the user adds
+round-trip through the same `ProviderDefinition` form.
+
+Registry surface (all in `ProviderRegistry`): `getAll`, `findById`,
+`add` (refuses duplicate ids), `update` (bumps per-field
+`ProviderFieldTimestamps`), `remove`, `importFromAsset` (append-only;
+skips ids already present), `upsertFromJson` (replace-by-id-or-append),
+`syncFromAsset` (refreshes only the asset fields the user has **not**
+hand-edited — timestamp still null — and never appends new providers),
+`resetToDefaults` / `restartFromAsset` (wipe + re-seed), and
+`findByHost` (resolves a request hostname to its provider via a
+`hostIndex` rebuilt on every `save()` from `baseUrl` + `auxHosts`,
+first claimant wins on collision — this is what `ProviderThrottle` uses
+to find per-provider overrides). `parseProvidersJson` silently drops
+entries with a blank `id` or `baseUrl` rather than crashing.
+
+`apiFormat` is parsed by `ApiFormat.valueOf(apiFormat ?:
+"OPENAI_COMPATIBLE")` wrapped in a `try/catch` that falls back to
+`OPENAI_COMPATIBLE` on any unrecognised value.
+
+`AppService` is intentionally **not** a Kotlin `data class`: its
+`equals` / `hashCode` / `toString` are **id-only** (two services are
+equal iff their ids match), and it hand-writes a `copy(...)` funnel
+covering all 40 fields so a newly added field can't be silently dropped
+on update. The synthetic `AppService.LOCAL` (`id = "Local"`, `baseUrl =
+"local://"`) is declared in the companion object, is **not** in the
+registry, and routes to the on-device runtime — see
+[local-runtime.md](local-runtime.md).
+
+## Identity and defaults
 
 The id-unification refactor collapsed the legacy `displayName` and
-`prefsKey` fields into `id`. UI shows `id` directly; SharedPreferences
+`prefsKey` fields into `id`. The UI shows `id` directly; SharedPreferences
 key prefixes use `id` directly (e.g. `"OpenAI_api_key"`,
-`"OpenAI_model"`).
+`"OpenAI_model"`); `id` is also the human-readable picker label.
 
 Defaults: `apiFormat = OPENAI_COMPATIBLE`, `modelsPath = "v1/models"`,
-`typePaths = {}` (so the chat path resolves through
-`ModelType.DEFAULT_PATHS[ModelType.CHAT] = "v1/chat/completions"`),
-`seedFieldName = "seed"`, `modelListFormat = "object"`.
+`seedFieldName = "seed"`, `modelListFormat = "object"`, every Boolean
+flag `false`, every throttle override `null` (inherit the global
+default).
 
-`ProviderDefinition` (the serialised JSON form in `provider_registry`)
-carries a single per-type path map, `typePaths` (a
-`Map<ModelType, String>`); there are no longer separate `chatPath` /
-`responsesPath` / `endpointRules` fields. `AppService` still exposes
-`chatPath` / `responsesPath` as **computed getters** derived from
-`typePaths` (per-provider override → user-supplied global default →
-`ModelType.DEFAULT_PATHS`). Chat-vs-Responses routing for OpenAI is
-decided at dispatch time by `usesResponsesApi()` — the provider's
-`responsesApiPatterns`, falling back to `ModelType.infer(model)` — not
-by a stored `endpointRules`.
+`typePaths` is a `Map<String, String>` keyed by the `ModelType` string
+constants (`"chat"`, `"responses"`, `"embedding"`, …). It holds the
+per-model-type API paths a provider exposes; almost every entry only
+declares `"chat"`, a few (DeepInfra) also declare `"embedding"`. There
+are **no** separate stored `chatPath` / `responsesPath` / `endpointRules`
+fields. `AppService.chatPath` and `AppService.responsesPath` are
+**computed getters** over `typePaths`. The generic `pathFor(type)`
+helper (and `chatPath`, which uses it) walks the full fallback chain
+*per-provider override → user-supplied global default
+(`ModelType.userDefaults`, from AI Setup → Model Types) →
+`ModelType.DEFAULT_PATHS`* (`chat → v1/chat/completions`,
+`responses → v1/responses`, `embedding → v1/embeddings`).
+`responsesPath` stops one link short — *per-provider override →
+`ModelType.userDefaults`* — returning `null` when neither declares a
+Responses path. Chat-vs-
+Responses routing for OpenAI is decided at dispatch time by
+`usesResponsesApi()` — the provider's `responsesApiPatterns`, falling
+back to `ModelType.infer(model) == RESPONSES` (which catches the
+`gpt-5` / `o3` / `o4` prefixes) — not by any stored `endpointRules`.
 
-Where a provider declares a `litellmPrefix`, the LiteLLM lookup key is
+Where a provider declares a `litellmPrefix`, the LiteLLM pricing key is
 `<litellmPrefix>/<modelId>`. Where it declares an `openRouterName`, the
-OpenRouter lookup key is `<openRouterName>/<modelId>`.
+OpenRouter pricing key is `<openRouterName>/<modelId>`.
 
 | Provider id | Base URL | Admin URL | Default model | Notable non-default fields |
 |---|---|---|---|---|
-| **OpenAI** | `https://api.openai.com/` | `https://platform.openai.com/settings/organization/api-keys` | `gpt-4o-mini` | `openRouterName=openai`, `modelFilter=gpt|o1|o3|o4`, `defaultModelSource=API`, `mergeHardcodedModels=true`, `builtInEndpoints` (Chat Completions + Responses API), `responsesApiPatterns`/`reasoningModelPatterns`/`webSearchModelPatterns` for `gpt-5`/`o1`/`o3`/`o4`(/`gpt-4.1`) |
-| **Anthropic** | `https://api.anthropic.com/` | `https://console.anthropic.com/settings/keys` | `claude-haiku-4-5-20251001` | `apiFormat=ANTHROPIC`, `typePaths.chat=v1/messages`, `openRouterName=anthropic`, `modelFilter=claude`, 8 hardcoded models, `defaultModelSource=API` |
-| **Google** | `https://generativelanguage.googleapis.com/` | `https://aistudio.google.com/app/apikey` | `gemini-2.0-flash` | `apiFormat=GOOGLE`, `typePaths.chat=v1beta/models/{model}:generateContent`, `modelsPath=v1beta/models`, `modelListFormat=array`, `openRouterName=google`, `litellmPrefix=gemini`, `defaultModelSource=API` |
-| **xAI** | `https://api.x.ai/` | `https://console.x.ai/` | `grok-3-mini` | `openRouterName=x-ai`, `costTicksDivisor=1e10`, `litellmPrefix=xai`, `modelFilter=grok`, `defaultModelSource=API` |
+| **OpenAI** | `https://api.openai.com/` | `https://platform.openai.com/settings/organization/api-keys` | `gpt-4o-mini` | `openRouterName=openai`, `modelFilter=gpt\|o1\|o3\|o4`, `defaultModelSource=API`, `mergeHardcodedModels=true`, `builtInEndpoints` (Chat Completions + Responses API), `responsesApiPatterns`/`reasoningModelPatterns`/`webSearchModelPatterns` for `gpt-5`/`o1`/`o3`/`o4`(/`gpt-4.1`), `maxCallsPerProviderPerMinute=120`, `maxConcurrentCallsPerProvider=10` |
+| **Anthropic** | `https://api.anthropic.com/` | `https://console.anthropic.com/settings/keys` | `claude-haiku-4-5-20251001` | `apiFormat=ANTHROPIC`, `typePaths.chat=v1/messages`, `openRouterName=anthropic`, `modelFilter=claude`, 8 hardcoded models, `defaultModelSource=API`, `reasoningModelPatterns`/`webSearchModelPatterns`/`adaptiveThinkingPatterns` (opus-4-7), `maxTokensDefaults` (opus-4=32000, sonnet/haiku-4 & claude-3.5=8192), `maxRetriesOn529=5`, `retryBackoffMs529=5000` |
+| **Google** | `https://generativelanguage.googleapis.com/` | `https://aistudio.google.com/app/apikey` | `gemini-2.0-flash` | `apiFormat=GOOGLE`, `typePaths.chat=v1beta/models/{model}:generateContent`, `modelsPath=v1beta/models`, `modelListFormat=array`, `openRouterName=google`, `litellmPrefix=gemini`, `defaultModelSource=API`, `maxCallsPerProviderPerMinute=60` |
+| **xAI** | `https://api.x.ai/` | `https://console.x.ai/` | `grok-3-mini` | `openRouterName=x-ai`, `costTicksDivisor=1e10`, `litellmPrefix=xai`, `modelFilter=grok`, `defaultModelSource=API`, `externalReasoningSignalUntrusted=true`, `reasoningModelPatterns`/`reasoningEffortAcceptPatterns` for grok-3/4 |
 | **Groq** | `https://api.groq.com/openai/` | `https://console.groq.com/keys` | `llama-3.3-70b-versatile` | `litellmPrefix=groq`, `defaultModelSource=API` |
-| **DeepSeek** | `https://api.deepseek.com/` | `https://platform.deepseek.com/api_keys` | `deepseek-chat` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=deepseek`, `litellmPrefix=deepseek`, `modelFilter=deepseek`, `defaultModelSource=API`, **2 hardcoded models** (`deepseek-chat`, `deepseek-reasoner`) merged with `/models` because the API list is sometimes missing. DeepSeek is one of the bundled workers in the metadata worker chains (`workers/report-icon`, `model-icons`, `report-title`, `report-language`, `fan-meta`, …) and the pinned agent for the `internal/chat-title` prompt — cheap, fast, reliable |
-| **Mistral** | `https://api.mistral.ai/` | `https://console.mistral.ai/api-keys/` | `mistral-small-latest` | `seedFieldName=random_seed`, `openRouterName=mistralai`, `modelFilter=mistral|open-mistral|codestral|pixtral`, `defaultModelSource=API` |
-| **Perplexity** | `https://api.perplexity.ai/` | `https://www.perplexity.ai/settings/api` | `sonar` | `typePaths.chat=chat/completions`, `openRouterName=perplexity`, `supportsCitations=true`, `supportsSearchRecency=true`, `modelFilter=sonar|llama`, 4 hardcoded models |
-| **Together** | `https://api.together.xyz/` | `https://api.together.xyz/settings/api-keys` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` | `modelListFormat=array`, `litellmPrefix=together_ai`, `modelFilter=chat|instruct|llama`, `defaultModelSource=API` |
-| **OpenRouter** | `https://openrouter.ai/api/` | `https://openrouter.ai/keys` | `ibm-granite/granite-4.0-h-micro` | `extractApiCost=true`, `defaultModelSource=API` |
-| **SiliconFlow** | `https://api.siliconflow.com/` | `https://cloud.siliconflow.com/account/ak` | `Qwen/Qwen2.5-7B-Instruct` | `defaultModelSource=API`, 9 hardcoded models |
-| **Z.AI** | `https://api.z.ai/api/paas/v4/` | `https://open.bigmodel.cn/usercenter/apikeys` | `glm-4.5-air` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=z-ai`, `modelFilter=glm|codegeex|charglm`, 7 hardcoded models, `defaultModelSource=API`, `builtInEndpoints` (mainland + international) |
+| **DeepSeek** | `https://api.deepseek.com/` | `https://platform.deepseek.com/api_keys` | `deepseek-chat` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=deepseek`, `litellmPrefix=deepseek`, `modelFilter=deepseek`, `defaultModelSource=API`, `mergeHardcodedModels=true`, **2 hardcoded models** (`deepseek-chat`, `deepseek-reasoner`) merged with `/models` because the live list is sometimes missing, `builtInEndpoints` (Chat Completions + Beta/FIM). DeepSeek is the pinned agent for the bundled `internal/chat-title` prompt — cheap, fast, reliable |
+| **Mistral** | `https://api.mistral.ai/` | `https://console.mistral.ai/api-keys/` | `mistral-small-latest` | `seedFieldName=random_seed`, `openRouterName=mistralai`, `modelFilter=mistral\|open-mistral\|codestral\|pixtral`, `defaultModelSource=API`, `nativeModerationUrl=https://api.mistral.ai/v1/moderations`, `builtInEndpoints` (Chat Completions + Codestral), `maxCallsPerProviderPerMinute=30`, `maxConcurrentCallsPerProvider=3` |
+| **Perplexity** | `https://api.perplexity.ai/` | `https://www.perplexity.ai/settings/api` | `sonar` | `typePaths.chat=chat/completions`, `openRouterName=perplexity`, `supportsCitations=true`, `supportsSearchRecency=true`, `modelFilter=sonar\|llama`, 4 hardcoded models |
+| **Together** | `https://api.together.xyz/` | `https://api.together.xyz/settings/api-keys` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` | `modelListFormat=array`, `litellmPrefix=together_ai`, `modelFilter=chat\|instruct\|llama`, `defaultModelSource=API`, `pricingFromModelList=true` |
+| **OpenRouter** | `https://openrouter.ai/api/` | `https://openrouter.ai/keys` | `ibm-granite/granite-4.0-h-micro` | `extractApiCost=true`, `crossProviderModelList=true`, `defaultModelSource=API`, `maxCallsPerProviderPerMinute=90`, `maxConcurrentCallsPerProvider=8` |
+| **SiliconFlow** | `https://api.siliconflow.com/` | `https://cloud.siliconflow.com/account/ak` | `Qwen/Qwen2.5-7B-Instruct` | `defaultModelSource=API`, 9 hardcoded models, `nativeRerankUrl=https://api.siliconflow.com/v1/rerank` |
+| **Z.AI** | `https://api.z.ai/api/paas/v4/` | `https://open.bigmodel.cn/usercenter/apikeys` | `glm-4.5-air` | `typePaths.chat=chat/completions`, `modelsPath=models`, `openRouterName=z-ai`, `modelFilter=glm\|codegeex\|charglm`, 7 hardcoded models, `defaultModelSource=API`, `builtInEndpoints` (Chat Completions + Coding) |
 | **Moonshot** | `https://api.moonshot.ai/` | `https://platform.moonshot.ai/console/api-keys` | `kimi-latest` | `openRouterName=moonshot`, 4 hardcoded models, `defaultModelSource=API` |
-| **Cohere** | `https://api.cohere.ai/compatibility/` | `https://dashboard.cohere.com/` | `command-r7b-12-2024` | `openRouterName=cohere`, `auxHosts=[api.cohere.com]`, `maxCallsPerProviderPerMinute=19`. Native `/v2/rerank` (`nativeRerankUrl`) + `/v1/models` (`nativeCapabilityUrl`) endpoints wired for the Rerank / capability flows |
+| **Cohere** | `https://api.cohere.ai/compatibility/` | `https://dashboard.cohere.com/` | `command-r7b-12-2024` | `openRouterName=cohere`, `auxHosts=[api.cohere.com]`, `maxCallsPerProviderPerMinute=19`, native `nativeRerankUrl=https://api.cohere.com/v2/rerank` + `nativeCapabilityUrl=https://api.cohere.com/v1/models` |
 | **AI21** | `https://api.ai21.com/` | `https://studio.ai21.com/` | `jamba-mini` | `openRouterName=ai21`, 4 hardcoded models |
 | **DashScope** | `https://dashscope-intl.aliyuncs.com/compatible-mode/` | `https://dashscope.console.aliyun.com/` | `qwen-plus` | 6 hardcoded models |
 | **Fireworks** | `https://api.fireworks.ai/inference/` | `https://app.fireworks.ai/` | `accounts/fireworks/models/gpt-oss-120b` | `defaultModelSource=API`, `maxCallsPerProviderPerMinute=12`, `maxConcurrentCallsPerProvider=2` |
 | **Cerebras** | `https://api.cerebras.ai/` | `https://cloud.cerebras.ai/` | `gpt-oss-120b` | `defaultModelSource=API` |
 | **SambaNova** | `https://api.sambanova.ai/` | `https://cloud.sambanova.ai/` | `Meta-Llama-3.3-70B-Instruct` | 5 hardcoded models |
 | **Baichuan** | `https://api.baichuan-ai.com/` | `https://platform.baichuan-ai.com/` | `Baichuan4-Turbo` | 5 hardcoded models |
-| **StepFun** | `https://api.stepfun.com/` | `https://platform.stepfun.com/` | `step-2-16k` | 6 hardcoded models |
+| **StepFun** | `https://api.stepfun.com/` | `https://platform.stepfun.com/` | `step-2-16k` | 6 hardcoded models, `defaultInactive=true` (ships visible-but-disabled; user flips it on) |
 | **MiniMax** | `https://api.minimax.io/` | `https://platform.minimax.io/` | `MiniMax-M2.1` | `openRouterName=minimax`, 4 hardcoded models |
 | **NVIDIA** | `https://integrate.api.nvidia.com/` | `https://build.nvidia.com/` | `nvidia/llama-3.1-nemotron-70b-instruct` | `defaultModelSource=API` |
 | **Replicate** | `https://api.replicate.com/v1/` | `https://replicate.com/account/api-tokens` | `meta/meta-llama-3-70b-instruct` | `typePaths.chat=chat/completions`, 3 hardcoded models |
@@ -79,20 +130,29 @@ OpenRouter lookup key is `<openRouterName>/<modelId>`.
 | **Chutes** | `https://llm.chutes.ai/` | `https://chutes.ai/app/api` | `moonshotai/Kimi-K2.6-TEE` | `defaultModelSource=API` |
 | **Inference.net** | `https://api.inference.net/` | `https://inference.net/dashboard/api-keys` | `meta-llama/llama-3.3-70b-instruct/fp-8` | `defaultModelSource=API` |
 
-**42 providers total.**
+**42 providers total** — 40 `OPENAI_COMPATIBLE`, 1 `ANTHROPIC`
+(Anthropic), 1 `GOOGLE` (Google). All 40 OpenAI-compatible providers
+share the unified dispatch path; only Anthropic and Google carry
+format-specific code. (The inline `// 28 providers` comment in
+`ApiFormat.kt` is stale — the real OpenAI-compatible count is 40.)
 
 ## Field reference
 
 A few non-default fields warrant explanation:
 
-- **`apiFormat`**: dispatch format. `OPENAI_COMPATIBLE` (default),
-  `ANTHROPIC` (Claude `/v1/messages` format with required `max_tokens`),
-  `GOOGLE` (Gemini `:generateContent` path-style with `?key=` auth).
-- **`typePaths`** (`Map<ModelType, String>`): per-model-type API paths
-  overriding the global defaults. Most providers only override `chat`;
-  a few (DeepInfra) also override `embedding`/etc. This is the only
-  per-type path map — there is no separate `chatPath` / `responsesPath`
-  / `endpointRules` in the serialised form.
+- **`apiFormat`** (`ApiFormat`, 3 values): dispatch format.
+  `OPENAI_COMPATIBLE` (default), `ANTHROPIC` (Claude `/v1/messages`
+  with `x-api-key` + `anthropic-version: 2023-06-01` headers and a
+  per-call `max_tokens`), `GOOGLE` (Gemini `:generateContent`
+  path-style with the key appended as a `?key=` query param, not an
+  `Authorization` header). OpenAI-compatible uses standard
+  `Authorization: Bearer`.
+- **`typePaths`** (`Map<String, String>`): per-model-type API paths
+  keyed by the `ModelType` string constants (`"chat"`, `"responses"`,
+  `"embedding"`, …). Most providers only override `"chat"`; DeepInfra
+  also overrides `"embedding"`. There is no separate stored `chatPath`
+  / `responsesPath` / `endpointRules` — those are computed getters on
+  `AppService`.
 - **`modelsPath`**: GET path for the model-list endpoint, relative to
   `baseUrl`. Default `v1/models`.
 - **`seedFieldName`**: name of the seed field in the request body —
@@ -102,70 +162,105 @@ A few non-default fields warrant explanation:
 - **`supportsSearchRecency`**: provider accepts a `search_recency`
   parameter.
 - **`extractApiCost`**: provider's response includes a per-call cost
-  field (e.g. OpenRouter); the dispatch layer extracts it instead of
-  computing from `tokenUsage * unitPrice`.
+  field (OpenRouter); the dispatch layer reads it instead of computing
+  `tokenUsage × unitPrice`. See [costs.md](costs.md).
 - **`costTicksDivisor`**: provider returns cost in ticks rather than
-  dollars (xAI uses 10¹⁰). Provider-config edit refuses non-positive
-  values.
+  dollars (xAI uses `1e10`). The provider-config edit screen refuses
+  non-positive values.
 - **`modelListFormat`**: `"object"` (default — wrapped in
   `{ "data": [...] }`) vs `"array"` (Together's bare top-level array;
   Google also returns an array).
 - **`modelFilter`**: regex applied to model ids during listing —
-  trims out internal/test/preview models from a noisy catalog.
+  trims internal/test/preview models out of a noisy catalog.
 - **`litellmPrefix`** / **`openRouterName`**: composite-key prefixes
-  for the corresponding pricing tier.
-- **`hardcodedModels`**: fallback list shown when no `/models` endpoint
-  is available, `defaultModelSource=MANUAL`, **or** to reinstate
-  documented-but-unlisted endpoints (OpenAI moderation / TTS /
-  transcription / image; merged via the OpenAI-only fallback union
-  in `Settings.withModels`).
-- **`defaultModelSource`**: `API` or `MANUAL`. Determines whether the
-  app fetches a live list or shows the hardcoded fallback.
+  for the corresponding pricing tier (see above).
+- **`hardcodedModels`**: fallback list shown when no `/models`
+  endpoint is available, `defaultModelSource=MANUAL`, **or** to
+  reinstate documented-but-unlisted models. With
+  `mergeHardcodedModels=true` the list is unioned with the live API
+  list on refresh.
+- **`defaultModelSource`**: `"API"` or `"MANUAL"`. Determines whether
+  the app fetches a live list or shows the hardcoded fallback.
+- **`defaultInactive`**: when `true` (StepFun only), the bootstrap
+  seeds `providerStates[id] = "inactive"` the **first** time the
+  provider is seen — so it ships visible in pickers but disabled until
+  the user explicitly flips it on. An install that has already touched
+  the provider's state keeps that state untouched.
 - **`nativeRerankUrl` / `nativeModerationUrl` / `nativeCapabilityUrl`**:
-  full URLs the rerank / moderation / capability dispatchers POST
-  to instead of building a chat fallback. Cohere ships
-  `nativeRerankUrl=https://api.cohere.com/v2/rerank` and
-  `nativeCapabilityUrl=https://api.cohere.com/v1/models`; Mistral
-  ships `nativeModerationUrl=https://api.mistral.ai/v1/moderations`.
-  Providers without these fall through to a chat-prompt fallback.
-- **`pricingFromModelList`** (Together): provider's `/v1/models`
-  block carries authoritative pricing — harvested into the
-  `TOGETHER` tier on every refresh.
-- **`crossProviderModelList`** (OpenRouter): provider's `/v1/models`
-  drives pricing + type fan-out across other providers — the
-  OpenRouter tier is the final cross-provider fallback in
-  `PricingCache.getPricing` for non-OpenRouter callers.
-- **`mergeHardcodedModels`**: union persisted `hardcodedModels`
-  with the API list when the fetcher refreshes — used so OpenAI
-  moderation / TTS / image models survive a `/v1/models` call
-  that doesn't enumerate them.
-- **`externalReasoningSignalUntrusted`** (xAI): ignore the
-  LiteLLM / models.dev "is reasoning" signal because xAI's
-  always-on reasoning variants reject the `reasoning_effort`
-  parameter even though they reason internally. The 🧠 badge
-  still renders; only the parameter is suppressed.
+  full URLs the rerank / moderation / capability dispatchers POST to
+  instead of building a chat fallback. `nativeRerankUrl` is set on
+  **SiliconFlow** (`/v1/rerank`) and **Cohere** (`/v2/rerank`);
+  `nativeModerationUrl` on **Mistral** (`/v1/moderations`);
+  `nativeCapabilityUrl` on **Cohere** (`/v1/models`). Providers without
+  these fall through to a chat-prompt fallback.
+- **`pricingFromModelList`** (Together): the provider's `/v1/models`
+  block carries authoritative pricing — harvested into the `TOGETHER`
+  tier on every refresh, and that tier beats every curated catalog and
+  the manual override for Together calls.
+- **`crossProviderModelList`** (OpenRouter): the provider's
+  `/v1/models` drives pricing + type fan-out across other providers.
+  The OpenRouter tier serves both as OpenRouter's own self-report
+  (highest priority for OpenRouter callers) and as the cross-provider
+  fallback for non-OpenRouter callers in `PricingCache.getPricing`.
+- **`mergeHardcodedModels`**: union the persisted `hardcodedModels`
+  with the API list when the fetcher refreshes — so OpenAI moderation /
+  TTS / image models (and DeepSeek's two pinned ids) survive a
+  `/v1/models` call that doesn't enumerate them.
+- **`externalReasoningSignalUntrusted`** (xAI): ignore the LiteLLM /
+  models.dev "is reasoning" signal because xAI's always-on reasoning
+  variants reject the `reasoning_effort` parameter even though they
+  reason internally. The 🧠 badge still renders; only the parameter is
+  suppressed.
 - **`responsesApiPatterns` / `reasoningModelPatterns` /
   `reasoningEffortAcceptPatterns` / `webSearchModelPatterns` /
-  `adaptiveThinkingPatterns`** (lists of `ModelPattern`): per-id
-  pattern matchers that gate dispatch routing (Responses API),
-  feature badges (🧠, 🌐), the `reasoning_effort` parameter, and
-  Anthropic's adaptive-thinking shape. Patterns take `prefix`,
-  `contains`, or `regex`.
-- **`maxTokensDefaults`** (Anthropic): `[{ match: <ModelPattern>,
-  value: <Int> }]` — per-family default `max_tokens` when the
-  user hasn't pinned one. First match wins; falls back to 4096.
-- **`builtInEndpoints`**: bundled alternate endpoints (DeepSeek
-  main + reasoner, Mistral chat + Codestral, Z.AI mainland +
-  international). User picks one on the provider edit screen.
-- **`auxHosts`**: alternate API hostnames besides the `baseUrl`
-  host. The rate-limit-retry interceptor and tracer use this to
-  keep aux-host calls grouped under the same logical provider.
+  `adaptiveThinkingPatterns`** (`List<ModelPattern>`): per-id pattern
+  matchers that gate, respectively, Responses-API routing, the 🧠
+  reasoning badge + thinking dispatch, the `reasoning_effort` request
+  param (null → fall back to `reasoningModelPatterns`), the 🌐
+  web-search tool descriptor, and Anthropic's adaptive-thinking shape.
+  A `ModelPattern` takes any of `exact`, `prefix`, `contains`,
+  `suffix` (all `String?`, matched against the lowercased model id);
+  when more than one is set they must **all** match; an all-null
+  pattern never matches.
+- **`maxTokensDefaults`** (`List<MaxTokensRule>`, Anthropic): each rule
+  is `{ "pattern": <ModelPattern>, "maxTokens": <Int> }`. The
+  per-family default `max_tokens` used when the user hasn't pinned one;
+  first matching rule wins, falling back to 4096
+  (`defaultMaxTokens`). Anthropic ships opus-4 → 32000, sonnet-4 /
+  haiku-4 / claude-3.5 → 8192.
+- **`builtInEndpoints`** (`List<Endpoint>`, each `{id, name, url,
+  isDefault}`): bundled alternate endpoints the user picks between on
+  the provider edit screen — OpenAI (Chat Completions + Responses API),
+  DeepSeek (Chat Completions + Beta/FIM), Mistral (Chat Completions +
+  Codestral), Z.AI (Chat Completions + Coding).
+- **`auxHosts`** (Cohere): alternate API hostnames besides the
+  `baseUrl` host. `ProviderRegistry.findByHost` indexes them so the
+  throttle, retry interceptor, and tracer keep aux-host calls grouped
+  under the same logical provider.
+- **Throttle overrides** (`maxCallsPerProviderPerMinute`,
+  `maxConcurrentCallsPerProvider`, `maxRetriesOn429`,
+  `retryBackoffMs429`, `maxRetriesOn529`, `retryBackoffMs529`):
+  per-provider caps that override the global `NetworkSettings`
+  defaults (60 calls/min, 5 concurrent, 3 retries, 1000 ms backoff);
+  `null` inherits. Bundled overrides — OpenAI 120/10, OpenRouter 90/8,
+  Google 60/min, Mistral 30/3, Cohere 19/min, Fireworks 12/2,
+  Anthropic 529-retries 5 × 5000 ms. See [throttle.md](throttle.md).
 
 ## Activation gating
 
-Setting an API key on a provider isn't enough to mark it active —
-both the `/models` fetch and the API-key test must pass. A
-mis-configured provider stays `not-used` until it can prove it
-actually works. Refresh-all surfaces failed providers with a one-tap
-nav-to-edit so the user can fix bad configurations without hunting.
+Setting an API key on a provider isn't enough to mark it active. When
+the user flips a provider on, the activation gate runs **both** a
+`/models` fetch **and** an API-key test against the default model;
+**both** must succeed before the state flips to `"ok"` and the default
+agent is created. Either failure leaves the provider in `"error"`
+state with no agent created. Clearing the key drops it to `"not-used"`;
+the inactive toggle sets `"inactive"`.
 
+The four provider states (`providerStates[id]`, persisted under the
+`provider_states` prefs key) are therefore `"ok"`, `"error"`,
+`"inactive"`, `"not-used"`. A mis-configured provider stays out of the
+"Active" lists until it can prove it actually works. Refresh-all
+surfaces failed providers with a one-tap nav-to-edit so the user can
+fix bad configurations without hunting. A `defaultInactive` provider
+(StepFun) starts at `"inactive"` rather than `"not-used"` on its first
+bootstrap.

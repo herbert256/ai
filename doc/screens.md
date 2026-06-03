@@ -2,10 +2,17 @@
 
 Every screen title used in the app and the subtitle line shown beneath it
 (the orange `TitleBar` subject, or — for the report **View** family — the
-report/entity line of `ViewScreenTitleBar`). `<…>` marks text filled in at
-runtime; a blank subtitle cell means the screen shows no second line. Where the
-same title appears with more than one subtitle, each is listed. Sorted by title,
-then subtitle.
+report line of `ViewTitleBar`, which is the report's `barTitle`). `<…>` marks
+text filled in at runtime; a blank subtitle cell means the screen shows no
+second line. Where the same title appears with more than one subtitle, each is
+listed. Sorted by title, then subtitle.
+
+Two distinct view-style title bars feed this table:
+`ViewTitleBar` (`ui/report/view/helpers/`) drives the report **View** family
+(Reports / Icons / Costs / **Answer matrix** / Fan-out / …) and renders the
+report's `barTitle` as the report line; `ViewScreenTitleBar` (`ui/shared/`)
+drives the read-only entity views (Agent / Flock / Swarm / Provider). Plain
+screens use the generic `TitleBar`.
 
 | Screen title | Subtitle line |
 |---|---|
@@ -30,6 +37,7 @@ then subtitle.
 | Agents | Saved model + prompt + params combos |
 | Alternative icons | Live icon ideas from several models |
 | Alternative titles | Live title ideas from several models |
+| Answer matrix | \<report title\> |
 | API Test | Hand-craft a raw API call to a model |
 | API trace statistics | What hit the network |
 | API Traces | Every captured API request & response |
@@ -62,8 +70,7 @@ then subtitle.
 | Costs | Where the money went, per call |
 | Costs | \<report title\> |
 | Costs tiers | Pricing tier per model + catalog freshness |
-| Create | Add a secondary result |
-| Default icons | Fallback emoji for reports without their own icon |
+| Default icons | Fallback + bottom-bar action emoji |
 | Default meta item | \<meta name\> |
 | Default meta items | Meta prompts auto-run when a report finishes |
 | Define model system prompt | |
@@ -149,7 +156,7 @@ then subtitle.
 | Local semantic search | On-device meaning search, no cloud |
 | Log entry | \<filename\> |
 | Log file | \<filename\> |
-| Logging and tracing | API tracing, trace links, audit log and log level |
+| Logging and tracing | Log level and API call tracing |
 | Manage a report | |
 | Manage chats | Bulk-delete old chats or export them |
 | Manage reports | Delete old reports or export them all |
@@ -158,6 +165,7 @@ then subtitle.
 | Manual model types | Model types you set by hand |
 | Manual override | \<provider\> / \<model\> |
 | Maximal API calls | How many calls run at once |
+| Meta | Run a meta prompt over the answers |
 | Meta | Run a prompt over the report's answers |
 | Metadata & icons | Master switch and per-item options for optional report metadata |
 | Model cooldowns | Models paused after rate-limit errors |
@@ -234,8 +242,8 @@ then subtitle.
 | Share | Turn shared content into a report/chat |
 | Setup | Providers, models, workers & prompts |
 | Source | \<model name\> |
-| Spend & usage | Calls, tokens and cost per provider |
-| Statistics | Everything you want to know and more |
+| Spend & usage | Calls, tokens and cost by provider, type, report and model |
+| Statistics | Lifetime aggregates across the app |
 | Stress test | Report every example prompt with swarm "Level 2" |
 | Swarm | \<swarm name\> |
 | Swarms | Multi-step agent pipelines |
@@ -260,6 +268,7 @@ then subtitle.
 | Translation call | \<target language\> |
 | Translation compare | \<translation title\> |
 | Trim by age | Delete reports, chats & traces by age |
+| Tournament | Head-to-head tools |
 | Tournament | \<report title\> |
 | Tournament | \<ranking method\> ranking |
 | Tournament - judge | \<report title\> |
@@ -271,7 +280,37 @@ then subtitle.
 | View a report | \<report title\> |
 | View in one page | \<section title\> |
 | View Reports | Read each model's full answer |
-| Workers | Agents, flocks and swarms |
+| Workers | Models, agents, flocks and swarms |
 | \<catalog name\> | What the refresh updated |
 | \<provider id\> | Usage detail |
 | \<refresh scope\> | Updating catalogs and workers… |
+
+## Notes on two subtitles that are stale in the app itself
+
+This table transcribes the strings exactly as they appear in the running app,
+including two that no longer describe what their screen does. They are recorded
+verbatim here for fidelity; the underlying source strings are the things that
+need fixing, not this doc:
+
+- **Info Providers — "Six pricing & capability catalogs"**
+  (`RefreshScreen.kt:460`). There are now **seven** external metadata
+  repositories and eight price sources (see `repositories.md` /
+  `costs.md`); the catalog count is no longer six. The help page lists the
+  same stale six.
+- **Swarms — "Multi-step agent pipelines"**
+  (`cruds/workers/swarms/list.kt:42`). A swarm is a **flat group of
+  (provider, model) pairs**, not a pipeline — the Models-setup NavCard
+  already says the accurate "Groups of provider/model pairs"
+  (`SetupScreens.kt:219`). See `workers.md`.
+
+The **Providers** subtitle "42 built-in plus your own providers"
+(`SetupScreens.kt:561`) is accurate: the bundled catalog has 42 cloud
+providers (loaded at runtime from `assets/providers.json`, not hardcoded),
+plus any custom providers you add.
+
+The **Answer matrix** screen (new, `ui/report/view/AnswerMatrix.kt`, reached
+from the **Matrix** tile on the View grid, between Reports and Costs) is a
+report-View-family screen. Its orange report line is the report's `barTitle`
+(recorded as `<report title>` above); it also carries a secondary
+`subject = "ranked by <rerank model>"` line when a rerank result exists. It
+reuses the `view_ai_report` help topic rather than defining its own.
