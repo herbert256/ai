@@ -2,9 +2,11 @@ package com.ai.compose
 
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import com.ai.ui.admin.HousekeepingScreen
 import org.junit.Rule
@@ -30,11 +32,14 @@ class HousekeepingScreenTest {
         rule.onNodeWithText("Housekeeping").assertIsDisplayed()
         rule.onNodeWithText("Backup & Restore").assertIsDisplayed()
         rule.onNodeWithText("Export & Import").assertIsDisplayed()
-        rule.onNodeWithText("Trim by age").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Update from cloud").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Costs").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Test").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Refresh").performScrollTo().assertIsDisplayed()
-        rule.onNodeWithText("Reset").performScrollTo().assertIsDisplayed()
+        // The cards live in a LazyColumn — scroll the list to each lower
+        // card. performScrollToNode is the lazy-list-correct API; a plain
+        // performScrollTo on the item doesn't reliably reach one below the
+        // fold (which is why "Reset", the last card, was flaky).
+        val list = rule.onNode(hasScrollAction())
+        for (label in listOf("Trim by age", "Update from cloud", "Costs", "Test", "Refresh", "Reset")) {
+            list.performScrollToNode(hasText(label))
+            rule.onNodeWithText(label).assertIsDisplayed()
+        }
     }
 }

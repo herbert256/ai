@@ -5,6 +5,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import com.ai.data.ApiTrace
 import com.ai.data.ApiTracer
+import com.ai.data.InternalPromptIconCache
 import com.ai.data.ReportAgent
 import com.ai.data.ReportStatus
 import com.ai.data.ReportStorage
@@ -151,6 +152,10 @@ class ZippedHtmlBuildInstrumentedTest {
     }
 
     @Test fun root_index_lists_each_language_when_translations_exist() {
+        // The Languages list shows a cached translation icon (e.g. 🇩🇪) when
+        // one exists and the readable name only otherwise. Clear the cache so
+        // this assertion is deterministic regardless of the device's history.
+        InternalPromptIconCache.clearAll(context)
         val report = ReportStorage.createReport(context, "T", "p", emptyList())
         SecondaryResultStorage.save(context, SecondaryResultStorage.create(
             context, report.id, SecondaryKind.TRANSLATE, TestProvider.ID, TestProvider.MODEL, "Translate: prompt"

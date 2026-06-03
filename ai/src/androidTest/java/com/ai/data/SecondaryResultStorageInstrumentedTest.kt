@@ -17,13 +17,17 @@ import org.junit.runner.RunWith
 class SecondaryResultStorageInstrumentedTest {
     private val context = InstrumentationRegistry.getInstrumentation().targetContext
 
-    private val reportA = "report-a-id"
-    private val reportB = "report-b-id"
+    private lateinit var reportA: String
+    private lateinit var reportB: String
 
     @Before fun cleanState() {
         SecondaryResultStorage.init(context)
-        SecondaryResultStorage.deleteAllForReport(context, reportA)
-        SecondaryResultStorage.deleteAllForReport(context, reportB)
+        // save()/create() refuse to persist secondaries for a report that
+        // isn't registered in ReportStorage (the guard that stops results
+        // resurrecting for a deleted report), so register real reports and
+        // use their ids — fresh per test, so no cross-test contamination.
+        reportA = ReportStorage.createReport(context, "Report A", "p", emptyList()).id
+        reportB = ReportStorage.createReport(context, "Report B", "p", emptyList()).id
     }
 
     companion object {
