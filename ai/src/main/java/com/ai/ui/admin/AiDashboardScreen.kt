@@ -2944,9 +2944,9 @@ private enum class UsageSort { PROVIDER, CALLS, TOKENS, COST }
 
 private enum class SpendUsageMode(val label: String) {
     PROVIDERS("Providers"),
+    MODELS("Models"),
     TYPES("Types"),
-    REPORTS("Reports"),
-    MODELS("Models")
+    REPORTS("Reports")
 }
 
 /** One aggregated row in the Models tab — all usage for a single model
