@@ -1435,17 +1435,15 @@ private fun UiTweaksSubScreen(
     var showKnowledgeCard by remember { mutableStateOf(generalSettings.showKnowledgeCard) }
     var fullScreen by remember { mutableStateOf(generalSettings.fullScreen) }
     var experimentalFeatures by remember { mutableStateOf(generalSettings.experimentalFeaturesEnabled) }
-    var colorMode by remember { mutableStateOf(generalSettings.uiColorMode) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         modelNameLayout = modelNameLayout,
         showKnowledgeCard = showKnowledgeCard,
         fullScreen = fullScreen,
-        experimentalFeaturesEnabled = experimentalFeatures,
-        uiColorMode = colorMode
+        experimentalFeaturesEnabled = experimentalFeatures
     )
 
-    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen, experimentalFeatures, colorMode) {
+    LaunchedEffect(modelNameLayout, showKnowledgeCard, fullScreen, experimentalFeatures) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -1475,25 +1473,6 @@ private fun UiTweaksSubScreen(
                         selected = modelNameLayout == com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL,
                         label = "Provider and model name",
                         onClick = { modelNameLayout = com.ai.viewmodel.ModelNameLayout.PROVIDER_AND_MODEL }
-                    )
-                }
-            }
-            SettingCard("Colors mode", "Which of the two colour sets (edited under UI Colors) the app paints. Auto follows the Android system day/night setting.", MetadataDefaults.PALETTE) {
-                Column {
-                    RadioRow(
-                        selected = colorMode == com.ai.viewmodel.UiColorMode.DAY,
-                        label = "Day ☀️",
-                        onClick = { colorMode = com.ai.viewmodel.UiColorMode.DAY }
-                    )
-                    RadioRow(
-                        selected = colorMode == com.ai.viewmodel.UiColorMode.NIGHT,
-                        label = "Night 🌙",
-                        onClick = { colorMode = com.ai.viewmodel.UiColorMode.NIGHT }
-                    )
-                    RadioRow(
-                        selected = colorMode == com.ai.viewmodel.UiColorMode.AUTO,
-                        label = "Auto (follow system)",
-                        onClick = { colorMode = com.ai.viewmodel.UiColorMode.AUTO }
                     )
                 }
             }
@@ -1536,6 +1515,7 @@ private fun UiColorsSubScreen(
     // switch only chooses which set the cards edit + preview — the set
     // the app actually paints is governed by Colors mode (UI Tweaks).
     var editingDay by rememberSaveable { mutableStateOf(generalSettings.uiColorMode == com.ai.viewmodel.UiColorMode.DAY) }
+    var colorMode by remember { mutableStateOf(generalSettings.uiColorMode) }
     var nightOverrides by remember(generalSettings.uiColorOverrides, generalSettings.uiCardBackgroundArgb, generalSettings.uiButtonBackgroundArgb) {
         mutableStateOf(currentUiColorMap(generalSettings))
     }
@@ -1548,7 +1528,8 @@ private fun UiColorsSubScreen(
         uiCardBackgroundArgb = nightOverrides["CardBackgroundAlt"] ?: DEFAULT_UI_CARD_BACKGROUND_ARGB,
         uiButtonBackgroundArgb = nightOverrides["ButtonBackground"] ?: DEFAULT_UI_BUTTON_BACKGROUND_ARGB,
         uiColorOverrides = nightOverrides,
-        uiColorOverridesDay = dayOverrides
+        uiColorOverridesDay = dayOverrides,
+        uiColorMode = colorMode
     )
 
     // Preview the set currently being edited. This SideEffect is nested
@@ -1557,7 +1538,7 @@ private fun UiColorsSubScreen(
     SideEffect {
         AppColors.applyResolved(editingDay, editing)
     }
-    LaunchedEffect(dayOverrides, nightOverrides) {
+    LaunchedEffect(dayOverrides, nightOverrides, colorMode) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(250)
@@ -1592,6 +1573,25 @@ private fun UiColorsSubScreen(
             // 🧽 restores the currently-edited set to its factory default.
             onClear = { setEditing(emptyMap()) })
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            SettingCard("Colors mode", "Which of the two colour sets the app paints. Auto follows the Android system day/night setting.", MetadataDefaults.PALETTE) {
+                Column {
+                    RadioRow(
+                        selected = colorMode == com.ai.viewmodel.UiColorMode.DAY,
+                        label = "Day ☀️",
+                        onClick = { colorMode = com.ai.viewmodel.UiColorMode.DAY }
+                    )
+                    RadioRow(
+                        selected = colorMode == com.ai.viewmodel.UiColorMode.NIGHT,
+                        label = "Night 🌙",
+                        onClick = { colorMode = com.ai.viewmodel.UiColorMode.NIGHT }
+                    )
+                    RadioRow(
+                        selected = colorMode == com.ai.viewmodel.UiColorMode.AUTO,
+                        label = "Auto (follow system)",
+                        onClick = { colorMode = com.ai.viewmodel.UiColorMode.AUTO }
+                    )
+                }
+            }
             SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
                 SegmentedButton(
                     selected = editingDay, onClick = { editingDay = true },
@@ -1603,7 +1603,7 @@ private fun UiColorsSubScreen(
                 ) { Text("Night 🌙") }
             }
             Text(
-                "Editing the ${if (editingDay) "Day ☀️" else "Night 🌙"} set. Each set has its own colours; Colors mode (UI tweaks) picks which one the app paints. These are the AppColors used by shared cards, buttons, text, borders, badges, and status accents.",
+                "Editing the ${if (editingDay) "Day ☀️" else "Night 🌙"} set. Each set has its own colours; Colors mode (at the top) picks which one the app paints. These are the AppColors used by shared cards, buttons, text, borders, badges, and status accents.",
                 fontSize = 12.sp,
                 color = AppColors.TextTertiary,
                 lineHeight = 17.sp,
