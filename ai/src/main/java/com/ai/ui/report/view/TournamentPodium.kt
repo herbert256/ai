@@ -162,7 +162,9 @@ fun TournamentPodiumViewScreen(
         ViewTitleBar(
             reportTitle = loaded.reportTitle,
             screenTitle = "Tournament",
-            subject = "${methodLabel(currentMethod)} ranking",
+            // Total view drops the green per-method "<method> ranking" line —
+            // it isn't tied to one ranking method.
+            subject = if (showTotal) null else "${methodLabel(currentMethod)} ranking",
             helpTopic = "view_tournament",
             onOpenManage = onOpenTournamentManage,
             onBack = onBack,
@@ -206,7 +208,8 @@ fun TournamentPodiumViewScreen(
                         models = loaded.rankings.size,
                         done = loaded.doneMatches,
                         total = loaded.totalMatches,
-                        ties = loaded.tieCount
+                        ties = loaded.tieCount,
+                        collapseCompleteMatches = true
                     )
                 }
                 item { TournamentTotalTable(loaded.row?.tournamentMatrix, loaded.rankings) }
@@ -501,13 +504,18 @@ private fun TournamentMethodChip(label: String, selected: Boolean, onClick: () -
 }
 
 @Composable
-private fun TournamentStatsStrip(models: Int, done: Int, total: Int, ties: Int) {
+private fun TournamentStatsStrip(
+    models: Int, done: Int, total: Int, ties: Int,
+    // Total view collapses a complete "n/n" Matches stat to a single "n".
+    collapseCompleteMatches: Boolean = false
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         StatTile("Models", models.toString(), AppColors.InfoAccent, Modifier.weight(1f))
-        StatTile("Matches", "$done/$total", AppColors.SuccessAccent, Modifier.weight(1f))
+        val matches = if (collapseCompleteMatches && done == total) total.toString() else "$done/$total"
+        StatTile("Matches", matches, AppColors.SuccessAccent, Modifier.weight(1f))
         StatTile("Ties", ties.toString(), AppColors.WarningAccent, Modifier.weight(1f))
     }
 }
