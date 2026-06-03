@@ -534,6 +534,15 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Cost", "Generating a language is one API call per internal prompt, so it costs real tokens. Redo only when prompts changed or a model improved."),
         )
     ),
+    "cached_prompts" to HelpContent(
+        title = "Help - Cached prompts",
+        cards = listOf(
+            HelpCard("Overview", "The app caches responses to internal-prompt calls (e.g. the AI Introduction on a Model Info screen) on disk for 48 hours, so the same call isn't paid for twice. This screen lists every cached entry."),
+            HelpCard("What a row shows", "The original prompt text isn't stored — only a hash key — so each row shows the cached response, how long ago it was written, and its on-disk size. An entry past the 48 h window is marked STALE; it'll be re-fetched on next use unless you delete it first."),
+            HelpCard("Row actions", "🗑️ deletes that single cached entry. The header shows the total entry count and disk usage."),
+            HelpCard("Clear all (🧽)", "The 🧽 bar icon clears every cached entry after a confirmation. Cleared responses are re-fetched (and paid for) the next time they're needed."),
+        )
+    ),
     "backup_restore" to HelpContent(
         title = "Help - Backup & Restore",
         cards = listOf(

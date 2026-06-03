@@ -248,7 +248,13 @@ internal fun NavGraphBuilder.developerRoutes(
                 onNavigateToTest = { navController.navigate(NavRoutes.AI_TEST) },
                 onNavigateToUpdateFromCloud = { navController.navigate(NavRoutes.AI_UPDATE_FROM_CLOUD) },
                 onNavigateToCosts = { navController.navigate(NavRoutes.AI_COSTS_MAINTENANCE) },
-                onNavigateToPromptTranslations = { navController.navigate(NavRoutes.AI_PROMPT_TRANSLATIONS) }
+                onNavigateToPromptTranslations = { navController.navigate(NavRoutes.AI_PROMPT_TRANSLATIONS) },
+                onNavigateToCachedPrompts = { navController.navigate(NavRoutes.AI_CACHED_PROMPTS) }
+            )
+        }
+        composable(NavRoutes.AI_CACHED_PROMPTS) {
+            com.ai.ui.admin.CachedPromptsScreen(
+                onBack = safePopBack, onNavigateHome = navigateHome
             )
         }
         composable(NavRoutes.AI_PROMPT_TRANSLATIONS) {

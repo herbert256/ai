@@ -97,4 +97,45 @@ object PromptCache {
         dir.listFiles { f -> f.extension == "json" }?.forEach { if (it.delete()) n++ }
         n
     }
+
+    /** One cached entry as shown on the Cached-prompts management screen.
+     *  The original prompt text isn't stored (only its hash [key]), so the
+     *  screen surfaces the cached [response], its [timestamp], whether it's
+     *  past the 48 h TTL ([stale]) and its on-disk [sizeBytes]. */
+    data class CachedEntry(
+        val key: String,
+        val timestamp: Long,
+        val response: String,
+        val sizeBytes: Long,
+        val stale: Boolean
+    )
+
+    /** Every cached entry on disk, newest first. Non-destructive — unlike
+     *  [get] it doesn't prune stale entries, so the management screen can
+     *  show (and the user can delete) expired ones too. */
+    fun list(): List<CachedEntry> = lock.withLock {
+        val dir = cacheDir ?: return@withLock emptyList()
+        val now = System.currentTimeMillis()
+        dir.listFiles { f -> f.extension == "json" }?.mapNotNull { file ->
+            try {
+                @Suppress("DEPRECATION")
+                val obj = JsonParser().parse(file.readText()).asJsonObject
+                val ts = obj.get("timestamp")?.asLong ?: 0L
+                CachedEntry(
+                    key = file.nameWithoutExtension,
+                    timestamp = ts,
+                    response = obj.get("response")?.asString ?: "",
+                    sizeBytes = file.length(),
+                    stale = now - ts > TTL_MS
+                )
+            } catch (_: Exception) { null }
+        }?.sortedByDescending { it.timestamp } ?: emptyList()
+    }
+
+    /** Delete one cached entry by its on-disk [key]. Returns true if removed. */
+    fun delete(key: String): Boolean = lock.withLock {
+        val dir = cacheDir ?: return@withLock false
+        val file = File(dir, "$key.json")
+        file.exists() && file.delete()
+    }
 }

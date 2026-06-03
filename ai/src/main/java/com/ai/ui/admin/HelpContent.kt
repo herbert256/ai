@@ -237,6 +237,7 @@ internal val RELATED_HOME_HELP: Map<String, List<String>> = mapOf(
     // ===== Housekeeping / Backup / Reset =====
     "housekeeping" to listOf("help_backup", "help_privacy"),
     "prompt_translations" to listOf("housekeeping", "help_costs"),
+    "cached_prompts" to listOf("housekeeping", "help_costs"),
     "backup_restore" to listOf("help_backup", "help_privacy"),
     "trim_by_age" to listOf("help_backup", "help_privacy"),
     "reset" to listOf("help_backup", "help_privacy"),

@@ -47,7 +47,8 @@ fun HousekeepingScreen(
     onNavigateToTest: () -> Unit = {},
     onNavigateToUpdateFromCloud: () -> Unit = {},
     onNavigateToCosts: () -> Unit = {},
-    onNavigateToPromptTranslations: () -> Unit = {}
+    onNavigateToPromptTranslations: () -> Unit = {},
+    onNavigateToCachedPrompts: () -> Unit = {}
 ) {
     BackHandler { onBackToHome() }
     val mi = LocalMetadataIcons.current
@@ -145,6 +146,15 @@ fun HousekeepingScreen(
                     title = "Prompt translations",
                     subtitle = "Generate and manage internal-prompt translations per language",
                     onClick = onNavigateToPromptTranslations
+                )
+            }
+            // View / manage the on-disk cache of internal-prompt responses.
+            item {
+                IconLinkCard(
+                    icon = MetadataDefaults.SAVE,
+                    title = "Cached prompts",
+                    subtitle = "View and clear cached internal-prompt responses",
+                    onClick = onNavigateToCachedPrompts
                 )
             }
             // Refresh and Reset live together at the bottom — both
