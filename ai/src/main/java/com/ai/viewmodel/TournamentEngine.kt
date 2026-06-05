@@ -297,11 +297,9 @@ class TournamentEngine internal constructor(
             }
         ) { item ->
             if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) return@runThrottledBatch
-            appViewModel.updateRunningTournamentMatches { it + item.placeholder.id }
             try {
                 runOneMatch(context, reportId, prompt, question, title, item)
             } finally {
-                appViewModel.updateRunningTournamentMatches { it - item.placeholder.id }
                 appViewModel.updateThrottledTournamentMatches { it - item.placeholder.id }
             }
         }

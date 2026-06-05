@@ -41,20 +41,8 @@ fun matchKey(responseAId: String, responseBId: String, orientation: Int): MatchK
 const val TOURNAMENT_PENDING_PROVIDER = "*workers"
 const val TOURNAMENT_PENDING_MODEL = "*pending"
 
-/** Per-match lifecycle state — mirror of [PairStatus]. */
-enum class MatchStatus {
-    /** Placeholder on disk, waiting for a worker permit. */
-    PENDING,
-
-    /** A worker call is in flight. */
-    RUNNING,
-
-    /** Verdict written to disk (content non-blank, or durationMs set). */
-    DONE,
-
-    /** Error stamped on disk (every worker failed). */
-    ERROR
-}
+/** Per-match lifecycle state — an alias of the shared [BatchItemStatus]. */
+typealias MatchStatus = BatchItemStatus
 
 /** One ordered head-to-head judgment within a tournament run. */
 data class MatchState(

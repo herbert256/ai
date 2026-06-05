@@ -35,23 +35,8 @@ fun runKey(reportId: String, metaPromptId: String): FanOutRunKey =
 fun pairKey(answererAgentId: String, sourceAgentId: String): PairKey =
     "$answererAgentId|$sourceAgentId"
 
-/** Per-pair lifecycle state. The runner moves a pair through these
- *  states in order; the UI's classifier reads from this directly. */
-enum class PairStatus {
-    /** Placeholder written to disk, waiting for the runner's
-     *  per-host throttle permit. UI: 🕓 queued. */
-    PENDING,
-
-    /** Permit acquired, HTTP in flight. UI: ⏳ running. */
-    RUNNING,
-
-    /** Result written to disk (content non-blank, or empty body but
-     *  durationMs stamped). UI: ✅ done. */
-    DONE,
-
-    /** Error stamped on disk. UI: ❌ errored. */
-    ERROR
-}
+/** Per-pair lifecycle state — an alias of the shared [BatchItemStatus]. */
+typealias PairStatus = BatchItemStatus
 
 /** One pair within a Fan Out run. Mirrors the fan-out-specific
  *  fields of the on-disk [SecondaryResult] row plus the per-pair

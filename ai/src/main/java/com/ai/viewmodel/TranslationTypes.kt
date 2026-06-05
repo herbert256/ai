@@ -4,7 +4,9 @@ package com.ai.viewmodel
  *  translation UI and the view model share them without the types
  *  being nested in the 8k-line view model. Pure data. */
 
-enum class TranslationStatus { PENDING, RUNNING, DONE, ERROR }
+/** Per-item lifecycle state — an alias of the shared
+ *  [com.ai.data.BatchItemStatus]. */
+typealias TranslationStatus = com.ai.data.BatchItemStatus
 /** TITLE = report short title, TITLE_LONG = report long title,
  *  AGENT_TITLE = a model-response title, FANOUT_TITLE = a fan-out
  *  pair's response title. The four title kinds are translated with

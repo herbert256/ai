@@ -136,15 +136,6 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _throttledFanMetaPairs.update(block)
     }
 
-    /** Tournament match row ids whose worker call is actively in flight —
-     *  the Tournament L1 stats panel reads this (parallel to
-     *  [runningFanMetaPairs]). */
-    private val _runningTournamentMatches = MutableStateFlow<Set<String>>(emptySet())
-    val runningTournamentMatches: StateFlow<Set<String>> = _runningTournamentMatches.asStateFlow()
-    internal fun updateRunningTournamentMatches(block: (Set<String>) -> Set<String>) {
-        _runningTournamentMatches.update(block)
-    }
-
     /** Tournament match row ids parked inside
      *  [com.ai.data.ProviderThrottle.acquire] (parallel to
      *  [throttledFanMetaPairs]) — the L1 "Throttled" counter. */
@@ -154,30 +145,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _throttledTournamentMatches.update(block)
     }
 
-    /** Judge-eval ("Judge the judges") cell row ids whose judge call is
-     *  actively in flight — the batch L1 "Run" stat (parallel to
-     *  [runningTournamentMatches]). */
-    private val _runningJudgeEvalCells = MutableStateFlow<Set<String>>(emptySet())
-    val runningJudgeEvalCells: StateFlow<Set<String>> = _runningJudgeEvalCells.asStateFlow()
-    internal fun updateRunningJudgeEvalCells(block: (Set<String>) -> Set<String>) {
-        _runningJudgeEvalCells.update(block)
-    }
-
     /** Judge-eval cell row ids parked on a provider's rate/concurrency gate
      *  — the batch L1 "Wait" counter (parallel to [throttledTournamentMatches]). */
     private val _throttledJudgeEvalCells = MutableStateFlow<Set<String>>(emptySet())
     val throttledJudgeEvalCells: StateFlow<Set<String>> = _throttledJudgeEvalCells.asStateFlow()
     internal fun updateThrottledJudgeEvalCells(block: (Set<String>) -> Set<String>) {
         _throttledJudgeEvalCells.update(block)
-    }
-
-    /** "Compare with meta" cell row ids whose worker call is actively in
-     *  flight — the batch L1 "Run" stat (parallel to
-     *  [runningTournamentMatches]). */
-    private val _runningCompareCells = MutableStateFlow<Set<String>>(emptySet())
-    val runningCompareCells: StateFlow<Set<String>> = _runningCompareCells.asStateFlow()
-    internal fun updateRunningCompareCells(block: (Set<String>) -> Set<String>) {
-        _runningCompareCells.update(block)
     }
 
     /** Compare cell row ids parked on a provider's rate/concurrency gate —

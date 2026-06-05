@@ -279,11 +279,9 @@ class CompareEngine internal constructor(
             }
         ) { item ->
             if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) return@runThrottledBatch
-            appViewModel.updateRunningCompareCells { it + item.placeholder.id }
             try {
                 runOneCell(context, reportId, prompt, question, title, agentBodyById, metaContentById, item)
             } finally {
-                appViewModel.updateRunningCompareCells { it - item.placeholder.id }
                 appViewModel.updateThrottledCompareCells { it - item.placeholder.id }
             }
         }

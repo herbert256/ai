@@ -32,8 +32,8 @@ const val COMPARE_PENDING_MODEL = "*pending"
 /** "${agentId}|${metaResultId}" — unique per cell within a run. */
 fun compareCellKey(agentId: String, metaResultId: String): String = "$agentId|$metaResultId"
 
-/** Per-cell lifecycle state — mirror of [MatchStatus]. */
-enum class CompareCellStatus { PENDING, RUNNING, DONE, ERROR }
+/** Per-cell lifecycle state — an alias of the shared [BatchItemStatus]. */
+typealias CompareCellStatus = BatchItemStatus
 
 /** One (answer, meta-result) similarity score within a compare run. */
 data class CompareCellState(

@@ -38,7 +38,8 @@ const val JUDGE_ROLE_AGGREGATE = "AGGREGATE"
 fun judgeCellKey(judgeProviderId: String, judgeModel: String, mKey: MatchKey): String =
     "$judgeProviderId/$judgeModel|$mKey"
 
-enum class JudgeCellStatus { PENDING, RUNNING, DONE, ERROR }
+/** Per-cell lifecycle state — an alias of the shared [BatchItemStatus]. */
+typealias JudgeCellStatus = BatchItemStatus
 
 /** One judge's verdict on one match. */
 data class JudgeCellState(

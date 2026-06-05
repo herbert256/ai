@@ -315,11 +315,9 @@ class JudgeEvalEngine internal constructor(
             onBenchRetry = { item -> restoreBenchedCellForRequeue(context, reportId, item) }
         ) { item ->
             if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) return@runThrottledBatch
-            appViewModel.updateRunningJudgeEvalCells { it + item.placeholder.id }
             try {
                 runOneCell(context, reportId, prompt, question, title, agentsById, item)
             } finally {
-                appViewModel.updateRunningJudgeEvalCells { it - item.placeholder.id }
                 appViewModel.updateThrottledJudgeEvalCells { it - item.placeholder.id }
             }
         }
