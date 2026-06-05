@@ -1023,6 +1023,9 @@ private fun NetworkSettingsSubScreen(
     var retryBackoffMs529Text by remember {
         mutableStateOf(generalSettings.retryBackoffMs529.toString())
     }
+    var typeABenchEnabled by remember { mutableStateOf(generalSettings.typeABenchEnabled) }
+    var typeABenchSecondsText by remember { mutableStateOf(generalSettings.typeABenchSeconds.toString()) }
+    var typeABenchMaxAttemptsText by remember { mutableStateOf(generalSettings.typeABenchMaxAttempts.toString()) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         streamingReadTimeoutSec = streamingReadTimeoutText.toIntOrNull()?.coerceAtLeast(1)
@@ -1041,14 +1044,20 @@ private fun NetworkSettingsSubScreen(
         maxRetriesOn529 = maxRetries529Text.toIntOrNull()?.coerceAtLeast(0)
             ?: generalSettings.maxRetriesOn529,
         retryBackoffMs529 = retryBackoffMs529Text.toLongOrNull()?.coerceAtLeast(1L)
-            ?: generalSettings.retryBackoffMs529
+            ?: generalSettings.retryBackoffMs529,
+        typeABenchEnabled = typeABenchEnabled,
+        typeABenchSeconds = typeABenchSecondsText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.typeABenchSeconds,
+        typeABenchMaxAttempts = typeABenchMaxAttemptsText.toIntOrNull()?.coerceAtLeast(1)
+            ?: generalSettings.typeABenchMaxAttempts
     )
 
     LaunchedEffect(
         streamingReadTimeoutText, nonStreamingReadTimeoutText,
         maxCallsPerMinuteText, maxConcurrentCallsText,
         maxRetriesText, retryBackoffMs429Text,
-        maxRetries529Text, retryBackoffMs529Text
+        maxRetries529Text, retryBackoffMs529Text,
+        typeABenchEnabled, typeABenchSecondsText, typeABenchMaxAttemptsText
     ) {
         val updated = build()
         if (updated != generalSettings) {
@@ -1175,6 +1184,41 @@ private fun NetworkSettingsSubScreen(
                     value = retryBackoffMs529Text,
                     onValueChange = { retryBackoffMs529Text = it.filter { ch -> ch.isDigit() } },
                     label = { Text("Wait between retries (ms)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+            }
+            SettingCard(
+                "Model bench (fixed-model batches)",
+                "For Fan Out and Judge the judges — where a model can't be swapped out — a 429/529 parks that model and moves its waiting items to the Bench column instead of erroring or retrying each one in line. The bench lasts for the response's Retry-After hint when present, otherwise the seconds below; siblings of the same model wait too, then everything returns to Queue when the bench lifts. After the max benches an item is left errored. (Worker-swarm batches — Tournament, Compare, Translation, Fan Meta — fall back to another model instead, so this doesn't apply to them.)",
+                MetadataDefaults.ROADBLOCK
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "Bench fixed-model batches on 429 / 529",
+                        color = AppColors.TextPrimary, modifier = Modifier.weight(1f)
+                    )
+                    androidx.compose.material3.Switch(
+                        checked = typeABenchEnabled,
+                        onCheckedChange = { typeABenchEnabled = it }
+                    )
+                }
+                OutlinedTextField(
+                    value = typeABenchSecondsText,
+                    onValueChange = { typeABenchSecondsText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Bench seconds (no Retry-After)") },
+                    enabled = typeABenchEnabled,
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true, colors = AppColors.outlinedFieldColors()
+                )
+                OutlinedTextField(
+                    value = typeABenchMaxAttemptsText,
+                    onValueChange = { typeABenchMaxAttemptsText = it.filter { ch -> ch.isDigit() } },
+                    label = { Text("Max benches before error") },
+                    enabled = typeABenchEnabled,
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true, colors = AppColors.outlinedFieldColors()
                 )

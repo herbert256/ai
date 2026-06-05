@@ -71,6 +71,17 @@ object ProviderThrottle {
     val backoffPermitYielder: ThreadLocal<((backoffMs: Long) -> Unit)?> =
         ThreadLocal.withInitial { null }
 
+    /** Per-item requeue signal for the type-A bench batches (Fan Out, Judge
+     *  the judges). `runThrottledBatch` installs a fresh [AtomicBoolean] per
+     *  attempt; the 429 / 529 retry interceptors set it `true` when they
+     *  short-bench the model ([ModelCooldownStore.markShortBench]) instead of
+     *  sleeping in line, telling the batch loop to re-queue the item once the
+     *  bench clears. Null for every other flow (the in-line retry runs as
+     *  before). Same OkHttp-worker propagation contract as
+     *  [permitPreAcquired] — see [com.ai.data.TagPropagatingExecutor]. */
+    val benchSignal: ThreadLocal<java.util.concurrent.atomic.AtomicBoolean?> =
+        ThreadLocal.withInitial { null }
+
     /** Optional per-flow observer of throttle WAITS — invoked with `true`
      *  the moment a call first parks on this host's gate (per-minute window
      *  or concurrency cap) and `false` once it's admitted or the wait is

@@ -363,6 +363,9 @@ private fun buildGeneralSettingsTree(g: GeneralSettings, context: Context): Json
     addProperty("retryBackoffMs429", g.retryBackoffMs429)
     addProperty("maxRetriesOn529", g.maxRetriesOn529)
     addProperty("retryBackoffMs529", g.retryBackoffMs529)
+    addProperty("typeABenchEnabled", g.typeABenchEnabled)
+    addProperty("typeABenchSeconds", g.typeABenchSeconds)
+    addProperty("typeABenchMaxAttempts", g.typeABenchMaxAttempts)
     addProperty("logLevel", g.logLevel.name)
     add("recentReportModels", createAppGson().toJsonTree(g.recentReportModels))
     context.getSharedPreferences("view_screen_prefs", Context.MODE_PRIVATE)
@@ -460,6 +463,9 @@ private fun applyGeneralSettings(obj: JsonObject, current: GeneralSettings, cont
         retryBackoffMs429 = long("retryBackoffMs429") ?: current.retryBackoffMs429,
         maxRetriesOn529 = int("maxRetriesOn529") ?: current.maxRetriesOn529,
         retryBackoffMs529 = long("retryBackoffMs529") ?: current.retryBackoffMs529,
+        typeABenchEnabled = bool("typeABenchEnabled") ?: current.typeABenchEnabled,
+        typeABenchSeconds = int("typeABenchSeconds") ?: current.typeABenchSeconds,
+        typeABenchMaxAttempts = int("typeABenchMaxAttempts") ?: current.typeABenchMaxAttempts,
         logLevel = logLevel ?: current.logLevel
     )
 }

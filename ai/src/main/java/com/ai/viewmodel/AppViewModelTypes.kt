@@ -312,6 +312,20 @@ data class GeneralSettings(
     /** Wait between successive 529 retry attempts, in milliseconds.
      *  Mirrored to [com.ai.data.NetworkSettings.retryBackoffMs529]. */
     val retryBackoffMs529: Long = 1_000L,
+    /** Type-A (fixed-model) batch bench-and-requeue: on a 429/529 the
+     *  answerer/judge model is parked and its waiting same-model items move
+     *  to Bench, then back to Queue when the bench lifts — instead of each
+     *  item erroring or retrying in line. Applies to Fan Out + Judge the
+     *  judges. Mirrored to [com.ai.data.ModelCooldownStore.typeABenchEnabled]. */
+    val typeABenchEnabled: Boolean = true,
+    /** Bench duration in SECONDS when a 429/529 carries no Retry-After hint
+     *  (the server's hint is used when present). Mirrored to
+     *  [com.ai.data.ModelCooldownStore.typeABenchBaseMs] (× 1000). */
+    val typeABenchSeconds: Int = 10,
+    /** Consecutive benches one item gets before the batch gives up and
+     *  leaves it errored. Mirrored to
+     *  [com.ai.data.ModelCooldownStore.typeABenchMaxAttempts]. */
+    val typeABenchMaxAttempts: Int = 5,
     /** Threshold for the in-app file logger
      *  ([com.ai.data.AppLog]). Calls at this level or higher land in
      *  `<filesDir>/applog/applog_<yyyyMMdd>.log` in addition to

@@ -46,6 +46,52 @@ object ModelCooldownStore {
      *  callers compare the value against `System.currentTimeMillis()`. */
     val cooldowns: StateFlow<Map<String, Long>> = _cooldowns
 
+    // ---- Short-bench tier (type-A fixed-model batch 429/529 backoff) ----
+    //
+    // A SEPARATE, short-lived, session-only map. When a fixed-model batch
+    // (Fan Out, Judge the judges) gets a 429/529, the model is parked here
+    // for the response's Retry-After hint (or [typeABenchBaseMs] when there's
+    // none); the batch loop gates same-model items on it and re-queues them
+    // when it expires. Kept apart from [cooldownMap] so the model pickers —
+    // which read [cooldowns] and render "rate-limited · back HH:mm" — don't
+    // flicker for a 10 s blip, and so it isn't persisted (a transient bench
+    // shouldn't survive a restart).
+
+    /** Enable the short-bench-and-requeue behaviour for fixed-model
+     *  (type-A) batches. Mirrored from GeneralSettings. */
+    @Volatile var typeABenchEnabled: Boolean = true
+    /** Bench duration when a 429/529 carries no Retry-After hint. */
+    @Volatile var typeABenchBaseMs: Long = 10_000L
+    /** Consecutive benches one item gets before the batch loop gives up
+     *  and leaves it errored. */
+    @Volatile var typeABenchMaxAttempts: Int = 5
+
+    private val shortBenchMap = ConcurrentHashMap<String, Long>()
+    private val _shortBenches = MutableStateFlow<Map<String, Long>>(emptyMap())
+    /** Snapshot of short-bench expiries, for the live Bench stat. Entries
+     *  may be expired — callers compare against `currentTimeMillis()`. */
+    val shortBenches: StateFlow<Map<String, Long>> = _shortBenches
+
+    /** Park (provider, model) until [availableAtMs] for the type-A batch
+     *  429/529 backoff. Called from the retry interceptors. */
+    fun markShortBench(providerId: String, model: String, availableAtMs: Long) {
+        val k = key(providerId, model)
+        shortBenchMap[k] = availableAtMs
+        _shortBenches.value = shortBenchMap.toMap()
+        AppLog.d("ModelCooldown", "$providerId/$model short-benched ${availableAtMs - System.currentTimeMillis()}ms")
+    }
+
+    /** True when the pair is short-benched and the bench hasn't expired.
+     *  Pure timestamp compare (no side effects) so the batch loop / stat
+     *  can poll it freely. */
+    fun isShortBenched(providerId: String, model: String): Boolean {
+        val until = shortBenchMap[key(providerId, model)] ?: return false
+        return until > System.currentTimeMillis()
+    }
+
+    fun shortBenchUntil(providerId: String, model: String): Long? =
+        shortBenchMap[key(providerId, model)]?.takeIf { it > System.currentTimeMillis() }
+
     @Volatile private var appContext: Context? = null
 
     fun init(context: Context) {

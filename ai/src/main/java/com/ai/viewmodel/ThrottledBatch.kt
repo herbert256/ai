@@ -95,6 +95,18 @@ internal suspend fun <T> runThrottledBatch(
     register: (T, Deferred<*>) -> Unit = { _, _ -> },
     timeoutMs: Long? = null,
     dynamicHost: Boolean = false,
+    // ---- Type-A bench-and-requeue (Fan Out, Judge the judges) ----
+    // When [benchEnabled] and [benchKey] resolves an item's (providerId,
+    // model), the item is gated while that model is short-benched (holding
+    // NO permits), and a 429/529 inside [body] (which short-benches the model
+    // + sets the per-item bench signal) re-queues it instead of erroring —
+    // up to [ModelCooldownStore.typeABenchMaxAttempts] times. [onBenchRetry]
+    // resets the item's persisted row back to PENDING before each re-dispatch
+    // (the body already stamped it errored). Off by default → fixed-host path
+    // is byte-for-byte unchanged for every other flow.
+    benchEnabled: Boolean = false,
+    benchKey: (T) -> Pair<String, String>? = { null },
+    onBenchRetry: (T) -> Unit = {},
     body: suspend (T) -> Unit,
 ) {
     if (items.isEmpty()) return
@@ -120,6 +132,46 @@ internal suspend fun <T> runThrottledBatch(
                     return@async
                 }
                 val host = hostOf(item) ?: return@async
+                // Type-A bench-and-requeue loop. Each iteration: gate while the
+                // model is short-benched (no permits held), then run one body
+                // attempt with a fresh bench signal; a 429/529 sets the signal
+                // (the interceptor short-benched the model) → un-error + re-gate
+                // + retry, bounded by typeABenchMaxAttempts. A clear signal
+                // means the body settled (done / genuine error) — return.
+                val benchPair = if (benchEnabled) benchKey(item) else null
+                if (benchPair != null) {
+                    val (benchPid, benchMdl) = benchPair
+                    var benchAttempts = 0
+                    while (true) {
+                        while (com.ai.data.ModelCooldownStore.isShortBenched(benchPid, benchMdl)) {
+                            val until = com.ai.data.ModelCooldownStore.shortBenchUntil(benchPid, benchMdl) ?: break
+                            kotlinx.coroutines.delay((until - System.currentTimeMillis()).coerceIn(50L, 1_000L))
+                        }
+                        val hold = acquireThrottledPermits(
+                            subCap, host,
+                            onThrottled = { onThrottled(item) },
+                            onCleared = { onCleared(item) }
+                        )
+                        val sig = java.util.concurrent.atomic.AtomicBoolean(false)
+                        try {
+                            withContext(
+                                ProviderThrottle.permitPreAcquired.asContextElement(true) +
+                                    ProviderThrottle.backoffPermitYielder
+                                        .asContextElement({ ms -> hold.yieldFor(ms) }) +
+                                    ProviderThrottle.benchSignal.asContextElement(sig)
+                            ) {
+                                if (timeoutMs != null) withTimeout(timeoutMs) { body(item) }
+                                else body(item)
+                            }
+                        } finally {
+                            hold.dispose()
+                        }
+                        if (!sig.get()) return@async
+                        benchAttempts++
+                        if (benchAttempts >= com.ai.data.ModelCooldownStore.typeABenchMaxAttempts) return@async
+                        onBenchRetry(item)
+                    }
+                }
                 // Acquire sub-cap → global → host, but with the outer two
                 // RELEASED while parked on the per-host gate, so a per-flow
                 // cap counts only pairs holding a live provider slot (real

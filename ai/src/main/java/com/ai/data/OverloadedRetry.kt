@@ -31,6 +31,25 @@ class OverloadedRetryInterceptor : Interceptor {
         val response = chain.proceed(request)
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) return response
         if (response.code != 529) return response
+        // Type-A fixed-model batch bench-and-requeue (mirror of the 429
+        // path): park the model for its Retry-After hint (Anthropic often
+        // sends one on a 529) or the configured default, signal the batch
+        // loop to re-queue, and skip the in-line sleep.
+        run {
+            val sig = ProviderThrottle.benchSignal.get()
+            if (sig != null && ModelCooldownStore.typeABenchEnabled) {
+                val providerId = ProviderRegistry.findByHost(request.url.host)?.id
+                val model = modelForRequest(request)
+                if (providerId != null && !model.isNullOrBlank()) {
+                    val benchMs = resolveRetryAfter(
+                        response, defaultMs = ModelCooldownStore.typeABenchBaseMs, hostForLog = request.url.host
+                    ).coerceIn(1_000L, 5L * 60_000L)
+                    ModelCooldownStore.markShortBench(providerId, model, System.currentTimeMillis() + benchMs)
+                    sig.set(true)
+                    return response
+                }
+            }
+        }
         // A flow that opted out of the sleeping retry loop (the "Test
         // all models" sweep) is treated as maxRetries == 0.
         val (maxRetries, backoffMs) =

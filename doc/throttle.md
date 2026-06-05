@@ -220,6 +220,27 @@ midnight), Cohere trial-key monthly cap (next month), out-of-credits
 / spending-limit billing 429s (6 h), and any `Retry-After` longer
 than `LONG_RETRY_THRESHOLD_MS`. See [model-states.md](model-states.md).
 
+#### Short-bench-and-requeue (type-A fixed-model batches)
+
+When a **type-A** batch (Fan Out, Judge the judges — where a model
+can't be swapped for another) runs an item, `runThrottledBatch`
+installs a per-item `ProviderThrottle.benchSignal`. On a transient
+429/529 (the long-bench cases above didn't fire) the interceptor
+**short-benches** the model — `ModelCooldownStore.markShortBench`
+for the response's `Retry-After` hint, or `typeABenchSeconds`
+(default 10 s) when there's none — sets the signal, and returns
+immediately (no in-line sleep). The batch loop then **re-queues** the
+item instead of erroring, and **gates its same-model siblings** on the
+bench so they don't fire doomed calls; everything returns to Queue
+when the bench lifts. After `typeABenchMaxAttempts` (default 5)
+consecutive benches the item is left errored. The short-bench map is
+session-only and **separate** from the long `cooldownMap` so model
+pickers don't flicker "rate-limited" for a 10 s blip; it drives the
+**Bench** stat column (parked items, not just errored ones). Tunable
+under Settings → Network → **Model bench**; off → the in-line retry
+loop runs as before. Worker-swarm (type-B) batches don't use it —
+they fall back to another model instead.
+
 ### `OverloadedRetryInterceptor` (`data/OverloadedRetry.kt`)
 
 The HTTP **529** (server-overloaded, Anthropic `overloaded_error`)

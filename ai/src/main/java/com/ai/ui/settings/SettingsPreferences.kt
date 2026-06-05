@@ -139,6 +139,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             retryBackoffMs429 = prefs.getLong(KEY_RETRY_BACKOFF_MS_429, 1_000L),
             maxRetriesOn529 = prefs.getInt(KEY_MAX_RETRIES_ON_529, 3),
             retryBackoffMs529 = prefs.getLong(KEY_RETRY_BACKOFF_MS_529, 1_000L),
+            typeABenchEnabled = prefs.getBoolean(KEY_TYPE_A_BENCH_ENABLED, true),
+            typeABenchSeconds = prefs.getInt(KEY_TYPE_A_BENCH_SECONDS, 10),
+            typeABenchMaxAttempts = prefs.getInt(KEY_TYPE_A_BENCH_MAX_ATTEMPTS, 5),
             logLevel = prefs.getString(KEY_LOG_LEVEL, null)?.let {
                 try { com.ai.data.LogLevel.valueOf(it) } catch (_: Exception) { null }
             } ?: com.ai.data.LogLevel.INFO
@@ -205,6 +208,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putLong(KEY_RETRY_BACKOFF_MS_429, settings.retryBackoffMs429)
             putInt(KEY_MAX_RETRIES_ON_529, settings.maxRetriesOn529)
             putLong(KEY_RETRY_BACKOFF_MS_529, settings.retryBackoffMs529)
+            putBoolean(KEY_TYPE_A_BENCH_ENABLED, settings.typeABenchEnabled)
+            putInt(KEY_TYPE_A_BENCH_SECONDS, settings.typeABenchSeconds)
+            putInt(KEY_TYPE_A_BENCH_MAX_ATTEMPTS, settings.typeABenchMaxAttempts)
             putString(KEY_LOG_LEVEL, settings.logLevel.name)
         }
         com.ai.data.AppLog.d(
@@ -1031,6 +1037,9 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_RETRY_BACKOFF_MS_429 = "retry_backoff_ms_429"
         private const val KEY_MAX_RETRIES_ON_529 = "max_retries_on_529"
         private const val KEY_RETRY_BACKOFF_MS_529 = "retry_backoff_ms_529"
+        private const val KEY_TYPE_A_BENCH_ENABLED = "type_a_bench_enabled"
+        private const val KEY_TYPE_A_BENCH_SECONDS = "type_a_bench_seconds"
+        private const val KEY_TYPE_A_BENCH_MAX_ATTEMPTS = "type_a_bench_max_attempts"
         private const val KEY_LOG_LEVEL = "log_level"
         private const val KEY_AI_AGENTS = "ai_agents"
         private const val KEY_AI_FLOCKS = "ai_flocks"

@@ -112,14 +112,17 @@ internal fun FanOutL1Screen(
 
     fun pairCost(p: PairState): Double = (p.inputCost ?: 0.0) + (p.outputCost ?: 0.0)
 
-    // Benched = errored AND the pair's model is on a >1h-429
-    // cooldown. Observed reactively so the Bench count updates as
-    // cooldowns lift; expiry is checked from the snapshot rather than
-    // the lazily-mutating ModelCooldownStore.isUnavailable. Hoisted
-    // to composable scope so the confirm dialogs can use it too.
+    // Long bench = the pair's model is on a >1h-429 cooldown (Gemini daily
+    // quota / billing). Drives the failure-control buttons (Remove benched).
     val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
     fun benched(p: String?, m: String?): Boolean =
         p != null && m != null && (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
+    // Short bench = the model is parked on a transient 429/529 backoff and its
+    // items will re-queue when it lifts. Drives the live Bench stat column —
+    // takes precedence over Run / Wait / Queue so a parked item shows there.
+    val shortBenches by com.ai.data.ModelCooldownStore.shortBenches.collectAsState()
+    fun shortBenched(p: String, m: String): Boolean =
+        (shortBenches["$p:$m"] ?: 0L) > System.currentTimeMillis()
 
     // 🐞 deep-link target — the fan-out that created the rows (runId).
     val l1RunId = run.pairs.values.firstNotNullOfOrNull { it.runId }
@@ -147,18 +150,21 @@ internal fun FanOutL1Screen(
         // they stay put as the model list scrolls; kept visible even
         // once every pair is done.
         val doneCount = run.doneCount
-        // Errors and Bench split the errored set — a benched entry
-        // will recover once its cooldown lifts, so it's counted
-        // separately instead of under Errors.
-        val errorCount = run.pairs.values.count { it.status == PairStatus.ERROR && !benched(it.providerId, it.model) }
-        val benchCount = run.pairs.values.count { it.status == PairStatus.ERROR && benched(it.providerId, it.model) }
-        val runningCount = run.runningCount
-        val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
-        // Queue excludes pairs that are actively blocked on a host
-        // rate-limit cap — those are reported in the Throttled column
-        // instead, so the two columns don't double-count the same
-        // pair (a throttled pair is still PENDING by status).
-        val queuedCount = run.pairs.values.count { it.status == PairStatus.PENDING && it.id !in throttledSet }
+        // Bench = items whose model is short-benched (parked on a 429/529
+        // backoff, waiting to re-queue). Takes precedence over the other
+        // non-done columns so a parked item shows there, not in Run/Wait/Queue.
+        val benchCount = run.pairs.values.count { it.status != PairStatus.DONE && shortBenched(it.providerId, it.model) }
+        val errorCount = run.pairs.values.count { it.status == PairStatus.ERROR && !shortBenched(it.providerId, it.model) }
+        val runningCount = run.pairs.values.count { it.status == PairStatus.RUNNING && !shortBenched(it.providerId, it.model) }
+        val throttledHere = remember(run, throttledSet, shortBenches) {
+            run.pairs.values.count { it.id in throttledSet && !shortBenched(it.providerId, it.model) }
+        }
+        // Queue excludes pairs blocked on a host rate-limit cap (Wait) and
+        // pairs parked on a model bench (Bench), so the columns don't
+        // double-count the same pending pair.
+        val queuedCount = run.pairs.values.count {
+            it.status == PairStatus.PENDING && it.id !in throttledSet && !shortBenched(it.providerId, it.model)
+        }
         // Whole run finished cleanly — every row would otherwise show
         // ✅ on a full green fill. Drop both per row so a completed
         // run reads calmly instead of as a wall of check marks.

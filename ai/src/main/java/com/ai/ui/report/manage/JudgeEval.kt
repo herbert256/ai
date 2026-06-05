@@ -373,20 +373,27 @@ private fun JudgeEvalL1(
     onDeleteRun: () -> Unit,
     onBack: () -> Unit
 ) {
-    val throttledCount = run.cells.values.count { it.id in throttled }
-    // Each judge cell is a fixed-model call (category A) — a benched
-    // judge can't be substituted, so its errored cells split out into
-    // their own Bench column. Benched = an ERROR cell whose judge model
-    // is on a >1h-429 cooldown; observed reactively so the count lifts
-    // as cooldowns expire.
-    val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
-    fun benched(p: String, m: String): Boolean =
-        (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
+    // Each judge cell is a fixed-model call (category A) — a benched judge
+    // can't be substituted. Bench = cells whose judge model is short-benched
+    // (parked on a 429/529 backoff, waiting to re-queue); it takes precedence
+    // over Run / Wait / Queue so a parked cell shows there.
+    val shortBenches by com.ai.data.ModelCooldownStore.shortBenches.collectAsState()
+    fun shortBenched(p: String, m: String): Boolean =
+        (shortBenches["$p:$m"] ?: 0L) > System.currentTimeMillis()
     val benchCount = run.cells.values.count {
-        it.status == JudgeCellStatus.ERROR && benched(it.judgeProviderId, it.judgeModel)
+        it.status != JudgeCellStatus.DONE && shortBenched(it.judgeProviderId, it.judgeModel)
     }
     val errorCount = run.cells.values.count {
-        it.status == JudgeCellStatus.ERROR && !benched(it.judgeProviderId, it.judgeModel)
+        it.status == JudgeCellStatus.ERROR && !shortBenched(it.judgeProviderId, it.judgeModel)
+    }
+    val runningCount = run.cells.values.count {
+        it.status == JudgeCellStatus.RUNNING && !shortBenched(it.judgeProviderId, it.judgeModel)
+    }
+    val throttledCount = run.cells.values.count {
+        it.id in throttled && !shortBenched(it.judgeProviderId, it.judgeModel)
+    }
+    val queuedCount = run.cells.values.count {
+        it.status == JudgeCellStatus.PENDING && it.id !in throttled && !shortBenched(it.judgeProviderId, it.judgeModel)
     }
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
@@ -403,10 +410,10 @@ private fun JudgeEvalL1(
                 Triple("Total", run.totalCells.toString(), AppColors.InfoAccent),
                 Triple("Done", run.doneCount.toString(), AppColors.SuccessAccent),
                 Triple("Error", errorCount.toString(), AppColors.DangerAccent),
-                Triple("Run", run.runningCount.toString(), AppColors.WarningAccent),
+                Triple("Run", runningCount.toString(), AppColors.WarningAccent),
                 Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent),
                 Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
-                Triple("Queue", run.queuedCount.toString(), AppColors.QueueAccent),
+                Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
                 Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
             ))
             Spacer(Modifier.height(6.dp))

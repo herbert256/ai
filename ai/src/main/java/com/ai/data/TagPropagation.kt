@@ -134,6 +134,9 @@ class TagPropagatingExecutor(
         // worker reads null and falls back to a permit-hogging in-place
         // sleep.
         val capturedYielder = ProviderThrottle.backoffPermitYielder.get()
+        // Carry the type-A bench requeue signal so the 429/529 interceptors
+        // on the worker can flag a short-bench back to the batch loop.
+        val capturedBenchSignal = ProviderThrottle.benchSignal.get()
         // Carry the trace-filename sink (if any) onto the worker so
         // TracingInterceptor's save can hand the filename back to the
         // originating coroutine.
@@ -146,6 +149,7 @@ class TagPropagatingExecutor(
             val previousPreAcquired = ProviderThrottle.permitPreAcquired.get() == true
             val previousSuppressRetry = ProviderThrottle.suppressInlineRetry.get() == true
             val previousYielder = ProviderThrottle.backoffPermitYielder.get()
+            val previousBenchSignal = ProviderThrottle.benchSignal.get()
             val previousSink = ApiTracer.traceFilenameSink.get()
             ApiTracer.currentTags.set(captured)
             // Always set the captured value (even when false / null) so a
@@ -155,6 +159,7 @@ class TagPropagatingExecutor(
             ProviderThrottle.permitPreAcquired.set(capturedPreAcquired)
             ProviderThrottle.suppressInlineRetry.set(capturedSuppressRetry)
             ProviderThrottle.backoffPermitYielder.set(capturedYielder)
+            ProviderThrottle.benchSignal.set(capturedBenchSignal)
             ApiTracer.traceFilenameSink.set(capturedSink)
             try {
                 command.run()
@@ -163,6 +168,7 @@ class TagPropagatingExecutor(
                 ProviderThrottle.permitPreAcquired.set(previousPreAcquired)
                 ProviderThrottle.suppressInlineRetry.set(previousSuppressRetry)
                 ProviderThrottle.backoffPermitYielder.set(previousYielder)
+                ProviderThrottle.benchSignal.set(previousBenchSignal)
                 ApiTracer.traceFilenameSink.set(previousSink)
             }
         }

@@ -306,7 +306,13 @@ class JudgeEvalEngine internal constructor(
             register = { item, d ->
                 cellJobs[item.placeholder.id] = d
                 d.invokeOnCompletion { cellJobs.remove(item.placeholder.id, d) }
-            }
+            },
+            // Type-A fixed-model batch: a 429/529 short-benches the judge
+            // model and re-queues the cell (and parks its same-model
+            // siblings) instead of erroring outright.
+            benchEnabled = com.ai.data.ModelCooldownStore.typeABenchEnabled,
+            benchKey = { item -> item.judge.providerId to item.judge.model },
+            onBenchRetry = { item -> restoreBenchedCellForRequeue(context, reportId, item) }
         ) { item ->
             if (!SecondaryResultStorage.exists(context, reportId, item.placeholder.id)) return@runThrottledBatch
             appViewModel.updateRunningJudgeEvalCells { it + item.placeholder.id }
@@ -322,6 +328,23 @@ class JudgeEvalEngine internal constructor(
     // -----------------------------------------------------------------
     // Per-cell judge call (a single specific model, not the worker chain)
     // -----------------------------------------------------------------
+
+    /** Reset a cell the bench loop is about to re-queue: clear the error the
+     *  failed attempt persisted and put the in-memory cell back to PENDING (it
+     *  shows as Bench while its judge model is short-benched, then Queue once
+     *  the bench lifts). */
+    private fun restoreBenchedCellForRequeue(context: Context, reportId: String, item: PendingCell) {
+        val cKey = judgeCellKey(item.judge.providerId, item.judge.model, matchKey(item.aId, item.bId, item.orientation))
+        SecondaryResultStorage.get(context, reportId, item.placeholder.id)?.let { saved ->
+            SecondaryResultStorage.save(
+                context,
+                saved.copy(content = null, errorMessage = null, durationMs = null, tokenUsage = null)
+            )
+        }
+        transitionCell(reportId, cKey) {
+            it.copy(status = JudgeCellStatus.PENDING, content = null, errorMessage = null, durationMs = null)
+        }
+    }
 
     private suspend fun runOneCell(
         context: Context, reportId: String, prompt: InternalPrompt,

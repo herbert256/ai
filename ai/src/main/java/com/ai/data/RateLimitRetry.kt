@@ -109,6 +109,26 @@ class RateLimitRetryInterceptor : Interceptor {
                 return response
             }
         }
+        // Type-A fixed-model batch bench-and-requeue. The batch registered a
+        // per-item [benchSignal]; on a transient 429 (the long-bench cases
+        // above didn't fire) park the model for its Retry-After hint (or the
+        // configured default) and signal the batch loop to re-queue this item
+        // — instead of sleeping in line. Same-model siblings gate on the bench
+        // so they don't fire doomed calls. The batch loop bounds the requeues.
+        run {
+            val sig = ProviderThrottle.benchSignal.get()
+            if (sig != null && ModelCooldownStore.typeABenchEnabled) {
+                val providerId = ProviderRegistry.findByHost(request.url.host)?.id
+                val model = modelForRequest(request)
+                if (providerId != null && !model.isNullOrBlank()) {
+                    val benchMs = (retryAfterHintMs(response, null) ?: ModelCooldownStore.typeABenchBaseMs)
+                        .coerceIn(1_000L, 5L * 60_000L)
+                    ModelCooldownStore.markShortBench(providerId, model, System.currentTimeMillis() + benchMs)
+                    sig.set(true)
+                    return response
+                }
+            }
+        }
         // Resolve caps lazily per 429 — the user can change the
         // global / per-provider settings while a call is in flight
         // and the next iteration of the retry loop picks up the new
@@ -234,7 +254,7 @@ internal fun retryAfterFromHeaderBlock(headers: String?): Long? {
  *  harmless no-op there). Returns null when neither is present
  *  or parseable. `peekBody` leaves the real response body
  *  untouched for the downstream parser. */
-private fun retryAfterHintMs(response: Response, peekedBody: String?): Long? {
+internal fun retryAfterHintMs(response: Response, peekedBody: String?): Long? {
     val raw = response.header("Retry-After") ?: response.header("retry-after")
     if (!raw.isNullOrBlank()) {
         val trimmed = raw.trim()
@@ -269,7 +289,7 @@ private fun retryAfterHintMs(response: Response, peekedBody: String?): Long? {
  *  every other provider carries it in the JSON request body's
  *  `model` field. The request has already been sent by the time
  *  this runs, so re-reading the body is inspection-only. */
-private fun modelForRequest(request: okhttp3.Request): String? {
+internal fun modelForRequest(request: okhttp3.Request): String? {
     if (request.url.host == "generativelanguage.googleapis.com") {
         return request.url.pathSegments.lastOrNull()
             ?.substringBefore(":")?.takeIf { it.isNotBlank() }

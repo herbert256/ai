@@ -466,6 +466,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             NetworkSettings.retryBackoffMs429 = bs.first.retryBackoffMs429
             NetworkSettings.maxRetriesOn529 = bs.first.maxRetriesOn529
             NetworkSettings.retryBackoffMs529 = bs.first.retryBackoffMs529
+            com.ai.data.ModelCooldownStore.typeABenchEnabled = bs.first.typeABenchEnabled
+            com.ai.data.ModelCooldownStore.typeABenchBaseMs = bs.first.typeABenchSeconds.coerceAtLeast(1) * 1000L
+            com.ai.data.ModelCooldownStore.typeABenchMaxAttempts = bs.first.typeABenchMaxAttempts.coerceAtLeast(1)
             ApiCallCaps.resetForNewLimits(globalMax = bs.first.maxConcurrentApiCalls)
             AppLog.v(
                 startTag,
@@ -1148,6 +1151,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         NetworkSettings.retryBackoffMs429 = settings.retryBackoffMs429
         NetworkSettings.maxRetriesOn529 = settings.maxRetriesOn529
         NetworkSettings.retryBackoffMs529 = settings.retryBackoffMs529
+        com.ai.data.ModelCooldownStore.typeABenchEnabled = settings.typeABenchEnabled
+        com.ai.data.ModelCooldownStore.typeABenchBaseMs = settings.typeABenchSeconds.coerceAtLeast(1) * 1000L
+        com.ai.data.ModelCooldownStore.typeABenchMaxAttempts = settings.typeABenchMaxAttempts.coerceAtLeast(1)
         AppLog.threshold = settings.effectiveLogLevel()
         // Java's Semaphore can't be resized in place — clear the
         // per-host map so the next acquire builds a fresh semaphore at

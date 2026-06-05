@@ -1149,6 +1149,16 @@ class FanOutEngine internal constructor(
                         register = { item, d ->
                             pairJobs[item.placeholder.id] = d
                             d.invokeOnCompletion { pairJobs.remove(item.placeholder.id, d) }
+                        },
+                        // Type-A fixed-model batch: a 429/529 short-benches the
+                        // answerer model and re-queues the pair (and parks its
+                        // same-model siblings) instead of erroring outright.
+                        benchEnabled = com.ai.data.ModelCooldownStore.typeABenchEnabled,
+                        benchKey = { item -> item.answerer.provider to item.answerer.model },
+                        onBenchRetry = { item ->
+                            restoreBenchedPairForRequeue(
+                                context, rk, item.placeholder.id, item.answerer.agentId, item.source.agentId
+                            )
                         }
                     ) { item ->
                         val question = langCtx?.prompt ?: report.prompt
@@ -1279,6 +1289,27 @@ class FanOutEngine internal constructor(
      *  which calls this as its body — so this runs with the permits held.
      *  Keeps its own local 60s withTimeout (caught here so a runaway
      *  model fails just this pair). */
+    /** Reset a pair the bench loop is about to re-queue: clear the error the
+     *  failed attempt persisted so the row re-reads as a fresh placeholder,
+     *  and put the in-memory pair back to PENDING (it shows as Bench while its
+     *  model is short-benched, then Queue once the bench lifts). */
+    private fun restoreBenchedPairForRequeue(
+        context: Context, runKey: FanOutRunKey,
+        placeholderId: String, answererAgentId: String, sourceAgentId: String
+    ) {
+        val reportId = runKey.substringBefore('|')
+        val pk = pairKey(answererAgentId, sourceAgentId)
+        SecondaryResultStorage.get(context, reportId, placeholderId)?.let { saved ->
+            SecondaryResultStorage.save(
+                context,
+                saved.copy(content = null, errorMessage = null, durationMs = null, tokenUsage = null)
+            )
+        }
+        transitionPair(runKey, pk) {
+            it.copy(status = PairStatus.PENDING, content = null, errorMessage = null, durationMs = null)
+        }
+    }
+
     private suspend fun runOnePair(
         context: Context,
         runKey: FanOutRunKey,
