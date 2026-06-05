@@ -375,21 +375,22 @@ private fun JudgeEvalL1(
     val shortBenches by com.ai.data.ModelCooldownStore.shortBenches.collectAsState()
     fun shortBenched(p: String, m: String): Boolean =
         (shortBenches["$p:$m"] ?: 0L) > System.currentTimeMillis()
-    val benchCount = run.cells.values.count {
-        it.status != JudgeCellStatus.DONE && shortBenched(it.judgeProviderId, it.judgeModel)
-    }
-    val errorCount = run.cells.values.count {
-        it.status == JudgeCellStatus.ERROR && !shortBenched(it.judgeProviderId, it.judgeModel)
-    }
-    val runningCount = run.cells.values.count {
-        it.status == JudgeCellStatus.RUNNING && !shortBenched(it.judgeProviderId, it.judgeModel)
-    }
-    val throttledCount = run.cells.values.count {
-        it.id in throttled && !shortBenched(it.judgeProviderId, it.judgeModel)
-    }
-    val queuedCount = run.cells.values.count {
-        it.status == JudgeCellStatus.PENDING && it.id !in throttled && !shortBenched(it.judgeProviderId, it.judgeModel)
-    }
+    // Counters via the shared single-pass helper. Fixed-model batch
+    // (category A, MODEL_PARKED): any non-done cell of a short-benched
+    // judge is carved into its own Bench column.
+    val counts = deriveBatchCounts(
+        items = run.cells.values,
+        idOf = { it.id },
+        statusOf = { it.status },
+        throttledIds = throttled,
+        benchedOf = { shortBenched(it.judgeProviderId, it.judgeModel) },
+        benchMode = BenchMode.MODEL_PARKED,
+    )
+    val errorCount = counts.error
+    val runningCount = counts.running
+    val benchCount = counts.bench
+    val throttledCount = counts.wait
+    val queuedCount = counts.queued
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "judge_eval_l1", title = "Judge the judges",

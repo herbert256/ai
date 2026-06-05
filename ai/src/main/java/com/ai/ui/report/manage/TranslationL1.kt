@@ -116,22 +116,24 @@ internal fun TranslationL1Screen(
     val cooldowns by com.ai.data.ModelCooldownStore.cooldowns.collectAsState()
     fun benched(p: String?, m: String?): Boolean =
         p != null && m != null && (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
-    val doneCount = items.count { it.status == TranslationStatus.DONE }
-    // Errors and Bench split the errored set — a benched item will
-    // recover once its cooldown lifts, so it's counted separately.
-    val errorCount = items.count {
-        it.status == TranslationStatus.ERROR && !benched(it.providerId, it.model)
-    }
-    val benchCount = items.count {
-        it.status == TranslationStatus.ERROR && benched(it.providerId, it.model)
-    }
-    val runningCount = items.count { it.status == TranslationStatus.RUNNING }
-    // Throttled = PENDING items currently parked on a provider's rate /
-    // concurrency gate. Carved out of Queue so the two columns don't
-    // double-count the same item; never overlaps Run (RUNNING is set only
-    // after the gate, by which point the item has left the throttled set).
-    val throttledCount = items.count { it.id in throttledSet }
-    val queuedCount = items.count { it.status == TranslationStatus.PENDING && it.id !in throttledSet }
+    // Counters via the shared single-pass helper. Worker-swarm batch
+    // (category B, ERRORED): benched errors fold into Error (no Bench
+    // column); a throttled item (always PENDING — RUNNING is set only
+    // after the gate) is carved out of Queue into Wait.
+    val counts = deriveBatchCounts(
+        items = items,
+        idOf = { it.id },
+        statusOf = { it.status },
+        throttledIds = throttledSet,
+        benchedOf = { benched(it.providerId, it.model) },
+        benchMode = BenchMode.ERRORED,
+    )
+    val doneCount = counts.done
+    val errorCount = counts.error
+    val benchCount = counts.bench
+    val runningCount = counts.running
+    val throttledCount = counts.wait
+    val queuedCount = counts.queued
 
     // Group items by the model that handled them. Unassigned PENDING
     // items (providerId/model still null) drop out — they show only

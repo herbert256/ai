@@ -307,7 +307,14 @@ private fun TournamentL1(
     onOpenView: (() -> Unit)?,
     onBack: () -> Unit
 ) {
-    val throttledCount = run.matches.values.count { it.id in throttled }
+    // Counters via the shared single-pass helper (category B, NONE): a
+    // rate-gated match counts only under Wait, not also Run.
+    val counts = deriveBatchCounts(
+        items = run.matches.values,
+        idOf = { it.id },
+        statusOf = { it.status },
+        throttledIds = throttled,
+    )
     Column(Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
             helpTopic = "tournament_l1", title = "Tournament",
@@ -321,12 +328,12 @@ private fun TournamentL1(
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
             Spacer(Modifier.height(8.dp))
             BatchStatsRow(listOf(
-                Triple("Total", run.totalMatches.toString(), AppColors.InfoAccent),
-                Triple("Done", run.doneCount.toString(), AppColors.SuccessAccent),
-                Triple("Error", run.errorCount.toString(), AppColors.DangerAccent),
-                Triple("Run", run.runningCount.toString(), AppColors.WarningAccent),
-                Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
-                Triple("Queue", run.queuedCount.toString(), AppColors.QueueAccent),
+                Triple("Total", counts.total.toString(), AppColors.InfoAccent),
+                Triple("Done", counts.done.toString(), AppColors.SuccessAccent),
+                Triple("Error", counts.error.toString(), AppColors.DangerAccent),
+                Triple("Run", counts.running.toString(), AppColors.WarningAccent),
+                Triple("Wait", counts.wait.toString(), AppColors.CautionAccent),
+                Triple("Queue", counts.queued.toString(), AppColors.QueueAccent),
                 Triple("Costs", "${formatCents(run.totalCost, 2)} ¢", AppColors.InfoAccent)
             ))
             Spacer(Modifier.height(12.dp))

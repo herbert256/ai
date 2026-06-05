@@ -107,7 +107,8 @@ internal fun FanMetaL1Screen(
         ?.let { "${run.metaPrompt.name} — $it" } ?: run.metaPrompt.name
 
     // Status lens — titleStatus folds in the "finished but no content"
-    // ERROR case the raw field misses.
+    // ERROR case the raw field misses. Used by the per-group rows below;
+    // the L1 stat counts go through deriveBatchCounts.
     fun lens(p: PairState, set: Set<String>): PairStatus = p.titleStatus(set)
     fun metaDone(p: PairState): Boolean = !p.title.isNullOrBlank()
     // Per-pair Fan Meta spend (title + icon worker calls).
@@ -135,12 +136,23 @@ internal fun FanMetaL1Screen(
         )
 
         // Status counts + cost — title-batch status lens.
-        val doneCount = run.pairs.values.count { metaDone(it) }
-        val errorCount = run.pairs.values.count { lens(it, runningSet) == PairStatus.ERROR && !benched(it.providerId, it.model) }
-        val benchCount = run.pairs.values.count { lens(it, runningSet) == PairStatus.ERROR && benched(it.providerId, it.model) }
-        val runningCount = run.pairs.values.count { lens(it, runningSet) == PairStatus.RUNNING && it.id !in throttledSet }
-        val throttledHere = remember(run, throttledSet) { run.pairs.values.count { it.id in throttledSet } }
-        val queuedCount = run.pairs.values.count { lens(it, runningSet) == PairStatus.PENDING && it.id !in throttledSet }
+        // Counters via the shared single-pass helper. Worker-swarm batch
+        // (category B, ERRORED): status is the title-batch lens; benched
+        // errors fold into Error below (no separate Bench column).
+        val counts = deriveBatchCounts(
+            items = run.pairs.values,
+            idOf = { it.id },
+            statusOf = { it.titleStatus(runningSet) },
+            throttledIds = throttledSet,
+            benchedOf = { benched(it.providerId, it.model) },
+            benchMode = BenchMode.ERRORED,
+        )
+        val doneCount = counts.done
+        val errorCount = counts.error
+        val benchCount = counts.bench
+        val runningCount = counts.running
+        val throttledHere = counts.wait
+        val queuedCount = counts.queued
         val allDone = run.totalPairs > 0 && doneCount == run.totalPairs
         Spacer(modifier = Modifier.height(8.dp))
         // Worker-swarm batch (category B): a benched meta-worker is

@@ -149,22 +149,24 @@ internal fun FanOutL1Screen(
         // Status counts + cost — pinned at the top of the page so
         // they stay put as the model list scrolls; kept visible even
         // once every pair is done.
-        val doneCount = run.doneCount
-        // Bench = items whose model is short-benched (parked on a 429/529
-        // backoff, waiting to re-queue). Takes precedence over the other
-        // non-done columns so a parked item shows there, not in Run/Wait/Queue.
-        val benchCount = run.pairs.values.count { it.status != PairStatus.DONE && shortBenched(it.providerId, it.model) }
-        val errorCount = run.pairs.values.count { it.status == PairStatus.ERROR && !shortBenched(it.providerId, it.model) }
-        val runningCount = run.pairs.values.count { it.status == PairStatus.RUNNING && !shortBenched(it.providerId, it.model) }
-        val throttledHere = remember(run, throttledSet, shortBenches) {
-            run.pairs.values.count { it.id in throttledSet && !shortBenched(it.providerId, it.model) }
-        }
-        // Queue excludes pairs blocked on a host rate-limit cap (Wait) and
-        // pairs parked on a model bench (Bench), so the columns don't
-        // double-count the same pending pair.
-        val queuedCount = run.pairs.values.count {
-            it.status == PairStatus.PENDING && it.id !in throttledSet && !shortBenched(it.providerId, it.model)
-        }
+        // Counters via the shared single-pass helper. Fixed-model batch
+        // (category A, MODEL_PARKED): any non-done pair of a short-benched
+        // model is carved into its own Bench column, out of Error / Run /
+        // Wait / Queue.
+        val counts = deriveBatchCounts(
+            items = run.pairs.values,
+            idOf = { it.id },
+            statusOf = { it.status },
+            throttledIds = throttledSet,
+            benchedOf = { shortBenched(it.providerId, it.model) },
+            benchMode = BenchMode.MODEL_PARKED,
+        )
+        val doneCount = counts.done
+        val errorCount = counts.error
+        val benchCount = counts.bench
+        val runningCount = counts.running
+        val throttledHere = counts.wait
+        val queuedCount = counts.queued
         // Whole run finished cleanly — every row would otherwise show
         // ✅ on a full green fill. Drop both per row so a completed
         // run reads calmly instead of as a wall of check marks.

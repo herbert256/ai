@@ -899,6 +899,9 @@ class TranslationRunManager(
             .listForReport(context, sourceReportId, SecondaryKind.TRANSLATE)
             .filter { translationRunGroupingId(it) == runId && it.errorMessage != null }
         if (rows.isEmpty()) return@launch
+        // Explicit user re-fire — clear any resume-cap attempt counts so
+        // these rows get a fresh BatchResume.MAX_ATTEMPTS budget.
+        BatchResume.resetAttempts(rows.map { it.id })
         runTranslationSubset(
             context, sourceReportId, runId,
             rows.map { it.translateSourceTargetId.orEmpty() to it.translateSourceKind.orEmpty() },
@@ -1029,6 +1032,9 @@ class TranslationRunManager(
         }
         if (pairs.isEmpty()) return@launch
 
+        // Explicit user re-fire — clear any resume-cap attempt counts so
+        // these rows get a fresh BatchResume.MAX_ATTEMPTS budget.
+        BatchResume.resetAttempts(existing.map { it.id })
         runTranslationSubset(
             context, sourceReportId, runId, pairs,
             deleteRowIds = existing.map { it.id }
@@ -1068,7 +1074,34 @@ class TranslationRunManager(
             }
             return@launch
         }
-        val missing = placeholders.map {
+        // Bound auto-resume: a placeholder that never settles (repeated
+        // app-kill / cancel before it completes) would otherwise re-dispatch
+        // on every sweep forever. Cap it at BatchResume.MAX_ATTEMPTS the same
+        // way the Tournament / Judge / Compare engines do — exhausted
+        // placeholders are stamped ERROR instead of re-fired. The placeholder
+        // row id is stable across passes (deleteRowIds is empty here), so the
+        // per-row attempt count accumulates correctly.
+        val retryRows = BatchResume.capForRetry(placeholders) { row ->
+            val msg = "Interrupted — no result after ${BatchResume.MAX_ATTEMPTS} resume attempts"
+            SecondaryResultStorage.saveIfStillPresent(context, row.copy(errorMessage = msg, durationMs = 0L))
+            _translationRuns.update { runs ->
+                val cur = runs[runId] ?: return@update runs
+                runs + (runId to cur.copy(items = cur.items.map {
+                    if (it.persistedRowId == row.id)
+                        it.copy(status = TranslationStatus.ERROR, errorMessage = msg)
+                    else it
+                }))
+            }
+        }
+        if (retryRows.isEmpty()) {
+            _translationRuns.update { runs ->
+                val cur = runs[runId] ?: return@update runs
+                if (cur.finished) return@update runs
+                runs + (runId to cur.copy(finished = true))
+            }
+            return@launch
+        }
+        val missing = retryRows.map {
             (it.translateSourceTargetId.orEmpty()) to (it.translateSourceKind.orEmpty())
         }
         runTranslationSubset(context, sourceReportId, runId, missing, deleteRowIds = emptyList())
