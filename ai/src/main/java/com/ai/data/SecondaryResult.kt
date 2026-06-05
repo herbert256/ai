@@ -433,7 +433,9 @@ object SecondaryResultStorage {
      *  icon back. */
     fun setFanOutIconError(
         context: Context, reportId: String, resultId: String,
-        errorMessage: String
+        errorMessage: String,
+        iconRunId: String? = null,
+        promptUsed: String? = null
     ) {
         init(context)
         lock.withLock {
@@ -442,7 +444,11 @@ object SecondaryResultStorage {
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
                 catch (_: Exception) { return }
-            val updated = current.copy(iconErrorMessage = errorMessage)
+            val updated = current.copy(
+                iconErrorMessage = errorMessage,
+                iconRunId = iconRunId ?: current.iconRunId,
+                iconPromptUsed = promptUsed ?: current.iconPromptUsed
+            )
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)
         }
@@ -573,7 +579,8 @@ object SecondaryResultStorage {
     fun setFanOutTitle(
         context: Context, reportId: String, resultId: String,
         title: String, titleRunId: String? = null, promptUsed: String? = null,
-        durationMs: Long? = null
+        durationMs: Long? = null,
+        model: String? = null
     ) {
         init(context)
         lock.withLock {
@@ -587,7 +594,8 @@ object SecondaryResultStorage {
                 titleErrorMessage = null,
                 titleRunId = titleRunId ?: current.titleRunId,
                 titlePromptUsed = promptUsed ?: current.titlePromptUsed,
-                titleDurationMs = durationMs ?: current.titleDurationMs
+                titleDurationMs = durationMs ?: current.titleDurationMs,
+                titleModel = model ?: current.titleModel
             )
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)
@@ -598,7 +606,10 @@ object SecondaryResultStorage {
      *  [setFanOutIconError]; retry clears it by writing a title back. */
     fun setFanOutTitleError(
         context: Context, reportId: String, resultId: String,
-        errorMessage: String
+        errorMessage: String,
+        titleRunId: String? = null,
+        promptUsed: String? = null,
+        model: String? = null
     ) {
         init(context)
         lock.withLock {
@@ -607,7 +618,12 @@ object SecondaryResultStorage {
             if (!target.exists()) return
             val current = try { gson.fromJson(target.readText(), SecondaryResult::class.java) }
                 catch (_: Exception) { return }
-            val updated = current.copy(titleErrorMessage = errorMessage)
+            val updated = current.copy(
+                titleErrorMessage = errorMessage,
+                titleRunId = titleRunId ?: current.titleRunId,
+                titlePromptUsed = promptUsed ?: current.titlePromptUsed,
+                titleModel = model ?: current.titleModel
+            )
             target.writeTextAtomic(gson.toJson(updated))
             listCache[reportId]?.remove(target.name)
         }

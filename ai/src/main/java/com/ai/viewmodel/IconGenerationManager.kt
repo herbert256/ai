@@ -2697,7 +2697,7 @@ class IconGenerationManager(
                         if (!SecondaryResultStorage.exists(context, reportId, pair.id)) return@runThrottledBatch
                         appViewModel.updateRunningFanMetaPairs { it + pair.id }
                         try {
-                            runFanMetaForPair(context, reportId, pair, fanMetaPrompt, aiSettings)
+                            runFanMetaForPair(context, reportId, pair, fanMetaPrompt, aiSettings, fanRunId)
                         } finally {
                             appViewModel.updateRunningFanMetaPairs { it - pair.id }
                             // acquireOrWait clears its own wait notification, but
@@ -2718,10 +2718,18 @@ class IconGenerationManager(
                             it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null &&
                                 it.fanInOf == null && !it.content.isNullOrBlank() &&
                                 it.title.isNullOrBlank() && it.icon.isNullOrBlank() && it.id !in running
-                        }
+                    }
                     BatchResume.finalizeLeftover(leftover) {
-                        SecondaryResultStorage.setFanOutTitleError(context, reportId, it.id, "Interrupted — run stopped before this finished")
-                        SecondaryResultStorage.setFanOutIconError(context, reportId, it.id, "Interrupted — run stopped before this finished")
+                        SecondaryResultStorage.setFanOutTitleError(
+                            context, reportId, it.id, "Interrupted — run stopped before this finished",
+                            titleRunId = fanRunId,
+                            promptUsed = "fan-meta"
+                        )
+                        SecondaryResultStorage.setFanOutIconError(
+                            context, reportId, it.id, "Interrupted — run stopped before this finished",
+                            iconRunId = fanRunId,
+                            promptUsed = "fan-meta"
+                        )
                     }
                     // Mirror the interrupted-error rows into memory so the L1
                     // counters settle live now that the 3s re-hydrate is gone.
@@ -2737,7 +2745,7 @@ class IconGenerationManager(
      *  reply and stores BOTH. Worker engine handles random pick + 429. */
     private suspend fun runFanMetaForPair(
         context: Context, reportId: String, pair: SecondaryResult,
-        fanMetaPrompt: InternalPrompt, aiSettings: Settings
+        fanMetaPrompt: InternalPrompt, aiSettings: Settings, fanRunId: String
     ) {
         val started = System.currentTimeMillis()
         val resolved = fanMetaPrompt.text.replace("@PROMPT@", pair.content.orEmpty())
@@ -2778,6 +2786,7 @@ class IconGenerationManager(
                 val winAgent = aiSettings.resolveWorker(outcome.worker)?.let {
                     it.copy(model = aiSettings.getEffectiveModelForAgent(it))
                 }
+                val titleModel = winAgent?.let { "${it.provider.id}/${it.model}" }
                 val tu = outcome.response.tokenUsage
                 val inT = tu?.inputTokens ?: 0
                 val outT = tu?.outputTokens ?: 0
@@ -2788,30 +2797,44 @@ class IconGenerationManager(
                         context, reportId, pair.id,
                         inputTokens = inT, outputTokens = outT,
                         inputCost = inC, outputCost = outC,
-                        model = "${winAgent.provider.id}/${winAgent.model}"
+                        model = titleModel
                     )
                     appViewModel.settingsPrefs.updateUsageStatsAsync(winAgent.provider, winAgent.model, tu, kind = "title")
                 }
                 if (title.isNotBlank()) {
                     SecondaryResultStorage.setFanOutTitle(
                         context, reportId, pair.id, title,
-                        titleRunId = ApiTracer.currentRunId, promptUsed = "fan-meta",
-                        durationMs = System.currentTimeMillis() - started
+                        titleRunId = fanRunId, promptUsed = "fan-meta",
+                        durationMs = System.currentTimeMillis() - started,
+                        model = titleModel
                     )
                 } else {
-                    SecondaryResultStorage.setFanOutTitleError(context, reportId, pair.id, "no title in reply")
+                    SecondaryResultStorage.setFanOutTitleError(
+                        context, reportId, pair.id, "no title in reply",
+                        titleRunId = fanRunId,
+                        promptUsed = "fan-meta",
+                        model = titleModel
+                    )
                 }
                 SecondaryResultStorage.setFanOutIconAndTier(
                     context, reportId, pair.id, emoji, winningTier = null,
-                    iconRunId = ApiTracer.currentRunId, promptUsed = "fan-meta"
+                    iconRunId = fanRunId, promptUsed = "fan-meta"
                 )
                 appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
             }
             else -> {
                 val msg = if (outcome is WorkerOutcome.AllRateLimited) "fan-meta: all workers rate-limited"
                           else "fan-meta: no worker produced a result"
-                SecondaryResultStorage.setFanOutTitleError(context, reportId, pair.id, msg)
-                SecondaryResultStorage.setFanOutIconError(context, reportId, pair.id, msg)
+                SecondaryResultStorage.setFanOutTitleError(
+                    context, reportId, pair.id, msg,
+                    titleRunId = fanRunId,
+                    promptUsed = "fan-meta"
+                )
+                SecondaryResultStorage.setFanOutIconError(
+                    context, reportId, pair.id, msg,
+                    iconRunId = fanRunId,
+                    promptUsed = "fan-meta"
+                )
                 appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
             }
         }

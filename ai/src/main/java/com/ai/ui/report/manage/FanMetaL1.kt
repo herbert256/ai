@@ -121,7 +121,7 @@ internal fun FanMetaL1Screen(
         p != null && m != null && (cooldowns["$p:$m"] ?: 0L) > System.currentTimeMillis()
 
     // 🐞 deep-link target: the most recent Fan Meta sweep on these pairs.
-    val l1RunId = run.pairs.values.firstNotNullOfOrNull { it.titleRunId }
+    val l1RunId = run.pairs.values.firstNotNullOfOrNull { it.titleRunId ?: it.iconRunId }
 
     Column(modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)) {
         TitleBar(
