@@ -185,7 +185,7 @@ class TournamentEngine internal constructor(
      *  placeholders (sentinel provider/model) + one AGGREGATE placeholder,
      *  publishes the run with all matches PENDING, runs each match through
      *  the worker batch, then folds the verdicts into the aggregate ranking. */
-    fun startRun(context: Context, reportId: String): Job? {
+    fun startRun(context: Context, reportId: String, buildKey: String? = null): Job? {
         val rk = tournamentRunKey(reportId)
         runJobs[rk]?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -222,6 +222,9 @@ class TournamentEngine internal constructor(
 
                     val pending = mutableListOf<PendingMatch>()
                     val newMatches = LinkedHashMap<String, MatchState>()
+                    // Build stage: create every match placeholder up front.
+                    if (buildKey != null) appViewModel.beginBuild(buildKey, matchCountFor(successful.size), "Building tournament")
+                    var built = 0
                     for (i in successful.indices) {
                         for (j in i + 1 until successful.size) {
                             val a = successful[i]; val b = successful[j]
@@ -240,9 +243,11 @@ class TournamentEngine internal constructor(
                                 }
                                 pending.add(PendingMatch(aa, bb, orient, placeholder))
                                 placeholder.toMatchState()?.let { newMatches[it.key] = it }
+                                if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
                             }
                         }
                     }
+                    if (buildKey != null) appViewModel.finishBuild(buildKey)
 
                     _runs.update { runs ->
                         runs + (rk to TournamentRunState(
@@ -260,6 +265,10 @@ class TournamentEngine internal constructor(
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
                 finalizeLeftoverMatches(context, reportId)
+                if (buildKey != null) {
+                    val p = appViewModel.batchBuildProgress.value[buildKey]
+                    if (p != null && !p.done) appViewModel.clearBuild(buildKey)
+                }
             }
         }
         runJobs[rk] = job

@@ -518,8 +518,8 @@ fun ReportsScreenNav(
         onTranslateMissingItems = { reportId, items, target, targetNative ->
             reportViewModel.translation.translateMissingItems(context, reportId, items, target, targetNative)
         },
-        onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds, systemPromptId, includeSelf ->
-            reportViewModel.fanOutEngine.startRun(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds = paramsIds, systemPromptId = systemPromptId, includeSelfResponses = includeSelf)
+        onRunFanOut = { reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds, systemPromptId, includeSelf, buildKey ->
+            reportViewModel.fanOutEngine.startRun(context, reportId, metaPrompt, scopeChoice, responderIds, sourceLanguage, paramsIds = paramsIds, systemPromptId = systemPromptId, includeSelfResponses = includeSelf, buildKey = buildKey)
         },
         onRunFanIn = { reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId ->
             reportViewModel.secondary.runFanInPrompt(context, reportId, metaPrompt, sourceLanguage, paramsIds, systemPromptId)
@@ -543,11 +543,17 @@ fun ReportsScreenNav(
         onRunModeration = { reportId, languageScope ->
             reportViewModel.secondary.runModeration(context, reportId, languageScope)
         },
-        onRunTournament = { reportId ->
-            reportViewModel.tournamentEngine.startRun(context, reportId)
+        onRunTournament = { reportId, buildKey ->
+            reportViewModel.tournamentEngine.startRun(context, reportId, buildKey)
         },
-        onRunJudgeJudges = { reportId ->
-            reportViewModel.judgeEvalEngine.startRun(context, reportId)
+        onRunJudgeJudges = { reportId, buildKey ->
+            reportViewModel.judgeEvalEngine.startRun(context, reportId, buildKey)
+        },
+        onDeleteTournamentRun = { reportId ->
+            reportViewModel.tournamentEngine.deleteRun(context, reportId)
+        },
+        onDeleteJudgeRun = { reportId ->
+            reportViewModel.judgeEvalEngine.deleteRun(context, reportId)
         },
         onDeleteSecondary = { reportId, resultId ->
             reportViewModel.secondary.deleteSecondaryResult(context, reportId, resultId)

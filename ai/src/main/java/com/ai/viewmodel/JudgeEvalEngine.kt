@@ -189,7 +189,7 @@ class JudgeEvalEngine internal constructor(
      *  answer-pairs, pre-create judges×matches CELL placeholders + one
      *  AGGREGATE placeholder, judge every cell with its fixed judge, then fold
      *  the verdicts into the per-judge agreement analysis. */
-    fun startRun(context: Context, reportId: String): Job? {
+    fun startRun(context: Context, reportId: String, buildKey: String? = null): Job? {
         val rk: JudgeEvalRunKey = reportId
         runJobs[rk]?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -239,6 +239,9 @@ class JudgeEvalEngine internal constructor(
 
                     val pending = mutableListOf<PendingCell>()
                     val newCells = LinkedHashMap<String, JudgeCellState>()
+                    // Build stage: create every (match × judge) cell up front.
+                    if (buildKey != null) appViewModel.beginBuild(buildKey, chosen.size * judges.size, "Building judge-the-judges")
+                    var built = 0
                     for ((aId, bId, orient) in chosen) {
                         for (judge in judges) {
                             val placeholder = SecondaryResultStorage.create(
@@ -254,8 +257,10 @@ class JudgeEvalEngine internal constructor(
                             }
                             pending.add(PendingCell(judge, aId, bId, orient, placeholder))
                             placeholder.toJudgeCellState()?.let { newCells[it.key] = it }
+                            if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
                         }
                     }
+                    if (buildKey != null) appViewModel.finishBuild(buildKey)
 
                     _runs.update { runs ->
                         runs + (rk to JudgeEvalRunState(
@@ -272,6 +277,10 @@ class JudgeEvalEngine internal constructor(
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
                 finalizeLeftoverCells(context, reportId)
+                if (buildKey != null) {
+                    val p = appViewModel.batchBuildProgress.value[buildKey]
+                    if (p != null && !p.done) appViewModel.clearBuild(buildKey)
+                }
             }
         }
         runJobs[rk] = job

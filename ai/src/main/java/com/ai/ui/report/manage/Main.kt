@@ -217,7 +217,7 @@ fun ReportsScreen(
     /** Fired by the View screen's "Language missing" popup. Routes
      *  to ReportViewModel.translateMissingItems. */
     onTranslateMissingItems: (String, List<com.ai.viewmodel.TranslateMissingItem>, String, String) -> Unit = { _, _, _, _ -> },
-    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?, List<String>, String?, Boolean) -> Unit = { _, _, _, _, _, _, _, _ -> },
+    onRunFanOut: (String, com.ai.model.InternalPrompt, com.ai.data.SecondaryScope, Set<String>?, String?, List<String>, String?, Boolean, String?) -> Unit = { _, _, _, _, _, _, _, _, _ -> },
     onRunFanIn: (String, com.ai.model.InternalPrompt, String?, List<String>, String?) -> Unit = { _, _, _, _, _ -> },
     /** Promote the L2 active model's fan-out conversation into a
      *  fresh AI Report. Args: source reportId, active provider id,
@@ -227,8 +227,10 @@ fun ReportsScreen(
     onRunLocalRerank: (String, String) -> Unit = { _, _ -> },
     onRunRerank: (String, com.ai.data.SecondaryLanguageScope, List<String>, String?) -> Unit = { _, _, _, _ -> },
     onRunModeration: (String, com.ai.data.SecondaryLanguageScope) -> Unit = { _, _ -> },
-    onRunTournament: (String) -> Unit = { },
-    onRunJudgeJudges: (String) -> Unit = { },
+    onRunTournament: (String, String?) -> Unit = { _, _ -> },
+    onRunJudgeJudges: (String, String?) -> Unit = { _, _ -> },
+    onDeleteTournamentRun: (String) -> Unit = { },
+    onDeleteJudgeRun: (String) -> Unit = { },
     onDeleteSecondary: (String, String) -> Unit = { _, _ -> },
     /** Bulk delete on the report VM's viewModelScope so a Stop /
      *  navigate-away during a Fan-out delete doesn't abandon a half-
@@ -542,6 +544,19 @@ fun ReportsScreen(
     var pendingBuildKey by st.pendingBuildKey
     var pendingBuildNav by st.pendingBuildNav
     var pendingBuildCancel by st.pendingBuildCancel
+    // Shared launcher for batches whose confirm lives in a child screen
+    // (Run.kt's Tournament / Judges): seed the popup + store the deferred
+    // nav and a Cancel that runs the engine cleanup then tears down.
+    val armBuildStage: (String, String, () -> Unit, () -> Unit) -> Unit = { key, label, nav, cancel ->
+        onBeginBuild(key, 0, label)
+        pendingBuildKey = key
+        pendingBuildNav = nav
+        pendingBuildCancel = {
+            cancel()
+            onClearBuild(key)
+            pendingBuildKey = null; pendingBuildNav = null; pendingBuildCancel = null
+        }
+    }
     // Bumped after an alt-translation pick overwrites a row so the
     // (yielded → remounted) translation run reloads from disk.
     var translationRunRefreshTick by rememberSaveable { mutableStateOf(0) }
@@ -996,19 +1011,31 @@ fun ReportsScreen(
                     showFanOutPicker = false
                     pendingSecondaryScope = com.ai.data.SecondaryScope.AllReports
                     pendingLanguageScope = com.ai.data.SecondaryLanguageScope.AllPresent
+                    // Build stage: block behind "Preparing…" while the pairs
+                    // are created, then land on the Fan Out L1 page once done.
+                    val rid = currentReportId
+                    val key = java.util.UUID.randomUUID().toString()
+                    onBeginBuild(key, 0, "Building fan-out")
+                    pendingBuildKey = key
+                    pendingBuildNav = {
+                        listKind = SecondaryKind.META
+                        listFilterByName = mp.name
+                        listIsFanMeta = false
+                    }
+                    pendingBuildCancel = {
+                        fanOutEngine?.deleteRun(context, com.ai.data.runKey(rid, mp.id))
+                        onClearBuild(key)
+                        pendingBuildKey = null; pendingBuildNav = null; pendingBuildCancel = null
+                    }
                     onRunFanOut(
-                        currentReportId, mp,
+                        rid, mp,
                         com.ai.data.SecondaryScope.Manual(initiators),
                         responders,
                         sourceLanguage,
                         pIds, spId,
-                        fanOutSelfRespond
+                        fanOutSelfRespond,
+                        key
                     )
-                    // Land on the Fan Out L1 page so the user watches the
-                    // run progress instead of the report screen.
-                    listKind = SecondaryKind.META
-                    listFilterByName = mp.name
-                    listIsFanMeta = false
                 }
             )
         }
@@ -1591,7 +1618,10 @@ fun ReportsScreen(
             onRegenerate = onRegenerate,
             onChatWithReportPrompt = onChatWithReportPrompt,
             onRunTournament = onRunTournament,
-            onRunJudgeJudges = onRunJudgeJudges
+            onRunJudgeJudges = onRunJudgeJudges,
+            onArmBuildStage = armBuildStage,
+            onDeleteTournamentRun = onDeleteTournamentRun,
+            onDeleteJudgeRun = onDeleteJudgeRun
         )
     }
 }

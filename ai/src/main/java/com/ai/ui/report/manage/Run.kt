@@ -112,10 +112,16 @@ internal fun ReportRunScreen(
     /** Report-level info jobs whose call is actively in flight. */
     runningInfoJobs: Set<String> = emptySet(),
     onChatWithReportPrompt: (String) -> Unit,
-    /** Launch a worker-judged pairwise tournament on the report. */
-    onRunTournament: (String) -> Unit = { },
+    /** Launch a worker-judged pairwise tournament on the report (reportId,
+     *  build-stage key). */
+    onRunTournament: (String, String?) -> Unit = { _, _ -> },
     /** Launch the "Judge the judges" batch on the report. */
-    onRunJudgeJudges: (String) -> Unit = { }
+    onRunJudgeJudges: (String, String?) -> Unit = { _, _ -> },
+    /** Arm the build-stage popup: (buildKey, label, on-done nav, on-cancel). */
+    onArmBuildStage: (String, String, () -> Unit, () -> Unit) -> Unit = { _, _, _, _ -> },
+    /** Delete a tournament / judges run (build-stage Cancel cleanup). */
+    onDeleteTournamentRun: (String) -> Unit = { },
+    onDeleteJudgeRun: (String) -> Unit = { }
 ) {
     val aiSettings = uiState.aiSettings
     val context = LocalContext.current
@@ -219,9 +225,12 @@ internal fun ReportRunScreen(
             onRun = { promptId ->
                 val rid = currentReportId
                 compareSelectedMeta?.let { metaId ->
-                    compareEngine?.startRun(context, rid, listOf(metaId), promptId)
+                    // Build stage: block behind "Preparing…" while the cell
+                    // grid is created, then open the L1 once done.
+                    val key = java.util.UUID.randomUUID().toString()
+                    onArmBuildStage(key, "Building compare", { compareOpenState?.value = rid }, { compareEngine?.deleteRun(context, rid) })
+                    compareEngine?.startRun(context, rid, listOf(metaId), promptId, key)
                 }
-                compareOpenState?.value = rid
                 compareStep = 0
                 compareSelectedMeta = null
             },
@@ -783,9 +792,12 @@ internal fun ReportRunScreen(
                 },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = {
-                        currentReportId?.let {
-                            onRunTournament(it)
-                            tournamentOpenState?.value = it
+                        currentReportId?.let { rid ->
+                            // Build stage: block behind "Preparing…" while the
+                            // match grid is created, then open the L1 once done.
+                            val key = java.util.UUID.randomUUID().toString()
+                            onArmBuildStage(key, "Building tournament", { tournamentOpenState?.value = rid }, { onDeleteTournamentRun(rid) })
+                            onRunTournament(rid, key)
                         }
                         confirmTournament = false
                     }) { androidx.compose.material3.Text("Run") }
@@ -814,9 +826,10 @@ internal fun ReportRunScreen(
                 },
                 confirmButton = {
                     androidx.compose.material3.TextButton(onClick = {
-                        currentReportId?.let {
-                            onRunJudgeJudges(it)
-                            judgeEvalOpenState?.value = it
+                        currentReportId?.let { rid ->
+                            val key = java.util.UUID.randomUUID().toString()
+                            onArmBuildStage(key, "Building judge-the-judges", { judgeEvalOpenState?.value = rid }, { onDeleteJudgeRun(rid) })
+                            onRunJudgeJudges(rid, key)
                         }
                         confirmJudgeJudges = false
                     }) { androidx.compose.material3.Text("Run") }

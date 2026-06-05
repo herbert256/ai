@@ -1045,7 +1045,11 @@ class FanOutEngine internal constructor(
         systemPromptId: String? = null,
         /** When true, a model is also paired with its OWN answer (the
          *  self-pair the matrix normally skips). Default false. */
-        includeSelfResponses: Boolean = false
+        includeSelfResponses: Boolean = false,
+        /** Build-stage key for the blocking "Preparing…" popup; null on
+         *  resume / rerun paths (no popup). The build phase = creating the
+         *  per-pair placeholders below. */
+        buildKey: String? = null
     ): Job? {
         val rk = runKey(reportId, metaPrompt.id)
         runJobs[rk]?.let { if (it.isActive) return it }
@@ -1089,6 +1093,12 @@ class FanOutEngine internal constructor(
                     data class PendingPair(val answerer: ReportAgent, val source: ReportAgent, val placeholder: SecondaryResult)
                     val pending = mutableListOf<PendingPair>()
                     val newPairs = mutableMapOf<PairKey, PairState>()
+                    // Build stage: this nested loop is the disk-heavy phase the
+                    // "Preparing N / M…" popup covers (one create() per pair).
+                    val totalPairs = answerers.filter { AppService.findById(it.provider) != null }
+                        .sumOf { a -> sources.count { s -> includeSelfResponses || s.agentId != a.agentId } }
+                    if (buildKey != null) appViewModel.beginBuild(buildKey, totalPairs, "Building fan-out")
+                    var built = 0
                     for (answerer in answerers) {
                         val provider = AppService.findById(answerer.provider) ?: continue
                         for (source in sources) {
@@ -1111,8 +1121,10 @@ class FanOutEngine internal constructor(
                             }
                             pending.add(PendingPair(answerer, source, placeholder))
                             placeholder.toPairState(answerer.agentId)?.let { newPairs[it.key] = it }
+                            if (buildKey != null) { built++; if (built % 10 == 0) appViewModel.updateBuild(buildKey, built) }
                         }
                     }
+                    if (buildKey != null) appViewModel.finishBuild(buildKey)
                     // Publish the run state — preserve any existing
                     // combined-report rows already attached to this run.
                     val existingCombined = _runs.value[rk]?.combinedReports.orEmpty()
@@ -1161,6 +1173,13 @@ class FanOutEngine internal constructor(
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
                 finalizeLeftoverPairs(context, reportId, metaPrompt.id)
+                // Dismiss a stuck build popup if the job returned early before
+                // finishBuild (too few sources/answerers, report gone). On the
+                // success path the UI already cleared it on `done`.
+                if (buildKey != null) {
+                    val p = appViewModel.batchBuildProgress.value[buildKey]
+                    if (p != null && !p.done) appViewModel.clearBuild(buildKey)
+                }
             }
         }
         runJobs[rk] = job

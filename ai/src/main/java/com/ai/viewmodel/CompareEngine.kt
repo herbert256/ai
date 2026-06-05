@@ -167,7 +167,7 @@ class CompareEngine internal constructor(
      *  Pre-creates agents×meta CELL placeholders (sentinel provider/model),
      *  publishes the run with all cells PENDING, then scores each cell through
      *  the worker batch. */
-    fun startRun(context: Context, reportId: String, metaResultIds: List<String>, promptId: String): Job? {
+    fun startRun(context: Context, reportId: String, metaResultIds: List<String>, promptId: String, buildKey: String? = null): Job? {
         val rk: CompareRunKey = reportId
         runJobs[rk]?.let { if (it.isActive) return it }
         appViewModel.updateUiState { it.copy(activeSecondaryBatches = it.activeSecondaryBatches + 1) }
@@ -202,6 +202,9 @@ class CompareEngine internal constructor(
 
                     val pending = mutableListOf<PendingCell>()
                     val newCells = LinkedHashMap<String, CompareCellState>()
+                    // Build stage: create every (answer × meta) cell up front.
+                    if (buildKey != null) appViewModel.beginBuild(buildKey, cellCountFor(successful.size, metaRows.size), "Building compare")
+                    var built = 0
                     for (agent in successful) {
                         for (metaRow in metaRows) {
                             val placeholder = SecondaryResultStorage.create(
@@ -218,8 +221,10 @@ class CompareEngine internal constructor(
                             }
                             pending.add(PendingCell(agent.agentId, metaRow.id, placeholder))
                             placeholder.toCompareCellState()?.let { newCells[it.key] = it }
+                            if (buildKey != null) { built++; if (built % 5 == 0) appViewModel.updateBuild(buildKey, built) }
                         }
                     }
+                    if (buildKey != null) appViewModel.finishBuild(buildKey)
 
                     _runs.update { runs ->
                         runs + (rk to CompareRunState(
@@ -235,6 +240,10 @@ class CompareEngine internal constructor(
             } finally {
                 appViewModel.updateUiState { it.copy(activeSecondaryBatches = (it.activeSecondaryBatches - 1).coerceAtLeast(0)) }
                 finalizeLeftoverCells(context, reportId)
+                if (buildKey != null) {
+                    val p = appViewModel.batchBuildProgress.value[buildKey]
+                    if (p != null && !p.done) appViewModel.clearBuild(buildKey)
+                }
             }
         }
         runJobs[rk] = job
