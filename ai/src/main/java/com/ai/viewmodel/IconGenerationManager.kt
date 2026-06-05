@@ -2860,7 +2860,7 @@ class IconGenerationManager(
         }
     }
 
-    fun restartFanMetaErrors(context: Context, reportId: String, metaPromptId: String): Job? {
+    fun restartFanMetaErrors(context: Context, reportId: String, metaPromptId: String): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
             withContext(Dispatchers.IO) {
                 for (e in erroredFanMetaPairs(context, reportId, metaPromptId)) {
@@ -2869,7 +2869,12 @@ class IconGenerationManager(
                 }
             }
             appViewModel.updateUiState { it.copy(iconRefreshTick = it.iconRefreshTick + 1) }
+            // Run the batch only after the clear is fully applied. The batch's
+            // pending scan keys on blank title+icon; a partial-success errored
+            // pair (title OR icon already set) only becomes eligible once the
+            // clear has blanked it. Previously the clear ran in a separate
+            // coroutine and the scan could win the race — seeing such a pair as
+            // "not pending" and clearing its errors without restarting it.
+            runFanMetaBatch(context, reportId, metaPromptId)
         }
-        return runFanMetaBatch(context, reportId, metaPromptId)
-    }
 }
