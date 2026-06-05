@@ -414,7 +414,7 @@ internal fun TranslationL1Screen(
         // same wall twice. Mono-model runs retry on the same model.
         val modelCount = modelRows.size
         val modelNote = if (modelCount > 1)
-            " This run uses $modelCount models — failed entries will switch to a different model than the one that failed."
+            " This run uses $modelCount models — each failed entry is retried through the worker pool (random pick across the $modelCount, so it may land on the same model again)."
         else ""
         ReloadConfirmationDialog(
             target = "",
