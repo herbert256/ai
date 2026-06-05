@@ -507,17 +507,8 @@ private fun JudgeEvalL1(
             }
 
             Spacer(Modifier.height(16.dp))
-            if (run.errorCount > 0) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = onRemoveFailed, modifier = Modifier.weight(1f),
-                        colors = AppColors.outlinedButtonColors()
-                    ) { Text("Remove ${run.errorCount}", fontSize = 14.sp) }
-                    Button(
-                        onClick = onRestartFailed, modifier = Modifier.weight(1f)
-                    ) { Text("Restart ${run.errorCount}", fontSize = 14.sp) }
-                }
-            }
+            // Per-failure controls (Remove/Restart) removed — a new
+            // failure-handling UX is coming.
             Spacer(Modifier.height(24.dp))
         }
     }

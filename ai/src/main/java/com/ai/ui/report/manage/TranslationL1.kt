@@ -99,8 +99,6 @@ internal fun TranslationL1Screen(
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
     var confirmReload by remember { mutableStateOf(false) }
-    var confirmRestartFailed by remember { mutableStateOf(false) }
-    var confirmRemoveFailed by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
@@ -257,25 +255,8 @@ internal fun TranslationL1Screen(
             }
         }
 
-        // Per-failure controls — whole-run scope. Worker-pool failures are
-        // handled only by Remove failed / Restart failed.
-        if (errorCount > 0) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { confirmRemoveFailed = true },
-                    modifier = Modifier.weight(1f),
-                    colors = AppColors.outlinedButtonColors()
-                ) { Text("Remove failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-                Button(
-                    onClick = { confirmRestartFailed = true },
-                    modifier = Modifier.weight(1f)
-                ) { Text("Restart failed", fontSize = 12.sp, maxLines = 1, softWrap = false) }
-            }
-        }
+        // Per-failure controls (Remove/Restart) removed — a new
+        // failure-handling UX is coming.
 
         Spacer(modifier = Modifier.height(8.dp))
 
@@ -371,47 +352,6 @@ internal fun TranslationL1Screen(
         )
     }
 
-    if (confirmRestartFailed) {
-        val restartN = errorCount
-        // Multi-model runs route each failed item to a model OTHER
-        // than the one that failed (round-robin over the rest), so
-        // the user gets a meaningful retry instead of hitting the
-        // same wall twice. Mono-model runs retry on the same model.
-        val modelCount = modelRows.size
-        val modelNote = if (modelCount > 1)
-            " This run uses $modelCount models — each failed entry is retried through the worker pool (random pick across the $modelCount, so it may land on the same model again)."
-        else ""
-        ReloadConfirmationDialog(
-            target = "",
-            title = "Restart failed items?",
-            message = "Re-fires $restartN failed call${if (restartN == 1) "" else "s"}.$modelNote The runner's concurrency cap still applies, so larger failure sets show a mix of running and queued rows. Successful translations on disk are kept.",
-            confirmLabel = "Restart",
-            onConfirm = {
-                confirmRestartFailed = false
-                actions.onRestartFailed(reportId, runId)
-                onBumpRefresh()
-            },
-            onDismiss = { confirmRestartFailed = false }
-        )
-    }
-
-    if (confirmRemoveFailed) {
-        AlertDialog(
-            onDismissRequest = { confirmRemoveFailed = false },
-            title = { Text("Remove failed items?") },
-            text = {
-                Text("Drops $errorCount failed row${if (errorCount == 1) "" else "s"} from this translation. No API calls are made. Successful translations are kept.")
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    confirmRemoveFailed = false
-                    actions.onRemoveFailed(reportId, runId)
-                    onBumpRefresh()
-                }) { Text("Remove", color = AppColors.DangerAccent, maxLines = 1, softWrap = false) }
-            },
-            dismissButton = { TextButton(onClick = { confirmRemoveFailed = false }) { Text("Cancel", maxLines = 1, softWrap = false) } }
-        )
-    }
 
     if (confirmDelete) {
         val pendingCount = items.count {
