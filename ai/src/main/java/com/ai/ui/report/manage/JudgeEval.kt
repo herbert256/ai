@@ -276,6 +276,7 @@ fun JudgeEvalScreen(engine: JudgeEvalEngine, reportId: String, onBack: () -> Uni
             },
             onRedo = { confirmRedo = true },
             onRestartFailed = { scope.launch { engine.restartFailedCells(context, reportId) } },
+            onRemoveFailed = { scope.launch { engine.removeFailedCells(context, reportId) } },
             onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
             onBack = onBack)
     }
@@ -366,6 +367,7 @@ private fun JudgeEvalL1(
     onEditSwarm: () -> Unit,
     onRedo: () -> Unit,
     onRestartFailed: () -> Unit,
+    onRemoveFailed: () -> Unit,
     onDeleteRun: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -506,10 +508,15 @@ private fun JudgeEvalL1(
 
             Spacer(Modifier.height(16.dp))
             if (run.errorCount > 0) {
-                OutlinedButton(
-                    onClick = onRestartFailed, modifier = Modifier.fillMaxWidth(),
-                    colors = AppColors.outlinedButtonColors()
-                ) { Text("Restart ${run.errorCount} failed", fontSize = 14.sp) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onRemoveFailed, modifier = Modifier.weight(1f),
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text("Remove ${run.errorCount}", fontSize = 14.sp) }
+                    Button(
+                        onClick = onRestartFailed, modifier = Modifier.weight(1f)
+                    ) { Text("Restart ${run.errorCount}", fontSize = 14.sp) }
+                }
             }
             Spacer(Modifier.height(24.dp))
         }

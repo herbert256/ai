@@ -227,6 +227,7 @@ fun TournamentScreen(engine: TournamentEngine, reportId: String, onBack: () -> U
             openGroup = { gk -> groupKey = gk; level = 2 },
             onRedo = { confirmRedo = true },
             onRestartFailed = { scope.launch { engine.restartFailedMatches(context, reportId) } },
+            onRemoveFailed = { scope.launch { engine.removeFailedMatches(context, reportId) } },
             onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
             onOpenView = onOpenTournamentView,
             onBack = onBack)
@@ -304,6 +305,7 @@ private fun TournamentL1(
     openGroup: (String) -> Unit,
     onRedo: () -> Unit,
     onRestartFailed: () -> Unit,
+    onRemoveFailed: () -> Unit,
     onDeleteRun: () -> Unit,
     onOpenView: (() -> Unit)?,
     onBack: () -> Unit
@@ -398,10 +400,15 @@ private fun TournamentL1(
             // Action buttons.
             if (run.errorCount > 0) {
                 Spacer(Modifier.height(8.dp))
-                OutlinedButton(
-                    onClick = onRestartFailed, modifier = Modifier.fillMaxWidth(),
-                    colors = AppColors.outlinedButtonColors()
-                ) { Text("Restart ${run.errorCount} failed", fontSize = 14.sp) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onRemoveFailed, modifier = Modifier.weight(1f),
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text("Remove ${run.errorCount}", fontSize = 14.sp) }
+                    Button(
+                        onClick = onRestartFailed, modifier = Modifier.weight(1f)
+                    ) { Text("Restart ${run.errorCount}", fontSize = 14.sp) }
+                }
             }
             Spacer(Modifier.height(24.dp))
         }

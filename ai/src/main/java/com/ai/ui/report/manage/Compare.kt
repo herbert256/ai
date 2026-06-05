@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -321,6 +322,7 @@ fun CompareScreen(engine: CompareEngine, reportId: String, onBack: () -> Unit) {
             openGroup = { gk -> groupKey = gk; level = 2 },
             onRedo = { confirmRedo = true },
             onRestartFailed = { scope.launch { engine.restartFailedCells(context, reportId) } },
+            onRemoveFailed = { scope.launch { engine.removeFailedCells(context, reportId) } },
             onDeleteRun = { scope.launch { engine.deleteRun(context, reportId) }; onBack() },
             onBack = onBack)
     }
@@ -402,6 +404,7 @@ private fun CompareL1(
     openGroup: (String) -> Unit,
     onRedo: () -> Unit,
     onRestartFailed: () -> Unit,
+    onRemoveFailed: () -> Unit,
     onDeleteRun: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -454,10 +457,15 @@ private fun CompareL1(
 
             Spacer(Modifier.height(16.dp))
             if (run.errorCount > 0) {
-                OutlinedButton(
-                    onClick = onRestartFailed, modifier = Modifier.fillMaxWidth(),
-                    colors = AppColors.outlinedButtonColors()
-                ) { Text("Restart ${run.errorCount} failed", fontSize = 14.sp) }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onRemoveFailed, modifier = Modifier.weight(1f),
+                        colors = AppColors.outlinedButtonColors()
+                    ) { Text("Remove ${run.errorCount}", fontSize = 14.sp) }
+                    Button(
+                        onClick = onRestartFailed, modifier = Modifier.weight(1f)
+                    ) { Text("Restart ${run.errorCount}", fontSize = 14.sp) }
+                }
             }
             Spacer(Modifier.height(24.dp))
         }

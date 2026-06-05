@@ -452,6 +452,33 @@ class TournamentEngine internal constructor(
             recomputeAndPersistAggregate(context, reportId)
         }
 
+    /** Drop every errored match without re-firing — clears a permanently-dead
+     *  failure so the run can settle. Rolls the spend into deleted-items and
+     *  recomputes the ranking; if nothing is left, drops the whole run (an
+     *  empty run would otherwise read as never-terminal). */
+    fun removeFailedMatches(context: Context, reportId: String): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[reportId] ?: return@launch
+            val failed = run.matches.values.filter { it.status == MatchStatus.ERROR }
+            if (failed.isEmpty()) return@launch
+            failed.forEach { matchJobs[it.id]?.cancelAndJoin() }
+            val costDelta = failed.sumOf { it.totalCost }
+            failed.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+            val remaining = run.matches - failed.map { it.key }.toSet()
+            if (remaining.isEmpty()) {
+                run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
+                dropRun(reportId)
+            } else {
+                _runs.update { runs ->
+                    val cur = runs[reportId] ?: return@update runs
+                    runs + (reportId to cur.copy(matches = remaining))
+                }
+                recomputeAndPersistAggregate(context, reportId)
+            }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, reportId)
+        }
+
     private suspend fun rerunMatchesBlocking(context: Context, reportId: String, mKeys: List<String>) {
         if (mKeys.isEmpty()) return
         val run = _runs.value[reportId] ?: return

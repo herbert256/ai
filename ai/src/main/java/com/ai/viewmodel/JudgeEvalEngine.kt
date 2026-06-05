@@ -585,6 +585,33 @@ class JudgeEvalEngine internal constructor(
             recomputeAndPersistAggregate(context, reportId)
         }
 
+    /** Drop every errored judge cell without re-firing — clears a
+     *  permanently-dead failure so the run can settle. Rolls the spend into
+     *  deleted-items and recomputes the agreement aggregate; if nothing is
+     *  left, drops the whole run. */
+    fun removeFailedCells(context: Context, reportId: String): Job =
+        appViewModel.viewModelScope.launch(Dispatchers.IO) {
+            val run = _runs.value[reportId] ?: return@launch
+            val failed = run.cells.values.filter { it.status == JudgeCellStatus.ERROR }
+            if (failed.isEmpty()) return@launch
+            failed.forEach { cellJobs[it.id]?.cancelAndJoin() }
+            val costDelta = failed.sumOf { it.totalCost }
+            failed.forEach { SecondaryResultStorage.delete(context, reportId, it.id) }
+            val remaining = run.cells - failed.map { it.key }.toSet()
+            if (remaining.isEmpty()) {
+                run.aggregateRowId?.let { SecondaryResultStorage.delete(context, reportId, it) }
+                dropRun(reportId)
+            } else {
+                _runs.update { runs ->
+                    val cur = runs[reportId] ?: return@update runs
+                    runs + (reportId to cur.copy(cells = remaining))
+                }
+                recomputeAndPersistAggregate(context, reportId)
+            }
+            if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+            ReportStorage.bumpReportTimestamp(context, reportId)
+        }
+
     private suspend fun rerunCellsBlocking(context: Context, reportId: String, cKeys: List<String>) {
         if (cKeys.isEmpty()) return
         val run = _runs.value[reportId] ?: return
