@@ -121,7 +121,10 @@ data class FanOutActions(
     val onClearFanMetaErrors: (FanOutRunKey) -> Unit = {},
     /** Clear the errored pairs' state, then re-fire the fan-meta batch
      *  (its pending filter picks them up). */
-    val onRestartFanMetaErrors: (FanOutRunKey) -> Unit = {}
+    val onRestartFanMetaErrors: (FanOutRunKey) -> Unit = {},
+    /** Re-fire the whole fan-meta batch — clear every pair's title+icon and
+     *  re-run. The Fan Meta screen's reload (keeps the fan-out responses). */
+    val onRelaunchFanMeta: (FanOutRunKey) -> Unit = {}
 )
 
 /**

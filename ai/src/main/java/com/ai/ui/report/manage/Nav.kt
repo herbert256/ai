@@ -392,6 +392,9 @@ fun ReportsScreenNav(
             },
             onRestartFanMetaErrors = { rid, mp ->
                 reportViewModel.iconGen.restartFanMetaErrors(context, rid, mp)
+            },
+            onRelaunchFanMeta = { rid, mp ->
+                reportViewModel.iconGen.relaunchFanMetaBatch(context, rid, mp)
             }
         ),
         fanOutEngine = reportViewModel.fanOutEngine,

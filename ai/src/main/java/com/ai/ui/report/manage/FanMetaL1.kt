@@ -96,7 +96,7 @@ internal fun FanMetaL1Screen(
     // Meta models = group by the meta-worker model; Report models =
     // group by the answerer model.
     var metaGroupMode by rememberSaveable { mutableStateOf(FanMetaGroupMode.META_MODELS) }
-    var confirmRerunComplete by remember { mutableStateOf(false) }
+    var confirmRelaunchMeta by remember { mutableStateOf(false) }
     var confirmRemoveFailed by remember { mutableStateOf(false) }
     var confirmRemoveBenched by remember { mutableStateOf(false) }
     var confirmRestartFailed by remember { mutableStateOf(false) }
@@ -129,7 +129,7 @@ internal fun FanMetaL1Screen(
             title = "Fan Meta",
             subject = subject,
             onBackClick = onBack,
-            onReload = { confirmRerunComplete = true },
+            onReload = { confirmRelaunchMeta = true },
             onTrace = if (l1RunId != null && com.ai.data.ApiTracer.ladybugLinksEnabled)
                 { { actions.onNavigateToTraceRunList(l1RunId) } } else null,
             onDelete = { confirmDelete = true }
@@ -460,17 +460,17 @@ internal fun FanMetaL1Screen(
     // -----------------------------------------------------------------
     // Confirmation dialogs
     // -----------------------------------------------------------------
-    if (confirmRerunComplete) {
+    if (confirmRelaunchMeta) {
         ReloadConfirmationDialog(
             target = "",
-            title = "Rerun the complete Fan out?",
-            message = "Delete every fan-out row and start a fresh run. Combined-report follow-ups for this prompt will also be dropped.",
-            confirmLabel = "Rerun",
+            title = "Re-run Fan Meta?",
+            message = "Clear every pair's title + icon and re-run the Fan Meta batch. The fan-out responses are kept.",
+            confirmLabel = "Re-run",
             onConfirm = {
-                confirmRerunComplete = false
-                actions.onRerunComplete(run.key)
+                confirmRelaunchMeta = false
+                actions.onRelaunchFanMeta(run.key)
             },
-            onDismiss = { confirmRerunComplete = false }
+            onDismiss = { confirmRelaunchMeta = false }
         )
     }
 

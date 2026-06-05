@@ -2825,18 +2825,28 @@ class IconGenerationManager(
     }
 
     /** Re-fire fan-meta after clearing every pair's title+icon. */
-    fun relaunchFanMetaBatch(context: Context, reportId: String, metaPromptId: String): Job? {
+    fun relaunchFanMetaBatch(context: Context, reportId: String, metaPromptId: String): Job =
         appViewModel.viewModelScope.launch(rvm.reportLogContext(reportId)) {
-            SecondaryResultStorage
-                .listForReport(context, reportId, SecondaryKind.META)
-                .filter { it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null && it.fanInOf == null }
-                .forEach {
+            withContext(Dispatchers.IO) {
+                val rows = SecondaryResultStorage
+                    .listForReport(context, reportId, SecondaryKind.META)
+                    .filter { it.metaPromptId == metaPromptId && it.fanOutSourceAgentId != null && it.fanInOf == null }
+                // Preserve the prior sweep's title+icon spend in Deleted-items
+                // before clearFanOut*State zeroes it; the relaunch records fresh
+                // cost on top (same pattern as clear/restartFanMetaErrors).
+                val costDelta = rows.sumOf {
+                    it.titleInputCost + it.titleOutputCost + it.iconInputCost + it.iconOutputCost
+                }
+                rows.forEach {
                     SecondaryResultStorage.clearFanOutTitleState(context, reportId, it.id)
                     SecondaryResultStorage.clearFanOutIconState(context, reportId, it.id)
                 }
+                if (costDelta > 0.0) ReportStorage.bumpCostsFromDeletedItems(context, reportId, costDelta)
+            }
+            // Run the batch only after the clear is applied (avoids the same
+            // clear-vs-scan race as restartFanMetaErrors).
+            runFanMetaBatch(context, reportId, metaPromptId)
         }
-        return runFanMetaBatch(context, reportId, metaPromptId)
-    }
 
     fun cancelFanMetaBatch(reportId: String, metaPromptId: String): Job? =
         rvm.fanMetaJobs[rvm.fanMetaJobKey(reportId, metaPromptId)]?.also { it.cancel() }

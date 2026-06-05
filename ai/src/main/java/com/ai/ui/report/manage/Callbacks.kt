@@ -111,7 +111,10 @@ data class FanRuntimeBundle(
     val throttledFanMetaPairs: Set<String> = emptySet(),
     val onLaunchFanMetaBatch: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
     val onClearFanMetaErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
-    val onRestartFanMetaErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> }
+    val onRestartFanMetaErrors: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> },
+    /** Re-fire the whole Fan Meta batch (clear every pair's title+icon, then
+     *  re-run) — the Fan Meta screen's title-bar reload. */
+    val onRelaunchFanMeta: (reportId: String, metaPromptId: String) -> Unit = { _, _ -> }
 )
 
 // ===== Main Reports Screen =====

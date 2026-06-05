@@ -667,6 +667,10 @@ internal fun SecondaryResultsScreen(
                 onRestartFanMetaErrors = { rk ->
                     val parts = rk.split("|", limit = 2)
                     if (parts.size == 2) fanRuntime.onRestartFanMetaErrors(parts[0], parts[1])
+                },
+                onRelaunchFanMeta = { rk ->
+                    val parts = rk.split("|", limit = 2)
+                    if (parts.size == 2) fanRuntime.onRelaunchFanMeta(parts[0], parts[1])
                 }
             )
             // Fan Out and Fan Meta are two fully separate screens now,
