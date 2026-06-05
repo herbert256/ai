@@ -117,7 +117,7 @@ explicit request**. The full procedures live in
 
 Top-level under `ai/src/main/java/com/ai/`:
 
-- `data/` (61 files) — provider model (`AppService`,
+- `data/` (84 files) — provider model (`AppService`,
   `ApiFormat`), dispatch (`ApiDispatch`, `ApiStreaming`,
   `ApiClient`), tracing (`ApiTracer` + the in-memory
   `cachedTraceFiles` cache), retry interceptor, repository
@@ -130,13 +130,13 @@ Top-level under `ai/src/main/java/com/ai/`:
   (`LocalLlm`, `LocalEmbedder`), `BackupManager`, `AppDataStore`,
   `SharedContent`.
 - `model/` (2 files) — settings data classes.
-- `viewmodel/` (11 files) — `AppViewModel`, `ChatViewModel`,
+- `viewmodel/` (22 files) — `AppViewModel`, `ChatViewModel`,
   `ReportViewModel` plus extracted engines/managers
   (`RegenerateBatchEngine`, `SecondaryRunManager`,
   `IconGenerationManager`, …). Other view models delegate state to
   `AppViewModel`.
-- `ui/` (231 files) — Compose screens grouped by domain
-  (`report/` ×66, `cruds/` ×52, `admin/` ×27, `settings/` ×22,
+- `ui/` (265 files) — Compose screens grouped by domain
+  (`report/` ×93, `cruds/` ×48, `admin/` ×34, `settings/` ×22,
   `helpers/`, `shared/`, `navigation/`, `other/`, `chat/`,
   `search/`, `hub/`, `history/`, `share/`, `models/`,
   `knowledge/`, `theme/`).
