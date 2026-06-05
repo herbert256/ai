@@ -309,6 +309,15 @@ internal fun FanOutL1Screen(
             run.answererKeys.sortedWith(compareBy { ak -> ak.substringAfter('|').lowercase() })
         }
         LazyColumn(modifier = Modifier.weight(1f)) {
+            if (answererKeys.isEmpty()) {
+                item {
+                    Text(
+                        "No fan-out responses yet.",
+                        color = AppColors.TextSecondary, fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            }
             items(answererKeys, key = { it }) { ak ->
                 val pairs = run.pairs.values.filter { "${it.providerId}|${it.model}" == ak }
                 val ok = pairs.count { it.status == PairStatus.DONE }

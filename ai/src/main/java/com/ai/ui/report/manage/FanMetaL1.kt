@@ -352,6 +352,15 @@ internal fun FanMetaL1Screen(
         val metaMaxDone = (l1Rows.maxOfOrNull { it.metaDone } ?: 0).coerceAtLeast(1)
         val metaShowBars = isMetaModels && summary.activeOutstanding
         LazyColumn(modifier = Modifier.weight(1f)) {
+            if (l1Rows.isEmpty()) {
+                item {
+                    Text(
+                        "No titles yet.",
+                        color = AppColors.TextSecondary, fontSize = 13.sp,
+                        modifier = Modifier.padding(vertical = 8.dp)
+                    )
+                }
+            }
             items(l1Rows, key = { it.key }) { row ->
               if (isMetaModels) {
                 FanMetaModelsL1Row(
@@ -457,7 +466,7 @@ internal fun FanMetaL1Screen(
     if (confirmRelaunchMeta) {
         ReloadConfirmationDialog(
             target = "",
-            title = "Re-run Fan Meta?",
+            title = "Clear and re-run Fan Meta?",
             message = "Clear every pair's title + icon and re-run the Fan Meta batch. The fan-out responses are kept.",
             confirmLabel = "Re-run",
             onConfirm = {
