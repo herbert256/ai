@@ -183,7 +183,7 @@ internal fun FanOutL1Screen(
             Triple("Bench", benchCount.toString(), AppColors.PrimaryAccent),
             Triple("Wait", throttledHere.toString(), AppColors.CautionAccent),
             Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
-            Triple("Costs", formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2), AppColors.InfoAccent)
+            Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)} ¢", AppColors.InfoAccent)
         ))
 
         val hasFanMeta = remember(run) {

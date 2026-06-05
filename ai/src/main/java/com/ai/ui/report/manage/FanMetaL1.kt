@@ -165,7 +165,7 @@ internal fun FanMetaL1Screen(
             Triple("Run", runningCount.toString(), AppColors.WarningAccent),
             Triple("Wait", throttledHere.toString(), AppColors.CautionAccent),
             Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
-            Triple("Costs", formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2), AppColors.InfoAccent)
+            Triple("Costs", "${formatCents(run.pairs.values.sumOf { pairCost(it) }, decimals = 2)} ¢", AppColors.InfoAccent)
         ))
 
         // Grouping preset — Meta models (per meta-worker model) vs

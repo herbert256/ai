@@ -241,7 +241,7 @@ internal fun TranslationL1Screen(
             Triple("Run", runningCount.toString(), AppColors.WarningAccent),
             Triple("Wait", throttledCount.toString(), AppColors.CautionAccent),
             Triple("Queue", queuedCount.toString(), AppColors.QueueAccent),
-            Triple("Costs", formatCents(run.totalCostDollars, decimals = 2), AppColors.InfoAccent)
+            Triple("Costs", "${formatCents(run.totalCostDollars, decimals = 2)} ¢", AppColors.InfoAccent)
         ))
 
         // Grouping preset — Translation workers (per-model rows) vs
