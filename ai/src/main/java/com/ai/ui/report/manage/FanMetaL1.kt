@@ -137,15 +137,16 @@ internal fun FanMetaL1Screen(
 
         // Status counts + cost — title-batch status lens.
         // Counters via the shared single-pass helper. Worker-swarm batch
-        // (category B, ERRORED): status is the title-batch lens; benched
-        // errors fold into Error below (no separate Bench column).
+        // (category B): the meta-worker is replaceable, so a fan-meta error
+        // has no meaningful per-pair "benched" model — PairState.providerId is
+        // the *answerer*, not the meta-worker. Use BenchMode.NONE so every
+        // fan-meta error counts as Error and stays reachable by the error
+        // buttons / dialog (an answerer cooldown must not hide them).
         val counts = deriveBatchCounts(
             items = run.pairs.values,
             idOf = { it.id },
             statusOf = { it.titleStatus(runningSet) },
             throttledIds = throttledSet,
-            benchedOf = { benched(it.providerId, it.model) },
-            benchMode = BenchMode.ERRORED,
         )
         val doneCount = counts.done
         val errorCount = counts.error
@@ -270,7 +271,7 @@ internal fun FanMetaL1Screen(
                 run.pairs.values
                     .filter {
                         val msg = it.titleErrorMessage ?: it.iconErrorMessage
-                        !msg.isNullOrBlank() && !benched(it.providerId, it.model)
+                        !msg.isNullOrBlank()
                     }
                     .sortedWith(compareBy({ it.providerId }, { it.model }))
             }
