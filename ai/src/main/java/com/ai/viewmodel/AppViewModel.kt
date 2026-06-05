@@ -738,10 +738,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.w(tag, "← workers/swarms/ delta-merge failed in ${System.currentTimeMillis() - tSwarms}ms", it)
         }
 
-        // workers/flocks.json — same, resolving each flock's member agents
-        // by NAME against the current agent set (ai.agents is already
-        // loaded from prefs at this point).
-        AppLog.d(tag, "→ workers/flocks.json delta-merge")
+        // workers/flocks/ (one file per flock) — same, resolving each
+        // flock's member agents by NAME against the current agent set
+        // (ai.agents is already loaded from prefs at this point).
+        AppLog.d(tag, "→ workers/flocks/ delta-merge")
         val tFlocks = System.currentTimeMillis()
         runCatching {
             val bundled = com.ai.data.FlockSeed.loadFromAssets(application, ai.agents)
@@ -753,12 +753,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     ai = ai.copy(flocks = merged)
                     settingsPrefs.saveSettings(ai)
                 }
-                AppLog.d(tag, "← workers/flocks.json delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (added=$added)")
+                AppLog.d(tag, "← workers/flocks/ delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (added=$added)")
             } else {
-                AppLog.d(tag, "← workers/flocks.json delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (empty asset)")
+                AppLog.d(tag, "← workers/flocks/ delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (empty asset)")
             }
         }.onFailure {
-            AppLog.w(tag, "← workers/flocks.json delta-merge failed in ${System.currentTimeMillis() - tFlocks}ms", it)
+            AppLog.w(tag, "← workers/flocks/ delta-merge failed in ${System.currentTimeMillis() - tFlocks}ms", it)
         }
 
         // Mirror of the internal-prompts/ / examples.json delta-merge for

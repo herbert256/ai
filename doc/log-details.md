@@ -231,7 +231,7 @@ captured crash report — the message is the `report` string, not a literal.
 ### `data/FlockSeed.kt`
 
 - **L50** `"FlockSeed"` — "Skipped flock entry: ${e.message}"
-- **L55** `"FlockSeed"` — "Failed to load workers/flocks.json: ${e.message}"
+- **L55** `"FlockSeed"` — "Failed to load workers/flocks/: ${e.message}"
 
 ### `data/InaccessibleSeed.kt`
 
@@ -381,7 +381,7 @@ captured crash report — the message is the `report` string, not a literal.
 - **L672** `tag` — "← examples.json delta-merge failed in ${System.currentTimeMillis() - tExamples}ms"
 - **L699** `tag` — "← system-prompts.json delta-merge failed in ${System.currentTimeMillis() - tSystemPrompts}ms"
 - **L723** `tag` — "← workers/swarms/ delta-merge failed in ${System.currentTimeMillis() - tSwarms}ms"
-- **L746** `tag` — "← workers/flocks.json delta-merge failed in ${System.currentTimeMillis() - tFlocks}ms"
+- **L746** `tag` — "← workers/flocks/ delta-merge failed in ${System.currentTimeMillis() - tFlocks}ms"
 - **L772** `tag` — "← excluded.json delta-merge failed in ${System.currentTimeMillis() - tExcluded}ms"
 - **L800** `tag` — "← inaccessible.json delta-merge failed in ${System.currentTimeMillis() - tInaccessible}ms"
 - **L822** `tag` — "← meta.json delta-merge failed in ${System.currentTimeMillis() - tMeta}ms"
@@ -784,9 +784,9 @@ captured crash report — the message is the `report` string, not a literal.
 - **L706** `tag` — "→ workers/swarms/ delta-merge"
 - **L718** `tag` — "← workers/swarms/ delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (added=$added)"
 - **L720** `tag` — "← workers/swarms/ delta-merge done in ${System.currentTimeMillis() - tSwarms}ms (empty asset)"
-- **L729** `tag` — "→ workers/flocks.json delta-merge"
-- **L741** `tag` — "← workers/flocks.json delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (added=$added)"
-- **L743** `tag` — "← workers/flocks.json delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (empty asset)"
+- **L729** `tag` — "→ workers/flocks/ delta-merge"
+- **L741** `tag` — "← workers/flocks/ delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (added=$added)"
+- **L743** `tag` — "← workers/flocks/ delta-merge done in ${System.currentTimeMillis() - tFlocks}ms (empty asset)"
 - **L753** `tag` — "→ excluded.json delta-merge"
 - **L767** `tag` — "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (added=$added)"
 - **L769** `tag` — "← excluded.json delta-merge done in ${System.currentTimeMillis() - tExcluded}ms (empty asset)"
