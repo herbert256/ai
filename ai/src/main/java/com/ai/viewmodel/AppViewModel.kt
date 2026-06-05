@@ -414,6 +414,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             AppLog.v(startTag, "  ModelType.userDefaults set (${bs.first.defaultTypePaths.size} entries)")
             ApiTracer.isTracingEnabled = bs.first.tracingEnabled
             AppLog.v(startTag, "  ApiTracer.isTracingEnabled=${bs.first.tracingEnabled}")
+            SettingsPreferences.usageStatsEnabled = bs.first.usageStatsEnabled
+            AppLog.v(startTag, "  SettingsPreferences.usageStatsEnabled=${bs.first.usageStatsEnabled}")
             syncTestModelPrompt(bs.second)
             AppLog.v(startTag, "  AnalysisRepository.TEST_PROMPT=${com.ai.data.AnalysisRepository.TEST_PROMPT}")
             NetworkSettings.streamingReadTimeoutSec = bs.first.streamingReadTimeoutSec
@@ -1094,6 +1096,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         ApiTracer.isTracingEnabled = settings.tracingEnabled
         ApiTracer.showLadybugIcons = settings.showLadybugIcons
         com.ai.data.AuditLog.enabled = settings.auditLogEnabled
+        SettingsPreferences.usageStatsEnabled = settings.usageStatsEnabled
         NetworkSettings.streamingReadTimeoutSec = settings.streamingReadTimeoutSec
         NetworkSettings.nonStreamingReadTimeoutSec = settings.nonStreamingReadTimeoutSec
         NetworkSettings.maxCallsPerProviderPerMinute = settings.maxCallsPerProviderPerMinute

@@ -47,7 +47,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "Settings is a table of contents grouped into Appearance, Generation & behaviour, and Network & logging. Every editable preference lives one tap deeper. Most sub-screens autosave after a short debounce, so there is no Save button."),
             HelpCard("Appearance", "UI tweaks controls experimental/visibility options such as model-name layout, report card visibility, knowledge card visibility, and full-screen mode. UI Colors edits AppColors roles. Default icons edits the fallback glyphs used across cards, navigation rows, status rows, and report results."),
             HelpCard("Generation & behaviour", "Metadata & icons governs optional AI-generated titles, icons, language detection, and internal prompt row icons. Autostart controls the automatic post-report work. App settings sets app-wide prompt and parameter fallbacks. Other settings stores identity fields."),
-            HelpCard("Network & logging", "Network settings covers timeouts, per-provider throttling, and 429/529 retry policy. Maximal API calls caps global and per-kind concurrency. Logging and tracing controls trace capture, ladybug visibility, audit logging, and AppLog verbosity."),
+            HelpCard("Network & logging", "Network settings covers timeouts, per-provider throttling, and 429/529 retry policy. Maximal API calls caps global and per-kind concurrency. Log/trace/audit/statistics controls trace capture, ladybug visibility, audit logging, usage-statistics recording, and AppLog verbosity."),
             HelpCard("Tips", "Open the specific card for the setting you want. If you back out quickly, the screen still flushes the latest state through its dispose handler.")
         )
     ),
@@ -140,14 +140,15 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
         )
     ),
     "settings_logging" to HelpContent(
-        title = "Help - Logging and tracing",
+        title = "Help - Log/trace/audit/statistics",
         cards = listOf(
-            HelpCard("Overview", "Diagnostic preferences for API trace capture, ladybug links, audit logging, and AppLog verbosity. Changes apply to the next trace/log event without restarting the app."),
+            HelpCard("Overview", "Diagnostic preferences for API trace capture, ladybug links, audit logging, usage statistics, and AppLog verbosity. Changes apply to the next trace/log/usage event without restarting the app."),
             HelpCard("API tracing", "Master switch for ApiTracer. Off -> no new trace files are written. On -> API requests and responses are captured under filesDir/trace/ when a call path supplies trace tags."),
             HelpCard("Show Ladybug icons", "Controls whether 🐞 trace shortcuts appear in the UI. You can keep tracing enabled while hiding the icons, or show them only when you are actively debugging."),
             HelpCard("Audit log", "Records higher-level app events such as setting changes, imports, exports, resets, and maintenance actions. Audit entries are separate from raw API traces and AppLog files."),
+            HelpCard("Usage statistics", "Master switch for usage-statistics recording. On -> every API call accumulates per-provider / per-model token counts and costs — the figures behind AI Usage, the Statistics screen and the Live Dashboard rates. Off -> no new usage is recorded; the rate cards read zero and lifetime totals stop growing. Existing totals are preserved until you clear them under maintenance."),
             HelpCard("Application log level", "Severity threshold for the in-app file logger AppLog. Calls at or above this level are appended to a daily-rotating file under filesDir/applog/applog_<yyyyMMdd>.log. Defaults to INFO. Use DEBUG / TRACE when troubleshooting — they flood the file quickly but capture per-call detail. OFF disables the file appender entirely (logcat still works during dev)."),
-            HelpCard("Tips", "View traces from Monitor, view audit entries from the Audit log screen, and view/share/clear AppLog files from the Application log screens. Drop verbose logging back to INFO or OFF after troubleshooting.")
+            HelpCard("Tips", "View traces from Monitor, view audit entries from the Audit log screen, view usage under Statistics / AI Usage, and view/share/clear AppLog files from the Application log screens. Drop verbose logging back to INFO or OFF after troubleshooting.")
         )
     ),
     "settings_setup" to HelpContent(

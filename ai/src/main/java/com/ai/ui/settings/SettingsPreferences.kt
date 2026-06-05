@@ -91,6 +91,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             defaultEmail = prefs.getString(KEY_DEFAULT_EMAIL, "") ?: "",
             defaultTypePaths = defaultTypePaths,
             tracingEnabled = prefs.getBoolean(KEY_TRACING_ENABLED, true),
+            usageStatsEnabled = prefs.getBoolean(KEY_USAGE_STATS_ENABLED, true),
             fullScreen = prefs.getBoolean(KEY_FULL_SCREEN, false),
             modelNameLayout = modelNameLayout,
             uiCardBackgroundArgb = uiColorOverrides["CardBackgroundAlt"] ?: DEFAULT_UI_CARD_BACKGROUND_ARGB,
@@ -163,6 +164,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
             putString(KEY_DEFAULT_EMAIL, settings.defaultEmail)
             putString(KEY_DEFAULT_TYPE_PATHS, gson.toJson(settings.defaultTypePaths))
             putBoolean(KEY_TRACING_ENABLED, settings.tracingEnabled)
+            putBoolean(KEY_USAGE_STATS_ENABLED, settings.usageStatsEnabled)
             putBoolean(KEY_FULL_SCREEN, settings.fullScreen)
             putString(KEY_MODEL_NAME_LAYOUT, settings.modelNameLayout.name)
             putInt(KEY_UI_CARD_BACKGROUND_ARGB, cardBackgroundArgb)
@@ -607,6 +609,10 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     fun updateUsageStats(provider: AppService, model: String, usage: TokenUsage, kind: String = "report", searchUnits: Int = 0) {
+        // Master usage-statistics switch (Settings → Log/trace/audit/statistics).
+        // Off → record nothing: no rolling-rate sample, no persisted token/cost
+        // rows. Guarding this single chokepoint covers every token call site.
+        if (!usageStatsEnabled) return
         // Feed the Live Dashboard's rolling spend/token rate (in-memory, 5-min
         // window) — this is the single chokepoint every token site funnels through.
         val inputTokens = usage.inputTokens
@@ -963,6 +969,13 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
     }
 
     companion object {
+        /** Master switch for usage-statistics recording. When false,
+         *  [updateUsageStats] is a no-op — no per-provider / per-model token
+         *  or cost rows accumulate and the Live Dashboard rolling rate stays
+         *  idle. Mirrored from [GeneralSettings.usageStatsEnabled] by
+         *  AppViewModel so the non-UI [updateUsageStats] chokepoint consults a
+         *  single global. */
+        @Volatile var usageStatsEnabled: Boolean = true
         private val usageStatsLock = Any()
         @Volatile private var usageStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageStats>? = null
         @Volatile private var usageCategoryStatsCache: java.util.concurrent.ConcurrentHashMap<String, UsageCategoryStats>? = null
@@ -978,6 +991,7 @@ class SettingsPreferences(private val prefs: SharedPreferences, private val file
         private const val KEY_DEFAULT_EMAIL = "default_email"
         private const val KEY_DEFAULT_TYPE_PATHS = "default_type_paths"
         private const val KEY_TRACING_ENABLED = "tracing_enabled"
+        private const val KEY_USAGE_STATS_ENABLED = "usage_stats_enabled"
         private const val KEY_FULL_SCREEN = "full_screen"
         private const val KEY_MODEL_NAME_LAYOUT = "model_name_layout"
         private const val KEY_UI_CARD_BACKGROUND_ARGB = "ui_card_background_argb"

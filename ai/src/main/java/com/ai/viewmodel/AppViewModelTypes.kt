@@ -76,6 +76,12 @@ data class GeneralSettings(
      *  action, batch start/end and API call. Turn off to stop all audit
      *  writes. Mirrors to [com.ai.data.AuditLog.enabled]. */
     val auditLogEnabled: Boolean = true,
+    /** When true (default) cumulative usage statistics — per-provider /
+     *  per-model token counts and costs surfaced under AI Usage / Statistics
+     *  and the Live Dashboard — are accumulated on every API call. Turn off
+     *  to stop all usage-stat recording. Mirrors to
+     *  [com.ai.ui.settings.SettingsPreferences.usageStatsEnabled]. */
+    val usageStatsEnabled: Boolean = true,
     /** When true hides the Android status bar — clock, signal,
      *  battery — so the app gets the full screen height. Reads via
      *  WindowInsetsControllerCompat in MainActivity on every settings

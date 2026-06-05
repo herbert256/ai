@@ -919,8 +919,8 @@ private fun SettingsMainScreen(
             )
             SettingsNavCard(
                 icon = MetadataDefaults.APP_LOG,
-                title = "Logging and tracing",
-                description = "API tracing master switch and application log level.",
+                title = "Log/trace/audit/statistics",
+                description = "API tracing, audit log, usage statistics and application log level.",
                 onClick = { onOpenSubScreen(SettingsSubScreen.SETTINGS_LOGGING) }
             )
         }
@@ -2798,16 +2798,18 @@ private fun LoggingAndTracingSubScreen(
     var tracingEnabled by remember { mutableStateOf(generalSettings.tracingEnabled) }
     var showLadybugIcons by remember { mutableStateOf(generalSettings.showLadybugIcons) }
     var auditLogEnabled by remember { mutableStateOf(generalSettings.auditLogEnabled) }
+    var usageStatsEnabled by remember { mutableStateOf(generalSettings.usageStatsEnabled) }
     var logLevel by remember { mutableStateOf(generalSettings.logLevel) }
 
     fun build(): GeneralSettings = generalSettings.copy(
         tracingEnabled = tracingEnabled,
         showLadybugIcons = showLadybugIcons,
         auditLogEnabled = auditLogEnabled,
+        usageStatsEnabled = usageStatsEnabled,
         logLevel = logLevel
     )
 
-    LaunchedEffect(tracingEnabled, showLadybugIcons, auditLogEnabled, logLevel) {
+    LaunchedEffect(tracingEnabled, showLadybugIcons, auditLogEnabled, usageStatsEnabled, logLevel) {
         val updated = build()
         if (updated != generalSettings) {
             kotlinx.coroutines.delay(400)
@@ -2824,7 +2826,7 @@ private fun LoggingAndTracingSubScreen(
     Column(
         modifier = Modifier.fillMaxSize().background(AppColors.AppBackground).padding(start = 16.dp, end = 16.dp, top = 16.dp)
     ) {
-        TitleBar(helpTopic = "settings_logging", title = "Logging and tracing", subject = "Log level and API call tracing", onBackClick = onBack)
+        TitleBar(helpTopic = "settings_logging", title = "Log/trace/audit/statistics", subject = "Tracing, audit log, usage statistics and log level", onBackClick = onBack)
         Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             ToggleSettingCard(
                 title = "API tracing",
@@ -2846,6 +2848,13 @@ private fun LoggingAndTracingSubScreen(
                 icon = "🧾",
                 checked = auditLogEnabled,
                 onCheckedChange = { auditLogEnabled = it }
+            )
+            ToggleSettingCard(
+                title = "Usage statistics",
+                description = "Accumulate per-provider / per-model token counts and costs on every API call — the figures behind AI Usage, the Statistics screen and the Live Dashboard rates. Turn off to stop all usage-stat recording; existing totals are kept until you clear them.",
+                icon = MetadataDefaults.CHART,
+                checked = usageStatsEnabled,
+                onCheckedChange = { usageStatsEnabled = it }
             )
             SettingCard(
                 "Application log level",

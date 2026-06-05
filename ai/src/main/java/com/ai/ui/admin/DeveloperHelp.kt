@@ -173,7 +173,7 @@ internal val developerHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Empty state", "Shows the current threshold so you can tell when nothing's been written because everything is below it (e.g. threshold = WARN and no warnings have fired today). A red banner appears instead if the log writer hit a disk / IO error — message + dropped-line count surfaced inline."),
             HelpCard("Source", "Files are written by [com.ai.viewmodel.AppLog]; the list is re-read on every screen resume so detail-view deletes propagate."),
             HelpCard("Pitfalls", "Old files are kept until you delete them — set a calendar reminder if storage matters. Toast messages route through AppLog too: WARN / ERROR levels also flash a toast, but the file is the authoritative record."),
-            HelpCard("Reached from", "Settings → Logging and tracing → Application log.")
+            HelpCard("Reached from", "Settings → Log/trace/audit/statistics → Application log.")
         )
     ),
     "applog_detail" to HelpContent(

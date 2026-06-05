@@ -131,7 +131,7 @@ fun AppLogListScreen(
                         if (AppLog.threshold.priority > LogLevel.INFO.priority) {
                             Text(
                                 "INFO / DEBUG / TRACE calls are dropped before the file appender. " +
-                                    "Lower the threshold under Settings → Logging and tracing → " +
+                                    "Lower the threshold under Settings → Log/trace/audit/statistics → " +
                                     "Log level to see more activity here.",
                                 color = AppColors.TextTertiary, fontSize = 11.sp,
                                 textAlign = TextAlign.Center,
