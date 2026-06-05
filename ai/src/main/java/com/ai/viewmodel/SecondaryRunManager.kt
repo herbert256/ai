@@ -692,10 +692,19 @@ class SecondaryRunManager(
             report, reportIsLive = rvm.isReportGenerating(reportId)
         )
         if (interruptedAgents.isNotEmpty() || erroredAgents.isNotEmpty()) {
+            // One broken agent → key on the agentId and label with the model
+            // name, so the card taps straight through to that model's Model
+            // response screen (skipping the agents list). Many → key on the
+            // reportId, label "Report models", and the list picks one.
+            val singleAgentId = if (interruptedAgents.size + erroredAgents.size == 1)
+                (erroredAgents + interruptedAgents).first() else null
+            val singleAgent = singleAgentId?.let { id -> report.agents.firstOrNull { it.agentId == id } }
             val singleError = if (erroredAgents.size == 1 && interruptedAgents.isEmpty())
-                report.agents.firstOrNull { it.agentId == erroredAgents[0] }?.errorMessage else null
-            batches.add(BrokenBatch(reportId, report.title, BatchFamilyKind.RESPONSES, reportId,
-                "Report models",
+                singleAgent?.errorMessage else null
+            batches.add(BrokenBatch(reportId, report.title, BatchFamilyKind.RESPONSES,
+                key = singleAgentId ?: reportId,
+                batchName = singleAgent?.let { it.model.ifBlank { it.agentName }.ifBlank { "model" } }
+                    ?: "Report models",
                 unfinishedCount = interruptedAgents.size,
                 errorCount = erroredAgents.size,
                 timestamp = report.timestamp,

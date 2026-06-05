@@ -61,8 +61,10 @@ fun BrokenWorkScreen(
     onDelete: (BrokenBatch, BrokenItemMode) -> Unit,
     onRestartItems: (BrokenBatch, BrokenItemMode, Set<String>) -> Unit,
     onDeleteItems: (BrokenBatch, BrokenItemMode, Set<String>) -> Unit,
-    // Per-agent "view" for the RESPONSES detail — (reportId, agentId).
-    onViewAgent: (String, String) -> Unit = { _, _ -> },
+    // Open a model's Model response screen — (reportId, agentId). Used by the
+    // RESPONSES detail rows and the single-broken-agent card (which skips the
+    // list and taps straight through).
+    onOpenModel: (String, String) -> Unit = { _, _ -> },
     loadItems: suspend (BrokenBatch, BrokenItemMode) -> List<BrokenItemRow>,
 ) {
     var viewing by remember { mutableStateOf<Pair<BrokenBatch, BrokenItemMode>?>(null) }
@@ -74,17 +76,15 @@ fun BrokenWorkScreen(
     if (v != null) {
         val busy = busyKeys.any { it.startsWith(brokenWorkActionPrefix(v.first, v.second)) }
         if (v.first.kind == BatchFamilyKind.RESPONSES) {
-            // Agents get a per-row view / restart / delete detail (not the
-            // checkbox + bulk model the secondary batches use).
+            // Each broken agent is a plain tappable row — tapping opens that
+            // model's Model response screen (where you restart / remove it).
+            // No per-row icons.
             BrokenAgentsScreen(
                 batch = v.first,
                 mode = v.second,
                 loadItems = loadItems,
-                busy = busy,
                 onBack = { viewing = null },
-                onView = { agentId -> onViewAgent(v.first.reportId, agentId) },
-                onRestart = { agentId -> if (!busy) onRestartItems(v.first, v.second, setOf(agentId)) },
-                onDelete = { agentId -> if (!busy) onDeleteItems(v.first, v.second, setOf(agentId)) },
+                onOpenModel = { agentId -> onOpenModel(v.first.reportId, agentId) },
             )
             return
         }
@@ -128,10 +128,18 @@ fun BrokenWorkScreen(
         } else {
             LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 itemsIndexed(items, key = { _, b -> "${b.reportId}|${b.kind}|${b.key}" }) { index, batch ->
+                    // A single broken agent (RESPONSES, one item) skips the
+                    // agents list: its card taps straight to the model's
+                    // Model response screen ([batch.key] holds the agentId).
+                    val responsesSingle = batch.kind == BatchFamilyKind.RESPONSES &&
+                        (batch.unfinishedCount + batch.errorCount) == 1
                     BrokenWorkItem(
                         batch, warningGlyph, index,
                         busyKeys = busyKeys,
-                        onOpen = { onOpenReport(batch.reportId) },
+                        onOpen = {
+                            if (responsesSingle) onOpenModel(batch.reportId, batch.key)
+                            else onOpenReport(batch.reportId)
+                        },
                         onView = { mode -> viewing = batch to mode },
                         onRestart = { mode -> onRestart(batch, mode) },
                         onDelete = { mode -> confirmDelete = batch to mode },
@@ -197,7 +205,19 @@ private fun BrokenWorkItem(
                     fontSize = 12.sp, color = AppColors.TextSecondary,
                     maxLines = 1, overflow = TextOverflow.Ellipsis
                 )
-                if (batch.unfinishedCount > 0) {
+                // A single broken agent: plain status line, no action icons —
+                // the whole card taps through to its Model response screen.
+                val responsesSingle = batch.kind == BatchFamilyKind.RESPONSES &&
+                    (batch.unfinishedCount + batch.errorCount) == 1
+                if (responsesSingle) {
+                    Text(
+                        if (batch.errorCount > 0) "1 error" else "1 interrupted",
+                        fontSize = 11.sp,
+                        color = if (batch.errorCount > 0) AppColors.DangerAccent else AppColors.WarningAccent,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+                if (!responsesSingle && batch.unfinishedCount > 0) {
                     val mode = BrokenItemMode.UNFINISHED
                     CountActionLine(
                         text = "${batch.unfinishedCount} ${if (batch.kind == BatchFamilyKind.RESPONSES) "interrupted" else "unfinished"}",
@@ -212,7 +232,7 @@ private fun BrokenWorkItem(
                         onRestart = { onRestart(mode) },
                     )
                 }
-                if (batch.errorCount > 0) {
+                if (!responsesSingle && batch.errorCount > 0) {
                     val mode = BrokenItemMode.ERRORS
                     CountActionLine(
                         text = "${batch.errorCount} error${if (batch.errorCount == 1) "" else "s"}",
@@ -418,27 +438,20 @@ fun BrokenItemsScreen(
     }
 }
 
-/** Detail for a RESPONSES batch: each broken agent (model response) is its
- *  own row with per-row view / restart / delete — the layout the user asked
- *  for, distinct from [BrokenItemsScreen]'s checkbox + bulk model. Agents
- *  act one at a time, matching the per-line actions on the card. Reloads
- *  whenever [busy] flips so a restarted / removed model leaves the list. */
+/** Detail for a RESPONSES batch with more than one broken agent: each model
+ *  is a plain tappable row. Tapping opens that model's Model response screen
+ *  (where the user restarts / removes it) — no per-row icons. */
 @Composable
 fun BrokenAgentsScreen(
     batch: BrokenBatch,
     mode: BrokenItemMode,
     loadItems: suspend (BrokenBatch, BrokenItemMode) -> List<BrokenItemRow>,
-    busy: Boolean,
     onBack: () -> Unit,
-    onView: (String) -> Unit,
-    onRestart: (String) -> Unit,
-    onDelete: (String) -> Unit,
+    onOpenModel: (String) -> Unit,
 ) {
     BackHandler { onBack() }
     var rows by remember(batch, mode) { mutableStateOf<List<BrokenItemRow>?>(null) }
-    var confirmDelete by remember { mutableStateOf<String?>(null) }
-    // Reload on mount and whenever an action finishes (busy true → false).
-    LaunchedEffect(batch, mode, busy) {
+    LaunchedEffect(batch, mode) {
         rows = withContext(Dispatchers.IO) { loadItems(batch, mode) }
     }
     val title = if (mode == BrokenItemMode.ERRORS) "Errored models" else "Interrupted models"
@@ -450,10 +463,11 @@ fun BrokenAgentsScreen(
             subject = "${batch.reportTitle} · ${batch.batchName}",
             onBackClick = onBack,
         )
-        if (busy) {
-            Text("Working...", fontSize = 11.sp, color = AppColors.TextTertiary)
-            Spacer(Modifier.height(6.dp))
-        }
+        Text(
+            "Tap a model to open its Model response screen.",
+            fontSize = 11.sp, color = AppColors.TextTertiary
+        )
+        Spacer(Modifier.height(8.dp))
         when (val list = rows) {
             null -> Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Text("…", color = AppColors.TextTertiary)
@@ -465,34 +479,21 @@ fun BrokenAgentsScreen(
             } else {
                 LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     items(list, key = { it.id }) { row ->
-                        val icons = LocalMetadataIcons.current
                         Card(
                             colors = CardDefaults.cardColors(containerColor = AppColors.CardBackground),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth().clickable { onOpenModel(row.id) }
                         ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(Modifier.weight(1f).padding(end = 6.dp)) {
+                            Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+                                Text(
+                                    row.label, fontSize = 13.sp, color = AppColors.TextPrimary,
+                                    maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                                if (row.detail.isNotBlank()) {
                                     Text(
-                                        row.label, fontSize = 13.sp, color = AppColors.TextPrimary,
-                                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                                        row.detail, fontSize = 11.sp,
+                                        color = if (mode == BrokenItemMode.ERRORS) AppColors.DangerAccent else AppColors.TextSecondary,
+                                        maxLines = 3, overflow = TextOverflow.Ellipsis
                                     )
-                                    if (row.detail.isNotBlank()) {
-                                        Text(
-                                            row.detail, fontSize = 11.sp,
-                                            color = if (mode == BrokenItemMode.ERRORS) AppColors.DangerAccent else AppColors.TextSecondary,
-                                            maxLines = 3, overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                                if (busy) {
-                                    Text("Working...", fontSize = 11.sp, color = AppColors.TextTertiary)
-                                } else {
-                                    IconGlyph(icons.view) { onView(row.id) }
-                                    IconGlyph(icons.delete) { confirmDelete = row.id }
-                                    IconGlyph(icons.reload) { onRestart(row.id) }
                                 }
                             }
                         }
@@ -500,20 +501,6 @@ fun BrokenAgentsScreen(
                 }
             }
         }
-    }
-
-    confirmDelete?.let { agentId ->
-        AlertDialog(
-            onDismissRequest = { confirmDelete = null },
-            title = { Text("Delete this model?") },
-            text = { Text("Drops the model's row from the report. No API calls are made.") },
-            confirmButton = {
-                TextButton(onClick = { onDelete(agentId); confirmDelete = null }) {
-                    Text("Delete", color = AppColors.DangerAccent)
-                }
-            },
-            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel") } }
-        )
     }
 }
 

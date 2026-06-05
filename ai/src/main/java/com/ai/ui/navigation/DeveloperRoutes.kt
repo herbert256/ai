@@ -811,12 +811,13 @@ internal fun NavGraphBuilder.developerRoutes(
                 onDeleteItems = { batch, mode, rowIds ->
                     launchBrokenWorkAction(batch, mode, restart = false, rowIds = rowIds)
                 },
-                onViewAgent = { reportId, _ ->
-                    // Open the report so the user can see the model in context.
+                onOpenModel = { reportId, agentId ->
+                    // Tap a broken agent → its Model response screen (restore
+                    // the report first, like opening it to manage).
                     com.ai.data.LastReportTracker.record(reportId, view = false)
                     brokenWorkScope.launch {
                         reportViewModel.restoreCompletedReport(brokenWorkContext, reportId)
-                        navController.navigate(NavRoutes.aiReportManage())
+                        navController.navigate(NavRoutes.aiReportModel(reportId, agentId))
                     }
                 },
                 loadItems = { batch, mode -> loadBrokenItems(brokenWorkContext, batch, mode) },
