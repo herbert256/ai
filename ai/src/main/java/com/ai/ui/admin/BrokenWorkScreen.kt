@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ai.data.SecondaryKind
+import com.ai.data.SecondaryResult
 import com.ai.data.SecondaryResultStorage
 import com.ai.ui.shared.AppColors
 import com.ai.ui.shared.LocalMetadataIcons
@@ -33,14 +34,6 @@ enum class BrokenItemMode { UNFINISHED, ERRORS }
 
 /** One row in the [BrokenItemsScreen] detail list. */
 data class BrokenItemRow(val id: String, val label: String, val detail: String)
-
-/** Batch families that carry per-line view/delete/restart actions. The
- *  others (Regenerate, single Meta/Rerank/Moderation) are surfaced for
- *  visibility only — tap the card to open the report. */
-private val ACTIONABLE_KINDS = setOf(
-    BatchFamilyKind.FAN_OUT, BatchFamilyKind.FAN_META, BatchFamilyKind.TOURNAMENT,
-    BatchFamilyKind.JUDGES, BatchFamilyKind.COMPARE, BatchFamilyKind.TRANSLATION,
-)
 
 /** Full-screen list of batches that carry work needing attention —
  *  unfinished (stranded by an app-kill) and/or errored items — that the
@@ -142,7 +135,8 @@ private fun BrokenWorkItem(
     onDelete: (BrokenItemMode) -> Unit,
 ) {
     val background = if (index % 2 == 0) AppColors.CardBackground else AppColors.CardBackgroundAlt
-    val actionable = batch.kind in ACTIONABLE_KINDS
+    // Regenerate has no item list to open; every other kind does.
+    val canView = batch.kind != BatchFamilyKind.REGENERATE
     Card(
         colors = CardDefaults.cardColors(containerColor = background),
         modifier = Modifier.fillMaxWidth().clickable(onClick = onOpen)
@@ -168,7 +162,7 @@ private fun BrokenWorkItem(
                     CountActionLine(
                         text = "${batch.unfinishedCount} unfinished",
                         color = AppColors.WarningAccent,
-                        actionable = actionable,
+                        canView = canView,
                         // Fan Meta "unfinished" is a fan-out pair missing its
                         // title/icon — there's no item row to delete.
                         canDelete = batch.kind != BatchFamilyKind.FAN_META,
@@ -181,11 +175,21 @@ private fun BrokenWorkItem(
                     CountActionLine(
                         text = "${batch.errorCount} error${if (batch.errorCount == 1) "" else "s"}",
                         color = AppColors.DangerAccent,
-                        actionable = actionable,
+                        canView = canView,
                         canDelete = true,
                         onView = { onView(BrokenItemMode.ERRORS) },
                         onDelete = { onDelete(BrokenItemMode.ERRORS) },
                         onRestart = { onRestart(BrokenItemMode.ERRORS) },
+                    )
+                }
+                // Single-item entries (one secondary, a one-error batch, or a
+                // paused regenerate) show their failure message inline.
+                batch.errorMessage?.let { msg ->
+                    Text(
+                        msg, fontSize = 11.sp, color = AppColors.DangerAccent,
+                        fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp)
                     )
                 }
                 Text(
@@ -201,7 +205,7 @@ private fun BrokenWorkItem(
 private fun CountActionLine(
     text: String,
     color: Color,
-    actionable: Boolean,
+    canView: Boolean,
     canDelete: Boolean,
     onView: () -> Unit,
     onDelete: () -> Unit,
@@ -210,11 +214,9 @@ private fun CountActionLine(
     val icons = LocalMetadataIcons.current
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 2.dp)) {
         Text(text, fontSize = 11.sp, color = color, modifier = Modifier.weight(1f))
-        if (actionable) {
-            IconGlyph(icons.view, onView)
-            if (canDelete) IconGlyph(icons.delete, onDelete)
-            IconGlyph(icons.reload, onRestart)
-        }
+        if (canView) IconGlyph(icons.view, onView)
+        if (canDelete) IconGlyph(icons.delete, onDelete)
+        IconGlyph(icons.reload, onRestart)
     }
 }
 
@@ -278,7 +280,8 @@ fun BrokenItemsScreen(
                                 )
                                 if (row.detail.isNotBlank()) {
                                     Text(
-                                        row.detail, fontSize = 11.sp, color = AppColors.TextSecondary,
+                                        row.detail, fontSize = 11.sp,
+                                        color = if (mode == BrokenItemMode.ERRORS) AppColors.DangerAccent else AppColors.TextSecondary,
                                         maxLines = 3, overflow = TextOverflow.Ellipsis
                                     )
                                 }
@@ -305,14 +308,16 @@ fun BrokenItemsScreen(
     }
 }
 
-/** Read the individual rows of one [batch] in one [mode] from disk, for the
- *  detail screen. Mirrors the per-kind predicates the scan
- *  (SecondaryRunManager.detectBrokenBatchesForReport) groups by. Pure disk
- *  read — call off the main thread. */
-fun loadBrokenItems(context: Context, batch: BrokenBatch, mode: BrokenItemMode): List<BrokenItemRow> {
+/** The individual SecondaryResult rows of one [batch] in one [mode], read
+ *  from disk. Mirrors the per-kind predicates the scan
+ *  (SecondaryRunManager.detectBrokenBatchesForReport) groups by — the one
+ *  place that knows which rows belong to a batch, reused by the detail
+ *  screen and the OTHER recovery dispatch. Pure disk read — call off the
+ *  main thread. */
+fun matchingBrokenRows(context: Context, batch: BrokenBatch, mode: BrokenItemMode): List<SecondaryResult> {
     val rows = SecondaryResultStorage.listForReport(context, batch.reportId)
     val errors = mode == BrokenItemMode.ERRORS
-    val matching = rows.filter { r ->
+    return rows.filter { r ->
         val inBatch = when (batch.kind) {
             BatchFamilyKind.FAN_OUT, BatchFamilyKind.FAN_META ->
                 r.kind == SecondaryKind.META && r.fanOutSourceAgentId != null && r.fanInOf == null &&
@@ -321,7 +326,10 @@ fun loadBrokenItems(context: Context, batch: BrokenBatch, mode: BrokenItemMode):
             BatchFamilyKind.JUDGES -> r.kind == SecondaryKind.JUDGES && r.tournamentRole == "MATCH"
             BatchFamilyKind.COMPARE -> r.kind == SecondaryKind.COMPARE
             BatchFamilyKind.TRANSLATION -> r.kind == SecondaryKind.TRANSLATE && r.translationRunId == batch.key
-            else -> false
+            BatchFamilyKind.OTHER ->
+                r.fanOutSourceAgentId == null && r.fanInOf == null && r.translationRunId == null &&
+                    (r.kind == SecondaryKind.META || r.kind == SecondaryKind.RERANK || r.kind == SecondaryKind.MODERATION)
+            BatchFamilyKind.REGENERATE -> false
         }
         if (!inBatch) return@filter false
         if (batch.kind == BatchFamilyKind.FAN_META) {
@@ -334,7 +342,12 @@ fun loadBrokenItems(context: Context, batch: BrokenBatch, mode: BrokenItemMode):
             else r.content.isNullOrBlank() && r.errorMessage == null && r.durationMs == null
         }
     }
-    return matching.map { r ->
+}
+
+/** Display rows for the [BrokenItemsScreen] detail list. */
+fun loadBrokenItems(context: Context, batch: BrokenBatch, mode: BrokenItemMode): List<BrokenItemRow> {
+    val errors = mode == BrokenItemMode.ERRORS
+    return matchingBrokenRows(context, batch, mode).map { r ->
         val label = r.model.ifBlank { r.agentName }.ifBlank { "item" }
         val detail = if (errors) {
             if (batch.kind == BatchFamilyKind.FAN_META) (r.titleErrorMessage ?: r.iconErrorMessage ?: "")

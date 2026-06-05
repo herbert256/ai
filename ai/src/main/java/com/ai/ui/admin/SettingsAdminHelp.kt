@@ -158,7 +158,7 @@ internal val settingsAdminHelp: Map<String, HelpContent> = mapOf(
             HelpCard("Overview", "One card per batch that needs attention. A background scan checks every report from the last 7 days at app start and every 30 seconds; while anything needs attention the top-bar AI logo is replaced by a ⚠️ that opens this screen."),
             HelpCard("Two states", "Each card shows up to two lines: unfinished (items stranded by an app-kill — started but never finished) and errors (items that failed). The count is per batch run — one fan-out prompt, one translation language, one tournament, and so on."),
             HelpCard("Actions", "Each line carries view / delete / restart. View opens the list of those items. Delete drops them (no API calls; finished items are kept). Restart re-fires errored items or re-dispatches unfinished ones. Fan Meta unfinished can't be deleted — the underlying answer stays."),
-            HelpCard("Coverage", "Covers all six batch families — Fan Out, Fan Meta, Tournament, Judge the judges, Compare, and Translation — plus a stalled regenerate job and single Meta / Rerank / Moderation calls (tap the card to open those). A card drops off once its work is cleared, on the next scan."),
+            HelpCard("Coverage", "Covers all six batch families — Fan Out, Fan Meta, Tournament, Judge the judges, Compare, and Translation — plus a stalled regenerate job and single Meta / Rerank / Moderation calls, which carry delete / restart too (a single-item entry shows its error message right on the card; regenerate has no item list, so no view). A card drops off once its work is cleared, on the next scan."),
         )
     ),
     "broken_items" to HelpContent(

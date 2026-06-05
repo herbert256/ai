@@ -636,13 +636,17 @@ class SecondaryRunManager(
         class Acc(val kind: BatchFamilyKind, val key: String, val name: String) {
             var unfinished = 0
             var errors = 0
+            var lastError: String? = null
         }
         val groups = LinkedHashMap<String, Acc>()
-        fun tally(kind: BatchFamilyKind, key: String, name: String, unfinished: Boolean, error: Boolean) {
+        fun tally(
+            kind: BatchFamilyKind, key: String, name: String,
+            unfinished: Boolean, error: Boolean, errorMsg: String? = null,
+        ) {
             if (!unfinished && !error) return
             val g = groups.getOrPut("$kind|$key") { Acc(kind, key, name) }
             if (unfinished) g.unfinished++
-            if (error) g.errors++
+            if (error) { g.errors++; if (!errorMsg.isNullOrBlank()) g.lastError = errorMsg }
         }
         fun interrupted(row: SecondaryResult) =
             row.content.isNullOrBlank() && row.errorMessage == null &&
@@ -657,47 +661,57 @@ class SecondaryRunManager(
                     val mp = row.metaPromptId ?: return@forEach
                     val name = row.metaPromptName?.takeIf { it.isNotBlank() } ?: mp
                     tally(BatchFamilyKind.FAN_OUT, "$reportId|$mp", "Fan Out · $name",
-                        interrupted(row), errored(row))
+                        interrupted(row), errored(row), row.errorMessage)
                     val responseDone = !row.content.isNullOrBlank() || row.durationMs != null
                     if (responseDone) {
                         val fmError = !row.titleErrorMessage.isNullOrBlank() || !row.iconErrorMessage.isNullOrBlank()
                         val fmUnfinished = row.title.isNullOrBlank() && row.icon.isNullOrBlank() &&
                             !fmError && row.id !in runningFanMeta
                         tally(BatchFamilyKind.FAN_META, "$reportId|$mp", "Fan Meta · $name",
-                            fmUnfinished, fmError)
+                            fmUnfinished, fmError, row.titleErrorMessage ?: row.iconErrorMessage)
                     }
                 }
                 row.kind == SecondaryKind.TOURNAMENT && row.tournamentRole == "MATCH" ->
-                    tally(BatchFamilyKind.TOURNAMENT, reportId, "Tournament", interrupted(row), errored(row))
+                    tally(BatchFamilyKind.TOURNAMENT, reportId, "Tournament", interrupted(row), errored(row), row.errorMessage)
                 row.kind == SecondaryKind.JUDGES && row.tournamentRole == "MATCH" ->
-                    tally(BatchFamilyKind.JUDGES, reportId, "Judges", interrupted(row), errored(row))
+                    tally(BatchFamilyKind.JUDGES, reportId, "Judges", interrupted(row), errored(row), row.errorMessage)
                 row.kind == SecondaryKind.COMPARE ->
-                    tally(BatchFamilyKind.COMPARE, reportId, "Compare", interrupted(row), errored(row))
+                    tally(BatchFamilyKind.COMPARE, reportId, "Compare", interrupted(row), errored(row), row.errorMessage)
                 row.kind == SecondaryKind.TRANSLATE && row.translationRunId != null -> {
                     val runId = row.translationRunId!!
                     // Stranded only once its run is no longer active (mirrors the
                     // old translation classifier); errored rows always count.
                     val unfinished = interrupted(row) && runId !in activeTranslationRunIds
                     val lang = row.targetLanguage?.takeIf { it.isNotBlank() } ?: "?"
-                    tally(BatchFamilyKind.TRANSLATION, runId, "Translation · $lang", unfinished, errored(row))
+                    tally(BatchFamilyKind.TRANSLATION, runId, "Translation · $lang", unfinished, errored(row), row.errorMessage)
                 }
                 row.fanOutSourceAgentId == null && row.fanInOf == null && row.translationRunId == null &&
                     (row.kind == SecondaryKind.META || row.kind == SecondaryKind.RERANK ||
                         row.kind == SecondaryKind.MODERATION) ->
                     tally(BatchFamilyKind.OTHER, reportId, "Meta / Rerank / Moderation",
-                        interrupted(row), errored(row))
+                        interrupted(row), errored(row), row.errorMessage)
             }
         }
 
         val batches = groups.values.map {
             BrokenBatch(reportId, report.title, it.kind, it.key, it.name,
-                it.unfinished, it.errors, report.timestamp)
+                it.unfinished, it.errors, report.timestamp,
+                // Inline message only when the entry is a single errored item.
+                errorMessage = if (it.errors == 1 && it.unfinished == 0) it.lastError else null)
         }.toMutableList()
 
-        // Stalled regenerate job — one synthetic entry (Boolean detector).
+        // Stalled regenerate job — one synthetic entry. PAUSED_ON_ERROR reads
+        // as an error (with a message); a dead-orchestrator RUNNING job reads
+        // as interrupted/unfinished.
         if (rvm.regenerateBatchEngine.detectBroken(context, reportId)) {
+            val paused = com.ai.data.RegenerateBatchStorage.get(context, reportId)?.status ==
+                com.ai.data.RegenerateJobStatus.PAUSED_ON_ERROR
             batches.add(BrokenBatch(reportId, report.title, BatchFamilyKind.REGENERATE, reportId,
-                "Regenerate", unfinishedCount = 1, errorCount = 0, timestamp = report.timestamp))
+                "Regenerate",
+                unfinishedCount = if (paused) 0 else 1,
+                errorCount = if (paused) 1 else 0,
+                timestamp = report.timestamp,
+                errorMessage = if (paused) "Paused on an error" else "Interrupted mid-run"))
         }
         return batches
     }

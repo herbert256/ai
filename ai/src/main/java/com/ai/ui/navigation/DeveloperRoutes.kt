@@ -111,7 +111,16 @@ private suspend fun recoverBrokenBatch(
                 else rvm.translation.removeUnfinishedTranslations(context, rid, batch.key)
             }
         }
-        else -> Unit  // REGENERATE / OTHER — not actionable from here
+        BatchFamilyKind.REGENERATE -> {
+            if (restart) rvm.regenerateBatchEngine.restart(context, rid)
+            else rvm.regenerateBatchEngine.deleteJob(context, rid)
+        }
+        BatchFamilyKind.OTHER -> {
+            // Single Meta/Rerank/Moderation calls — act per matching row.
+            val targets = matchingBrokenRows(context, batch, mode)
+            if (restart) targets.forEach { rvm.secondary.resumeStaleMetaPlaceholder(context, rid, it) }
+            else rvm.secondary.bulkDeleteSecondaryResults(context, rid, targets.map { it.id })
+        }
     }
 }
 

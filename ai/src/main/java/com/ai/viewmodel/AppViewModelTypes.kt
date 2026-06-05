@@ -63,6 +63,10 @@ data class BrokenBatch(
     val unfinishedCount: Int,
     val errorCount: Int,
     val timestamp: Long,
+    /** Inline failure message shown on the card when the entry is a single
+     *  errored item (one secondary, or a batch with exactly one error), or
+     *  a paused/interrupted regenerate job. Null otherwise. */
+    val errorMessage: String? = null,
 )
 
 /** How combined provider+model labels render across UI rows.
