@@ -304,9 +304,12 @@ internal fun FanMetaL1Screen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Top progress bar — the title batch.
-        val pending = queuedCount + runningCount
-        if (pending > 0 && run.totalPairs > 0) {
+        // Top progress bar — the title batch. Keep it up while throttled or
+        // benched pairs are still outstanding (carved out of Run/Queue), else
+        // it hides with work remaining and the run reads as complete.
+        // Mirrors TranslationL1.
+        val pending = queuedCount + runningCount + throttledHere
+        if ((pending > 0 || benchCount > 0) && run.totalPairs > 0) {
             val finished = (doneCount + errorCount).toFloat() / run.totalPairs
             LinearProgressIndicator(
                 progress = { finished },
@@ -352,7 +355,7 @@ internal fun FanMetaL1Screen(
         }
         val isMetaModels = metaGroupMode == FanMetaGroupMode.META_MODELS
         val metaMaxDone = (l1Rows.maxOfOrNull { it.metaDone } ?: 0).coerceAtLeast(1)
-        val metaShowBars = isMetaModels && (queuedCount + runningCount > 0)
+        val metaShowBars = isMetaModels && (queuedCount + runningCount + throttledHere > 0 || benchCount > 0)
         LazyColumn(modifier = Modifier.weight(1f)) {
             items(l1Rows, key = { it.key }) { row ->
               if (isMetaModels) {

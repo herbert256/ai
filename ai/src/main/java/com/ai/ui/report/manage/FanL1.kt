@@ -227,9 +227,13 @@ internal fun FanOutL1Screen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Top progress bar — the fan-out responses.
-        val pending = queuedCount + runningCount
-        if (pending > 0 && run.totalPairs > 0) {
+        // Top progress bar — the fan-out responses. Keep it up while
+        // throttled (rate-gated) or benched (model on cooldown) pairs are
+        // still outstanding: they're carved out of Run/Queue, so without this
+        // the bar hides with work remaining and the run reads as complete.
+        // Mirrors TranslationL1.
+        val pending = queuedCount + runningCount + throttledHere
+        if ((pending > 0 || benchCount > 0) && run.totalPairs > 0) {
             val finished = (doneCount + errorCount).toFloat() / run.totalPairs
             LinearProgressIndicator(
                 progress = { finished },

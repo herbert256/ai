@@ -420,7 +420,17 @@ class CompareEngine internal constructor(
 
     fun resumeStaleRunsForReport(context: Context, reportId: String, resetAttempts: Boolean = false): Job =
         appViewModel.viewModelScope.launch(Dispatchers.IO) {
-            hydrate(context, reportId)
+            // hydrate runs before the scan guard, so it needs its own guard —
+            // this launch is a direct child of viewModelScope, so an uncaught
+            // throw here reaches the global handler and crashes the app.
+            try {
+                hydrate(context, reportId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                AppLog.w("Compare", "hydrate failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
+                return@launch
+            }
             if (!resumeScans.add(reportId)) return@launch
             try {
                 val run = _runs.value[reportId] ?: return@launch
@@ -452,6 +462,13 @@ class CompareEngine internal constructor(
                 withTracerTags(reportId = reportId, category = TRACE_CATEGORY) {
                     dispatchCells(context, reportId, prompt, report.prompt, report.title, pending)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // Direct child of viewModelScope — contain the throw so a
+                // failed resume leaves the run as-is instead of crashing the
+                // app (the background sweep only join()s this Job).
+                AppLog.w("Compare", "resume stale runs failed report=$reportId: ${e.javaClass.simpleName}: ${e.message}")
             } finally {
                 resumeScans.remove(reportId)
             }
